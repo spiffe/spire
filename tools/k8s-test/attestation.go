@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	reSignedX509 = regexp.MustCompile(`Signed x509 SVID \\"(spiffe://[^/]*/spire/agent/.+)\\"`)
+	reSignedX509 = regexp.MustCompile(`\"Signed X509 SVID\"\s.+spiffe_id=\"(spiffe://[^/]+/spire/agent/[^"]+)\"`)
 )
 
 func WaitForNodeAttestation(ctx context.Context, server Object, count int) error {
@@ -27,16 +27,18 @@ func WaitForNodeAttestation(ctx context.Context, server Object, count int) error
 	go func() {
 		scanner := bufio.NewScanner(pr)
 		for scanner.Scan() {
-			if m := reSignedX509.FindStringSubmatch(scanner.Text()); m != nil {
-				nodeID := m[1]
-				if !svids[nodeID] {
-					svids[nodeID] = true
-					Goodln("node %q attested", nodeID)
-					if len(svids) >= count {
-						errch <- nil
-						cancel()
-						return
-					}
+			nodeID, ok := parseAttestedNodeID(scanner.Text())
+			if !ok {
+				continue
+			}
+
+			if !svids[nodeID] {
+				svids[nodeID] = true
+				Goodln("node %q attested", nodeID)
+				if len(svids) >= count {
+					errch <- nil
+					cancel()
+					return
 				}
 			}
 		}
@@ -60,4 +62,11 @@ func WaitForNodeAttestation(ctx context.Context, server Object, count int) error
 	}
 
 	return nil
+}
+
+func parseAttestedNodeID(line string) (nodeID string, ok bool) {
+	if m := reSignedX509.FindStringSubmatch(line); m != nil {
+		return m[1], true
+	}
+	return "", false
 }

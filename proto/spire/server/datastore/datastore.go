@@ -34,8 +34,10 @@ type DataStore interface {
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
+	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
 	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
+	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
 	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
 	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
@@ -63,8 +65,10 @@ type Plugin interface {
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
+	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
 	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
+	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
 	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
 	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
@@ -192,12 +196,20 @@ func (a pluginClientAdapter) ListRegistrationEntries(ctx context.Context, in *Li
 	return a.client.ListRegistrationEntries(ctx, in)
 }
 
+func (a pluginClientAdapter) PruneBundle(ctx context.Context, in *PruneBundleRequest) (*PruneBundleResponse, error) {
+	return a.client.PruneBundle(ctx, in)
+}
+
 func (a pluginClientAdapter) PruneJoinTokens(ctx context.Context, in *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error) {
 	return a.client.PruneJoinTokens(ctx, in)
 }
 
 func (a pluginClientAdapter) PruneRegistrationEntries(ctx context.Context, in *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error) {
 	return a.client.PruneRegistrationEntries(ctx, in)
+}
+
+func (a pluginClientAdapter) SetBundle(ctx context.Context, in *SetBundleRequest) (*SetBundleResponse, error) {
+	return a.client.SetBundle(ctx, in)
 }
 
 func (a pluginClientAdapter) SetNodeSelectors(ctx context.Context, in *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error) {

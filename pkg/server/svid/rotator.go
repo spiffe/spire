@@ -6,10 +6,11 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"time"
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
@@ -62,7 +63,7 @@ func (r *rotator) Run(ctx context.Context) error {
 		case <-t.C:
 			if r.shouldRotate() {
 				if err := r.rotateSVID(ctx); err != nil {
-					r.c.Log.Errorf("Could not rotate server SVID: %v", err)
+					r.c.Log.WithError(err).Error("Could not rotate server SVID")
 				}
 			}
 		}
@@ -78,16 +79,14 @@ func (r *rotator) shouldRotate() bool {
 		return true
 	}
 
-	ttl := s.SVID[0].NotAfter.Sub(r.c.Clock.Now())
-	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
-
-	return (ttl < watermark)
+	return r.c.Clock.Now().After(certHalfLife(s.SVID[0]))
 }
 
 // rotateSVID cuts a new server SVID from the CA plugin and installs
 // it on the endpoints struct. Also updates the CA certificates.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	defer telemetry.CountCall(r.c.Metrics, "svid", "rotate")(&err)
+	counter := telemetry_server.StartRotateServerSVIDCall(r.c.Metrics)
+	defer counter.Done(&err)
 	r.c.Log.Debug("Rotating server SVID")
 
 	id := idutil.ServerURI(r.c.TrustDomain.Host)
@@ -103,7 +102,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	}
 
 	// Sign the CSR
-	svid, err := r.c.ServerCA.SignX509SVID(ctx, csr, ca.X509Params{})
+	svid, err := r.c.ServerCA.SignServerX509SVID(ctx, csr, ca.X509Params{})
 	if err != nil {
 		return err
 	}
@@ -115,4 +114,8 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 
 	r.state.Update(s)
 	return nil
+}
+
+func certHalfLife(cert *x509.Certificate) time.Time {
+	return cert.NotBefore.Add(cert.NotAfter.Sub(cert.NotBefore) / 2)
 }

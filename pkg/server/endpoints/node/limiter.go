@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc/peer"
@@ -145,7 +146,7 @@ func (l *limiter) callerID(ctx context.Context) (string, error) {
 
 	addr, _, err := net.SplitHostPort(p.Addr.String())
 	if err != nil || addr == "" {
-		l.log.Errorf("limiter: could not determine client ip in string %v", p.Addr.String())
+		l.log.WithField(telemetry.Address, p.Addr.String()).Error("limiter: could not determine client ip from given address")
 		return "", limiterErr
 	}
 
@@ -174,5 +175,8 @@ func (l *limiter) notify(callerID string, msgType int) {
 		action = "do a questionable thing"
 	}
 
-	l.log.Infof("%v is being ratelimited while attempting to %v", callerID, action)
+	l.log.WithFields(logrus.Fields{
+		telemetry.CallerID: callerID,
+		telemetry.Action:   action,
+	}).Info("caller is being ratelimited while attempting action")
 }

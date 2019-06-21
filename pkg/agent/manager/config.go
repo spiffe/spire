@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -55,7 +55,7 @@ func New(c *Config) (*manager, error) {
 		c.Clk = clock.New()
 	}
 
-	cache := cache.New(c.Log, c.TrustDomain.String(), c.Bundle)
+	cache := cache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain.String(), c.Bundle, c.Metrics)
 
 	rotCfg := &svid.RotatorConfig{
 		Catalog:      c.Catalog,

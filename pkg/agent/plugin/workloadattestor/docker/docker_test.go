@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -13,6 +14,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/clock"
 	filesystem_mock "github.com/spiffe/spire/test/mock/common/filesystem"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -186,6 +188,7 @@ func TestDockerError(t *testing.T) {
 	p := New()
 	p.docker = mockDocker
 	p.fs = mockFS
+	p.retryer = disabledRetryer
 
 	cgroupFile, cleanup := newTestFile(t, "1:foo:/bar")
 	defer cleanup()
@@ -197,6 +200,74 @@ func TestDockerError(t *testing.T) {
 	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "docker error")
+	require.Nil(t, res)
+}
+
+func TestDockerErrorRetries(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockDocker := NewMockDockerClient(mockCtrl)
+	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
+	mockClock := clock.NewMock(t)
+
+	p := New()
+	p.docker = mockDocker
+	p.fs = mockFS
+	p.retryer.clock = mockClock
+
+	cgroupFile, cleanup := newTestFile(t, "1:foo:/bar")
+	defer cleanup()
+	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
+	mockDocker.EXPECT().
+		ContainerInspect(gomock.Any(), "bar").
+		Return(types.ContainerJSON{}, errors.New("docker error")).
+		Times(4)
+
+	go func() {
+		mockClock.WaitForAfter(time.Second, "never got call to 'after' 1")
+		mockClock.Add(100 * time.Millisecond)
+		mockClock.WaitForAfter(time.Second, "never got call to 'after' 2")
+		mockClock.Add(200 * time.Millisecond)
+		mockClock.WaitForAfter(time.Second, "never got call to 'after' 3")
+		mockClock.Add(400 * time.Millisecond)
+	}()
+
+	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "docker error")
+	require.Nil(t, res)
+}
+
+func TestDockerErrorContextCancel(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockDocker := NewMockDockerClient(mockCtrl)
+	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
+	mockClock := clock.NewMock(t)
+
+	p := New()
+	p.docker = mockDocker
+	p.fs = mockFS
+	p.retryer.clock = mockClock
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cgroupFile, cleanup := newTestFile(t, "1:foo:/bar")
+	defer cleanup()
+	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
+	mockDocker.EXPECT().
+		ContainerInspect(gomock.Any(), "bar").
+		Return(types.ContainerJSON{}, errors.New("docker error"))
+
+	go func() {
+		mockClock.WaitForAfter(time.Second, "never got call to 'after'")
+		// cancel the context after the first call
+		cancel()
+	}()
+
+	res, err := doAttestWithContext(t, ctx, p, &workloadattestor.AttestRequest{Pid: 123})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "context canceled")
 	require.Nil(t, res)
 }
 
@@ -234,10 +305,14 @@ func TestDockerConfigDefault(t *testing.T) {
 }
 
 func doAttest(t *testing.T, p *DockerPlugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+	return doAttestWithContext(t, context.Background(), p, req)
+}
+
+func doAttestWithContext(t *testing.T, ctx context.Context, p *DockerPlugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	var wp workloadattestor.Plugin
 	done := spiretest.LoadPlugin(t, builtin(p), &wp)
 	defer done()
-	return wp.Attest(context.Background(), req)
+	return wp.Attest(ctx, req)
 }
 
 func doConfigure(t *testing.T, p *DockerPlugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {

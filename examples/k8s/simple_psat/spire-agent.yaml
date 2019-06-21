@@ -6,6 +6,34 @@ metadata:
 
 ---
 
+# Required cluster role to allow spire-agent to query k8s API server
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-agent-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["pods","nodes"]
+  verbs: ["get"]
+
+---
+
+# Binds above cluster role to spire-agent service account
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-agent-cluster-role-binding
+subjects:
+- kind: ServiceAccount
+  name: spire-agent
+  namespace: spire
+roleRef:
+  kind: ClusterRole
+  name: spire-agent-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -92,7 +120,7 @@ spec:
           args: ["-t", "30", "spire-server:8081"]
       containers:
         - name: spire-agent
-          image: gcr.io/spiffe-io/spire-agent:0.7.3
+          image: gcr.io/spiffe-io/spire-agent:0.8.0
           args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:
             - name: spire-config

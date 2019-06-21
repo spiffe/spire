@@ -48,9 +48,10 @@ const (
 
 	otherDomainID = "spiffe://otherdomain.test"
 
-	serverID   = "spiffe://example.org/spire/server"
-	agentID    = "spiffe://example.org/spire/agent/test/id"
-	workloadID = "spiffe://example.org/workload"
+	serverID     = "spiffe://example.org/spire/server"
+	agentID      = "spiffe://example.org/spire/agent/test/id"
+	downstreamID = "spiffe://example.org/downstream"
+	workloadID   = "spiffe://example.org/workload"
 
 	// used to cancel stream operations on test failure instead of blocking the
 	// full go test timeout period (i.e. 10 minutes)
@@ -91,7 +92,8 @@ type HandlerSuite struct {
 	clock            *clock.Mock
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
-	serverCA         *fakeserverca.ServerCA
+	downstreamSVID   []*x509.Certificate
+	serverCA         *fakeserverca.CA
 }
 
 func (s *HandlerSuite) SetupTest() {
@@ -116,6 +118,7 @@ func (s *HandlerSuite) SetupTest() {
 	// Create server and agent SVIDs for TLS communication
 	serverSVID := s.makeSVID(serverID)
 	s.agentSVID = s.makeSVID(agentID)
+	s.downstreamSVID = s.makeSVID(downstreamID)
 
 	handler := NewHandler(HandlerConfig{
 		Log:         log,
@@ -300,7 +303,7 @@ func (s *HandlerSuite) TestAttestSuccess() {
 	// assert update contents
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd, otherDomainBundle)
-	svidChain := s.assertSVIDsInUpdate(upd, agentID)[0]
+	svidChain := s.assertSVIDsInUpdate(upd, map[string]string{agentID: agentID})[0]
 
 	// Assert an attested node entry has been created
 	attestedNode := s.fetchAttestedNode(agentID)
@@ -504,6 +507,15 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
 	s.requireFetchX509SVIDAuthFailure()
 }
 
+func (s *HandlerSuite) TestFetchX509SVIDWithCurrentAndLegacyCSRs() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		Csrs:           map[string][]byte{"an-entry-id": []byte("MALFORMED")},
+		DEPRECATEDCsrs: [][]byte{[]byte{1, 2, 3}},
+	}, codes.Unknown, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
+}
+
 func (s *HandlerSuite) TestFetchX509SVIDLimits() {
 	s.attestAgent()
 
@@ -515,7 +527,24 @@ func (s *HandlerSuite) TestFetchX509SVIDLimits() {
 
 	// Test with 5 CSRs (5 count should be added)
 	s.limiter.setNextError(errors.New("limit exceeded"))
-	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: make([][]byte, 5)},
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: map[string][]byte{
+		"foo": []byte{1}, "bar": []byte{2}, "boo": []byte{3}, "far": []byte{4}, "bor": []byte{5}},
+	}, codes.ResourceExhausted, "limit exceeded")
+	s.Equal(5, s.limiter.callsFor(CSRMsg))
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDLimitsLegacy() {
+	s.attestAgent()
+
+	// Test with no CSRs (no count should be added)
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{},
+		codes.ResourceExhausted, "limit exceeded")
+	s.Equal(0, s.limiter.callsFor(CSRMsg))
+
+	// Test with 5 deprecated CSRs(5 count should be added)
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{DEPRECATEDCsrs: make([][]byte, 5)},
 		codes.ResourceExhausted, "limit exceeded")
 	s.Equal(5, s.limiter.callsFor(CSRMsg))
 }
@@ -546,7 +575,16 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: [][]byte{[]byte("MALFORMED")},
+		Csrs: map[string][]byte{"an-entry-id": []byte("MALFORMED")},
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains("failed to parse CSR")
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSRLegacy() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: [][]byte{[]byte("MALFORMED")},
 	}, codes.Unknown, "failed to sign CSRs")
 	s.assertLastLogMessageContains("failed to parse CSR")
 }
@@ -555,21 +593,51 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs("an-entry-id", workloadID),
 	}, codes.Unknown, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for "spiffe://example.org/workload"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org/workload"`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
 	s.attestAgent()
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(agentID),
+		// Since there is not a registration entry for the agent ID, spiffeID is used as key
+		Csrs: s.makeCSRs(agentID, agentID),
 	})
 
 	s.Empty(upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	svidChain := s.assertSVIDsInUpdate(upd, agentID)[0]
+	svidChain := s.assertSVIDsInUpdate(upd, map[string]string{agentID: agentID})[0]
+
+	// Assert an attested node entry has been updated
+	attestedNode := s.fetchAttestedNode(agentID)
+	s.Require().NotNil(attestedNode)
+	s.Equal("test", attestedNode.AttestationDataType)
+	s.Equal(agentID, attestedNode.SpiffeId)
+	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSRLegacy() {
+	s.attestAgent()
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(agentID),
+	})
+
+	s.Empty(upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	svidChain := s.assertSVIDsInUpdateLegacy(upd, agentID)[0]
 
 	// Assert an attested node entry has been updated
 	attestedNode := s.fetchAttestedNode(agentID)
@@ -590,40 +658,58 @@ func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
 	s.requireFetchX509SVIDAuthFailure()
 }
 
-func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedDownstreamCSR() {
+func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs("spiffe://example.org"),
+		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
 	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(trustDomainID),
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org"`)
+}
+
+func (s *HandlerSuite) TestFetchX509CASVIDWithUnauthorizedDownstreamCSR() {
+	s.attestAgent()
+
+	_, err := s.attestedClient.FetchX509CASVID(context.Background(), &node.FetchX509CASVIDRequest{
+		Csr: s.makeCSR(trustDomainID),
+	})
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 	s.assertLastLogMessageContains(`"spiffe://example.org/spire/agent/test/id" is not an authorized downstream workload`)
 }
 
-func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
+func (s *HandlerSuite) TestFetchX509CASVID() {
 	s.attestAgent()
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
 		Downstream: true,
-		DnsNames:   []string{"ca-dns1"},
+		// add a DNS name. we'll assert it does not influence the CA certificate.
+		DnsNames: []string{"ca-dns1"},
 	})
 
-	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(trustDomainID),
+	resp, err := s.attestedClient.FetchX509CASVID(context.Background(), &node.FetchX509CASVIDRequest{
+		Csr: s.makeCSR(trustDomainID),
 	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.Svid)
+	s.Require().NotNil(resp.Bundle)
 
-	// Downstream responses don't contain the downstream registration entry
-	// since downstream entries aren't intended for workloads.
-	s.Empty(upd.RegistrationEntries)
-	s.assertBundlesInUpdate(upd)
-	chains := s.assertSVIDsInUpdate(upd, trustDomainID)
-	for _, chain := range chains {
-		// CA certs should not have DNS names associated with them
-		s.Empty(chain[0].DNSNames)
-		// CA certs should not CN based on DNS names
-		s.Empty(chain[0].Subject.CommonName)
-	}
+	chain, err := x509.ParseCertificates(resp.Svid.CertChain)
+	s.Require().NoError(err)
+	s.Require().Len(chain, 1)
+	s.Empty(chain[0].DNSNames)
+	s.Equal("CN=FAKE SERVER CA,OU=DOWNSTREAM-1", chain[0].Subject.String())
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
@@ -635,12 +721,29 @@ func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs(entry.EntryId, workloadID),
 	})
 
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	s.assertSVIDsInUpdate(upd, workloadID)
+	s.assertSVIDsInUpdate(upd, map[string]string{entry.EntryId: workloadID})
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSRLegacy() {
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	s.assertSVIDsInUpdateLegacy(upd, workloadID)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNS() {
@@ -655,12 +758,34 @@ func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNS() {
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs(entry.EntryId, workloadID),
 	})
 
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	chains := s.assertSVIDsInUpdate(upd, map[string]string{entry.EntryId: workloadID})
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNSLegacy() {
+	dnsList := []string{"somehost1"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdateLegacy(upd, workloadID)
 	s.Equal(dnsList, chains[0][0].DNSNames)
 	s.Equal("somehost1", chains[0][0].Subject.CommonName)
 }
@@ -677,12 +802,34 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNS() {
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs(entry.EntryId, workloadID),
 	})
 
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	chains := s.assertSVIDsInUpdate(upd, map[string]string{entry.EntryId: workloadID})
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNSLegacy() {
+	dnsList := []string{"somehost1", "somehost2", "somehost3"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdateLegacy(upd, workloadID)
 	s.Equal(dnsList, chains[0][0].DNSNames)
 	s.Equal("somehost1", chains[0][0].Subject.CommonName)
 }
@@ -768,7 +915,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 
 	s.NotEmpty(svid.Token)
 	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
-	s.Equal(s.clock.Now().Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
+	s.Equal(s.clock.Now().Add(ca.DefaultJWTSVIDTTL).Unix(), svid.ExpiresAt)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
@@ -794,6 +941,57 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVID() {
 	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID")
 }
 
+func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
+	peerCert := s.downstreamSVID[0]
+	peerCtx := withPeerCert(context.Background(), s.downstreamSVID)
+
+	const fullMethod = "/spire.api.node.Node/FetchX509CASVID"
+
+	// no peer context
+	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no peer information")
+
+	// non-TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no TLS auth info for peer")
+
+	// no verified chains on TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
+		AuthInfo: credentials.TLSInfo{},
+	}), fullMethod)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no verified client certificate presented by peer")
+
+	// no downstream registration entry
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`"spiffe://example.org/downstream" is not an authorized downstream workload`)
+
+	// good certificate
+	downstreamEntry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   agentID,
+		SpiffeId:   downstreamID,
+		Downstream: true,
+	})
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.Require().NoError(err)
+
+	actualCert, ok := getPeerCertificate(ctx)
+	s.Require().True(ok, "context has peer certificate")
+	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
+
+	actualEntry, ok := getDownstreamEntry(ctx)
+	s.Require().True(ok, "context has downstream entry")
+	s.RequireProtoEqual(downstreamEntry, actualEntry)
+
+}
+
 func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	peerCert := s.agentSVID[0]
 	peerCtx := withPeerCert(context.Background(), s.agentSVID)
@@ -802,17 +1000,13 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 	// no peer context
 	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage("no peer information")
 
 	// non-TLS peer context
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage("no TLS auth info for peer")
 
@@ -820,19 +1014,15 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
 		AuthInfo: credentials.TLSInfo{},
 	}), fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage("no verified client certificate presented by peer")
 
 	// no attested certificate with matching SPIFFE ID
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
-	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" is not attested`)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" is not attested`)
 
 	// good certificate
 	s.attestAgent()
@@ -845,19 +1035,15 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
-	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
 	s.clock.Set(peerCert.NotAfter)
 
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 }
@@ -1067,12 +1253,40 @@ func (s *HandlerSuite) assertBundlesInUpdate(upd *node.X509SVIDUpdate, federated
 	}
 }
 
-func (s *HandlerSuite) assertSVIDsInUpdate(upd *node.X509SVIDUpdate, spiffeIDs ...string) [][]*x509.Certificate {
+func (s *HandlerSuite) assertSVIDsInUpdateLegacy(upd *node.X509SVIDUpdate, spiffeIDs ...string) [][]*x509.Certificate {
 	s.Len(upd.Svids, len(spiffeIDs), "number of SVIDs in update")
 
 	var svidChains [][]*x509.Certificate
 	for _, spiffeID := range spiffeIDs {
 		svidEntry := upd.Svids[spiffeID]
+		if !s.NotNil(svidEntry, "svid entry") {
+			continue
+		}
+
+		// Assert SVID chain is well formed
+		svidChain, err := x509.ParseCertificates(svidEntry.CertChain)
+		if !s.NoError(err, "parsing svid cert chain") {
+			continue
+		}
+
+		s.Len(svidChain, 1)
+
+		// ExpiresAt should match NotAfter in first certificate in SVID chain
+		s.WithinDuration(svidChain[0].NotAfter, time.Unix(svidEntry.ExpiresAt, 0), 0)
+
+		svidChains = append(svidChains, svidChain)
+	}
+
+	s.Require().Len(svidChains, len(spiffeIDs), "# of good svids in update")
+	return svidChains
+}
+
+func (s *HandlerSuite) assertSVIDsInUpdate(upd *node.X509SVIDUpdate, spiffeIDs map[string]string) [][]*x509.Certificate {
+	s.Len(upd.Svids, len(spiffeIDs), "number of SVIDs in update")
+
+	var svidChains [][]*x509.Certificate
+	for entryID := range spiffeIDs {
+		svidEntry := upd.Svids[entryID]
 		if !s.NotNil(svidEntry, "svid entry") {
 			continue
 		}
@@ -1126,11 +1340,17 @@ func (s *HandlerSuite) makeCSR(spiffeID string) []byte {
 	return csr
 }
 
-func (s *HandlerSuite) makeCSRs(spiffeIDs ...string) [][]byte {
+func (s *HandlerSuite) makeCSRsLegacy(spiffeIDs ...string) [][]byte {
 	var csrs [][]byte
 	for _, spiffeID := range spiffeIDs {
 		csrs = append(csrs, s.makeCSR(spiffeID))
 	}
+	return csrs
+}
+
+func (s *HandlerSuite) makeCSRs(entryID, spiffeID string) map[string][]byte {
+	csrs := make(map[string][]byte)
+	csrs[entryID] = s.makeCSR(spiffeID)
 	return csrs
 }
 

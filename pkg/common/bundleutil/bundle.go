@@ -3,9 +3,13 @@ package bundleutil
 import (
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/golang/protobuf/proto"
+	hclog "github.com/hashicorp/go-hclog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 )
@@ -83,6 +87,17 @@ func (b *Bundle) RootCAs() []*x509.Certificate {
 
 func (b *Bundle) JWTSigningKeys() map[string]crypto.PublicKey {
 	return b.jwtSigningKeys
+}
+
+// RefreshHint returns the bundle refresh hint.
+func (b *Bundle) RefreshHint() time.Duration {
+	return time.Second * time.Duration(b.b.RefreshHint)
+}
+
+// SetRefreshHint sets the bundle refresh hint to the given duration. It is
+// rounded up to the nearest second.
+func (b *Bundle) SetRefreshHint(d time.Duration) {
+	b.b.RefreshHint = int64((d + (time.Second - 1)) / time.Second)
 }
 
 func (b *Bundle) AppendRootCA(rootCA *x509.Certificate) {
@@ -195,6 +210,63 @@ func MergeBundles(a, b *common.Bundle) (*common.Bundle, bool) {
 		}
 	}
 	return c, changed
+}
+
+// PruneBundle removes the bundle RootCAs and JWT keys that expired before a given time
+// It returns an error if prunning results in a bundle with no CAs or keys
+func PruneBundle(bundle *common.Bundle, expiration time.Time, log hclog.Logger) (*common.Bundle, bool, error) {
+	if bundle == nil {
+		return nil, false, errors.New("current bundle is nil")
+	}
+
+	// Zero value is a valid time, but probably unintended
+	if expiration.IsZero() {
+		return nil, false, errors.New("expiration time is zero value")
+	}
+
+	// Creates new bundle with non expired certs only
+	newBundle := &common.Bundle{
+		TrustDomainId: bundle.TrustDomainId,
+	}
+	changed := false
+pruneRootCA:
+	for _, rootCA := range bundle.RootCas {
+		certs, err := x509.ParseCertificates(rootCA.DerBytes)
+		if err != nil {
+			return nil, false, fmt.Errorf("cannot parse certificates: %v", err)
+		}
+		// if any cert in the chain has expired, throw the whole chain out
+		for _, cert := range certs {
+			if !cert.NotAfter.After(expiration) {
+				log.Info("Pruning CA certificate due to expiration", telemetry.SerialNumber, cert.SerialNumber, telemetry.Expiration, cert.NotAfter)
+				changed = true
+				continue pruneRootCA
+			}
+		}
+		newBundle.RootCas = append(newBundle.RootCas, rootCA)
+	}
+
+	for _, jwtSigningKey := range bundle.JwtSigningKeys {
+		notAfter := time.Unix(jwtSigningKey.NotAfter, 0)
+		if !notAfter.After(expiration) {
+			log.Info("Pruning JWT signing key due to expiration", telemetry.Kid, jwtSigningKey.Kid, telemetry.Expiration, notAfter)
+			changed = true
+			continue
+		}
+		newBundle.JwtSigningKeys = append(newBundle.JwtSigningKeys, jwtSigningKey)
+	}
+
+	if len(newBundle.RootCas) == 0 {
+		log.Warn("Pruning halted; all known CA certificates have expired")
+		return nil, false, errors.New("would prune all certificates")
+	}
+
+	if len(newBundle.JwtSigningKeys) == 0 {
+		log.Warn("Pruning halted; all known JWT signing keys have expired")
+		return nil, false, errors.New("would prune all JWT signing keys")
+	}
+
+	return newBundle, changed, nil
 }
 
 func cloneBundle(b *common.Bundle) *common.Bundle {

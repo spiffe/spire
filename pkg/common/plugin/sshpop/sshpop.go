@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"text/template"
 
 	"github.com/hashicorp/hcl"
@@ -34,6 +35,7 @@ type agentPathTemplateData struct {
 	*ssh.Certificate
 	PluginName  string
 	Fingerprint string
+	Hostname    string
 }
 
 // Client is a factory for generating client handshake objects.
@@ -42,6 +44,7 @@ type Client struct {
 	signer            ssh.Signer
 	agentPathTemplate *template.Template
 	trustDomain       string
+	canonicalDomain   string
 }
 
 // Server is a factory for generating server handshake objects.
@@ -49,19 +52,27 @@ type Server struct {
 	certChecker       *ssh.CertChecker
 	agentPathTemplate *template.Template
 	trustDomain       string
+	canonicalDomain   string
 }
 
 // ClientConfig configures the client.
 type ClientConfig struct {
-	HostKeyPath       string `hcl:"host_key_path"`
-	HostCertPath      string `hcl:"host_cert_path"`
+	HostKeyPath  string `hcl:"host_key_path"`
+	HostCertPath string `hcl:"host_cert_path"`
+	// CanonicalDomain specifies the domain suffix for validating the hostname against
+	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
+	CanonicalDomain   string `hcl:"canonical_domain"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 // ServerConfig configures the server.
 type ServerConfig struct {
-	CertAuthorities   []string `hcl:"cert_authorities"`
-	AgentPathTemplate string   `hcl:"agent_path_template"`
+	CertAuthorities     []string `hcl:"cert_authorities"`
+	CertAuthoritiesPath string   `hcl:"cert_authorities_path"`
+	// CanonicalDomain specifies the domain suffix for validating the hostname against
+	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
+	CanonicalDomain   string `hcl:"canonical_domain"`
+	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 func NewClient(trustDomain, configString string) (*Client, error) {
@@ -99,6 +110,7 @@ func NewClient(trustDomain, configString string) (*Client, error) {
 		signer:            signer,
 		agentPathTemplate: agentPathTemplate,
 		trustDomain:       trustDomain,
+		canonicalDomain:   config.CanonicalDomain,
 	}, nil
 }
 
@@ -133,10 +145,21 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 	if err := hcl.Decode(config, configString); err != nil {
 		return nil, Errorf("failed to decode configuration: %v", err)
 	}
-	if config.CertAuthorities == nil {
-		return nil, Errorf("missing required config value for \"cert_authorities\"")
+	if config.CertAuthorities == nil && config.CertAuthoritiesPath == "" {
+		return nil, Errorf("missing required config value for \"cert_authorities\" or \"cert_authorities_path\"")
 	}
-	certChecker, err := certCheckerFromPubkeys(config.CertAuthorities)
+	var certAuthorities []string
+	if config.CertAuthorities != nil {
+		certAuthorities = append(certAuthorities, config.CertAuthorities...)
+	}
+	if config.CertAuthoritiesPath != "" {
+		fileCertAuthorities, err := pubkeysFromPath(config.CertAuthoritiesPath)
+		if err != nil {
+			return nil, Errorf("failed to get cert authorities from file: %v", err)
+		}
+		certAuthorities = append(certAuthorities, fileCertAuthorities...)
+	}
+	certChecker, err := certCheckerFromPubkeys(certAuthorities)
 	if err != nil {
 		return nil, Errorf("failed to create cert checker: %v", err)
 	}
@@ -152,7 +175,27 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 		certChecker:       certChecker,
 		agentPathTemplate: agentPathTemplate,
 		trustDomain:       trustDomain,
+		canonicalDomain:   config.CanonicalDomain,
 	}, nil
+}
+
+func pubkeysFromPath(pubkeysPath string) ([]string, error) {
+	pubkeysBytes, err := ioutil.ReadFile(pubkeysPath)
+	if err != nil {
+		return nil, err
+	}
+	splitPubkeys := strings.Split(string(pubkeysBytes), "\n")
+	var pubkeys []string
+	for _, pubkey := range splitPubkeys {
+		if pubkey == "" {
+			continue
+		}
+		pubkeys = append(pubkeys, pubkey)
+	}
+	if pubkeys == nil {
+		return nil, fmt.Errorf("no data found in file: %q", pubkeysPath)
+	}
+	return pubkeys, nil
 }
 
 func certCheckerFromPubkeys(certAuthorities []string) (*ssh.CertChecker, error) {

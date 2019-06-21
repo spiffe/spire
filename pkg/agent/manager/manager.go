@@ -15,7 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 	"github.com/spiffe/spire/proto/spire/api/node"
@@ -48,10 +48,9 @@ type Manager interface {
 	// bundle changes.
 	SubscribeToBundleChanges() *cache.BundleStream
 
-	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
-	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
-	// selectors are included in the set of selectors passed as parameter.
-	MatchingEntries(selectors []*common.Selector) []*cache.Entry
+	// MatchingIdentities returns all of the cached identities whose
+	// registration entry selectors are a subset of the passed selectors.
+	MatchingIdentities(selectors []*common.Selector) []cache.Identity
 
 	// FetchWorkloadUpdates gets the latest workload update for the selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
@@ -67,7 +66,7 @@ type manager struct {
 	// Fields protected by mtx mutex.
 	mtx *sync.RWMutex
 
-	cache cache.Cache
+	cache *cache.Cache
 	svid  svid.Rotator
 
 	spiffeID string
@@ -101,7 +100,7 @@ func (m *manager) Run(ctx context.Context) error {
 		m.runBundleObserver,
 		m.svid.Run)
 	if err != nil && err != context.Canceled {
-		m.c.Log.Errorf("cache manager crashed: %v", err)
+		m.c.Log.WithError(err).Error("cache manager crashed")
 		return err
 	}
 
@@ -110,7 +109,7 @@ func (m *manager) Run(ctx context.Context) error {
 }
 
 func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
-	return m.cache.Subscribe(selectors)
+	return m.cache.SubscribeToWorkloadUpdates(selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
@@ -121,14 +120,8 @@ func (m *manager) SubscribeToBundleChanges() *cache.BundleStream {
 	return m.cache.SubscribeToBundleChanges()
 }
 
-func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cache.Entry) {
-	for _, entry := range m.cache.Entries() {
-		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
-		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
-			entries = append(entries, entry)
-		}
-	}
-	return entries
+func (m *manager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
+	return m.cache.MatchingIdentities(selectors)
 }
 
 // FetchWorkloadUpdates gets the latest workload update for the selectors
@@ -155,7 +148,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	case jwtSVIDExpired(cachedSVID, now):
 		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
 	default:
-		m.c.Log.Warnf("unable to renew JWT for %q; returning cached copy (err=%v)", spiffeID, err)
+		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("unable to renew JWT; returning cached copy")
 		return cachedSVID, nil
 	}
 
@@ -173,7 +166,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			err := m.synchronize(ctx)
 			if err != nil {
 				// Just log the error to keep waiting for next sinchronization...
-				m.c.Log.Errorf("synchronize failed: %v", err)
+				m.c.Log.WithError(err).Error("synchronize failed")
 			}
 		case <-ctx.Done():
 			return nil
@@ -192,7 +185,7 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 
 			err := m.storePrivateKey(ctx, s.Key)
 			if err != nil {
-				m.c.Log.Errorf("failed to store private key: %v", err)
+				m.c.Log.WithError(err).Error("failed to store private key")
 				continue
 			}
 
@@ -217,7 +210,7 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 func (m *manager) storeSVID(svidChain []*x509.Certificate) {
 	err := StoreSVID(m.svidCachePath, svidChain)
 	if err != nil {
-		m.c.Log.Warnf("could not store SVID: %v", err)
+		m.c.Log.WithError(err).Warn("could not store SVID")
 	}
 }
 
@@ -228,7 +221,7 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	}
 	err := StoreBundle(m.bundleCachePath, rootCAs)
 	if err != nil {
-		m.c.Log.Errorf("could not store bundle: %v", err)
+		m.c.Log.WithError(err).Error("could not store bundle")
 	}
 }
 
@@ -240,7 +233,7 @@ func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) er
 	}
 
 	if _, err := km.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
-		m.c.Log.Errorf("could not store new agent key pair: %v", err)
+		m.c.Log.WithError(err).Error("could not store new agent key pair")
 		m.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
 
 		// This error is not returned, to preserve backwards-compability with KeyManagers that were built against the old interface.

@@ -41,6 +41,9 @@ run_docker_test() {
 run_test() {
     # Removes files from previous executions
     rm -f .data/datastore.sqlite3
+    rm -f .data/datastore.sqlite3-shm
+    rm -f .data/datastore.sqlite3-wal
+    rm -f .data/journal.pem
     rm -f .data/agent_svid.der
     rm -f .data/bundle.der
     rm -f .data/svid.key
@@ -98,6 +101,7 @@ run_test() {
 }
 
 run_e2e_test "conf/server/server.conf"
+run_e2e_test "conf/server/server-upstream-false.conf"
 run_docker_test "test/configs/server/postgres.conf" "-e POSTGRES_PASSWORD=password -p 10864:5432 -d postgres"
 run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:8.0.15"
 

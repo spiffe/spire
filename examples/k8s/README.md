@@ -13,3 +13,7 @@ used in automated SPIRE systems tests.
 + [postgres](postgres) - This expands on the **simple sat** configuration by
   moving the SPIRE datastore into a Postgres StatefulSet. The SPIRE server is
   now a stateless Deployment that can be scaled.
++ [eks sat](eks_sat) - This slightly modifies the **simple sat** configuration to
+  make it compatible with EKS platform.
++ [k7e](k7e) - A set of SPIRE examples using [Kustomize](https://kustomize.io/)
+  as shown at the SPIFFE Community Day in May, 2019.

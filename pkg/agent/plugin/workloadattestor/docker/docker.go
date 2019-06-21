@@ -9,10 +9,11 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/hashicorp/go-hclog"
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -47,12 +48,14 @@ type DockerPlugin struct {
 	cgroupContainerIndex int
 	fs                   cgroups.FileSystem
 	mtx                  *sync.RWMutex
+	retryer              *retryer
 }
 
 func New() *DockerPlugin {
 	return &DockerPlugin{
-		mtx: &sync.RWMutex{},
-		fs:  cgroups.OSFileSystem{},
+		mtx:     &sync.RWMutex{},
+		fs:      cgroups.OSFileSystem{},
+		retryer: newRetryer(),
 	}
 }
 
@@ -94,7 +97,7 @@ func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestR
 		parts := strings.Split(cgroup.GroupPath, "/")
 
 		if len(parts) <= p.cgroupContainerIndex+1 {
-			p.log.Warn("Docker entry found, but is missing the container id", "cgroup_path", cgroup.GroupPath)
+			p.log.Warn("Docker entry found, but is missing the container id", telemetry.CGroupPath, cgroup.GroupPath)
 			continue
 		}
 		containerID = parts[p.cgroupContainerIndex+1]
@@ -110,7 +113,14 @@ func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestR
 		return nil, fmt.Errorf("workloadattestor/docker: no cgroup %q entries found at index %d", p.cgroupPrefix, p.cgroupContainerIndex)
 	}
 
-	container, err := p.docker.ContainerInspect(ctx, containerID)
+	var container types.ContainerJSON
+	p.retryer.Retry(ctx, func() error {
+		container, err = p.docker.ContainerInspect(ctx, containerID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}

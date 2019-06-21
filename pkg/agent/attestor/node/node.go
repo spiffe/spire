@@ -18,6 +18,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
+	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
@@ -59,7 +61,8 @@ func New(config *Config) Attestor {
 }
 
 func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
-	defer telemetry.CountCall(a.c.Metrics, "node", "attest")(&err)
+	counter := telemetry_agent.StartNodeAttestCall(a.c.Metrics)
+	defer counter.Done(&err)
 
 	bundle, err := a.loadBundle()
 	if err != nil {
@@ -175,12 +178,14 @@ func (a *attestor) fetchAttestationData(
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
+	log := a.c.Log.WithField(telemetry.Path, a.c.SVIDCachePath)
+
 	svid, err := manager.ReadSVID(a.c.SVIDCachePath)
 	if err == manager.ErrNotCached {
-		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
+		log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
 	} else if err != nil {
-		a.c.Log.Warnf("Could not get agent SVID from %s: %s", a.c.SVIDCachePath, err)
+		log.WithError(err).Warn("Could not get agent SVID from path")
 	}
 	return svid
 }
@@ -188,7 +193,7 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
-	counter := telemetry.StartCall(a.c.Metrics, "node", "attestor", "new_svid")
+	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
 
 	// make sure all of the streams are cancelled if something goes awry
@@ -207,7 +212,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		}
 	}
 
-	counter.AddLabel("type", attestorName)
+	telemetry_common.AddAttestorType(counter, attestorName)
 
 	conn, err := a.serverConn(ctx, bundle.RootCAs())
 	if err != nil {
@@ -262,17 +267,17 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			break
 		}
 	}
-	counter.AddLabel("spiffe_id", spiffeID)
+	telemetry_common.AddSPIFFEID(counter, spiffeID)
 
 	if fetchStream != nil {
 		fetchStream.CloseSend()
 		if _, err := fetchStream.Recv(); err != io.EOF {
-			a.c.Log.Warnf("received unexpected result on trailing recv: %v", err)
+			a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 		}
 	}
 	attestStream.CloseSend()
 	if _, err := attestStream.Recv(); err != io.EOF {
-		a.c.Log.Warnf("received unexpected result on trailing recv: %v", err)
+		a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 	}
 
 	svid, bundle, err := a.parseAttestationResponse(spiffeID, attestResp)

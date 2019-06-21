@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
+	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -36,13 +37,16 @@ func builtin(p *AttestorPlugin) catalog.Plugin {
 
 // New creates a new PSAT attestor plugin
 func New() *AttestorPlugin {
-	return &AttestorPlugin{}
+	return &AttestorPlugin{
+		client: apiserver.New(""),
+	}
 }
 
 // AttestorPlugin is a PSAT (projected SAT) attestor plugin
 type AttestorPlugin struct {
 	mu     sync.RWMutex
 	config *attestorConfig
+	client apiserver.Client
 }
 
 // AttestorConfig holds configuration for AttestorPlugin
@@ -83,8 +87,19 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 		return psatError.New("fail to get claims from token: %v", err)
 	}
 
-	if claims.K8s.Pod.UID == "" {
-		return psatError.New("token claim pod UID is empty")
+	pod, err := p.client.GetPod(claims.K8s.Namespace, claims.K8s.Pod.Name)
+	if err != nil {
+		return psatError.New("fail to get pod from k8s API server: %v", err)
+	}
+
+	node, err := p.client.GetNode(pod.Spec.NodeName)
+	if err != nil {
+		return psatError.New("fail to get node from k8s API server: %v", err)
+	}
+
+	nodeUID := string(node.UID)
+	if nodeUID == "" {
+		return psatError.New("node UID is empty")
 	}
 
 	data, err := json.Marshal(k8s.PSATAttestationData{
@@ -100,7 +115,7 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, claims.K8s.Pod.UID),
+		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, nodeUID),
 	})
 }
 

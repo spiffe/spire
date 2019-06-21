@@ -13,8 +13,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -53,7 +53,7 @@ zFHHu+k8dS32+KooMqtUp71bhMgtlvYIRay4OMD6VurfP70caOHkCVFPxibAW9o9
 NbyKVndd7aGvTed1PQ==
 -----END CERTIFICATE-----
 `))
-	udsAuth = auth.CallerInfo{}
+	udsAuth = peertracker.AuthInfo{}
 )
 
 func TestHandler(t *testing.T) {
@@ -310,7 +310,7 @@ func (s *HandlerSuite) TestCreateEntry() {
 		{
 			Name:  "Parent ID is malformed",
 			Entry: &common.RegistrationEntry{ParentId: "FOO"},
-			Err:   `"FOO" is not a valid SPIFFE ID`,
+			Err:   `"FOO" is not a valid trust domain member SPIFFE ID`,
 		},
 		{
 			Name:  "SPIFFE ID is malformed",
@@ -343,7 +343,7 @@ func (s *HandlerSuite) TestCreateEntry() {
 				SpiffeId:  "spiffe://example.org/child",
 				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
 			},
-			Err: "Entry already exists",
+			Err: status.Error(codes.AlreadyExists, "entry already exists").Error(),
 		},
 	}
 
@@ -389,7 +389,7 @@ func (s *HandlerSuite) TestUpdateEntry() {
 		{
 			Name:  "Parent ID is malformed",
 			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "FOO"},
-			Err:   `"FOO" is not a valid SPIFFE ID`,
+			Err:   `"FOO" is not a valid trust domain member SPIFFE ID`,
 		},
 		{
 			Name:  "SPIFFE ID is malformed",
@@ -632,6 +632,57 @@ func (s *HandlerSuite) TestListBySelector() {
 	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
 }
 
+func (s *HandlerSuite) TestListBySelectors() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}, {Type: "Z", Value: "z"}},
+	})
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/baz",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}, {Type: "Z", Value: "z"}},
+	})
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/buz",
+		SpiffeId:  "spiffe://example.org/fuz",
+		Selectors: []*common.Selector{{Type: "B", Value: "b"}, {Type: "Z", Value: "z"}},
+	})
+
+	// No entries
+	resp, err := s.handler.ListBySelectors(context.Background(), &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "C", Value: "c"},
+			{Type: "Z", Value: "z"},
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 0)
+
+	// One entry
+	resp, err = s.handler.ListBySelectors(context.Background(), &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "B", Value: "b"},
+			{Type: "Z", Value: "z"},
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+
+	// More than one entry
+	resp, err = s.handler.ListBySelectors(context.Background(), &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "A", Value: "a"},
+			{Type: "Z", Value: "z"},
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 2)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+}
+
 func (s *HandlerSuite) TestListBySpiffeID() {
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:  "spiffe://example.org/parent",
@@ -832,7 +883,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		},
 		{
 			Peer: &peer.Peer{
-				AuthInfo: auth.CallerInfo{},
+				AuthInfo: peertracker.AuthInfo{},
 			},
 		},
 		{

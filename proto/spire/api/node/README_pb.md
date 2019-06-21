@@ -9,7 +9,10 @@
     - [Bundle](#spire.api.node.Bundle)
     - [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest)
     - [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse)
+    - [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest)
+    - [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse)
     - [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest)
+    - [FetchX509SVIDRequest.CsrsEntry](#spire.api.node.FetchX509SVIDRequest.CsrsEntry)
     - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
     - [JSR](#spire.api.node.JSR)
     - [JWTSVID](#spire.api.node.JWTSVID)
@@ -114,6 +117,37 @@ Trust domain bundle
 
 
 
+<a name="spire.api.node.FetchX509CASVIDRequest"></a>
+
+### FetchX509CASVIDRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| csr | [bytes](#bytes) |  |  |
+
+
+
+
+
+
+<a name="spire.api.node.FetchX509CASVIDResponse"></a>
+
+### FetchX509CASVIDResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| svid | [X509SVID](#spire.api.node.X509SVID) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
+
+
+
+
+
+
 <a name="spire.api.node.FetchX509SVIDRequest"></a>
 
 ### FetchX509SVIDRequest
@@ -122,7 +156,24 @@ Represents a request with a list of CSR.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| csrs | [bytes](#bytes) | repeated | A list of CSRs |
+| DEPRECATED_csrs | [bytes](#bytes) | repeated | A list of CSRs (deprecated, use `csrs` map instead) |
+| csrs | [FetchX509SVIDRequest.CsrsEntry](#spire.api.node.FetchX509SVIDRequest.CsrsEntry) | repeated | A map of CSRs keyed by entry ID |
+
+
+
+
+
+
+<a name="spire.api.node.FetchX509SVIDRequest.CsrsEntry"></a>
+
+### FetchX509SVIDRequest.CsrsEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| key | [string](#string) |  |  |
+| value | [bytes](#bytes) |  |  |
 
 
 
@@ -205,7 +256,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
+| svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values keyed by: - SPIFFE ID in message &#39;AttestResponse&#39; (Map[SPIFFE_ID] =&gt; SVID) - Entry ID in message &#39;FetchX509SVIDResponse&#39; (Map[Entry_ID] =&gt; SVID) |
 | registration_entries | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 | bundles | [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry) | repeated | Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE ID. Bundles included are the trust bundle for the server trust domain and any federated trust domain bundles applicable to the SVIDs. Supersedes the deprecated `bundle` field. |
 
@@ -262,6 +313,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Attest | [AttestRequest](#spire.api.node.AttestRequest) stream | [AttestResponse](#spire.api.node.AttestResponse) stream | Attest the node, get base node SVID. |
 | FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) stream | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse) stream | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
 | FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
+| FetchX509CASVID | [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest) | [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse) | Fetches an X509 CA SVID for a downstream SPIRE server. |
 
  
 

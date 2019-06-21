@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"google.golang.org/grpc/codes"
 
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
@@ -80,8 +82,21 @@ func (s *IIDAttestorSuite) SetupTest() {
 }
 
 func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
-	_, err := s.attest(&nodeattestor.AttestRequest{})
-	s.RequireErrorContains(err, "not configured")
+	// the stream should open but the plugin should immediately return an error
+	stream, err := s.p.Attest(context.Background())
+	s.Require().NoError(err)
+	defer stream.CloseSend()
+
+	// Send() will either succeed or return EOF if the gRPC stream has already
+	// been torn down due to the plugin-side failure.
+	err = stream.Send(&nodeattestor.AttestRequest{})
+	if err != nil && err != io.EOF {
+		s.Require().NoError(err)
+	}
+
+	// Recv() should fail.
+	_, err = stream.Recv()
+	s.RequireGRPCStatus(err, codes.Unknown, "not configured")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnEmptyRequest() {
@@ -184,8 +199,9 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 		expectID            string
 		expectErr           string
 		replacementTemplate string
-		skipEC2             bool
+		allowList           []string
 		skipBlockDev        bool
+		skipEC2Block        bool
 	}{
 		{
 			desc: "error on call",
@@ -222,9 +238,34 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
 		{
-			desc:     "success, no client call, default template",
-			skipEC2:  true,
-			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			desc: "success, client, no block device, other allowed acct, default template",
+			mockExpect: func(mock *mock_aws.MockEC2Client) {
+				output := getDefaultDescribeInstancesOutput()
+				output.Reservations[0].Instances[0].RootDeviceType = &ebsStoreType
+				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
+				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
+					InstanceIds: []*string{&testInstance},
+				}).Return(&output, nil)
+			},
+			skipBlockDev: true,
+			allowList:    []string{"someOtherAccount"},
+			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+		},
+		{
+			desc:      "success, no client call, default template",
+			allowList: []string{testAccount},
+			expectID:  "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+		},
+		{
+			desc:      "success, no client call, extra allowed acct, default template",
+			allowList: []string{testAccount, "someOtherAccount"},
+			expectID:  "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+		},
+		{
+			desc:         "success, despite deprecated ec2 skip",
+			allowList:    []string{testAccount},
+			skipEC2Block: true,
+			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
 		{
 			desc: "success, client + block device, default template",
@@ -276,11 +317,18 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			if tt.replacementTemplate != "" {
 				configStr = fmt.Sprintf(`agent_path_template = "%s"`, tt.replacementTemplate)
 			}
-			if tt.skipEC2 {
-				configStr = configStr + "\nskip_ec2_attest_calling = true"
+			if len(tt.allowList) > 0 {
+				configStr = configStr + "\naccount_ids_for_local_validation = [\n"
+				for _, id := range tt.allowList {
+					configStr = `  ` + configStr + `"` + id + `",`
+				}
+				configStr = configStr + "\n]"
 			}
 			if tt.skipBlockDev {
 				configStr = configStr + "\nskip_block_device = true"
+			}
+			if tt.skipEC2Block {
+				configStr = configStr + "\nskip_ec2_attest_calling = true"
 			}
 
 			_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
@@ -427,8 +475,8 @@ func getDefaultDescribeInstancesOutput() ec2.DescribeInstancesOutput {
 
 func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
-	defer stream.CloseSend()
 	s.Require().NoError(err)
+	defer stream.CloseSend()
 	err = stream.Send(req)
 	s.Require().NoError(err)
 	return stream.Recv()

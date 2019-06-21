@@ -95,11 +95,11 @@ The main logic of the agent and server processes and their support packages
 
 Common functionality for agent, server, and plugins
 
-`/plugin/{agent,server}/<name>/`
+`/pkg/{agent,server}/plugin/<name>/`
 
 The implementation of each plugin and their support packages
 
-`/proto/{agent,server,api,common}/<name>/`
+`/proto/spire/{agent,server,api,common}/<name>/`
 
 gRPC .proto files, their generated .pb.go, and README_pb.md.
 
@@ -125,5 +125,5 @@ We have checked in a pre-commit hook which enforces `go fmt` styling. Please ins
 before sending a pull request. From the project root:
 
 ```
-ln -s ../../.githooks/pre-commit .git/hooks/pre-commit
+ln -s .githooks/pre-commit .git/hooks/pre-commit
 ```

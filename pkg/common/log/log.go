@@ -14,27 +14,31 @@ const (
 	TextFormat    = "TEXT"
 )
 
-func NewLogger(logLevel, format, fileName string) (logrus.FieldLogger, error) {
-	var fd io.Writer
-	var err error
+type Logger struct {
+	*logrus.Logger
+	io.Closer
+}
 
-	if fileName != "" {
-		fd, err = os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		fd = os.Stdout
-	}
-
-	logrusLevel, err := logrus.ParseLevel(logLevel)
+func NewLogger(logLevel, format, fileName string) (*Logger, error) {
+	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		return nil, err
 	}
 
+	var out io.Writer = os.Stdout
+	var closer io.Closer = nopCloser{}
+	if fileName != "" {
+		fd, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			return nil, err
+		}
+		out = fd
+		closer = fd
+	}
+
 	logger := logrus.New()
-	logger.Out = fd
-	logger.Level = logrusLevel
+	logger.SetOutput(out)
+	logger.SetLevel(level)
 
 	switch format {
 	case DefaultFormat:
@@ -47,5 +51,12 @@ func NewLogger(logLevel, format, fileName string) (logrus.FieldLogger, error) {
 		return nil, fmt.Errorf("unknown logger format: '%s'", format)
 	}
 
-	return logger, nil
+	return &Logger{
+		Logger: logger,
+		Closer: closer,
+	}, nil
 }
+
+type nopCloser struct{}
+
+func (nopCloser) Close() error { return nil }

@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -116,6 +117,17 @@ func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBund
 	return resp, nil
 }
 
+// SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
+func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = setBundle(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
 func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -153,6 +165,17 @@ func (ds *SQLPlugin) FetchBundle(ctx context.Context, req *datastore.FetchBundle
 func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = listBundles(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// PruneBundle removes expired certs and keys from a bundle
+func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = pruneBundle(tx, req, ds.log)
 		return err
 	}); err != nil {
 		return nil, err
@@ -480,7 +503,7 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	ds.log.Info("Opening SQL database", "dbtype", cfg.DatabaseType)
+	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
 		db, err = sqlite{}.connect(cfg)
@@ -542,6 +565,36 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 
 	return &datastore.UpdateBundleResponse{
 		Bundle: req.Bundle,
+	}, nil
+}
+
+func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
+	newModel, err := bundleToModel(req.Bundle)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch existing or create new
+	model := &Bundle{}
+	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
+	if result.RecordNotFound() {
+		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		if err != nil {
+			return nil, err
+		}
+		return &datastore.SetBundleResponse{
+			Bundle: resp.Bundle,
+		}, nil
+	} else if result.Error != nil {
+		return nil, sqlError.Wrap(result.Error)
+	}
+
+	resp, err := updateBundle(tx, &datastore.UpdateBundleRequest{Bundle: req.Bundle})
+	if err != nil {
+		return nil, err
+	}
+	return &datastore.SetBundleResponse{
+		Bundle: resp.Bundle,
 	}, nil
 }
 
@@ -681,6 +734,37 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	}
 
 	return resp, nil
+}
+
+func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logger) (*datastore.PruneBundleResponse, error) {
+	// Get current bundle
+	current, err := fetchBundle(tx, &datastore.FetchBundleRequest{TrustDomainId: req.TrustDomainId})
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch current bundle: %v", err)
+	}
+
+	if current.Bundle == nil {
+		// No bundle to prune
+		return &datastore.PruneBundleResponse{}, nil
+	}
+
+	// Prune
+	newBundle, changed, err := bundleutil.PruneBundle(current.Bundle, time.Unix(req.ExpiresBefore, 0), log)
+	if err != nil {
+		return nil, fmt.Errorf("prune failed: %v", err)
+	}
+
+	// Update only if bundle was modified
+	if changed {
+		_, err := updateBundle(tx, &datastore.UpdateBundleRequest{
+			Bundle: newBundle,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to write new bundle: %v", err)
+		}
+	}
+
+	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
 }
 
 func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {

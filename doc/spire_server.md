@@ -11,6 +11,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
 | NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
 | UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. |
+| Notifier       | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
 
 ## Built-in plugins
 
@@ -25,12 +26,15 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
 | NodeAttestor | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
 | NodeAttestor | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
+| NodeAttestor | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md) | A node attestor which attests agent identity using an existing ssh certificate |
 | NodeAttestor | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
 | NodeResolver | [aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
+| Notifier   | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md) | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap. |
 | UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 | UpstreamCA | [awssecret](/doc/plugin_server_upstreamca_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamCA | [spire](/doc/plugin_server_upstreamca_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
 ## Server configuration file
 
@@ -116,7 +120,15 @@ Most of the configuration file above options have identical command-line counter
 
 | Command          | Action                      | Default                 |
 |:-----------------|:----------------------------|:------------------------|
+| `-bindAddress` | IP address or DNS name of the SPIRE server | |
 | `-config` | Path to a SPIRE config file | conf/server/server.conf |
+| `-dataDir` | Directory to store runtime data to | |
+| `-logFile` | File to write logs to | |
+| `-logLevel` | DEBUG, INFO, WARN or ERROR | |
+| `-registrationUDSPath` | UDS Path to bind registration API | |
+| `-serverPort` | Port number of the SPIRE server | |
+| `-trustDomain` | The trust domain that this server belongs to | |
+| `-upstreamBundle` | Include upstream CA certificates in the bundle | |
 
 ### `spire-server token generate`
 
@@ -136,13 +148,18 @@ Creates registration entries.
 
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
+| `-admin`         | If set, the SPIFFE ID in this entry will be granted access to the Registration API | |
 | `-data`          | Path to a file containing registration data in JSON format (optional). |                |
+| `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
+| `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
+| `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned | |
+| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
+| `-node`          | If set, this entry will be applied to matching nodes rather than workloads | |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
-| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 
 ### `spire-server entry update`
 
@@ -150,14 +167,18 @@ Updates registration entries.
 
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
-| `-entryID`       | The Registration Entry ID of the record to update                      |                |
+| `-admin`         | If true, the SPIFFE ID in this entry will be granted access to the Registration API | |
 | `-data`          | Path to a file containing registration data in JSON format (optional). |                |
+| `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
+| `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
+| `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned | |
+| `-entryID`       | The Registration Entry ID of the record to update                      |                |
+| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
-| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 
 ### `spire-server entry delete`
 
@@ -174,7 +195,9 @@ Displays configured registration entries.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
+| `-downstream` | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
 | `-entryID`    | The Entry ID of the record to show.                                |                |
+| `-federatesWith` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once | |
 | `-parentID`   | The Parent ID of the records to show.                              |                |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
@@ -216,6 +239,33 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+
+### `spire-server agent evict`
+
+De-attesting an already attested node given its spiffeID.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-spiffeID` | The SPIFFE ID of the agent to evict (agent identity) | |
+
+### `spire-server agent list`
+
+Displays attested nodes.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+
+### `spire-server healthcheck`
+
+Checks SPIRE server's health.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-shallow` | Perform a less stringent health check | |
+| `-verbose` | Print verbose information | |
 
 ### `spire-server experimental bundle show`
 
@@ -261,9 +311,9 @@ server {
     svid_ttl = "6h"
     ca_ttl = "72h"
     ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIRE"],
-        CommonName = "",
+        country = ["US"],
+        organization = ["SPIRE"],
+        common_name = "",
     }
 }
 

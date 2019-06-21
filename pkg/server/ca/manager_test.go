@@ -2,7 +2,11 @@ package ca
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -11,445 +15,736 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/notifier"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
+	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
+)
+
+const (
+	testTrustDomain = "domain.test"
+	testCATTL       = time.Hour
+	activateAfter   = testCATTL - (testCATTL / 6)
+	prepareAfter    = testCATTL - (testCATTL / 2)
 )
 
 var (
-	ctx = context.Background()
+	testTrustDomainURL = url.URL{Scheme: "spiffe", Host: testTrustDomain}
 )
 
 func TestManager(t *testing.T) {
-	suite.Run(t, new(ManagerTestSuite))
+	spiretest.Run(t, new(ManagerSuite))
 }
 
-type ManagerTestSuite struct {
-	suite.Suite
-	tmpDir string
+type ManagerSuite struct {
+	spiretest.Suite
 
-	keymanager *memory.KeyManager
-	datastore  *fakedatastore.DataStore
-	catalog    *fakeservercatalog.Catalog
-	m          *manager
+	clock    *clock.Mock
+	ca       *fakeCA
+	log      logrus.FieldLogger
+	logHook  *test.Hook
+	dir      string
+	km       *memory.KeyManager
+	ds       *fakedatastore.DataStore
+	notifier *fakenotifier.Notifier
+	cat      *fakeservercatalog.Catalog
 
-	mu  sync.Mutex
-	now time.Time
+	m *Manager
 }
 
-func (m *ManagerTestSuite) SetupTest() {
-	tmpDir, err := ioutil.TempDir("", "server-ca-manager-")
-	m.Require().NoError(err)
-	m.tmpDir = tmpDir
+func (s *ManagerSuite) SetupTest() {
+	s.clock = clock.NewMock(s.T())
+	s.ca = new(fakeCA)
+	s.log, s.logHook = test.NewNullLogger()
+	s.km = memory.New()
+	s.ds = fakedatastore.New()
 
-	m.keymanager = memory.New()
-	m.datastore = fakedatastore.New()
-
-	m.catalog = fakeservercatalog.New()
-	m.catalog.SetKeyManager(m.keymanager)
-	m.catalog.SetDataStore(m.datastore)
-
-	m.newManager()
-	m.m.hooks.now = m.nowHook
-	m.now = time.Now().Truncate(time.Second).UTC()
+	s.cat = fakeservercatalog.New()
+	s.cat.SetKeyManager(s.km)
+	s.cat.SetDataStore(s.ds)
+	s.dir = s.TempDir()
 }
 
-func (m *ManagerTestSuite) TearDownTest() {
-	os.RemoveAll(m.tmpDir)
+func (s *ManagerSuite) TestPersistence() {
+	s.initSelfSignedManager()
+	firstX509CA, firstJWTKey := s.currentX509CA(), s.currentJWTKey()
+
+	// reinitialize against the same storage
+	s.initSelfSignedManager()
+	s.requireX509CAEqual(firstX509CA, s.currentX509CA())
+	s.requireJWTKeyEqual(firstJWTKey, s.currentJWTKey())
+	s.Require().Nil(s.nextX509CA())
+	s.Require().Nil(s.nextJWTKey())
+
+	// prepare the next and reinitialize
+	s.addTimeAndRotate(prepareAfter + time.Minute)
+	secondX509CA, secondJWTKey := s.nextX509CA(), s.nextJWTKey()
+	s.initSelfSignedManager()
+	s.requireX509CAEqual(firstX509CA, s.currentX509CA())
+	s.requireJWTKeyEqual(firstJWTKey, s.currentJWTKey())
+	s.requireX509CAEqual(secondX509CA, s.nextX509CA())
+	s.requireJWTKeyEqual(secondJWTKey, s.nextJWTKey())
+
+	// activate the next and reinitialize
+	s.addTimeAndRotate(activateAfter - prepareAfter)
+	s.initSelfSignedManager()
+	s.requireX509CAEqual(secondX509CA, s.currentX509CA())
+	s.requireJWTKeyEqual(secondJWTKey, s.currentJWTKey())
+	s.Require().Nil(s.nextX509CA())
+	s.Require().Nil(s.nextJWTKey())
 }
 
-func (m *ManagerTestSuite) newManager() {
-	logger, err := log.NewLogger("DEBUG", "", "")
-	m.NoError(err)
+func (s *ManagerSuite) TestPersistenceFailsIfKeyManagerLosesKeys() {
+	s.initSelfSignedManager()
+	x509CA, jwtKey := s.currentX509CA(), s.currentJWTKey()
 
-	config := &ManagerConfig{
-		Catalog: m.catalog,
-		Log:     logger,
-		Metrics: telemetry.Blackhole{},
-		TrustDomain: url.URL{
-			Scheme: "spiffe",
-			Host:   "example.org",
-		},
-		UpstreamBundle: true,
-		CertsPath:      m.certsPath(),
+	// reset the key manager, reinitialize, and make sure the keys differ. this
+	// simulates the key manager not having keys for the persisted pairs.
+	s.cat.SetKeyManager(memory.New())
+	s.initSelfSignedManager()
+	s.requireX509CANotEqual(x509CA, s.currentX509CA())
+	s.requireJWTKeyNotEqual(jwtKey, s.currentJWTKey())
+}
+
+func (s *ManagerSuite) TestPersistenceFailsIfJournalLost() {
+	s.initSelfSignedManager()
+	x509CA, jwtKey := s.currentX509CA(), s.currentJWTKey()
+
+	// wipe the journal, reinitialize, and make sure the keys differ. this
+	// simulates the the key manager having dangling keys.
+	s.wipeJournal()
+	s.initSelfSignedManager()
+	s.requireX509CANotEqual(x509CA, s.currentX509CA())
+	s.requireJWTKeyNotEqual(jwtKey, s.currentJWTKey())
+}
+
+func (s *ManagerSuite) TestSelfSigning() {
+	s.initSelfSignedManager()
+
+	x509CA := s.currentX509CA()
+	s.NotNil(x509CA.Signer)
+	if s.NotNil(x509CA.Certificate) {
+		s.Equal(x509CA.Certificate.Subject, x509CA.Certificate.Issuer)
+	}
+	s.Empty(x509CA.UpstreamChain)
+}
+
+func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
+	s.testUpstreamSignedWithoutUpstreamBundle(false)
+}
+
+func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundleDeprecated() {
+	s.testUpstreamSignedWithoutUpstreamBundle(true)
+}
+
+func (s *ManagerSuite) testUpstreamSignedWithoutUpstreamBundle(useDeprecatedFields bool) {
+	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+		TrustDomain:         testTrustDomain,
+		UseDeprecatedFields: useDeprecatedFields,
+	})
+	s.initUpstreamSignedManager(upstreamCA, false)
+
+	// The X509CA should not be an intermediate and the chain should only
+	// contain itself.
+	x509CA := s.currentX509CA()
+	s.NotNil(x509CA.Signer)
+	if s.NotNil(x509CA.Certificate) {
+		s.NotEqual(x509CA.Certificate.Subject, x509CA.Certificate.Issuer)
+	}
+	s.Empty(x509CA.UpstreamChain)
+
+	// The trust bundle should contain the CA cert itself
+	s.requireBundleRootCAs(x509CA.Certificate)
+}
+
+func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
+	s.testUpstreamSignedWithUpstreamBundle(false)
+}
+
+func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundleDeprecated() {
+	s.testUpstreamSignedWithUpstreamBundle(true)
+}
+
+func (s *ManagerSuite) testUpstreamSignedWithUpstreamBundle(useDeprecatedFields bool) {
+	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+		TrustDomain:         testTrustDomain,
+		UseDeprecatedFields: useDeprecatedFields,
+	})
+	s.initUpstreamSignedManager(upstreamCA, true)
+
+	// X509 CA should be set up to be an intermediate but only have itself
+	// in the chain since it was signed directly by the upstream root.
+	x509CA := s.currentX509CA()
+	s.NotNil(x509CA.Signer)
+	if s.NotNil(x509CA.Certificate) {
+		s.Equal(upstreamCA.Root().Subject, x509CA.Certificate.Issuer)
+	}
+	if s.Len(x509CA.UpstreamChain, 1) {
+		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
 	}
 
-	m.m = NewManager(config)
-	m.m.hooks.now = m.nowHook
+	// The trust bundle should contain the upstream root
+	s.requireBundleRootCAs(upstreamCA.Root())
 }
 
-func (m *ManagerTestSuite) certsPath() string {
-	return filepath.Join(m.tmpDir, "certs.json")
+func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
+	s.testUpstreamIntermediateSignedWithUpstreamBundle(false)
 }
 
-func (m *ManagerTestSuite) nowHook() time.Time {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.now
+func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundleDeprecated() {
+	s.testUpstreamIntermediateSignedWithUpstreamBundle(true)
 }
 
-func (m *ManagerTestSuite) setTime(now time.Time) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.now = now
-}
-
-func (m *ManagerTestSuite) advanceTime(d time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.now = m.now.Add(d).Truncate(time.Second)
-}
-
-func (m *ManagerTestSuite) loadKeypairSets() (a, b *keypairSet) {
-	certs, publicKeys, err := m.m.loadKeypairData(m.certsPath(), nil)
-	m.Require().NoError(err)
-	xa := certs["x509-CA-A"]
-	ja := publicKeys["JWT-Signer-A"]
-	xb := certs["x509-CA-B"]
-	jb := publicKeys["JWT-Signer-B"]
-	m.Require().True((xa != nil) == (ja != nil))
-	m.Require().True((xb != nil) == (jb != nil))
-
-	if xa != nil {
-		a = &keypairSet{
-			slot:          "A",
-			x509CA:        xa,
-			jwtSigningKey: ja,
-		}
-	}
-	if xb != nil {
-		b = &keypairSet{
-			slot:          "B",
-			x509CA:        xb,
-			jwtSigningKey: jb,
-		}
-	}
-	return a, b
-}
-
-func (m *ManagerTestSuite) TestPersistence() {
-	// initialize a new keypair set
-	m.Require().NoError(m.m.Initialize(ctx))
-	current1 := m.m.getCurrentKeypairSet()
-	m.requireValidKeypairSet(current1)
-	next1 := m.m.getNextKeypairSet()
-	m.requireEmptyKeypairSet(next1)
-
-	// "reload" the manager and assert the keypairs are the same
-	m.newManager()
-	m.Require().NoError(m.m.Initialize(ctx))
-	current2 := m.m.getCurrentKeypairSet()
-	next2 := m.m.getNextKeypairSet()
-	m.requireKeypairSetKeysEqual(current1, current2)
-	m.requireEmptyKeypairSet(next2)
-
-	// drop the keys, "reload" the manager, and assert the keypairs are new
-	m.catalog.SetKeyManager(memory.New())
-	m.newManager()
-	m.Require().NoError(m.m.Initialize(ctx))
-	current3 := m.m.getCurrentKeypairSet()
-	next3 := m.m.getNextKeypairSet()
-	m.requireKeypairSetKeysNotEqual(current2, current3)
-	m.requireEmptyKeypairSet(next3)
-
-	// load the old keys, "reload" the manager, and assert the keypairs are new
-	m.catalog.SetKeyManager(m.keymanager)
-	m.newManager()
-	m.Require().NoError(m.m.Initialize(ctx))
-	current4 := m.m.getCurrentKeypairSet()
-	next4 := m.m.getNextKeypairSet()
-	m.requireKeypairSetKeysNotEqual(current3, current4)
-	m.requireEmptyKeypairSet(next4)
-
-	// prepare the next keypair, "reload" the manager, and assert "current"
-	// and "next" are maintained.
-	m.setTime(preparationThreshold(current4.x509CA.cert()).Add(time.Second))
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	current5 := m.m.getCurrentKeypairSet()
-	next5 := m.m.getNextKeypairSet()
-	m.requireKeypairSetKeysEqual(current4, current5)
-	m.requireValidKeypairSet(next5)
-	m.newManager()
-	m.Require().NoError(m.m.Initialize(ctx))
-	current6 := m.m.getCurrentKeypairSet()
-	next6 := m.m.getNextKeypairSet()
-	m.requireKeypairSetKeysEqual(current5, current6)
-	m.requireKeypairSetKeysEqual(next5, next6)
-
-	// activate the next keypair, "reload" the manager, and assert the new "current"
-	// is maintained and "next" is empty (since it hasn't been prepared yet)
-	m.setTime(activationThreshold(current6.x509CA.cert()).Add(time.Second))
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	current7 := m.m.getCurrentKeypairSet()
-	next7 := m.m.getNextKeypairSet()
-	m.requireKeypairSetKeysNotEqual(current6, current7)
-	m.requireEmptyKeypairSet(next7)
-	m.newManager()
-	m.Require().NoError(m.m.Initialize(ctx))
-	current8 := m.m.getCurrentKeypairSet()
-	next8 := m.m.getNextKeypairSet()
-	m.requireKeypairSetKeysEqual(current7, current8)
-	m.requireEmptyKeypairSet(next8)
-}
-
-func (m *ManagerTestSuite) TestSelfSigning() {
-	// generate a keypair make sure it was signed up upstream and that
-	// the upstream cert is in the bundle
-	m.Require().NoError(m.m.Initialize(ctx))
-	a := m.m.getCurrentKeypairSet()
-	m.Require().Equal(a.x509CA.cert().Subject, a.x509CA.cert().Issuer)
-	m.requireBundleRootCAs(a.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a.jwtSigningKey)
-}
-
-func (m *ManagerTestSuite) TestUpstreamSigning() {
-	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
-		TrustDomain: "example.org",
-	})
-	m.catalog.SetUpstreamCA(upstreamCA)
-	upstreamRoot := upstreamCA.Root()
-
-	// generate a keypair make sure it was signed by upstream and that
-	// the upstream cert is in the bundle. The server CA intermediate should
-	// also be in the bundle until SPIRE 0.8.0.
-	m.Require().NoError(m.m.Initialize(ctx))
-	a := m.m.getCurrentKeypairSet()
-	m.Require().Equal(upstreamRoot.Subject, a.x509CA.cert().Issuer)
-	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
-}
-
-func (m *ManagerTestSuite) TestUpstreamSigningWithIntermediate() {
-	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
-		TrustDomain:     "example.org",
-		UseIntermediate: true,
-	})
-	m.catalog.SetUpstreamCA(upstreamCA)
-	upstreamIntermediate := upstreamCA.Intermediate()
-	upstreamRoot := upstreamCA.Root()
-
-	// generate a keypair make sure it was signed by the upstream intermediate
-	// and that the upstream root cert is in the bundle. The server CA
-	// intermediate should also be in the bundle until SPIRE 0.8.0.
-	m.Require().NoError(m.m.Initialize(ctx))
-	a := m.m.getCurrentKeypairSet()
-
-	m.Require().Equal(upstreamIntermediate.Subject, a.x509CA.cert().Issuer)
-	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
-}
-
-func (m *ManagerTestSuite) TestDeprecatedUpstreamSigning() {
-	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
-		TrustDomain:         "example.org",
-		UseDeprecatedFields: true,
-	})
-	m.catalog.SetUpstreamCA(upstreamCA)
-	upstreamRoot := upstreamCA.Root()
-
-	// generate a keypair make sure it was signed by upstream and that
-	// the upstream cert is in the bundle. The server CA intermediate should
-	// also be in the bundle until SPIRE 0.8.0.
-	m.Require().NoError(m.m.Initialize(ctx))
-	a := m.m.getCurrentKeypairSet()
-	m.Require().Equal(upstreamRoot.Subject, a.x509CA.cert().Issuer)
-	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
-}
-
-func (m *ManagerTestSuite) TestDeprecatedUpstreamSigningWithIntermediate() {
-	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
-		TrustDomain:         "example.org",
-		UseDeprecatedFields: true,
+func (s *ManagerSuite) testUpstreamIntermediateSignedWithUpstreamBundle(useDeprecatedFields bool) {
+	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+		TrustDomain:         testTrustDomain,
 		UseIntermediate:     true,
+		UseDeprecatedFields: useDeprecatedFields,
 	})
-	m.catalog.SetUpstreamCA(upstreamCA)
-	upstreamIntermediate := upstreamCA.Intermediate()
-	upstreamRoot := upstreamCA.Root()
+	s.initUpstreamSignedManager(upstreamCA, true)
 
-	// generate a keypair make sure it was signed by the upstream intermediate
-	// and that the upstream root cert is in the bundle. The server CA
-	// intermediate should also be in the bundle until SPIRE 0.8.0.
-	m.Require().NoError(m.m.Initialize(ctx))
-	a := m.m.getCurrentKeypairSet()
+	// X509 CA should be set up to be an intermediate and have two certs in
+	// its chain: itself and the upstream intermediate that signed it.
+	x509CA := s.currentX509CA()
+	s.NotNil(x509CA.Signer)
+	if s.NotNil(x509CA.Certificate) {
+		s.Equal(upstreamCA.Intermediate().Subject, x509CA.Certificate.Issuer)
+	}
+	if s.Len(x509CA.UpstreamChain, 2) {
+		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
+		s.Equal(upstreamCA.Intermediate(), x509CA.UpstreamChain[1])
+	}
 
-	m.Require().Equal(upstreamIntermediate.Subject, a.x509CA.cert().Issuer)
-	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
+	// The trust bundle should contain the upstream root
+	s.requireBundleRootCAs(upstreamCA.Root())
 }
 
-func (m *ManagerTestSuite) TestRotation() {
-	// initialize the current keypair set
-	m.Require().NoError(m.m.Initialize(ctx))
+func (s *ManagerSuite) TestX509CARotation() {
+	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	s.setNotifier(notifier)
+	s.initSelfSignedManager()
 
-	// assert that A has been created, is in use, and is stored in the bundle
-	// and that B has not been created.
-	a1, b1 := m.loadKeypairSets()
-	m.Require().NotNil(a1)
-	m.Require().Nil(b1)
-	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a1.jwtSigningKey)
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go s.m.notifyOnBundleUpdate(ctx)
 
-	// advance up to the preparation threshold and assert nothing changes
-	m.setTime(preparationThreshold(a1.x509CA.cert()))
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a1.jwtSigningKey)
+	// CA TTL is an hour so we should be preparing after thirty minutes and
+	// activating after 50 minutes.
+	initTime := s.clock.Now()
+	preparationTime1 := initTime.Add(prepareAfter)
+	activationTime1 := initTime.Add(activateAfter)
+	preparationTime2 := activationTime1.Add(prepareAfter)
+	activationTime2 := activationTime1.Add(activateAfter)
 
-	// advance past the preparation threshold and assert that B has been created
-	// but that A is unchanged and still active.
-	m.advanceTime(time.Second)
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	a2, b2 := m.loadKeypairSets()
-	m.Require().NotNil(a2)
-	m.Require().NotNil(b2)
-	m.Require().Equal(a2, a1)
-	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
+	// after initialization, we should have a current X509CA but no next.
+	first := s.currentX509CA()
+	s.Nil(s.nextX509CA(), "second X509CA should not be prepared yet")
+	s.requireBundleRootCAs(first.Certificate)
 
-	// advance to the activation threshold and assert nothing changes
-	m.setTime(activationThreshold(a1.x509CA.cert()))
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
+	// move up to the preparation mark. nothing should change
+	s.setTimeAndRotateX509CA(preparationTime1)
+	s.requireX509CAEqual(first, s.currentX509CA())
+	s.Nil(s.nextX509CA(), "second X509CA should not be prepared yet")
+	s.requireBundleRootCAs(first.Certificate)
 
-	// advance past to the activation threshold and assert that B is active
-	// and A is reset
-	m.advanceTime(time.Second)
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	a3, b3 := m.loadKeypairSets()
-	m.Require().Nil(a3)
-	m.Require().NotNil(b3)
-	m.Require().Equal(b3, b2)
-	m.requireKeypairSet("B", b2)
-	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
+	// move just past the preparation mark. the current X509CA should stay
+	// the same but the next X509CA should have been prepared and added to
+	// the trust bundle.
+	s.addTimeAndRotateX509CA(time.Minute)
+	s.requireX509CAEqual(first, s.currentX509CA())
+	second := s.nextX509CA()
+	s.NotNil(second, "second X509CA should have been prepared")
+	s.requireBundleRootCAs(first.Certificate, second.Certificate)
 
-	// now advance past both the preparation and activation threshold to make
-	// sure B is rotated out and A is active. This makes sure that however
-	// unlikely, preparation and activation can happen in the same pass, if
-	// necessary.
-	m.setTime(activationThreshold(b2.x509CA.cert()).Add(time.Second))
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	a4, b4 := m.loadKeypairSets()
-	m.Require().NotNil(a4)
-	m.Require().Nil(b4)
-	m.requireKeypairSet("A", a4)
-	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert(), a4.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey, a4.jwtSigningKey)
+	// we should now have a bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
+	// move up to the activation mark. nothing should change.
+	s.setTimeAndRotateX509CA(activationTime1)
+	s.requireX509CAEqual(first, s.currentX509CA())
+	s.requireX509CAEqual(second, s.nextX509CA())
+
+	// move up to the activation mark. "next" should become "current" and
+	// "next" should be reset.
+	s.addTimeAndRotateX509CA(time.Minute)
+	s.requireX509CAEqual(second, s.currentX509CA())
+	s.Nil(s.nextX509CA())
+
+	// move past the 2nd preparation mark. the current X509CA should stay
+	// the same but the next X509CA should have been prepared and added to
+	// the trust bundle.
+	s.setTimeAndRotateX509CA(preparationTime2.Add(time.Minute))
+	s.requireX509CAEqual(second, s.currentX509CA())
+	third := s.nextX509CA()
+	s.NotNil(second, "third X509CA should have been prepared")
+	s.requireBundleRootCAs(first.Certificate, second.Certificate, third.Certificate)
+
+	// we should now have another bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
+	// move past to 2nd activation mark. "next" should become "current" and
+	// "next" should be reset.
+	s.setTimeAndRotateX509CA(activationTime2.Add(time.Minute))
+	s.requireX509CAEqual(third, s.currentX509CA())
+	s.Nil(s.nextX509CA())
 }
 
-func (m *ManagerTestSuite) TestPrune() {
-	// Initialize and prepare an extra keypair set
-	m.Require().NoError(m.m.Initialize(ctx))
-	a := m.m.getCurrentKeypairSet()
-	m.setTime(preparationThreshold(a.x509CA.cert()).Add(time.Second))
-	m.Require().NoError(m.m.rotateCAs(ctx))
-	b := m.m.getNextKeypairSet()
+func (s *ManagerSuite) TestX509CARotationMetric() {
+	s.initSelfSignedManager()
 
-	// assert both certificates are in the bundle
-	m.requireBundleRootCAs(a.x509CA.cert(), b.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
+	// use fake metric
+	metrics := fakemetrics.New()
+	s.m.c.Metrics = metrics
 
-	// prune and assert that nothing changed
-	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundleRootCAs(a.x509CA.cert(), b.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
+	initTime := s.clock.Now()
+	preparationTime1 := initTime.Add(prepareAfter)
 
-	// advance after the expiration of the A, prune, and assert that nothing
-	// changed (since we don't prune until the certificate has been expired
-	// longer than the safety threshold)
-	m.setTime(a.x509CA.cert().NotAfter.Add(time.Second))
-	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundleRootCAs(a.x509CA.cert(), b.x509CA.cert())
-	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
+	// rotate CA to preparation mark
+	s.setTimeAndRotateX509CA(preparationTime1)
 
-	// advance beyond the safety threshold, prune, and assert that A has been
-	// pruned
-	m.setTime(a.x509CA.cert().NotAfter.Add(safetyThreshold))
-	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundleRootCAs(b.x509CA.cert())
-	m.requireBundleJWTSigningKeys(b.jwtSigningKey)
+	// create expected metrics with ttl from certificate
+	expected := fakemetrics.New()
+	ttl := s.currentX509CA().Certificate.NotAfter.Sub(s.clock.Now())
+	telemetry_server.SetX509CARotateGauge(expected, s.m.c.TrustDomain.String(), float32(ttl.Seconds()))
 
-	// advance beyond the B's safety threshold and assert that prune fails
-	// because all certificates would be pruned and that B remains present
-	// in the bundle
-	m.setTime(b.x509CA.cert().NotAfter.Add(safetyThreshold))
-	m.Require().EqualError(m.m.pruneBundle(ctx), "would prune all certificates")
-	m.requireBundleRootCAs(b.x509CA.cert())
-	m.requireBundleJWTSigningKeys(b.jwtSigningKey)
+	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 }
 
-func (m *ManagerTestSuite) requireBundleRootCAs(expectedCerts ...*x509.Certificate) {
-	var expected []*common.Certificate
-	for _, expectedCert := range expectedCerts {
-		expected = append(expected, &common.Certificate{
-			DerBytes: expectedCert.Raw,
+func (s *ManagerSuite) TestJWTKeyRotation() {
+	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	s.setNotifier(notifier)
+	s.initSelfSignedManager()
+
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go s.m.notifyOnBundleUpdate(ctx)
+
+	// CA TTL is an hour so we should be preparing after thirty minutes and
+	// activating after 50 minutes.
+	initTime := s.clock.Now()
+	preparationTime1 := initTime.Add(prepareAfter)
+	activationTime1 := initTime.Add(activateAfter)
+	preparationTime2 := activationTime1.Add(prepareAfter)
+	activationTime2 := activationTime1.Add(activateAfter)
+
+	// after initialization, we should have a current JWTKey but no next.
+	first := s.currentJWTKey()
+	s.Nil(s.nextJWTKey(), "second JWTKey should not be prepared yet")
+	s.requireBundleJWTKeys(first)
+
+	// move up to the preparation mark. nothing should change
+	s.setTimeAndRotateJWTKey(preparationTime1)
+	s.requireJWTKeyEqual(first, s.currentJWTKey())
+	s.Nil(s.nextJWTKey(), "second JWTKey should not be prepared yet")
+	s.requireBundleJWTKeys(first)
+
+	// move just past the preparation mark. the current JWTKey should stay
+	// the same but the next JWTKey should have been prepared and added to
+	// the trust bundle.
+	s.addTimeAndRotateJWTKey(time.Minute)
+	s.requireJWTKeyEqual(first, s.currentJWTKey())
+	second := s.nextJWTKey()
+	s.NotNil(second, "second JWTKey should have been prepared")
+	s.requireBundleJWTKeys(first, second)
+
+	// we should now have a bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
+	// move up to the activation mark. nothing should change.
+	s.setTimeAndRotateJWTKey(activationTime1)
+	s.requireJWTKeyEqual(first, s.currentJWTKey())
+	s.requireJWTKeyEqual(second, s.nextJWTKey())
+
+	// move up to the activation mark. "next" should become "current" and
+	// "next" should be reset.
+	s.addTimeAndRotateJWTKey(time.Minute)
+	s.requireJWTKeyEqual(second, s.currentJWTKey())
+	s.Nil(s.nextJWTKey())
+
+	// move past the 2nd preparation mark. the current JWTKey should stay
+	// the same but the next JWTKey should have been prepared and added to
+	// the trust bundle.
+	s.setTimeAndRotateJWTKey(preparationTime2.Add(time.Minute))
+	s.requireJWTKeyEqual(second, s.currentJWTKey())
+	third := s.nextJWTKey()
+	s.NotNil(second, "third JWTKey should have been prepared")
+	s.requireBundleJWTKeys(first, second, third)
+
+	// we should now have a bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
+	// move past to 2nd activation mark. "next" should become "current" and
+	// "next" should be reset.
+	s.setTimeAndRotateJWTKey(activationTime2.Add(time.Minute))
+	s.requireJWTKeyEqual(third, s.currentJWTKey())
+	s.Nil(s.nextJWTKey())
+}
+
+func (s *ManagerSuite) TestPrune() {
+	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	s.setNotifier(notifier)
+	s.initSelfSignedManager()
+
+	initTime := s.clock.Now()
+	prepareSecondTime := initTime.Add(prepareAfter)
+	firstExpiresTime := initTime.Add(testCATTL)
+	secondExpiresTime := prepareSecondTime.Add(testCATTL)
+
+	// rotate so that we have two in the bundle
+	s.setTimeAndRotate(prepareSecondTime.Add(time.Minute))
+	firstX509CA := s.currentX509CA()
+	firstJWTKey := s.currentJWTKey()
+	secondX509CA := s.nextX509CA()
+	secondJWTKey := s.nextJWTKey()
+	s.requireBundleRootCAs(firstX509CA.Certificate, secondX509CA.Certificate)
+	s.requireBundleJWTKeys(firstJWTKey, secondJWTKey)
+
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go s.m.notifyOnBundleUpdate(ctx)
+
+	// advance just past the expiration time of the first and prune. nothing
+	// should change.
+	s.setTimeAndPrune(firstExpiresTime.Add(time.Minute))
+	s.requireBundleRootCAs(firstX509CA.Certificate, secondX509CA.Certificate)
+	s.requireBundleJWTKeys(firstJWTKey, secondJWTKey)
+
+	// advance beyond the safety threshold of the first, prune, and assert that
+	// the first has been pruned
+	s.addTimeAndPrune(safetyThreshold)
+	s.requireBundleRootCAs(secondX509CA.Certificate)
+	s.requireBundleJWTKeys(secondJWTKey)
+
+	// we should now have a bundle update notification due to the pruning
+	s.waitForBundleUpdatedNotification(notifyCh)
+
+	// advance beyond the second expiration time, prune, and assert nothing
+	// changes because we can't prune out the whole bundle.
+	s.clock.Set(secondExpiresTime.Add(time.Minute + safetyThreshold))
+	s.Require().EqualError(s.m.pruneBundle(context.Background()), "unable to prune bundle: prune failed: would prune all certificates")
+	s.requireBundleRootCAs(secondX509CA.Certificate)
+	s.requireBundleJWTKeys(secondJWTKey)
+}
+
+func (s *ManagerSuite) TestMigration() {
+	// assert that we migrate on load by writing junk data to the old JSON file
+	// and making sure initialization fails. The journal tests exercise this
+	// code more carefully.
+	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "certs.json"), []byte("NOTJSON"), 0644))
+	s.m = NewManager(s.selfSignedConfig())
+	err := s.m.Initialize(context.Background())
+	s.RequireErrorContains(err, "failed to migrate old JSON data: unable to decode JSON")
+}
+
+func (s *ManagerSuite) TestRunNotifiesBundleLoaded() {
+	s.initSelfSignedManager()
+
+	// time out in a minute if the bundle loaded never happens
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	var actual *common.Bundle
+	s.setNotifier(fakenotifier.New(fakenotifier.Config{
+		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
+			if event, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
+				actual = event.BundleLoaded.Bundle
+			}
+			// cancel immediately
+			cancel()
+			return &notifier.NotifyAndAdviseResponse{}, nil
+		},
+	}))
+
+	s.Require().NoError(s.m.Run(ctx))
+
+	// make sure the event contained the bundle
+	expected := s.fetchBundle()
+	s.RequireProtoEqual(expected, actual)
+}
+
+func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
+	s.m = NewManager(s.selfSignedConfig())
+	s.setNotifier(fakenotifier.New(fakenotifier.Config{
+		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
+			return nil, errors.New("OH NO!")
+		},
+	}))
+
+	err := s.m.Initialize(ctx)
+	s.Require().NoError(err)
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	err = s.m.Run(ctx)
+	s.Require().EqualError(err, "one or more notifiers returned an error: OH NO!")
+
+	entry := s.logHook.LastEntry()
+	s.Equal("fake", entry.Data["notifier"])
+	s.Equal("bundle loaded", entry.Data["event"])
+	s.Equal("OH NO!", fmt.Sprintf("%v", entry.Data["error"]))
+	s.Equal("Notifier failed to handle event", entry.Message)
+}
+
+func (s *ManagerSuite) initSelfSignedManager() {
+	s.cat.SetUpstreamCA(nil)
+	s.m = NewManager(s.selfSignedConfig())
+	s.NoError(s.m.Initialize(context.Background()))
+}
+
+func (s *ManagerSuite) initUpstreamSignedManager(upstreamCA upstreamca.UpstreamCA, upstreamBundle bool) {
+	s.cat.SetUpstreamCA(upstreamCA)
+
+	c := s.selfSignedConfig()
+	c.UpstreamBundle = upstreamBundle
+	s.m = NewManager(c)
+	s.NoError(s.m.Initialize(context.Background()))
+}
+
+func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
+	s.cat.AddNotifier(fakeservercatalog.Notifier("fake", notifier))
+}
+
+func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
+	return ManagerConfig{
+		CA:          s.ca,
+		Catalog:     s.cat,
+		TrustDomain: testTrustDomainURL,
+		CASubject: pkix.Name{
+			CommonName: "SPIRE",
+		},
+		CATTL:   testCATTL,
+		Dir:     s.dir,
+		Metrics: telemetry.Blackhole{},
+		Log:     s.log,
+		Clock:   s.clock,
+	}
+}
+
+func (s *ManagerSuite) requireX509CAEqual(expected, actual *X509CA, msgAndArgs ...interface{}) {
+	s.Require().Equal(s.getX509CAInfo(expected), s.getX509CAInfo(actual), msgAndArgs...)
+}
+
+func (s *ManagerSuite) requireX509CANotEqual(expected, actual *X509CA, msgAndArgs ...interface{}) {
+	s.Require().NotEqual(s.getX509CAInfo(expected), s.getX509CAInfo(actual), msgAndArgs...)
+}
+
+func (s *ManagerSuite) requireJWTKeyEqual(expected, actual *JWTKey, msgAndArgs ...interface{}) {
+	s.Require().Equal(s.getJWTKeyInfo(expected), s.getJWTKeyInfo(actual), msgAndArgs...)
+}
+
+func (s *ManagerSuite) requireJWTKeyNotEqual(expected, actual *JWTKey, msgAndArgs ...interface{}) {
+	s.Require().NotEqual(s.getJWTKeyInfo(expected), s.getJWTKeyInfo(actual), msgAndArgs...)
+}
+
+type x509CAInfo struct {
+	Signer        signerInfo
+	Certificate   *x509.Certificate
+	UpstreamChain []*x509.Certificate
+}
+
+type jwtKeyInfo struct {
+	Signer   signerInfo
+	Kid      string
+	NotAfter time.Time
+}
+
+type signerInfo struct {
+	KeyID     string
+	PublicKey []byte
+}
+
+func (s *ManagerSuite) getX509CAInfo(x509CA *X509CA) x509CAInfo {
+	return x509CAInfo{
+		Signer:        s.getSignerInfo(x509CA.Signer),
+		Certificate:   x509CA.Certificate,
+		UpstreamChain: x509CA.UpstreamChain,
+	}
+}
+
+func (s *ManagerSuite) getJWTKeyInfo(jwtKey *JWTKey) jwtKeyInfo {
+	return jwtKeyInfo{
+		Signer:   s.getSignerInfo(jwtKey.Signer),
+		Kid:      jwtKey.Kid,
+		NotAfter: jwtKey.NotAfter,
+	}
+}
+
+func (s *ManagerSuite) getSignerInfo(signer crypto.Signer) signerInfo {
+	ks, ok := signer.(interface{ KeyID() string })
+	s.Require().True(ok, "signer is not a Key Manager")
+
+	publicKey, err := x509.MarshalPKIXPublicKey(signer.Public())
+	s.Require().NoError(err)
+	return signerInfo{
+		KeyID:     ks.KeyID(),
+		PublicKey: publicKey,
+	}
+}
+
+func (s *ManagerSuite) requireBundleRootCAs(rootCAs ...*x509.Certificate) {
+	expected := &common.Bundle{}
+	for _, rootCA := range rootCAs {
+		expected.RootCas = append(expected.RootCas, &common.Certificate{
+			DerBytes: rootCA.Raw,
 		})
 	}
 
-	resp, err := m.datastore.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: m.m.c.TrustDomain.String(),
+	bundle := s.fetchBundle()
+	s.RequireProtoEqual(expected, &common.Bundle{
+		RootCas: bundle.RootCas,
 	})
-	m.Require().NoError(err)
-	m.Require().NotNil(resp.Bundle, "missing bundle for domain %q", m.m.c.TrustDomain.String())
-	m.Require().Equal(expected, resp.Bundle.RootCas, "bundle root CAs as expected")
 }
 
-func (m *ManagerTestSuite) requireBundleJWTSigningKeys(expectedKeys ...*caPublicKey) {
-	var expected []*common.PublicKey
-	for _, expectedKey := range expectedKeys {
-		expected = append(expected, expectedKey.PublicKey)
+func (s *ManagerSuite) requireBundleJWTKeys(jwtKeys ...*JWTKey) {
+	expected := &common.Bundle{}
+	for _, jwtKey := range jwtKeys {
+		publicKey, err := publicKeyFromJWTKey(jwtKey)
+		s.Require().NoError(err)
+		expected.JwtSigningKeys = append(expected.JwtSigningKeys, publicKey)
 	}
 
-	resp, err := m.datastore.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: m.m.c.TrustDomain.String(),
+	bundle := s.fetchBundle()
+	s.RequireProtoEqual(expected, &common.Bundle{
+		JwtSigningKeys: bundle.JwtSigningKeys,
 	})
-	m.Require().NoError(err)
-	m.Require().NotNil(resp.Bundle)
-	m.requirePublicKeysEqual(expected, resp.Bundle.JwtSigningKeys)
 }
 
-func (m *ManagerTestSuite) requirePublicKeysEqual(as, bs []*common.PublicKey) {
-	m.Require().Equal(len(as), len(bs))
-	for i := range as {
-		m.Require().True(proto.Equal(as[i], bs[i]))
+func (s *ManagerSuite) fetchBundle() *common.Bundle {
+	return s.fetchBundleForTrustDomain(testTrustDomainURL.String())
+}
+
+func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomainId string) *common.Bundle {
+	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: trustDomainId,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomainId)
+	return resp.Bundle
+}
+
+func (s *ManagerSuite) currentX509CA() *X509CA {
+	// ensure that the "active" one matches the current before returning
+	s.requireX509CAEqual(s.m.currentX509CA.x509CA, s.ca.X509CA(), "current X509CA is not active")
+	return s.m.currentX509CA.x509CA
+}
+
+func (s *ManagerSuite) currentJWTKey() *JWTKey {
+	s.requireJWTKeyEqual(s.m.currentJWTKey.jwtKey, s.ca.JWTKey(), "current JWTKey is not active")
+	return s.m.currentJWTKey.jwtKey
+}
+
+func (s *ManagerSuite) nextX509CA() *X509CA {
+	return s.m.nextX509CA.x509CA
+}
+
+func (s *ManagerSuite) nextJWTKey() *JWTKey {
+	return s.m.nextJWTKey.jwtKey
+}
+
+func (s *ManagerSuite) setTimeAndRotate(t time.Time) {
+	s.clock.Set(t)
+	s.Require().NoError(s.m.rotate(context.Background()))
+}
+
+func (s *ManagerSuite) addTimeAndRotate(d time.Duration) {
+	s.clock.Add(d)
+	s.Require().NoError(s.m.rotate(context.Background()))
+}
+
+func (s *ManagerSuite) setTimeAndRotateX509CA(t time.Time) {
+	s.clock.Set(t)
+	s.Require().NoError(s.m.rotateX509CA(context.Background()))
+}
+
+func (s *ManagerSuite) addTimeAndRotateX509CA(d time.Duration) {
+	s.clock.Add(d)
+	s.Require().NoError(s.m.rotateX509CA(context.Background()))
+}
+
+func (s *ManagerSuite) setTimeAndRotateJWTKey(t time.Time) {
+	s.clock.Set(t)
+	s.Require().NoError(s.m.rotateJWTKey(context.Background()))
+}
+
+func (s *ManagerSuite) addTimeAndRotateJWTKey(d time.Duration) {
+	s.clock.Add(d)
+	s.Require().NoError(s.m.rotateJWTKey(context.Background()))
+}
+
+func (s *ManagerSuite) setTimeAndPrune(t time.Time) {
+	s.clock.Set(t)
+	s.Require().NoError(s.m.pruneBundle(context.Background()))
+}
+
+func (s *ManagerSuite) addTimeAndPrune(d time.Duration) {
+	s.clock.Add(d)
+	s.Require().NoError(s.m.pruneBundle(context.Background()))
+}
+
+func (s *ManagerSuite) wipeJournal() {
+	s.Require().NoError(os.Remove(s.m.journalPath()))
+}
+
+func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *notifier.NotifyRequest) {
+	select {
+	case <-time.After(time.Minute):
+		s.FailNow("timed out waiting for bundle update notification")
+	case req := <-ch:
+		event, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated)
+		s.Require().True(ok, "expected a bundle updated notification")
+		actual := event.BundleUpdated.Bundle
+		expected := s.fetchBundle()
+		s.RequireProtoEqual(expected, actual)
 	}
 }
 
-func (m *ManagerTestSuite) requireKeypairSet(slot string, expected *keypairSet) {
-	actual := m.m.ca.getKeypairSet()
-	m.Require().Equal(slot, actual.slot)
-	m.requireKeypairSetKeysEqual(expected, actual)
+type fakeCA struct {
+	mu     sync.Mutex
+	x509CA *X509CA
+	jwtKey *JWTKey
 }
 
-func (m *ManagerTestSuite) requireKeypairSetKeysEqual(set1, set2 *keypairSet) {
-	m.Require().Equal(set1.x509CA.chain, set2.x509CA.chain)
-	m.Require().Equal(set1.jwtSigningKey.PublicKey.String(), set2.jwtSigningKey.PublicKey.String())
+func (s *fakeCA) X509CA() *X509CA {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.x509CA
 }
 
-func (m *ManagerTestSuite) requireKeypairSetKeysNotEqual(set1, set2 *keypairSet) {
-	m.requireValidKeypairSet(set1)
-	m.requireValidKeypairSet(set2)
-	m.Require().NotEqual(set1.x509CA.chain, set2.x509CA.chain)
-	m.Assert().NotEqual(set1.jwtSigningKey.PublicKey.String(), set2.jwtSigningKey.PublicKey.String())
+func (s *fakeCA) SetX509CA(x509CA *X509CA) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.x509CA = x509CA
 }
 
-func (m *ManagerTestSuite) requireValidKeypairSet(set *keypairSet) {
-	m.Require().NotNil(set)
-	m.Require().NotNil(set.x509CA)
-	m.Require().NotNil(set.jwtSigningKey)
+func (s *fakeCA) JWTKey() *JWTKey {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.jwtKey
 }
 
-func (m *ManagerTestSuite) requireEmptyKeypairSet(set *keypairSet) {
-	m.Require().NotNil(set)
-	m.Require().Nil(set.x509CA)
-	m.Require().Nil(set.jwtSigningKey)
+func (s *fakeCA) SetJWTKey(jwtKey *JWTKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.jwtKey = jwtKey
 }

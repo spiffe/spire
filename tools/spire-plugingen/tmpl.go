@@ -9,18 +9,20 @@ var codeTmpl = `
 {{ $pluginServerImpl := mkname $c.Prefix "PluginServer" }}
 {{ $pluginClientVar := mkexpname $c.Prefix "PluginClient" }}
 {{ $pluginClientImpl := mkname $c.Prefix "PluginClient" }}
-{{ $adaptPluginClientFunc := mkexpname "AdaptPluginClient" $c.Prefix }}
+{{ $adaptPluginClientFunc := mkexpname "Adapt" $c.Prefix "PluginClient" }}
 {{ $pluginClientAdapterImpl := mkname $c.Prefix "PluginClientAdapter" }}
 {{ $serviceServerFunc := mkexpname $c.Prefix "ServiceServer" }}
 {{ $serviceServerImpl := mkname $c.Prefix "ServiceServer" }}
 {{ $serviceClientVar := mkexpname $c.Prefix "ServiceClient" }}
 {{ $serviceClientImpl := mkname $c.Prefix "ServiceClient" }}
-{{ $hostServerFunc := mkexpname $c.Prefix "HostServiceServer" }}
-{{ $hostServerImpl := mkname $c.Prefix "HostServiceServer" }}
-{{ $hostClientFunc := mkexpname $c.Prefix "HostServiceClient" }}
-{{ $hostClientImpl := mkname $c.Prefix "HostServiceClient" }}
-{{ $adaptServiceClientFunc := mkexpname "AdaptServiceClient" $c.Prefix }}
+{{ $adaptServiceClientFunc := mkexpname "Adapt" $c.Prefix "ServiceClient" }}
 {{ $serviceClientAdapterImpl := mkname $c.Prefix "ServiceClientAdapter" }}
+{{ $hostServiceServerFunc := mkexpname $c.Prefix "HostServiceServer" }}
+{{ $hostServiceServerImpl := mkname $c.Prefix "HostServiceServer" }}
+{{ $hostServiceClientFunc := mkexpname $c.Prefix "HostServiceClient" }}
+{{ $hostServiceClientImpl := mkname $c.Prefix "HostServiceClient" }}
+{{ $adaptHostServiceClientFunc := mkexpname "Adapt" $c.Prefix "HostServiceClient" }}
+{{ $hostServiceClientAdapterImpl := mkname $c.Prefix "HostServiceClientAdapter" }}
 
 // Provides interfaces and adapters for the {{ $c.Name }} service
 //
@@ -163,43 +165,58 @@ func (a {{ $serviceClientAdapterImpl }}) {{ .Name }}({{ range $i,$v := .Params }
 
 {{- else }}
 
-// {{ $hostServerFunc }} returns a catalog HostServiceServer implementation for the {{ $c.Name }} plugin.
-func {{ $hostServerFunc }}(server {{ $c.ServerType }}) catalog.HostServiceServer {
-	return &{{ $hostServerImpl }}{
+// {{ $hostServiceServerFunc }} returns a catalog HostServiceServer implementation for the {{ $c.Name }} plugin.
+func {{ $hostServiceServerFunc }}(server {{ $c.ServerType }}) catalog.HostServiceServer {
+	return &{{ $hostServiceServerImpl }}{
 		server: server,
 	}
 }
 
-type {{ $hostServerImpl }} struct {
+type {{ $hostServiceServerImpl }} struct {
 	server {{ $c.ServerType }}
 }
 
-func (s  {{ $hostServerImpl }}) HostServiceType() string {
+func (s  {{ $hostServiceServerImpl }}) HostServiceType() string {
 	return {{ $typeConst }}
 }
 
-func (s {{ $hostServerImpl }}) RegisterHostServiceServer(server *grpc.Server) {
+func (s {{ $hostServiceServerImpl }}) RegisterHostServiceServer(server *grpc.Server) {
 	{{ $c.PkgQual }}Register{{ $c.Name }}Server(server, s.server)
 }
 
-// {{ $hostServerFunc }} returns a catalog HostServiceServer implementation for the {{ $c.Name }} plugin.
-func {{ $hostClientFunc }}(client *{{ $c.ClientType }}) catalog.HostServiceClient {
-	return &{{ $hostClientImpl }}{
+// {{ $hostServiceServerFunc }} returns a catalog HostServiceServer implementation for the {{ $c.Name }} plugin.
+func {{ $hostServiceClientFunc }}(client *{{ $c.Name }}) catalog.HostServiceClient {
+	return &{{ $hostServiceClientImpl }}{
 		client: client,
 	}
 }
 
-type {{ $hostClientImpl }} struct {
-	client *{{ $c.ClientType }}
+type {{ $hostServiceClientImpl }} struct {
+	client *{{ $c.Name }}
 }
 
-func (c *{{ $hostClientImpl }}) HostServiceType() string {
+func (c *{{ $hostServiceClientImpl }}) HostServiceType() string {
 	return {{ $typeConst }}
 }
 
-func (c *{{ $hostClientImpl }}) InitHostServiceClient(conn *grpc.ClientConn) {
-	*c.client = {{ $c.PkgQual }}New{{ $c.Name }}Client(conn)
+func (c *{{ $hostServiceClientImpl }}) InitHostServiceClient(conn *grpc.ClientConn) {
+	*c.client = {{ $adaptHostServiceClientFunc }}({{ $c.PkgQual }}New{{ $c.Name }}Client(conn))
 }
+
+func {{ $adaptHostServiceClientFunc }}(client {{ $c.ClientType }}) {{ $c.Name }} {
+	return {{ $hostServiceClientAdapterImpl }}{client: client}
+}
+
+type {{ $hostServiceClientAdapterImpl }} struct {
+	client {{ $c.ClientType }}
+}
+
+{{- range $c.Methods }}
+
+func (a {{ $hostServiceClientAdapterImpl }}) {{ .Name }}({{ range $i,$v := .Params }}{{ if $i }}, {{ end }}{{ $v.Name }} {{ $v.Type }}{{ end }}) ({{ range $i,$v := .Results }}{{ if $i }}, {{ end }}{{ $v.Type }}{{ end }}) {
+	return a.client.{{ .Name }}({{ range $i,$v := .Params }}{{ if $i }}, {{ end }}{{ $v.Name }}{{ end }})
+}
+{{- end }}
 
 {{- end }}
 `

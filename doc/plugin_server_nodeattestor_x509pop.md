@@ -19,3 +19,20 @@ spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
 | `ca_bundle_path` | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. | |
+
+A sample configuration:
+
+```
+	NodeAttestor "x509pop" {
+		plugin_data {
+			ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
+		}
+	}
+```
+
+## Selectors
+
+| Selector            | Example                                                   | Description                                                           |
+| ------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
+| Common Name         | `subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)             |
+| SHA1 Fingerprint    | `ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.  |

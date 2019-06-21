@@ -13,6 +13,37 @@ metadata:
 
 ---
 
+# Required cluster role to allow spire-server to query k8s API server
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get"]
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
+
+---
+
+# Binds above cluster role to spire-server service account
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-cluster-role-binding
+subjects:
+- kind: ServiceAccount
+  name: spire-server
+  namespace: spire
+roleRef:
+  kind: ClusterRole
+  name: spire-server-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -38,10 +69,11 @@ data:
       data_dir = "/run/spire/data"
       log_level = "DEBUG"
       svid_ttl = "1h"
+      upstream_bundle = true
       ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIFFE"],
-        CommonName = "",
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
       }
     }
 
@@ -57,9 +89,7 @@ data:
         plugin_data {
           clusters = {
             "demo-cluster" = {
-              service_account_key_file = "/run/k8s-certs/apiserver.crt"
               service_account_whitelist = ["spire:spire-agent"]
-              enable_api_server_queries = true
             }
           }
         }
@@ -121,7 +151,7 @@ spec:
       serviceAccountName: spire-server
       containers:
         - name: spire-server
-          image: gcr.io/spiffe-io/spire-server:0.7.3
+          image: gcr.io/spiffe-io/spire-server:0.8.0
           args: ["-config", "/run/spire/config/server.conf"]
           ports:
             - containerPort: 8081
@@ -135,9 +165,6 @@ spec:
             - name: spire-data
               mountPath: /run/spire/data
               readOnly: false
-            - name: k8s-sa-cert
-              mountPath: /run/k8s-certs/apiserver.crt
-              readOnly: true
           livenessProbe:
             tcpSocket:
               port: 8081
@@ -152,10 +179,6 @@ spec:
         - name: spire-secrets
           secret:
             secretName: spire-server
-        - name: k8s-sa-cert
-          hostPath:
-            path: /var/lib/minikube/certs/apiserver.crt
-            type: File
   volumeClaimTemplates:
     - metadata:
         name: spire-data

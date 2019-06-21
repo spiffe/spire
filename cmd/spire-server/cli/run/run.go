@@ -10,8 +10,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -22,12 +20,14 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
+	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 )
 
 const (
-	defaultConfigPath = "conf/server/server.conf"
-	defaultSocketPath = "/tmp/spire-registration.sock"
-	defaultLogLevel   = "INFO"
+	defaultConfigPath         = "conf/server/server.conf"
+	defaultSocketPath         = "/tmp/spire-registration.sock"
+	defaultLogLevel           = "INFO"
+	defaultBundleEndpointPort = 443
 )
 
 // runConfig represents available configurables for file and CLI options
@@ -59,11 +59,15 @@ type serverRunConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
-	Umask            string   `hcl:"umask"`
 }
 
 type experimentalConfig struct {
 	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
+
+	BundleEndpointEnabled bool                           `hcl:"bundle_endpoint_enabled"`
+	BundleEndpointAddress string                         `hcl:"bundle_endpoint_address"`
+	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
+	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
 }
 
 type caSubjectConfig struct {
@@ -72,9 +76,14 @@ type caSubjectConfig struct {
 	CommonName   string   `hcl:"common_name"`
 }
 
+type federatesWithConfig struct {
+	BundleEndpointAddress  string `hcl:"bundle_endpoint_address"`
+	BundleEndpointPort     int    `hcl:"bundle_endpoint_port"`
+	BundleEndpointSpiffeID string `hcl:"bundle_endpoint_spiffe_id"`
+}
+
 type serverConfig struct {
 	server.Config
-	umask int
 }
 
 // Run CLI struct
@@ -120,7 +129,7 @@ func (*RunCLI) Run(args []string) int {
 	}
 
 	// set umask before starting up the server
-	cli.SetUmask(c.Log, c.umask)
+	cli.SetUmask(c.Log)
 
 	s := server.New(c.Config)
 
@@ -157,10 +166,10 @@ func parseFile(filePath string) (*runConfig, error) {
 
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read configuration: %v", err)
 	}
 	if err := hcl.Decode(&c, string(data)); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to decode configuration: %v", err)
 	}
 
 	return c, nil
@@ -179,7 +188,6 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.Server.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.Server.DataDir, "dataDir", "", "Directory to store runtime data to")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
-	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
 	flags.BoolVar(&c.Server.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
 
 	err := flags.Parse(args)
@@ -246,14 +254,6 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 		orig.Log = logger
 	}
 
-	if cmd.Server.Umask != "" {
-		umask, err := strconv.ParseInt(cmd.Server.Umask, 0, 0)
-		if err != nil {
-			return fmt.Errorf("Could not parse umask %s: %s", cmd.Server.Umask, err)
-		}
-		orig.umask = int(umask)
-	}
-
 	// TODO: CLI should be able to override with `false` value
 	if cmd.Server.UpstreamBundle {
 		orig.UpstreamBundle = cmd.Server.UpstreamBundle
@@ -261,6 +261,38 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 
 	if cmd.Server.Experimental.AllowAgentlessNodeAttestors {
 		orig.Experimental.AllowAgentlessNodeAttestors = cmd.Server.Experimental.AllowAgentlessNodeAttestors
+	}
+
+	if cmd.Server.Experimental.BundleEndpointEnabled {
+		orig.Experimental.BundleEndpointEnabled = cmd.Server.Experimental.BundleEndpointEnabled
+	}
+	if cmd.Server.Experimental.BundleEndpointAddress != "" {
+		ip := net.ParseIP(cmd.Server.Experimental.BundleEndpointAddress)
+		if ip == nil {
+			return errors.New("bundle_endpoint_address must be a valid IP")
+		}
+		orig.Experimental.BundleEndpointAddress.IP = ip
+	}
+	if cmd.Server.Experimental.BundleEndpointPort != 0 {
+		orig.Experimental.BundleEndpointAddress.Port = cmd.Server.Experimental.BundleEndpointPort
+	}
+
+	if cmd.Server.Experimental.FederatesWith != nil {
+		federatesWith := map[string]bundleClient.TrustDomainConfig{}
+		for trustDomain, config := range cmd.Server.Experimental.FederatesWith {
+			if config.BundleEndpointAddress == "" {
+				return fmt.Errorf("%s bundle_endpoint_address must be set", trustDomain)
+			}
+			port := defaultBundleEndpointPort
+			if config.BundleEndpointPort != 0 {
+				port = config.BundleEndpointPort
+			}
+			federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
+				EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
+				EndpointSpiffeID: config.BundleEndpointSpiffeID,
+			}
+		}
+		orig.Experimental.FederatesWith = federatesWith
 	}
 
 	if cmd.Server.ProfilingEnabled {
@@ -339,7 +371,9 @@ func newDefaultConfig() *serverConfig {
 			Log:            logger,
 			BindAddress:    bindAddress,
 			BindUDSAddress: bindUDSAddress,
+			Experimental: server.ExperimentalConfig{
+				BundleEndpointAddress: &net.TCPAddr{Port: defaultBundleEndpointPort},
+			},
 		},
-		umask: -1,
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -170,10 +171,14 @@ func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 		return &workloadattestor.AttestResponse{}, nil
 	}
 
+	log := p.log.With(telemetry.ContainerID, containerID)
+
 	// Poll pod information and search for the pod with the container. If
 	// the pod is not found, and there are pods with containers that aren't
 	// fully initialized, delay for a little bit and try again.
 	for attempt := 1; ; attempt++ {
+		log = log.With(telemetry.Attempt, attempt)
+
 		list, err := config.Client.GetPodList()
 		if err != nil {
 			return nil, err
@@ -196,12 +201,12 @@ func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 		// if the container was not located and there were no pods with
 		// uninitialized containers, then the search is over.
 		if !notAllContainersReady || attempt >= config.MaxPollAttempts {
-			p.log.Warn("container id not found; giving up", "container_id", containerID, "attempt", attempt)
+			log.Warn("container id not found; giving up")
 			return nil, k8sErr.New("no selectors found")
 		}
 
 		// wait a bit for containers to initialize before trying again.
-		p.log.Warn("container id not found", "container_id", containerID, "attempt", attempt, "retry_interval", config.PollRetryInterval)
+		log.Warn("container id not found", telemetry.RetryInterval, config.PollRetryInterval)
 
 		select {
 		case <-p.clock.After(config.PollRetryInterval):
@@ -335,7 +340,13 @@ func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 				log.Printf("Kube pod entry found, but without container id: %v", substring)
 				continue
 			}
-			return parts[4], nil
+			id := strings.TrimSuffix(parts[4], ".scope")
+			// Trim the id of any container runtime prefixes.  Ex "docker-" or "crio-"
+			dash := strings.Index(id, "-")
+			if dash > -1 {
+				id = id[dash+1:]
+			}
+			return id, nil
 		}
 	}
 
@@ -601,6 +612,7 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("ns:%s", pod.Namespace),
 		makeSelector("node-name:%s", pod.Spec.NodeName),
 		makeSelector("pod-uid:%s", pod.UID),
+		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
 		makeSelector("container-image:%s", status.Image),
 	}

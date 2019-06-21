@@ -14,18 +14,22 @@ import (
 
 type KeyManagerSigner struct {
 	km        keymanager.KeyManager
-	keyId     string
+	keyID     string
 	publicKey crypto.PublicKey
 }
 
 var _ crypto.Signer = (*KeyManagerSigner)(nil)
 
-func NewKeyManagerSigner(km keymanager.KeyManager, keyId string, publicKey crypto.PublicKey) *KeyManagerSigner {
+func NewKeyManagerSigner(km keymanager.KeyManager, keyID string, publicKey crypto.PublicKey) *KeyManagerSigner {
 	return &KeyManagerSigner{
 		km:        km,
-		keyId:     keyId,
+		keyID:     keyID,
 		publicKey: publicKey,
 	}
+}
+
+func (s *KeyManagerSigner) KeyID() string {
+	return s.keyID
 }
 
 func (s *KeyManagerSigner) Public() crypto.PublicKey {
@@ -34,7 +38,7 @@ func (s *KeyManagerSigner) Public() crypto.PublicKey {
 
 func (s *KeyManagerSigner) SignContext(ctx context.Context, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	req := &keymanager.SignDataRequest{
-		KeyId: s.keyId,
+		KeyId: s.keyID,
 		Data:  digest,
 	}
 	switch opts := opts.(type) {
@@ -68,9 +72,9 @@ func (s *KeyManagerSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOp
 	return s.SignContext(context.Background(), digest, opts)
 }
 
-func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyId string, keyType keymanager.KeyType) ([]byte, error) {
+func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyID string, keyType keymanager.KeyType) ([]byte, error) {
 	resp, err := km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   keyId,
+		KeyId:   keyID,
 		KeyType: keyType,
 	})
 	if err != nil {
@@ -82,8 +86,8 @@ func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyId string,
 	return resp.PublicKey.PkixData, nil
 }
 
-func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, keyType keymanager.KeyType) (crypto.PublicKey, error) {
-	pkixData, err := GenerateKeyRaw(ctx, km, keyId, keyType)
+func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyID string, keyType keymanager.KeyType) (crypto.PublicKey, error) {
+	pkixData, err := GenerateKeyRaw(ctx, km, keyID, keyType)
 	if err != nil {
 		return nil, err
 	}
@@ -95,10 +99,10 @@ func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, ke
 	return publicKey, nil
 }
 
-func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId string, keyType keymanager.KeyType) (*KeyManagerSigner, error) {
-	publicKey, err := GenerateKey(ctx, km, keyId, keyType)
+func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyID string, keyType keymanager.KeyType) (*KeyManagerSigner, error) {
+	publicKey, err := GenerateKey(ctx, km, keyID, keyType)
 	if err != nil {
 		return nil, err
 	}
-	return NewKeyManagerSigner(km, keyId, publicKey), nil
+	return NewKeyManagerSigner(km, keyID, publicKey), nil
 }
