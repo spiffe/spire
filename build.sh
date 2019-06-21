@@ -98,7 +98,7 @@ build_protobuf() {
 	# has been set the output will sit alongside the proto files.
 	_all_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
 	for _proto_file in ${_all_proto_files}; do
-		_srcdir="$(dirname "${_all_proto_files}")"
+		_srcdir="$(dirname "${_proto_file}")"
 		_outdir="${_srcdir}"
 		if [[ -n ${_out} ]]; then
 			_outdir=${_out}/${_srcdir}
