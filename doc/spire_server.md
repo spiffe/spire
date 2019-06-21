@@ -44,8 +44,8 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 
 | Configuration               | Description                                                  | Default                       |
 |:----------------------------|:-------------------------------------------------------------|:------------------------------|
-| `bind_address`              | IP address or DNS name of the SPIRE server                   |                               |
-| `bind_port`                 | HTTP Port number of the SPIRE server                         |                               |
+| `bind_address`              | IP address or DNS name of the SPIRE server                   | 0.0.0.0                       |
+| `bind_port`                 | HTTP Port number of the SPIRE server                         | 8081                          |
 | `ca_subject`                | The Subject that CA certificates should use (see below)      |                               |
 | `ca_ttl`                    | The default CA/signing key TTL                               | 24h                           |
 | `data_dir`                  | A directory the server can use for its runtime               |                               |

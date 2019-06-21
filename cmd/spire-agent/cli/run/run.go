@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl"
+	"github.com/imdario/mergo"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
@@ -26,7 +27,6 @@ import (
 
 const (
 	defaultConfigPath = "conf/agent/agent.conf"
-
 	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
@@ -36,24 +36,24 @@ const (
 
 // RunConfig represents the available configurables for file
 // and CLI options
-type runConfig struct {
-	AgentConfig   agentRunConfig             `hcl:"agent"`
-	PluginConfigs catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry     telemetry.FileConfig       `hcl:"telemetry"`
+type config struct {
+	Agent     *agentConfig                `hcl:"agent"`
+	Plugins   *catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry telemetry.FileConfig        `hcl:"telemetry"`
 }
 
-type agentRunConfig struct {
+type agentConfig struct {
 	DataDir         string `hcl:"data_dir"`
 	EnableSDS       bool   `hcl:"enable_sds"`
+	JoinToken       string `hcl:"join_token"`
 	LogFile         string `hcl:"log_file"`
-	LogLevel        string `hcl:"log_level"`
 	LogFormat       string `hcl:"log_format"`
+	LogLevel        string `hcl:"log_level"`
 	ServerAddress   string `hcl:"server_address"`
 	ServerPort      int    `hcl:"server_port"`
 	SocketPath      string `hcl:"socket_path"`
 	TrustBundlePath string `hcl:"trust_bundle_path"`
 	TrustDomain     string `hcl:"trust_domain"`
-	JoinToken       string `hcl:"join_token"`
 
 	ConfigPath string
 
@@ -62,10 +62,6 @@ type agentRunConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
-}
-
-type agentConfig struct {
-	agent.Config
 }
 
 type RunCLI struct {
@@ -77,42 +73,34 @@ func (*RunCLI) Help() string {
 }
 
 func (*RunCLI) Run(args []string) int {
-	cliConfig, err := parseFlags(args)
+	cliInput, err := parseFlags(args)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	fileConfig, err := parseFile(cliConfig.AgentConfig.ConfigPath)
+	fileInput, err := parseFile(cliInput.ConfigPath)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	c := newDefaultConfig()
-
-	// Get the plugin and telemetry configurations from the file
-	c.PluginConfigs = fileConfig.PluginConfigs
-	c.Telemetry = fileConfig.Telemetry
-
-	err = mergeConfigs(c, fileConfig, cliConfig)
+	c, err := processInput(fileInput, cliInput)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
+		return 1
 	}
 
-	err = validateConfig(c)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-
+	// Set umask before starting up the agent
 	cli.SetUmask(c.Log)
 
-	agt := agent.New(&c.Config)
+	a := agent.New(c)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	util.SignalListener(ctx, cancel)
 
-	err = agt.Run(ctx)
+	err = a.Run(ctx)
 	if err != nil {
 		c.Log.WithError(err).Error("agent crashed")
 		return 1
@@ -126,51 +114,52 @@ func (*RunCLI) Synopsis() string {
 	return "Runs the agent"
 }
 
-func parseFile(filePath string) (*runConfig, error) {
-	c := &runConfig{}
+func parseFile(path string) (*config, error) {
+	c := &config{}
+
+	if path == "" {
+		path = defaultConfigPath
+	}
 
 	// Return a friendly error if the file is missing
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		msg := "could not find config file %s: please use the -config flag"
-		p, err := filepath.Abs(filePath)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		absPath, err := filepath.Abs(path)
 		if err != nil {
-			p = filePath
-			msg = "could not determine CWD; config file not found at %s: use -config"
+			msg := "could not determine CWD; config file not found at %s: use -config"
+			return nil, fmt.Errorf(msg, path)
 		}
-		return nil, fmt.Errorf(msg, p)
+
+		msg := "could not find config file %s: please use the -config flag"
+		return nil, fmt.Errorf(msg, absPath)
 	}
 
-	data, err := ioutil.ReadFile(filePath)
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read configuration: %v", err)
 	}
-	hclTree, err := hcl.Parse(string(data))
-	if err != nil {
-		return nil, err
-	}
-	if err := hcl.DecodeObject(&c, hclTree); err != nil {
-		return nil, err
+
+	if err := hcl.Decode(&c, string(data)); err != nil {
+		return nil, fmt.Errorf("unable to decode configuration: %v", err)
 	}
 
 	return c, nil
 }
 
-func parseFlags(args []string) (*runConfig, error) {
+func parseFlags(args []string) (*agentConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	c := &runConfig{}
+	c := &agentConfig{}
 
-	flags.StringVar(&c.AgentConfig.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&c.AgentConfig.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.StringVar(&c.AgentConfig.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
-	flags.StringVar(&c.AgentConfig.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
-	flags.StringVar(&c.AgentConfig.JoinToken, "joinToken", "", "An optional token which has been generated by the SPIRE server")
-	flags.StringVar(&c.AgentConfig.SocketPath, "socketPath", "", "Location to bind the workload API socket")
-	flags.StringVar(&c.AgentConfig.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
-	flags.StringVar(&c.AgentConfig.LogFile, "logFile", "", "File to write logs to")
-	flags.StringVar(&c.AgentConfig.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.AgentConfig.LogFormat, "logFormat", "", "'text' or 'json'")
-
-	flags.StringVar(&c.AgentConfig.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
+	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
+	flags.StringVar(&c.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
+	flags.StringVar(&c.JoinToken, "joinToken", "", "An optional token which has been generated by the SPIRE server")
+	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
+	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
+	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
+	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
+	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
+	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
+	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -180,129 +169,109 @@ func parseFlags(args []string) (*runConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *agentConfig, fileConfig, cliConfig *runConfig) error {
-	// CLI > File, merge fileConfig first
-	err := mergeConfig(c, fileConfig)
+func processInput(fileConfig *config, cliConfig *agentConfig) (*agent.Config, error) {
+	c := defaultConfig()
+
+	err := mergo.Merge(c, fileConfig, mergo.WithOverride)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return mergeConfig(c, cliConfig)
+	err = mergo.Merge(c.Agent, cliConfig, mergo.WithOverride)
+	if err != nil {
+		return nil, err
+	}
+
+	err = validateConfig(c)
+	if err != nil {
+		return nil, err
+	}
+
+	return processConfig(c)
 }
 
-func mergeConfig(orig *agentConfig, cmd *runConfig) error {
-	if cmd.AgentConfig.ServerAddress != "" {
-		_, port, _ := net.SplitHostPort(orig.ServerAddress)
-		orig.ServerAddress = net.JoinHostPort(cmd.AgentConfig.ServerAddress, port)
-	}
+func processConfig(c *config) (*agent.Config, error) {
+	ac := &agent.Config{}
 
-	if cmd.AgentConfig.ServerPort != 0 {
-		host, _, _ := net.SplitHostPort(orig.ServerAddress)
-		orig.ServerAddress = net.JoinHostPort(host, strconv.Itoa(cmd.AgentConfig.ServerPort))
-	}
+	ac.ServerAddress = net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
+	ac.DataDir = c.Agent.DataDir
 
-	if cmd.AgentConfig.TrustDomain != "" {
-		trustDomain, err := idutil.ParseSpiffeID("spiffe://"+cmd.AgentConfig.TrustDomain, idutil.AllowAnyTrustDomain())
-		if err != nil {
-			return err
-		}
-		orig.TrustDomain = *trustDomain
+	td, err := idutil.ParseSpiffeID("spiffe://"+c.Agent.TrustDomain, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Agent.TrustDomain, err)
 	}
+	ac.TrustDomain = *td
 
 	// Parse trust bundle
-	if cmd.AgentConfig.TrustBundlePath != "" {
-		bundle, err := parseTrustBundle(cmd.AgentConfig.TrustBundlePath)
-		if err != nil {
-			return fmt.Errorf("Error parsing trust bundle: %s", err)
-		}
+	bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse trust bundle: %s", err)
+	}
+	ac.TrustBundle = bundle
 
-		orig.TrustBundle = bundle
+	ac.BindAddress = &net.UnixAddr{
+		Name: c.Agent.SocketPath,
+		Net:  "unix",
 	}
 
-	if cmd.AgentConfig.JoinToken != "" {
-		orig.JoinToken = cmd.AgentConfig.JoinToken
+	ac.JoinToken = c.Agent.JoinToken
+	ac.DataDir = c.Agent.DataDir
+	ac.EnableSDS = c.Agent.EnableSDS
+
+	ll := strings.ToUpper(c.Agent.LogLevel)
+	lf := strings.ToUpper(c.Agent.LogFormat)
+	logger, err := log.NewLogger(ll, lf, c.Agent.LogFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not open log file %q: %s", c.Agent.LogFile, err)
 	}
+	ac.Log = logger
 
-	if cmd.AgentConfig.SocketPath != "" {
-		orig.BindAddress.Name = cmd.AgentConfig.SocketPath
-	}
+	ac.ProfilingEnabled = c.Agent.ProfilingEnabled
+	ac.ProfilingPort = c.Agent.ProfilingPort
+	ac.ProfilingFreq = c.Agent.ProfilingFreq
+	ac.ProfilingNames = c.Agent.ProfilingNames
 
-	if cmd.AgentConfig.DataDir != "" {
-		orig.DataDir = cmd.AgentConfig.DataDir
-	}
+	ac.PluginConfigs = *c.Plugins
+	ac.Telemetry = c.Telemetry
 
-	if cmd.AgentConfig.EnableSDS {
-		orig.EnableSDS = cmd.AgentConfig.EnableSDS
-	}
-
-	// Handle log file and level
-	if cmd.AgentConfig.LogFile != "" || cmd.AgentConfig.LogLevel != "" || cmd.AgentConfig.LogFormat != "" {
-		logLevel := defaultLogLevel
-		if cmd.AgentConfig.LogLevel != "" {
-			logLevel = strings.ToUpper(cmd.AgentConfig.LogLevel)
-		}
-
-		format := strings.ToUpper(cmd.AgentConfig.LogFormat)
-		logger, err := log.NewLogger(logLevel, format, cmd.AgentConfig.LogFile)
-		if err != nil {
-			return fmt.Errorf("Could not open log file %s: %s", cmd.AgentConfig.LogFile, err)
-		}
-
-		orig.Log = logger
-	}
-
-	if cmd.AgentConfig.ProfilingEnabled {
-		orig.ProfilingEnabled = cmd.AgentConfig.ProfilingEnabled
-	}
-
-	if orig.ProfilingEnabled {
-		if cmd.AgentConfig.ProfilingPort > 0 {
-			orig.ProfilingPort = cmd.AgentConfig.ProfilingPort
-		}
-
-		if cmd.AgentConfig.ProfilingFreq > 0 {
-			orig.ProfilingFreq = cmd.AgentConfig.ProfilingFreq
-		}
-
-		if len(cmd.AgentConfig.ProfilingNames) > 0 {
-			orig.ProfilingNames = cmd.AgentConfig.ProfilingNames
-		}
-	}
-	return nil
+	return ac, nil
 }
 
-func validateConfig(c *agentConfig) error {
-	host, port, _ := net.SplitHostPort(c.ServerAddress)
-	if host == "" {
-		return errors.New("ServerAddress is required")
+func validateConfig(c *config) error {
+	if c.Agent == nil {
+		return errors.New("agent section must be configured")
 	}
 
-	if port == "" {
-		return errors.New("ServerPort is required")
+	if c.Agent.ServerAddress == "" {
+		return errors.New("server_address must be configured")
 	}
 
-	if c.TrustDomain.String() == "" {
-		return errors.New("TrustDomain is required")
+	if c.Agent.ServerPort == 0 {
+		return errors.New("server_port must be configured")
 	}
 
-	if c.TrustBundle == nil {
-		return errors.New("TrustBundle is required")
+	if c.Agent.TrustDomain == "" {
+		return errors.New("trust_domain must be configured")
+	}
+
+	if c.Agent.TrustBundlePath == "" {
+		return errors.New("trust_bundle_path must be configured")
+	}
+
+	if c.Plugins == nil {
+		return errors.New("plugins section must be configured")
 	}
 
 	return nil
 }
 
-func newDefaultConfig() *agentConfig {
-	bindAddr := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
-
-	// log.NewLogger() cannot return error when using STDOUT
-	logger, _ := log.NewLogger(defaultLogLevel, log.DefaultFormat, "")
-
-	return &agentConfig{
-		Config: agent.Config{
-			BindAddress: bindAddr,
-			DataDir:     defaultDataDir,
-			Log:         logger,
+func defaultConfig() *config {
+	return &config{
+		Agent: &agentConfig{
+			DataDir:    defaultDataDir,
+			LogLevel:   defaultLogLevel,
+			LogFormat:  log.DefaultFormat,
+			SocketPath: defaultSocketPath,
 		},
 	}
 }
