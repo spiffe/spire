@@ -77,19 +77,6 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.requireErrorContains(err, "gcp-iit: unable to retrieve valid identity token: unexpected status code: 502")
 }
 
-func (s *Suite) TestErrorOnInvalidToken() {
-	s.body = "invalid"
-	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "gcp-iit: unable to parse identity token: token contains an invalid number of segments")
-}
-
-func (s *Suite) TestErrorOnMissingClaimsInIdentityToken() {
-	token := jwt.New(jwt.SigningMethodHS256)
-	s.body = s.signToken(token)
-	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "gcp-iit: identity token is missing google claims")
-}
-
 func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
 	require := s.Require()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -104,38 +91,6 @@ func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
 	resp, err := s.fetchAttestationData()
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal("spiffe://example.org/spire/agent/gcp_iit/project-123/instance-123", resp.SpiffeId)
-	require.Equal(gcp.PluginName, resp.AttestationData.Type)
-	require.Equal(s.body, string(resp.AttestationData.Data))
-}
-
-func (s *Suite) TestSuccessfulIdentityTokenProcessingCustomPathTemplate() {
-	require := s.Require()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"google": gcp.Google{
-			ComputeEngine: gcp.ComputeEngine{
-				ProjectID:  "project-123",
-				InstanceID: "instance-123",
-			},
-		},
-	})
-	s.body = s.signToken(token)
-
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-		Configuration: fmt.Sprintf(`
-agent_path_template = "{{ .InstanceID }}"
-service_account = "%s"
-identity_token_host = "%s"
-`, testServiceAccount, s.server.Listener.Addr().String()),
-	})
-
-	resp, err := s.fetchAttestationData()
-	require.NoError(err)
-	require.NotNil(resp)
-	require.Equal("spiffe://example.org/spire/agent/instance-123", resp.SpiffeId)
 	require.Equal(gcp.PluginName, resp.AttestationData.Type)
 	require.Equal(s.body, string(resp.AttestationData.Data))
 }
@@ -187,18 +142,6 @@ func (s *Suite) TestConfigure() {
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
 	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
-	require.Nil(resp)
-
-	// bad path template
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-		Configuration: `
-agent_path_template = "{{"
-`,
-	})
-	s.requireErrorContains(err, "failed to parse agent path template")
 	require.Nil(resp)
 
 	// success

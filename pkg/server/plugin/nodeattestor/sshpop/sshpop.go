@@ -66,19 +66,14 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	spiffeid, err := handshaker.SpiffeID()
+	agentID, err := handshaker.AgentID()
 	if err != nil {
 		return err
 	}
-	resp := &nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: spiffeid,
-	}
 
-	if err := stream.Send(resp); err != nil {
-		return err
-	}
-	return nil
+	return stream.Send(&nodeattestor.AttestResponse{
+		AgentId: agentID,
+	})
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {

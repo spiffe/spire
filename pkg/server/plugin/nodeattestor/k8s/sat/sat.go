@@ -13,10 +13,12 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"github.com/gofrs/uuid"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
+	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
@@ -78,14 +80,28 @@ type attestorConfig struct {
 }
 
 type AttestorPlugin struct {
+	nodeattestorbase.Base
+
 	mu     sync.RWMutex
 	config *attestorConfig
+
+	hooks struct {
+		newUUID func() (string, error)
+	}
 }
 
 var _ nodeattestor.NodeAttestorServer = (*AttestorPlugin)(nil)
 
 func New() *AttestorPlugin {
-	return &AttestorPlugin{}
+	p := &AttestorPlugin{}
+	p.hooks.newUUID = func() (string, error) {
+		u, err := uuid.NewV4()
+		if err != nil {
+			return "", err
+		}
+		return u.String(), nil
+	}
+	return p
 }
 
 func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
@@ -97,10 +113,6 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 	config, err := p.getConfig()
 	if err != nil {
 		return err
-	}
-
-	if req.AttestedBefore {
-		return satError.New("node has already attested")
 	}
 
 	if req.AttestationData == nil {
@@ -124,10 +136,6 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return satError.New("missing cluster in attestation data")
 	}
 
-	if attestationData.UUID == "" {
-		return satError.New("missing UUID in attestation data")
-	}
-
 	if attestationData.Token == "" {
 		return satError.New("missing token in attestation data")
 	}
@@ -135,6 +143,22 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 	cluster := config.clusters[attestationData.Cluster]
 	if cluster == nil {
 		return satError.New("not configured for cluster %q", attestationData.Cluster)
+	}
+
+	uuid, err := p.hooks.newUUID()
+	if err != nil {
+		return err
+	}
+
+	// It is incredibly unlikely the agent will have already attested since we
+	// generate a new UUID on each attestation but just in case...
+	agentID := k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, uuid)
+	attested, err := p.IsAttested(stream.Context(), agentID)
+	switch {
+	case err != nil:
+		return satError.Wrap(err)
+	case attested:
+		return satError.New("SAT has already been used to attest an agent with the same UUID")
 	}
 
 	var namespace, serviceAccountName string
@@ -192,8 +216,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, attestationData.UUID),
+		AgentId: agentID,
 		Selectors: []*common.Selector{
 			k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
 			k8s.MakeSelector(pluginName, "agent_ns", namespace),

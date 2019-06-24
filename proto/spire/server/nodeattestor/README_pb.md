@@ -31,8 +31,8 @@ Represents a request to attest a node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestationData | [spire.common.AttestationData](#spire.common.AttestationData) |  | A type which contains attestation data for specific platform. |
-| attestedBefore | [bool](#bool) |  | Is true if the Base SPIFFE ID is present in the Attested Node table. |
+| attestation_data | [spire.common.AttestationData](#spire.common.AttestationData) |  | A type which contains attestation data for specific platform. |
+| DEPRECATED_attested_before | [bool](#bool) |  | Is true if the Base SPIFFE ID is present in the Attested Node table. |
 | response | [bytes](#bytes) |  | Challenge response |
 
 
@@ -48,8 +48,8 @@ Represents a response when attesting a node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| valid | [bool](#bool) |  | True/False |
-| baseSPIFFEID | [string](#string) |  | Used by the Server to validate the SPIFFE Id in the Certificate signing request. |
+| DEPRECATED_valid | [bool](#bool) |  | True/False |
+| agent_id | [string](#string) |  | SPIFFE ID of the attested node |
 | challenge | [bytes](#bytes) |  | Challenge required for attestation |
 | selectors | [spire.common.Selector](#spire.common.Selector) | repeated | Optional list of selectors |
 

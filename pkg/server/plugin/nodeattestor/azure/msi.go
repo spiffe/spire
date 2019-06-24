@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/zeebo/errs"
@@ -53,6 +54,8 @@ type MSIAttestorConfig struct {
 }
 
 type MSIAttestorPlugin struct {
+	nodeattestorbase.Base
+
 	mu     sync.RWMutex
 	config *MSIAttestorConfig
 
@@ -80,10 +83,6 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	config, err := p.getConfig()
 	if err != nil {
 		return err
-	}
-
-	if req.AttestedBefore {
-		return msiError.New("node has already attested")
 	}
 
 	if req.AttestationData == nil {
@@ -131,6 +130,15 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	if err := token.Claims(&keys[0], claims); err != nil {
 		return msiError.New("unable to verify token: %v", err)
 	}
+	agentID := claims.AgentID(config.trustDomain)
+
+	attested, err := p.IsAttested(stream.Context(), agentID)
+	switch {
+	case err != nil:
+		return msiError.Wrap(err)
+	case attested:
+		return msiError.New("MSI token has already been used to attest an agent")
+	}
 
 	// make sure tenant id is present and authorized
 	if claims.TenantID == "" {
@@ -154,8 +162,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: claims.AgentID(config.trustDomain),
+		AgentId: agentID,
 	})
 }
 
