@@ -3,7 +3,6 @@ package bundle
 import (
 	"context"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -181,8 +180,8 @@ func printCACertsPEM(out io.Writer, caCerts []byte) error {
 	return nil
 }
 
-func parseBundle(jwksBytes []byte) (*common.Bundle, error) {
-	bundle, err := bundleutil.BundleFromJWKSBytes(jwksBytes)
+func parseBundle(trustDomainID string, jwksBytes []byte) (*common.Bundle, error) {
+	bundle, err := bundleutil.Unmarshal(trustDomainID, jwksBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -195,17 +194,18 @@ func printBundle(out io.Writer, bundle *common.Bundle, header bool) error {
 			return err
 		}
 	}
-	jwks, err := bundleutil.JWKSFromBundleProto(bundle)
+
+	b, err := bundleutil.BundleFromProto(bundle)
 	if err != nil {
 		return err
 	}
 
-	jwksBytes, err := json.MarshalIndent(jwks, "", "\t")
+	docBytes, err := bundleutil.Marshal(b)
 	if err != nil {
 		return errs.Wrap(err)
 	}
 
-	if _, err := fmt.Fprintln(out, string(jwksBytes)); err != nil {
+	if _, err := fmt.Fprintln(out, string(docBytes)); err != nil {
 		return errs.Wrap(err)
 	}
 

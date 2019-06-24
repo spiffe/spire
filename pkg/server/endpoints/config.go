@@ -3,13 +3,12 @@ package endpoints
 import (
 	"net"
 	"net/url"
-	"sync"
 
-	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/pkg/server/svid"
 
 	"google.golang.org/grpc"
 )
@@ -23,8 +22,8 @@ type Config struct {
 	// A hook allowing the consumer to customize the gRPC server before it starts.
 	GRPCHook func(*grpc.Server) error
 
-	// A subscription to the SVID stream
-	SVIDStream observer.Stream
+	// The svid rotator used to obtain the latest server credentials
+	SVIDObserver svid.Observer
 
 	// The server's configured trust domain. Used for validation, server SVID, etc.
 	TrustDomain url.URL
@@ -38,6 +37,8 @@ type Config struct {
 	// Allow agentless spiffeIds when doing node attestation
 	AllowAgentlessNodeAttestors bool
 
+	BundleEndpointAddress *net.TCPAddr
+
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 }
@@ -45,7 +46,6 @@ type Config struct {
 // New creates new endpoints struct
 func New(c *Config) *endpoints {
 	return &endpoints{
-		c:   c,
-		mtx: new(sync.RWMutex),
+		c: c,
 	}
 }

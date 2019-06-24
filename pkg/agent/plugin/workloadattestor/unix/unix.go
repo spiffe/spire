@@ -77,52 +77,41 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 		return nil, unixErr.New("getting process: %v", err)
 	}
 
+	var selectors []*common.Selector
+
 	uid, err := p.getUid(proc)
 	if err != nil {
 		return nil, err
 	}
+	selectors = append(selectors, makeSelector("uid", uid))
 
-	user, err := p.getUserName(uid)
-	if err != nil {
-		return nil, err
+	if user, ok := p.getUserName(uid); ok {
+		selectors = append(selectors, makeSelector("user", user))
 	}
 
 	gid, err := p.getGid(proc)
 	if err != nil {
 		return nil, err
 	}
+	selectors = append(selectors, makeSelector("gid", gid))
 
-	group, err := p.getGroupName(gid)
-	if err != nil {
-		return nil, err
+	if group, ok := p.getGroupName(gid); ok {
+		selectors = append(selectors, makeSelector("group", group))
 	}
 
 	// obtaining the workload process path and digest are behind a config flag
 	// since it requires the agent to have permissions that might not be
 	// available.
-	var processPath string
-	var sha256Digest string
 	if config.DiscoverWorkloadPath {
-		processPath, err = p.getPath(proc)
+		processPath, err := p.getPath(proc)
 		if err != nil {
 			return nil, err
 		}
-		sha256Digest, err = getSHA256Digest(processPath, config.WorkloadSizeLimit)
+		sha256Digest, err := getSHA256Digest(processPath, config.WorkloadSizeLimit)
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	selectors := []*common.Selector{
-		makeSelector("uid", uid),
-		makeSelector("user", user),
-		makeSelector("gid", gid),
-		makeSelector("group", group),
-	}
-	if processPath != "" {
 		selectors = append(selectors, makeSelector("path", processPath))
-	}
-	if sha256Digest != "" {
 		selectors = append(selectors, makeSelector("sha256", sha256Digest))
 	}
 
@@ -176,12 +165,12 @@ func (p *UnixPlugin) getUid(proc processInfo) (string, error) {
 	}
 }
 
-func (p *UnixPlugin) getUserName(uid string) (string, error) {
+func (p *UnixPlugin) getUserName(uid string) (string, bool) {
 	u, err := p.hooks.lookupUserById(uid)
 	if err != nil {
-		return "", unixErr.New("user lookup: %v", err)
+		return "", false
 	}
-	return u.Username, nil
+	return u.Username, true
 }
 
 func (p *UnixPlugin) getGid(proc processInfo) (string, error) {
@@ -200,12 +189,12 @@ func (p *UnixPlugin) getGid(proc processInfo) (string, error) {
 	}
 }
 
-func (p *UnixPlugin) getGroupName(gid string) (string, error) {
+func (p *UnixPlugin) getGroupName(gid string) (string, bool) {
 	g, err := p.hooks.lookupGroupById(gid)
 	if err != nil {
-		return "", unixErr.New("group lookup: %v", err)
+		return "", false
 	}
-	return g.Name, nil
+	return g.Name, true
 }
 
 func (p *UnixPlugin) getPath(proc processInfo) (string, error) {
