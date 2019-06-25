@@ -84,13 +84,14 @@ func TestBundleUpdater(t *testing.T) {
 				},
 			})
 
-			refreshHint, err := updater.UpdateBundle(context.Background())
+			localBundle, remoteBundle, err := updater.UpdateBundle(context.Background())
 			if testCase.updateErr != "" {
 				spiretest.RequireErrorContains(t, err, testCase.updateErr)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, testCase.expectedBundle.RefreshHint(), refreshHint)
+			spiretest.RequireProtoEqual(t, testCase.localBundle.Proto(), localBundle.Proto())
+			spiretest.RequireProtoEqual(t, testCase.expectedBundle.Proto(), remoteBundle.Proto())
 
 			resp, err := ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 				TrustDomainId: "spiffe://domain.test",
@@ -112,9 +113,11 @@ func (c fakeClient) FetchBundle(context.Context) (*bundleutil.Bundle, error) {
 }
 
 func createCACertificate(t *testing.T, cn string) *x509.Certificate {
+	now := time.Now()
 	cert, _ := spiretest.SelfSignCertificate(t, &x509.Certificate{
 		SerialNumber: big.NewInt(0),
-		NotAfter:     time.Now().Add(time.Hour),
+		NotBefore:    now,
+		NotAfter:     now.Add(time.Hour),
 		IsCA:         true,
 		Subject:      pkix.Name{CommonName: cn},
 	})

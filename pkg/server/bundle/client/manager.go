@@ -11,6 +11,14 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
+const (
+	// attemptsPerRefreshHint is the number of attemps within the returned
+	// refresh hint period that the manager will attempt to refresh the
+	// bundle. It is important to try more than once within a refresh hint
+	// period so we can be resilient to temporary downtime or failures.
+	attemptsPerRefreshHint = 4
+)
+
 type TrustDomainConfig struct {
 	EndpointAddress  string
 	EndpointSpiffeID string
@@ -27,8 +35,9 @@ type ManagerConfig struct {
 }
 
 type Manager struct {
+	log      logrus.FieldLogger
 	clock    clock.Clock
-	updaters []BundleUpdater
+	updaters map[string]BundleUpdater
 }
 
 func NewManager(config ManagerConfig) *Manager {
@@ -39,17 +48,18 @@ func NewManager(config ManagerConfig) *Manager {
 		config.newBundleUpdater = NewBundleUpdater
 	}
 
-	var updaters []BundleUpdater
+	updaters := make(map[string]BundleUpdater)
 	for trustDomain, trustDomainConfig := range config.TrustDomains {
-		updaters = append(updaters, config.newBundleUpdater(BundleUpdaterConfig{
+		updaters[trustDomain] = config.newBundleUpdater(BundleUpdaterConfig{
 			TrustDomainConfig: trustDomainConfig,
 			TrustDomain:       trustDomain,
 			Log:               config.Log.WithField("trust_domain", trustDomain),
 			DataStore:         config.DataStore,
-		}))
+		})
 	}
 
 	return &Manager{
+		log:      config.Log,
 		clock:    config.Clock,
 		updaters: updaters,
 	}
@@ -57,22 +67,39 @@ func NewManager(config ManagerConfig) *Manager {
 
 func (m *Manager) Run(ctx context.Context) error {
 	var tasks []func(context.Context) error
-	for _, updater := range m.updaters {
+	for trustDomain, updater := range m.updaters {
 		tasks = append(tasks, func(ctx context.Context) error {
-			return m.runUpdater(ctx, updater)
+			return m.runUpdater(ctx, trustDomain, updater)
 		})
 	}
 
 	return util.RunTasks(ctx, tasks...)
 }
 
-func (m *Manager) runUpdater(ctx context.Context, updater BundleUpdater) error {
-	var refreshHint time.Duration
+func (m *Manager) runUpdater(ctx context.Context, trustDomain string, updater BundleUpdater) error {
 	for {
-		if r, err := updater.UpdateBundle(ctx); err == nil {
-			refreshHint = r
+		var nextRefresh time.Duration
+		localBundle, remoteBundle, _ := updater.UpdateBundle(ctx)
+		switch {
+		case remoteBundle != nil:
+			nextRefresh = calculateNextUpdate(remoteBundle)
+		case localBundle != nil:
+			nextRefresh = calculateNextUpdate(localBundle)
+		default:
+			// We have no bundle (local or otherwise). Since the endpoint
+			// is cannot be reached without the local bundle (until we
+			// implement web auth), we can retry more aggressively. This
+			// refresh period determines how fast we'll respond to the
+			// local bundle being bootstrapped.
+			// TODO: reevaluate once we support web auth
+			nextRefresh = bundleutil.MinimumRefreshHint
 		}
-		timer := m.newRefreshTimer(refreshHint)
+
+		m.log.WithFields(logrus.Fields{
+			"trust_domain": trustDomain,
+			"at":           m.clock.Now().Add(nextRefresh).UTC().Format(time.RFC3339),
+		}).Debug("Scheduling next bundle refresh")
+		timer := m.clock.Timer(nextRefresh)
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
@@ -82,9 +109,6 @@ func (m *Manager) runUpdater(ctx context.Context, updater BundleUpdater) error {
 	}
 }
 
-func (m *Manager) newRefreshTimer(refreshHint time.Duration) *clock.Timer {
-	if refreshHint == 0 {
-		refreshHint = bundleutil.DefaultRefreshHint
-	}
-	return m.clock.Timer(refreshHint)
+func calculateNextUpdate(b *bundleutil.Bundle) time.Duration {
+	return bundleutil.CalculateRefreshHint(b) / attemptsPerRefreshHint
 }
