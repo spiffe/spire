@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,7 +62,6 @@ func (p *X509PoPPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_Fe
 	// send the attestation data back to the agent
 	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
 		AttestationData: data.attestationData,
-		SpiffeId:        data.spiffeID,
 	}); err != nil {
 		return err
 	}
@@ -91,7 +89,6 @@ func (p *X509PoPPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_Fe
 	}
 
 	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
-		SpiffeId: data.spiffeID,
 		Response: responseBytes,
 	}); err != nil {
 		return err
@@ -162,11 +159,6 @@ func loadConfigData(config *X509PoPConfig) (*configData, error) {
 		return nil, fmt.Errorf("x509pop: unable to load keypair: %v", err)
 	}
 
-	leaf, err := x509.ParseCertificate(certificate.Certificate[0])
-	if err != nil {
-		return nil, fmt.Errorf("x509pop: unable to parse leaf certificate: %v", err)
-	}
-
 	certificates := certificate.Certificate
 
 	// Append intermediate certificates if IntermediatesPath is set.
@@ -189,7 +181,6 @@ func loadConfigData(config *X509PoPConfig) (*configData, error) {
 	}
 
 	return &configData{
-		spiffeID:   x509pop.SpiffeID(config.trustDomain, leaf),
 		privateKey: certificate.PrivateKey,
 		attestationData: &common.AttestationData{
 			Type: pluginName,

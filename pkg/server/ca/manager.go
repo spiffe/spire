@@ -861,12 +861,12 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.
 }
 
 func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*X509CA, []*x509.Certificate, error) {
-	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
-	if err != nil {
-		return nil, nil, err
+	spiffeID := &url.URL{
+		Scheme: "spiffe",
+		Host:   trustDomain,
 	}
 
-	template, err := CreateServerCATemplate(csr, trustDomain, notBefore, notAfter, big.NewInt(0))
+	template, err := CreateServerCATemplate(spiffeID.String(), signer.Public(), trustDomain, notBefore, notAfter, big.NewInt(0), subject)
 	if err != nil {
 		return nil, nil, err
 	}

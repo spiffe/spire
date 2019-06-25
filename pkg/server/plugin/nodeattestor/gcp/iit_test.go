@@ -12,7 +12,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
@@ -23,7 +25,7 @@ const (
 	testZone         = "test-zone"
 	testInstanceID   = "test-instance-id"
 	testInstanceName = "test-instance-name"
-	testSPIFFEID     = "spiffe://example.org/spire/agent/gcp_iit/test-project/test-instance-id"
+	testAgentID      = "spiffe://example.org/spire/agent/gcp_iit/test-project/test-instance-id"
 )
 
 var (
@@ -48,12 +50,14 @@ func TestIITAttestorPlugin(t *testing.T) {
 type IITAttestorSuite struct {
 	spiretest.Suite
 
-	p nodeattestor.Plugin
+	agentStore *fakeagentstore.AgentStore
+	p          nodeattestor.Plugin
 
 	client *fakeComputeEngineClient
 }
 
 func (s *IITAttestorSuite) SetupTest() {
+	s.agentStore = fakeagentstore.New()
 	s.client = newFakeComputeEngineClient()
 	s.p = s.newPlugin()
 	s.configure()
@@ -130,8 +134,12 @@ func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
 		Data: s.signToken(token),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data, AttestedBefore: true})
-	s.RequireErrorContains(err, "gcp-iit: instance ID has already been attested")
+	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+		AgentId: testAgentID,
+	})
+
+	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	s.RequireErrorContains(err, "gcp-iit: IIT has already been used to attest an agent")
 }
 
 func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
@@ -181,8 +189,7 @@ func (s *IITAttestorSuite) TestAttestSuccess() {
 	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: testSPIFFEID,
+		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
 			{Type: "gcp_iit", Value: "zone:" + testZone},
@@ -210,8 +217,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 	})
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: testSPIFFEID,
+		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
 			{Type: "gcp_iit", Value: "zone:" + testZone},
@@ -235,8 +241,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
 	})
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: testSPIFFEID,
+		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
 			{Type: "gcp_iit", Value: "zone:" + testZone},
@@ -278,8 +283,7 @@ agent_path_template = "{{ .InstanceID }}"
 	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
 	s.Require().NotNil(res)
-	s.Require().True(res.Valid)
-	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
+	s.Require().Equal(expectSVID, res.AgentId)
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
@@ -348,7 +352,9 @@ func (s *IITAttestorSuite) newPlugin() nodeattestor.Plugin {
 	p.client = s.client
 
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtin(p), &plugin)
+	s.LoadPlugin(builtin(p), &plugin,
+		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+	)
 	return plugin
 }
 

@@ -18,6 +18,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
 	"github.com/spiffe/spire/test/spiretest"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 )
 
@@ -61,9 +63,10 @@ type IIDAttestorSuite struct {
 	// original plugin, for modifications on mock
 	plugin *IIDAttestorPlugin
 	// built-in for full callstack
-	p      nodeattestor.Plugin
-	rsaKey *rsa.PrivateKey
-	env    map[string]string
+	p          nodeattestor.Plugin
+	rsaKey     *rsa.PrivateKey
+	env        map[string]string
+	agentStore *fakeagentstore.AgentStore
 }
 
 func (s *IIDAttestorSuite) SetupTest() {
@@ -72,13 +75,16 @@ func (s *IIDAttestorSuite) SetupTest() {
 	s.rsaKey = rsaKey
 
 	s.env = make(map[string]string)
+	s.agentStore = fakeagentstore.New()
 
 	p := New()
 	p.hooks.getEnv = func(key string) string {
 		return s.env[key]
 	}
 	s.plugin = p
-	s.LoadPlugin(builtin(s.plugin), &s.p)
+	s.LoadPlugin(builtin(s.plugin), &s.p,
+		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+	)
 }
 
 func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
@@ -148,11 +154,15 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 		Data: s.iidAttestationDataToBytes(*s.buildDefaultIIDAttestationData()),
 	}
 
+	agentID := "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance"
+	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+		AgentId: agentID,
+	})
+
 	_, err := s.attest(&nodeattestor.AttestRequest{
 		AttestationData: data,
-		AttestedBefore:  true,
 	})
-	s.RequireErrorContains(err, "the IID has been used and is no longer valid")
+	s.RequireErrorContains(err, "IID has already been used to attest an agent")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnBadSignature() {
@@ -359,8 +369,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				return
 			}
 
-			s.True(resp.Valid)
-			s.Equal(tt.expectID, resp.BaseSPIFFEID)
+			s.Equal(tt.expectID, resp.AgentId)
 		})
 	}
 }

@@ -49,7 +49,6 @@ type Config struct {
 	SVIDCachePath   string
 	Log             logrus.FieldLogger
 	ServerAddress   string
-	NodeClient      node.NodeClient
 }
 
 type attestor struct {
@@ -120,11 +119,11 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 	if err == manager.ErrNotCached {
 		bundle = a.c.TrustBundle
 	} else if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load bundle: %v", err)
 	}
 
 	if bundle == nil {
-		return nil, errors.New("load bundle: no bundle provided")
+		return nil, errors.New("load bundle: no bundle available")
 	}
 
 	if len(bundle) < 1 {
@@ -146,15 +145,8 @@ func (a *attestor) fetchAttestationData(
 			Data: []byte(a.c.JoinToken),
 		}
 
-		id := &url.URL{
-			Scheme: "spiffe",
-			Host:   a.c.TrustDomain.Host,
-			Path:   path.Join("spire", "agent", "join_token", a.c.JoinToken),
-		}
-
 		return &nodeattestor.FetchAttestationDataResponse{
 			AttestationData: data,
-			SpiffeId:        id.String(),
 		}, nil
 	}
 
@@ -219,17 +211,17 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		return nil, nil, fmt.Errorf("create attestation client: %v", err)
 	}
 	defer conn.Close()
-	if a.c.NodeClient == nil {
-		a.c.NodeClient = node.NewNodeClient(conn)
-	}
 
-	attestStream, err := a.c.NodeClient.Attest(ctx)
+	nodeClient := node.NewNodeClient(conn)
+
+	attestStream, err := nodeClient.Attest(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening stream for attestation: %v", err)
 	}
 
-	var spiffeID string
+	var deprecatedAgentID string
 	var csr []byte
+
 	attestResp := new(node.AttestResponse)
 	for {
 		data, err := a.fetchAttestationData(fetchStream, attestResp.Challenge)
@@ -237,13 +229,35 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			return nil, nil, err
 		}
 
-		// (re)generate the SVID if the spiffeid changes.
-		if spiffeID != data.SpiffeId {
-			csr, err = util.MakeCSR(key, data.SpiffeId)
+		// Old plugins might still be producing the SPIFFE ID for inclusion
+		// in the CSR. We should log when this is the case and ensure the
+		// SPIFFE ID remains consistent throughout attestation.
+		//
+		// TODO: remove support in 0.10
+		switch {
+		case deprecatedAgentID == "":
+			if data.DEPRECATEDSpiffeId != "" {
+				a.c.Log.WithFields(logrus.Fields{
+					"spiffe_id":     data.DEPRECATEDSpiffeId,
+					"node_attestor": attestorName,
+				}).Warn("Attestor returned a deprecated SPIFFE ID")
+				deprecatedAgentID = data.DEPRECATEDSpiffeId
+			}
+		// make sure the deprecated SPIFFE ID produced by the plugin (if any)
+		// remains consistent throughout the attestation challenge/response.
+		case data.DEPRECATEDSpiffeId != deprecatedAgentID:
+			return nil, nil, fmt.Errorf("plugin returned inconsistent SPIFFE ID: expected %q; got %q", deprecatedAgentID, data.DEPRECATEDSpiffeId)
+		}
+
+		if csr == nil {
+			if deprecatedAgentID != "" {
+				csr, err = util.MakeCSR(key, deprecatedAgentID)
+			} else {
+				csr, err = util.MakeCSRWithoutURISAN(key)
+			}
 			if err != nil {
 				return nil, nil, fmt.Errorf("generate CSR for agent SVID: %v", err)
 			}
-			spiffeID = data.SpiffeId
 		}
 
 		attestReq := &node.AttestRequest{
@@ -267,7 +281,6 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			break
 		}
 	}
-	telemetry_common.AddSPIFFEID(counter, spiffeID)
 
 	if fetchStream != nil {
 		fetchStream.CloseSend()
@@ -280,9 +293,14 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 	}
 
-	svid, bundle, err := a.parseAttestationResponse(spiffeID, attestResp)
+	agentID, svid, bundle, err := a.parseAttestationResponse(attestResp)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse attestation response: %v", err)
+		return nil, nil, fmt.Errorf("failed to parse attestation response: %v", err)
+	}
+	telemetry_common.AddSPIFFEID(counter, agentID)
+
+	if deprecatedAgentID != "" && agentID != deprecatedAgentID {
+		return nil, nil, fmt.Errorf("server returned inconsistent SPIFFE ID: expected %q; got %q", deprecatedAgentID, agentID)
 	}
 
 	return svid, bundle, nil
@@ -311,43 +329,45 @@ func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credential
 
 	// Explicitly not mTLS since we don't have an SVID yet
 	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
-	credFunc := func() (credentials.TransportCredentials, error) { return credentials.NewTLS(tlsConfig), nil }
-	return credFunc
+	return func() (credentials.TransportCredentials, error) {
+		return credentials.NewTLS(tlsConfig), nil
+	}
 }
 
-func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+func (a *attestor) parseAttestationResponse(r *node.AttestResponse) (string, []*x509.Certificate, *bundleutil.Bundle, error) {
 	if r.SvidUpdate == nil {
-		return nil, nil, errors.New("response missing svid update")
+		return "", nil, nil, errors.New("missing svid update")
 	}
-	if len(r.SvidUpdate.Svids) < 1 {
-		return nil, nil, errors.New("no svid received")
+	if len(r.SvidUpdate.Svids) != 1 {
+		return "", nil, nil, fmt.Errorf("expected 1 svid; got %d", len(r.SvidUpdate.Svids))
 	}
 
-	svidMsg, ok := r.SvidUpdate.Svids[id]
-	if !ok {
-		return nil, nil, fmt.Errorf("incorrect svid: %s", id)
+	var agentID string
+	var svidMsg *node.X509SVID
+	for agentID, svidMsg = range r.SvidUpdate.Svids {
+		break
 	}
 
 	svid, err := x509.ParseCertificates(svidMsg.CertChain)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid svid: %v", err)
+		return "", nil, nil, fmt.Errorf("invalid svid cert chain: %v", err)
 	}
 
-	if r.SvidUpdate.Bundles == nil {
-		return nil, nil, errors.New("missing bundles")
+	if len(svid) == 0 {
+		return "", nil, nil, errors.New("empty svid cert chain")
 	}
 
 	bundleProto := r.SvidUpdate.Bundles[a.c.TrustDomain.String()]
 	if bundleProto == nil {
-		return nil, nil, errors.New("missing bundle")
+		return "", nil, nil, errors.New("missing trust domain bundle")
 	}
 
 	bundle, err := bundleutil.BundleFromProto(bundleProto)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid bundle: %v", err)
+		return "", nil, nil, fmt.Errorf("invalid trust domain bundle: %v", err)
 	}
 
-	return svid, bundle, nil
+	return agentID, svid, bundle, nil
 }
 
 func (a *attestor) serverID() *url.URL {

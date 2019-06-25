@@ -12,6 +12,7 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
@@ -48,6 +49,7 @@ type computeEngineClient interface {
 
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
+	nodeattestorbase.Base
 	config            *IITAttestorConfig
 	mtx               sync.Mutex
 	tokenKeyRetriever tokenKeyRetriever
@@ -99,6 +101,14 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return pluginErr.New("failed to create spiffe ID: %v", err)
 	}
 
+	attested, err := p.IsAttested(stream.Context(), id.String())
+	switch {
+	case err != nil:
+		return pluginErr.Wrap(err)
+	case attested:
+		return pluginErr.New("IIT has already been used to attest an agent")
+	}
+
 	var instance *compute.Instance
 	if c.UseInstanceMetadata {
 		instance, err = p.client.fetchInstanceMetadata(stream.Context(), identityMetadata.ProjectID, identityMetadata.Zone, identityMetadata.InstanceName)
@@ -117,9 +127,8 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: id.String(),
-		Selectors:    selectors,
+		AgentId:   id.String(),
+		Selectors: selectors,
 	})
 }
 
@@ -190,10 +199,6 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.NodeAttes
 
 	if attestationData.Type != pluginName {
 		return gcp.ComputeEngine{}, pluginErr.New("unexpected attestation data type %q", attestationData.Type)
-	}
-
-	if req.AttestedBefore {
-		return gcp.ComputeEngine{}, pluginErr.New("instance ID has already been attested")
 	}
 
 	identityToken := &gcp.IdentityToken{}

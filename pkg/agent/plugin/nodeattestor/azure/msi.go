@@ -71,11 +71,6 @@ func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return msiError.New("unable to fetch token: %v", err)
 	}
 
-	claims, err := getUnverifiedMSITokenClaims(token)
-	if err != nil {
-		return msiError.Wrap(err)
-	}
-
 	data, err := json.Marshal(azure.MSIAttestationData{
 		Token: token,
 	})
@@ -88,7 +83,6 @@ func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: claims.AgentID(config.trustDomain),
 	})
 }
 

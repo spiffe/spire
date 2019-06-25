@@ -2,7 +2,6 @@ package psat
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,12 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
@@ -44,10 +41,8 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir        string
-	attestor   nodeattestor.Plugin
-	mockCtrl   *gomock.Controller
-	mockClient *k8s_apiserver_mock.MockClient
+	dir      string
+	attestor nodeattestor.Plugin
 }
 
 func (s *AttestorSuite) SetupTest() {
@@ -55,13 +50,11 @@ func (s *AttestorSuite) SetupTest() {
 	s.dir, err = ioutil.TempDir("", "spire-k8s-psat-test-")
 	s.Require().NoError(err)
 
-	s.mockCtrl = gomock.NewController(s.T())
 	s.newAttestor()
 	s.configure(AttestorConfig{})
 }
 
 func (s *AttestorSuite) TearDownTest() {
-	s.mockCtrl.Finish()
 	os.RemoveAll(s.dir)
 }
 
@@ -77,48 +70,6 @@ func (s *AttestorSuite) TestFetchAttestationDataNoToken() {
 	s.requireFetchError("unable to load token from")
 }
 
-func (s *AttestorSuite) TestFetchAttestationWrongTokenFormat() {
-	s.configure(AttestorConfig{
-		TokenPath: s.writeValue("token", "not a token"),
-	})
-	s.requireFetchError("error parsing token")
-}
-
-func (s *AttestorSuite) TestFetchAttestationFailsToGetPod() {
-	token, err := createPSAT("NAMESPACE", "POD-NAME")
-	s.Require().NoError(err)
-	s.configure(AttestorConfig{
-		TokenPath: s.writeValue("token", token),
-	})
-
-	s.mockClient.EXPECT().GetPod("NAMESPACE", "POD-NAME").Times(1).Return(nil, errors.New("an error"))
-	s.requireFetchError("fail to get pod from k8s API server")
-}
-
-func (s *AttestorSuite) TestFetchAttestationFailsToGetNode() {
-	token, err := createPSAT("NAMESPACE", "POD-NAME")
-	s.Require().NoError(err)
-	s.configure(AttestorConfig{
-		TokenPath: s.writeValue("token", token),
-	})
-
-	s.mockClient.EXPECT().GetPod("NAMESPACE", "POD-NAME").Times(1).Return(createPod("NODE-NAME"), nil)
-	s.mockClient.EXPECT().GetNode("NODE-NAME").Times(1).Return(nil, errors.New("an error"))
-	s.requireFetchError("fail to get node from k8s API server")
-}
-
-func (s *AttestorSuite) TestFetchAttestationGetsEmptyNodeUID() {
-	token, err := createPSAT("NAMESPACE", "POD-NAME")
-	s.Require().NoError(err)
-	s.configure(AttestorConfig{
-		TokenPath: s.writeValue("token", token),
-	})
-
-	s.mockClient.EXPECT().GetPod("NAMESPACE", "POD-NAME").Times(1).Return(createPod("NODE-NAME"), nil)
-	s.mockClient.EXPECT().GetNode("NODE-NAME").Times(1).Return(createNode(""), nil)
-	s.requireFetchError("node UID is empty")
-}
-
 func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
 	token, err := createPSAT("NAMESPACE", "POD-NAME")
 	s.Require().NoError(err)
@@ -126,9 +77,6 @@ func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
 	s.configure(AttestorConfig{
 		TokenPath: s.writeValue("token", token),
 	})
-
-	s.mockClient.EXPECT().GetPod("NAMESPACE", "POD-NAME").Times(1).Return(createPod("NODE-NAME"), nil)
-	s.mockClient.EXPECT().GetNode("NODE-NAME").Times(1).Return(createNode("NODE-UID"), nil)
 
 	stream, err := s.attestor.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
@@ -139,7 +87,6 @@ func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
 	s.Require().NotNil(resp)
 
 	// assert attestation data
-	s.Require().Equal("spiffe://example.org/spire/agent/k8s_psat/production/NODE-UID", resp.SpiffeId)
 	s.Require().NotNil(resp.AttestationData)
 	s.Require().Equal("k8s_psat", resp.AttestationData.Type)
 	s.Require().JSONEq(fmt.Sprintf(`{
@@ -194,8 +141,6 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 
 func (s *AttestorSuite) newAttestor() {
 	attestor := New()
-	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
-	attestor.client = s.mockClient
 	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 

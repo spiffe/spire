@@ -3,10 +3,12 @@
 *Must be used in conjunction with the server-side k8s_sat plugin*
 
 The `k8s_sat` plugin attests nodes running in inside of Kubernetes. The agent
-reads and provides the signed service account token to the server. It also
-generates a one-time UUID that is also provided to the server.
+reads and provides the signed service account token to the server.
 
-The plugin generates SPIFFE IDs with the form:
+*Note: If your cluster supports [Service Account Token Volume Projection](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection)
+you should instead consider using the `k8s_psat` attestor due to the [security considerations](#security-considerations) below.*
+
+The server-side `k8s_sat` plugin generates a one-time UUID and generates a SPIFFE ID with the form:
 
 ```
 spiffe://<trust domain>/spire/agent/k8s_sat/<cluster>/<UUID>

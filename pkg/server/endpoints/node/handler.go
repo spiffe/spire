@@ -1,6 +1,7 @@
 package node
 
 import (
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -42,7 +43,7 @@ type HandlerConfig struct {
 	TrustDomain url.URL
 	Clock       clock.Clock
 
-	// Allow agentless spiffeIds when doing node attestation
+	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
 }
 
@@ -94,80 +95,105 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return status.Error(codes.InvalidArgument, "request missing CSR")
 	}
 
-	agentID, err := getSpiffeIDFromCSR(request.Csr, h.getNodeAttestationValidationMode())
+	csr, err := h.parseAttestCSR(request.Csr)
 	if err != nil {
+		log.WithError(err).Error("Failed to parse CSR")
 		return status.Errorf(codes.InvalidArgument, "request CSR is invalid: %v", err)
-	}
-	telemetry_common.AddSPIFFEID(counter, agentID)
-
-	attestedBefore, err := h.isAttested(ctx, agentID)
-	if err != nil {
-		log.Error(err)
-		return errors.New("failed to determine if agent has already attested")
 	}
 
 	// Pick the right node attestor
-	var attestStream nodeattestor.NodeAttestor_AttestClient
+	var attestResponse *nodeattestor.AttestResponse
 	if request.AttestationData.Type != "join_token" {
+		// New attestor plugins don't provide a SPIFFE ID to the agent so the
+		// CSR will not have one. If we have a SPIFFE ID in the CSR then we're
+		// working with a legacy plugin and need to provide deprecated
+		// "attested before" information to the server side plugin so it can
+		// make re-attestation decisions.
+		//
+		// If the CSR does not provide a SPIFFE ID then we tell the plugin
+		// that the agent has already attested to prevent old plugins from
+		// re-attesting unsafely.
+		//
+		// TODO: remove in SPIRE 0.10
+		attestedBefore := true
+		if csr.SpiffeID != "" {
+			attestedBefore, err = h.isAttested(ctx, csr.SpiffeID)
+			if err != nil {
+				h.c.Log.Error(err)
+				return errors.New("failed to determine if agent has already attested")
+			}
+		}
+
 		nodeAttestor, ok := h.c.Catalog.GetNodeAttestorNamed(request.AttestationData.Type)
 		if !ok {
 			return fmt.Errorf("could not find node attestor type %q", request.AttestationData.Type)
 		}
 
-		attestStream, err = nodeAttestor.Attest(ctx)
+		attestStream, err := nodeAttestor.Attest(ctx)
 		if err != nil {
 			return fmt.Errorf("unable to open attest stream: %v", err)
 		}
-	}
 
-	attestResponse, err := h.doAttestChallengeResponse(ctx, stream, attestStream, request, attestedBefore)
-	if err != nil {
-		return err
-	}
-
-	if attestStream != nil {
+		attestResponse, err = h.doAttestChallengeResponse(ctx, stream, attestStream, request, attestedBefore)
+		if err != nil {
+			return err
+		}
 		if err := attestStream.CloseSend(); err != nil {
 			return err
 		}
 		if _, err := attestStream.Recv(); err != io.EOF {
 			log.WithError(err).Warn("expected EOF on attestation stream")
 		}
+	} else {
+		attestResponse, err = h.attestToken(ctx, request.AttestationData)
+		if err != nil {
+			return fmt.Errorf("failed to attest: %v", err)
+		}
 	}
 
-	if err := h.validateAttestation(agentID, attestResponse); err != nil {
-		log.Error(err)
+	agentID := attestResponse.AgentId
+	telemetry_common.AddSPIFFEID(counter, agentID)
+	log = log.WithField(telemetry.SPIFFEID, agentID)
+
+	if csr.SpiffeID != "" && agentID != csr.SpiffeID {
+		log.WithField("csr_spiffe_id", csr.SpiffeID).Error("Attested SPIFFE ID does not match CSR")
 		return errors.New("attestor returned unexpected response")
 	}
 
-	log = log.WithField(telemetry.SPIFFEID, agentID)
-	log.Debug("Signing CSR for Agent SVID")
-	svid, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, ca.X509Params{})
+	log.WithField("agent_id", agentID).Debugf("Signing CSR for Agent SVID")
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  agentID,
+		PublicKey: csr.PublicKey,
+	})
 	if err != nil {
-		log.Error(err)
+		log.WithError(err).Error("Failed to sign CSR")
 		return errors.New("failed to sign CSR")
 	}
 
 	if err := h.updateNodeSelectors(ctx, agentID, attestResponse, request.AttestationData.Type); err != nil {
-		log.Error(err)
+		log.WithError(err).Error("Failed to update node selectors")
 		return errors.New("failed to update node selectors")
 	}
 
 	response, err := h.getAttestResponse(ctx, agentID, svid)
 	if err != nil {
-		log.Error(err)
+		log.WithError(err).Error("Failed to compose response")
 		return errors.New("failed to compose response")
 	}
 
-	if attestedBefore {
-		err = h.updateAttestationEntry(ctx, svid[0])
-		if err != nil {
-			log.Error(err)
+	isAttested, err := h.isAttested(ctx, agentID)
+	switch {
+	case err != nil:
+		log.WithError(err).Error("Failed to determine if agent has already attested")
+		return errors.New("failed to determine if agent has already attested")
+	case isAttested:
+		if err := h.updateAttestationEntry(ctx, svid[0]); err != nil {
+			log.WithError(err).Error("Failed to update attestation entry")
 			return errors.New("failed to update attestation entry")
 		}
-	} else {
-		err = h.createAttestationEntry(ctx, svid[0], request.AttestationData.Type)
-		if err != nil {
-			log.Error(err)
+	default:
+		if err := h.createAttestationEntry(ctx, svid[0], request.AttestationData.Type); err != nil {
+			log.WithError(err).Error("Failed to create attestation entry")
 			return errors.New("failed to create attestation entry")
 		}
 	}
@@ -185,13 +211,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	return nil
-}
-
-func (h *Handler) getNodeAttestationValidationMode() idutil.ValidationMode {
-	if h.c.AllowAgentlessNodeAttestors {
-		return idutil.AllowAnyInTrustDomain(h.c.TrustDomain.Host)
-	}
-	return idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host)
 }
 
 //FetchX509SVID gets Workload, Agent certs and CA trust bundles.
@@ -332,9 +351,16 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		telemetry.Address:  sourceAddress,
 	})
 
+	csr, err := h.parseX509CACSR(req.Csr)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
 	signLog.Debug("Signing downstream CA SVID")
-	svid, err := h.buildCASVID(ctx, req.Csr, ca.X509Params{
-		TTL: time.Duration(entry.Ttl) * time.Second,
+	svid, err := h.buildCASVID(ctx, ca.X509CASVIDParams{
+		SpiffeID:  csr.SpiffeID,
+		PublicKey: csr.PublicKey,
+		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})
 	if err != nil {
 		return nil, err
@@ -568,14 +594,10 @@ func (h *Handler) attest(ctx context.Context,
 	nodeRequest *node.AttestRequest, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 
-	if attestStream == nil {
-		return h.attestToken(ctx, nodeRequest.AttestationData, attestedBefore)
-	}
-
 	attestRequest := &nodeattestor.AttestRequest{
-		AttestationData: nodeRequest.AttestationData,
-		Response:        nodeRequest.Response,
-		AttestedBefore:  attestedBefore,
+		AttestationData:          nodeRequest.AttestationData,
+		Response:                 nodeRequest.Response,
+		DEPRECATEDAttestedBefore: attestedBefore,
 	}
 	if err := attestStream.Send(attestRequest); err != nil {
 		return nil, err
@@ -584,15 +606,23 @@ func (h *Handler) attest(ctx context.Context,
 	return attestStream.Recv()
 }
 
-func (h *Handler) attestToken(ctx context.Context,
-	attestationData *common.AttestationData, attestedBefore bool) (
-	response *nodeattestor.AttestResponse, err error) {
+func (h *Handler) attestToken(ctx context.Context, attestationData *common.AttestationData) (*nodeattestor.AttestResponse, error) {
+	tokenValue := string(attestationData.Data)
 
-	if attestedBefore {
+	agentID := (&url.URL{
+		Scheme: "spiffe",
+		Host:   h.c.TrustDomain.Host,
+		Path:   path.Join("spire", "agent", "join_token", tokenValue),
+	}).String()
+
+	attestedBefore, err := h.isAttested(ctx, agentID)
+	switch {
+	case err != nil:
+		h.c.Log.Error(err)
+		return nil, errors.New("failed to determine if agent has already attested")
+	case attestedBefore:
 		return nil, errors.New("join token has already been used")
 	}
-
-	tokenValue := string(attestationData.Data)
 
 	ds := h.c.Catalog.GetDataStore()
 	resp, err := ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
@@ -622,29 +652,9 @@ func (h *Handler) attestToken(ctx context.Context,
 	}
 
 	// If we're here, the token is valid
-	id := &url.URL{
-		Scheme: h.c.TrustDomain.Scheme,
-		Host:   h.c.TrustDomain.Host,
-		Path:   path.Join("spire", "agent", "join_token", t.Token),
-	}
 	return &nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: id.String(),
+		AgentId: agentID,
 	}, nil
-}
-
-func (h *Handler) validateAttestation(
-	csrBaseSpiffeID string, attestResponse *nodeattestor.AttestResponse) error {
-
-	if !attestResponse.Valid {
-		return errors.New("attestation is invalid")
-	}
-	//check if baseSPIFFEID in attest response matches with SPIFFEID in CSR
-	if attestResponse.BaseSPIFFEID != csrBaseSpiffeID {
-		return errors.New("attested SPIFFE ID does not match CSR")
-	}
-
-	return nil
 }
 
 func (h *Handler) updateAttestationEntry(ctx context.Context, cert *x509.Certificate) error {
@@ -780,8 +790,8 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 	ds := h.c.Catalog.GetDataStore()
 	svids = make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
-	for _, csr := range csrs {
-		spiffeID, err := getSpiffeIDFromCSR(csr, idutil.AllowAny())
+	for _, csrBytes := range csrs {
+		csr, err := parseCSR(csrBytes, idutil.AllowAny())
 		if err != nil {
 			return nil, err
 		}
@@ -795,14 +805,14 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 
 		signLog := h.c.Log.WithFields(logrus.Fields{
 			telemetry.CallerID: callerID,
-			telemetry.SPIFFEID: spiffeID,
+			telemetry.SPIFFEID: csr.SpiffeID,
 			telemetry.Address:  sourceAddress,
 		})
 
-		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
-			res, err := ds.FetchAttestedNode(ctx,
-				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
-			)
+		if csr.SpiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
+			res, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+				SpiffeId: csr.SpiffeID,
+			})
 			if err != nil {
 				return nil, err
 			}
@@ -823,18 +833,18 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 			if err != nil {
 				return nil, err
 			}
-			svids[spiffeID] = svid
+			svids[csr.SpiffeID] = svid
 
 			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
 				return nil, err
 			}
 		} else {
 			signLog.Debug("Signing SVID")
-			svid, err := h.buildSVID(ctx, spiffeID, regEntriesMap, csr)
+			svid, err := h.buildSVID(ctx, csr.SpiffeID, csr, regEntriesMap)
 			if err != nil {
 				return nil, err
 			}
-			svids[spiffeID] = svid
+			svids[csr.SpiffeID] = svid
 		}
 	}
 
@@ -859,8 +869,8 @@ func (h *Handler) signCSRs(ctx context.Context,
 	ds := h.c.Catalog.GetDataStore()
 	svids = make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
-	for entryID, csr := range csrs {
-		spiffeID, err := getSpiffeIDFromCSR(csr, idutil.AllowAny())
+	for entryID, csrBytes := range csrs {
+		csr, err := parseCSR(csrBytes, idutil.AllowAny())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -873,15 +883,15 @@ func (h *Handler) signCSRs(ctx context.Context,
 		}
 
 		signLog := h.c.Log.WithFields(logrus.Fields{
-			"caller_id":      callerID,
-			"spiffe_id":      spiffeID,
-			"source_address": sourceAddress,
+			telemetry.CallerID: callerID,
+			telemetry.SPIFFEID: csr.SpiffeID,
+			telemetry.Address:  sourceAddress,
 		})
 
-		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
-			res, err := ds.FetchAttestedNode(ctx,
-				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
-			)
+		if csr.SpiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
+			res, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+				SpiffeId: csr.SpiffeID,
+			})
 			if err != nil {
 				return nil, nil, err
 			}
@@ -909,23 +919,20 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 		} else {
 			signLog.Debug("Signing SVID")
-			svid, err := h.buildSVID(ctx, entryID, regEntriesMap, csr)
+			svid, err := h.buildSVID(ctx, entryID, csr, regEntriesMap)
 			if err != nil {
 				return nil, nil, err
 			}
 			svids[entryID] = svid
 		}
 
-		spiffeIDs = append(spiffeIDs, spiffeID)
+		spiffeIDs = append(spiffeIDs, csr.SpiffeID)
 	}
 
 	return svids, spiffeIDs, nil
 }
 
-func (h *Handler) buildSVID(ctx context.Context,
-	id string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
-	*node.X509SVID, error) {
-
+func (h *Handler) buildSVID(ctx context.Context, id string, csr *CSR, regEntries map[string]*common.RegistrationEntry) (*node.X509SVID, error) {
 	entry, ok := regEntries[id]
 	if !ok {
 		var idType string
@@ -937,20 +944,23 @@ func (h *Handler) buildSVID(ctx context.Context,
 		return nil, fmt.Errorf("not entitled to sign CSR for %s %q", idType, id)
 	}
 
-	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr,
-		ca.X509Params{
-			TTL:     time.Duration(entry.Ttl) * time.Second,
-			DNSList: entry.DnsNames,
-		},
-	)
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  csr.SpiffeID,
+		PublicKey: csr.PublicKey,
+		TTL:       time.Duration(entry.Ttl) * time.Second,
+		DNSList:   entry.DnsNames,
+	})
 	if err != nil {
 		return nil, err
 	}
 	return makeX509SVID(svid), nil
 }
 
-func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID, *x509.Certificate, error) {
-	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr, ca.X509Params{})
+func (h *Handler) buildBaseSVID(ctx context.Context, csr *CSR) (*node.X509SVID, *x509.Certificate, error) {
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  csr.SpiffeID,
+		PublicKey: csr.PublicKey,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -958,8 +968,8 @@ func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID
 	return makeX509SVID(svid), svid[0], nil
 }
 
-func (h *Handler) buildCASVID(ctx context.Context, csr []byte, params ca.X509Params) (*node.X509SVID, error) {
-	svid, err := h.c.ServerCA.SignX509CASVID(ctx, csr, params)
+func (h *Handler) buildCASVID(ctx context.Context, params ca.X509CASVIDParams) (*node.X509SVID, error) {
+	svid, err := h.c.ServerCA.SignX509CASVID(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1007,6 +1017,29 @@ func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.
 	return resp.Bundle, nil
 }
 
+type CSR struct {
+	SpiffeID  string
+	PublicKey crypto.PublicKey
+}
+
+func (h *Handler) parseAttestCSR(csrBytes []byte) (*CSR, error) {
+	if h.c.AllowAgentlessNodeAttestors {
+		return parseCSR(csrBytes, idutil.AllowAnyInTrustDomain(h.c.TrustDomain.Host))
+	}
+	return parseCSR(csrBytes, idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host))
+}
+
+func (h *Handler) parseX509CACSR(csrBytes []byte) (*CSR, error) {
+	csr, err := parseCSR(csrBytes, idutil.AllowTrustDomain(h.c.TrustDomain.Host))
+	if err != nil {
+		return nil, err
+	}
+	if csr.SpiffeID == "" {
+		return nil, errors.New("X509 CA CSR is missing the SPIFFE ID")
+	}
+	return csr, nil
+}
+
 func getPeerCertificateFromRequestContext(ctx context.Context) (cert *x509.Certificate, err error) {
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -1047,6 +1080,30 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 	}
 
 	return nil
+}
+
+func parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, error) {
+	csr, err := x509.ParseCertificateRequest(csrBytes)
+	if err != nil {
+		return nil, fmt.Errorf("request CSR is invalid: failed to parse CSR: %v", err)
+	}
+
+	var spiffeID string
+	switch len(csr.URIs) {
+	case 0:
+	case 1:
+		spiffeID, err = idutil.NormalizeSpiffeID(csr.URIs[0].String(), mode)
+		if err != nil {
+			return nil, fmt.Errorf("request CSR is invalid: invalid SPIFFE ID: %v", err)
+		}
+	default:
+		return nil, errors.New("request CSR is invalid: cannot have more than one URI SAN")
+	}
+
+	return &CSR{
+		SpiffeID:  spiffeID,
+		PublicKey: csr.PublicKey,
+	}, nil
 }
 
 func getSpiffeIDFromCSR(csrBytes []byte, mode idutil.ValidationMode) (string, error) {

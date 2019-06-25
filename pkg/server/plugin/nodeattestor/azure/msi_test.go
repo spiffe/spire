@@ -13,7 +13,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -46,10 +48,11 @@ func TestMSIAttestorPlugin(t *testing.T) {
 type MSIAttestorSuite struct {
 	spiretest.Suite
 
-	attestor nodeattestor.Plugin
-	key      *rsa.PrivateKey
-	jwks     *jose.JSONWebKeySet
-	now      time.Time
+	attestor   nodeattestor.Plugin
+	key        *rsa.PrivateKey
+	jwks       *jose.JSONWebKeySet
+	now        time.Time
+	agentStore *fakeagentstore.AgentStore
 }
 
 func (s *MSIAttestorSuite) SetupTest() {
@@ -59,6 +62,7 @@ func (s *MSIAttestorSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.jwks = new(jose.JSONWebKeySet)
 	s.now = time.Now()
+	s.agentStore = fakeagentstore.New()
 
 	s.attestor = s.newAttestor()
 	s.configureAttestor()
@@ -69,11 +73,6 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenNotConfigured() {
 	resp, err := s.doAttestOnAttestor(attestor, &nodeattestor.AttestRequest{})
 	s.requireErrorContains(err, "azure-msi: not configured")
 	s.Require().Nil(resp)
-}
-
-func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
-	s.requireAttestError(&nodeattestor.AttestRequest{AttestedBefore: true},
-		"azure-msi: node has already attested")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithNoAttestationData() {
@@ -205,17 +204,26 @@ func (s *MSIAttestorSuite) TestAttestSuccess() {
 	resp, err := s.doAttest(s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID"))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID")
+	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID")
 	s.Require().Nil(resp.Challenge)
 
 	// Success against TENANTID2, which uses the default resource ID
 	resp, err = s.doAttest(s.signAttestRequest("KEYID", azure.DefaultMSIResourceID, "TENANTID2", "PRINCIPALID"))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/azure_msi/TENANTID2/PRINCIPALID")
+	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/azure_msi/TENANTID2/PRINCIPALID")
 	s.Require().Nil(resp.Challenge)
+}
+
+func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
+	s.addKey("KEYID")
+
+	agentID := "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID"
+	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+		AgentId: agentID,
+	})
+	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID"),
+		"azure-msi: MSI token has already been used to attest an agent")
 }
 
 func (s *MSIAttestorSuite) TestConfigure() {
@@ -316,7 +324,9 @@ func (s *MSIAttestorSuite) newAttestor() nodeattestor.Plugin {
 		return s.jwks, nil
 	})
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtin(attestor), &plugin)
+	s.LoadPlugin(builtin(attestor), &plugin,
+		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+	)
 	return plugin
 }
 

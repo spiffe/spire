@@ -36,10 +36,6 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 		return sshpop.Errorf("not configured")
 	}
 	handshaker := p.sshclient.NewHandshake()
-	spiffeid, err := handshaker.SpiffeID()
-	if err != nil {
-		return err
-	}
 
 	attestationData, err := handshaker.AttestationData()
 	if err != nil {
@@ -50,7 +46,6 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 			Type: sshpop.PluginName,
 			Data: attestationData,
 		},
-		SpiffeId: spiffeid,
 	}); err != nil {
 		return err
 	}
@@ -65,7 +60,6 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 	}
 
 	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
-		SpiffeId: spiffeid,
 		Response: challengeRes,
 	}); err != nil {
 		return err

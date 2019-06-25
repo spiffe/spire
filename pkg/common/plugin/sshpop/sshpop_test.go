@@ -48,14 +48,6 @@ func TestNewClient(t *testing.T) {
 			expectErr:    "sshpop: failed to read host cert file",
 		},
 		{
-			desc:        "bad agent path template",
-			trustDomain: "foo.test",
-			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"
-						   host_cert_path = "./testdata/dummy_agent_ssh_key-cert.pub"
-						   agent_path_template = "{{"`,
-			expectErr: "sshpop: failed to parse agent svid template",
-		},
-		{
 			desc:        "success",
 			trustDomain: "foo.test",
 			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"
@@ -66,7 +58,6 @@ func TestNewClient(t *testing.T) {
 				require.NotNil(t, c)
 				require.Equal(t, "foo.test", c.trustDomain)
 				require.Equal(t, "local", c.canonicalDomain)
-				require.Equal(t, DefaultAgentPathTemplate, c.agentPathTemplate)
 				require.Equal(t, c.signer.PublicKey(), c.cert.Key)
 				require.Equal(t, "foo-host", c.cert.KeyId)
 			},

@@ -10,21 +10,33 @@ import (
 	"github.com/zeebo/errs"
 )
 
-func MakeCSR(privateKey interface{}, spiffeId string) (csr []byte, err error) {
-	uriSAN, err := idutil.ParseSpiffeID(spiffeId, idutil.AllowAny())
+func MakeCSR(privateKey interface{}, spiffeID string) ([]byte, error) {
+	uri, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowAny())
 	if err != nil {
 		return nil, err
 	}
-	template := &x509.CertificateRequest{
+	return makeCSR(privateKey, &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		URIs:               []*url.URL{uriSAN},
-	}
+		URIs:               []*url.URL{uri},
+	})
+}
 
-	csr, err = x509.CreateCertificateRequest(rand.Reader, template, privateKey)
+func MakeCSRWithoutURISAN(privateKey interface{}) ([]byte, error) {
+	return makeCSR(privateKey, &x509.CertificateRequest{
+		Subject: pkix.Name{
+			Country:      []string{"US"},
+			Organization: []string{"SPIRE"},
+		},
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+	})
+}
+
+func makeCSR(privateKey interface{}, template *x509.CertificateRequest) ([]byte, error) {
+	csr, err := x509.CreateCertificateRequest(rand.Reader, template, privateKey)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
