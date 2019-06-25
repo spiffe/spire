@@ -2,7 +2,6 @@ package fakedatastore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -19,6 +18,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -26,13 +27,13 @@ const (
 )
 
 var (
-	ErrBundleAlreadyExists       = errors.New("bundle already exists")
-	ErrNoSuchBundle              = errors.New("no such bundle")
-	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
-	ErrNoSuchAttestedNode        = errors.New("no such attested node entry")
-	ErrNoSuchRegistrationEntry   = errors.New("no such registration entry")
-	ErrNoSuchToken               = errors.New("no such token")
-	ErrTokenAlreadyExists        = errors.New("token already exists")
+	ErrBundleAlreadyExists       = status.Error(codes.NotFound, "bundle already exists")
+	ErrNoSuchBundle              = status.Error(codes.NotFound, "no such bundle")
+	ErrAttestedNodeAlreadyExists = status.Error(codes.NotFound, "attested node entry already exists")
+	ErrNoSuchAttestedNode        = status.Error(codes.NotFound, "no such attested node entry")
+	ErrNoSuchRegistrationEntry   = status.Error(codes.NotFound, "no such registration entry")
+	ErrNoSuchToken               = status.Error(codes.NotFound, "no such token")
+	ErrTokenAlreadyExists        = status.Error(codes.NotFound, "token already exists")
 )
 
 type DataStore struct {

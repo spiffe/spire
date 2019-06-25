@@ -15,6 +15,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
@@ -487,7 +489,7 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 
 	if err := op(tx); err != nil {
 		tx.Rollback()
-		return err
+		return ds.gormToGRPCStatus(err)
 	}
 
 	if readOnly {
@@ -497,6 +499,22 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 		return sqlError.Wrap(tx.Rollback().Error)
 	}
 	return sqlError.Wrap(tx.Commit().Error)
+}
+
+// gormToGRPCStatus takes an error, and converts it to a GRPC error.
+// If the error is a gorm error type with a known mapping to a GRPC
+// status, that code will be set, otherwise the code will be set to
+// Unknown.
+func (ds *SQLPlugin) gormToGRPCStatus(err error) error {
+	cause := errs.Unwrap(err)
+	code := codes.Unknown
+	switch {
+	case gorm.IsRecordNotFoundError(cause):
+		code = codes.NotFound
+	default:
+	}
+
+	return status.Error(code, err.Error())
 }
 
 func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
