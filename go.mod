@@ -2,6 +2,8 @@ module github.com/spiffe/spire
 
 go 1.12
 
+replace github.com/spiffe/spire/proto/spire => ./proto/spire
+
 require (
 	github.com/Azure/azure-sdk-for-go v30.1.0+incompatible
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
@@ -49,6 +51,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spiffe/go-spiffe v0.0.0-20190518123159-37d000f27824
+	github.com/spiffe/spire/proto/spire v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.3.0
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
