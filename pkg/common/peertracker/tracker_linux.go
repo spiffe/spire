@@ -130,6 +130,20 @@ func (l *linuxWatcher) PID() int32 {
 	return l.pid
 }
 
+func parseTaskStat(stat string) ([]string, error) {
+	b := strings.IndexByte(stat, '(')
+	e := strings.LastIndexByte(stat, ')')
+	if b == -1 || e == -1 {
+		return nil, errors.New("task name is not parenthesized")
+	}
+
+	fields := make([]string, 0, 52)
+	fields = append(fields, strings.Split(stat[:b-1], " ")...)
+	fields = append(fields, stat[b+1:e])
+	fields = append(fields, strings.Split(stat[e+2:], " ")...)
+	return fields, nil
+}
+
 func getStarttime(pid int32) (string, error) {
 	statfd, err := os.Open(fmt.Sprintf("/proc/%v/stat", pid))
 	if err != nil {
@@ -141,13 +155,17 @@ func getStarttime(pid int32) (string, error) {
 		return "", fmt.Errorf("could not read caller stats: %v", err)
 	}
 
+	statFields, err := parseTaskStat(string(statBytes))
+	if err != nil {
+		return "", fmt.Errorf("bad stat data: %v", err)
+	}
+
 	// starttime is the 22nd field in the proc stat data
 	// Field number 38 was introduced in Linux 2.1.22
 	// Protect against invalid index and reject anything before 2.1.22
-	statStrings := strings.Split(string(statBytes), " ")
-	if len(statStrings) < 38 {
+	if len(statFields) < 38 {
 		return "", errors.New("bad stat data or unsupported platform")
 	}
 
-	return statStrings[21], nil
+	return statFields[21], nil
 }
