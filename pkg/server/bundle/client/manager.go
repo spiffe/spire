@@ -53,7 +53,6 @@ func NewManager(config ManagerConfig) *Manager {
 		updaters[trustDomain] = config.newBundleUpdater(BundleUpdaterConfig{
 			TrustDomainConfig: trustDomainConfig,
 			TrustDomain:       trustDomain,
-			Log:               config.Log.WithField("trust_domain", trustDomain),
 			DataStore:         config.DataStore,
 		})
 	}
@@ -77,28 +76,35 @@ func (m *Manager) Run(ctx context.Context) error {
 }
 
 func (m *Manager) runUpdater(ctx context.Context, trustDomain string, updater BundleUpdater) error {
+	log := m.log.WithField("trust_domain", trustDomain)
 	for {
 		var nextRefresh time.Duration
-		localBundle, remoteBundle, _ := updater.UpdateBundle(ctx)
+		log.Debug("Polling for bundle update")
+		localBundle, endpointBundle, err := updater.UpdateBundle(ctx)
+		if err != nil {
+			log.WithError(err).Error("Error updating bundle")
+		}
+
 		switch {
-		case remoteBundle != nil:
-			nextRefresh = calculateNextUpdate(remoteBundle)
+		case endpointBundle != nil:
+			log.Info("Bundle refreshed")
+			nextRefresh = calculateNextUpdate(endpointBundle)
 		case localBundle != nil:
 			nextRefresh = calculateNextUpdate(localBundle)
 		default:
-			// We have no bundle (local or otherwise). Since the endpoint
-			// is cannot be reached without the local bundle (until we
-			// implement web auth), we can retry more aggressively. This
-			// refresh period determines how fast we'll respond to the
-			// local bundle being bootstrapped.
+			// We have no bundle to use to calculate the refresh hint. Since
+			// the endpoint cannot be reached without the local bundle (until
+			// we implement web auth), we can retry more aggressively. This
+			// refresh period determines how fast we'll respond to the local
+			// bundle being bootstrapped.
 			// TODO: reevaluate once we support web auth
 			nextRefresh = bundleutil.MinimumRefreshHint
 		}
 
-		m.log.WithFields(logrus.Fields{
-			"trust_domain": trustDomain,
-			"at":           m.clock.Now().Add(nextRefresh).UTC().Format(time.RFC3339),
+		log.WithFields(logrus.Fields{
+			"at": m.clock.Now().Add(nextRefresh).UTC().Format(time.RFC3339),
 		}).Debug("Scheduling next bundle refresh")
+
 		timer := m.clock.Timer(nextRefresh)
 		select {
 		case <-timer.C:

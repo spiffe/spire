@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -16,7 +16,6 @@ type BundleUpdaterConfig struct {
 	TrustDomainConfig
 
 	TrustDomain string
-	Log         logrus.FieldLogger
 	DataStore   datastore.DataStore
 
 	// newClient is a test hook for injecting client behavior
@@ -25,10 +24,13 @@ type BundleUpdaterConfig struct {
 
 type BundleUpdater interface {
 	// UpdateBundle fetches the local bundle from the datastore and the
-	// endpoint bundle from the endpoint. If there is a change, it stores the
-	// endpoint bundle.  It returns the local and endpoint bundles. On error,
-	// it will still return the local and endpoint bundles if it was able to
-	// retrieve them.
+	// endpoint bundle from the endpoint. The function will return an error if
+	// the local bundle cannot be fetched, the endpoint bundle cannot be
+	// downloaded, or there is a problem persisting the bundle. The local
+	// bundle will always be returned if it was fetched, independent of any
+	// other failures performing the update. The endpoint bundle is ONLY
+	// returned if it can be successfully downloaded, is different from the
+	// local bundle, and is successfully stored.
 	UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error)
 }
 
@@ -51,32 +53,25 @@ func NewBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
 func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
 	localBundle, err := fetchBundle(ctx, u.c.DataStore, u.c.TrustDomain)
 	if err != nil {
-		u.c.Log.WithError(err).Error("Failed to fetch local bundle")
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to fetch local bundle: %v", err)
 	}
 
 	client := u.newClient(localBundle.RootCAs())
 
-	u.c.Log.Debug("Polling for federated bundle updates")
 	endpointBundle, err := client.FetchBundle(ctx)
 	if err != nil {
-		u.c.Log.WithError(err).Error("Failed to fetch federated bundle update")
-		// Per the UpdateBundle contract return the local bundle even on
-		// failure to obtain the endpoint bundle.
-		return localBundle, nil, err
+		return localBundle, nil, fmt.Errorf("failed to fetch endpoint bundle: %v", err)
 	}
 
-	if !endpointBundle.EqualTo(localBundle) {
-		u.c.Log.Info("Storing federated bundle")
-		_, err = u.c.DataStore.SetBundle(ctx, &datastore.SetBundleRequest{
-			Bundle: endpointBundle.Proto(),
-		})
-		if err != nil {
-			u.c.Log.WithError(err).Error("Failed to store federated bundle")
-			// Per the UpdateBundle contract return the local and endpoint
-			// bundles even on failure to store the endpoint bundle.
-			return localBundle, endpointBundle, err
-		}
+	if endpointBundle.EqualTo(localBundle) {
+		return localBundle, nil, nil
+	}
+
+	_, err = u.c.DataStore.SetBundle(ctx, &datastore.SetBundleRequest{
+		Bundle: endpointBundle.Proto(),
+	})
+	if err != nil {
+		return localBundle, nil, fmt.Errorf("failed to store endpoint bundle: %v", err)
 	}
 
 	return localBundle, endpointBundle, nil
