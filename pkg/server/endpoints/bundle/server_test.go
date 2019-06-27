@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -22,9 +23,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	serverCertLifetime = time.Hour
+)
+
 func TestServer(t *testing.T) {
-	bundle := bundleutil.New("spiffe://domain.test")
 	serverCert, serverKey := createServerCertificate(t)
+
+	// create a bundle for testing. we need a certificate in the bundle since
+	// the root lifetimes are used to heuristically determine the refresh hint.
+	// since the content doesn't really matter, we'll just add the server cert.
+	bundle := bundleutil.New("spiffe://domain.test")
+	bundle.AppendRootCA(serverCert)
 
 	// even though this will be SPIFFE authentication in production, there is
 	// no functional change in the code based on the server certificate
@@ -51,11 +61,23 @@ func TestServer(t *testing.T) {
 		reqErr     string
 	}{
 		{
-			name:       "success",
-			method:     "GET",
-			path:       "/",
-			status:     http.StatusOK,
-			body:       `{"keys": null, "spiffe_refresh_hint": 600}`,
+			name:   "success",
+			method: "GET",
+			path:   "/",
+			status: http.StatusOK,
+			body: fmt.Sprintf(`{
+				"keys": [
+					{
+						"crv":"P-256",
+						"kty":"EC",
+						"use":"x509-svid",
+						"x":"kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y":"qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA",
+						"x5c": [%q]
+					}
+				],
+				"spiffe_refresh_hint": 360
+			}`, base64.StdEncoding.EncodeToString(serverCert.Raw)),
 			bundle:     bundle,
 			serverCert: serverCert,
 		},
@@ -173,11 +195,13 @@ func testServerCredsGetter(cert *x509.Certificate, key crypto.Signer) ServerCred
 }
 
 func createServerCertificate(t *testing.T) (*x509.Certificate, crypto.Signer) {
+	now := time.Now()
 	return spiretest.SelfSignCertificate(t, &x509.Certificate{
 		SerialNumber: big.NewInt(0),
 		DNSNames:     []string{"localhost"},
 		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
-		NotAfter:     time.Now().Add(time.Hour),
+		NotBefore:    now,
+		NotAfter:     now.Add(serverCertLifetime),
 		URIs:         []*url.URL{idutil.ServerURI("domain.test")},
 	})
 }
