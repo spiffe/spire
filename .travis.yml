@@ -1,5 +1,4 @@
 sudo: required
-dist: xenial
 
 services:
   - docker
@@ -9,24 +8,54 @@ language: go
 cache:
   directories:
     - .cache
+    - $HOME/.build
     # cache the Go module cache
     - $HOME/gopath/pkg/mod
+    # cache `go install`-ed binaries across stages. build.sh unsets GOPATH
+    # so this is hitting the default go env of $HOME/go
+    - $HOME/go/bin
+
+stages:
+  - setup
+  - lint
+  - test
+  - build release
+  - publish images
 
 jobs:
   include:
-    - stage: lint
-      script:
-        - shellcheck build.sh
-    - stage: build release
+    - stage: setup
       script:
         - ./build.sh setup
         - ./build.sh utils
-        - ./build.sh protobuf_verify
+      os: macos
+    - stage: setup
+      script:
+        - ./build.sh setup
+        - ./build.sh utils
+      os: linux
+      dist: xenial
+    - stage: lint
+      script:
+        - shellcheck build.sh
+    - stage: test
+      script:
         - ./build.sh race-test
+      os: macos
+    - stage: test
+      script:
+        - ./build.sh race-test
+      os: linux
+      dist: xenial
+    - stage: build release
+      script:
+        - ./build.sh protobuf_verify
         - ./build.sh binaries
         - ./build.sh integration
         - ./build.sh artifact
         - ./build.sh release
+      os: linux
+      dist: xenial
       deploy:
         - provider: s3
           access_key_id: $AWS_ACCESS_KEY_ID
@@ -53,6 +82,8 @@ jobs:
       if: type = push AND (tag IS present OR branch = master)
       env:
         - CHANGE_MINIKUBE_NONE_USER=true
+      os: linux
+      dist: xenial
       before_script:
         # Decrypt credentials needed to log into gcr registry
         - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
