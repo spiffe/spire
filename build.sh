@@ -4,6 +4,11 @@
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
+if [[ -n $TRAVIS ]] ; then
+	unset GOPATH GOROOT
+	BUILD_ROOT=$HOME/.build
+fi
+
 ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null)"
 declare -r ARTIFACT_DIRS
 RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
@@ -28,8 +33,9 @@ case $(uname -m) in
 			;;
 esac
 
-declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build-${OS1}-${ARCH1}}
-declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
+declare -r BUILD_ROOT=${BUILD_ROOT:-$PWD}
+declare -r BUILD_DIR=${BUILD_DIR:-${BUILD_ROOT}/.build-${OS1}-${ARCH1}}
+declare -r BUILD_CACHE=${BUILD_CACHE:-${BUILD_ROOT}/.cache}
 
 # versioned binaries that we need for builds
 export GO111MODULE=on
@@ -39,8 +45,6 @@ declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
 declare -r PROTOBUF_URL="https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}"
 declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
-
-[[ -n $TRAVIS ]] && unset GOPATH GOROOT
 
 _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
