@@ -37,7 +37,12 @@ jobs:
       dist: xenial
     - stage: lint
       script:
+        - ./build.sh protobuf_verify
         - shellcheck build.sh
+      # linting is OS agnostic but protobuf_verify needs utils to lets be explicit
+      # about its runtime environment
+      os: linux 
+      dist: xenial
     - stage: test
       script:
         - ./build.sh race-test
@@ -49,7 +54,6 @@ jobs:
       dist: xenial
     - stage: build release
       script:
-        - ./build.sh protobuf_verify
         - ./build.sh binaries
         - ./build.sh integration
         - ./build.sh artifact
