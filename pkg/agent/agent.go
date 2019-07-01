@@ -14,9 +14,12 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	_ "golang.org/x/net/trace"
 	"google.golang.org/grpc"
 )
@@ -50,6 +53,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	metricsService := metricsservice.New(metricsservice.Config{
+		Metrics: metrics,
+	})
 
 	cat, err := catalog.Load(ctx, catalog.Config{
 		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
@@ -57,6 +63,9 @@ func (a *Agent) Run(ctx context.Context) error {
 			TrustDomain: a.c.TrustDomain.Host,
 		},
 		PluginConfig: a.c.PluginConfigs,
+		HostServices: []common_catalog.HostServiceServer{
+			common_services.MetricsServiceHostServiceServer(metricsService),
+		},
 	})
 	if err != nil {
 		return err
