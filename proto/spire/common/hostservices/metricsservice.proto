@@ -44,7 +44,7 @@ message AddSampleResponse {
 
 message MeasureSinceRequest {
     repeated string key = 1;
-		// Unix time in nanoseconds
+    // Unix time in nanoseconds
     int64 time = 2;
     repeated Label labels = 3;
 }
