@@ -2,6 +2,7 @@ package fakedatastore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -27,9 +28,10 @@ const (
 )
 
 var (
-	ErrBundleAlreadyExists       = status.Error(codes.FailedPrecondition, "bundle already exists")
-	ErrAttestedNodeAlreadyExists = status.Error(codes.FailedPrecondition, "attested node entry already exists")
-	ErrTokenAlreadyExists        = status.Error(codes.FailedPrecondition, "token already exists")
+	// TODO: These should be grpc/status errors with the AlreadyExists code. #992
+	ErrBundleAlreadyExists       = errors.New("bundle already exists")
+	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
+	ErrTokenAlreadyExists        = errors.New("token already exists")
 
 	ErrNoSuchBundle            = status.Error(codes.NotFound, "no such bundle")
 	ErrNoSuchAttestedNode      = status.Error(codes.NotFound, "no such attested node entry")
