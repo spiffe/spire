@@ -27,13 +27,14 @@ const (
 )
 
 var (
-	ErrBundleAlreadyExists       = status.Error(codes.NotFound, "bundle already exists")
-	ErrNoSuchBundle              = status.Error(codes.NotFound, "no such bundle")
-	ErrAttestedNodeAlreadyExists = status.Error(codes.NotFound, "attested node entry already exists")
-	ErrNoSuchAttestedNode        = status.Error(codes.NotFound, "no such attested node entry")
-	ErrNoSuchRegistrationEntry   = status.Error(codes.NotFound, "no such registration entry")
-	ErrNoSuchToken               = status.Error(codes.NotFound, "no such token")
-	ErrTokenAlreadyExists        = status.Error(codes.NotFound, "token already exists")
+	ErrBundleAlreadyExists       = status.Error(codes.FailedPrecondition, "bundle already exists")
+	ErrAttestedNodeAlreadyExists = status.Error(codes.FailedPrecondition, "attested node entry already exists")
+	ErrTokenAlreadyExists        = status.Error(codes.FailedPrecondition, "token already exists")
+
+	ErrNoSuchBundle            = status.Error(codes.NotFound, "no such bundle")
+	ErrNoSuchAttestedNode      = status.Error(codes.NotFound, "no such attested node entry")
+	ErrNoSuchRegistrationEntry = status.Error(codes.NotFound, "no such registration entry")
+	ErrNoSuchToken             = status.Error(codes.NotFound, "no such token")
 )
 
 type DataStore struct {
