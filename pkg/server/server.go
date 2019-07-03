@@ -15,6 +15,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -25,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/svid"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"google.golang.org/grpc"
@@ -147,6 +149,9 @@ func (s *Server) run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	metricsService := metricsservice.New(metricsservice.Config{
+		Metrics: metrics,
+	})
 
 	// Create the identity provider host service. It will not be functional
 	// until the call to SetDeps() below. There is some tricky initialization
@@ -161,7 +166,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, identityProvider, agentStore)
+	cat, err := s.loadCatalog(ctx, identityProvider, agentStore, metricsService)
 	if err != nil {
 		return err
 	}
@@ -281,7 +286,8 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore) (*catalog.CatalogCloser, error) {
+func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
+	metricsService common_services.MetricsService) (*catalog.CatalogCloser, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
@@ -290,6 +296,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 		PluginConfig:     s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
+		MetricsService:   metricsService,
 	})
 }
 

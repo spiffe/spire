@@ -1,0 +1,61 @@
+syntax = "proto3";
+package spire.common.hostservices;
+option go_package = "github.com/spiffe/spire/proto/spire/common/hostservices";
+
+message Label {
+    string name = 1;
+    string value = 2;
+}
+
+message SetGaugeRequest {
+    repeated string key = 1;
+    float val = 2;
+    repeated Label labels = 3;
+}
+
+message SetGaugeResponse {
+}
+
+message EmitKeyRequest {
+    repeated string key = 1;
+    float val = 2;
+}
+
+message EmitKeyResponse {
+}
+
+message IncrCounterRequest {
+    repeated string key = 1;
+    float val = 2;
+    repeated Label labels = 3;
+}
+
+message IncrCounterResponse {
+}
+
+message AddSampleRequest {
+    repeated string key = 1;
+    float val = 2;
+    repeated Label labels = 3;
+}
+
+message AddSampleResponse {
+}
+
+message MeasureSinceRequest {
+    repeated string key = 1;
+    // Unix time in nanoseconds
+    int64 time = 2;
+    repeated Label labels = 3;
+}
+
+message MeasureSinceResponse {
+}
+
+service MetricsService {
+    rpc SetGauge(SetGaugeRequest) returns (SetGaugeResponse);
+    rpc EmitKey(EmitKeyRequest) returns (EmitKeyResponse);
+    rpc IncrCounter(IncrCounterRequest) returns (IncrCounterResponse);
+    rpc AddSample(AddSampleRequest) returns (AddSampleResponse);
+    rpc MeasureSince(MeasureSinceRequest) returns (MeasureSinceResponse);
+}
