@@ -13,10 +13,13 @@ import (
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
+	proto_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -40,6 +43,9 @@ type PluginSuite struct {
 	dir    string
 	nextID int
 	ds     datastore.Plugin
+
+	m  *fakemetrics.FakeMetrics
+	ms proto_services.MetricsService
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -60,7 +66,14 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	p := New()
 
 	var ds datastore.Plugin
-	s.LoadPlugin(builtin(p), &ds)
+
+	s.m = fakemetrics.New()
+	s.ms = metricsservice.New(metricsservice.Config{
+		Metrics: s.m,
+	})
+
+	s.LoadPlugin(builtin(p), &ds,
+		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(s.ms)))
 
 	s.nextID++
 	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
