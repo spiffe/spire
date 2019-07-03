@@ -15,6 +15,33 @@ import (
 	"github.com/spiffe/spire/test/clock"
 )
 
+// NewCSRTemplate returns a default CSR template with the specified SPIFFE ID.
+func NewCSRTemplate(spiffeId string) ([]byte, crypto.PublicKey, error) {
+	uriSAN, err := url.Parse(spiffeId)
+	if err != nil {
+		return nil, nil, err
+	}
+	template := &x509.CertificateRequest{
+		Subject: pkix.Name{
+			Country:      []string{"US"},
+			Organization: []string{"SPIRE"},
+		},
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		URIs:               []*url.URL{uriSAN},
+	}
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	csr, err := x509.CreateCertificateRequest(rand.Reader, template, key)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return csr, key.Public(), nil
+}
+
 // NewSVIDTemplate returns a default SVID template with the specified SPIFFE ID. Must
 // be signed before it's valid.
 func NewSVIDTemplate(clk clock.Clock, spiffeID string) (*x509.Certificate, error) {
