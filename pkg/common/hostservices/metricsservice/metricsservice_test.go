@@ -62,7 +62,7 @@ func TestSetGauge(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			convertedLabels := convertLabels(tt.req.Labels)
+			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
 
 			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
 			mockMetrics.EXPECT().SetGaugeWithLabels(tt.req.Key, tt.req.Val, convertedLabels).Return()
@@ -124,7 +124,7 @@ func TestMeasureSince(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			convertedLabels := convertLabels(tt.req.Labels)
+			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
 
 			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
 			mockMetrics.EXPECT().MeasureSinceWithLabels(tt.req.Key, time.Unix(0, tt.req.Time), convertedLabels).Return()
@@ -186,7 +186,7 @@ func TestIncrCounter(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			convertedLabels := convertLabels(tt.req.Labels)
+			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
 
 			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
 			mockMetrics.EXPECT().IncrCounterWithLabels(tt.req.Key, tt.req.Val, convertedLabels).Return()
@@ -248,7 +248,7 @@ func TestAddSample(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			convertedLabels := convertLabels(tt.req.Labels)
+			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
 
 			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
 			mockMetrics.EXPECT().AddSampleWithLabels(tt.req.Key, tt.req.Val, convertedLabels).Return()
@@ -311,7 +311,7 @@ func TestEmitKey(t *testing.T) {
 	}
 }
 
-func TestConvertLabels(t *testing.T) {
+func TestConvertToTelemetryLabels(t *testing.T) {
 	tests := []struct {
 		desc         string
 		inLabels     []*hostservices.Label
@@ -404,7 +404,83 @@ func TestConvertLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			outLabels := convertLabels(tt.inLabels)
+			outLabels := convertToTelemetryLabels(tt.inLabels)
+
+			assert.Equal(t, tt.expectLabels, outLabels)
+		})
+	}
+}
+
+func TestConvertToRPCLabels(t *testing.T) {
+	tests := []struct {
+		desc         string
+		inLabels     []telemetry.Label
+		expectLabels []*hostservices.Label
+	}{
+		{
+			desc:         "nil input",
+			expectLabels: []*hostservices.Label{},
+		},
+		{
+			desc:         "empty input",
+			inLabels:     []telemetry.Label{},
+			expectLabels: []*hostservices.Label{},
+		},
+		{
+			desc: "one label",
+			inLabels: []telemetry.Label{
+				{
+					Name:  "label1",
+					Value: "val2",
+				},
+			},
+			expectLabels: []*hostservices.Label{
+				{
+					Name:  "label1",
+					Value: "val2",
+				},
+			},
+		},
+		{
+			desc: "two labels",
+			inLabels: []telemetry.Label{
+				{
+					Name:  "label1",
+					Value: "val2",
+				},
+				{
+					Name:  "labelB",
+					Value: "val3",
+				},
+			},
+			expectLabels: []*hostservices.Label{
+				{
+					Name:  "label1",
+					Value: "val2",
+				},
+				{
+					Name:  "labelB",
+					Value: "val3",
+				},
+			},
+		},
+		{
+			desc: "empty label",
+			inLabels: []telemetry.Label{
+				{},
+			},
+			expectLabels: []*hostservices.Label{
+				{
+					Name:  "",
+					Value: "",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			outLabels := convertToRPCLabels(tt.inLabels)
 
 			assert.Equal(t, tt.expectLabels, outLabels)
 		})
