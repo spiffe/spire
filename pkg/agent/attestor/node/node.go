@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/url"
 	"path"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
@@ -81,37 +82,54 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 	return &AttestationResult{Bundle: bundle, SVID: svid, Key: key}, nil
 }
 
+// Load the current SVID and key. The returned SVID is nil to indicate a new SVID should be created.
 func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.PrivateKey, error) {
 	km := a.c.Catalog.GetKeyManager()
-	fResp, err := km.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
+	fetchRes, err := km.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("load private key: %v", err)
 	}
-
 	svid := a.readSVIDFromDisk()
-	if len(fResp.PrivateKey) > 0 && svid == nil {
-		a.c.Log.Warn("Private key recovered, but no SVID found")
-	}
 
-	var keyData []byte
-	if len(fResp.PrivateKey) > 0 && svid != nil {
-		keyData = fResp.PrivateKey
-	} else {
-		gResp, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	privateKeyExists := len(fetchRes.PrivateKey) > 0
+	svidExists := svid != nil
+	svidIsExpired := isSVIDExpired(svid, time.Now)
+
+	switch {
+	case privateKeyExists && svidExists && !svidIsExpired:
+		key, err := x509.ParseECPrivateKey(fetchRes.PrivateKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("generate key pair: %s", err)
+			return nil, nil, fmt.Errorf("parse key from keymanager: %v", key)
 		}
-
-		svid = nil
-		keyData = gResp.PrivateKey
+		return svid, key, nil
+	case privateKeyExists && svidExists && svidIsExpired:
+		a.c.Log.Warn("Private key recovered, but SVID is expired. Generating new keypair.")
+	case privateKeyExists && !svidExists:
+		a.c.Log.Warn("Private key recovered, but no SVID found. Generating new keypair.")
+	case !privateKeyExists && svidExists:
+		a.c.Log.Warn("SVID recovered, but no private key found. Generating new keypair.")
+	default:
+		// Neither private key nor SVID were found.
 	}
 
-	key, err := x509.ParseECPrivateKey(keyData)
+	generateRes, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate key pair: %s", err)
+	}
+	key, err := x509.ParseECPrivateKey(generateRes.PrivateKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse key from keymanager: %v", key)
 	}
+	return nil, key, nil
+}
 
-	return svid, key, nil
+func isSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
+	if len(svid) == 0 {
+		return false
+	}
+	clockSkew := time.Second
+	certExpiresAt := svid[0].NotAfter
+	return timeNow().Add(clockSkew).Sub(certExpiresAt) >= 0
 }
 
 func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
