@@ -17,7 +17,7 @@ type pluginMetrics struct {
 }
 
 // WrapPluginMetricsForContext returns a Metrics implementation that wraps the Metrics Host Service
-// and passes in the given context to that service. Additionally, labels common to the plugin/function
+// and passes in the given context to that service. Additionally, labels common to the context
 // can also be set, and will be added to all resulting metrics calls.
 // This enables usage of common functionality related to the Metrics interface from a plugin.
 // Any errors are logged, but not returned.
