@@ -19,7 +19,7 @@ type Logger struct {
 	io.Closer
 }
 
-func NewLogger(logLevel, format, fileName string) (*Logger, error) {
+func NewLogger(logLevel, format, outputFile string) (*Logger, error) {
 	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		return nil, err
@@ -27,8 +27,8 @@ func NewLogger(logLevel, format, fileName string) (*Logger, error) {
 
 	var out io.Writer = os.Stdout
 	var closer io.Closer = nopCloser{}
-	if fileName != "" {
-		fd, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	if outputFile != "" {
+		fd, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
 			return nil, err
 		}
@@ -48,7 +48,7 @@ func NewLogger(logLevel, format, fileName string) (*Logger, error) {
 	case TextFormat:
 		logger.Formatter = &logrus.TextFormatter{}
 	default:
-		return nil, fmt.Errorf("unknown logger format: '%s'", format)
+		return nil, fmt.Errorf("unknown logger format: %q", format)
 	}
 
 	return &Logger{

@@ -121,7 +121,8 @@ func parseFile(path string) (*config, error) {
 	}
 
 	// Return a friendly error if the file is missing
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	data, err := ioutil.ReadFile(path)
+	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
 			msg := "could not determine CWD; config file not found at %s: use -config"
@@ -131,14 +132,12 @@ func parseFile(path string) (*config, error) {
 		msg := "could not find config file %s: please use the -config flag"
 		return nil, fmt.Errorf(msg, absPath)
 	}
-
-	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read configuration: %v", err)
+		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
 	}
 
 	if err := hcl.Decode(&c, string(data)); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration: %v", err)
+		return nil, fmt.Errorf("unable to decode configuration at %q: %v", path, err)
 	}
 
 	return c, nil
