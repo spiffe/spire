@@ -7,13 +7,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
-	"text/template"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"errors"
 
@@ -37,9 +38,7 @@ func builtin(p *IIDAttestorPlugin) catalog.Plugin {
 type IIDAttestorConfig struct {
 	IdentityDocumentURL  string `hcl:"identity_document_url"`
 	IdentitySignatureURL string `hcl:"identity_signature_url"`
-	AgentPathTemplate    string `hcl:"agent_path_template"`
 	trustDomain          string
-	pathTemplate         *template.Template
 }
 
 // IIDAttestorPlugin implements aws nodeattestation in the agent.
@@ -63,21 +62,12 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 
 	docBytes, err := httpGetBytes(c.IdentityDocumentURL)
 	if err != nil {
-		err = aws.AttestationStepError("retrieving the IID from AWS", err)
-		return err
-	}
-
-	var doc aws.InstanceIdentityDocument
-	err = json.Unmarshal(docBytes, &doc)
-	if err != nil {
-		err = aws.AttestationStepError("unmarshaling the IID", err)
-		return err
+		return aws.AttestationStepError("retrieving the IID from AWS", err)
 	}
 
 	sigBytes, err := httpGetBytes(c.IdentitySignatureURL)
 	if err != nil {
-		err = aws.AttestationStepError("retrieving the IID signature from AWS", err)
-		return err
+		return aws.AttestationStepError("retrieving the IID signature from AWS", err)
 	}
 
 	attestationData := aws.IIDAttestationData{
@@ -87,55 +77,30 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 
 	respData, err := json.Marshal(attestationData)
 	if err != nil {
-		err = aws.AttestationStepError("marshaling the attested data", err)
-		return err
-	}
-
-	// FIXME: NA should be the one dictating type of this message
-	// Change the proto to just take plain byte here
-	data := &common.AttestationData{
-		Type: aws.PluginName,
-		Data: respData,
-	}
-
-	spiffeID, err := aws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
-	if err != nil {
-		return fmt.Errorf("failed to create spiffe ID: %v", err)
+		return aws.AttestationStepError("marshaling the attested data", err)
 	}
 
 	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
-		AttestationData: data,
-		SpiffeId:        spiffeID.String(),
+		AttestationData: &common.AttestationData{
+			Type: aws.PluginName,
+			Data: respData,
+		},
 	})
 }
 
 // Configure configures the IIDAttestorPlugin.
 func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	resp := &spi.ConfigureResponse{}
-
 	// Parse HCL config payload into config struct
 	config := &IIDAttestorConfig{}
-	hclTree, err := hcl.Parse(req.Configuration)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
-	}
-
-	err = hcl.DecodeObject(&config, hclTree)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
+	if err := hcl.Decode(config, req.Configuration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	if req.GlobalConfig == nil {
-		err := errors.New("global configuration is required")
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
+		return nil, status.Error(codes.InvalidArgument, "global configuration is required")
 	}
 	if req.GlobalConfig.TrustDomain == "" {
-		err := errors.New("global configuration missing trust domain")
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
+		return nil, status.Error(codes.InvalidArgument, "global configuration missing trust domain")
 	}
 	// Set local vars from config struct
 	config.trustDomain = req.GlobalConfig.TrustDomain
@@ -148,21 +113,12 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		config.IdentitySignatureURL = defaultIdentitySignatureURL
 	}
 
-	config.pathTemplate = aws.DefaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
-		}
-		config.pathTemplate = tmpl
-	}
-
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	p.config = config
 
-	return resp, nil
+	return &spi.ConfigureResponse{}, nil
 }
 
 // GetPluginInfo returns the version and other metadata of the plugin.

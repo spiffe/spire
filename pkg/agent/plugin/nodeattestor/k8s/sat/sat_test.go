@@ -63,12 +63,10 @@ func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
 	s.Require().NotNil(resp)
 
 	// assert attestation data
-	s.Require().Equal("spiffe://example.org/spire/agent/k8s_sat/production/UUID", resp.SpiffeId)
 	s.Require().NotNil(resp.AttestationData)
 	s.Require().Equal("k8s_sat", resp.AttestationData.Type)
 	s.Require().JSONEq(`{
 		"cluster": "production",
-		"uuid": "UUID",
 		"token": "TOKEN"
 	}`, string(resp.AttestationData.Data))
 
@@ -118,11 +116,7 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 }
 
 func (s *AttestorSuite) newAttestor() {
-	attestor := New()
-	attestor.hooks.newUUID = func() (string, error) {
-		return "UUID", nil
-	}
-	s.LoadPlugin(builtin(attestor), &s.attestor)
+	s.LoadPlugin(BuiltIn(), &s.attestor)
 }
 
 func (s *AttestorSuite) configure(config AttestorConfig) {

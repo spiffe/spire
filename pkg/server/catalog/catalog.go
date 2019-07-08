@@ -23,6 +23,7 @@ import (
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/keymanager"
@@ -146,6 +147,7 @@ type Config struct {
 
 	IdentityProvider hostservices.IdentityProvider
 	AgentStore       hostservices.AgentStore
+	MetricsService   common_services.MetricsService
 }
 
 func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
@@ -165,6 +167,7 @@ func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
 		HostServices: []catalog.HostServiceServer{
 			hostservices.IdentityProviderHostServiceServer(config.IdentityProvider),
 			hostservices.AgentStoreHostServiceServer(config.AgentStore),
+			common_services.MetricsServiceHostServiceServer(config.MetricsService),
 		},
 	}, p)
 	if err != nil {

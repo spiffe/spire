@@ -17,27 +17,33 @@ import (
 )
 
 func TestManager(t *testing.T) {
+	// create a pair of bundles with distinct refresh hints so we can assert
+	// that the manager selected the correct refresh hint.
+	localBundle := bundleutil.BundleFromRootCA("spiffe://domain.test", createCACertificate(t, "local"))
+	localBundle.SetRefreshHint(time.Hour)
+	endpointBundle := bundleutil.BundleFromRootCA("spiffe://domain.test", createCACertificate(t, "endpoint"))
+	endpointBundle.SetRefreshHint(time.Hour * 2)
+
 	testCases := []struct {
-		name         string
-		refreshHint  time.Duration
-		refreshErr   error
-		refreshAfter time.Duration
+		name           string
+		localBundle    *bundleutil.Bundle
+		endpointBundle *bundleutil.Bundle
+		nextRefresh    time.Duration
 	}{
 		{
-			name:         "update refresh hint used",
-			refreshHint:  time.Minute,
-			refreshAfter: time.Minute,
+			name:        "update failed to obtain local bundle",
+			nextRefresh: bundleutil.MinimumRefreshHint,
 		},
 		{
-			name:         "default refresh hint used ",
-			refreshHint:  0,
-			refreshAfter: bundleutil.DefaultRefreshHint,
+			name:        "update failed to obtain endpoint bundle",
+			localBundle: localBundle,
+			nextRefresh: calculateNextUpdate(localBundle),
 		},
 		{
-			name:         "refresh hint unchanged on error ",
-			refreshHint:  time.Minute,
-			refreshErr:   errors.New("OHNO!"),
-			refreshAfter: bundleutil.DefaultRefreshHint,
+			name:           "update obtained endpoint bundle",
+			localBundle:    localBundle,
+			endpointBundle: endpointBundle,
+			nextRefresh:    calculateNextUpdate(endpointBundle),
 		},
 	}
 
@@ -45,18 +51,18 @@ func TestManager(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			clock := clock.NewMock(t)
 
-			updater := newFakeBundleUpdater(testCase.refreshHint, testCase.refreshErr)
+			updater := newFakeBundleUpdater(testCase.localBundle, testCase.endpointBundle)
 
 			done := startManager(t, clock, updater)
 			defer done()
 
 			// wait for the initial refresh
-			waitForRefresh(t, clock, testCase.refreshAfter)
+			waitForRefresh(t, clock, testCase.nextRefresh)
 			require.Equal(t, 1, updater.UpdateCount())
 
 			// advance time and make sure another refresh happens
-			clock.Add(testCase.refreshAfter + time.Millisecond)
-			waitForRefresh(t, clock, testCase.refreshAfter)
+			clock.Add(testCase.nextRefresh + time.Millisecond)
+			waitForRefresh(t, clock, testCase.nextRefresh)
 			require.Equal(t, 2, updater.UpdateCount())
 		})
 	}
@@ -117,17 +123,17 @@ func waitForRefresh(t *testing.T, clock *clock.Mock, expectedDuration time.Durat
 }
 
 type fakeBundleUpdater struct {
-	refreshHint time.Duration
-	err         error
+	localBundle    *bundleutil.Bundle
+	endpointBundle *bundleutil.Bundle
 
 	mu          sync.Mutex
 	updateCount int
 }
 
-func newFakeBundleUpdater(refreshHint time.Duration, err error) *fakeBundleUpdater {
+func newFakeBundleUpdater(localBundle, endpointBundle *bundleutil.Bundle) *fakeBundleUpdater {
 	return &fakeBundleUpdater{
-		refreshHint: refreshHint,
-		err:         err,
+		localBundle:    localBundle,
+		endpointBundle: endpointBundle,
 	}
 }
 
@@ -137,9 +143,9 @@ func (u *fakeBundleUpdater) UpdateCount() int {
 	return u.updateCount
 }
 
-func (u *fakeBundleUpdater) UpdateBundle(context.Context) (time.Duration, error) {
+func (u *fakeBundleUpdater) UpdateBundle(context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.updateCount++
-	return u.refreshHint, u.err
+	return u.localBundle, u.endpointBundle, errors.New("UNUSED")
 }

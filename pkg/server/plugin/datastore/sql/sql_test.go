@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 var (
@@ -118,6 +119,14 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.Require().NotNil(fresp)
 	s.Require().Nil(fresp.Bundle)
+
+	// update non-existant
+	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
+	// delete non-existant
+	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
 
 	// create
 	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
@@ -527,7 +536,15 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	userial := "deadbeef"
 	uexpires := time.Now().Add(time.Hour * 2).Unix()
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	// update non-existing attested node
+	_, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         node.SpiffeId,
+		CertSerialNumber: userial,
+		CertNotAfter:     uexpires,
+	})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 	s.Require().NoError(err)
 
 	uresp, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
@@ -565,7 +582,11 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
+	// delete it before it exists
+	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
 	s.Require().NoError(err)
 
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
@@ -989,9 +1010,19 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 
 	expectedResponse := &datastore.FetchRegistrationEntryResponse{Entry: entry}
 	s.RequireProtoEqual(expectedResponse, fetchRegistrationEntryResponse)
+
+	entry.EntryId = "badid"
+	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
+	// delete non-existing
+	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: "badid"})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},

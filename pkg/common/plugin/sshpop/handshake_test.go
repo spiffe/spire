@@ -62,10 +62,9 @@ func TestHandshake(t *testing.T) {
 	tt := newTest(t, principal("ec2abcdef-uswest1"))
 
 	c := &Client{
-		cert:              tt.Certificate,
-		signer:            tt.Signer,
-		agentPathTemplate: DefaultAgentPathTemplate,
-		trustDomain:       "foo.local",
+		cert:        tt.Certificate,
+		signer:      tt.Signer,
+		trustDomain: "foo.local",
 	}
 	s := &Server{
 		certChecker:       tt.CertChecker,
@@ -91,24 +90,9 @@ func TestHandshake(t *testing.T) {
 	err = server.VerifyChallengeResponse(challengeRes)
 	require.NoError(t, err)
 
-	spiffeid, err := server.SpiffeID()
+	spiffeid, err := server.AgentID()
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("spiffe://foo.local/spire/agent/sshpop/%s", tt.Fingerprint), spiffeid)
-}
-
-func TestClientSpiffeID(t *testing.T) {
-	tt := newTest(t, principal("ec2abcdef-uswest1"))
-	agentPathTemplate, err := template.New("agent-path").Parse("static/{{ index .ValidPrincipals 0 }}")
-	require.NoError(t, err)
-
-	c := &Client{
-		cert:              tt.Certificate,
-		agentPathTemplate: agentPathTemplate,
-		trustDomain:       "foo.local",
-	}
-	spiffeid, err := c.NewHandshake().SpiffeID()
-	require.NoError(t, err)
-	require.Equal(t, "spiffe://foo.local/spire/agent/static/ec2abcdef-uswest1", spiffeid)
 }
 
 func TestServerSpiffeID(t *testing.T) {
@@ -123,7 +107,7 @@ func TestServerSpiffeID(t *testing.T) {
 		},
 		cert: tt.Certificate,
 	}
-	spiffeid, err := s.SpiffeID()
+	spiffeid, err := s.AgentID()
 	require.NoError(t, err)
 	require.Equal(t, "spiffe://foo.local/spire/agent/static/ec2abcdef-uswest1", spiffeid)
 }
@@ -132,10 +116,9 @@ func newTestHandshake(t *testing.T) (*ClientHandshake, *ServerHandshake) {
 	tt := newTest(t, principal("ec2abcdef-uswest1.test.internal"))
 	trustDomain := "foo.local"
 	c := &Client{
-		signer:            tt.Signer,
-		cert:              tt.Certificate,
-		agentPathTemplate: DefaultAgentPathTemplate,
-		trustDomain:       trustDomain,
+		signer:      tt.Signer,
+		cert:        tt.Certificate,
+		trustDomain: trustDomain,
 	}
 	s := &Server{
 		trustDomain:       trustDomain,

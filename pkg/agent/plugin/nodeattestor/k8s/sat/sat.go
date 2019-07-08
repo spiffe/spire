@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/gofrs/uuid"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
@@ -48,31 +47,14 @@ type attestorConfig struct {
 type AttestorPlugin struct {
 	mu     sync.RWMutex
 	config *attestorConfig
-
-	hooks struct {
-		newUUID func() (string, error)
-	}
 }
 
 func New() *AttestorPlugin {
-	p := &AttestorPlugin{}
-	p.hooks.newUUID = func() (string, error) {
-		u, err := uuid.NewV4()
-		if err != nil {
-			return "", err
-		}
-		return u.String(), nil
-	}
-	return p
+	return &AttestorPlugin{}
 }
 
 func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
 	config, err := p.getConfig()
-	if err != nil {
-		return err
-	}
-
-	uuid, err := p.hooks.newUUID()
 	if err != nil {
 		return err
 	}
@@ -84,7 +66,6 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 
 	data, err := json.Marshal(k8s.SATAttestationData{
 		Cluster: config.cluster,
-		UUID:    uuid,
 		Token:   token,
 	})
 	if err != nil {
@@ -96,7 +77,6 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, uuid),
 	})
 }
 

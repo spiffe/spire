@@ -128,17 +128,10 @@ func (p *X509PoPPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) er
 		return newError("challenge response verification failed: %v", err)
 	}
 
-	resp := &nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: x509pop.SpiffeID(c.trustDomain, leaf),
-		Selectors:    buildSelectors(leaf, chains),
-	}
-
-	if err := stream.Send(resp); err != nil {
-		return err
-	}
-
-	return nil
+	return stream.Send(&nodeattestor.AttestResponse{
+		AgentId:   x509pop.AgentID(c.trustDomain, leaf),
+		Selectors: buildSelectors(leaf, chains),
+	})
 }
 
 func (p *X509PoPPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {

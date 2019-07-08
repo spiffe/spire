@@ -2,17 +2,16 @@ package disk
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/util"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,17 +149,16 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	})
 	require.NoError(err)
 
-	csrPEM, err := ioutil.ReadFile("_test_data/csr_valid/csr_1.pem")
+	validSpiffeID := "spiffe://localhost"
+	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(err)
-	block, rest := pem.Decode(csrPEM)
-	require.Len(rest, 0)
 
-	resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
+	resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 	require.NoError(err)
 	require.NotNil(resp)
 	require.NotNil(resp.SignedCertificate)
 
-	testCSRResp(s.T(), resp, []string{"spiffe://localhost", "spiffe://upstream", "spiffe://intermediate"}, []string{"spiffe://root"})
+	testCSRResp(s.T(), resp, pubKey, []string{"spiffe://localhost", "spiffe://upstream", "spiffe://intermediate"}, []string{"spiffe://root"})
 }
 
 func (s *DiskSuite) TestBadBundleFile() {
@@ -195,27 +193,20 @@ func (s *DiskSuite) TestNotSelfSignedWithoutBundle() {
 func (s *DiskSuite) TestSubmitValidCSR() {
 	require := s.Require()
 
-	const testDataDir = "_test_data/csr_valid"
-	csrFiles, err := ioutil.ReadDir(testDataDir)
-	require.NoError(err)
-
-	testCSR := func(csrFile os.FileInfo) {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, csrFile.Name()))
+	testCSR := func() {
+		validSpiffeID := "spiffe://localhost"
+		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 		require.NoError(err)
-		block, rest := pem.Decode(csrPEM)
-		require.Len(rest, 0)
 
-		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
+		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 		require.NoError(err)
 		require.NotNil(resp)
 		require.NotNil(resp.SignedCertificate)
 
-		testCSRResp(s.T(), resp, []string{"spiffe://localhost"}, []string{"spiffe://local"})
+		testCSRResp(s.T(), resp, pubKey, []string{"spiffe://localhost"}, []string{"spiffe://local"})
 	}
 
-	for _, csrFile := range csrFiles {
-		testCSR(csrFile)
-	}
+	testCSR()
 
 	// Modify the cert and key file paths. The CSR will still be
 	// signed by the cached upstreamCA.
@@ -224,12 +215,10 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 	s.rawPlugin.config.KeyFilePath = "invalid-file"
 	s.rawPlugin.mtx.Unlock()
 
-	for _, csrFile := range csrFiles {
-		testCSR(csrFile)
-	}
+	testCSR()
 }
 
-func testCSRResp(t *testing.T, resp *upstreamca.SubmitCSRResponse, expectCertChainURIs []string, expectTrustBundleURIs []string) {
+func testCSRResp(t *testing.T, resp *upstreamca.SubmitCSRResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
 	certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
 	require.NoError(t, err)
 
@@ -243,29 +232,34 @@ func testCSRResp(t *testing.T, resp *upstreamca.SubmitCSRResponse, expectCertCha
 	for i, cert := range trustBundle {
 		assert.Equal(t, expectTrustBundleURIs[i], certURI(cert))
 	}
+
+	isEqual, err := cryptoutil.PublicKeyEqual(certs[0].PublicKey, pubKey)
+	require.NoError(t, err)
+	require.True(t, isEqual)
 }
 
 func (s *DiskSuite) TestSubmitInvalidCSR() {
 	require := s.Require()
 
-	const testDataDir = "_test_data/csr_invalid"
-	csrFiles, err := ioutil.ReadDir(testDataDir)
-	require.NoError(err)
-
-	for _, csrFile := range csrFiles {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, csrFile.Name()))
+	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
+	for _, invalidSpiffeID := range invalidSpiffeIDs {
+		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(err)
-		block, rest := pem.Decode(csrPEM)
-		require.Len(rest, 0)
 
-		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
+		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 		require.Error(err)
 		require.Nil(resp)
 	}
+
+	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
+	resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: invalidSequenceOfBytesAsCSR})
+	require.Error(err)
+	require.Nil(resp)
 }
 
 func (s *DiskSuite) TestRace() {
-	csr, err := ioutil.ReadFile("_test_data/csr_valid/csr_1.pem")
+	validSpiffeID := "spiffe://localhost"
+	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
 	testutil.RaceTest(s.T(), func(t *testing.T) {

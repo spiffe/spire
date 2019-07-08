@@ -83,13 +83,10 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	stream, done := s.fetchAttestationData()
 	defer done()
 
-	spiffeID := "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert)
-
-	// first response has the spiffeid and attestation data
+	// first response has the attestation data
 	resp, err := stream.Recv()
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal(spiffeID, resp.SpiffeId)
 	require.Equal("x509pop", resp.AttestationData.Type)
 	require.JSONEq(string(s.marshal(x509pop.AttestationData{
 		Certificates: s.leafBundle,
@@ -109,7 +106,6 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	// recv the response
 	resp, err = stream.Recv()
 	require.NoError(err)
-	require.Equal(spiffeID, resp.SpiffeId)
 	require.Nil(resp.AttestationData)
 	require.NotEmpty(resp.Response)
 

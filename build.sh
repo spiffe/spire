@@ -1,12 +1,22 @@
 #!/bin/bash
+# vim: set noet:
 
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
-declare -r ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... 2>/dev/null)"
-declare -r RELEASE_FILES="LICENSE README.md conf"
+if [[ -n $TRAVIS ]] ; then
+	unset GOPATH GOROOT
+	BUILD_ROOT=$HOME/.build
+fi
+
+ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r ARTIFACT_DIRS
+RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r RELEASE_DIRS
+SOURCE_PKGS="$(go list ./cmd/... ./pkg/... 2>/dev/null)"
+declare -r SOURCE_PKGS
+RELEASE_FILES="LICENSE README.md conf"
+declare -r RELEASE_FILES
 
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
@@ -23,8 +33,9 @@ case $(uname -m) in
 			;;
 esac
 
-declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build-${OS1}-${ARCH1}}
-declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
+declare -r BUILD_ROOT=${BUILD_ROOT:-$PWD}
+declare -r BUILD_DIR=${BUILD_DIR:-${BUILD_ROOT}/.build-${OS1}-${ARCH1}}
+declare -r BUILD_CACHE=${BUILD_CACHE:-${BUILD_ROOT}/.cache}
 
 # versioned binaries that we need for builds
 export GO111MODULE=on
@@ -35,16 +46,14 @@ declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
 declare -r PROTOBUF_URL="https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}"
 declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
 
-[[ -n $TRAVIS ]] && unset GOPATH GOROOT
-
 _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
 
 _fetch_url() {
-	mkdir -p ${BUILD_CACHE}
+	mkdir -p "${BUILD_CACHE}"
 	if [[ ! -r ${BUILD_CACHE}/${2} ]]; then
 		_log_info "downloading \"${1}/${2}\""
-		curl --output ${BUILD_CACHE}/${2} --location --silent ${1}/${2}
+		curl --output "${BUILD_CACHE}/${2}" --location --silent "${1}/${2}"
 	else
 		_log_info "\"${2}\" found in ${BUILD_CACHE}"
 	fi
@@ -59,40 +68,40 @@ build_env() {
 	_gr="${GOROOT:-$BUILD_DIR}"
 	echo "export GOPATH=${_gp}"
 	echo "export GOROOT=${_gr}"
-	echo "export PATH=$(ls -d ${BUILD_DIR}/*/bin 2>/dev/null | tr '\n' ':'):${_gr}/bin:${_gp}/bin:${PATH}"
+	echo "export PATH=$(test -d "${BUILD_DIR}/bin" && echo "${BUILD_DIR}/bin:")${_gr}/bin:${_gp}/bin:${PATH}"
 }
 
 ## fetch first-party versions of binaries we can not 'go get'
 build_setup() {
-	eval $(build_env)
+	eval "$(build_env)"
 
-	rm -rf ${BUILD_DIR}
-	mkdir -p ${BUILD_DIR}
+	rm -rf "${BUILD_DIR}"
+	mkdir -p "${BUILD_DIR}"
 
-	_fetch_url ${GO_URL} ${GO_TGZ}
-	tar --directory ${BUILD_DIR} --strip 1 -xf ${BUILD_CACHE}/${GO_TGZ}
+	_fetch_url "${GO_URL}" "${GO_TGZ}"
+	tar --directory "${BUILD_DIR}" --strip 1 -xf "${BUILD_CACHE}/${GO_TGZ}"
 
-	_fetch_url ${PROTOBUF_URL} ${PROTOBUF_TGZ}
-	unzip -qod ${BUILD_DIR} ${BUILD_CACHE}/${PROTOBUF_TGZ}
+	_fetch_url "${PROTOBUF_URL}" "${PROTOBUF_TGZ}"
+	unzip -qod "${BUILD_DIR}" "${BUILD_CACHE}/${PROTOBUF_TGZ}"
 }
 
 ## go-get extra utils needed for CI builds
 build_utils() {
-	eval $(build_env)
+	eval "$(build_env)"
 
 	make utils
 }
 
 ## Rebuild all .proto files and associated README's
 build_protobuf() {
-	local _proto_file _proto_files _proto_dir _proto_dirs _outdir _srcdir _out="$1"
+	local _proto_file _all_proto_files _proto_dir _proto_dirs _outdir _srcdir _out="$1"
 	eval "$(build_env)"
 
 	# Generate protobufs in the proto/ and pkg/ subdirectories. README markdown
 	# will also be generated for protobufs in proto/. Unless an "_out" argument
 	# has been set the output will sit alongside the proto files.
-	_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
-	for _proto_file in ${_proto_files}; do
+	_all_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
+	for _proto_file in ${_all_proto_files}; do
 		_srcdir="$(dirname "${_proto_file}")"
 		_outdir="${_srcdir}"
 		if [[ -n ${_out} ]]; then
@@ -114,7 +123,10 @@ build_protobuf() {
 		fi
 
 
-		_proto_files=(`find ${_proto_dir} -maxdepth 1 -name "*.proto"`)
+		_proto_files=()
+		while read -r -d $'\0' file ; do
+			_proto_files+=("$file")
+		done < <(find "${_proto_dir}" -maxdepth 1 -name '*.proto' -print0)
 		if [ ${#_proto_files[@]} -gt 0 ]; then 
 			_log_info "creating \"${_outdir}/README_pb.md\""
 			protoc --proto_path="${_proto_dir}" --proto_path=proto \
@@ -127,13 +139,15 @@ build_protobuf() {
 ## Create a private copy of generated code and compare it to
 ## what's checked in. Fail if there's a difference
 build_protobuf_verify() {
-	local _n _result _tmp="$(mktemp -d)"
-	eval $(build_env)
+	local _n _result _tmp
+	_tmp="$(mktemp -d)"
 
-	build_protobuf ${_tmp} >/dev/null
+	eval "$(build_env)"
 
-	for _n in $(cd $_tmp; find * -type f); do
-		if ! diff ${_tmp}/${_n} ${_n} >/dev/null; then
+	build_protobuf "${_tmp}" >/dev/null
+
+	for _n in $(cd "${_tmp}"; find ./* -type f); do
+		if ! diff "${_tmp}/${_n}" "${_n}" >/dev/null; then
 			_log_info "\"${_n}\" needs regeneration"
 			_result=1
 		fi
@@ -143,11 +157,11 @@ build_protobuf_verify() {
 		_exit_error "protobuf need regenerating"
 	fi
 
-	rm -rf ${_tmp}
+	rm -rf "${_tmp}"
 }
 
 build_binaries() {
-	eval $(build_env)
+	eval "$(build_env)"
 	make build
 }
 
@@ -159,14 +173,14 @@ build_test() {
 ## Run coverate tests and send to coveralls if this CI build
 ## has been called by cron.
 build_race_test() {
-	eval $(build_env)
+	eval "$(build_env)"
 
 	if [[ -n ${COVERALLS_TOKEN} ]]; then
 		_log_info "running coverage tests"
 		rm -rf test_results
 		mkdir -p test_results
 		for _n in ${SOURCE_PKGS}; do
-			go test -race -cover -covermode=atomic -coverprofile=test_results/$(echo $_n | sed 's/\//_/g').out ${_n}
+			go test -race -cover -covermode=atomic -coverprofile="test_results/$(echo "$_n" | sed 's/\//_/g').out" "${_n}"
 		done
 		# several tests set the umask to 000, which gets applied to the results files
 		chmod u+r test_results/*
@@ -185,8 +199,8 @@ build_release() {
 	local _tag _always
 	_tag="$(git describe --abbrev=0 2>/dev/null || true)"
 	_always="$(git describe --always || true)"
-	if [[ $_tag == $_always ]]; then
-		build_artifact $_tag "$RELEASE_DIRS"
+	if [[ "$_tag" == "$_always" ]]; then
+		build_artifact "$_tag" "$RELEASE_DIRS"
 	fi
 }
 
@@ -196,7 +210,8 @@ build_artifact() {
 	local _libc _tgz _sum _binaries _n _tmp _tar_opts
 
 	[[ -z "$_dirs" ]] && _dirs="$ARTIFACT_DIRS"
-	_binaries="$(find $_dirs -perm -u=x -a -type f)"
+	IFS=" " read -r -a _dirs_array <<< "$_dirs"
+	_binaries="$(find "${_dirs_array[@]}" -perm -u=x -a -type f)"
 
 
 	# handle the case that we're building for alpine
@@ -222,33 +237,33 @@ build_artifact() {
 
 	_log_info "creating artifact \"${_tgz}\""
 
-	mkdir -p $(dirname $_tgz)
-	rm -rf $(dirname $_tmp)
-	mkdir -p $_tmp
+	mkdir -p "$(dirname "$_tgz")"
+	rm -rf "$(dirname "$_tmp")"
+	mkdir -p "$_tmp"
 
 	# ensure empty .data dir is available
-	mkdir $_tmp/.data
+	mkdir "$_tmp/.data"
 
 	# we munge the file structure a bit here
 	for _n in $_binaries; do
 		if [[ $_n == *cmd/* ]]; then
-			cp $_n $_tmp
+			cp "$_n" $_tmp
 		else
-			mkdir -p ${_tmp}/$(dirname $(dirname $_n))
-			cp -r $_n ${_tmp}/$(dirname $_n)
+			mkdir -p "${_tmp}/$(dirname "$(dirname "$_n")")"
+			cp -r "$_n" "${_tmp}/$(dirname "$_n")"
 		fi
 	done
 	for _n in $RELEASE_FILES; do
-		cp -r $_n $_tmp
+		cp -r "$_n" "$_tmp"
 	done
 
 	# anchor relative paths in configuration files to /opt/spire. the backup
 	# extension supplied to sed is only for easy cross-platform in-place
 	# replacement because of differences between macOS and linux sed.
-	find $_tmp/conf -type f -name "*.conf" | xargs -I % -n1 sh -c "sed -i.bak -e 's#= \"./#= \"/opt/spire/#g' %; rm %.bak"
+	find "$_tmp/conf" -type f -name "*.conf" -print0 | xargs -0 -I % -n1 sh -c "sed -i.bak -e 's#= \"./#= \"/opt/spire/#g' %; rm %.bak"
 
-	tar --directory .tmp $_tar_opts -cvzf $_tgz $(basename $_tmp)
-	echo "$(shasum -a 256 $_tgz | cut -d' ' -f1) $(basename $_tgz)" > $_sum
+	tar --directory .tmp "$_tar_opts" -cvzf "$_tgz" "$(basename "$_tmp")"
+	echo "$(shasum -a 256 "$_tgz" | cut -d' ' -f1) $(basename "$_tgz")" > "$_sum"
 }
 
 build_clean() {
@@ -258,7 +273,7 @@ build_clean() {
 build_distclean() {
 	make distclean
 	# remove some additional directories
-	rm -rf ${BUILD_DIR}
+	rm -rf "${BUILD_DIR}"
 }
 
 build_all() {
@@ -274,7 +289,7 @@ case "$1" in
 	utils) build_utils ;;
 	protobuf) build_protobuf ;;
 	protobuf_verify) build_protobuf_verify ;;
-	binaries|bin) build_binaries $2 ;;
+	binaries|bin) build_binaries "$2" ;;
 	test) build_test ;;
 	race-test) build_race_test ;;
 	integration) build_integration ;;

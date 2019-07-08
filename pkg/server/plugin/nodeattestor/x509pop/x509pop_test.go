@@ -79,8 +79,7 @@ func (s *Suite) TestAttestSuccess() {
 	// receive and parse challenge
 	resp, err := stream.Recv()
 	require.NoError(err)
-	require.Equal("", resp.BaseSPIFFEID)
-	s.False(resp.Valid)
+	require.Equal("", resp.AgentId)
 	s.NotEmpty(resp.Challenge)
 
 	challenge := new(x509pop.Challenge)
@@ -97,8 +96,7 @@ func (s *Suite) TestAttestSuccess() {
 	// receive the attestation result
 	resp, err = stream.Recv()
 	require.NoError(err)
-	s.True(resp.Valid)
-	require.Equal("spiffe://example.org/spire/agent/x509pop/"+x509pop.Fingerprint(s.leafCert), resp.BaseSPIFFEID)
+	require.Equal("spiffe://example.org/spire/agent/x509pop/"+x509pop.Fingerprint(s.leafCert), resp.AgentId)
 	require.Nil(resp.Challenge)
 	require.Len(resp.Selectors, 3)
 	require.EqualValues([]*common.Selector{
