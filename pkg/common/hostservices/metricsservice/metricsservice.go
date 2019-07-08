@@ -25,7 +25,7 @@ func New(cfg Config) hostservices.MetricsService {
 }
 
 func (m metricsService) AddSample(ctx context.Context, req *hostservices.AddSampleRequest) (*hostservices.AddSampleResponse, error) {
-	labels := convertLabels(req.Labels)
+	labels := convertToTelemetryLabels(req.Labels)
 	m.cfg.Metrics.AddSampleWithLabels(req.Key, req.Val, labels)
 	return &hostservices.AddSampleResponse{}, nil
 }
@@ -36,24 +36,36 @@ func (m metricsService) EmitKey(ctx context.Context, req *hostservices.EmitKeyRe
 }
 
 func (m metricsService) IncrCounter(ctx context.Context, req *hostservices.IncrCounterRequest) (*hostservices.IncrCounterResponse, error) {
-	labels := convertLabels(req.Labels)
+	labels := convertToTelemetryLabels(req.Labels)
 	m.cfg.Metrics.IncrCounterWithLabels(req.Key, req.Val, labels)
 	return &hostservices.IncrCounterResponse{}, nil
 }
 
 func (m metricsService) MeasureSince(ctx context.Context, req *hostservices.MeasureSinceRequest) (*hostservices.MeasureSinceResponse, error) {
-	labels := convertLabels(req.Labels)
+	labels := convertToTelemetryLabels(req.Labels)
 	m.cfg.Metrics.MeasureSinceWithLabels(req.Key, time.Unix(0, req.Time), labels)
 	return &hostservices.MeasureSinceResponse{}, nil
 }
 
 func (m metricsService) SetGauge(ctx context.Context, req *hostservices.SetGaugeRequest) (*hostservices.SetGaugeResponse, error) {
-	labels := convertLabels(req.Labels)
+	labels := convertToTelemetryLabels(req.Labels)
 	m.cfg.Metrics.SetGaugeWithLabels(req.Key, req.Val, labels)
 	return &hostservices.SetGaugeResponse{}, nil
 }
 
-func convertLabels(inLabels []*hostservices.Label) []telemetry.Label {
+func convertToRPCLabels(inLabels []telemetry.Label) []*hostservices.Label {
+	labels := make([]*hostservices.Label, 0, len(inLabels))
+	for _, inLabel := range inLabels {
+		labels = append(labels, &hostservices.Label{
+			Name:  inLabel.Name,
+			Value: inLabel.Value,
+		})
+	}
+
+	return labels
+}
+
+func convertToTelemetryLabels(inLabels []*hostservices.Label) []telemetry.Label {
 	labels := make([]telemetry.Label, 0, len(inLabels))
 	for _, inLabel := range inLabels {
 		if inLabel != nil {
