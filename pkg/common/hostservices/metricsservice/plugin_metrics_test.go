@@ -10,10 +10,37 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common/hostservices"
 	mock_hostservices "github.com/spiffe/spire/test/mock/proto/common/hostservices"
+	"github.com/stretchr/testify/assert"
 )
 
-func setupPluginMetricsWrapper(ctx context.Context, m hostservices.MetricsService, log hclog.Logger) telemetry.Metrics {
-	return WrapPluginMetricsForContext(ctx, m, log)
+func setupPluginMetricsWrapper(ctx context.Context, m hostservices.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
+	return WrapPluginMetricsForContext(ctx, m, log, labels...)
+}
+
+func TestWrapPluginMetricsForContext(t *testing.T) {
+	metrics := WrapPluginMetricsForContext(context.Background(), nil, nil, []telemetry.Label{
+		{
+			Name:  "name1",
+			Value: "val1",
+		},
+		{
+			Name:  "name2",
+			Value: "val2",
+		},
+	}...)
+
+	pMetrics, ok := metrics.(pluginMetrics)
+	assert.True(t, ok)
+
+	assert.Equal(t, []*hostservices.Label{
+		{
+			Name:  "name1",
+			Value: "val1",
+		},
+		{
+			Name:  "name2",
+			Value: "val2",
+		}}, pMetrics.constantLabels)
 }
 
 func TestWrapEmitKey(t *testing.T) {
@@ -51,10 +78,11 @@ func TestWrapEmitKey(t *testing.T) {
 
 func TestWrapSetGaugeWithLabels(t *testing.T) {
 	tests := []struct {
-		desc     string
-		inKey    []string
-		inVal    float32
-		inLabels []telemetry.Label
+		desc           string
+		inKey          []string
+		inVal          float32
+		inLabels       []telemetry.Label
+		constantLabels []telemetry.Label
 	}{
 		{
 			desc:  "no labels",
@@ -69,6 +97,23 @@ func TestWrapSetGaugeWithLabels(t *testing.T) {
 				{
 					Name:  "label1",
 					Value: "val1",
+				},
+			},
+		},
+		{
+			desc:  "label",
+			inKey: []string{"key1", "key2"},
+			inVal: 3,
+			inLabels: []telemetry.Label{
+				{
+					Name:  "label1",
+					Value: "val1",
+				},
+			},
+			constantLabels: []telemetry.Label{
+				{
+					Name:  "constLabel1",
+					Value: "constVal1",
 				},
 			},
 		},
@@ -86,10 +131,10 @@ func TestWrapSetGaugeWithLabels(t *testing.T) {
 			mockMetricsService.EXPECT().SetGauge(ctx, &hostservices.SetGaugeRequest{
 				Key:    tt.inKey,
 				Val:    tt.inVal,
-				Labels: convertToRPCLabels(tt.inLabels),
+				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.constantLabels)...),
 			}).Return(&hostservices.SetGaugeResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger())
+			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.constantLabels...)
 			metricsWrapper.SetGaugeWithLabels(tt.inKey, tt.inVal, tt.inLabels)
 		})
 	}
@@ -97,10 +142,11 @@ func TestWrapSetGaugeWithLabels(t *testing.T) {
 
 func TestWrapIncrCounterWithLabels(t *testing.T) {
 	tests := []struct {
-		desc     string
-		inKey    []string
-		inVal    float32
-		inLabels []telemetry.Label
+		desc           string
+		inKey          []string
+		inVal          float32
+		inLabels       []telemetry.Label
+		constantLabels []telemetry.Label
 	}{
 		{
 			desc:  "no labels",
@@ -115,6 +161,23 @@ func TestWrapIncrCounterWithLabels(t *testing.T) {
 				{
 					Name:  "label1",
 					Value: "val1",
+				},
+			},
+		},
+		{
+			desc:  "label",
+			inKey: []string{"key1", "key2"},
+			inVal: 3,
+			inLabels: []telemetry.Label{
+				{
+					Name:  "label1",
+					Value: "val1",
+				},
+			},
+			constantLabels: []telemetry.Label{
+				{
+					Name:  "constLabel1",
+					Value: "constVal1",
 				},
 			},
 		},
@@ -132,10 +195,10 @@ func TestWrapIncrCounterWithLabels(t *testing.T) {
 			mockMetricsService.EXPECT().IncrCounter(ctx, &hostservices.IncrCounterRequest{
 				Key:    tt.inKey,
 				Val:    tt.inVal,
-				Labels: convertToRPCLabels(tt.inLabels),
+				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.constantLabels)...),
 			}).Return(&hostservices.IncrCounterResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger())
+			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.constantLabels...)
 			metricsWrapper.IncrCounterWithLabels(tt.inKey, tt.inVal, tt.inLabels)
 		})
 	}
@@ -143,10 +206,11 @@ func TestWrapIncrCounterWithLabels(t *testing.T) {
 
 func TestWrapAddSampleWithLabels(t *testing.T) {
 	tests := []struct {
-		desc     string
-		inKey    []string
-		inVal    float32
-		inLabels []telemetry.Label
+		desc           string
+		inKey          []string
+		inVal          float32
+		inLabels       []telemetry.Label
+		constantLabels []telemetry.Label
 	}{
 		{
 			desc:  "no labels",
@@ -164,6 +228,23 @@ func TestWrapAddSampleWithLabels(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:  "label",
+			inKey: []string{"key1", "key2"},
+			inVal: 3,
+			inLabels: []telemetry.Label{
+				{
+					Name:  "label1",
+					Value: "val1",
+				},
+			},
+			constantLabels: []telemetry.Label{
+				{
+					Name:  "constLabel1",
+					Value: "constVal1",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -178,10 +259,10 @@ func TestWrapAddSampleWithLabels(t *testing.T) {
 			mockMetricsService.EXPECT().AddSample(ctx, &hostservices.AddSampleRequest{
 				Key:    tt.inKey,
 				Val:    tt.inVal,
-				Labels: convertToRPCLabels(tt.inLabels),
+				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.constantLabels)...),
 			}).Return(&hostservices.AddSampleResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger())
+			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.constantLabels...)
 			metricsWrapper.AddSampleWithLabels(tt.inKey, tt.inVal, tt.inLabels)
 		})
 	}
@@ -189,10 +270,11 @@ func TestWrapAddSampleWithLabels(t *testing.T) {
 
 func TestWrapMeasureSinceWithLabels(t *testing.T) {
 	tests := []struct {
-		desc     string
-		inKey    []string
-		inTime   time.Time
-		inLabels []telemetry.Label
+		desc           string
+		inKey          []string
+		inTime         time.Time
+		inLabels       []telemetry.Label
+		constantLabels []telemetry.Label
 	}{
 		{
 			desc:   "no labels",
@@ -210,6 +292,23 @@ func TestWrapMeasureSinceWithLabels(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:   "label",
+			inKey:  []string{"key1", "key2"},
+			inTime: time.Now(),
+			inLabels: []telemetry.Label{
+				{
+					Name:  "label1",
+					Value: "val1",
+				},
+			},
+			constantLabels: []telemetry.Label{
+				{
+					Name:  "constLabel1",
+					Value: "constVal1",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -224,10 +323,10 @@ func TestWrapMeasureSinceWithLabels(t *testing.T) {
 			mockMetricsService.EXPECT().MeasureSince(ctx, &hostservices.MeasureSinceRequest{
 				Key:    tt.inKey,
 				Time:   tt.inTime.UnixNano(),
-				Labels: convertToRPCLabels(tt.inLabels),
+				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.constantLabels)...),
 			}).Return(&hostservices.MeasureSinceResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger())
+			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.constantLabels...)
 			metricsWrapper.MeasureSinceWithLabels(tt.inKey, tt.inTime, tt.inLabels)
 		})
 	}
