@@ -11,6 +11,7 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/auth v0.1.0
 	github.com/Azure/go-autorest/autorest/to v0.2.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.1.0 // indirect
+	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190625211440-fa714b45b08a
 	github.com/Microsoft/go-winio v0.4.12 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
