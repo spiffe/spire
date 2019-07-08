@@ -34,8 +34,7 @@ const (
 	defaultLogLevel = "INFO"
 )
 
-// RunConfig represents the available configurables for file
-// and CLI options
+// config contains all available configurables, arranged by section
 type config struct {
 	Agent     *agentConfig                `hcl:"agent"`
 	Plugins   *catalog.HCLPluginConfigMap `hcl:"plugins"`
