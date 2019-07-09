@@ -9,7 +9,11 @@ import (
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 
+	// gorm mysql `cloudsql` dialect, for GCP
+	// Cloud SQL Proxy
+	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/mysql"
 	// gorm mysql dialect init registration
+	// also needed for GCP Cloud SQL Proxy
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 

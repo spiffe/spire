@@ -16,6 +16,7 @@ const (
 )
 
 type Config struct {
+	LogFormat                      string `hcl:"log_format"`
 	LogLevel                       string `hcl:"log_level"`
 	LogPath                        string `hcl:"log_path"`
 	Addr                           string `hcl:"addr"`
