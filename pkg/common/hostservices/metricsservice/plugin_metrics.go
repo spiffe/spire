@@ -10,10 +10,10 @@ import (
 )
 
 type pluginMetrics struct {
-	ctx            context.Context
-	m              hostservices.MetricsService
-	log            hclog.Logger
-	constantLabels []*hostservices.Label
+	ctx         context.Context
+	m           hostservices.MetricsService
+	log         hclog.Logger
+	fixedLabels []*hostservices.Label
 }
 
 // WrapPluginMetricsForContext returns a Metrics implementation that wraps the Metrics Host Service
@@ -23,10 +23,10 @@ type pluginMetrics struct {
 // Any errors are logged, but not returned.
 func WrapPluginMetricsForContext(ctx context.Context, m hostservices.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
 	return pluginMetrics{
-		ctx:            ctx,
-		m:              m,
-		log:            log,
-		constantLabels: convertToRPCLabels(labels),
+		ctx:         ctx,
+		m:           m,
+		log:         log,
+		fixedLabels: convertToRPCLabels(labels),
 	}
 }
 
@@ -39,7 +39,7 @@ func (p pluginMetrics) SetGaugeWithLabels(key []string, val float32, labels []te
 	_, err := p.m.SetGauge(p.ctx, &hostservices.SetGaugeRequest{
 		Key:    key,
 		Val:    val,
-		Labels: append(convertToRPCLabels(labels), p.constantLabels...),
+		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),
 	})
 
 	if err != nil {
@@ -68,7 +68,7 @@ func (p pluginMetrics) IncrCounterWithLabels(key []string, val float32, labels [
 	_, err := p.m.IncrCounter(p.ctx, &hostservices.IncrCounterRequest{
 		Key:    key,
 		Val:    val,
-		Labels: append(convertToRPCLabels(labels), p.constantLabels...),
+		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),
 	})
 
 	if err != nil {
@@ -85,7 +85,7 @@ func (p pluginMetrics) AddSampleWithLabels(key []string, val float32, labels []t
 	_, err := p.m.AddSample(p.ctx, &hostservices.AddSampleRequest{
 		Key:    key,
 		Val:    val,
-		Labels: append(convertToRPCLabels(labels), p.constantLabels...),
+		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),
 	})
 
 	if err != nil {
@@ -102,7 +102,7 @@ func (p pluginMetrics) MeasureSinceWithLabels(key []string, start time.Time, lab
 	_, err := p.m.MeasureSince(p.ctx, &hostservices.MeasureSinceRequest{
 		Key:    key,
 		Time:   start.UnixNano(),
-		Labels: append(convertToRPCLabels(labels), p.constantLabels...),
+		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),
 	})
 
 	if err != nil {
