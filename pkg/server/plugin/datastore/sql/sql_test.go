@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -66,6 +67,7 @@ func (s *PluginSuite) SetupSuite() {
 func (s *PluginSuite) SetupTest() {
 	s.dir = s.TempDir()
 	s.ds = s.newPlugin()
+	fmt.Print("xkcd")
 }
 
 func (s *PluginSuite) newPlugin() datastore.Plugin {
@@ -280,18 +282,26 @@ func (s *PluginSuite) TestSetBundle() {
 	s.Require().Nil(s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is created
+	expectedCallCounter := ds_telemetry.StartSetBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
 	_, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
 		Bundle: bundle,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle, s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is updated
+	expectedCallCounter = ds_telemetry.StartSetBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle2.TrustDomainId)
 	_, err = s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
 		Bundle: bundle2,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle2, s.fetchBundle("spiffe://foo"))
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestBundlePrune() {
@@ -316,31 +326,51 @@ func (s *PluginSuite) TestBundlePrune() {
 	}
 
 	// Store bundle in datastore
+	expectedCallCounter := ds_telemetry.StartCreateBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
 	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{Bundle: bundle})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Prune
 	// prune non existent bundle should not return error, no bundle to prune
+	expiration := time.Now().Unix()
+	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Updated, "false")
+	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://notexistent")
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
 	presp, err := s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: "spiffe://notexistent",
-		ExpiresBefore: time.Now().Unix(),
+		ExpiresBefore: expiration,
 	})
+	expectedCallCounter.Done(nil)
 	s.NoError(err)
 	s.AssertProtoEqual(presp, &datastore.PruneBundleResponse{})
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
+	expiration = time.Now().Unix()
+	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
 	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
-		ExpiresBefore: time.Now().Unix(),
+		ExpiresBefore: expiration,
 	})
-	s.Error(err, "prune failed: would prune all certificates")
+	expectedError := errors.New("prune failed: would prune all certificates")
+	expectedCallCounter.Done(&expectedError)
+	s.Error(err, expectedError.Error())
 	s.Nil(presp)
 
 	// prune should remove expired certs
+	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Updated, "true")
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(middleTime.Unix(), 10))
 	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 		ExpiresBefore: middleTime.Unix(),
 	})
+	expectedCallCounter.Done(nil)
 	s.NoError(err)
 	s.NotNil(presp)
 	s.True(presp.BundleChanged)
@@ -348,9 +378,14 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
 	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
+	expectedCallCounter = ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(expectedPrunedBundle, fresp.Bundle)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
@@ -1673,17 +1708,23 @@ func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interfa
 }
 
 func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
+	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, trustDomainID)
 	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	return resp.Bundle
 }
 
 func (s *PluginSuite) createBundle(trustDomainID string) {
+	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, trustDomainID)
 	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert),
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 }
 
