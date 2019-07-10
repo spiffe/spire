@@ -396,27 +396,48 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
+	expectedCallCounter := ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Attestor, node.AttestationDataType)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(node.CertNotAfter, 10))
+	expectedCallCounter.AddLabel(telemetry.SerialNumber, node.CertSerialNumber)
 	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, cresp.Node)
 
+	expectedCallCounter = ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, fresp.Node)
 
+	expiration := time.Now().Unix()
+	expectedCallCounter = ds_telemetry.StartListNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
+	expectedCallCounter.AddLabel(telemetry.Count, "0")
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
-			Value: time.Now().Unix(),
+			Value: expiration,
 		},
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Empty(sresp.Nodes)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeMissing() {
+	expectedCallCounter := ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, "missing")
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: "missing"})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Nil(fresp.Node)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchStaleNodes() {
@@ -434,19 +455,38 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
+	expectedCallCounter := ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Attestor, efuture.AttestationDataType)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, efuture.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(efuture.CertNotAfter, 10))
+	expectedCallCounter.AddLabel(telemetry.SerialNumber, efuture.CertSerialNumber)
 	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: efuture})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
+	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Attestor, epast.AttestationDataType)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, epast.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(epast.CertNotAfter, 10))
+	expectedCallCounter.AddLabel(telemetry.SerialNumber, epast.CertSerialNumber)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: epast})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
+	expiration := time.Now().Unix()
+	expectedCallCounter = ds_telemetry.StartListNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
+	expectedCallCounter.AddLabel(telemetry.Count, "1")
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
-			Value: time.Now().Unix(),
+			Value: expiration,
 		},
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoListEqual([]*common.AttestedNode{epast}, sresp.Nodes)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
@@ -643,21 +683,38 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	uexpires := time.Now().Add(time.Hour * 2).Unix()
 
 	// update non-existing attested node
+	expectedCallCounter := ds_telemetry.StartUpdateNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.SerialNumber, userial)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(uexpires, 10))
 	_, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
 		SpiffeId:         node.SpiffeId,
 		CertSerialNumber: userial,
 		CertNotAfter:     uexpires,
 	})
-	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+	expectedError := errors.New("datastore-sql: record not found")
+	expectedCallCounter.Done(&expectedError)
+	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
 
+	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Attestor, node.AttestationDataType)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(node.CertNotAfter, 10))
+	expectedCallCounter.AddLabel(telemetry.SerialNumber, node.CertSerialNumber)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
+	expectedCallCounter = ds_telemetry.StartUpdateNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.SerialNumber, userial)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(uexpires, 10))
 	uresp, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
 		SpiffeId:         node.SpiffeId,
 		CertSerialNumber: userial,
 		CertNotAfter:     uexpires,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	unode := uresp.Node
@@ -668,7 +725,10 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	s.Equal(userial, unode.CertSerialNumber)
 	s.Equal(uexpires, unode.CertNotAfter)
 
+	expectedCallCounter = ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	fnode := fresp.Node
@@ -678,6 +738,8 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	s.Equal(node.AttestationDataType, fnode.AttestationDataType)
 	s.Equal(userial, fnode.CertSerialNumber)
 	s.Equal(uexpires, fnode.CertNotAfter)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestDeleteAttestedNode() {
@@ -689,19 +751,37 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	}
 
 	// delete it before it exists
+	expectedCallCounter := ds_telemetry.StartDeleteNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
 	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
-	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+	expectedError := errors.New("datastore-sql: record not found")
+	expectedCallCounter.Done(&expectedError)
+	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
 
+	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Attestor, entry.AttestationDataType)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.CertNotAfter, 10))
+	expectedCallCounter.AddLabel(telemetry.SerialNumber, entry.CertSerialNumber)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
+	expectedCallCounter = ds_telemetry.StartDeleteNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(entry, dresp.Node)
 
+	expectedCallCounter = ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(fresp.Node)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
