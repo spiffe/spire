@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -14,12 +15,15 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 	proto_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
+	"github.com/spiffe/spire/test/fakes/fakepluginmetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -46,6 +50,8 @@ type PluginSuite struct {
 
 	m  *fakemetrics.FakeMetrics
 	ms proto_services.MetricsService
+
+	expectedMetrics *fakepluginmetrics.FakePluginMetrics
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -66,6 +72,15 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	p := New()
 
 	var ds datastore.Plugin
+
+	s.expectedMetrics = fakepluginmetrics.New(
+		[]telemetry.Label{
+			{
+				Name:  telemetry.DatabaseType,
+				Value: SQLite,
+			},
+		},
+	)
 
 	s.m = fakemetrics.New()
 	s.ms = metricsservice.New(metricsservice.Config{
@@ -128,32 +143,52 @@ func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
 	// fetch non-existant
+	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fresp)
 	s.Require().Nil(fresp.Bundle)
 
 	// update non-existant
+	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
 	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
-	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+	expectedErr := errors.New("datastore-sql: record not found")
+	expectedCallCounter.Done(&expectedErr)
+	s.RequireGRPCStatus(err, codes.NotFound, expectedErr.Error())
 
 	// delete non-existant
+	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
-	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+	expectedErr = errors.New("datastore-sql: record not found")
+	expectedCallCounter.Done(&expectedErr)
+	s.RequireGRPCStatus(err, codes.NotFound, expectedErr.Error())
 
 	// create
+	expectedCallCounter = ds_telemetry.StartCreateBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
 	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// fetch
+	expectedCallCounter = ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle, fresp.Bundle)
 
 	// list
+	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	expectedCallCounter.AddLabel(telemetry.Count, "1")
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle, lresp.Bundles[0])
@@ -163,53 +198,76 @@ func (s *PluginSuite) TestBundleCRUD() {
 		[]*x509.Certificate{s.cert, s.cacert})
 
 	// append
+	expectedCallCounter = ds_telemetry.StartAppendBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle2.TrustDomainId)
 	aresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: bundle2,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(aresp.Bundle)
 	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
 
 	// append identical
+	expectedCallCounter = ds_telemetry.StartAppendBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle2.TrustDomainId)
 	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: bundle2,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(aresp.Bundle)
 	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
 
 	// append on a new bundle
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cacert)
+	expectedCallCounter = ds_telemetry.StartAppendBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle3.TrustDomainId)
 	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: bundle3,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle3, anresp.Bundle)
 
 	// update
+	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle2.TrustDomainId)
 	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle2,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle2, uresp.Bundle)
 
+	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	expectedCallCounter.AddLabel(telemetry.Count, "2")
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal(2, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle2, lresp.Bundles[0])
 	s.AssertProtoEqual(bundle3, lresp.Bundles[1])
 
 	// delete
+	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
 	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle2, dresp.Bundle)
 
+	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	expectedCallCounter.AddLabel(telemetry.Count, "1")
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestSetBundle() {

@@ -768,15 +768,10 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	return db, nil
 }
 
-// addCommonLabels append the input labels to an array of common labels for this entity,
+// addCommonLabels append common labels for this entity to the input labels,
 // and return the result
 func (ds *SQLPlugin) addCommonLabels(labels ...telemetry.Label) []telemetry.Label {
-	return append([]telemetry.Label{
-		{
-			Name:  telemetry.DatabaseType,
-			Value: ds.db.databaseType,
-		},
-	}, labels...)
+	return append(labels, telemetry.Label{Name: telemetry.DatabaseType, Value: ds.db.databaseType})
 }
 
 func (ds *SQLPlugin) prepareMetricsForCall(ctx context.Context, labels ...telemetry.Label) telemetry.Metrics {
