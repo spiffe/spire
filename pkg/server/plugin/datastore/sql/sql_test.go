@@ -829,7 +829,12 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
+		expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
+		expectedCallCounter.AddLabel(telemetry.SPIFFEID, validRegistrationEntry.SpiffeId)
+		expectedCallCounter.AddLabel(telemetry.ParentID, validRegistrationEntry.ParentId)
+		expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(validRegistrationEntry.EntryExpiry, 10))
 		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
+		expectedCallCounter.Done(nil)
 		s.Require().NoError(err)
 		s.NotNil(resp)
 		s.Require().NotNil(resp.Entry)
@@ -837,6 +842,8 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 		resp.Entry.EntryId = ""
 		s.RequireProtoEqual(resp.Entry, validRegistrationEntry)
 	}
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
@@ -844,10 +851,14 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
+		expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: invalidRegistrationEntry})
+		expectedCallCounter.Done(&err)
 		s.Require().Error(err)
 		s.Require().Nil(createRegistrationEntryResponse)
 	}
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 
 	// TODO: Check that no entries have been created
 }
@@ -868,15 +879,25 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 		},
 	}
 
+	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, registeredEntry.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.ParentID, registeredEntry.ParentId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(registeredEntry.EntryExpiry, 10))
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
 	createdEntry := createRegistrationEntryResponse.Entry
 
+	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, createdEntry.EntryId)
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
@@ -892,45 +913,79 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		Ttl:         1,
 		EntryExpiry: now,
 	}
+
+	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, registeredEntry.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.ParentID, registeredEntry.ParentId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(registeredEntry.EntryExpiry, 10))
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
 	createdEntry := createRegistrationEntryResponse.Entry
 
 	// Ensure we don't prune valid entries, wind clock back 10s
+	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now-10, 10))
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now - 10,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
+
+	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, createdEntry.EntryId)
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
 
 	// Ensure we don't prune on the exact ExpiresBefore
+	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
+
+	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, createdEntry.EntryId)
 	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
 
 	// Ensure we prune old entries
+	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now+10, 10))
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now + 10,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
+
+	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, createdEntry.EntryId)
 	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(fetchRegistrationEntryResponse.Entry)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
+	expectedCallCounter := ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, "INEXISTENT")
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: "INEXISTENT"})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Nil(fetchRegistrationEntryResponse.Entry)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntries() {
@@ -958,7 +1013,10 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		Downstream: true,
 	})
 
+	expectedCallCounter := ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	expectedCallCounter.AddLabel(telemetry.Count, "2")
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
@@ -968,6 +1026,8 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 	util.SortRegistrationEntries(expectedResponse.Entries)
 	util.SortRegistrationEntries(resp.Entries)
 	s.Equal(expectedResponse, resp)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
@@ -1186,13 +1246,23 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.Ttl = 2
 	entry.Admin = true
 	entry.Downstream = true
+
+	expectedCallCounter := ds_telemetry.StartUpdateRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.Entry, entry.EntryId)
+	expectedCallCounter.AddLabel(telemetry.ParentID, entry.ParentId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.EntryExpiry, 10))
 	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(updateRegistrationEntryResponse)
 
+	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, entry.EntryId)
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: entry.EntryId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 
@@ -1200,16 +1270,29 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	s.RequireProtoEqual(expectedResponse, fetchRegistrationEntryResponse)
 
 	entry.EntryId = "badid"
+	expectedCallCounter = ds_telemetry.StartUpdateRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.Entry, entry.EntryId)
+	expectedCallCounter.AddLabel(telemetry.ParentID, entry.ParentId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.EntryExpiry, 10))
 	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
-	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+	expectedError := errors.New("datastore-sql: record not found")
+	expectedCallCounter.Done(&expectedError)
+	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	// delete non-existing
+	expectedCallCounter := ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, "badid")
 	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: "badid"})
-	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+	expectedError := errors.New("datastore-sql: record not found")
+	expectedCallCounter.Done(&expectedError)
+	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
 
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -1234,9 +1317,14 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	})
 
 	// Make sure we deleted the right one
+	expectedCallCounter = ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Entry, entry1.EntryId)
 	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Equal(entry1, delRes.Entry)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestListParentIDEntries() {
@@ -1811,9 +1899,14 @@ func (s *PluginSuite) createBundle(trustDomainID string) {
 }
 
 func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
+	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
+	expectedCallCounter.AddLabel(telemetry.ParentID, entry.ParentId)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.EntryExpiry, 10))
 	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: entry,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.Entry)
