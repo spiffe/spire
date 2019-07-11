@@ -820,6 +820,8 @@ func (s *PluginSuite) TestNodeSelectors() {
 	// get bar selectors (make sure they weren't impacted by deleting foo)
 	selectors = s.getNodeSelectors("bar")
 	s.RequireProtoListEqual(bar, selectors)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestCreateRegistrationEntry() {
@@ -1839,6 +1841,8 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 }
 
 func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+	callCounter := ds_telemetry.StartGetNodeSelectorsCall(s.expectedMetrics)
+	defer callCounter.Done(nil)
 	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
 		SpiffeId: spiffeID,
 	})
@@ -1846,16 +1850,22 @@ func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.Selectors)
 	s.Require().Equal(spiffeID, resp.Selectors.SpiffeId)
+	callCounter.AddLabel(telemetry.Count, strconv.Itoa(len(resp.Selectors.Selectors)))
+	callCounter.AddLabel(telemetry.SPIFFEID, spiffeID)
 	return resp.Selectors.Selectors
 }
 
 func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
+	callCounter := ds_telemetry.StartSetNodeSelectorsCall(s.expectedMetrics)
+	callCounter.AddLabel(telemetry.SPIFFEID, spiffeID)
+	callCounter.AddLabel(telemetry.Count, strconv.Itoa(len(selectors)))
 	resp, err := s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  spiffeID,
 			Selectors: selectors,
 		},
 	})
+	callCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&datastore.SetNodeSelectorsResponse{}, resp)
 }

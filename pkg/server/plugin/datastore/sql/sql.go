@@ -417,7 +417,7 @@ func (ds *SQLPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNod
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *SQLPlugin) GetNodeSelectors(ctx context.Context,
 	req *datastore.GetNodeSelectorsRequest) (resp *datastore.GetNodeSelectorsResponse, err error) {
-	callCounter := ds_telemetry.StartSetNodeSelectorsCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
+	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
 		telemetry.Label{
 			Name:  telemetry.SPIFFEID,
 			Value: req.SpiffeId,
