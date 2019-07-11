@@ -1562,12 +1562,20 @@ func (s *PluginSuite) TestCreateJoinToken() {
 			Expiry: now,
 		},
 	}
+	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, req)
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Make sure we can't re-register
+	expectedCallCounter = ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.CreateJoinToken(ctx, req)
+	expectedCallCounter.Done(&err)
 	s.NotNil(err)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestCreateAndFetchJoinToken() {
@@ -1576,17 +1584,26 @@ func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 		Token:  "foobar",
 		Expiry: now,
 	}
+
+	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
+	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	res, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", res.JoinToken.Token)
 	s.Equal(now, res.JoinToken.Expiry)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestDeleteJoinToken() {
@@ -1595,38 +1612,56 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Token:  "foobar",
 		Expiry: now,
 	}
+
+	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken1,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	joinToken2 := &datastore.JoinToken{
 		Token:  "batbaz",
 		Expiry: now,
 	}
+
+	expectedCallCounter = ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken2,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
+	expectedCallCounter = ds_telemetry.StartDeleteJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.JoinToken, joinToken1.Token)
 	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
 		Token: joinToken1.Token,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Should not be able to fetch after delete
+	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken1.Token,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(resp.JoinToken)
 
 	// Second token should still be present
+	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken2.Token,
 	})
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(joinToken2, resp.JoinToken)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestPruneJoinTokens() {
@@ -1635,44 +1670,70 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 		Token:  "foobar",
 		Expiry: now,
 	}
+
+	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
+	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now-10, 10))
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now - 10,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
+
+	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", resp.JoinToken.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
+	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
+
+	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", resp.JoinToken.Token)
 
 	// Ensure we prune old tokens
 	joinToken.Expiry = (now + 10)
+	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
+	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now+10, 10))
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now + 10,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
+
+	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
+	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(resp.JoinToken)
+
+	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestGetPluginInfo() {
