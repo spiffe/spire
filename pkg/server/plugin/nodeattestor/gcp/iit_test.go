@@ -10,6 +10,7 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
@@ -207,16 +208,32 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			{Email: "service-account-1"},
 			{Email: "service-account-2"},
 		},
-	})
-
-	res, err := s.attest(&nodeattestor.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: s.signToken(buildToken()),
+		Labels: map[string]string{
+			"key":          "value",
+			"key-no-value": "",
+		},
+		Metadata: &compute.Metadata{
+			Items: []*compute.MetadataItems{
+				{
+					Key:   "allowed",
+					Value: stringPtr("ALLOWED"),
+				},
+				{
+					Key: "allowed-no-value",
+				},
+				{
+					Key:   "disallowed",
+					Value: stringPtr("DISALLOWED"),
+				},
+				{
+					Key:   "too-long",
+					Value: stringPtr("TOOLONGTOOLONGTOOLONGTOOLONGTOOLONGTOOLONG"),
+				},
+			},
 		},
 	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(&nodeattestor.AttestResponse{
+
+	expected := &nodeattestor.AttestResponse{
 		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
@@ -226,8 +243,23 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			{Type: "gcp_iit", Value: "tag:tag-2"},
 			{Type: "gcp_iit", Value: "sa:service-account-1"},
 			{Type: "gcp_iit", Value: "sa:service-account-2"},
+			{Type: "gcp_iit", Value: "metadata:allowed:ALLOWED"},
+			{Type: "gcp_iit", Value: "metadata:allowed-no-value:"},
+			{Type: "gcp_iit", Value: "label:key:value"},
+			{Type: "gcp_iit", Value: "label:key-no-value:"},
 		},
-	}, res)
+	}
+	actual, err := s.attest(&nodeattestor.AttestRequest{
+		AttestationData: &common.AttestationData{
+			Type: gcp.PluginName,
+			Data: s.signToken(buildToken()),
+		},
+	})
+	s.Require().NoError(err)
+
+	util.SortSelectors(actual.Selectors)
+	util.SortSelectors(expected.Selectors)
+	s.RequireProtoEqual(expected, actual)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
@@ -389,6 +421,8 @@ func (s *IITAttestorSuite) configureForInstanceMetadata(instance *compute.Instan
 		Configuration: `
 projectid_whitelist = ["test-project"]
 use_instance_metadata = true
+allowed_metadata_keys = ["allowed", "allowed-no-value"]
+max_metadata_value_size = 10
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
@@ -486,4 +520,8 @@ func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, pro
 	default:
 		return c.instance, nil
 	}
+}
+
+func stringPtr(s string) *string {
+	return &s
 }

@@ -8,10 +8,12 @@ This plugin requires a whitelist of ProjectID from which nodes can be attested. 
 
 ## Configuration
 
-| Configuration           | Description                                                                                        | Default                                    |
-|-------------------------|----------------------------------------------------------------------------------------------------|--------------------------------------------|
-| `projectid_whitelist`   | List of whitelisted ProjectIDs from which nodes can be attested.  |         |
-| `use_instance_metadata` | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false |
+| Configuration             | Description                                                                                        | Default                                    |
+|---------------------------|----------------------------------------------------------------------------------------------------|--------------------------------------------|
+| `projectid_whitelist`     | List of whitelisted ProjectIDs from which nodes can be attested.  |         |
+| `use_instance_metadata`   | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false |
+| `allowed_metadata_keys`   | Instance metadata keys considered for selectors | |
+| `max_metadata_value_size` | Sets the maximum metadata value size considered by the plugin for selectors | 128 |
 
 A sample configuration:
 
@@ -39,6 +41,14 @@ If `use_instance_metadata` is true, then the Google Compute Engine API is querie
 | -------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------|
 | `gcp_iit:tag`              | `gcp_iit:tag:blog-server`                                    | Instance tag (one selector per)
 | `gcp_iit:sa`               | `gcp_iit:sa:123456789-compute@developer.gserviceaccount.com` | Service account (one selector per) 
+| `gcp_iit:metadata`         | `gcp_iit:metadata:key:value`                                 | Instance metadata (see caveat below)
+| `gcp_iit:label`            | `gcp_iit:label:key:value`                                    | Instance label
+
+Instance metadata can hold large values up to 256KiB. Since not all metadata would be useful for node selection, and to prevent pushing potentially large amounts
+of data into the datastore, only metadata values with keys in the `allowed_metadata_keys` configurable are considered. Additionally, any metadata value larger than the
+`max_metadata_value_size` configurable is skipped.
+
+Metadata and label values are optional. If the value isn't present, the corresponding selector will still have a trailing colon (i.e. `gcp_iit:label:<key>:`, `gcp_iit:metadata:<key>:`)
 
 ## Authenticating with the Google Compute Engine API
 
