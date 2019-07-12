@@ -241,8 +241,6 @@ func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundles
 	}); err != nil {
 		return nil, err
 	}
-
-	callCounter.AddLabel(telemetry.Count, strconv.Itoa(len(resp.Bundles)))
 	return resp, nil
 }
 
@@ -277,9 +275,6 @@ func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
 		return nil, sqlError.New("invalid request: missing attested node")
 	}
 
-	callCounter.AddLabel(telemetry.Attestor, req.Node.AttestationDataType)
-	callCounter.AddLabel(telemetry.SPIFFEID, req.Node.SpiffeId)
-
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createAttestedNode(tx, req)
 		return err
@@ -292,12 +287,7 @@ func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
 // FetchAttestedNode fetches an existing attested node by SPIFFE ID
 func (ds *SQLPlugin) FetchAttestedNode(ctx context.Context,
 	req *datastore.FetchAttestedNodeRequest) (resp *datastore.FetchAttestedNodeResponse, err error) {
-	callCounter := ds_telemetry.StartFetchNodeCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.SPIFFEID,
-			Value: req.SpiffeId,
-		},
-	))
+	callCounter := ds_telemetry.StartFetchNodeCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -321,20 +311,13 @@ func (ds *SQLPlugin) ListAttestedNodes(ctx context.Context,
 	}); err != nil {
 		return nil, err
 	}
-
-	callCounter.AddLabel(telemetry.Count, strconv.Itoa(len(resp.Nodes)))
 	return resp, nil
 }
 
 // UpdateAttestedNode updates the given node's cert serial and expiration.
 func (ds *SQLPlugin) UpdateAttestedNode(ctx context.Context,
 	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
-	callCounter := ds_telemetry.StartUpdateNodeCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.SPIFFEID,
-			Value: req.SpiffeId,
-		},
-	))
+	callCounter := ds_telemetry.StartUpdateNodeCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -349,12 +332,7 @@ func (ds *SQLPlugin) UpdateAttestedNode(ctx context.Context,
 // DeleteAttestedNode deletes the given attested node
 func (ds *SQLPlugin) DeleteAttestedNode(ctx context.Context,
 	req *datastore.DeleteAttestedNodeRequest) (resp *datastore.DeleteAttestedNodeResponse, err error) {
-	callCounter := ds_telemetry.StartDeleteNodeCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.SPIFFEID,
-			Value: req.SpiffeId,
-		},
-	))
+	callCounter := ds_telemetry.StartDeleteNodeCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -375,9 +353,6 @@ func (ds *SQLPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNod
 		return nil, errors.New("invalid request: missing selectors")
 	}
 
-	callCounter.AddLabel(telemetry.SPIFFEID, req.Selectors.SpiffeId)
-	callCounter.AddLabel(telemetry.Count, strconv.Itoa(len(req.Selectors.Selectors)))
-
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = setNodeSelectors(tx, req)
 		return err
@@ -390,12 +365,7 @@ func (ds *SQLPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNod
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *SQLPlugin) GetNodeSelectors(ctx context.Context,
 	req *datastore.GetNodeSelectorsRequest) (resp *datastore.GetNodeSelectorsResponse, err error) {
-	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.SPIFFEID,
-			Value: req.SpiffeId,
-		},
-	))
+	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -404,8 +374,6 @@ func (ds *SQLPlugin) GetNodeSelectors(ctx context.Context,
 	}); err != nil {
 		return nil, err
 	}
-
-	callCounter.AddLabel(telemetry.Count, strconv.Itoa(len(resp.Selectors.Selectors)))
 	return resp, nil
 }
 
@@ -420,9 +388,6 @@ func (ds *SQLPlugin) CreateRegistrationEntry(ctx context.Context,
 		return nil, err
 	}
 
-	callCounter.AddLabel(telemetry.SPIFFEID, req.Entry.SpiffeId)
-	callCounter.AddLabel(telemetry.ParentID, req.Entry.ParentId)
-
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createRegistrationEntry(tx, req)
 		return err
@@ -435,12 +400,7 @@ func (ds *SQLPlugin) CreateRegistrationEntry(ctx context.Context,
 // FetchRegistrationEntry fetches an existing registration by entry ID
 func (ds *SQLPlugin) FetchRegistrationEntry(ctx context.Context,
 	req *datastore.FetchRegistrationEntryRequest) (resp *datastore.FetchRegistrationEntryResponse, err error) {
-	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Entry,
-			Value: req.EntryId,
-		},
-	))
+	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -458,24 +418,12 @@ func (ds *SQLPlugin) ListRegistrationEntries(ctx context.Context,
 	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
-	if req.ByParentId != nil {
-		callCounter.AddLabel(telemetry.ParentID, req.ByParentId.Value)
-	}
-	if req.BySpiffeId != nil {
-		callCounter.AddLabel(telemetry.SPIFFEID, req.BySpiffeId.Value)
-	}
-	if req.BySelectors != nil {
-		callCounter.AddLabel(telemetry.Selectors, strconv.Itoa(len(req.BySelectors.Selectors)))
-	}
-
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = listRegistrationEntries(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-
-	callCounter.AddLabel(telemetry.Count, strconv.Itoa(len(resp.Entries)))
 	return resp, nil
 }
 
@@ -489,10 +437,6 @@ func (ds *SQLPlugin) UpdateRegistrationEntry(ctx context.Context,
 		return nil, err
 	}
 
-	callCounter.AddLabel(telemetry.SPIFFEID, req.Entry.SpiffeId)
-	callCounter.AddLabel(telemetry.Entry, req.Entry.EntryId)
-	callCounter.AddLabel(telemetry.ParentID, req.Entry.ParentId)
-
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateRegistrationEntry(tx, req)
 		return err
@@ -505,12 +449,7 @@ func (ds *SQLPlugin) UpdateRegistrationEntry(ctx context.Context,
 // DeleteRegistrationEntry deletes the given registration
 func (ds *SQLPlugin) DeleteRegistrationEntry(ctx context.Context,
 	req *datastore.DeleteRegistrationEntryRequest) (resp *datastore.DeleteRegistrationEntryResponse, err error) {
-	callCounter := ds_telemetry.StartDeleteRegistrationCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Entry,
-			Value: req.EntryId,
-		},
-	))
+	callCounter := ds_telemetry.StartDeleteRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
