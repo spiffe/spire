@@ -65,7 +65,6 @@ func (s *PluginSuite) SetupSuite() {
 func (s *PluginSuite) SetupTest() {
 	s.dir = s.TempDir()
 	s.ds = s.newPlugin()
-	fmt.Print("xkcd")
 }
 
 func (s *PluginSuite) newPlugin() datastore.Plugin {
@@ -73,14 +72,7 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 
 	var ds datastore.Plugin
 
-	s.expectedMetrics = fakepluginmetrics.New(
-		[]telemetry.Label{
-			{
-				Name:  telemetry.DatabaseType,
-				Value: SQLite,
-			},
-		},
-	)
+	s.expectedMetrics = fakepluginmetrics.New()
 
 	s.m = fakemetrics.New()
 	metricsService := metricsservice.New(metricsservice.Config{
@@ -336,7 +328,6 @@ func (s *PluginSuite) TestBundlePrune() {
 	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Updated, "false")
 	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://notexistent")
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
 	presp, err := s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: "spiffe://notexistent",
 		ExpiresBefore: expiration,
@@ -349,7 +340,6 @@ func (s *PluginSuite) TestBundlePrune() {
 	expiration = time.Now().Unix()
 	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
 	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 		ExpiresBefore: expiration,
@@ -363,7 +353,6 @@ func (s *PluginSuite) TestBundlePrune() {
 	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Updated, "true")
 	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(middleTime.Unix(), 10))
 	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 		ExpiresBefore: middleTime.Unix(),
@@ -397,8 +386,6 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 	expectedCallCounter := ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Attestor, node.AttestationDataType)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(node.CertNotAfter, 10))
-	expectedCallCounter.AddLabel(telemetry.SerialNumber, node.CertSerialNumber)
 	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
@@ -413,7 +400,6 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 
 	expiration := time.Now().Unix()
 	expectedCallCounter = ds_telemetry.StartListNodeCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
 	expectedCallCounter.AddLabel(telemetry.Count, "0")
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
@@ -456,8 +442,6 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 	expectedCallCounter := ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Attestor, efuture.AttestationDataType)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, efuture.SpiffeId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(efuture.CertNotAfter, 10))
-	expectedCallCounter.AddLabel(telemetry.SerialNumber, efuture.CertSerialNumber)
 	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: efuture})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
@@ -465,15 +449,12 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Attestor, epast.AttestationDataType)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, epast.SpiffeId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(epast.CertNotAfter, 10))
-	expectedCallCounter.AddLabel(telemetry.SerialNumber, epast.CertSerialNumber)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: epast})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	expiration := time.Now().Unix()
 	expectedCallCounter = ds_telemetry.StartListNodeCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(expiration, 10))
 	expectedCallCounter.AddLabel(telemetry.Count, "1")
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
@@ -683,8 +664,6 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	// update non-existing attested node
 	expectedCallCounter := ds_telemetry.StartUpdateNodeCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
-	expectedCallCounter.AddLabel(telemetry.SerialNumber, userial)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(uexpires, 10))
 	_, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
 		SpiffeId:         node.SpiffeId,
 		CertSerialNumber: userial,
@@ -697,16 +676,12 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Attestor, node.AttestationDataType)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(node.CertNotAfter, 10))
-	expectedCallCounter.AddLabel(telemetry.SerialNumber, node.CertSerialNumber)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	expectedCallCounter = ds_telemetry.StartUpdateNodeCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, node.SpiffeId)
-	expectedCallCounter.AddLabel(telemetry.SerialNumber, userial)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(uexpires, 10))
 	uresp, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
 		SpiffeId:         node.SpiffeId,
 		CertSerialNumber: userial,
@@ -759,8 +734,6 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Attestor, entry.AttestationDataType)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.CertNotAfter, 10))
-	expectedCallCounter.AddLabel(telemetry.SerialNumber, entry.CertSerialNumber)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
@@ -830,7 +803,6 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 		expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 		expectedCallCounter.AddLabel(telemetry.SPIFFEID, validRegistrationEntry.SpiffeId)
 		expectedCallCounter.AddLabel(telemetry.ParentID, validRegistrationEntry.ParentId)
-		expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(validRegistrationEntry.EntryExpiry, 10))
 		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
 		expectedCallCounter.Done(nil)
 		s.Require().NoError(err)
@@ -880,7 +852,6 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, registeredEntry.SpiffeId)
 	expectedCallCounter.AddLabel(telemetry.ParentID, registeredEntry.ParentId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(registeredEntry.EntryExpiry, 10))
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
@@ -915,7 +886,6 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, registeredEntry.SpiffeId)
 	expectedCallCounter.AddLabel(telemetry.ParentID, registeredEntry.ParentId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(registeredEntry.EntryExpiry, 10))
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
@@ -924,7 +894,6 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 
 	// Ensure we don't prune valid entries, wind clock back 10s
 	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now-10, 10))
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now - 10,
 	})
@@ -941,7 +910,6 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 
 	// Ensure we don't prune on the exact ExpiresBefore
 	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now,
 	})
@@ -958,7 +926,6 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 
 	// Ensure we prune old entries
 	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now+10, 10))
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now + 10,
 	})
@@ -1249,7 +1216,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
 	expectedCallCounter.AddLabel(telemetry.Entry, entry.EntryId)
 	expectedCallCounter.AddLabel(telemetry.ParentID, entry.ParentId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.EntryExpiry, 10))
 	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
@@ -1272,7 +1238,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
 	expectedCallCounter.AddLabel(telemetry.Entry, entry.EntryId)
 	expectedCallCounter.AddLabel(telemetry.ParentID, entry.ParentId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.EntryExpiry, 10))
 	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
@@ -1561,14 +1526,12 @@ func (s *PluginSuite) TestCreateJoinToken() {
 		},
 	}
 	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, req)
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Make sure we can't re-register
 	expectedCallCounter = ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.CreateJoinToken(ctx, req)
 	expectedCallCounter.Done(&err)
 	s.NotNil(err)
@@ -1584,7 +1547,6 @@ func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 	}
 
 	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken,
 	})
@@ -1595,7 +1557,6 @@ func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 	res, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", res.JoinToken.Token)
@@ -1612,7 +1573,6 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 	}
 
 	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken1,
 	})
@@ -1625,7 +1585,6 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 	}
 
 	expectedCallCounter = ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken2,
 	})
@@ -1654,7 +1613,6 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken2.Token,
 	})
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(joinToken2, resp.JoinToken)
@@ -1670,7 +1628,6 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	}
 
 	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken,
 	})
@@ -1679,7 +1636,6 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
 	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now-10, 10))
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now - 10,
 	})
@@ -1690,14 +1646,12 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", resp.JoinToken.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
 	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now,
 	})
@@ -1708,7 +1662,6 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now, 10))
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", resp.JoinToken.Token)
@@ -1716,7 +1669,6 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	// Ensure we prune old tokens
 	joinToken.Expiry = (now + 10)
 	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(now+10, 10))
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now + 10,
 	})
@@ -1961,7 +1913,6 @@ func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *
 	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.SPIFFEID, entry.SpiffeId)
 	expectedCallCounter.AddLabel(telemetry.ParentID, entry.ParentId)
-	expectedCallCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(entry.EntryExpiry, 10))
 	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: entry,
 	})

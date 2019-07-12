@@ -118,12 +118,11 @@ func (p *SQLPlugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 // CreateBundle stores the given bundle
 func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (resp *datastore.CreateBundleResponse, err error) {
 	callCounter := ds_telemetry.StartCreateBundleCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.Bundle,
-				Value: req.Bundle.TrustDomainId,
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.Bundle,
+			Value: req.Bundle.TrustDomainId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -139,12 +138,11 @@ func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBund
 // existing certificates.
 func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
 	callCounter := ds_telemetry.StartUpdateBundleCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.Bundle,
-				Value: req.Bundle.TrustDomainId,
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.Bundle,
+			Value: req.Bundle.TrustDomainId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -159,12 +157,11 @@ func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBund
 // SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
 func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
 	callCounter := ds_telemetry.StartSetBundleCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.Bundle,
-				Value: req.Bundle.TrustDomainId,
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.Bundle,
+			Value: req.Bundle.TrustDomainId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -179,12 +176,11 @@ func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequ
 // AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
 func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
 	callCounter := ds_telemetry.StartAppendBundleCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.Bundle,
-				Value: req.Bundle.TrustDomainId,
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.Bundle,
+			Value: req.Bundle.TrustDomainId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -199,12 +195,11 @@ func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBund
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
 func (ds *SQLPlugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (resp *datastore.DeleteBundleResponse, err error) {
 	callCounter := ds_telemetry.StartDeleteBundleCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.Bundle,
-				Value: req.TrustDomainId,
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.Bundle,
+			Value: req.TrustDomainId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -219,12 +214,11 @@ func (ds *SQLPlugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBund
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func (ds *SQLPlugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (resp *datastore.FetchBundleResponse, err error) {
 	callCounter := ds_telemetry.StartFetchBundleCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.Bundle,
-				Value: req.TrustDomainId,
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.Bundle,
+			Value: req.TrustDomainId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -238,7 +232,7 @@ func (ds *SQLPlugin) FetchBundle(ctx context.Context, req *datastore.FetchBundle
 
 // ListBundles can be used to fetch all existing bundles.
 func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
-	callCounter := ds_telemetry.StartListBundleCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartListBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -255,16 +249,11 @@ func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundles
 // PruneBundle removes expired certs and keys from a bundle
 func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
 	callCounter := ds_telemetry.StartPruneBundleCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.Bundle,
-				Value: req.TrustDomainId,
-			},
-			telemetry.Label{
-				Name:  telemetry.Expiration,
-				Value: strconv.FormatInt(req.ExpiresBefore, 10),
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.Bundle,
+			Value: req.TrustDomainId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -281,7 +270,7 @@ func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundle
 // CreateAttestedNode stores the given attested node
 func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
 	req *datastore.CreateAttestedNodeRequest) (resp *datastore.CreateAttestedNodeResponse, err error) {
-	callCounter := ds_telemetry.StartCreateNodeCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartCreateNodeCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if req.Node == nil {
@@ -290,8 +279,6 @@ func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
 
 	callCounter.AddLabel(telemetry.Attestor, req.Node.AttestationDataType)
 	callCounter.AddLabel(telemetry.SPIFFEID, req.Node.SpiffeId)
-	callCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(req.Node.CertNotAfter, 10))
-	callCounter.AddLabel(telemetry.SerialNumber, req.Node.CertSerialNumber)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createAttestedNode(tx, req)
@@ -306,12 +293,11 @@ func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
 func (ds *SQLPlugin) FetchAttestedNode(ctx context.Context,
 	req *datastore.FetchAttestedNodeRequest) (resp *datastore.FetchAttestedNodeResponse, err error) {
 	callCounter := ds_telemetry.StartFetchNodeCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.SPIFFEID,
-				Value: req.SpiffeId,
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.SPIFFEID,
+			Value: req.SpiffeId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -326,12 +312,8 @@ func (ds *SQLPlugin) FetchAttestedNode(ctx context.Context,
 // ListAttestedNodes lists all attested nodes (pagination available)
 func (ds *SQLPlugin) ListAttestedNodes(ctx context.Context,
 	req *datastore.ListAttestedNodesRequest) (resp *datastore.ListAttestedNodesResponse, err error) {
-	callCounter := ds_telemetry.StartListNodeCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartListNodeCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
-
-	if req.ByExpiresBefore != nil {
-		callCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(req.ByExpiresBefore.GetValue(), 10))
-	}
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = listAttestedNodes(tx, req)
@@ -348,20 +330,11 @@ func (ds *SQLPlugin) ListAttestedNodes(ctx context.Context,
 func (ds *SQLPlugin) UpdateAttestedNode(ctx context.Context,
 	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
 	callCounter := ds_telemetry.StartUpdateNodeCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(
-			telemetry.Label{
-				Name:  telemetry.SPIFFEID,
-				Value: req.SpiffeId,
-			},
-			telemetry.Label{
-				Name:  telemetry.SerialNumber,
-				Value: req.CertSerialNumber,
-			},
-			telemetry.Label{
-				Name:  telemetry.Expiration,
-				Value: strconv.FormatInt(req.CertNotAfter, 10),
-			},
-		)...))
+		telemetry.Label{
+			Name:  telemetry.SPIFFEID,
+			Value: req.SpiffeId,
+		},
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -377,11 +350,11 @@ func (ds *SQLPlugin) UpdateAttestedNode(ctx context.Context,
 func (ds *SQLPlugin) DeleteAttestedNode(ctx context.Context,
 	req *datastore.DeleteAttestedNodeRequest) (resp *datastore.DeleteAttestedNodeResponse, err error) {
 	callCounter := ds_telemetry.StartDeleteNodeCall(ds.prepareMetricsForCall(ctx,
-		ds.addCommonLabels(telemetry.Label{
+		telemetry.Label{
 			Name:  telemetry.SPIFFEID,
 			Value: req.SpiffeId,
 		},
-		)...))
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -395,7 +368,7 @@ func (ds *SQLPlugin) DeleteAttestedNode(ctx context.Context,
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
 func (ds *SQLPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (resp *datastore.SetNodeSelectorsResponse, err error) {
-	callCounter := ds_telemetry.StartSetNodeSelectorsCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartSetNodeSelectorsCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if req.Selectors == nil {
@@ -417,12 +390,12 @@ func (ds *SQLPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNod
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *SQLPlugin) GetNodeSelectors(ctx context.Context,
 	req *datastore.GetNodeSelectorsRequest) (resp *datastore.GetNodeSelectorsResponse, err error) {
-	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
+	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall(ctx,
 		telemetry.Label{
 			Name:  telemetry.SPIFFEID,
 			Value: req.SpiffeId,
 		},
-	)...))
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -439,7 +412,7 @@ func (ds *SQLPlugin) GetNodeSelectors(ctx context.Context,
 // CreateRegistrationEntry stores the given registration entry
 func (ds *SQLPlugin) CreateRegistrationEntry(ctx context.Context,
 	req *datastore.CreateRegistrationEntryRequest) (resp *datastore.CreateRegistrationEntryResponse, err error) {
-	callCounter := ds_telemetry.StartCreateRegistrationCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartCreateRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
@@ -449,7 +422,6 @@ func (ds *SQLPlugin) CreateRegistrationEntry(ctx context.Context,
 
 	callCounter.AddLabel(telemetry.SPIFFEID, req.Entry.SpiffeId)
 	callCounter.AddLabel(telemetry.ParentID, req.Entry.ParentId)
-	callCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(req.Entry.EntryExpiry, 10))
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createRegistrationEntry(tx, req)
@@ -463,12 +435,12 @@ func (ds *SQLPlugin) CreateRegistrationEntry(ctx context.Context,
 // FetchRegistrationEntry fetches an existing registration by entry ID
 func (ds *SQLPlugin) FetchRegistrationEntry(ctx context.Context,
 	req *datastore.FetchRegistrationEntryRequest) (resp *datastore.FetchRegistrationEntryResponse, err error) {
-	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
+	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall(ctx,
 		telemetry.Label{
 			Name:  telemetry.Entry,
 			Value: req.EntryId,
 		},
-	)...))
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -483,7 +455,7 @@ func (ds *SQLPlugin) FetchRegistrationEntry(ctx context.Context,
 // ListRegistrationEntries lists all registrations (pagination available)
 func (ds *SQLPlugin) ListRegistrationEntries(ctx context.Context,
 	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
-	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if req.ByParentId != nil {
@@ -510,7 +482,7 @@ func (ds *SQLPlugin) ListRegistrationEntries(ctx context.Context,
 // UpdateRegistrationEntry updates an existing registration entry
 func (ds *SQLPlugin) UpdateRegistrationEntry(ctx context.Context,
 	req *datastore.UpdateRegistrationEntryRequest) (resp *datastore.UpdateRegistrationEntryResponse, err error) {
-	callCounter := ds_telemetry.StartUpdateRegistrationCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartUpdateRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = validateRegistrationEntry(req.Entry); err != nil {
@@ -520,7 +492,6 @@ func (ds *SQLPlugin) UpdateRegistrationEntry(ctx context.Context,
 	callCounter.AddLabel(telemetry.SPIFFEID, req.Entry.SpiffeId)
 	callCounter.AddLabel(telemetry.Entry, req.Entry.EntryId)
 	callCounter.AddLabel(telemetry.ParentID, req.Entry.ParentId)
-	callCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(req.Entry.EntryExpiry, 10))
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateRegistrationEntry(tx, req)
@@ -534,12 +505,12 @@ func (ds *SQLPlugin) UpdateRegistrationEntry(ctx context.Context,
 // DeleteRegistrationEntry deletes the given registration
 func (ds *SQLPlugin) DeleteRegistrationEntry(ctx context.Context,
 	req *datastore.DeleteRegistrationEntryRequest) (resp *datastore.DeleteRegistrationEntryResponse, err error) {
-	callCounter := ds_telemetry.StartDeleteRegistrationCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
+	callCounter := ds_telemetry.StartDeleteRegistrationCall(ds.prepareMetricsForCall(ctx,
 		telemetry.Label{
 			Name:  telemetry.Entry,
 			Value: req.EntryId,
 		},
-	)...))
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -554,12 +525,7 @@ func (ds *SQLPlugin) DeleteRegistrationEntry(ctx context.Context,
 // PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
 // before the date in the message
 func (ds *SQLPlugin) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (resp *datastore.PruneRegistrationEntriesResponse, err error) {
-	callCounter := ds_telemetry.StartPruneRegistrationCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
-		telemetry.Label{
-			Name:  telemetry.Expiration,
-			Value: strconv.FormatInt(req.ExpiresBefore, 10),
-		},
-	)...))
+	callCounter := ds_telemetry.StartPruneRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -573,14 +539,12 @@ func (ds *SQLPlugin) PruneRegistrationEntries(ctx context.Context, req *datastor
 
 // CreateJoinToken takes a Token message and stores it
 func (ds *SQLPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
-	callCounter := ds_telemetry.StartCreateJoinTokenCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartCreateJoinTokenCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
 		return nil, errors.New("token and expiry are required")
 	}
-
-	callCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(req.JoinToken.Expiry, 10))
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createJoinToken(tx, req)
@@ -594,7 +558,7 @@ func (ds *SQLPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJ
 // FetchJoinToken takes a Token message and returns one, populating the fields
 // we have knowledge of
 func (ds *SQLPlugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (resp *datastore.FetchJoinTokenResponse, err error) {
-	callCounter := ds_telemetry.StartFetchJoinTokenCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels()...))
+	callCounter := ds_telemetry.StartFetchJoinTokenCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -604,20 +568,17 @@ func (ds *SQLPlugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoi
 		return nil, err
 	}
 
-	if resp.JoinToken != nil {
-		callCounter.AddLabel(telemetry.Expiration, strconv.FormatInt(resp.JoinToken.Expiry, 10))
-	}
 	return resp, nil
 }
 
 // DeleteJoinToken deletes the given join token
 func (ds *SQLPlugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
-	callCounter := ds_telemetry.StartDeleteJoinTokenCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
+	callCounter := ds_telemetry.StartDeleteJoinTokenCall(ds.prepareMetricsForCall(ctx,
 		telemetry.Label{
 			Name:  telemetry.JoinToken,
 			Value: req.Token,
 		},
-	)...))
+	))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -632,12 +593,7 @@ func (ds *SQLPlugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJ
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
 func (ds *SQLPlugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (resp *datastore.PruneJoinTokensResponse, err error) {
-	callCounter := ds_telemetry.StartPruneJoinTokenCall(ds.prepareMetricsForCall(ctx, ds.addCommonLabels(
-		telemetry.Label{
-			Name:  telemetry.Expiration,
-			Value: strconv.FormatInt(req.ExpiresBefore, 10),
-		},
-	)...))
+	callCounter := ds_telemetry.StartPruneJoinTokenCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -766,12 +722,6 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	}
 
 	return db, nil
-}
-
-// addCommonLabels append common labels for this entity to the input labels,
-// and return the result
-func (ds *SQLPlugin) addCommonLabels(labels ...telemetry.Label) []telemetry.Label {
-	return append(labels, telemetry.Label{Name: telemetry.DatabaseType, Value: ds.db.databaseType})
 }
 
 func (ds *SQLPlugin) prepareMetricsForCall(ctx context.Context, labels ...telemetry.Label) telemetry.Metrics {
