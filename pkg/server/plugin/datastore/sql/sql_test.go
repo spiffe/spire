@@ -49,9 +49,7 @@ type PluginSuite struct {
 	nextID int
 	ds     datastore.Plugin
 
-	m  *fakemetrics.FakeMetrics
-	ms proto_services.MetricsService
-
+	m               *fakemetrics.FakeMetrics
 	expectedMetrics *fakepluginmetrics.FakePluginMetrics
 }
 
@@ -85,12 +83,12 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	)
 
 	s.m = fakemetrics.New()
-	s.ms = metricsservice.New(metricsservice.Config{
+	metricsService := metricsservice.New(metricsservice.Config{
 		Metrics: s.m,
 	})
 
 	s.LoadPlugin(builtin(p), &ds,
-		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(s.ms)))
+		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
 
 	s.nextID++
 	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
