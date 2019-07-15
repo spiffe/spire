@@ -9,8 +9,14 @@ The `sql` plugin implements a sql based storage option for the SPIRE server usin
 | root_ca_path      | Path to Root CA bundle (MySQL only)                        |
 | client_cert_path  | Path to client certificate (MySQL only)                    |
 | client_key_path   | Path to private key for client certificate (MySQL only)    |
+| max_open_conns    | The maximum number of open db connections                  |
+| max_idle_conns    | The maximum number of idle connections in the pool        |
+| conn_max_lifetime | The maximum amount of time a connection may be reused     |
 
 The plugin defaults to an in-memory database and any information in the data store is lost on restart.
+
+For more information on the `max_open_conns`, `max_idle_conns`, and `conn_max_lifetime`, refer to the
+documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#DB) package.
 
 ## Database configurations
 
