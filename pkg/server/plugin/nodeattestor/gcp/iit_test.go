@@ -209,8 +209,9 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			{Email: "service-account-2"},
 		},
 		Labels: map[string]string{
-			"key":          "value",
-			"key-no-value": "",
+			"allowed":          "ALLOWED",
+			"allowed-no-value": "",
+			"disallowed":       "disallowed",
 		},
 		Metadata: &compute.Metadata{
 			Items: []*compute.MetadataItems{
@@ -224,10 +225,6 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 				{
 					Key:   "disallowed",
 					Value: stringPtr("DISALLOWED"),
-				},
-				{
-					Key:   "too-long",
-					Value: stringPtr("TOOLONGTOOLONGTOOLONGTOOLONGTOOLONGTOOLONG"),
 				},
 			},
 		},
@@ -245,8 +242,8 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			{Type: "gcp_iit", Value: "sa:service-account-2"},
 			{Type: "gcp_iit", Value: "metadata:allowed:ALLOWED"},
 			{Type: "gcp_iit", Value: "metadata:allowed-no-value:"},
-			{Type: "gcp_iit", Value: "label:key:value"},
-			{Type: "gcp_iit", Value: "label:key-no-value:"},
+			{Type: "gcp_iit", Value: "label:allowed:ALLOWED"},
+			{Type: "gcp_iit", Value: "label:allowed-no-value:"},
 		},
 	}
 	actual, err := s.attest(&nodeattestor.AttestRequest{
@@ -260,6 +257,27 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 	util.SortSelectors(actual.Selectors)
 	util.SortSelectors(expected.Selectors)
 	s.RequireProtoEqual(expected, actual)
+}
+
+func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() {
+	s.configureForInstanceMetadata(&compute.Instance{
+		Metadata: &compute.Metadata{
+			Items: []*compute.MetadataItems{
+				{
+					Key:   "allowed",
+					Value: stringPtr("ALLOWED BUT TOO LONG"),
+				},
+			},
+		},
+	})
+
+	_, err := s.attest(&nodeattestor.AttestRequest{
+		AttestationData: &common.AttestationData{
+			Type: gcp.PluginName,
+			Data: s.signToken(buildToken()),
+		},
+	})
+	s.RequireErrorContains(err, `gcp-iit: metadata "allowed" exceeded value limit (20 > 10)`)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
@@ -421,6 +439,7 @@ func (s *IITAttestorSuite) configureForInstanceMetadata(instance *compute.Instan
 		Configuration: `
 projectid_whitelist = ["test-project"]
 use_instance_metadata = true
+allowed_label_keys = ["allowed", "allowed-no-value"]
 allowed_metadata_keys = ["allowed", "allowed-no-value"]
 max_metadata_value_size = 10
 `,

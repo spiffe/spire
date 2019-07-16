@@ -7,7 +7,6 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/zeebo/errs"
 
@@ -53,7 +52,6 @@ type computeEngineClient interface {
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
 	nodeattestorbase.Base
-	log               hclog.Logger
 	config            *IITAttestorConfig
 	mtx               sync.Mutex
 	tokenKeyRetriever tokenKeyRetriever
@@ -64,11 +62,13 @@ type IITAttestorPlugin struct {
 type IITAttestorConfig struct {
 	idPathTemplate      *template.Template
 	trustDomain         string
+	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
 
 	ProjectIDWhitelist   []string `hcl:"projectid_whitelist"`
 	AgentPathTemplate    string   `hcl:"agent_path_template"`
 	UseInstanceMetadata  bool     `hcl:"use_instance_metadata"`
+	AllowedLabelKeys     []string `hcl:"allowed_label_keys"`
 	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys"`
 	MaxMetadataValueSize int      `hcl:"max_metadata_value_size"`
 }
@@ -79,10 +79,6 @@ func New() *IITAttestorPlugin {
 		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 		client:            googleComputeEngineClient{},
 	}
-}
-
-func (p *IITAttestorPlugin) SetLogger(log hclog.Logger) {
-	p.log = log
 }
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
@@ -135,7 +131,11 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		makeSelector("instance-name", identityMetadata.InstanceName),
 	}
 	if instance != nil {
-		selectors = append(selectors, p.getInstanceSelectors(c, instance)...)
+		instanceSelectors, err := getInstanceSelectors(c, instance)
+		if err != nil {
+			return err
+		}
+		selectors = append(selectors, instanceSelectors...)
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
@@ -173,11 +173,22 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		}
 	}
 
+	if len(config.AllowedLabelKeys) > 0 {
+		config.allowedLabelKeys = make(map[string]bool, len(config.AllowedLabelKeys))
+		for _, key := range config.AllowedLabelKeys {
+			config.allowedLabelKeys[key] = true
+		}
+	}
+
 	if len(config.AllowedMetadataKeys) > 0 {
 		config.allowedMetadataKeys = make(map[string]bool, len(config.AllowedMetadataKeys))
 		for _, key := range config.AllowedMetadataKeys {
 			config.allowedMetadataKeys[key] = true
 		}
+	}
+
+	if config.MaxMetadataValueSize == 0 {
+		config.MaxMetadataValueSize = defaultMaxMetadataValueSize
 	}
 
 	config.idPathTemplate = tmpl
@@ -205,7 +216,12 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	return p.config, nil
 }
 
-func (p *IITAttestorPlugin) getInstanceSelectors(config *IITAttestorConfig, instance *compute.Instance) []*common.Selector {
+func getInstanceSelectors(config *IITAttestorConfig, instance *compute.Instance) ([]*common.Selector, error) {
+	metadata, err := getInstanceMetadata(instance, config.allowedMetadataKeys, config.MaxMetadataValueSize)
+	if err != nil {
+		return nil, err
+	}
+
 	var selectors []*common.Selector
 	for _, tag := range getInstanceTags(instance) {
 		selectors = append(selectors, makeSelector("tag", tag))
@@ -213,44 +229,18 @@ func (p *IITAttestorPlugin) getInstanceSelectors(config *IITAttestorConfig, inst
 	for _, serviceAccount := range getInstanceServiceAccounts(instance) {
 		selectors = append(selectors, makeSelector("sa", serviceAccount))
 	}
-	for _, md := range p.getInstanceMetadata(instance, config.allowedMetadataKeys, config.MaxMetadataValueSize) {
-		selectors = append(selectors, makeSelector("metadata", md.key, md.value))
-	}
-	for _, label := range getInstanceLabels(instance) {
+	for _, label := range getInstanceLabels(instance, config.allowedLabelKeys) {
 		selectors = append(selectors, makeSelector("label", label.key, label.value))
 	}
-	return selectors
+	for _, md := range metadata {
+		selectors = append(selectors, makeSelector("metadata", md.key, md.value))
+	}
+	return selectors, nil
 }
 
 type keyValue struct {
 	key   string
 	value string
-}
-
-func (p *IITAttestorPlugin) getInstanceMetadata(instance *compute.Instance, allowedKeys map[string]bool, maxValueSize int) []keyValue {
-	if instance.Metadata == nil {
-		return nil
-	}
-	var md []keyValue
-	for _, item := range instance.Metadata.Items {
-		if !allowedKeys[item.Key] {
-			continue
-		}
-
-		var value string
-		if item.Value != nil {
-			value = *item.Value
-			if len(value) > maxValueSize {
-				p.log.Warn("skipping metadata item %q; value too large (%d > %d)", item.Key, len(value), maxValueSize)
-				continue
-			}
-		}
-		md = append(md, keyValue{
-			key:   item.Key,
-			value: value,
-		})
-	}
-	return md
 }
 
 func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.NodeAttestor_AttestServer, pluginName string, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
@@ -296,15 +286,43 @@ func getInstanceServiceAccounts(instance *compute.Instance) []string {
 	return sa
 }
 
-func getInstanceLabels(instance *compute.Instance) []keyValue {
+func getInstanceLabels(instance *compute.Instance, allowedKeys map[string]bool) []keyValue {
 	var labels []keyValue
 	for k, v := range instance.Labels {
+		if !allowedKeys[k] {
+			continue
+		}
 		labels = append(labels, keyValue{
 			key:   k,
 			value: v,
 		})
 	}
 	return labels
+}
+
+func getInstanceMetadata(instance *compute.Instance, allowedKeys map[string]bool, maxValueSize int) ([]keyValue, error) {
+	if instance.Metadata == nil {
+		return nil, nil
+	}
+	var md []keyValue
+	for _, item := range instance.Metadata.Items {
+		if !allowedKeys[item.Key] {
+			continue
+		}
+
+		var value string
+		if item.Value != nil {
+			value = *item.Value
+			if len(value) > maxValueSize {
+				return nil, pluginErr.New("metadata %q exceeded value limit (%d > %d)", item.Key, len(value), maxValueSize)
+			}
+		}
+		md = append(md, keyValue{
+			key:   item.Key,
+			value: value,
+		})
+	}
+	return md, nil
 }
 
 func makeSelector(key string, value ...string) *common.Selector {
