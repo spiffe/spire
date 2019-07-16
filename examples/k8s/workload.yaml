@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-workload
+  labels:
+    app: example-workload
+spec:
+  selector:
+    matchLabels:
+      app: example-workload
+  template:
+    metadata:
+      labels:
+        app: example-workload
+        spire-workload: example-workload
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: example-workload
+          image: gcr.io/spiffe-io/spire-agent
+          command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
+          args: ["-socketPath", "/run/spire/sockets/agent.sock"]
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/agent-sockets
+            type: Directory

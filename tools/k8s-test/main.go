@@ -16,6 +16,7 @@ func main() {
 	var noLocal bool
 	var timeout time.Duration
 	var interval time.Duration
+	var socketPath string
 
 	// cancel the context
 	// note: have to run an unnamed function here so we cancel the latest
@@ -91,8 +92,8 @@ func main() {
 
 	waitNodeAttestationCmd := &cobra.Command{
 		Use:   "node-attestation",
-		Short: "wait for node attestation",
-		Long:  "wait for node attestation",
+		Short: "Wait for node attestation",
+		Long:  "Wait for node attestation",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			runCmd(WaitForNodeAttestationCmd(ctx, args[0], count))
@@ -100,6 +101,18 @@ func main() {
 	}
 	waitNodeAttestationCmd.LocalFlags().IntVarP(&count, "count", "c", 1, "number of nodes expected to attest")
 	waitCmd.AddCommand(waitNodeAttestationCmd)
+
+	waitWorkloadCredsCmd := &cobra.Command{
+		Use:   "workload-creds",
+		Short: "Wait for workload creds",
+		Long:  "Wait for workload creds",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			runCmd(WaitForWorkloadCredsCmd(ctx, args[0], args[1], socketPath))
+		},
+	}
+	waitWorkloadCredsCmd.LocalFlags().StringVarP(&socketPath, "socket-path", "s", "/run/spire/sockets/agent.sock", "agent socket path")
+	waitCmd.AddCommand(waitWorkloadCredsCmd)
 
 	applyCmd := &cobra.Command{
 		Use:  "apply",
@@ -152,6 +165,16 @@ func WaitForNodeAttestationCmd(ctx context.Context, ident string, count int) err
 	}
 
 	return WaitForNodeAttestation(ctx, server, count)
+}
+
+func WaitForWorkloadCredsCmd(ctx context.Context, podPrefix, spiffeID, socketPath string) error {
+	podName, err := FindPodNameByPrefix(ctx, podPrefix)
+	if err != nil {
+		return err
+	}
+
+	Infoln("Checking workload pod %s for SPIFFE ID %q creds...", podName, spiffeID)
+	return WaitForWorkloadCreds(ctx, podName, spiffeID, socketPath)
 }
 
 func ApplyConfigCmd(ctx context.Context, paths []string, wait, local bool, interval time.Duration) error {
