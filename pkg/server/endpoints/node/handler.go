@@ -90,6 +90,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	if request.AttestationData.Type == "" {
 		return status.Error(codes.InvalidArgument, "request missing attestation data type")
 	}
+	telemetry_common.AddAttestorType(counter, request.AttestationData.Type)
+	log = log.WithField(telemetry.Attestor, request.AttestationData.Type)
 
 	if len(request.Csr) == 0 {
 		return status.Error(codes.InvalidArgument, "request missing CSR")
@@ -200,10 +202,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 	p, ok := peer.FromContext(ctx)
 	if ok {
-		log.WithFields(logrus.Fields{
-			telemetry.Attestor: request.AttestationData.Type,
-			telemetry.Address:  p.Addr,
-		}).Info("Node attestation request completed")
+		log.WithField(telemetry.Address, p.Addr).Info("Node attestation request completed")
 	}
 
 	if err := stream.Send(response); err != nil {
