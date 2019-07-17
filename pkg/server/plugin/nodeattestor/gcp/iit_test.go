@@ -27,6 +27,7 @@ const (
 	testInstanceID   = "test-instance-id"
 	testInstanceName = "test-instance-name"
 	testAgentID      = "spiffe://example.org/spire/agent/gcp_iit/test-project/test-instance-id"
+	testSAFile       = "test_sa.json"
 )
 
 var (
@@ -178,6 +179,27 @@ agent_path_template = "{{ .InstanceID "
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.RequireErrorContains(err, "failed to parse agent path template")
+}
+
+func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMisMatch() {
+	// mismatch SA file
+	s.client.setInstance(&compute.Instance{})
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["test-project"]
+use_instance_metadata = true
+service_account_file = "error_sa.json"
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+	_, err = s.attest(&nodeattestor.AttestRequest{
+		AttestationData: &common.AttestationData{
+			Type: gcp.PluginName,
+			Data: s.signToken(buildToken()),
+		},
+	})
+	s.RequireErrorContains(err, "gcp-iit: failed to fetch instance metadata: expected sa file \"test_sa.json\", got \"error_sa.json\"")
 }
 
 func (s *IITAttestorSuite) TestAttestSuccess() {
@@ -371,7 +393,6 @@ projectid_whitelist = ["bar"]
 	})
 	s.RequireErrorContains(err, "gcp-iit: projectid_whitelist is required")
 	require.Nil(resp)
-
 	// success
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
@@ -442,6 +463,7 @@ use_instance_metadata = true
 allowed_label_keys = ["allowed", "allowed-no-value"]
 allowed_metadata_keys = ["allowed", "allowed-no-value"]
 max_metadata_value_size = 10
+service_account_file = "test_sa.json"
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
@@ -524,7 +546,7 @@ func (c *fakeComputeEngineClient) setInstance(instance *compute.Instance) {
 	c.instance = instance
 }
 
-func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string) (*compute.Instance, error) {
+func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
@@ -536,6 +558,8 @@ func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, pro
 		return nil, fmt.Errorf("expected instance name %q; got %q", testInstanceName, instanceName)
 	case c.instance == nil:
 		return nil, errors.New("no instance found")
+	case serviceAccountFile != testSAFile:
+		return nil, fmt.Errorf("expected sa file %q, got %q", testSAFile, serviceAccountFile)
 	default:
 		return c.instance, nil
 	}

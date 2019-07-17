@@ -12,6 +12,7 @@ This plugin requires a whitelist of ProjectID from which nodes can be attested. 
 |---------------------------|----------------------------------------------------------------------------------------------------|--------------------------------------------|
 | `projectid_whitelist`     | List of whitelisted ProjectIDs from which nodes can be attested.  |         |
 | `use_instance_metadata`   | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false |
+| `service_account_file`  | Path to the service account file used to authenticate with the Google Compute Engine API |     |
 | `allowed_label_keys`      | Instance label keys considered for selectors | |
 | `allowed_metadata_keys`   | Instance metadata keys considered for selectors | |
 | `max_metadata_value_size` | Sets the maximum metadata value size considered by the plugin for selectors | 128 |
@@ -61,5 +62,7 @@ corresponding selector will still have a trailing colon (i.e.
 `gcp_iit:label:<key>:`, `gcp_iit:metadata:<key>:`)
 
 ## Authenticating with the Google Compute Engine API
+The plugin uses the Application Default Credentials to authenticate with the Google Compute Engine API, as documented by [Setting Up Authentication For Server to Server](https://cloud.google.com/docs/authentication/production). When SPIRE Server is running inside GCP, it will use the default service account credentials available to the instance it is running under. When running outside GCP, or if non-default credentials are needed, the path to the service account file containing the credentials may be specified using the GOOGLE_APPLICATION_CREDENTIALS environment variable or the service_account_file configurable (see Configuration).
 
-The plugin uses the Application Default Credentials to authenticate with the Google Compute Engine API, as documented by [Setting Up Authentication For Server to Server](https://cloud.google.com/docs/authentication/production).
+The service account must have IAM permissions and Authorization Scopes granting access to the following APIs:
+* compute.instances.get
