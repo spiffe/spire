@@ -46,8 +46,6 @@ type AWSSecretConfiguration struct {
 }
 
 type AWSSecretPlugin struct {
-	serialNumber x509util.SerialNumber
-
 	mtx        sync.RWMutex
 	cert       *x509.Certificate
 	upstreamCA *x509svid.UpstreamCA
@@ -63,9 +61,7 @@ func New() *AWSSecretPlugin {
 }
 
 func newPlugin(newClient func(config *AWSSecretConfiguration, region string) (secretsManagerClient, error)) *AWSSecretPlugin {
-	p := &AWSSecretPlugin{
-		serialNumber: x509util.NewSerialNumber(),
-	}
+	p := &AWSSecretPlugin{}
 	p.hooks.getenv = os.Getenv
 	p.hooks.newClient = newClient
 	return p
@@ -99,8 +95,7 @@ func (m *AWSSecretPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 		x509util.NewMemoryKeypair(cert, key),
 		req.GlobalConfig.TrustDomain,
 		x509svid.UpstreamCAOptions{
-			SerialNumber: m.serialNumber,
-			TTL:          ttl,
+			TTL: ttl,
 		})
 
 	return &spi.ConfigureResponse{}, nil

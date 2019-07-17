@@ -7,10 +7,8 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"math/big"
 	"net/url"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -19,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/zeebo/errs"
 )
@@ -221,7 +220,10 @@ func (ca *CA) signX509SVID(ctx context.Context, params X509SVIDParams, x509CA *X
 	}
 
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
-	serialNumber := ca.nextSerialNumber()
+	serialNumber, err := x509util.NewSerialNumber()
+	if err != nil {
+		return nil, err
+	}
 
 	template, err := CreateX509SVIDTemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
 	if err != nil {
@@ -266,7 +268,10 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 	}
 
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
-	serialNumber := ca.nextSerialNumber()
+	serialNumber, err := x509util.NewSerialNumber()
+	if err != nil {
+		return nil, err
+	}
 
 	// Don't allow the downstream server to control the subject of the CA
 	// certificate. Additionally, set the OU to a 1-based downstream "level"
@@ -324,10 +329,6 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, jsr.SpiffeId, jsr.Audience...)
 
 	return token, nil
-}
-
-func (ca *CA) nextSerialNumber() *big.Int {
-	return big.NewInt(atomic.AddInt64(&ca.x509sn, 1))
 }
 
 func (ca *CA) capLifetime(ttl time.Duration, expirationCap time.Time) (notBefore, notAfter time.Time) {
