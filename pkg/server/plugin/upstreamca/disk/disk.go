@@ -39,7 +39,6 @@ type Configuration struct {
 }
 
 type DiskPlugin struct {
-	serialNumber          x509util.SerialNumber
 	_testOnlyShouldVerify bool
 
 	mtx        sync.Mutex
@@ -55,7 +54,6 @@ type caCerts struct {
 
 func New() *DiskPlugin {
 	return &DiskPlugin{
-		serialNumber:          x509util.NewSerialNumber(),
 		_testOnlyShouldVerify: true,
 	}
 }
@@ -215,8 +213,7 @@ func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Up
 		x509util.NewMemoryKeypair(caCert, key),
 		config.trustDomain,
 		x509svid.UpstreamCAOptions{
-			SerialNumber: p.serialNumber,
-			TTL:          config.ttl,
+			TTL: config.ttl,
 		},
 	), caCerts, nil
 }
