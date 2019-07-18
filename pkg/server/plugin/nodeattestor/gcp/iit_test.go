@@ -181,7 +181,7 @@ agent_path_template = "{{ .InstanceID "
 	s.RequireErrorContains(err, "failed to parse agent path template")
 }
 
-func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMisMatch() {
+func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMismatch() {
 	// mismatch SA file
 	s.client.setInstance(&compute.Instance{})
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{

@@ -337,8 +337,8 @@ func makeSelector(key string, value ...string) *common.Selector {
 type googleComputeEngineClient struct {
 }
 
-func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountPath string) (*compute.Instance, error) {
-	service, err := c.getService(ctx, serviceAccountPath)
+func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
+	service, err := c.getService(ctx, serviceAccountFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute service client: %v", err)
 	}

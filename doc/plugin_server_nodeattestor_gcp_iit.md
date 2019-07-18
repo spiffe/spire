@@ -62,7 +62,7 @@ corresponding selector will still have a trailing colon (i.e.
 `gcp_iit:label:<key>:`, `gcp_iit:metadata:<key>:`)
 
 ## Authenticating with the Google Compute Engine API
-The plugin uses the Application Default Credentials to authenticate with the Google Compute Engine API, as documented by [Setting Up Authentication For Server to Server](https://cloud.google.com/docs/authentication/production). When SPIRE Server is running inside GCP, it will use the default service account credentials available to the instance it is running under. When running outside GCP, or if non-default credentials are needed, the path to the service account file containing the credentials may be specified using the GOOGLE_APPLICATION_CREDENTIALS environment variable or the service_account_file configurable (see Configuration).
+The plugin uses the Application Default Credentials to authenticate with the Google Compute Engine API, as documented by [Setting Up Authentication For Server to Server](https://cloud.google.com/docs/authentication/production). When SPIRE Server is running inside GCP, it will use the default service account credentials available to the instance it is running under. When running outside GCP, or if non-default credentials are needed, the path to the service account file containing the credentials may be specified using the `GOOGLE_APPLICATION_CREDENTIALS` environment variable or the `service_account_file` configurable (see Configuration).
 
 The service account must have IAM permissions and Authorization Scopes granting access to the following APIs:
-* compute.instances.get
+* [compute.instances.get](https://cloud.google.com/compute/docs/reference/rest/v1/instances/get)
