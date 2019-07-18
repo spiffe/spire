@@ -197,6 +197,12 @@ agent {
     socket_path ="/tmp/agent.sock"
 }
 
+telemetry {
+    Prometheus {
+        port = 1234
+    }
+}
+
 plugins {
     NodeAttestor "join_token" {
         plugin_data {

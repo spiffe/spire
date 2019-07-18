@@ -318,6 +318,12 @@ server {
     }
 }
 
+telemetry {
+    Prometheus {
+        port = 1234
+    }
+}
+
 plugins {
     DataStore "sql" {
         plugin_data {
