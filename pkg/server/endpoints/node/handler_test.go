@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"sync"
@@ -1212,6 +1213,11 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, expectedSPI
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.SvidUpdate)
+
+	// ensure end of stream so server-side telemetry is done
+	eofResp, err := stream.Recv()
+	s.Require().Nil(eofResp)
+	s.Require().Equal(err, io.EOF)
 
 	return resp.SvidUpdate
 }
