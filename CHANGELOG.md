@@ -10,7 +10,7 @@
 - Plugins can now emit metrics (#990, #993)
 - GCP CloudSQL support (#995)
 - Experimental support for SPIFFE federation (#951, #983)
-- Fixed a peertracker bug parsing /proc/PID/stat on Linux
+- Fixed a peertracker bug parsing /proc/PID/stat on Linux (#982)
 - Fixed a bug causing occasional panics on shutdown when running on a BSD-based system (#970)
 - Fixed a bug in the unix workload attestor failing attestation if the user or group lookup failed (#973)
 - Server plugins can now query for attested agent information (#964)
