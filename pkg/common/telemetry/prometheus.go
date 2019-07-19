@@ -44,6 +44,10 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 		runner.c.Host = "localhost"
 	}
 
+	if runner.c.Host != "localhost" {
+		runner.log.Warnf("Agent is now configured to accept remote network connections for Prometheus stats collection. Please ensure access to this port is tightly controlled.")
+	}
+
 	runner.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", runner.c.Host, runner.c.Port),
 		Handler: handler,
