@@ -1,6 +1,7 @@
 package peertracker
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -74,41 +74,69 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	p.ul, err = lf.ListenUnix(p.unixAddr.Network(), p.unixAddr)
 	p.Require().NoError(err)
 
+	// used to cancel the log polling below if something goes wrong with
+	// the test
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	clientDone := make(chan struct{})
-	serverDone := make(chan struct{})
-	gotLog := make(chan struct{})
 	peer := newFakeUDSPeer(p.T())
 
 	peer.connect(p.unixAddr, clientDone)
 
+	type acceptResult struct {
+		conn net.Conn
+		err  error
+	}
+	acceptCh := make(chan acceptResult, 1)
 	go func() {
 		conn, err := p.ul.Accept()
-		p.Require().Error(err)
-		p.Require().Contains(err.Error(), "use of closed network connection")
-		p.Require().Nil(conn)
-		close(serverDone)
+		acceptCh <- acceptResult{
+			conn: conn,
+			err:  err,
+		}
 	}()
 
+	logCh := make(chan *logrus.Entry, 1)
 	go func() {
 		for {
 			logEntry := hook.LastEntry()
 			if logEntry == nil {
-				time.Sleep(time.Millisecond)
+				select {
+				case <-ctx.Done():
+					close(logCh)
+				case <-time.After(time.Millisecond * 10):
+				}
 				continue
 			}
-			p.Require().Equal("Connection failed during accept.", logEntry.Message)
-			logErr := logEntry.Data["error"]
-			p.Require().IsType(errors.New(""), logErr)
-			p.Require().EqualError(logErr.(error), "create new watcher failed")
-			close(gotLog)
-			break
+			logCh <- logEntry
 		}
 	}()
-	waitForChannelWithTimeout(p.Require(), gotLog, "waited too long for logs")
+
+	// Wait for the logs to show up demonstrating the accept failure
+	select {
+	case logEntry := <-logCh:
+		p.Require().NotNil(logEntry)
+		p.Require().Equal("Connection failed during accept.", logEntry.Message)
+		logErr := logEntry.Data["error"]
+		p.Require().IsType(errors.New(""), logErr)
+		p.Require().EqualError(logErr.(error), "create new watcher failed")
+	case <-time.After(time.Second):
+		p.Require().Fail("waited too long for logs")
+	}
 
 	p.Require().NoError(p.ul.Close())
 	p.ul = nil
-	waitForChannelWithTimeout(p.Require(), gotLog, "waited too long for server to close")
+
+	// Wait for the listener to stop
+	select {
+	case acceptRes := <-acceptCh:
+		p.Require().Error(acceptRes.err)
+		p.Require().Contains(acceptRes.err.Error(), "use of closed network connection")
+		p.Require().Nil(acceptRes.conn)
+	case <-time.After(time.Second):
+		p.Require().Fail("waited too long for listener to close")
+	}
 }
 
 func (p *ListenerTestSuite) TestAcceptFailsWhenUnderlyingAcceptFails() {
@@ -126,12 +154,4 @@ func (p *ListenerTestSuite) TestAcceptFailsWhenUnderlyingAcceptFails() {
 // returns an empty unix listener that will fail any call to Accept()
 func newFailingMockListenUnix(network string, laddr *net.UnixAddr) (*net.UnixListener, error) {
 	return &net.UnixListener{}, nil
-}
-
-func waitForChannelWithTimeout(require *require.Assertions, ch chan struct{}, failMsg string) {
-	select {
-	case <-ch:
-	case <-time.After(time.Second):
-		require.Fail(failMsg)
-	}
 }
