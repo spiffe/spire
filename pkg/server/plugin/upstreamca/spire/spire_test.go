@@ -183,8 +183,7 @@ func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		x509util.NewMemoryKeypair(caCert, caKey),
 		"localhost",
 		x509svid.UpstreamCAOptions{
-			SerialNumber: x509util.NewSerialNumber(),
-			TTL:          30 * time.Minute,
+			TTL: 30 * time.Minute,
 		})
 
 	cert, err := ca.SignCSR(ctx, req.Csr)

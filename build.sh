@@ -207,10 +207,13 @@ build_release() {
 ## Create a distributable tar.gz of all the binaries
 build_artifact() {
 	local _version="$1" _dirs="$2"
-	local _libc _tgz _sum _binaries _n _tmp _tar_opts
+	local _libc _tgz _sum _binaries _n _tmp _tar_opts=()
 
 	[[ -z "$_dirs" ]] && _dirs="$ARTIFACT_DIRS"
-	IFS=" " read -r -a _dirs_array <<< "$_dirs"
+	_dirs_array=()
+	for _dir in $_dirs; do
+		_dirs_array+=( "$_dir" )
+	done
 	_binaries="$(find "${_dirs_array[@]}" -perm -u=x -a -type f)"
 
 
@@ -221,7 +224,7 @@ build_artifact() {
 			*muslr*) _libc="-musl" ;;
 			*) _libc="-unknown" ;;
 		esac
-		_tar_opts="--owner=root --group=root"
+		_tar_opts=("--owner=root" "--group=root")
 	fi
 
 	if [[ $_version ]]; then
@@ -262,7 +265,7 @@ build_artifact() {
 	# replacement because of differences between macOS and linux sed.
 	find "$_tmp/conf" -type f -name "*.conf" -print0 | xargs -0 -I % -n1 sh -c "sed -i.bak -e 's#= \"./#= \"/opt/spire/#g' %; rm %.bak"
 
-	tar --directory .tmp "$_tar_opts" -cvzf "$_tgz" "$(basename "$_tmp")"
+	tar -cvzf "$_tgz" --directory .tmp "${_tar_opts[@]}" "$(basename "$_tmp")"
 	echo "$(shasum -a 256 "$_tgz" | cut -d' ' -f1) $(basename "$_tgz")" > "$_sum"
 }
 

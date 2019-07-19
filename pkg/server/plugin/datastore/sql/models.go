@@ -56,8 +56,8 @@ type RegisteredEntry struct {
 	Model
 
 	EntryID  string `gorm:"unique_index"`
-	SpiffeID string
-	ParentID string
+	SpiffeID string `gorm:"index"`
+	ParentID string `gorm:"index"`
 	// TTL of identities derived from this entry
 	TTL           int32
 	Selectors     []Selector
@@ -82,8 +82,8 @@ type Selector struct {
 	Model
 
 	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
-	Type              string `gorm:"unique_index:idx_selector_entry"`
-	Value             string `gorm:"unique_index:idx_selector_entry"`
+	Type              string `gorm:"unique_index:idx_selector_entry;index:idx_selectors_type_value"`
+	Value             string `gorm:"unique_index:idx_selector_entry;index:idx_selectors_type_value"`
 }
 
 // DNSName holds a DNS for a registration entry

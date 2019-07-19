@@ -208,15 +208,14 @@ func (s *CATestSuite) TestSignX509SVIDValidatesTrustDomain() {
 	s.Require().EqualError(err, `"spiffe://foo.com/workload" does not belong to trust domain "example.org"`)
 }
 
-func (s *CATestSuite) TestSignX509SVIDIncrementsSerialNumber() {
+func (s *CATestSuite) TestSignX509SVIDChangesSerialNumber() {
 	svid1, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid1, 1)
-	s.Require().Equal(0, svid1[0].SerialNumber.Cmp(big.NewInt(1)))
 	svid2, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid2, 1)
-	s.Require().Equal(0, svid2[0].SerialNumber.Cmp(big.NewInt(2)))
+	s.Require().NotEqual(0, svid2[0].SerialNumber.Cmp(svid1[0].SerialNumber))
 }
 
 func (s *CATestSuite) TestNoJWTKeySet() {
@@ -375,7 +374,7 @@ func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *
 		Subject: pkix.Name{
 			CommonName: cn,
 		},
-		IsCA:                  true,
+		IsCA: true,
 		BasicConstraintsValid: true,
 		NotAfter:              s.clock.Now().Add(10 * time.Minute),
 		SubjectKeyId:          keyID,

@@ -1551,6 +1551,15 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Len(resp.Entries, 1)
 			s.Require().Len(resp.Entries[0].DnsNames, 1)
 			s.Require().Equal("abcd.efg", resp.Entries[0].DnsNames[0])
+		case 8:
+			db, err := sqlite{}.connect(&configuration{
+				DatabaseType:     "sqlite3",
+				ConnectionString: fmt.Sprintf("file://%s", dbPath),
+			})
+			s.Require().NoError(err)
+			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_parent_id"))
+			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
+			s.Require().True(db.Dialect().HasIndex("selectors", "idx_selectors_type_value"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

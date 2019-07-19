@@ -69,7 +69,7 @@ func (s *RotatorTestSuite) TestRotation() {
 	s.Require().NoError(err)
 
 	// The call to initialize should do the first rotation
-	cert := s.requireNewCert(stream, 1)
+	cert := s.requireNewCert(stream, big.NewInt(-1))
 
 	// Run should rotate whenever the certificate is within half of its
 	// remaining lifetime.
@@ -84,12 +84,12 @@ func (s *RotatorTestSuite) TestRotation() {
 	// "expire" the certificate and see that it rotates
 	s.clock.Set(certHalfLife(cert))
 	s.clock.Add(DefaultRotatorInterval)
-	cert = s.requireNewCert(stream, 2)
+	cert = s.requireNewCert(stream, cert.SerialNumber)
 
 	// one more time for good measure.
 	s.clock.Set(certHalfLife(cert))
 	s.clock.Add(DefaultRotatorInterval)
-	cert = s.requireNewCert(stream, 3)
+	cert = s.requireNewCert(stream, cert.SerialNumber)
 
 	// certificate just BARELY before the threshold, so it shouldn't rotate.
 	s.clock.Set(certHalfLife(cert).Add(-time.Minute))
@@ -97,14 +97,14 @@ func (s *RotatorTestSuite) TestRotation() {
 	s.requireStateChangeTimeout(stream)
 }
 
-func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, serialNumber int64) *x509.Certificate {
+func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, prevSerialNumber *big.Int) *x509.Certificate {
 	timer := time.NewTimer(time.Second * 10)
 	defer timer.Stop()
 	select {
 	case <-stream.Changes():
 		state := stream.Next().(State)
 		s.Require().Len(state.SVID, 2)
-		s.Require().Equal(0, state.SVID[0].SerialNumber.Cmp(big.NewInt(serialNumber)))
+		s.Require().NotEqual(0, state.SVID[0].SerialNumber.Cmp(prevSerialNumber))
 		return state.SVID[0]
 	case <-timer.C:
 		s.FailNow("timeout waiting from stream change")
