@@ -18,6 +18,7 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 )
 
 const (
@@ -46,7 +47,7 @@ type tokenKeyRetriever interface {
 }
 
 type computeEngineClient interface {
-	fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string) (*compute.Instance, error)
+	fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error)
 }
 
 // IITAttestorPlugin implements node attestation for agents running in GCP.
@@ -71,6 +72,7 @@ type IITAttestorConfig struct {
 	AllowedLabelKeys     []string `hcl:"allowed_label_keys"`
 	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys"`
 	MaxMetadataValueSize int      `hcl:"max_metadata_value_size"`
+	ServiceAccountFile   string   `hcl:"service_account_file"`
 }
 
 // New creates a new IITAttestorPlugin.
@@ -119,7 +121,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 
 	var instance *compute.Instance
 	if c.UseInstanceMetadata {
-		instance, err = p.client.fetchInstanceMetadata(stream.Context(), identityMetadata.ProjectID, identityMetadata.Zone, identityMetadata.InstanceName)
+		instance, err = p.client.fetchInstanceMetadata(stream.Context(), identityMetadata.ProjectID, identityMetadata.Zone, identityMetadata.InstanceName, c.ServiceAccountFile)
 		if err != nil {
 			return pluginErr.New("failed to fetch instance metadata: %v", err)
 		}
@@ -332,10 +334,11 @@ func makeSelector(key string, value ...string) *common.Selector {
 	}
 }
 
-type googleComputeEngineClient struct{}
+type googleComputeEngineClient struct {
+}
 
-func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string) (*compute.Instance, error) {
-	service, err := compute.NewService(ctx)
+func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
+	service, err := c.getService(ctx, serviceAccountFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute service client: %v", err)
 	}
@@ -344,4 +347,11 @@ func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, pr
 		return nil, fmt.Errorf("failed to fetch instance metadata: %v", err)
 	}
 	return instance, nil
+}
+
+func (c googleComputeEngineClient) getService(ctx context.Context, serviceAccountFile string) (*compute.Service, error) {
+	if serviceAccountFile != "" {
+		return compute.NewService(ctx, option.WithCredentialsFile(serviceAccountFile))
+	}
+	return compute.NewService(ctx)
 }
