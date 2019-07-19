@@ -84,7 +84,13 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
-	c, err := processInput(fileInput, cliInput)
+	input, err := mergeInput(fileInput, cliInput)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	c, err := newAgentConfig(input)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -167,32 +173,36 @@ func parseFlags(args []string) (*agentConfig, error) {
 	return c, nil
 }
 
-func processInput(fileConfig *config, cliConfig *agentConfig) (*agent.Config, error) {
-	c := defaultConfig()
+func mergeInput(fileInput *config, cliInput *agentConfig) (*config, error) {
+	c := &config{Agent: &agentConfig{}}
 
-	err := mergo.Merge(c, fileConfig, mergo.WithOverride)
+	// Highest precedence first
+	err := mergo.Merge(c.Agent, cliInput)
 	if err != nil {
 		return nil, err
 	}
 
-	err = mergo.Merge(c.Agent, cliConfig, mergo.WithOverride)
+	err = mergo.Merge(c, fileInput)
 	if err != nil {
 		return nil, err
 	}
 
-	err = validateConfig(c)
+	err = mergo.Merge(c, defaultConfig())
 	if err != nil {
 		return nil, err
 	}
 
-	return processConfig(c)
+	return c, nil
 }
 
-func processConfig(c *config) (*agent.Config, error) {
+func newAgentConfig(c *config) (*agent.Config, error) {
 	ac := &agent.Config{}
 
+	if err := validateConfig(c); err != nil {
+		return nil, err
+	}
+
 	ac.ServerAddress = net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
-	ac.DataDir = c.Agent.DataDir
 
 	td, err := idutil.ParseSpiffeID("spiffe://"+c.Agent.TrustDomain, idutil.AllowAnyTrustDomain())
 	if err != nil {
@@ -220,7 +230,7 @@ func processConfig(c *config) (*agent.Config, error) {
 	lf := strings.ToUpper(c.Agent.LogFormat)
 	logger, err := log.NewLogger(ll, lf, c.Agent.LogFile)
 	if err != nil {
-		return nil, fmt.Errorf("could not open log file %q: %s", c.Agent.LogFile, err)
+		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
 	ac.Log = logger
 

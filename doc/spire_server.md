@@ -124,6 +124,7 @@ Most of the configuration file above options have identical command-line counter
 | `-config` | Path to a SPIRE config file | conf/server/server.conf |
 | `-dataDir` | Directory to store runtime data to | |
 | `-logFile` | File to write logs to | |
+| `-logFormat` | Format of logs, \<text\|json\> | |
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
 | `-registrationUDSPath` | UDS Path to bind registration API | |
 | `-serverPort` | Port number of the SPIRE server | |
@@ -314,6 +315,12 @@ server {
         country = ["US"],
         organization = ["SPIRE"],
         common_name = "",
+    }
+}
+
+telemetry {
+    Prometheus {
+        port = 1234
     }
 }
 
