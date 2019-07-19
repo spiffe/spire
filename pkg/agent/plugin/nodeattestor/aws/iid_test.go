@@ -107,55 +107,17 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.RequireErrorContains(err, "unexpected status code: 502")
 }
 
-func (s *Suite) TestEmptyDoc() {
-	s.docBody = ""
-	_, err := s.fetchAttestationData()
-	s.RequireErrorContains(err, "unexpected end of JSON input")
-}
-
-func (s *Suite) TestErrorOnInvalidDoc() {
-	s.docBody = "invalid"
-	_, err := s.fetchAttestationData()
-	s.RequireErrorContains(err, "error occurred unmarshaling the IID")
-}
-
 func (s *Suite) TestSuccessfulIdentityProcessing() {
 	doc, sig := s.buildDefaultIIDDocAndSig()
 	s.docBody = string(doc)
 	s.sigBody = string(sig)
 	require := s.Require()
 
-	// default template
 	resp, err := s.fetchAttestationData()
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal("spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance", resp.SpiffeId)
 	require.Equal(aws.PluginName, resp.AttestationData.Type)
 	expectedBytes, err := json.Marshal(aws.IIDAttestationData{
-		Document:  string(doc),
-		Signature: string(sig),
-	})
-	require.NoError(err)
-	require.Equal(string(expectedBytes), string(resp.AttestationData.Data))
-
-	// change in template
-	_, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-agent_path_template = "{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}/{{ .PluginName}}"
-identity_document_url = "http://%s%s"
-identity_signature_url = "http://%s%s"
-`, s.server.Listener.Addr().String(), defaultIdentityDocumentPath, s.server.Listener.Addr().String(), defaultIdentitySignaturePath),
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-	})
-	s.Require().NoError(err)
-	resp, err = s.fetchAttestationData()
-	require.NoError(err)
-	require.NotNil(resp)
-	require.Equal("spiffe://example.org/spire/agent/test-account/test-region/test-instance/aws_iid", resp.SpiffeId)
-	require.Equal(aws.PluginName, resp.AttestationData.Type)
-	expectedBytes, err = json.Marshal(aws.IIDAttestationData{
 		Document:  string(doc),
 		Signature: string(sig),
 	})

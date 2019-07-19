@@ -7,7 +7,7 @@ provisioned with an x509 identity through an out-of-band mechanism and responds
 to a signature based proof-of-possession challenge issued by the server
 plugin.
 
-The SPIFFE ID produced by the plugin is based on the certificate fingerprint, where the fingerprint is defined as the
+The SPIFFE ID produced by the server-side `x509pop` plugin is based on the certificate fingerprint, where the fingerprint is defined as the
 SHA1 hash of the ASN.1 DER encoding of the identity certificate. The SPIFFE ID has the form:
 
 ```

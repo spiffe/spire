@@ -15,8 +15,8 @@ const (
 )
 
 type Config struct {
-	// CanReattest determines whether or not the attestor allows reattestation
-	CanReattest bool
+	// DisallowReattestation determines whether or not the attestor allows reattestation
+	DisallowReattestation bool
 
 	// TrustDomain is the trust domain for SPIFFE IDs created by the attestor.
 	// Defaults to "example.org" if empty.
@@ -65,8 +65,8 @@ func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (er
 		return errs.Wrap(err)
 	}
 
-	if req.AttestedBefore && !p.config.CanReattest {
-		return errs.New("reattestation is not permitted")
+	if req.DEPRECATEDAttestedBefore && p.config.DisallowReattestation {
+		return errs.New("reattestation is not permitted (deprecated)")
 	}
 
 	if req.AttestationData == nil {
@@ -101,8 +101,7 @@ func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (er
 	}
 
 	resp := &nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: p.getBaseSPIFFEID(id),
+		AgentId: p.getAgentID(id),
 	}
 
 	for _, value := range p.config.Selectors[id] {
@@ -119,7 +118,7 @@ func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (er
 	return nil
 }
 
-func (p *NodeAttestor) getBaseSPIFFEID(id string) string {
+func (p *NodeAttestor) getAgentID(id string) string {
 	if p.config.ReturnLiteral {
 		return id
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/url"
@@ -13,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -42,7 +40,7 @@ type EndpointsTestSuite struct {
 
 	ds *fakedatastore.DataStore
 
-	svidState observer.Property
+	svidState svid.State
 	e         *endpoints
 
 	mockClock *clock.Mock
@@ -64,11 +62,13 @@ func (s *EndpointsTestSuite) SetupTest() {
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(s.ds)
 
-	s.svidState = observer.NewProperty(svid.State{})
+	s.svidState = svid.State{}
 	c := &Config{
-		TCPAddr:     &net.TCPAddr{IP: ip, Port: 8000},
-		UDSAddr:     &net.UnixAddr{Name: "/tmp/spire-registration.sock", Net: "unix"},
-		SVIDStream:  s.svidState.Observe(),
+		TCPAddr: &net.TCPAddr{IP: ip, Port: 8000},
+		UDSAddr: &net.UnixAddr{Name: "/tmp/spire-registration.sock", Net: "unix"},
+		SVIDObserver: svid.ObserverFunc(func() svid.State {
+			return s.svidState
+		}),
 		TrustDomain: td,
 		Catalog:     catalog,
 		Log:         log,
@@ -166,49 +166,10 @@ func (s *EndpointsTestSuite) TestGetTLSConfig() {
 	s.Assert().Equal(pool, tlsConfig.ClientCAs)
 }
 
-func (s *EndpointsTestSuite) TestSVIDObserver() {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// assert there is no SVID in the current state
-	state := s.e.getSVIDState()
-	s.Require().Nil(state.SVID)
-
-	go func() {
-		s.e.runSVIDObserver(ctx)
-	}()
-
-	// update the SVID property
-	expectedState := svid.State{
-		SVID: []*x509.Certificate{{Subject: pkix.Name{CommonName: "COMMONNAME"}}},
-	}
-	s.svidState.Update(expectedState)
-
-	// wait until the handler detects the change and updates the SVID
-	timer := time.NewTimer(5 * time.Second)
-	defer timer.Stop()
-	ticker := time.NewTicker(time.Millisecond * 50)
-	defer ticker.Stop()
-checkLoop:
-	for {
-		select {
-		case <-ticker.C:
-			actualState := s.e.getSVIDState()
-			if actualState.SVID == nil {
-				continue
-			}
-			s.Require().Equal(expectedState, actualState)
-			break checkLoop
-		case <-timer.C:
-			s.FailNow("timed out waiting for SVID state")
-		}
-	}
-}
-
 // configureBundle sets the bundle in the datastore, and returns the served
 // certificates plus an svid in the form of TLS certificate chain and CA pool.
 func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPool) {
-	svid, svidKey, err := util.LoadSVIDFixture()
+	cert, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 	ca, _, err := util.LoadCAFixture()
 	s.Require().NoError(err)
@@ -221,12 +182,15 @@ func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPoo
 	caPool := x509.NewCertPool()
 	caPool.AddCert(ca)
 
-	s.e.svid = []*x509.Certificate{svid}
-	s.e.svidKey = svidKey
+	s.svidState = svid.State{
+		SVID: []*x509.Certificate{cert},
+		Key:  key,
+	}
+
 	return []tls.Certificate{
 		{
-			Certificate: [][]byte{svid.Raw},
-			PrivateKey:  svidKey,
+			Certificate: [][]byte{cert.Raw},
+			PrivateKey:  key,
 		},
 	}, caPool
 }
@@ -271,10 +235,10 @@ func (s *EndpointsTestSuite) TestClientCertificateVerification() {
 		},
 	})
 	s.Require().NoError(err)
-	s.svidState.Update(svid.State{
+	s.svidState = svid.State{
 		SVID: []*x509.Certificate{serverCert},
 		Key:  serverKey,
-	})
+	}
 
 	var wg sync.WaitGroup
 	defer wg.Wait()

@@ -5,15 +5,16 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/hashicorp/go-hclog"
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 const (
 	// version of the database in the code
-	codeVersion = 8
+	codeVersion = 9
 )
 
 func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
@@ -112,7 +113,7 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 }
 
 func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int, err error) {
-	log.Info(fmt.Sprintf("Migrating from version %d", version))
+	log.Info("migrating version", telemetry.VersionInfo, version)
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run
@@ -135,6 +136,8 @@ func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int,
 		err = migrateToV7(tx)
 	case 7:
 		err = migrateToV8(tx)
+	case 8:
+		err = migrateToV9(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -317,7 +320,14 @@ func migrateToV7(tx *gorm.DB) error {
 }
 
 func migrateToV8(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&RegisteredEntry{}, &DNSName{}).Error; err != nil {
+	if err := tx.AutoMigrate(&V8RegisteredEntry{}, &DNSName{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func migrateToV9(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&RegisteredEntry{}, &Selector{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
@@ -361,7 +371,7 @@ type V4RegisteredEntry struct {
 	SpiffeID      string
 	ParentID      string
 	TTL           int32
-	Selectors     []Selector
+	Selectors     []V8Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
 }
 
@@ -378,7 +388,7 @@ type V5RegisteredEntry struct {
 	SpiffeID      string
 	ParentID      string
 	TTL           int32
-	Selectors     []Selector
+	Selectors     []V8Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
 	Admin         bool
 }
@@ -396,7 +406,7 @@ type V6RegisteredEntry struct {
 	SpiffeID      string
 	ParentID      string
 	TTL           int32
-	Selectors     []Selector
+	Selectors     []V8Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
 	Admin         bool
 	Downstream    bool
@@ -416,7 +426,7 @@ type V7RegisteredEntry struct {
 	ParentID string
 	// TTL of identities derived from this entry
 	TTL           int32
-	Selectors     []Selector
+	Selectors     []V8Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
 	Admin         bool
 	Downstream    bool
@@ -427,4 +437,35 @@ type V7RegisteredEntry struct {
 // TableName gets table name for v7 registered entry
 func (V7RegisteredEntry) TableName() string {
 	return "registered_entries"
+}
+
+type V8RegisteredEntry struct {
+	Model
+
+	EntryID  string `gorm:"unique_index"`
+	SpiffeID string
+	ParentID string
+	// TTL of identities derived from this entry
+	TTL           int32
+	Selectors     []V8Selector
+	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
+	Admin         bool
+	Downstream    bool
+	// (optional) expiry of this entry
+	Expiry int64
+	// (optional) DNS entries
+	DNSList []DNSName
+}
+
+// TableName gets table name for v8 registered entry
+func (V8RegisteredEntry) TableName() string {
+	return "registered_entries"
+}
+
+type V8Selector struct {
+	Model
+
+	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
+	Type              string `gorm:"unique_index:idx_selector_entry"`
+	Value             string `gorm:"unique_index:idx_selector_entry"`
 }

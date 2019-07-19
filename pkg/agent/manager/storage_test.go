@@ -1,9 +1,10 @@
 package manager
 
 import (
-	"github.com/spiffe/spire/test/util"
 	"path"
 	"testing"
+
+	"github.com/spiffe/spire/test/util"
 )
 
 func TestReadBundle(t *testing.T) {

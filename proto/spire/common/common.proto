@@ -106,4 +106,8 @@ message Bundle {
 
     /** list of JWT signing keys */
     repeated PublicKey jwt_signing_keys = 3;
+
+    /** refresh hint is a hint, in seconds, on how often a bundle consumer
+     * should poll for bundle updates */
+    int64 refresh_hint = 4;
 }

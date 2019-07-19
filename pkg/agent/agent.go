@@ -14,9 +14,12 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	_ "golang.org/x/net/trace"
 	"google.golang.org/grpc"
 )
@@ -29,7 +32,7 @@ type Agent struct {
 // This method initializes the agent, including its plugins,
 // and then blocks on the main event loop.
 func (a *Agent) Run(ctx context.Context) error {
-	a.c.Log.Infof("data directory: %q", a.c.DataDir)
+	a.c.Log.Infof("Starting agent with data directory: %q", a.c.DataDir)
 	if err := os.MkdirAll(a.c.DataDir, 0755); err != nil {
 		return err
 	}
@@ -44,19 +47,25 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  a.c.Telemetry,
-		Logger:      a.c.Log.WithField("subsystem_name", "telemetry"),
-		ServiceName: "spire_agent",
+		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
+		ServiceName: telemetry.SpireAgent,
 	})
 	if err != nil {
 		return err
 	}
+	metricsService := metricsservice.New(metricsservice.Config{
+		Metrics: metrics,
+	})
 
 	cat, err := catalog.Load(ctx, catalog.Config{
-		Log: a.c.Log.WithField("subsystem_name", "catalog"),
+		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
 			TrustDomain: a.c.TrustDomain.Host,
 		},
 		PluginConfig: a.c.PluginConfigs,
+		HostServices: []common_catalog.HostServiceServer{
+			common_services.MetricsServiceHostServiceServer(metricsService),
+		},
 	})
 	if err != nil {
 		return err
@@ -107,7 +116,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := server.ListenAndServe(); err != nil {
-				a.c.Log.Warnf("unable to serve profiling server: %v", err)
+				a.c.Log.WithError(err).Warn("unable to serve profiling server")
 			}
 		}()
 		wg.Add(1)
@@ -129,7 +138,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := profiling.Run(ctx, c); err != nil {
-				a.c.Log.Warnf("Failed to run profiling: %v", err)
+				a.c.Log.WithError(err).Warn("Failed to run profiling")
 			}
 		}()
 	}
@@ -149,7 +158,7 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 		TrustBundle:     a.c.TrustBundle,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
-		Log:             a.c.Log.WithField("subsystem_name", "attestor"),
+		Log:             a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
 		ServerAddress:   a.c.ServerAddress,
 	}
 	return attestor.New(&config).Attest(ctx)
@@ -163,7 +172,7 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 		Catalog:         cat,
 		TrustDomain:     a.c.TrustDomain,
 		ServerAddr:      a.c.ServerAddress,
-		Log:             a.c.Log.WithField("subsystem_name", "manager"),
+		Log:             a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
 		Metrics:         metrics,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
@@ -186,7 +195,7 @@ func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, metrics t
 		BindAddr:  a.c.BindAddress,
 		Catalog:   cat,
 		Manager:   mgr,
-		Log:       a.c.Log.WithField("subsystem_name", "endpoints"),
+		Log:       a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:   metrics,
 		EnableSDS: a.c.EnableSDS,
 	}

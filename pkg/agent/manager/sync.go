@@ -45,8 +45,8 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		case len(svid.Chain) == 0:
 			// SVID has an empty chain. this is not expected to happen.
 			m.c.Log.WithFields(logrus.Fields{
-				"entry_id":  entry.EntryId,
-				"spiffe_id": entry.SpiffeId,
+				telemetry.RegistrationID: entry.EntryId,
+				telemetry.SPIFFEID:       entry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
 		case isSVIDStale(m.c.Clk.Now(), svid.Chain[0]):
 			// SVID has expired
@@ -83,13 +83,10 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 	counter := telemetry_agent.StartManagerFetchUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	req := &node.FetchX509SVIDRequest{}
+	req := &node.FetchX509SVIDRequest{
+		Csrs: make(map[string][]byte),
+	}
 
-	// TODO: The node API is currently insufficient to handle multiple
-	// registration entries mapping to the same SPIFFE ID (since results are
-	// keyed by SPIFFE ID). This code will use the same SVID for any
-	// registration entry sharing a SPIFFE ID and should be fixed when
-	// the node API is fixed.
 	privateKeys := make(map[string]*ecdsa.PrivateKey, len(csrs))
 	for _, csr := range csrs {
 		log := m.c.Log.WithField("spiffe_id", csr.SpiffeID)
@@ -97,10 +94,11 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
 		}
 		counter.AddLabel(telemetry.SPIFFEID, csr.SpiffeID)
+		counter.AddLabel(telemetry.RegistrationID, csr.EntryID)
 
-		// Skip CSR for the same SPIFFE ID... for now (see above TODO)
-		if _, ok := privateKeys[csr.SpiffeID]; ok {
-			log.Debug("Ignoring duplicate X509-SVID renewal")
+		// Since entryIDs are unique, this shouldn't happen. Log just in case
+		if _, ok := privateKeys[csr.EntryID]; ok {
+			log.Warnf("Ignoring duplicate X509-SVID renewal for entry ID: %q", csr.EntryID)
 			continue
 		}
 
@@ -109,8 +107,8 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		if err != nil {
 			return nil, err
 		}
-		privateKeys[csr.SpiffeID] = privateKey
-		req.Csrs = append(req.Csrs, csrBytes)
+		privateKeys[csr.EntryID] = privateKey
+		req.Csrs[csr.EntryID] = csrBytes
 	}
 
 	update, err := m.client.FetchUpdates(ctx, req)
@@ -123,9 +121,9 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		return nil, err
 	}
 
-	bySpiffeID := make(map[string]*cache.X509SVID, len(update.SVIDs))
-	for spiffeID, svid := range update.SVIDs {
-		privateKey, ok := privateKeys[spiffeID]
+	byEntryID := make(map[string]*cache.X509SVID, len(update.SVIDs))
+	for entryID, svid := range update.SVIDs {
+		privateKey, ok := privateKeys[entryID]
 		if !ok {
 			continue
 		}
@@ -133,19 +131,10 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		if err != nil {
 			return nil, err
 		}
-		bySpiffeID[spiffeID] = &cache.X509SVID{
+		byEntryID[entryID] = &cache.X509SVID{
 			Chain:      chain,
 			PrivateKey: privateKey,
 		}
-	}
-
-	byEntryID := make(map[string]*cache.X509SVID, len(bySpiffeID))
-	for _, entry := range update.Entries {
-		svid, ok := bySpiffeID[entry.SpiffeId]
-		if !ok {
-			continue
-		}
-		byEntryID[entry.EntryId] = svid
 	}
 
 	return &cache.CacheUpdate{

@@ -75,6 +75,7 @@ Represents an attested SPIRE agent
 | trust_domain_id | [string](#string) |  | the SPIFFE ID of the trust domain the bundle belongs to |
 | root_cas | [Certificate](#spire.common.Certificate) | repeated | list of root CA certificates |
 | jwt_signing_keys | [PublicKey](#spire.common.PublicKey) | repeated | list of JWT signing keys |
+| refresh_hint | [int64](#int64) |  | refresh hint is a hint, in seconds, on how often a bundle consumer should poll for bundle updates |
 
 
 

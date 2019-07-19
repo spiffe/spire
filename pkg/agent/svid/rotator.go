@@ -55,7 +55,7 @@ func (r *rotator) Run(ctx context.Context) error {
 		case <-t.C:
 			if r.shouldRotate() {
 				if err := r.rotateSVID(ctx); err != nil {
-					r.c.Log.Errorf("Could not rotate agent SVID: %v", err)
+					r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 				}
 			}
 		case <-r.c.BundleStream.Changes():
@@ -102,7 +102,15 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	update, err := r.client.FetchUpdates(ctx, &node.FetchX509SVIDRequest{Csrs: [][]byte{csr}})
+	update, err := r.client.FetchUpdates(ctx,
+		&node.FetchX509SVIDRequest{
+			// CSRS are expected to be keyed by entryID. Since it does not
+			// exist an entry ID for the agent spiffeID, the `r.c.SpiffeID`
+			// is used as a key in this particular case
+			Csrs: map[string][]byte{
+				r.c.SpiffeID: csr,
+			},
+		})
 	if err != nil {
 		return err
 	}

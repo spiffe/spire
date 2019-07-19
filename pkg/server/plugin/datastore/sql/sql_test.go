@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 var (
@@ -119,6 +120,14 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NotNil(fresp)
 	s.Require().Nil(fresp.Bundle)
 
+	// update non-existant
+	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
+	// delete non-existant
+	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
 	// create
 	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
@@ -188,6 +197,30 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
+}
+
+func (s *PluginSuite) TestSetBundle() {
+	// create a couple of bundles for tests. the contents don't really matter
+	// as long as they are for the same trust domain but have different contents.
+	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
+	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
+
+	// ensure the bundle does not exist (it shouldn't)
+	s.Require().Nil(s.fetchBundle("spiffe://foo"))
+
+	// set the bundle and make sure it is created
+	_, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
+		Bundle: bundle,
+	})
+	s.Require().NoError(err)
+	s.RequireProtoEqual(bundle, s.fetchBundle("spiffe://foo"))
+
+	// set the bundle and make sure it is updated
+	_, err = s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
+		Bundle: bundle2,
+	})
+	s.Require().NoError(err)
+	s.RequireProtoEqual(bundle2, s.fetchBundle("spiffe://foo"))
 }
 
 func (s *PluginSuite) TestBundlePrune() {
@@ -503,7 +536,15 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	userial := "deadbeef"
 	uexpires := time.Now().Add(time.Hour * 2).Unix()
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	// update non-existing attested node
+	_, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         node.SpiffeId,
+		CertSerialNumber: userial,
+		CertNotAfter:     uexpires,
+	})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 	s.Require().NoError(err)
 
 	uresp, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
@@ -541,7 +582,11 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
+	// delete it before it exists
+	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
 	s.Require().NoError(err)
 
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
@@ -965,9 +1010,19 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 
 	expectedResponse := &datastore.FetchRegistrationEntryResponse{Entry: entry}
 	s.RequireProtoEqual(expectedResponse, fetchRegistrationEntryResponse)
+
+	entry.EntryId = "badid"
+	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
+	// delete non-existing
+	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: "badid"})
+	s.RequireGRPCStatus(err, codes.NotFound, "datastore-sql: record not found")
+
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
@@ -1496,6 +1551,15 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Len(resp.Entries, 1)
 			s.Require().Len(resp.Entries[0].DnsNames, 1)
 			s.Require().Equal("abcd.efg", resp.Entries[0].DnsNames[0])
+		case 8:
+			db, err := sqlite{}.connect(&configuration{
+				DatabaseType:     "sqlite3",
+				ConnectionString: fmt.Sprintf("file://%s", dbPath),
+			})
+			s.Require().NoError(err)
+			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_parent_id"))
+			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
+			s.Require().True(db.Dialect().HasIndex("selectors", "idx_selectors_type_value"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -1537,9 +1601,17 @@ func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interfa
 	s.Require().NoError(err)
 }
 
-func (s *PluginSuite) createBundle(trustDomain string) {
+func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
+	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: trustDomainID,
+	})
+	s.Require().NoError(err)
+	return resp.Bundle
+}
+
+func (s *PluginSuite) createBundle(trustDomainID string) {
 	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundleutil.BundleProtoFromRootCA(trustDomain, s.cert),
+		Bundle: bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert),
 	})
 	s.Require().NoError(err)
 }

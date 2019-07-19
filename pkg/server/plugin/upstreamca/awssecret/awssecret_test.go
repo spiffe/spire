@@ -2,18 +2,18 @@ package awssecret
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
-	"io/ioutil"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/util"
 )
 
 var (
@@ -81,37 +81,37 @@ func (as *AWSSecretSuite) TestGetSecretFail() {
 }
 
 func (as *AWSSecretSuite) Test_SubmitValidCSR() {
-	const testDataDir = "_test_data/csr_valid"
-	validCsrFiles, err := ioutil.ReadDir(testDataDir)
+	validSpiffeID := "spiffe://localhost"
+	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	for _, validCsrFile := range validCsrFiles {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
-		as.Require().NoError(err)
-		block, rest := pem.Decode(csrPEM)
-		as.Require().Len(rest, 0)
+	resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+	as.Require().NoError(err)
+	as.Require().NotNil(resp)
 
-		resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
-		as.Require().NoError(err)
-		as.Require().NotNil(resp)
-	}
+	cert, err := x509.ParseCertificate(resp.SignedCertificate.CertChain)
+	as.Require().NoError(err)
+
+	isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, pubKey)
+	as.Require().NoError(err)
+	as.Require().True(isEqual)
 }
 
 func (as *AWSSecretSuite) Test_SubmitInvalidCSR() {
-	const testDataDir = "_test_data/csr_invalid"
-	validCsrFiles, err := ioutil.ReadDir(testDataDir)
-	as.Require().NoError(err)
-
-	for _, validCsrFile := range validCsrFiles {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
+	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
+	for _, invalidSpiffeID := range invalidSpiffeIDs {
+		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		as.Require().NoError(err)
-		block, rest := pem.Decode(csrPEM)
-		as.Require().Len(rest, 0)
 
-		resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
+		resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 		as.Require().Error(err)
 		as.Require().Nil(resp)
 	}
+
+	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
+	resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: invalidSequenceOfBytesAsCSR})
+	as.Require().Error(err)
+	as.Require().Nil(resp)
 }
 
 func (as *AWSSecretSuite) TestFailConfiguration() {

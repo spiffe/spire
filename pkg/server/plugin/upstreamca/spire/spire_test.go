@@ -2,6 +2,7 @@ package spireplugin
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -23,6 +25,7 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -180,8 +183,7 @@ func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		x509util.NewMemoryKeypair(caCert, caKey),
 		"localhost",
 		x509svid.UpstreamCAOptions{
-			SerialNumber: x509util.NewSerialNumber(),
-			TTL:          30 * time.Minute,
+			TTL: 30 * time.Minute,
 		})
 
 	cert, err := ca.SignCSR(ctx, req.Csr)
@@ -240,20 +242,20 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
 	defer done()
 
-	const testDataDir = "_test_data/csr_valid"
-	validCsrFiles, err := ioutil.ReadDir(testDataDir)
+	validSpiffeID := "spiffe://localhost"
+	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(t, err)
 
-	for _, validCsrFile := range validCsrFiles {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
-		require.NoError(t, err)
-		block, rest := pem.Decode(csrPEM)
-		require.Len(t, rest, 0)
+	resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 
-		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-	}
+	cert, err := x509.ParseCertificate(resp.SignedCertificate.CertChain)
+	require.NoError(t, err)
+
+	isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, pubKey)
+	require.NoError(t, err)
+	require.True(t, isEqual)
 }
 
 func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
@@ -264,20 +266,20 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
 	defer done()
 
-	const testDataDir = "_test_data/csr_invalid"
-	validCsrFiles, err := ioutil.ReadDir(testDataDir)
-	require.NoError(t, err)
-
-	for _, validCsrFile := range validCsrFiles {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
+	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
+	for _, invalidSpiffeID := range invalidSpiffeIDs {
+		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(t, err)
-		block, rest := pem.Decode(csrPEM)
-		require.Len(t, rest, 0)
 
-		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
+		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}
+
+	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
+	resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: invalidSequenceOfBytesAsCSR})
+	require.Error(t, err)
+	require.Nil(t, resp)
 }
 
 func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamca.Plugin, func()) {

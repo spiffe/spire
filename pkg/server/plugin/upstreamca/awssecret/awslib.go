@@ -52,7 +52,7 @@ func newSecretsManagerClient(config *AWSSecretConfiguration, region string) (sec
 		awsConfig.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
 			Client:   sts.New(staticsess),
 			RoleARN:  config.AssumeRoleARN,
-			Duration: 5 * time.Minute,
+			Duration: 15 * time.Minute,
 		})
 	}
 

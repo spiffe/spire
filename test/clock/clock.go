@@ -20,10 +20,11 @@ func New() Clock {
 type Mock struct {
 	*clock.Mock
 	t           testing.TB
-	afterC      chan struct{}
-	tickerC     chan struct{}
+	timerC      chan time.Duration
+	afterC      chan time.Duration
+	tickerC     chan time.Duration
 	tickerCount atomic.Uint32
-	sleepC      chan struct{}
+	sleepC      chan time.Duration
 }
 
 // NewMock creates a mock clock which can be precisely controlled
@@ -31,9 +32,10 @@ func NewMock(t testing.TB) *Mock {
 	m := &Mock{
 		Mock:    clock.NewMock(),
 		t:       t,
-		afterC:  make(chan struct{}, 1),
-		tickerC: make(chan struct{}, 1),
-		sleepC:  make(chan struct{}, 1),
+		timerC:  make(chan time.Duration, 1),
+		afterC:  make(chan time.Duration, 1),
+		tickerC: make(chan time.Duration, 1),
+		sleepC:  make(chan time.Duration, 1),
 	}
 
 	// TLS verification is being done using a realtime clock so we set the mock clock to
@@ -45,6 +47,19 @@ func NewMock(t testing.TB) *Mock {
 	// and then this can be removed as a clock could be use with a zero value at that point.
 	m.Set(time.Now().Truncate(time.Second))
 	return m
+}
+
+func (m *Mock) TimerCh() <-chan time.Duration {
+	return m.timerC
+}
+
+// WaitForTimer waits up to the specified timeout for Timer to be called on the clock.
+func (m *Mock) WaitForTimer(timeout time.Duration, format string, args ...interface{}) {
+	select {
+	case <-m.timerC:
+	case <-time.After(timeout):
+		m.t.Fatalf(format, args...)
+	}
 }
 
 // WaitForAfter waits up to the specified timeout for After to be called on the clock.
@@ -86,11 +101,22 @@ func (m *Mock) WaitForSleep(timeout time.Duration, format string, args ...interf
 	}
 }
 
+// Timer creates a new Timer containing a channel taht will send the time with a period specified by the duration argument.
+func (m *Mock) Timer(d time.Duration) *clock.Timer {
+	c := m.Mock.Timer(d)
+	select {
+	case m.timerC <- d:
+	default:
+	}
+
+	return c
+}
+
 // After waits for the duration to elapse and then sends the current time on the returned channel.
 func (m *Mock) After(d time.Duration) <-chan time.Time {
 	c := m.Mock.After(d)
 	select {
-	case m.afterC <- struct{}{}:
+	case m.afterC <- d:
 	default:
 	}
 
@@ -102,7 +128,7 @@ func (m *Mock) Ticker(d time.Duration) *clock.Ticker {
 	c := m.Mock.Ticker(d)
 	m.tickerCount.Inc()
 	select {
-	case m.tickerC <- struct{}{}:
+	case m.tickerC <- d:
 	default:
 	}
 
@@ -113,7 +139,7 @@ func (m *Mock) Ticker(d time.Duration) *clock.Ticker {
 func (m *Mock) Sleep(d time.Duration) {
 	timer := m.Mock.Timer(d)
 	select {
-	case m.sleepC <- struct{}{}:
+	case m.sleepC <- d:
 	default:
 	}
 	<-timer.C

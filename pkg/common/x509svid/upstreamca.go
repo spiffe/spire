@@ -15,9 +15,8 @@ const (
 )
 
 type UpstreamCAOptions struct {
-	Backdate     time.Duration
-	TTL          time.Duration
-	SerialNumber x509util.SerialNumber
+	Backdate time.Duration
+	TTL      time.Duration
 }
 
 type UpstreamCA struct {
@@ -32,9 +31,6 @@ func NewUpstreamCA(keypair x509util.Keypair, trustDomain string, options Upstrea
 	}
 	if options.TTL <= 0 {
 		options.TTL = DefaultUpstreamCATTL
-	}
-	if options.SerialNumber == nil {
-		options.SerialNumber = x509util.NewSerialNumber()
 	}
 
 	return &UpstreamCA{
@@ -68,7 +64,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte) (*x509.Certifi
 		notAfter = caCert.NotAfter
 	}
 
-	serialNumber, err := ca.options.SerialNumber.NextNumber(ctx)
+	serialNumber, err := x509util.NewSerialNumber()
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +80,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte) (*x509.Certifi
 			x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
-		IsCA: true,
+		IsCA:                  true,
 	}
 
 	certDER, err := ca.keypair.CreateCertificate(ctx, template, csr.PublicKey)

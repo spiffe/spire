@@ -24,7 +24,7 @@ type NeedsLogger interface {
 	SetLogger(hclog.Logger)
 }
 
-// NeedsHostBroker is implemented by plugin/service implementations that need
+// NeedsHostServices is implemented by plugin/service implementations that need
 // to obtain clients to host services.
 type NeedsHostServices interface {
 	BrokerHostServices(HostServiceBroker) error

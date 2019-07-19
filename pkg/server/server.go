@@ -15,14 +15,18 @@ import (
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/svid"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"google.golang.org/grpc"
@@ -35,7 +39,7 @@ const (
 		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
 		"please delete all existing registration entries"
 	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
-	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID %v, from attested node: %v"
+	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID, from attested node"
 
 	pageSize = 1
 )
@@ -88,13 +92,24 @@ type Config struct {
 	Telemetry telemetry.FileConfig
 }
 
-type Server struct {
-	config Config
-}
-
 type ExperimentalConfig struct {
 	// Skip agent id validation in node attestation
 	AllowAgentlessNodeAttestors bool
+
+	// BundleEndpointEnabled, if true, enables the federation bundle endpoint
+	BundleEndpointEnabled bool
+
+	// BundleEndpointAddress is the address on which to serve the federation
+	// bundle endpoint.
+	BundleEndpointAddress *net.TCPAddr
+
+	// FederatesWith holds the federation configuration for trust domains this
+	// server federates with.
+	FederatesWith map[string]bundle_client.TrustDomainConfig
+}
+
+type Server struct {
+	config Config
 }
 
 func New(config Config) *Server {
@@ -108,7 +123,7 @@ func New(config Config) *Server {
 // and then blocks until it's shut down or an error is encountered.
 func (s *Server) Run(ctx context.Context) error {
 	if err := s.run(ctx); err != nil {
-		s.config.Log.Errorf("fatal: %v", err)
+		s.config.Log.WithError(err).Error("fatal run error")
 		return err
 	}
 	return nil
@@ -128,12 +143,15 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  s.config.Telemetry,
-		Logger:      s.config.Log.WithField("subsystem_name", "telemetry"),
+		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: "spire_server",
 	})
 	if err != nil {
 		return err
 	}
+	metricsService := metricsservice.New(metricsservice.Config{
+		Metrics: metrics,
+	})
 
 	// Create the identity provider host service. It will not be functional
 	// until the call to SetDeps() below. There is some tricky initialization
@@ -144,7 +162,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 		TrustDomainID: s.config.TrustDomain.String(),
 	})
 
-	cat, err := s.loadCatalog(ctx, identityProvider)
+	// Create the agent store host service. It will not be functional
+	// until the call to SetDeps() below.
+	agentStore := agentstore.New()
+
+	cat, err := s.loadCatalog(ctx, identityProvider, agentStore, metricsService)
 	if err != nil {
 		return err
 	}
@@ -188,11 +210,21 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return fmt.Errorf("failed setting IdentityProvider deps: %v", err)
 	}
 
+	// Set the agent store dependencies
+	if err := agentStore.SetDeps(agentstore.Deps{
+		DataStore: cat.GetDataStore(),
+	}); err != nil {
+		return fmt.Errorf("failed setting AgentStore deps: %v", err)
+	}
+
+	bundleManager := s.newBundleManager(cat)
+
 	err = util.RunTasks(ctx,
 		caManager.Run,
 		svidRotator.Run,
 		endpointsServer.ListenAndServe,
 		metrics.ListenAndServe,
+		bundleManager.Run,
 	)
 	if err == context.Canceled {
 		err = nil
@@ -221,7 +253,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := server.ListenAndServe(); err != nil {
-				s.config.Log.Warnf("unable to serve profiling server: %v", err)
+				s.config.Log.WithError(err).Warn("unable to serve profiling server")
 			}
 		}()
 		wg.Add(1)
@@ -243,7 +275,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := profiling.Run(ctx, c); err != nil {
-				s.config.Log.Warnf("Failed to run profiling: %v", err)
+				s.config.Log.WithError(err).Warn("Failed to run profiling")
 			}
 		}()
 	}
@@ -254,20 +286,23 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider) (*catalog.CatalogCloser, error) {
+func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
+	metricsService common_services.MetricsService) (*catalog.CatalogCloser, error) {
 	return catalog.Load(ctx, catalog.Config{
-		Log: s.config.Log.WithField("subsystem_name", "catalog"),
+		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
 			TrustDomain: s.config.TrustDomain.Host,
 		},
 		PluginConfig:     s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
+		AgentStore:       agentStore,
+		MetricsService:   metricsService,
 	})
 }
 
 func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 	return ca.NewCA(ca.CAConfig{
-		Log:         s.config.Log.WithField("subsystem_name", "ca"),
+		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:     metrics,
 		X509SVIDTTL: s.config.SVIDTTL,
 		TrustDomain: s.config.TrustDomain,
@@ -280,7 +315,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CA:             serverCA,
 		Catalog:        cat,
 		TrustDomain:    s.config.TrustDomain,
-		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),
+		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
 		Metrics:        metrics,
 		UpstreamBundle: s.config.UpstreamBundle,
 		CATTL:          s.config.CATTL,
@@ -296,7 +331,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
 		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField("subsystem_name", "svid_rotator"),
+		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
 		Metrics:     metrics,
 		TrustDomain: s.config.TrustDomain,
 	})
@@ -306,18 +341,29 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
-	return endpoints.New(&endpoints.Config{
-		TCPAddr:     s.config.BindAddress,
-		UDSAddr:     s.config.BindUDSAddress,
-		SVIDStream:  svidRotator.Subscribe(),
-		TrustDomain: s.config.TrustDomain,
-		Catalog:     catalog,
-		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
-		Metrics:     metrics,
-
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
+	config := &endpoints.Config{
+		TCPAddr:                     s.config.BindAddress,
+		UDSAddr:                     s.config.BindUDSAddress,
+		SVIDObserver:                svidObserver,
+		TrustDomain:                 s.config.TrustDomain,
+		Catalog:                     catalog,
+		ServerCA:                    serverCA,
+		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Metrics:                     metrics,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
+	}
+	if s.config.Experimental.BundleEndpointEnabled {
+		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
+	}
+	return endpoints.New(config)
+}
+
+func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
+	return bundle_client.NewManager(bundle_client.ManagerConfig{
+		Log:          s.config.Log.WithField("subsystem_name", "bundle_client"),
+		DataStore:    cat.GetDataStore(),
+		TrustDomains: s.config.Experimental.FederatesWith,
 	})
 }
 
@@ -359,7 +405,7 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 	for _, node := range nodesResponse.Nodes {
 		id, err := url.Parse(node.SpiffeId)
 		if err != nil {
-			s.config.Log.Warnf(invalidSpiffeIDAttestedNode, node.SpiffeId, err)
+			s.config.Log.WithError(err).WithField(telemetry.SPIFFEID, node.SpiffeId).Warn(invalidSpiffeIDAttestedNode)
 			continue
 		}
 

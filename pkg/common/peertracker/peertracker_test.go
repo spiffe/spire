@@ -44,7 +44,7 @@ func (p *PeerTrackerTestSuite) SetupTest() {
 		Name: path.Join(p.tempDir, "test.sock"),
 	}
 
-	p.ul, err = ListenUnix(p.unixAddr.Network(), p.unixAddr)
+	p.ul, err = (&ListenerFactory{}).ListenUnix(p.unixAddr.Network(), p.unixAddr)
 	p.NoError(err)
 }
 

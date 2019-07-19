@@ -1,31 +1,32 @@
 package ca
 
 import (
+	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"net/url"
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 )
 
-func CreateServerCATemplate(csrDER []byte, trustDomain string, notBefore, notAfter time.Time, serialNumber *big.Int) (*x509.Certificate, error) {
-	csr, err := x509svid.ParseAndValidateCSR(csrDER, idutil.AllowTrustDomain(trustDomain))
+func CreateServerCATemplate(spiffeID string, publicKey crypto.PublicKey, trustDomain string, notBefore, notAfter time.Time, serialNumber *big.Int, subject pkix.Name) (*x509.Certificate, error) {
+	uri, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowTrustDomain(trustDomain))
 	if err != nil {
 		return nil, err
 	}
 
-	keyID, err := x509util.GetSubjectKeyId(csr.PublicKey)
+	keyID, err := x509util.GetSubjectKeyId(publicKey)
 	if err != nil {
 		return nil, err
 	}
 
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
-		Subject:      csr.Subject,
-		URIs:         csr.URIs,
+		Subject:      subject,
+		URIs:         []*url.URL{uri},
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 		SubjectKeyId: keyID,
@@ -34,12 +35,12 @@ func CreateServerCATemplate(csrDER []byte, trustDomain string, notBefore, notAft
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		PublicKey:             csr.PublicKey,
+		PublicKey:             publicKey,
 	}, nil
 }
 
-func CreateX509SVIDTemplate(csrDER []byte, trustDomain string, notBefore, notAfter time.Time, serialNumber *big.Int) (*x509.Certificate, error) {
-	csr, err := x509svid.ParseAndValidateCSR(csrDER, idutil.AllowAnyInTrustDomain(trustDomain))
+func CreateX509SVIDTemplate(spiffeID string, publicKey crypto.PublicKey, trustDomain string, notBefore, notAfter time.Time, serialNumber *big.Int) (*x509.Certificate, error) {
+	uri, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowAnyInTrustDomain(trustDomain))
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func CreateX509SVIDTemplate(csrDER []byte, trustDomain string, notBefore, notAft
 		Organization: []string{"SPIRE"},
 	}
 
-	keyID, err := x509util.GetSubjectKeyId(csr.PublicKey)
+	keyID, err := x509util.GetSubjectKeyId(publicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func CreateX509SVIDTemplate(csrDER []byte, trustDomain string, notBefore, notAft
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject:      subject,
-		URIs:         csr.URIs,
+		URIs:         []*url.URL{uri},
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 		SubjectKeyId: keyID,
@@ -69,6 +70,6 @@ func CreateX509SVIDTemplate(csrDER []byte, trustDomain string, notBefore, notAft
 			x509.ExtKeyUsageClientAuth,
 		},
 		BasicConstraintsValid: true,
-		PublicKey:             csr.PublicKey,
+		PublicKey:             publicKey,
 	}, nil
 }

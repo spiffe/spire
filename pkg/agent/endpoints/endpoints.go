@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints/sds"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -27,7 +28,8 @@ type Server interface {
 }
 
 type endpoints struct {
-	c *Config
+	c            *Config
+	unixListener *peertracker.ListenerFactory
 }
 
 func (e *endpoints) ListenAndServe(ctx context.Context) error {
@@ -73,8 +75,8 @@ func (e *endpoints) registerWorkloadAPI(server *grpc.Server) {
 	w := &workload.Handler{
 		Manager: e.c.Manager,
 		Catalog: e.c.Catalog,
-		L:       e.c.Log.WithField("subsystem_name", "workload_api"),
-		M:       e.c.Metrics,
+		Log:     e.c.Log.WithField(telemetry.SubsystemName, telemetry.WorkloadAPI),
+		Metrics: e.c.Metrics,
 	}
 
 	workload_pb.RegisterSpiffeWorkloadAPIServer(server, w)
@@ -83,14 +85,14 @@ func (e *endpoints) registerWorkloadAPI(server *grpc.Server) {
 func (e *endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 	attestor := attestor.New(&attestor.Config{
 		Catalog: e.c.Catalog,
-		L:       e.c.Log,
-		M:       e.c.Metrics,
+		Log:     e.c.Log,
+		Metrics: e.c.Metrics,
 	})
 
 	h := sds.NewHandler(sds.HandlerConfig{
 		Attestor: attestor,
 		Manager:  e.c.Manager,
-		Log:      e.c.Log.WithField("subsystem_name", "sds_api"),
+		Log:      e.c.Log.WithField(telemetry.SubsystemName, telemetry.SDSAPI),
 		Metrics:  e.c.Metrics,
 	})
 	sds_v2.RegisterSecretDiscoveryServiceServer(server, h)
@@ -106,7 +108,7 @@ func (e *endpoints) createUDSListener() (net.Listener, error) {
 	// Remove uds if already exists
 	os.Remove(e.c.BindAddr.String())
 
-	l, err := peertracker.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
+	l, err := e.unixListener.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
 	if err != nil {
 		return nil, fmt.Errorf("create UDS listener: %s", err)
 	}

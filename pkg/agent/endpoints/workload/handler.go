@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -39,8 +40,11 @@ import (
 type Handler struct {
 	Manager manager.Manager
 	Catalog catalog.Catalog
-	L       logrus.FieldLogger
-	M       telemetry.Metrics
+	Log     logrus.FieldLogger
+	Metrics telemetry.Metrics
+
+	// tracks the number of outstanding connections
+	connections int32
 }
 
 // FetchJWTSVID processes request for a JWT SVID
@@ -120,7 +124,10 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 			telemetry_workload.MeasureSendJWTBundleLatency(metrics, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.L.Warnf("Took %v seconds to send JWT bundle to PID %v", time.Since(start).Seconds, pid)
+				h.Log.WithFields(logrus.Fields{
+					telemetry.Seconds: time.Since(start).Seconds,
+					telemetry.PID:     pid,
+				}).Warn("Took >1 second to send JWT bundle to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -192,7 +199,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 			// taken by the CallCounter in sendX509SVIDResponse function.
 			telemetry_workload.MeasureFetchX509SVIDLatency(metrics, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.L.Warnf("Took %v seconds to send SVID response to PID %v", time.Since(start).Seconds, pid)
+				h.Log.WithFields(logrus.Fields{
+					telemetry.Seconds: time.Since(start).Seconds,
+					telemetry.PID:     pid,
+				}).Warn("Took >1 second to send SVID response to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -281,7 +291,7 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream wo
 func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
 	bundles := make(map[string][]byte)
 	if update.Bundle != nil {
-		jwksBytes, err := bundleutil.JWTJWKSBytesFromBundle(update.Bundle)
+		jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys())
 		if err != nil {
 			return nil, err
 		}
@@ -289,7 +299,7 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}
 
 	for _, federatedBundle := range update.FederatedBundles {
-		jwksBytes, err := bundleutil.JWTJWKSBytesFromBundle(federatedBundle)
+		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys())
 		if err != nil {
 			return nil, err
 		}
@@ -316,32 +326,29 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 	}
 
 	// add to count of current
-	telemetry_workload.IncrConnectionTotalCounter(h.M)
+	telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, 1))
+	done := func() {
+		// rely on caller to decrement count of current connections
+		telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, -1))
+	}
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
-		L:       h.L,
-		M:       h.M,
+		Log:     h.Log,
+		Metrics: h.Metrics,
 	}
 
 	selectors := attestor.New(&config).Attest(ctx, watcher.PID())
 
 	// Ensure that the original caller is still alive so that we know we didn't
 	// attest some other process that happened to be assigned the original PID
-	err = watcher.IsAlive()
-	if err != nil {
-		// error, decrement count of current connections
-		telemetry_workload.DecrConnectionTotalCounter(h.M)
+	if err := watcher.IsAlive(); err != nil {
+		done()
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.M, selectorsToLabels(selectors))
+	metrics := telemetry.WithLabels(h.Metrics, selectorsToLabels(selectors))
 	telemetry_workload.IncrConnectionCounter(metrics)
-
-	done := func() {
-		// rely on caller to decrement count of current connections
-		telemetry_workload.DecrConnectionTotalCounter(h.M)
-	}
 
 	return watcher.PID(), selectors, metrics, done, nil
 }

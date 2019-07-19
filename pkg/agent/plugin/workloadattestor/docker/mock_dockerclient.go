@@ -6,9 +6,10 @@ package docker
 
 import (
 	context "context"
+	reflect "reflect"
+
 	types "github.com/docker/docker/api/types"
 	gomock "github.com/golang/mock/gomock"
-	reflect "reflect"
 )
 
 // MockDockerClient is a mock of DockerClient interface

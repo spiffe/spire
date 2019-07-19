@@ -34,6 +34,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | Notifier   | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md) | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap. |
 | UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 | UpstreamCA | [awssecret](/doc/plugin_server_upstreamca_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamCA | [spire](/doc/plugin_server_upstreamca_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
 ## Server configuration file
 
@@ -43,13 +44,14 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 
 | Configuration               | Description                                                  | Default                       |
 |:----------------------------|:-------------------------------------------------------------|:------------------------------|
-| `bind_address`              | IP address or DNS name of the SPIRE server                   |                               |
-| `bind_port`                 | HTTP Port number of the SPIRE server                         |                               |
+| `bind_address`              | IP address or DNS name of the SPIRE server                   | 0.0.0.0                       |
+| `bind_port`                 | HTTP Port number of the SPIRE server                         | 8081                          |
 | `ca_subject`                | The Subject that CA certificates should use (see below)      |                               |
 | `ca_ttl`                    | The default CA/signing key TTL                               | 24h                           |
 | `data_dir`                  | A directory the server can use for its runtime               |                               |
 | `log_file`                  | File to write logs to                                        |                               |
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>          | INFO                          |
+| `log_format`                | Format of logs, \<text\|json\>                               | Text                              |
 | `registration_uds_path`     | Location to bind the registration API socket                 | /tmp/spire-registration.sock  |
 | `svid_ttl`                  | The default SVID TTL                                         | 1h                            |
 | `trust_domain`              | The trust domain that this server belongs to                 |                               |
@@ -122,6 +124,7 @@ Most of the configuration file above options have identical command-line counter
 | `-config` | Path to a SPIRE config file | conf/server/server.conf |
 | `-dataDir` | Directory to store runtime data to | |
 | `-logFile` | File to write logs to | |
+| `-logFormat` | Format of logs, \<text\|json\> | |
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
 | `-registrationUDSPath` | UDS Path to bind registration API | |
 | `-serverPort` | Port number of the SPIRE server | |
@@ -312,6 +315,12 @@ server {
         country = ["US"],
         organization = ["SPIRE"],
         common_name = "",
+    }
+}
+
+telemetry {
+    Prometheus {
+        port = 1234
     }
 }
 

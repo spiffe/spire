@@ -10,9 +10,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/imdario/mergo"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -20,34 +22,37 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
+	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 )
 
 const (
-	defaultConfigPath = "conf/server/server.conf"
-	defaultSocketPath = "/tmp/spire-registration.sock"
-	defaultLogLevel   = "INFO"
+	defaultConfigPath         = "conf/server/server.conf"
+	defaultSocketPath         = "/tmp/spire-registration.sock"
+	defaultLogLevel           = "INFO"
+	defaultBundleEndpointPort = 443
 )
 
-// runConfig represents available configurables for file and CLI options
-type runConfig struct {
-	Server        serverRunConfig            `hcl:"server"`
-	PluginConfigs catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry     telemetry.FileConfig       `hcl:"telemetry"`
+// config contains all available configurables, arranged by section
+type config struct {
+	Server    *serverConfig               `hcl:"server"`
+	Plugins   *catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry telemetry.FileConfig        `hcl:"telemetry"`
 }
 
-type serverRunConfig struct {
+type serverConfig struct {
 	BindAddress         string             `hcl:"bind_address"`
 	BindPort            int                `hcl:"bind_port"`
 	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
 	CATTL               string             `hcl:"ca_ttl"`
 	DataDir             string             `hcl:"data_dir"`
+	Experimental        experimentalConfig `hcl:"experimental"`
 	LogFile             string             `hcl:"log_file"`
 	LogLevel            string             `hcl:"log_level"`
+	LogFormat           string             `hcl:"log_format"`
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
 	SVIDTTL             string             `hcl:"svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
 	UpstreamBundle      bool               `hcl:"upstream_bundle"`
-	Experimental        experimentalConfig `hcl:"experimental"`
 
 	ConfigPath string
 
@@ -60,6 +65,11 @@ type serverRunConfig struct {
 
 type experimentalConfig struct {
 	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
+
+	BundleEndpointEnabled bool                           `hcl:"bundle_endpoint_enabled"`
+	BundleEndpointAddress string                         `hcl:"bundle_endpoint_address"`
+	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
+	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
 }
 
 type caSubjectConfig struct {
@@ -68,13 +78,14 @@ type caSubjectConfig struct {
 	CommonName   string   `hcl:"common_name"`
 }
 
-type serverConfig struct {
-	server.Config
+type federatesWithConfig struct {
+	BundleEndpointAddress  string `hcl:"bundle_endpoint_address"`
+	BundleEndpointPort     int    `hcl:"bundle_endpoint_port"`
+	BundleEndpointSpiffeID string `hcl:"bundle_endpoint_spiffe_id"`
 }
 
 // Run CLI struct
-type RunCLI struct {
-}
+type RunCLI struct{}
 
 //Help prints the server cmd usage
 func (*RunCLI) Help() string {
@@ -82,42 +93,40 @@ func (*RunCLI) Help() string {
 	return err.Error()
 }
 
-//Run the SPIFFE Server
+// Run the SPIFFE Server
 func (*RunCLI) Run(args []string) int {
-	cliConfig, err := parseFlags(args)
+	// First parse the CLI flags so we can get the config
+	// file path, if set
+	cliInput, err := parseFlags(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	fileConfig, err := parseFile(cliConfig.Server.ConfigPath)
+	// Load and parse the config file using either the default
+	// path or CLI-specified value
+	fileInput, err := parseFile(cliInput.ConfigPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	c := newDefaultConfig()
-
-	// Get the plugin and telemetry configurations from the file
-	c.PluginConfigs = fileConfig.PluginConfigs
-	c.Telemetry = fileConfig.Telemetry
-
-	err = mergeConfigs(c, fileConfig, cliConfig)
+	input, err := mergeInput(fileInput, cliInput)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	err = validateConfig(c)
+	c, err := newServerConfig(input)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	// set umask before starting up the server
+	// Set umask before starting up the server
 	cli.SetUmask(c.Log)
 
-	s := server.New(c.Config)
+	s := server.New(*c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -125,10 +134,11 @@ func (*RunCLI) Run(args []string) int {
 
 	err = s.Run(ctx)
 	if err != nil {
-		c.Log.Error(err.Error())
+		c.Log.WithError(err).Error("server crashed")
 		return 1
 	}
 
+	c.Log.Info("Server stopped gracefully")
 	return 0
 }
 
@@ -137,45 +147,74 @@ func (*RunCLI) Synopsis() string {
 	return "Runs the server"
 }
 
-func parseFile(filePath string) (*runConfig, error) {
-	c := &runConfig{}
-	// Return a friendly error if the file is missing
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		msg := "could not find config file %s: please use the -config flag"
-		p, err := filepath.Abs(filePath)
-		if err != nil {
-			p = filePath
-			msg = "could not determine CWD; config file not found at %s: use -config"
-		}
-		return nil, fmt.Errorf(msg, p)
+func parseFile(path string) (*config, error) {
+	c := &config{}
+
+	if path == "" {
+		path = defaultConfigPath
 	}
 
-	data, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read configuration: %v", err)
+	// Return a friendly error if the file is missing
+	data, err := ioutil.ReadFile(path)
+	if os.IsNotExist(err) {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			msg := "could not determine CWD; config file not found at %s: use -config"
+			return nil, fmt.Errorf(msg, path)
+		}
+
+		msg := "could not find config file %s: please use the -config flag"
+		return nil, fmt.Errorf(msg, absPath)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
+	}
+
 	if err := hcl.Decode(&c, string(data)); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration: %v", err)
+		return nil, fmt.Errorf("unable to decode configuration %q: %v", path, err)
 	}
 
 	return c, nil
 }
 
-func parseFlags(args []string) (*runConfig, error) {
+func parseFlags(args []string) (*serverConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	c := &runConfig{}
+	c := &serverConfig{}
 
-	flags.StringVar(&c.Server.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&c.Server.BindPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.StringVar(&c.Server.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
-	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
-	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
-	flags.StringVar(&c.Server.DataDir, "dataDir", "", "Directory to store runtime data to")
-	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
-	flags.BoolVar(&c.Server.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
+	flags.StringVar(&c.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&c.BindPort, "serverPort", 0, "Port number of the SPIRE server")
+	flags.StringVar(&c.ConfigPath, "config", "", "Path to a SPIRE config file")
+	flags.StringVar(&c.DataDir, "dataDir", "", "Directory to store runtime data to")
+	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
+	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
+	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
+	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
+	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
+	flags.BoolVar(&c.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
 
 	err := flags.Parse(args)
+	if err != nil {
+		return c, err
+	}
+
+	return c, nil
+}
+
+func mergeInput(fileInput *config, cliInput *serverConfig) (*config, error) {
+	c := &config{Server: &serverConfig{}}
+
+	// Highest precedence first
+	err := mergo.Merge(c.Server, cliInput)
+	if err != nil {
+		return nil, err
+	}
+
+	err = mergo.Merge(c, fileInput)
+	if err != nil {
+		return nil, err
+	}
+
+	err = mergo.Merge(c, defaultConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -183,146 +222,146 @@ func parseFlags(args []string) (*runConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *serverConfig, fileConfig, cliConfig *runConfig) error {
-	// CLI > File, merge fileConfig first
-	err := mergeConfig(c, fileConfig)
+func newServerConfig(c *config) (*server.Config, error) {
+	sc := &server.Config{}
+
+	if err := validateConfig(c); err != nil {
+		return nil, err
+	}
+
+	ip := net.ParseIP(c.Server.BindAddress)
+	if ip == nil {
+		return nil, fmt.Errorf("could not parse bind_adress %q", c.Server.BindAddress)
+	}
+	sc.BindAddress = &net.TCPAddr{
+		IP:   ip,
+		Port: c.Server.BindPort,
+	}
+
+	sc.BindUDSAddress = &net.UnixAddr{
+		Name: c.Server.RegistrationUDSPath,
+		Net:  "unix",
+	}
+
+	sc.DataDir = c.Server.DataDir
+
+	td, err := idutil.ParseSpiffeID("spiffe://"+c.Server.TrustDomain, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Server.TrustDomain, err)
+	}
+	sc.TrustDomain = *td
+
+	ll := strings.ToUpper(c.Server.LogLevel)
+	lf := strings.ToUpper(c.Server.LogFormat)
+	logger, err := log.NewLogger(ll, lf, c.Server.LogFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not start logger: %s", err)
+	}
+	sc.Log = logger
+
+	sc.UpstreamBundle = c.Server.UpstreamBundle
+	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
+	sc.Experimental.BundleEndpointEnabled = c.Server.Experimental.BundleEndpointEnabled
+	sc.Experimental.BundleEndpointAddress = &net.TCPAddr{
+		IP:   net.ParseIP(c.Server.Experimental.BundleEndpointAddress),
+		Port: c.Server.Experimental.BundleEndpointPort,
 	}
 
-	return mergeConfig(c, cliConfig)
-}
-
-func mergeConfig(orig *serverConfig, cmd *runConfig) error {
-	// Parse server address
-	if cmd.Server.BindAddress != "" {
-		ip := net.ParseIP(cmd.Server.BindAddress)
-		if ip == nil {
-			return fmt.Errorf("It was not possible to parse BindAdress: %v", cmd.Server.BindAddress)
+	federatesWith := map[string]bundleClient.TrustDomainConfig{}
+	for trustDomain, config := range c.Server.Experimental.FederatesWith {
+		port := defaultBundleEndpointPort
+		if config.BundleEndpointPort != 0 {
+			port = config.BundleEndpointPort
 		}
-		orig.BindAddress.IP = ip
-	}
 
-	if cmd.Server.RegistrationUDSPath != "" {
-		orig.BindUDSAddress.Name = cmd.Server.RegistrationUDSPath
+		federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
+			EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
+			EndpointSpiffeID: config.BundleEndpointSpiffeID,
+		}
 	}
+	sc.Experimental.FederatesWith = federatesWith
 
-	if cmd.Server.BindPort != 0 {
-		orig.BindAddress.Port = cmd.Server.BindPort
-	}
+	sc.ProfilingEnabled = c.Server.ProfilingEnabled
+	sc.ProfilingPort = c.Server.ProfilingPort
+	sc.ProfilingFreq = c.Server.ProfilingFreq
+	sc.ProfilingNames = c.Server.ProfilingNames
 
-	if cmd.Server.DataDir != "" {
-		orig.DataDir = cmd.Server.DataDir
-	}
-
-	if cmd.Server.TrustDomain != "" {
-		trustDomain, err := idutil.ParseSpiffeID("spiffe://"+cmd.Server.TrustDomain, idutil.AllowAnyTrustDomain())
+	if c.Server.SVIDTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.SVIDTTL)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.SVIDTTL, err)
 		}
-		orig.TrustDomain = *trustDomain
+		sc.SVIDTTL = ttl
 	}
 
-	// Handle log file and level
-	if cmd.Server.LogFile != "" || cmd.Server.LogLevel != "" {
-		logLevel := defaultLogLevel
-		if cmd.Server.LogLevel != "" {
-			logLevel = cmd.Server.LogLevel
-		}
-
-		logger, err := log.NewLogger(logLevel, cmd.Server.LogFile)
+	if c.Server.CATTL != "" {
+		ttl, err := time.ParseDuration(c.Server.CATTL)
 		if err != nil {
-			return fmt.Errorf("Could not open log file %s: %s", cmd.Server.LogFile, err)
+			return nil, fmt.Errorf("could not parse default CA ttl %q: %v", c.Server.CATTL, err)
 		}
-
-		orig.Log = logger
+		sc.CATTL = ttl
 	}
 
-	// TODO: CLI should be able to override with `false` value
-	if cmd.Server.UpstreamBundle {
-		orig.UpstreamBundle = cmd.Server.UpstreamBundle
-	}
-
-	if cmd.Server.Experimental.AllowAgentlessNodeAttestors {
-		orig.Experimental.AllowAgentlessNodeAttestors = cmd.Server.Experimental.AllowAgentlessNodeAttestors
-	}
-
-	if cmd.Server.ProfilingEnabled {
-		orig.ProfilingEnabled = cmd.Server.ProfilingEnabled
-	}
-
-	if orig.ProfilingEnabled {
-		if cmd.Server.ProfilingPort > 0 {
-			orig.ProfilingPort = cmd.Server.ProfilingPort
-		}
-
-		if cmd.Server.ProfilingFreq > 0 {
-			orig.ProfilingFreq = cmd.Server.ProfilingFreq
-		}
-
-		if len(cmd.Server.ProfilingNames) > 0 {
-			orig.ProfilingNames = cmd.Server.ProfilingNames
-		}
-	}
-
-	if cmd.Server.SVIDTTL != "" {
-		ttl, err := time.ParseDuration(cmd.Server.SVIDTTL)
-		if err != nil {
-			return fmt.Errorf("unable to parse default ttl %q: %v", cmd.Server.SVIDTTL, err)
-		}
-		orig.SVIDTTL = ttl
-	}
-
-	if cmd.Server.CATTL != "" {
-		ttl, err := time.ParseDuration(cmd.Server.CATTL)
-		if err != nil {
-			return fmt.Errorf("unable to parse default ttl %q: %v", cmd.Server.CATTL, err)
-		}
-		orig.CATTL = ttl
-	}
-
-	if subject := cmd.Server.CASubject; subject != nil {
-		orig.CASubject = pkix.Name{
+	if subject := c.Server.CASubject; subject != nil {
+		sc.CASubject = pkix.Name{
 			Organization: subject.Organization,
 			Country:      subject.Country,
 			CommonName:   subject.CommonName,
 		}
 	}
 
+	sc.PluginConfigs = *c.Plugins
+	sc.Telemetry = c.Telemetry
+
+	return sc, nil
+}
+
+func validateConfig(c *config) error {
+	if c.Server == nil {
+		return errors.New("server section must be configured")
+	}
+
+	if c.Server.BindAddress == "" || c.Server.BindPort == 0 {
+		return errors.New("bind_address and bind_port must be configured")
+	}
+
+	if c.Server.RegistrationUDSPath == "" {
+		return errors.New("registration_uds_path must be configured")
+	}
+
+	if c.Server.TrustDomain == "" {
+		return errors.New("trust_domain must be configured")
+	}
+
+	if c.Server.DataDir == "" {
+		return errors.New("data_dir must be configured")
+	}
+
+	if c.Plugins == nil {
+		return errors.New("plugins section must be configured")
+	}
+
+	for td, tdConfig := range c.Server.Experimental.FederatesWith {
+		if tdConfig.BundleEndpointAddress == "" {
+			return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
+		}
+	}
+
 	return nil
 }
 
-func validateConfig(c *serverConfig) error {
-	if c.BindAddress.IP == nil || c.BindAddress.Port == 0 {
-		return errors.New("BindAddress and BindPort are required")
-	}
-
-	if c.BindUDSAddress.Name == "" {
-		return errors.New("BindUDSAddress Name is required")
-	}
-
-	if c.TrustDomain.String() == "" {
-		return errors.New("TrustDomain is required")
-	}
-
-	if c.DataDir == "" {
-		return errors.New("DataDir is required")
-	}
-
-	return nil
-}
-
-func newDefaultConfig() *serverConfig {
-	// log.NewLogger() cannot return error when using STDOUT
-	logger, _ := log.NewLogger(defaultLogLevel, "")
-	bindAddress := &net.TCPAddr{}
-	bindUDSAddress := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
-
-	return &serverConfig{
-		Config: server.Config{
-			Log:            logger,
-			BindAddress:    bindAddress,
-			BindUDSAddress: bindUDSAddress,
+func defaultConfig() *config {
+	return &config{
+		Server: &serverConfig{
+			BindAddress:         "0.0.0.0",
+			BindPort:            8081,
+			LogLevel:            defaultLogLevel,
+			LogFormat:           log.DefaultFormat,
+			RegistrationUDSPath: defaultSocketPath,
+			Experimental: experimentalConfig{
+				BundleEndpointAddress: "0.0.0.0",
+				BundleEndpointPort:    defaultBundleEndpointPort,
+			},
 		},
 	}
 }

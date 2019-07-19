@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,14 +62,6 @@ type challengeRequest struct {
 type challengeResponse struct {
 	Nonce     []byte
 	Signature *ssh.Signature
-}
-
-func (c *ClientHandshake) SpiffeID() (string, error) {
-	hostname, err := decanonicalizeHostname(c.c.cert.ValidPrincipals[0], c.c.canonicalDomain)
-	if err != nil {
-		return "", err
-	}
-	return makeSpiffeID(c.c.trustDomain, c.c.agentPathTemplate, c.c.cert, hostname)
 }
 
 func (c *ClientHandshake) AttestationData() ([]byte, error) {
@@ -201,8 +194,8 @@ func (s *ServerHandshake) VerifyChallengeResponse(res []byte) error {
 	return nil
 }
 
-func (s *ServerHandshake) SpiffeID() (string, error) {
-	return makeSpiffeID(s.s.trustDomain, s.s.agentPathTemplate, s.cert, s.hostname)
+func (s *ServerHandshake) AgentID() (string, error) {
+	return makeAgentID(s.s.trustDomain, s.s.agentPathTemplate, s.cert, s.hostname)
 }
 
 func newNonce() ([]byte, error) {
@@ -226,15 +219,22 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func makeSpiffeID(trustDomain string, agentPathTemplate *template.Template, cert *ssh.Certificate, hostname string) (string, error) {
+func makeAgentID(trustDomain string, agentPathTemplate *template.Template, cert *ssh.Certificate, hostname string) (string, error) {
 	var agentPath bytes.Buffer
 	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
 		Certificate: cert,
 		PluginName:  PluginName,
-		Fingerprint: ssh.FingerprintSHA256(cert),
+		Fingerprint: urlSafeSSHFingerprintSHA256(cert),
 		Hostname:    hostname,
 	}); err != nil {
 		return "", err
 	}
 	return idutil.AgentURI(trustDomain, agentPath.String()).String(), nil
+}
+
+// urlSafeSSHFingerprintSHA256 is a modified version of ssh.FingerprintSHA256
+// that returns an unpadded, url-safe version of the fingerprint.
+func urlSafeSSHFingerprintSHA256(pubKey ssh.PublicKey) string {
+	sha256sum := sha256.Sum256(pubKey.Marshal())
+	return base64.RawURLEncoding.EncodeToString(sha256sum[:])
 }

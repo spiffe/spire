@@ -15,6 +15,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
@@ -22,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -109,6 +112,17 @@ func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBund
 func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateBundle(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
+func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = setBundle(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -475,7 +489,7 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 
 	if err := op(tx); err != nil {
 		tx.Rollback()
-		return err
+		return gormToGRPCStatus(err)
 	}
 
 	if readOnly {
@@ -491,7 +505,7 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	ds.log.Info("Opening SQL database", "dbtype", cfg.DatabaseType)
+	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
 		db, err = sqlite{}.connect(cfg)
@@ -553,6 +567,36 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 
 	return &datastore.UpdateBundleResponse{
 		Bundle: req.Bundle,
+	}, nil
+}
+
+func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
+	newModel, err := bundleToModel(req.Bundle)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch existing or create new
+	model := &Bundle{}
+	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
+	if result.RecordNotFound() {
+		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		if err != nil {
+			return nil, err
+		}
+		return &datastore.SetBundleResponse{
+			Bundle: resp.Bundle,
+		}, nil
+	} else if result.Error != nil {
+		return nil, sqlError.Wrap(result.Error)
+	}
+
+	resp, err := updateBundle(tx, &datastore.UpdateBundleRequest{Bundle: req.Bundle})
+	if err != nil {
+		return nil, err
+	}
+	return &datastore.SetBundleResponse{
+		Bundle: resp.Bundle,
 	}, nil
 }
 
@@ -1485,4 +1529,20 @@ func validateDBConfig(cfg *configuration) error {
 	}
 
 	return nil
+}
+
+// gormToGRPCStatus takes an error, and converts it to a GRPC error.
+// If the error is a gorm error type with a known mapping to a GRPC
+// status, that code will be set, otherwise the code will be set to
+// Unknown.
+func gormToGRPCStatus(err error) error {
+	cause := errs.Unwrap(err)
+	code := codes.Unknown
+	switch {
+	case gorm.IsRecordNotFoundError(cause):
+		code = codes.NotFound
+	default:
+	}
+
+	return status.Error(code, err.Error())
 }

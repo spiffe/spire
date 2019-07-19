@@ -296,7 +296,26 @@ func normalizeSpiffeIDURL(u *url.URL) *url.URL {
 	return &c
 }
 
-// AgentURI creates an agent spiffe URI given a trust domain and a path.
+// TrustDomainID creates an trust domain SPIFFE ID given a trust domain.
+func TrustDomainID(trustDomain string) string {
+	return TrustDomainURI(trustDomain).String()
+}
+
+// TrustDomainURI creates an trust domain SPIFFE URI given a trust domain.
+func TrustDomainURI(trustDomain string) *url.URL {
+	return &url.URL{
+		Scheme: "spiffe",
+		Host:   trustDomain,
+	}
+}
+
+// AgentID creates an agent SPIFFE ID given a trust domain and a path.
+// The /spire/agent prefix in the path is implied.
+func AgentID(trustDomain, p string) string {
+	return AgentURI(trustDomain, p).String()
+}
+
+// AgentURI creates an agent SPIFFE URI given a trust domain and a path.
 // The /spire/agent prefix in the path is implied.
 func AgentURI(trustDomain, p string) *url.URL {
 	return &url.URL{
@@ -306,12 +325,12 @@ func AgentURI(trustDomain, p string) *url.URL {
 	}
 }
 
-// ServerID creates a server spiffe ID string given a trustDomain.
+// ServerID creates a server SPIFFE ID string given a trustDomain.
 func ServerID(trustDomain string) string {
 	return ServerURI(trustDomain).String()
 }
 
-// ServerURI creates a server spiffe URI given a trustDomain.
+// ServerURI creates a server SPIFFE URI given a trustDomain.
 func ServerURI(trustDomain string) *url.URL {
 	return &url.URL{
 		Scheme: "spiffe",

@@ -73,7 +73,6 @@ type PSATClaims struct {
 
 type SATAttestationData struct {
 	Cluster string `json:"cluster"`
-	UUID    string `json:"uuid"`
 	Token   string `json:"token"`
 }
 

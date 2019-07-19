@@ -56,26 +56,6 @@ func (s *MSIAttestorSuite) TestFetchAttestationDataFailedToObtainToken() {
 	s.requireFetchError("azure-msi: unable to fetch token: FAILED")
 }
 
-func (s *MSIAttestorSuite) TestFetchAttestationDataAccessTokenMalformed() {
-	s.token = ""
-	s.requireFetchError("azure-msi: unable to parse token")
-}
-
-func (s *MSIAttestorSuite) TestFetchAttestationDataAccessTokenHasBadClaims() {
-	s.token = "e30.f32.baadf00d"
-	s.requireFetchError("azure-msi: unable to parse token claims")
-}
-
-func (s *MSIAttestorSuite) TestFetchAttestationDataAccessTokenMissingPrincipalID() {
-	s.token = s.makeAccessToken("", "TENANTID")
-	s.requireFetchError("azure-msi: token missing subject claim")
-}
-
-func (s *MSIAttestorSuite) TestFetchAttestationDataAccessTokenMissingTenantID() {
-	s.token = s.makeAccessToken("PRINCIPALID", "")
-	s.requireFetchError("azure-msi: token missing tenant ID claim")
-}
-
 func (s *MSIAttestorSuite) TestFetchAttestationDataSuccess() {
 	s.token = s.makeAccessToken("PRINCIPALID", "TENANTID")
 
@@ -88,7 +68,6 @@ func (s *MSIAttestorSuite) TestFetchAttestationDataSuccess() {
 	s.Require().NotNil(resp)
 
 	// assert attestation data
-	s.Require().Equal("spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID", resp.SpiffeId)
 	s.Require().NotNil(resp.AttestationData)
 	s.Require().Equal("azure_msi", resp.AttestationData.Type)
 	s.Require().JSONEq(fmt.Sprintf(`{"token": %q}`, s.token), string(resp.AttestationData.Data))

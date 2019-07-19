@@ -19,6 +19,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -26,13 +28,15 @@ const (
 )
 
 var (
+	// TODO: These should be grpc/status errors with the AlreadyExists code. #992
 	ErrBundleAlreadyExists       = errors.New("bundle already exists")
-	ErrNoSuchBundle              = errors.New("no such bundle")
 	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
-	ErrNoSuchAttestedNode        = errors.New("no such attested node entry")
-	ErrNoSuchRegistrationEntry   = errors.New("no such registration entry")
-	ErrNoSuchToken               = errors.New("no such token")
 	ErrTokenAlreadyExists        = errors.New("token already exists")
+
+	ErrNoSuchBundle            = status.Error(codes.NotFound, "no such bundle")
+	ErrNoSuchAttestedNode      = status.Error(codes.NotFound, "no such attested node entry")
+	ErrNoSuchRegistrationEntry = status.Error(codes.NotFound, "no such registration entry")
+	ErrNoSuchToken             = status.Error(codes.NotFound, "no such token")
 )
 
 type DataStore struct {
@@ -94,6 +98,20 @@ func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundl
 	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
 
 	return &datastore.UpdateBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
+}
+
+// SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
+func (s *DataStore) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	bundle := req.Bundle
+
+	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
+
+	return &datastore.SetBundleResponse{
 		Bundle: cloneBundle(bundle),
 	}, nil
 }

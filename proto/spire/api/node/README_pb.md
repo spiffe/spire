@@ -12,6 +12,7 @@
     - [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest)
     - [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse)
     - [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest)
+    - [FetchX509SVIDRequest.CsrsEntry](#spire.api.node.FetchX509SVIDRequest.CsrsEntry)
     - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
     - [JSR](#spire.api.node.JSR)
     - [JWTSVID](#spire.api.node.JWTSVID)
@@ -155,7 +156,24 @@ Represents a request with a list of CSR.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| csrs | [bytes](#bytes) | repeated | A list of CSRs |
+| DEPRECATED_csrs | [bytes](#bytes) | repeated | A list of CSRs (deprecated, use `csrs` map instead) |
+| csrs | [FetchX509SVIDRequest.CsrsEntry](#spire.api.node.FetchX509SVIDRequest.CsrsEntry) | repeated | A map of CSRs keyed by entry ID |
+
+
+
+
+
+
+<a name="spire.api.node.FetchX509SVIDRequest.CsrsEntry"></a>
+
+### FetchX509SVIDRequest.CsrsEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| key | [string](#string) |  |  |
+| value | [bytes](#bytes) |  |  |
 
 
 
@@ -238,7 +256,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
+| svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values keyed by: - SPIFFE ID in message &#39;AttestResponse&#39; (Map[SPIFFE_ID] =&gt; SVID) - Entry ID in message &#39;FetchX509SVIDResponse&#39; (Map[Entry_ID] =&gt; SVID) |
 | registration_entries | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 | bundles | [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry) | repeated | Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE ID. Bundles included are the trust bundle for the server trust domain and any federated trust domain bundles applicable to the SVIDs. Supersedes the deprecated `bundle` field. |
 

@@ -7,8 +7,8 @@ provisioned with an ssh identity through an out-of-band mechanism and responds
 to a signature based proof-of-possession challenge issued by the server
 plugin.
 
-The SPIFFE ID produced by the plugin is based on the certificate fingerprint,
-which is an unpadded base64 encoded sha256 hash of the certificate in openssh format.
+The SPIFFE ID produced by the server-side `sshpop` plugin is based on the certificate fingerprint,
+which is an unpadded url-safe base64 encoded sha256 hash of the certificate in openssh format.
 
 ```
 spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
