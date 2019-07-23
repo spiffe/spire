@@ -17,6 +17,7 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -34,9 +35,10 @@ const (
 
 // config contains all available configurables, arranged by section
 type config struct {
-	Server    *serverConfig               `hcl:"server"`
-	Plugins   *catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry telemetry.FileConfig        `hcl:"telemetry"`
+	Server       *serverConfig               `hcl:"server"`
+	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
+	HealthChecks health.Config               `hcl:"health_checks"`
 }
 
 type serverConfig struct {
@@ -111,7 +113,13 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
-	c, err := processInput(fileInput, cliInput)
+	input, err := mergeInput(fileInput, cliInput)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	c, err := newServerConfig(input)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -194,29 +202,34 @@ func parseFlags(args []string) (*serverConfig, error) {
 	return c, nil
 }
 
-func processInput(fileConfig *config, cliConfig *serverConfig) (*server.Config, error) {
-	c := defaultConfig()
+func mergeInput(fileInput *config, cliInput *serverConfig) (*config, error) {
+	c := &config{Server: &serverConfig{}}
 
-	err := mergo.Merge(c, fileConfig, mergo.WithOverride)
+	// Highest precedence first
+	err := mergo.Merge(c.Server, cliInput)
 	if err != nil {
 		return nil, err
 	}
 
-	err = mergo.Merge(c.Server, cliConfig, mergo.WithOverride)
+	err = mergo.Merge(c, fileInput)
 	if err != nil {
 		return nil, err
 	}
 
-	err = validateConfig(c)
+	err = mergo.Merge(c, defaultConfig())
 	if err != nil {
 		return nil, err
 	}
 
-	return processConfig(c)
+	return c, nil
 }
 
-func processConfig(c *config) (*server.Config, error) {
+func newServerConfig(c *config) (*server.Config, error) {
 	sc := &server.Config{}
+
+	if err := validateConfig(c); err != nil {
+		return nil, err
+	}
 
 	ip := net.ParseIP(c.Server.BindAddress)
 	if ip == nil {
@@ -244,7 +257,7 @@ func processConfig(c *config) (*server.Config, error) {
 	lf := strings.ToUpper(c.Server.LogFormat)
 	logger, err := log.NewLogger(ll, lf, c.Server.LogFile)
 	if err != nil {
-		return nil, fmt.Errorf("could not open log file %q: %s", c.Server.LogFile, err)
+		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
 	sc.Log = logger
 
@@ -301,6 +314,7 @@ func processConfig(c *config) (*server.Config, error) {
 
 	sc.PluginConfigs = *c.Plugins
 	sc.Telemetry = c.Telemetry
+	sc.HealthChecks = c.HealthChecks
 
 	return sc, nil
 }
