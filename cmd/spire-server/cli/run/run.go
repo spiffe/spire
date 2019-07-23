@@ -17,6 +17,7 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -34,9 +35,10 @@ const (
 
 // config contains all available configurables, arranged by section
 type config struct {
-	Server    *serverConfig               `hcl:"server"`
-	Plugins   *catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry telemetry.FileConfig        `hcl:"telemetry"`
+	Server       *serverConfig               `hcl:"server"`
+	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
+	HealthChecks health.Config               `hcl:"health_checks"`
 }
 
 type serverConfig struct {
@@ -312,6 +314,7 @@ func newServerConfig(c *config) (*server.Config, error) {
 
 	sc.PluginConfigs = *c.Plugins
 	sc.Telemetry = c.Telemetry
+	sc.HealthChecks = c.HealthChecks
 
 	return sc, nil
 }
