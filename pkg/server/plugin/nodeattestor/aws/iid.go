@@ -26,6 +26,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
@@ -67,6 +68,7 @@ func builtin(p *IIDAttestorPlugin) catalog.Plugin {
 
 // IIDAttestorPlugin implements node attestation for agents running in aws.
 type IIDAttestorPlugin struct {
+	nodeattestorbase.Base
 	config *IIDAttestorConfig
 	mtx    sync.RWMutex
 	hooks  struct {
@@ -135,8 +137,17 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return caws.AttestationStepError("unmarshaling the IID", err)
 	}
 
-	if req.AttestedBefore {
-		return caws.AttestationStepError("validating the IID", fmt.Errorf("the IID has been used and is no longer valid"))
+	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
+	if err != nil {
+		return fmt.Errorf("failed to create spiffe ID: %v", err)
+	}
+
+	attested, err := p.IsAttested(stream.Context(), agentID.String())
+	switch {
+	case err != nil:
+		return err
+	case attested:
+		return errors.New("IID has already been used to attest an agent")
 	}
 
 	docHash := sha256.Sum256([]byte(attestationData.Document))
@@ -168,17 +179,9 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		}
 	}
 
-	spiffeID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
-	if err != nil {
-		return fmt.Errorf("failed to create spiffe ID: %v", err)
-	}
-
-	resp := &nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: spiffeID.String(),
-	}
-
-	return stream.Send(resp)
+	return stream.Send(&nodeattestor.AttestResponse{
+		AgentId: agentID.String(),
+	})
 }
 
 // Configure configures the IIDAttestorPlugin.

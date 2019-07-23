@@ -2,13 +2,20 @@ module github.com/spiffe/spire
 
 go 1.12
 
+replace github.com/spiffe/spire/proto/spire => ./proto/spire
+
 require (
+	bazil.org/fuse v0.0.0-20180421153158-65cc252bf669 // indirect
 	github.com/Azure/azure-sdk-for-go v30.1.0+incompatible
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Azure/go-autorest/autorest v0.2.0
 	github.com/Azure/go-autorest/autorest/azure/auth v0.1.0
 	github.com/Azure/go-autorest/autorest/to v0.2.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.1.0 // indirect
+	// version 1.14
+	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190405210948-c70a36b8193f
+	github.com/InVisionApp/go-health v2.1.0+incompatible
+	github.com/InVisionApp/go-logger v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.4.12 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
@@ -35,7 +42,7 @@ require (
 	github.com/hashicorp/go-hclog v0.9.2
 	github.com/hashicorp/go-plugin v1.0.1
 	github.com/hashicorp/hcl v1.0.0
-	github.com/imdario/mergo v0.3.7 // indirect
+	github.com/imdario/mergo v0.3.7
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.9
 	github.com/mitchellh/cli v1.0.0
@@ -49,6 +56,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spiffe/go-spiffe v0.0.0-20190518123159-37d000f27824
+	github.com/spiffe/spire/proto/spire v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.3.0
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0

@@ -8,9 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
-	"text/template"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -44,10 +42,8 @@ type IITAttestorPlugin struct {
 // IITAttestorConfig configures a IITAttestorPlugin.
 type IITAttestorConfig struct {
 	trustDomain       string
-	idPathTemplate    *template.Template
 	IdentityTokenHost string `hcl:"identity_token_host"`
 	ServiceAccount    string `hcl:"service_account"`
-	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
@@ -63,23 +59,17 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return err
 	}
 
-	identityToken, identityTokenBytes, err := retrieveValidInstanceIdentityToken(identityTokenURL(c.IdentityTokenHost, c.ServiceAccount))
+	identityToken, err := retrieveInstanceIdentityToken(identityTokenURL(c.IdentityTokenHost, c.ServiceAccount))
 	if err != nil {
 		return newErrorf("unable to retrieve valid identity token: %v", err)
 	}
 
-	spiffeID, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityToken.Google.ComputeEngine)
-	if err != nil {
-		return newErrorf("failed to create agent spiffe ID: %v", err)
-	}
-
-	resp := buildAttestationResponse(spiffeID.String(), gcp.PluginName, identityTokenBytes)
-
-	if err := stream.Send(resp); err != nil {
-		return err
-	}
-
-	return nil
+	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
+		AttestationData: &common.AttestationData{
+			Type: gcp.PluginName,
+			Data: identityToken,
+		},
+	})
 }
 
 func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -104,16 +94,6 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		config.IdentityTokenHost = defaultIdentityTokenHost
 	}
 
-	tmpl := gcp.DefaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
-		var err error
-		tmpl, err = template.New("agent-path").Parse(config.AgentPathTemplate)
-		if err != nil {
-			return nil, newErrorf("failed to parse agent path template: %q", config.AgentPathTemplate)
-		}
-	}
-	config.idPathTemplate = tmpl
-
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.config = config
@@ -136,21 +116,6 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	return p.config, nil
 }
 
-// buildAttestationResponse creates an attestation response given a spiffe ID, the plugin name, and the raw bytes of the
-// GCP identity document.
-func buildAttestationResponse(spiffeID string, pluginName string, identityTokenBytes []byte) *nodeattestor.FetchAttestationDataResponse {
-	data := &common.AttestationData{
-		Type: pluginName,
-		Data: identityTokenBytes,
-	}
-
-	resp := &nodeattestor.FetchAttestationDataResponse{
-		AttestationData: data,
-		SpiffeId:        spiffeID,
-	}
-	return resp
-}
-
 // identityTokenURL creates the URL to find an instance identity document given the
 // host of the GCP metadata server and the service account the instance is running as.
 func identityTokenURL(host, serviceAccount string) string {
@@ -164,26 +129,6 @@ func identityTokenURL(host, serviceAccount string) string {
 		RawQuery: query.Encode(),
 	}
 	return url.String()
-}
-
-// retrieveValidInstanceIdentityToken retrieves and validates a GCP identity token from
-// the given URL.
-func retrieveValidInstanceIdentityToken(url string) (*gcp.IdentityToken, []byte, error) {
-	identityTokenBytes, err := retrieveInstanceIdentityToken(url)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	identityToken := &gcp.IdentityToken{}
-	if _, _, err := new(jwt.Parser).ParseUnverified(string(identityTokenBytes), identityToken); err != nil {
-		return nil, nil, newErrorf("unable to parse identity token: %v", err)
-	}
-
-	if identityToken.Google == (gcp.Google{}) {
-		return nil, nil, newError("identity token is missing google claims")
-	}
-
-	return identityToken, identityTokenBytes, nil
 }
 
 func retrieveInstanceIdentityToken(url string) ([]byte, error) {

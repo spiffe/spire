@@ -21,6 +21,8 @@ docker tag spire-server gcr.io/spiffe-io/spire-server:${TRAVIS_COMMIT}
 docker push gcr.io/spiffe-io/spire-server:${TRAVIS_COMMIT}
 docker tag spire-agent gcr.io/spiffe-io/spire-agent:${TRAVIS_COMMIT}
 docker push gcr.io/spiffe-io/spire-agent:${TRAVIS_COMMIT}
+docker tag k8s-workload-registrar gcr.io/spiffe-io/k8s-workload-registrar:${TRAVIS_COMMIT}
+docker push gcr.io/spiffe-io/k8s-workload-registrar:${TRAVIS_COMMIT}
 
 if [ -n "${TRAVIS_TAG}" ]; then
 	# This is a tagged build. Tag and push under the git tag.
@@ -28,10 +30,14 @@ if [ -n "${TRAVIS_TAG}" ]; then
 	docker push gcr.io/spiffe-io/spire-server:${TRAVIS_TAG}
 	docker tag spire-agent gcr.io/spiffe-io/spire-agent:${TRAVIS_TAG}
 	docker push gcr.io/spiffe-io/spire-agent:${TRAVIS_TAG}
+	docker tag k8s-workload-registrar gcr.io/spiffe-io/k8s-workload-registrar:${TRAVIS_TAG}
+	docker push gcr.io/spiffe-io/k8s-workload-registrar:${TRAVIS_TAG}
 elif [ x"${TRAVIS_BRANCH}" = x"master" ]; then
 	# This is an untagged build for master. Tag and push as unstable
 	docker tag spire-server gcr.io/spiffe-io/spire-server:unstable
 	docker push gcr.io/spiffe-io/spire-server:unstable
 	docker tag spire-agent gcr.io/spiffe-io/spire-agent:unstable
 	docker push gcr.io/spiffe-io/spire-agent:unstable
+	docker tag k8s-workload-registrar gcr.io/spiffe-io/k8s-workload-registrar:unstable
+	docker push gcr.io/spiffe-io/k8s-workload-registrar:unstable
 fi

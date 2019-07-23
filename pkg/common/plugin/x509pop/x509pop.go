@@ -249,7 +249,7 @@ func Fingerprint(cert *x509.Certificate) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func SpiffeID(trustDomain string, cert *x509.Certificate) string {
+func AgentID(trustDomain string, cert *x509.Certificate) string {
 	u := url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,

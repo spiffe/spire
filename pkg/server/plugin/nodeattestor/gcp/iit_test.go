@@ -10,9 +10,12 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
@@ -23,7 +26,8 @@ const (
 	testZone         = "test-zone"
 	testInstanceID   = "test-instance-id"
 	testInstanceName = "test-instance-name"
-	testSPIFFEID     = "spiffe://example.org/spire/agent/gcp_iit/test-project/test-instance-id"
+	testAgentID      = "spiffe://example.org/spire/agent/gcp_iit/test-project/test-instance-id"
+	testSAFile       = "test_sa.json"
 )
 
 var (
@@ -48,12 +52,14 @@ func TestIITAttestorPlugin(t *testing.T) {
 type IITAttestorSuite struct {
 	spiretest.Suite
 
-	p nodeattestor.Plugin
+	agentStore *fakeagentstore.AgentStore
+	p          nodeattestor.Plugin
 
 	client *fakeComputeEngineClient
 }
 
 func (s *IITAttestorSuite) SetupTest() {
+	s.agentStore = fakeagentstore.New()
 	s.client = newFakeComputeEngineClient()
 	s.p = s.newPlugin()
 	s.configure()
@@ -130,8 +136,12 @@ func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
 		Data: s.signToken(token),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data, AttestedBefore: true})
-	s.RequireErrorContains(err, "gcp-iit: instance ID has already been attested")
+	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+		AgentId: testAgentID,
+	})
+
+	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	s.RequireErrorContains(err, "gcp-iit: IIT has already been used to attest an agent")
 }
 
 func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
@@ -171,6 +181,27 @@ agent_path_template = "{{ .InstanceID "
 	s.RequireErrorContains(err, "failed to parse agent path template")
 }
 
+func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMismatch() {
+	// mismatch SA file
+	s.client.setInstance(&compute.Instance{})
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["test-project"]
+use_instance_metadata = true
+service_account_file = "error_sa.json"
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+	_, err = s.attest(&nodeattestor.AttestRequest{
+		AttestationData: &common.AttestationData{
+			Type: gcp.PluginName,
+			Data: s.signToken(buildToken()),
+		},
+	})
+	s.RequireErrorContains(err, "gcp-iit: failed to fetch instance metadata: expected sa file \"test_sa.json\", got \"error_sa.json\"")
+}
+
 func (s *IITAttestorSuite) TestAttestSuccess() {
 	token := buildToken()
 
@@ -181,8 +212,7 @@ func (s *IITAttestorSuite) TestAttestSuccess() {
 	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: testSPIFFEID,
+		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
 			{Type: "gcp_iit", Value: "zone:" + testZone},
@@ -200,18 +230,30 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			{Email: "service-account-1"},
 			{Email: "service-account-2"},
 		},
-	})
-
-	res, err := s.attest(&nodeattestor.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: s.signToken(buildToken()),
+		Labels: map[string]string{
+			"allowed":          "ALLOWED",
+			"allowed-no-value": "",
+			"disallowed":       "disallowed",
+		},
+		Metadata: &compute.Metadata{
+			Items: []*compute.MetadataItems{
+				{
+					Key:   "allowed",
+					Value: stringPtr("ALLOWED"),
+				},
+				{
+					Key: "allowed-no-value",
+				},
+				{
+					Key:   "disallowed",
+					Value: stringPtr("DISALLOWED"),
+				},
+			},
 		},
 	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: testSPIFFEID,
+
+	expected := &nodeattestor.AttestResponse{
+		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
 			{Type: "gcp_iit", Value: "zone:" + testZone},
@@ -220,8 +262,44 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			{Type: "gcp_iit", Value: "tag:tag-2"},
 			{Type: "gcp_iit", Value: "sa:service-account-1"},
 			{Type: "gcp_iit", Value: "sa:service-account-2"},
+			{Type: "gcp_iit", Value: "metadata:allowed:ALLOWED"},
+			{Type: "gcp_iit", Value: "metadata:allowed-no-value:"},
+			{Type: "gcp_iit", Value: "label:allowed:ALLOWED"},
+			{Type: "gcp_iit", Value: "label:allowed-no-value:"},
 		},
-	}, res)
+	}
+	actual, err := s.attest(&nodeattestor.AttestRequest{
+		AttestationData: &common.AttestationData{
+			Type: gcp.PluginName,
+			Data: s.signToken(buildToken()),
+		},
+	})
+	s.Require().NoError(err)
+
+	util.SortSelectors(actual.Selectors)
+	util.SortSelectors(expected.Selectors)
+	s.RequireProtoEqual(expected, actual)
+}
+
+func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() {
+	s.configureForInstanceMetadata(&compute.Instance{
+		Metadata: &compute.Metadata{
+			Items: []*compute.MetadataItems{
+				{
+					Key:   "allowed",
+					Value: stringPtr("ALLOWED BUT TOO LONG"),
+				},
+			},
+		},
+	})
+
+	_, err := s.attest(&nodeattestor.AttestRequest{
+		AttestationData: &common.AttestationData{
+			Type: gcp.PluginName,
+			Data: s.signToken(buildToken()),
+		},
+	})
+	s.RequireErrorContains(err, `gcp-iit: metadata "allowed" exceeded value limit (20 > 10)`)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
@@ -235,8 +313,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
 	})
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: testSPIFFEID,
+		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
 			{Type: "gcp_iit", Value: "zone:" + testZone},
@@ -278,8 +355,7 @@ agent_path_template = "{{ .InstanceID }}"
 	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
 	s.Require().NotNil(res)
-	s.Require().True(res.Valid)
-	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
+	s.Require().Equal(expectSVID, res.AgentId)
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
@@ -317,7 +393,6 @@ projectid_whitelist = ["bar"]
 	})
 	s.RequireErrorContains(err, "gcp-iit: projectid_whitelist is required")
 	require.Nil(resp)
-
 	// success
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
@@ -348,7 +423,9 @@ func (s *IITAttestorSuite) newPlugin() nodeattestor.Plugin {
 	p.client = s.client
 
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtin(p), &plugin)
+	s.LoadPlugin(builtin(p), &plugin,
+		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+	)
 	return plugin
 }
 
@@ -383,6 +460,10 @@ func (s *IITAttestorSuite) configureForInstanceMetadata(instance *compute.Instan
 		Configuration: `
 projectid_whitelist = ["test-project"]
 use_instance_metadata = true
+allowed_label_keys = ["allowed", "allowed-no-value"]
+allowed_metadata_keys = ["allowed", "allowed-no-value"]
+max_metadata_value_size = 10
+service_account_file = "test_sa.json"
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
@@ -465,7 +546,7 @@ func (c *fakeComputeEngineClient) setInstance(instance *compute.Instance) {
 	c.instance = instance
 }
 
-func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string) (*compute.Instance, error) {
+func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
@@ -477,7 +558,13 @@ func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, pro
 		return nil, fmt.Errorf("expected instance name %q; got %q", testInstanceName, instanceName)
 	case c.instance == nil:
 		return nil, errors.New("no instance found")
+	case serviceAccountFile != testSAFile:
+		return nil, fmt.Errorf("expected sa file %q, got %q", testSAFile, serviceAccountFile)
 	default:
 		return c.instance, nil
 	}
+}
+
+func stringPtr(s string) *string {
+	return &s
 }

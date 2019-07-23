@@ -23,7 +23,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -71,6 +73,7 @@ type AttestorSuite struct {
 	barSigner  jose.Signer
 	bazSigner  jose.Signer
 	attestor   nodeattestor.Plugin
+	agentStore *fakeagentstore.AgentStore
 	mockCtrl   *gomock.Controller
 	mockClient *k8s_apiserver_mock.MockClient
 }
@@ -112,6 +115,7 @@ func (s *AttestorSuite) TearDownSuite() {
 
 func (s *AttestorSuite) SetupTest() {
 	s.mockCtrl = gomock.NewController(s.T())
+	s.agentStore = fakeagentstore.New()
 	s.attestor = s.configureAttestor()
 }
 
@@ -126,8 +130,14 @@ func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
-	s.requireAttestError(&nodeattestor.AttestRequest{AttestedBefore: true},
-		"k8s-sat: node has already attested")
+	agentID := "spiffe://example.org/spire/agent/k8s_sat/FOO/UUID"
+	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+		AgentId: agentID,
+	})
+
+	token := s.signToken(s.fooSigner, "NS1", "SA1")
+	s.requireAttestError(makeAttestRequest("FOO", token),
+		"k8s-sat: SAT has already been used to attest an agent with the same UUID")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithNoAttestationData() {
@@ -161,27 +171,22 @@ func (s *AttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWithNoCluster() {
-	s.requireAttestError(makeAttestRequest("", "UUID", "TOKEN"),
+	s.requireAttestError(makeAttestRequest("", "TOKEN"),
 		"k8s-sat: missing cluster in attestation data")
 }
 
-func (s *AttestorSuite) TestAttestFailsWithNoUUID() {
-	s.requireAttestError(makeAttestRequest("FOO", "", "TOKEN"),
-		"k8s-sat: missing UUID in attestation data")
-}
-
 func (s *AttestorSuite) TestAttestFailsWithNoToken() {
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", ""),
+	s.requireAttestError(makeAttestRequest("FOO", ""),
 		"k8s-sat: missing token in attestation data")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", "blah"),
+	s.requireAttestError(makeAttestRequest("FOO", "blah"),
 		"k8s-sat: unable to parse token")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfClusterNotConfigured() {
-	s.requireAttestError(makeAttestRequest("CLUSTER", "UUID", "blah"),
+	s.requireAttestError(makeAttestRequest("CLUSTER", "blah"),
 		`k8s-sat: not configured for cluster "CLUSTER"`)
 }
 
@@ -193,80 +198,79 @@ func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
 	parts[2] = "aaaa"
 	token = strings.Join(parts, ".")
 
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token),
+	s.requireAttestError(makeAttestRequest("FOO", token),
 		"unable to verify token")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(nil, errors.New("an error"))
-	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "unable to validate token with TokenReview API")
+	s.requireAttestError(makeAttestRequest("BAR", token), "unable to validate token with TokenReview API")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
 	token, err := jwt.Signed(s.fooSigner).CompactSerialize()
 	s.Require().NoError(err)
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "invalid issuer claim")
+	s.requireAttestError(makeAttestRequest("FOO", token), "invalid issuer claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", false)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "token not authenticated")
+	s.requireAttestError(makeAttestRequest("BAR", token), "token not authenticated")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 	token := s.signToken(s.fooSigner, "", "")
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "token missing namespace claim")
+	s.requireAttestError(makeAttestRequest("FOO", token), "token missing namespace claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceFromTokenStatus() {
 	token := s.signToken(s.barSigner, "", "SA2")
 	status := createTokenStatus("", "SA2", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "fail to parse username from token review status")
+	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 	token := s.signToken(s.fooSigner, "NAMESPACE", "")
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "token missing service account name claim")
+	s.requireAttestError(makeAttestRequest("FOO", token), "token missing service account name claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "")
 	status := createTokenStatus("NS2", "", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "fail to parse username from token review status")
+	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenClaim() {
 	token := s.signToken(s.fooSigner, "NS1", "NO-WHITHELISTED-SA")
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), `"NS1:NO-WHITHELISTED-SA" is not a whitelisted service account`)
+	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:NO-WHITHELISTED-SA" is not a whitelisted service account`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "NO-WHITHELISTED-SA")
 	status := createTokenStatus("NS2", "NO-WHITHELISTED-SA", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), `"NS2:NO-WHITHELISTED-SA" is not a whitelisted service account`)
+	s.requireAttestError(makeAttestRequest("BAR", token), `"NS2:NO-WHITHELISTED-SA" is not a whitelisted service account`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster() {
 	token := s.signToken(s.bazSigner, "NAMESPACE", "SERVICEACCOUNTNAME")
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "k8s-sat: unable to verify token")
+	s.requireAttestError(makeAttestRequest("FOO", token), "k8s-sat: unable to verify token")
 }
 
 func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with FOO signed token (local validation)
 	token := s.signToken(s.fooSigner, "NS1", "SA1")
 	status := createTokenStatus("NS1", "SA1", true)
-	resp, err := s.doAttest(makeAttestRequest("FOO", "UUID", token))
+	resp, err := s.doAttest(makeAttestRequest("FOO", token))
 
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_sat/FOO/UUID")
+	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_sat/FOO/UUID")
 	s.Require().Nil(resp.Challenge)
 	s.Require().Equal([]*common.Selector{
 		{Type: "k8s_sat", Value: "cluster:FOO"},
@@ -278,12 +282,11 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	token = s.signToken(s.barSigner, "NS2", "SA2")
 	status = createTokenStatus("NS2", "SA2", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	resp, err = s.doAttest(makeAttestRequest("BAR", "UUID", token))
+	resp, err = s.doAttest(makeAttestRequest("BAR", token))
 
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_sat/BAR/UUID")
+	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_sat/BAR/UUID")
 	s.Require().Nil(resp.Challenge)
 	s.Require().Equal([]*common.Selector{
 		{Type: "k8s_sat", Value: "cluster:BAR"},
@@ -453,17 +456,26 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 }
 
 func (s *AttestorSuite) signAttestRequest(signer jose.Signer, cluster, namespace, serviceAccountName string) *nodeattestor.AttestRequest {
-	return makeAttestRequest(cluster, "UUID", s.signToken(signer, namespace, serviceAccountName))
+	return makeAttestRequest(cluster, s.signToken(signer, namespace, serviceAccountName))
 }
 
 func (s *AttestorSuite) newAttestor() nodeattestor.Plugin {
+	attestor := New()
+	attestor.hooks.newUUID = func() (string, error) {
+		return "UUID", nil
+	}
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(BuiltIn(), &plugin)
+	s.LoadPlugin(builtin(attestor), &plugin,
+		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+	)
 	return plugin
 }
 
 func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 	attestor := New()
+	attestor.hooks.newUUID = func() (string, error) {
+		return "UUID", nil
+	}
 
 	resp, err := attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
@@ -487,7 +499,9 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 	attestor.config.clusters["BAR"].client = s.mockClient
 
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtin(attestor), &plugin)
+	s.LoadPlugin(builtin(attestor), &plugin,
+		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+	)
 	return plugin
 }
 
@@ -514,11 +528,11 @@ func (s *AttestorSuite) requireAttestError(req *nodeattestor.AttestRequest, cont
 	s.Require().Nil(resp)
 }
 
-func makeAttestRequest(cluster, uuid, token string) *nodeattestor.AttestRequest {
+func makeAttestRequest(cluster, token string) *nodeattestor.AttestRequest {
 	return &nodeattestor.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "k8s_sat",
-			Data: []byte(fmt.Sprintf(`{"cluster": %q, "uuid": %q, "token": %q}`, cluster, uuid, token)),
+			Data: []byte(fmt.Sprintf(`{"cluster": %q, "token": %q}`, cluster, token)),
 		},
 	}
 }

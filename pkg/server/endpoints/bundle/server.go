@@ -102,10 +102,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO: configurable refresh hint?
+	refreshHint := bundleutil.CalculateRefreshHint(b)
+
 	// TODO: bundle sequence number?
 	opts := []bundleutil.MarshalOption{
-		bundleutil.OverrideRefreshHint(bundleutil.DefaultRefreshHint),
+		bundleutil.OverrideRefreshHint(refreshHint),
 	}
 
 	jsonBytes, err := bundleutil.Marshal(b, opts...)

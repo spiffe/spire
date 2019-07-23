@@ -15,6 +15,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -25,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/svid"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"google.golang.org/grpc"
@@ -88,6 +91,9 @@ type Config struct {
 
 	// Telemetry provides the configuration for metrics exporting
 	Telemetry telemetry.FileConfig
+
+	// HealthChecks provides the configuration for health monitoring
+	HealthChecks health.Config
 }
 
 type ExperimentalConfig struct {
@@ -147,6 +153,9 @@ func (s *Server) run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	metricsService := metricsservice.New(metricsservice.Config{
+		Metrics: metrics,
+	})
 
 	// Create the identity provider host service. It will not be functional
 	// until the call to SetDeps() below. There is some tricky initialization
@@ -161,11 +170,16 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, identityProvider, agentStore)
+	cat, err := s.loadCatalog(ctx, identityProvider, agentStore, metricsService)
 	if err != nil {
 		return err
 	}
 	defer cat.Close()
+
+	healthChecks := health.NewChecker(
+		s.config.HealthChecks,
+		s.config.Log.WithField("subsystem_name", "health"),
+	)
 
 	s.config.Log.Info("plugins started")
 
@@ -214,12 +228,17 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	bundleManager := s.newBundleManager(cat)
 
+	if err := healthChecks.AddCheck("server", s, time.Minute); err != nil {
+		return fmt.Errorf("failed adding healthcheck: %v", err)
+	}
+
 	err = util.RunTasks(ctx,
 		caManager.Run,
 		svidRotator.Run,
 		endpointsServer.ListenAndServe,
 		metrics.ListenAndServe,
 		bundleManager.Run,
+		healthChecks.ListenAndServe,
 	)
 	if err == context.Canceled {
 		err = nil
@@ -281,7 +300,8 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore) (*catalog.CatalogCloser, error) {
+func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
+	metricsService common_services.MetricsService) (*catalog.CatalogCloser, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
@@ -290,6 +310,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 		PluginConfig:     s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
+		MetricsService:   metricsService,
 	})
 }
 
@@ -408,4 +429,9 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		}
 	}
 	return nil
+}
+
+// Status is used as a top-level health check for the Server.
+func (s *Server) Status() (interface{}, error) {
+	return nil, nil
 }

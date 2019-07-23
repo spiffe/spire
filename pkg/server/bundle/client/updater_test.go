@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -24,41 +23,55 @@ func TestBundleUpdater(t *testing.T) {
 	bundle2.SetRefreshHint(time.Minute)
 
 	testCases := []struct {
-		name           string
-		localBundle    *bundleutil.Bundle
+		// name of the test
+		name string
+		// the bundle prepopulated in the datastore and returned from Update()
+		localBundle *bundleutil.Bundle
+		// the expected endpoint bundle returned from Update()
 		endpointBundle *bundleutil.Bundle
-		endpointErr    error
-		expectedBundle *bundleutil.Bundle
-		updateErr      string
+		// the bundle in the datastore after Update()
+		storedBundle *bundleutil.Bundle
+		// the fake endpoint client
+		client fakeClient
+		// the expected error returned from Update()
+		err string
 	}{
 		{
-			name:           "bootstrap via datastore",
+			name: "local bundle not found",
+			err:  "bundle not found",
+		},
+		{
+			name:           "bundle has no changes",
 			localBundle:    bundle1,
-			endpointBundle: bundle1,
-			expectedBundle: bundle1,
+			endpointBundle: nil,
+			storedBundle:   bundle1,
+			client: fakeClient{
+				bundle: bundle1,
+			},
 		},
 		{
-			name:      "unable to load bootstrap bundle",
-			updateErr: "bundle not found",
-		},
-		{
-			name:           "bundle updates",
+			name:           "bundle changed",
 			localBundle:    bundle1,
 			endpointBundle: bundle2,
-			expectedBundle: bundle2,
+			storedBundle:   bundle2,
+			client: fakeClient{
+				bundle: bundle2,
+			},
 		},
 		{
-			name:           "bundle fails to update",
+			name:           "bundle fails to download",
 			localBundle:    bundle1,
-			endpointErr:    errors.New("OHNO!"),
-			updateErr:      "OHNO!",
-			expectedBundle: bundle1,
+			endpointBundle: nil,
+			storedBundle:   bundle1,
+			client: fakeClient{
+				err: errors.New("OHNO!"),
+			},
+			err: "OHNO!",
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			log, _ := test.NewNullLogger()
 			ds := fakedatastore.New()
 
 			if testCase.localBundle != nil {
@@ -69,7 +82,6 @@ func TestBundleUpdater(t *testing.T) {
 			}
 
 			updater := NewBundleUpdater(BundleUpdaterConfig{
-				Log:         log,
 				DataStore:   ds,
 				TrustDomain: "domain.test",
 				TrustDomainConfig: TrustDomainConfig{
@@ -77,27 +89,41 @@ func TestBundleUpdater(t *testing.T) {
 					EndpointSpiffeID: "ENDPOINT_SPIFFEID",
 				},
 				newClient: func(client ClientConfig) Client {
-					return fakeClient{
-						bundle: testCase.endpointBundle,
-						err:    testCase.endpointErr,
-					}
+					return testCase.client
 				},
 			})
 
-			refreshHint, err := updater.UpdateBundle(context.Background())
-			if testCase.updateErr != "" {
-				spiretest.RequireErrorContains(t, err, testCase.updateErr)
+			localBundle, endpointBundle, err := updater.UpdateBundle(context.Background())
+			if testCase.err != "" {
+				spiretest.RequireErrorContains(t, err, testCase.err)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, testCase.expectedBundle.RefreshHint(), refreshHint)
+			if testCase.localBundle != nil {
+				require.NotNil(t, localBundle)
+				spiretest.RequireProtoEqual(t, testCase.localBundle.Proto(), localBundle.Proto())
+			} else {
+				require.Nil(t, localBundle)
+			}
+
+			if testCase.endpointBundle != nil {
+				require.NotNil(t, endpointBundle)
+				spiretest.RequireProtoEqual(t, testCase.endpointBundle.Proto(), endpointBundle.Proto())
+			} else {
+				require.Nil(t, endpointBundle)
+			}
 
 			resp, err := ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 				TrustDomainId: "spiffe://domain.test",
 			})
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			spiretest.RequireProtoEqual(t, testCase.expectedBundle.Proto(), resp.Bundle)
+			if testCase.storedBundle != nil {
+				require.NotNil(t, resp.Bundle)
+				spiretest.RequireProtoEqual(t, testCase.storedBundle.Proto(), resp.Bundle)
+			} else {
+				require.Nil(t, resp.Bundle)
+			}
 		})
 	}
 }
@@ -112,9 +138,11 @@ func (c fakeClient) FetchBundle(context.Context) (*bundleutil.Bundle, error) {
 }
 
 func createCACertificate(t *testing.T, cn string) *x509.Certificate {
+	now := time.Now()
 	cert, _ := spiretest.SelfSignCertificate(t, &x509.Certificate{
 		SerialNumber: big.NewInt(0),
-		NotAfter:     time.Now().Add(time.Hour),
+		NotBefore:    now,
+		NotAfter:     now.Add(time.Hour),
 		IsCA:         true,
 		Subject:      pkix.Name{CommonName: cn},
 	})
