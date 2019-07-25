@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"net"
@@ -23,21 +22,15 @@ func (fn BundleGetterFunc) GetBundle(ctx context.Context) (*bundleutil.Bundle, e
 	return fn(ctx)
 }
 
-type ServerCredsGetter interface {
-	GetServerCreds() ([]*x509.Certificate, crypto.PrivateKey, error)
-}
-
-type ServerCredsGetterFunc func() ([]*x509.Certificate, crypto.PrivateKey, error)
-
-func (fn ServerCredsGetterFunc) GetServerCreds() ([]*x509.Certificate, crypto.PrivateKey, error) {
-	return fn()
+type ServerAuth interface {
+	GetTLSConfig() *tls.Config
 }
 
 type ServerConfig struct {
 	Log          logrus.FieldLogger
 	Address      string
 	BundleGetter BundleGetter
-	CredsGetter  ServerCredsGetter
+	ServerAuth   ServerAuth
 
 	// test hooks
 	listen func(network, address string) (net.Listener, error)
@@ -65,10 +58,8 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 
 	server := &http.Server{
-		Handler: http.HandlerFunc(s.serveHTTP),
-		TLSConfig: &tls.Config{
-			GetCertificate: s.getCertificate,
-		},
+		Handler:   http.HandlerFunc(s.serveHTTP),
+		TLSConfig: s.c.ServerAuth.GetTLSConfig(),
 	}
 
 	errCh := make(chan error, 1)
@@ -118,18 +109,6 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonBytes)
-}
-
-func (s *Server) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	chain, privateKey, err := s.c.CredsGetter.GetServerCreds()
-	if err != nil {
-		return nil, err
-	}
-
-	return &tls.Certificate{
-		Certificate: chainDER(chain),
-		PrivateKey:  privateKey,
-	}, nil
 }
 
 func chainDER(chain []*x509.Certificate) [][]byte {

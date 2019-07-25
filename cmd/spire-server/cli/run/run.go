@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 )
 
 const (
@@ -71,6 +72,7 @@ type experimentalConfig struct {
 	BundleEndpointEnabled bool                           `hcl:"bundle_endpoint_enabled"`
 	BundleEndpointAddress string                         `hcl:"bundle_endpoint_address"`
 	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
+	BundleEndpointACME    *bundleEndpointACMEConfig      `hcl:"bundle_endpoint_acme"`
 	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
 }
 
@@ -78,6 +80,13 @@ type caSubjectConfig struct {
 	Country      []string `hcl:"country"`
 	Organization []string `hcl:"organization"`
 	CommonName   string   `hcl:"common_name"`
+}
+
+type bundleEndpointACMEConfig struct {
+	DirectoryURL string `hcl:"directory_url"`
+	DomainName   string `hcl:"domain_name"`
+	CacheDir     string `hcl:"cache_dir"`
+	Email        string `hcl:"email"`
 }
 
 type federatesWithConfig struct {
@@ -269,6 +278,15 @@ func newServerConfig(c *config) (*server.Config, error) {
 		Port: c.Server.Experimental.BundleEndpointPort,
 	}
 
+	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
+		sc.Experimental.BundleEndpointACME = &bundle.ACMEConfig{
+			DirectoryURL: acme.DirectoryURL,
+			DomainName:   acme.DomainName,
+			CacheDir:     acme.CacheDir,
+			Email:        acme.Email,
+		}
+	}
+
 	federatesWith := map[string]bundleClient.TrustDomainConfig{}
 	for trustDomain, config := range c.Server.Experimental.FederatesWith {
 		port := defaultBundleEndpointPort
@@ -342,6 +360,12 @@ func validateConfig(c *config) error {
 
 	if c.Plugins == nil {
 		return errors.New("plugins section must be configured")
+	}
+
+	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
+		if acme.DomainName == "" {
+			return errors.New("bundle_endpoint_acme domain name must be configured")
+		}
 	}
 
 	for td, tdConfig := range c.Server.Experimental.FederatesWith {

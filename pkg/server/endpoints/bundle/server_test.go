@@ -16,10 +16,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -113,45 +118,14 @@ func TestServer(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			urlCh := make(chan string, 1)
-			listen := func(network, address string) (net.Listener, error) {
-				listener, err := net.Listen(network, address)
-				if err != nil {
-					return nil, err
-				}
-				urlCh <- fmt.Sprintf("https://%s%s", listener.Addr(), testCase.path)
-				return listener, nil
-			}
-
-			log, _ := test.NewNullLogger()
-			server := NewServer(ServerConfig{
-				Log:          log,
-				Address:      "localhost:0",
-				BundleGetter: testBundleGetter(testCase.bundle),
-				CredsGetter:  testServerCredsGetter(testCase.serverCert, serverKey),
-				listen:       listen,
-			})
-
-			errCh := make(chan error, 1)
-			go func() {
-				errCh <- server.Run(ctx)
-			}()
-
-			// wait for the listener to be created and the url to be set
-			var url string
-			select {
-			case url = <-urlCh:
-			case err := <-errCh:
-				require.NoError(t, err, "unexpected error while waiting for url")
-			case <-time.After(time.Minute):
-				require.FailNow(t, "timed out waiting for url")
-			}
+			addr, done := newTestServer(t,
+				testBundleGetter(testCase.bundle),
+				testSPIFFEAuth(testCase.serverCert, serverKey),
+			)
+			defer done()
 
 			// form and make the request
-			req, err := http.NewRequest(testCase.method, url, nil)
+			req, err := http.NewRequest(testCase.method, fmt.Sprintf("https://%s%s", addr, testCase.path), nil)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
 			if testCase.reqErr != "" {
@@ -176,6 +150,122 @@ func TestServer(t *testing.T) {
 	}
 }
 
+func TestACMEAuth(t *testing.T) {
+	dir, err := ioutil.TempDir("", "spire-server-endpoints-bundle-acme-")
+	require.NoError(t, err)
+
+	bundle := bundleutil.New("spiffe://domain.test")
+	km := memory.New()
+
+	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{"domain.test"})
+
+	setup := func(addrCB func(addr net.Addr), expectToSPrompt bool) func(t *testing.T) {
+		return func(t *testing.T) {
+			log, hook := test.NewNullLogger()
+			addr, done := newTestServer(t, testBundleGetter(bundle),
+				ACMEAuth(log, km, ACMEConfig{
+					DirectoryURL: ca.URL,
+					DomainName:   "domain.test",
+					CacheDir:     dir,
+					Email:        "admin@domain.test",
+				}),
+			)
+			defer done()
+
+			addrCB(addr)
+
+			client := http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						RootCAs:    ca.Roots,
+						ServerName: "domain.test",
+					},
+				},
+			}
+
+			resp, err := client.Get(fmt.Sprintf("https://%s", addr))
+			require.NoError(t, err)
+			resp.Body.Close()
+
+			// Assert that the keystore has been populated with the account
+			// key and cert key for the domain.
+			keys, err := km.GetPublicKeys(context.Background(), &keymanager.GetPublicKeysRequest{})
+			require.NoError(t, err)
+			if assert.Len(t, keys.PublicKeys, 2) {
+				assert.Equal(t, "bundle-acme-acme_account+key", keys.PublicKeys[0].Id)
+				assert.Equal(t, "bundle-acme-domain.test", keys.PublicKeys[1].Id)
+			}
+
+			// Make sure we logged the ToS
+			entry := hook.LastEntry()
+			if !expectToSPrompt {
+				assert.Nil(t, entry)
+			} else if assert.NotNil(t, entry) {
+				assert.Equal(t, "ACME Terms of Service accepted", entry.Message)
+				assert.Equal(t, logrus.Fields{
+					"directory_url": ca.URL,
+					"tos_url":       ca.URL + "/tos",
+					"email":         "admin@domain.test",
+				}, entry.Data)
+				assert.Equal(t, logrus.InfoLevel, entry.Level)
+			}
+		}
+	}
+
+	t.Run("initial", setup(func(addr net.Addr) {
+		ca.Resolve("domain.test", addr.String())
+	}, true))
+
+	t.Run("cached", setup(func(addr net.Addr) {
+		// Resolve the address to something invalid. If caching is not working,
+		// this will result in the challenge failing, resulting in a handshake
+		// failure.
+		ca.Resolve("domain.test", "127.0.0.1:0")
+	}, false))
+}
+
+func newTestServer(t *testing.T, bundleGetter BundleGetter, serverAuth ServerAuth) (net.Addr, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	addrCh := make(chan net.Addr, 1)
+	listen := func(network, address string) (net.Listener, error) {
+		listener, err := net.Listen(network, address)
+		if err != nil {
+			return nil, err
+		}
+		addrCh <- listener.Addr()
+		return listener, nil
+	}
+
+	log, _ := test.NewNullLogger()
+	server := NewServer(ServerConfig{
+		Log:          log,
+		Address:      "localhost:0",
+		BundleGetter: bundleGetter,
+		ServerAuth:   serverAuth,
+		listen:       listen,
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Run(ctx)
+	}()
+
+	// wait for the listener to be created and the url to be set
+	var addr net.Addr
+	select {
+	case addr = <-addrCh:
+	case err := <-errCh:
+		cancel()
+		require.NoError(t, err, "unexpected error while waiting for url")
+	case <-time.After(time.Minute):
+		cancel()
+		require.FailNow(t, "timed out waiting for url")
+	}
+
+	return addr, cancel
+}
+
 func testBundleGetter(bundle *bundleutil.Bundle) BundleGetter {
 	return BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
 		if bundle == nil {
@@ -185,8 +275,8 @@ func testBundleGetter(bundle *bundleutil.Bundle) BundleGetter {
 	})
 }
 
-func testServerCredsGetter(cert *x509.Certificate, key crypto.Signer) ServerCredsGetter {
-	return ServerCredsGetterFunc(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
+func testSPIFFEAuth(cert *x509.Certificate, key crypto.Signer) ServerAuth {
+	return SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
 		if cert == nil {
 			return nil, nil, errors.New("no server certificate")
 		}

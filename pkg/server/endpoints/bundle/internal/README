@@ -1,0 +1,14 @@
+Unfortunately the golang.org/x/crypto/acme/autocert caching strategy is not
+compatible with storing keys separate from certificates and also requires
+loading raw private keys, instead of simply requiring the cache return a 
+signer. This precludes us from integrating the the server KeyManager plugin.
+
+As such, we've forked golang.org/x/crypto/acme/autocert and made the pertintent
+changes to caching.
+
+To facilitate testing we've also forked
+golang.org/x/crypto/acme/autocert/acmetest and made a few small modifications
+to trigger the terms-of-service prompt.
+
+The version forked is from:
+	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
