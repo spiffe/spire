@@ -56,7 +56,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spiffe/go-spiffe v0.0.0-20190518123159-37d000f27824
-	github.com/spiffe/spire/proto/spire v0.0.0-00010101000000-000000000000
+	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
 	github.com/stretchr/testify v1.3.0
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
