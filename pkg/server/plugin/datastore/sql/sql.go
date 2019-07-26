@@ -12,7 +12,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
-	"github.com/hashicorp/go-hclog"
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	"google.golang.org/grpc/codes"
@@ -59,12 +59,17 @@ func builtin(p *SQLPlugin) catalog.Plugin {
 	)
 }
 
+// Configuration for the datastore.
+// Pointer values are used to distinguish between "unset" and "zero" values.
 type configuration struct {
-	DatabaseType     string `hcl:"database_type" json:"database_type"`
-	ConnectionString string `hcl:"connection_string" json:"connection_string"`
-	RootCAPath       string `hcl:"root_ca_path" json:"root_ca_path"`
-	ClientCertPath   string `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKeyPath    string `hcl:"client_key_path" json:"client_key_path"`
+	DatabaseType     string  `hcl:"database_type" json:"database_type"`
+	ConnectionString string  `hcl:"connection_string" json:"connection_string"`
+	RootCAPath       string  `hcl:"root_ca_path" json:"root_ca_path"`
+	ClientCertPath   string  `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath    string  `hcl:"client_key_path" json:"client_key_path"`
+	ConnMaxLifetime  *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
+	MaxOpenConns     *int    `hcl:"max_open_conns" json:"max_open_conns"`
+	MaxIdleConns     *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
@@ -422,7 +427,7 @@ func (ds *SQLPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, err
 	}
 
-	if err := validateDBConfig(config); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -525,6 +530,19 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	db.SetLogger(gormLogger.StandardLogger(&hclog.StandardLoggerOptions{
 		InferLevels: true,
 	}))
+	if cfg.MaxOpenConns != nil {
+		db.DB().SetMaxOpenConns(*cfg.MaxOpenConns)
+	}
+	if cfg.MaxIdleConns != nil {
+		db.DB().SetMaxIdleConns(*cfg.MaxIdleConns)
+	}
+	if cfg.ConnMaxLifetime != nil {
+		connMaxLifetime, err := time.ParseDuration(*cfg.ConnMaxLifetime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %v", *cfg.ConnMaxLifetime, err)
+		}
+		db.DB().SetConnMaxLifetime(connMaxLifetime)
+	}
 
 	if err := migrateDB(db, cfg.DatabaseType, ds.log); err != nil {
 		db.Close()
@@ -1512,7 +1530,7 @@ func bindVarsFn(fn func(int) string, query string) string {
 	return buf.String()
 }
 
-func validateDBConfig(cfg *configuration) error {
+func (cfg *configuration) Validate() error {
 	if cfg.DatabaseType == "" {
 		return errors.New("database_type must be set")
 	}
