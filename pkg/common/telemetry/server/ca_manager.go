@@ -69,6 +69,9 @@ func IncrServerCASignJWTSVIDCounter(m telemetry.Metrics, id string, auds ...stri
 			Value: id,
 		},
 	}
+
+	// the number of audiences should be small in a secure system, so we label every audience
+	// element instead of just an audience count
 	for _, audience := range auds {
 		labels = append(labels, telemetry.Label{
 			Name:  telemetry.Audience,

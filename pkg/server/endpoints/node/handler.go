@@ -267,24 +267,18 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		// Select how to sign the SVIDs based on the agent version
 		var svids map[string]*node.X509SVID
-		var spiffeIDs []string
 
 		if csrsLen != 0 {
 			// Current agent, use regular signCSRs (it returns svids keyed by entryID)
-			svids, spiffeIDs, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
+			// drop spiffe IDs
+			svids, _, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 			if err != nil {
 				h.c.Log.Error(err)
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
 
-			// Add entryID and spiffeID to counter
-			for entryID := range svids {
-				telemetry_common.AddRegistrationID(counter, entryID)
-			}
-			for _, spiffeID := range spiffeIDs {
-				telemetry_common.AddSPIFFEID(counter, spiffeID)
-			}
-
+			// Add SVID count to counter
+			telemetry_common.AddCount(counter, len(svids))
 		} else if csrsLenDeprecated != 0 {
 			// Legacy agent, use legacy SignCSRs (it returns svids keyed by spiffeID)
 			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
@@ -293,10 +287,8 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
 
-			// Add spiffeID to counter (entryID is not available)
-			for spiffeID := range svids {
-				telemetry_common.AddSPIFFEID(counter, spiffeID)
-			}
+			// Add SVID count to counter
+			telemetry_common.AddCount(counter, len(svids))
 		} else {
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids = make(map[string]*node.X509SVID)

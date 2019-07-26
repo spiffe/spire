@@ -76,6 +76,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
+		// the number of matching identities in a secure system should be small,
+		// so we append the actual IDs instead of just a count
 		telemetry_common.AddSPIFFEID(counter, identity.Entry.SpiffeId)
 	}
 
@@ -347,6 +349,8 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
+	// the number of selectors should be small, so we append the actual
+	// selectors instead of just a count
 	metrics := telemetry.WithLabels(h.Metrics, selectorsToLabels(selectors))
 	telemetry_workload.IncrConnectionCounter(metrics)
 
