@@ -1547,7 +1547,6 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 	s.Require().NoError(err)
 
 	expectedCallCounter = ds_telemetry.StartDeleteJoinTokenCall(s.expectedMetrics)
-	expectedCallCounter.AddLabel(telemetry.JoinToken, joinToken1.Token)
 	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
 		Token: joinToken1.Token,
 	})

@@ -512,12 +512,7 @@ func (ds *SQLPlugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoi
 
 // DeleteJoinToken deletes the given join token
 func (ds *SQLPlugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
-	callCounter := ds_telemetry.StartDeleteJoinTokenCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.JoinToken,
-			Value: req.Token,
-		},
-	))
+	callCounter := ds_telemetry.StartDeleteJoinTokenCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
