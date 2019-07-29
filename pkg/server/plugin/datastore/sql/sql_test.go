@@ -1961,8 +1961,13 @@ func (s *PluginSuite) TestConfigure() {
 		s.T().Run(tt.desc, func(t *testing.T) {
 			p := New()
 
+			metricsService := metricsservice.New(metricsservice.Config{
+				Metrics: s.m,
+			})
 			var ds datastore.Plugin
-			s.LoadPlugin(builtin(p), &ds)
+			pluginDone := spiretest.LoadPlugin(t, builtin(p), &ds,
+				spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
+			defer pluginDone()
 
 			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")
 
@@ -1974,26 +1979,26 @@ func (s *PluginSuite) TestConfigure() {
 				%s
 		`, dbPath, tt.giveDBConfig),
 			})
-			s.Require().NoError(err)
+			require.NoError(t, err)
 
 			db := p.db.DB.DB()
 
-			s.Require().Equal(tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
+			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
 
 			// begin many queries simultaneously
 			numQueries := 100
 			var rowsList []*sql.Rows
 			for i := 0; i < numQueries; i++ {
 				rows, err := db.Query("SELECT * FROM bundles")
-				s.Require().NoError(err)
+				require.NoError(t, err)
 				rowsList = append(rowsList, rows)
 			}
 
 			// close all open queries, which results in idle connections
 			for _, rows := range rowsList {
-				s.Require().NoError(rows.Close())
+				require.NoError(t, rows.Close())
 			}
-			s.Require().Equal(tt.expectIdle, db.Stats().Idle)
+			require.Equal(t, tt.expectIdle, db.Stats().Idle)
 		})
 	}
 
