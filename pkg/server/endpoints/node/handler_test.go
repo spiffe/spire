@@ -1217,7 +1217,7 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, expectedSPI
 	// ensure end of stream so server-side telemetry is done
 	eofResp, err := stream.Recv()
 	s.Require().Nil(eofResp)
-	s.Require().Equal(err, io.EOF)
+	s.Require().Equal(io.EOF, err)
 
 	return resp.SvidUpdate
 }

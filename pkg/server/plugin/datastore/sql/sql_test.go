@@ -3,6 +3,7 @@ package sql
 import (
 	"context"
 	"crypto/x509"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1919,4 +1920,81 @@ func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Sele
 	callCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&datastore.SetNodeSelectorsResponse{}, resp)
+}
+
+func (s *PluginSuite) TestConfigure() {
+	tests := []struct {
+		desc               string
+		giveDBConfig       string
+		expectMaxOpenConns int
+		expectIdle         int
+	}{
+
+		{
+			desc:               "defaults",
+			expectMaxOpenConns: 0,
+			// defined in database/sql
+			expectIdle: 2,
+		},
+		{
+			desc: "zero values",
+			giveDBConfig: `
+			max_open_conns = 0
+			max_idle_conns = 0
+			`,
+			expectMaxOpenConns: 0,
+			expectIdle:         0,
+		},
+		{
+			desc: "custom values",
+			giveDBConfig: `
+			max_open_conns = 1000
+			max_idle_conns = 50
+			conn_max_lifetime = "1ms"
+			`,
+			expectMaxOpenConns: 1000,
+			expectIdle:         50,
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.desc, func(t *testing.T) {
+			p := New()
+
+			var ds datastore.Plugin
+			s.LoadPlugin(builtin(p), &ds)
+
+			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")
+
+			_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+				Configuration: fmt.Sprintf(`
+				database_type = "sqlite3"
+				log_sql = true
+				connection_string = "%s"
+				%s
+		`, dbPath, tt.giveDBConfig),
+			})
+			s.Require().NoError(err)
+
+			db := p.db.DB.DB()
+
+			s.Require().Equal(tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
+
+			// begin many queries simultaneously
+			numQueries := 100
+			var rowsList []*sql.Rows
+			for i := 0; i < numQueries; i++ {
+				rows, err := db.Query("SELECT * FROM bundles")
+				s.Require().NoError(err)
+				rowsList = append(rowsList, rows)
+			}
+
+			// close all open queries, which results in idle connections
+			for _, rows := range rowsList {
+				s.Require().NoError(rows.Close())
+			}
+			s.Require().Equal(tt.expectIdle, db.Stats().Idle)
+		})
+	}
+
 }
