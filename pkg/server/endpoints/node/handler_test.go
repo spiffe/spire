@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -280,7 +281,7 @@ func (s *HandlerSuite) TestAttestWithUnknownAttestor() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR(agentID),
-	}, noIDExpected, codes.Unknown, `could not find node attestor type "test"`)
+	}, noIDExpected, codes.Unimplemented, `could not find node attestor type "test"`)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
@@ -293,7 +294,7 @@ func (s *HandlerSuite) TestAttestWithMismatchedAgentIDWithDeprecatedCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/other"),
-	}, agentID, codes.Unknown, "attestor returned unexpected response")
+	}, agentID, codes.NotFound, "attestor returned unexpected response")
 
 	s.assertLastLogMessage("Attested SPIFFE ID does not match CSR")
 
@@ -1232,6 +1233,7 @@ func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, expectedSPI
 	}
 	fakeErr := errors.New("")
 	defer expectedCounter.Done(&fakeErr)
+	defer expectedCounter.AddLabel(telemetry.Error, errorCode.String())
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()

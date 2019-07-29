@@ -66,6 +66,8 @@ func NewHandler(config HandlerConfig) *Handler {
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
+	errCode := codes.OK
+	defer telemetry_common.AddErrorClass(counter, &errCode)
 
 	log := h.c.Log
 
@@ -76,29 +78,35 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	// pull off the initial request
 	request, err := stream.Recv()
 	if err != nil {
+		errCode = codes.InvalidArgument
 		return err
 	}
 
 	err = h.limiter.Limit(ctx, AttestMsg, 1)
 	if err != nil {
+		errCode = codes.ResourceExhausted
 		return status.Error(codes.ResourceExhausted, err.Error())
 	}
 
 	if request.AttestationData == nil {
+		errCode = codes.InvalidArgument
 		return status.Error(codes.InvalidArgument, "request missing attestation data")
 	}
 	if request.AttestationData.Type == "" {
+		errCode = codes.InvalidArgument
 		return status.Error(codes.InvalidArgument, "request missing attestation data type")
 	}
 	telemetry_common.AddAttestorType(counter, request.AttestationData.Type)
 	log = log.WithField(telemetry.Attestor, request.AttestationData.Type)
 
 	if len(request.Csr) == 0 {
+		errCode = codes.InvalidArgument
 		return status.Error(codes.InvalidArgument, "request missing CSR")
 	}
 
 	csr, err := h.parseAttestCSR(request.Csr)
 	if err != nil {
+		errCode = codes.InvalidArgument
 		log.WithError(err).Error("Failed to parse CSR")
 		return status.Errorf(codes.InvalidArgument, "request CSR is invalid: %v", err)
 	}
@@ -121,6 +129,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		if csr.SpiffeID != "" {
 			attestedBefore, err = h.isAttested(ctx, csr.SpiffeID)
 			if err != nil {
+				errCode = codes.Internal
 				h.c.Log.Error(err)
 				return errors.New("failed to determine if agent has already attested")
 			}
@@ -128,19 +137,23 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 		nodeAttestor, ok := h.c.Catalog.GetNodeAttestorNamed(request.AttestationData.Type)
 		if !ok {
-			return fmt.Errorf("could not find node attestor type %q", request.AttestationData.Type)
+			errCode = codes.Unimplemented
+			return status.Error(codes.Unimplemented, fmt.Sprintf("could not find node attestor type %q", request.AttestationData.Type))
 		}
 
 		attestStream, err := nodeAttestor.Attest(ctx)
 		if err != nil {
+			errCode = codes.Unknown
 			return fmt.Errorf("unable to open attest stream: %v", err)
 		}
 
 		attestResponse, err = h.doAttestChallengeResponse(ctx, stream, attestStream, request, attestedBefore)
 		if err != nil {
+			errCode = codes.Unknown
 			return err
 		}
 		if err := attestStream.CloseSend(); err != nil {
+			errCode = codes.Internal
 			return err
 		}
 		if _, err := attestStream.Recv(); err != io.EOF {
@@ -149,6 +162,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	} else {
 		attestResponse, err = h.attestToken(ctx, request.AttestationData)
 		if err != nil {
+			errCode = codes.Unknown
 			return fmt.Errorf("failed to attest: %v", err)
 		}
 	}
@@ -158,8 +172,9 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	log = log.WithField(telemetry.SPIFFEID, agentID)
 
 	if csr.SpiffeID != "" && agentID != csr.SpiffeID {
+		errCode = codes.NotFound
 		log.WithField("csr_spiffe_id", csr.SpiffeID).Error("Attested SPIFFE ID does not match CSR")
-		return errors.New("attestor returned unexpected response")
+		return status.Error(codes.NotFound, "attestor returned unexpected response")
 	}
 
 	log.WithField("agent_id", agentID).Debugf("Signing CSR for Agent SVID")
@@ -168,17 +183,20 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		PublicKey: csr.PublicKey,
 	})
 	if err != nil {
+		errCode = codes.Internal
 		log.WithError(err).Error("Failed to sign CSR")
 		return errors.New("failed to sign CSR")
 	}
 
 	if err := h.updateNodeSelectors(ctx, agentID, attestResponse, request.AttestationData.Type); err != nil {
+		errCode = codes.Internal
 		log.WithError(err).Error("Failed to update node selectors")
 		return errors.New("failed to update node selectors")
 	}
 
 	response, err := h.getAttestResponse(ctx, agentID, svid)
 	if err != nil {
+		errCode = codes.Internal
 		log.WithError(err).Error("Failed to compose response")
 		return errors.New("failed to compose response")
 	}
@@ -186,15 +204,18 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	isAttested, err := h.isAttested(ctx, agentID)
 	switch {
 	case err != nil:
+		errCode = codes.Internal
 		log.WithError(err).Error("Failed to determine if agent has already attested")
 		return errors.New("failed to determine if agent has already attested")
 	case isAttested:
 		if err := h.updateAttestationEntry(ctx, svid[0]); err != nil {
+			errCode = codes.Internal
 			log.WithError(err).Error("Failed to update attestation entry")
 			return errors.New("failed to update attestation entry")
 		}
 	default:
 		if err := h.createAttestationEntry(ctx, svid[0], request.AttestationData.Type); err != nil {
+			errCode = codes.Internal
 			log.WithError(err).Error("Failed to create attestation entry")
 			return errors.New("failed to create attestation entry")
 		}
@@ -206,6 +227,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	if err := stream.Send(response); err != nil {
+		errCode = codes.Internal
 		return err
 	}
 
@@ -218,9 +240,12 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
 	counter := telemetry_server.StartNodeAPIFetchX509SVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
+	errCode := codes.OK
+	defer telemetry_common.AddErrorClass(counter, &errCode)
 
 	peerCert, ok := getPeerCertificate(server.Context())
 	if !ok {
+		errCode = codes.InvalidArgument
 		return errors.New("client SVID is required for this request")
 	}
 
@@ -230,6 +255,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return nil
 		}
 		if err != nil {
+			errCode = codes.Internal
 			return err
 		}
 
@@ -239,23 +265,27 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		err = h.limiter.Limit(ctx, CSRMsg, max(csrsLen, csrsLenDeprecated))
 		if err != nil {
+			errCode = codes.ResourceExhausted
 			return status.Error(codes.ResourceExhausted, err.Error())
 		}
 
 		agentID, err := getSpiffeIDFromCert(peerCert)
 		if err != nil {
+			errCode = codes.InvalidArgument
 			h.c.Log.Error(err)
 			return err
 		}
 
 		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), agentID)
 		if err != nil {
+			errCode = codes.Internal
 			h.c.Log.Error(err)
 			return errors.New("failed to fetch agent registration entries")
 		}
 
 		// Only one of 'CSRs', 'DEPRECATEDCSRs' must be populated
 		if csrsLen != 0 && csrsLenDeprecated != 0 {
+			errCode = codes.InvalidArgument
 			return errors.New("cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
 		}
 
@@ -267,6 +297,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			// Current agent, use regular signCSRs (it returns svids keyed by entryID)
 			svids, spiffeIDs, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 			if err != nil {
+				errCode = codes.Internal
 				h.c.Log.Error(err)
 				return errors.New("failed to sign CSRs")
 			}
@@ -283,6 +314,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			// Legacy agent, use legacy SignCSRs (it returns svids keyed by spiffeID)
 			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
 			if err != nil {
+				errCode = codes.Internal
 				h.c.Log.Error(err)
 				return errors.New("failed to sign CSRs")
 			}
@@ -298,6 +330,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
+			errCode = codes.Internal
 			h.c.Log.Error(err)
 			return err
 		}
@@ -310,32 +343,39 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			},
 		})
 		if err != nil {
+			errCode = codes.Internal
 			h.c.Log.WithError(err).Error("Error sending FetchX509SVIDResponse")
 		}
 	}
 }
 
 func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVIDRequest) (_ *node.FetchX509CASVIDResponse, err error) {
-	counter := telemetry.StartCall(h.c.Metrics, "node_api", "x509_ca_svid", "fetch")
+	counter := telemetry_server.StartNodeAPIFetchX509CASVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
+	errCode := codes.OK
+	defer telemetry_common.AddErrorClass(counter, &errCode)
 
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
+		errCode = codes.InvalidArgument
 		return nil, status.Error(codes.Unauthenticated, "downstream SVID is required for this request")
 	}
 
 	entry, ok := getDownstreamEntry(ctx)
 	if !ok {
+		errCode = codes.InvalidArgument
 		return nil, status.Error(codes.PermissionDenied, "downstream entry is required for this request")
 	}
 
 	err = h.limiter.Limit(ctx, CSRMsg, 1)
 	if err != nil {
+		errCode = codes.ResourceExhausted
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
 	downstreamID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
+		errCode = codes.InvalidArgument
 		h.c.Log.Error(err)
 		return nil, err
 	}
@@ -352,6 +392,7 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 
 	csr, err := h.parseX509CACSR(req.Csr)
 	if err != nil {
+		errCode = codes.InvalidArgument
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -362,11 +403,13 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})
 	if err != nil {
+		errCode = codes.Internal
 		return nil, err
 	}
 
 	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
 	if err != nil {
+		errCode = codes.Internal
 		return nil, err
 	}
 
@@ -379,23 +422,30 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
 	counter := telemetry_server.StartNodeAPIFetchJWTSVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
+	errCode := codes.OK
+	defer telemetry_common.AddErrorClass(counter, &errCode)
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
+		errCode = codes.ResourceExhausted
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
+		errCode = codes.InvalidArgument
 		return nil, errors.New("client SVID is required for this request")
 	}
 
 	// validate request parameters
 	switch {
 	case req.Jsr == nil:
+		errCode = codes.InvalidArgument
 		return nil, status.Error(codes.InvalidArgument, "request missing JSR")
 	case req.Jsr.SpiffeId == "":
+		errCode = codes.InvalidArgument
 		return nil, status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
 	case len(req.Jsr.Audience) == 0:
+		errCode = codes.InvalidArgument
 		return nil, status.Error(codes.InvalidArgument, "request missing audience")
 	}
 
@@ -403,6 +453,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
+		errCode = codes.InvalidArgument
 		h.c.Log.Error(err)
 		return nil, err
 	}
@@ -410,6 +461,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	ds := h.c.Catalog.GetDataStore()
 	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID)
 	if err != nil {
+		errCode = codes.Internal
 		return nil, err
 	}
 
@@ -421,6 +473,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		}
 	}
 	if !found {
+		errCode = codes.PermissionDenied
 		err := fmt.Errorf("caller %q is not authorized for %q", agentID, req.Jsr.SpiffeId)
 		h.c.Log.Error(err)
 		return nil, err
@@ -428,12 +481,14 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 
 	token, err := h.c.ServerCA.SignJWTSVID(ctx, req.Jsr)
 	if err != nil {
+		errCode = codes.Internal
 		h.c.Log.Error(err)
 		return nil, err
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
+		errCode = codes.Internal
 		return nil, err
 	}
 
