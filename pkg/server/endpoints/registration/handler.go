@@ -32,7 +32,7 @@ import (
 
 var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
 
-//Service is used to register SPIFFE IDs, and the attestation logic that should
+//Handler service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
 type Handler struct {
 	Log         logrus.FieldLogger
@@ -41,7 +41,7 @@ type Handler struct {
 	TrustDomain url.URL
 }
 
-//Creates an entry in the Registration table,
+//CreateEntry creates an entry in the Registration table,
 //used to assign SPIFFE IDs to nodes and workloads.
 func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
@@ -49,10 +49,14 @@ func (h *Handler) CreateEntry(
 
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 	addCallerIDLabel(ctx, counter)
 
 	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -61,8 +65,9 @@ func (h *Handler) CreateEntry(
 
 	unique, err := h.isEntryUnique(ctx, ds, request)
 	if err != nil {
+		err = status.Error(codes.Internal, "Error trying to create entry")
 		h.Log.Error(err)
-		return nil, errors.New("Error trying to create entry")
+		return nil, err
 	}
 
 	if !unique {
@@ -75,13 +80,15 @@ func (h *Handler) CreateEntry(
 		&datastore.CreateRegistrationEntryRequest{Entry: request},
 	)
 	if err != nil {
+		err = status.Error(codes.Internal, "entry already exists")
 		h.Log.Error(err)
-		return nil, errors.New("Error trying to create entry")
+		return nil, err
 	}
 
 	return &registration.RegistrationEntryID{Id: createResponse.Entry.EntryId}, nil
 }
 
+//DeleteEntry deletes an entry in the Registration table
 func (h *Handler) DeleteEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
@@ -89,6 +96,9 @@ func (h *Handler) DeleteEntry(
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	ds := h.getDataStore()
 	req := &datastore.DeleteRegistrationEntryRequest{
@@ -96,6 +106,8 @@ func (h *Handler) DeleteEntry(
 	}
 	resp, err := ds.DeleteRegistrationEntry(ctx, req)
 	if err != nil {
+		err = status.Error(codes.Internal, err.Error())
+		h.Log.Error(err)
 		return &common.RegistrationEntry{}, err
 	}
 
@@ -110,21 +122,28 @@ func (h *Handler) FetchEntry(
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
 		&datastore.FetchRegistrationEntryRequest{EntryId: request.Id},
 	)
 	if err != nil {
+		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to fetch entry: %v", err))
 		h.Log.Error(err)
-		return response, errors.New("Error trying to fetch entry")
+		return response, err
 	}
 	if fetchResponse.Entry == nil {
-		return nil, errors.New("no such registration entry")
+		err = status.Error(codes.NotFound, "no such registration entry")
+		h.Log.Error(err)
+		return nil, err
 	}
 	return fetchResponse.Entry, nil
 }
 
+//FetchEntries Retrieves all registered entries
 func (h *Handler) FetchEntries(
 	ctx context.Context, request *common.Empty) (
 	response *common.RegistrationEntries, err error) {
@@ -132,18 +151,23 @@ func (h *Handler) FetchEntries(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	if err != nil {
+		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to fetch entries: %v", err))
 		h.Log.Error(err)
-		return response, errors.New("Error trying to fetch entries")
+		return response, err
 	}
 	return &common.RegistrationEntries{
 		Entries: fetchResponse.Entries,
 	}, nil
 }
 
+//UpdateEntry Updates a specific registered entry
 func (h *Handler) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
@@ -151,13 +175,19 @@ func (h *Handler) UpdateEntry(
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	if request.Entry == nil {
-		return nil, errors.New("Request is missing entry to update")
+		err = status.Error(codes.InvalidArgument, "Request is missing entry to update")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	request.Entry, err = h.prepareRegistrationEntry(request.Entry, true)
 	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -167,8 +197,9 @@ func (h *Handler) UpdateEntry(
 		Entry: request.Entry,
 	})
 	if err != nil {
+		err = status.Error(codes.Internal, fmt.Sprintf("Failed to update registration entry: %v", err))
 		h.Log.Error(err)
-		return nil, fmt.Errorf("Failed to update registration entry: %v", err)
+		return nil, err
 	}
 
 	telemetry_registrationapi.IncrRegistrationAPIUpdatedEntryCounter(h.Metrics)
@@ -184,9 +215,13 @@ func (h *Handler) ListByParentID(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -201,8 +236,9 @@ func (h *Handler) ListByParentID(
 			},
 		})
 	if err != nil {
+		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by parent ID: %v", err))
 		h.Log.Error(err)
-		return nil, errors.New("Error trying to list entries by parent ID")
+		return nil, err
 	}
 
 	return &common.RegistrationEntries{
@@ -210,6 +246,7 @@ func (h *Handler) ListByParentID(
 	}, nil
 }
 
+//ListBySelector Returns all the Entries associated with the Selector
 func (h *Handler) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
@@ -217,6 +254,9 @@ func (h *Handler) ListBySelector(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	counter.AddLabel(telemetry.Selector, fmt.Sprintf("%s:%s", request.Type, request.Value))
 
@@ -228,6 +268,8 @@ func (h *Handler) ListBySelector(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
+		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by selector: %v", err))
+		h.Log.Error(err)
 		return nil, err
 	}
 
@@ -236,6 +278,7 @@ func (h *Handler) ListBySelector(
 	}, nil
 }
 
+//ListBySelectors Returns all the Entries associated with the Selectors
 func (h *Handler) ListBySelectors(
 	ctx context.Context, request *common.Selectors) (
 	response *common.RegistrationEntries, err error) {
@@ -243,6 +286,9 @@ func (h *Handler) ListBySelectors(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	for _, selector := range request.Entries {
 		counter.AddLabel("selector", fmt.Sprintf("%s:%s", selector.Type, selector.Value))
@@ -256,6 +302,8 @@ func (h *Handler) ListBySelectors(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
+		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by selectors: %v", err))
+		h.Log.Error(err)
 		return nil, err
 	}
 
@@ -264,6 +312,7 @@ func (h *Handler) ListBySelectors(
 	}, nil
 }
 
+//ListBySpiffeID Returns all the Entries associated with the SPIFFE ID
 func (h *Handler) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
@@ -271,9 +320,13 @@ func (h *Handler) ListBySpiffeID(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -288,6 +341,8 @@ func (h *Handler) ListBySpiffeID(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
+		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by SPIFFE ID: %v", err))
+		h.Log.Error(err)
 		return nil, err
 	}
 
@@ -303,6 +358,9 @@ func (h *Handler) CreateFederatedBundle(
 	counter := telemetry_registrationapi.StartCreateFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	bundle := request.Bundle
 	if bundle == nil {
@@ -323,7 +381,7 @@ func (h *Handler) CreateFederatedBundle(
 	if _, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &common.Empty{}, nil
@@ -336,14 +394,19 @@ func (h *Handler) FetchFederatedBundle(
 	counter := telemetry_registrationapi.StartFetchFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
+		h.Log.Error(err)
 		return nil, err
 	}
 
 	if request.Id == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
@@ -351,10 +414,10 @@ func (h *Handler) FetchFederatedBundle(
 		TrustDomainId: request.Id,
 	})
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if resp.Bundle == nil {
-		return nil, errors.New("bundle not found")
+		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.FederatedBundle{
@@ -366,11 +429,14 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	counter := telemetry_registrationapi.StartListFedBundlesCall(h.Metrics)
 	addCallerIDLabel(stream.Context(), counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	ds := h.getDataStore()
 	resp, err := ds.ListBundles(stream.Context(), &datastore.ListBundlesRequest{})
 	if err != nil {
-		return err
+		return status.Error(codes.Internal, err.Error())
 	}
 
 	for _, bundle := range resp.Bundles {
@@ -380,7 +446,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 		if err := stream.Send(&registration.FederatedBundle{
 			Bundle: bundle,
 		}); err != nil {
-			return err
+			return status.Error(codes.Internal, err.Error())
 		}
 	}
 
@@ -394,6 +460,9 @@ func (h *Handler) UpdateFederatedBundle(
 	counter := telemetry_registrationapi.StartUpdateFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	bundle := request.Bundle
 	if bundle == nil {
@@ -414,7 +483,7 @@ func (h *Handler) UpdateFederatedBundle(
 	if _, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &common.Empty{}, err
@@ -427,21 +496,26 @@ func (h *Handler) DeleteFederatedBundle(
 	counter := telemetry_registrationapi.StartDeleteFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
+		h.Log.Error(err)
 		return nil, err
 	}
 
 	counter.AddLabel(telemetry.TrustDomainID, request.Id)
 
 	if request.Id == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	mode, err := convertDeleteBundleMode(request.Mode)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Unimplemented, err.Error())
 	}
 
 	ds := h.getDataStore()
@@ -449,7 +523,7 @@ func (h *Handler) DeleteFederatedBundle(
 		TrustDomainId: request.Id,
 		Mode:          mode,
 	}); err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &common.Empty{}, nil
@@ -462,16 +536,19 @@ func (h *Handler) CreateJoinToken(
 	counter := telemetry_registrationapi.StartCreateJoinTokenCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	if request.Ttl < 1 {
-		return nil, errors.New("Ttl is required, you must provide one")
+		return nil, status.Error(codes.InvalidArgument, "Ttl is required, you must provide one")
 	}
 
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
 		u, err := uuid.NewV4()
 		if err != nil {
-			return nil, errors.New("Error generating uuid token: %v")
+			return nil, status.Error(codes.Internal, "Error generating uuid token: %v")
 		}
 		request.Token = u.String()
 	}
@@ -486,8 +563,9 @@ func (h *Handler) CreateJoinToken(
 		},
 	})
 	if err != nil {
+		err = status.Error(codes.Internal, "Failed to register token")
 		h.Log.Error(err)
-		return nil, errors.New("Failed to register token")
+		return nil, err
 	}
 
 	return request, nil
@@ -501,16 +579,19 @@ func (h *Handler) FetchBundle(
 	counter := telemetry_registrationapi.StartFetchBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("get bundle from datastore: %v", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("get bundle from datastore: %v", err))
 	}
 	if resp.Bundle == nil {
-		return nil, errors.New("bundle not found")
+		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.Bundle{

@@ -9,8 +9,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -21,6 +19,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
