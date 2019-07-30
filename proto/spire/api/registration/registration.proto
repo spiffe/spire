@@ -99,6 +99,48 @@ message EvictAgentResponse {
     spire.common.AttestedNode node = 1;
 }
 
+message MintX509SVIDRequest {
+    // SPIFFE ID of the X509-SVID
+    string spiffe_id = 1;
+
+    // ASN.1 encoded CSR. No fields from the CSR are used. It is only used
+    // to convey proof of ownership of the public key.
+    bytes csr = 2;
+
+    // TTL of the X509-SVID. The server default will be used if unset.
+    int32 ttl = 3;
+
+    // DNS names to include as DNS SANs in the X509-SVID. If set, the first
+    // in the list is also set as the X509-SVID common name.
+    repeated string dns_names = 4;
+}
+
+message MintX509SVIDResponse {
+    // X509-SVID chain. This includes the X509-SVID itself and any
+    // intermediates necessary to chain back to certificates in the root_cas.
+    repeated bytes svid_chain = 1;
+
+    // X.509 root certificates
+    repeated bytes root_cas = 2;
+}
+
+message MintJWTSVIDRequest {
+    // SPIFFE ID of the JWT-SVID
+    string spiffe_id = 1;
+
+    // TTL of the JWT-SVID. The server default will be used if unset.
+    int32 ttl = 2;
+
+    // List of audience claims to include in the JWT-SVID. At least one must
+    // be set.
+    repeated string audience = 3;
+}
+
+message MintJWTSVIDResponse {
+    // JWT-SVID token
+    string token = 1;
+}
+
 service Registration {
     // Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
     rpc CreateEntry(spire.common.RegistrationEntry) returns (RegistrationEntryID);
@@ -140,4 +182,10 @@ service Registration {
     rpc EvictAgent(EvictAgentRequest) returns (EvictAgentResponse);
     // ListAgents will list all attested nodes
     rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+
+    // MintX509SVID mints an X509-SVID directly with the SPIRE server CA.
+    rpc MintX509SVID(MintX509SVIDRequest) returns (MintX509SVIDResponse);
+
+    // MintJWTSVID mints a JWT-SVID directly with the SPIRE server CA.
+    rpc MintJWTSVID(MintJWTSVIDRequest) returns (MintJWTSVIDResponse);
 }

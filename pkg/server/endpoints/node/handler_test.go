@@ -968,7 +968,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 
 	s.NotEmpty(svid.Token)
 	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
-	s.Equal(s.clock.Now().Add(ca.DefaultJWTSVIDTTL).Unix(), svid.ExpiresAt)
+	s.Equal(s.clock.Now().Add(s.serverCA.JWTSVIDTTL()).Unix(), svid.ExpiresAt)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {

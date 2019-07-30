@@ -147,6 +147,7 @@ func (e *endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
 		Metrics:     e.c.Metrics,
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
+		ServerCA:    e.c.ServerCA,
 	}
 
 	registration_pb.RegisterRegistrationServer(tcpServer, r)

@@ -2,14 +2,19 @@ package registration
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"net"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -20,7 +25,9 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
@@ -66,14 +73,16 @@ type HandlerSuite struct {
 	peer   *peer.Peer
 	server *grpc.Server
 
-	ds      *fakedatastore.DataStore
-	handler registration.RegistrationClient
+	ds       *fakedatastore.DataStore
+	serverCA *fakeserverca.CA
+	handler  registration.RegistrationClient
 }
 
 func (s *HandlerSuite) SetupTest() {
 	log, _ := test.NewNullLogger()
 
 	s.ds = fakedatastore.New()
+	s.serverCA = fakeserverca.New(s.T(), "example.org", nil)
 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(s.ds)
@@ -83,6 +92,7 @@ func (s *HandlerSuite) SetupTest() {
 		Metrics:     telemetry.Blackhole{},
 		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
 		Catalog:     catalog,
+		ServerCA:    s.serverCA,
 	}
 
 	// we need to test a streaming API. without doing the same codegen we
@@ -829,6 +839,226 @@ func (s *HandlerSuite) TestListWithNoAgents() {
 	listResponse, err := s.handler.ListAgents(ctx, &registration.ListAgentsRequest{})
 	s.Require().NoError(err)
 	s.Len(listResponse.Nodes, 0)
+}
+
+func (s *HandlerSuite) TestMintX509SVID() {
+	bundle := &common.Bundle{
+		TrustDomainId: "spiffe://example.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("EXAMPLE")},
+		},
+	}
+	s.createBundle(bundle)
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	s.Require().NoError(err)
+
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
+	s.Require().NoError(err)
+
+	badCSR := append([]byte{}, csr...)
+	badCSR[len(badCSR)-1]++
+	badCSR[len(badCSR)-2]++
+	badCSR[len(badCSR)-3]++
+	badCSR[len(badCSR)-4]++
+
+	testCases := []struct {
+		name string
+		req  *registration.MintX509SVIDRequest
+		err  error
+	}{
+		{
+			name: "SPIFFE ID is missing",
+			req: &registration.MintX509SVIDRequest{
+				Csr: csr,
+			},
+			err: status.Error(codes.InvalidArgument, `request missing SPIFFE ID`),
+		},
+		{
+			name: "SPIFFE ID is not for a workload in the trust domain",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://example.org",
+				Csr:      csr,
+			},
+			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a valid workload SPIFFE ID: path is empty`),
+		},
+		{
+			name: "SPIFFE ID is not for the trust domain",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://domain.test/workload",
+				Csr:      csr,
+			},
+			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" does not belong to trust domain "example.org"`),
+		},
+		{
+			name: "CSR is missing",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+			},
+			err: status.Error(codes.InvalidArgument, `request missing CSR`),
+		},
+		{
+			name: "CSR is malformed",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+				Csr:      []byte{1},
+			},
+			err: status.Error(codes.InvalidArgument, `invalid CSR: asn1: syntax error: truncated tag or length`),
+		},
+		{
+			name: "CSR signature is bad",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+				Csr:      badCSR,
+			},
+			err: status.Error(codes.InvalidArgument, `invalid CSR: signature verify failed`),
+		},
+		{
+			name: "success with default TTL and no DNS names",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+				Csr:      csr,
+			},
+		},
+		{
+			name: "success with specific TTL and DNS names",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+				Csr:      csr,
+				Ttl:      1,
+				DnsNames: []string{"foo.example.org", "bar.example.org"},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			req := testCase.req
+			resp, err := s.handler.MintX509SVID(context.Background(), req)
+			if testCase.err != nil {
+				st := status.Convert(testCase.err)
+				spiretest.RequireGRPCStatus(t, err, st.Code(), st.Message())
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, resp.RootCas, len(bundle.RootCas))
+			for i, rootCA := range resp.RootCas {
+				require.Equal(t, bundle.RootCas[i].DerBytes, rootCA)
+			}
+			require.NotEmpty(t, resp.SvidChain)
+
+			svid, err := x509.ParseCertificate(resp.SvidChain[0])
+			require.NoError(t, err)
+
+			// assert the SPIFFE ID
+			require.Len(t, svid.URIs, 1)
+			require.Equal(t, req.SpiffeId, svid.URIs[0].String())
+
+			// assert the certificate lifetime
+			now := s.serverCA.Clock().Now().UTC().Truncate(time.Second)
+			if req.Ttl == 0 {
+				require.Equal(t, now.Add(s.serverCA.X509SVIDTTL()), svid.NotAfter)
+			} else {
+				require.Equal(t, now.Add(time.Duration(req.Ttl)*time.Second), svid.NotAfter)
+			}
+
+			// assert that the DNS names have been set correctly
+			require.Equal(t, req.DnsNames, svid.DNSNames)
+
+			// assert that the first DNS name is set as the common name
+			if len(req.DnsNames) > 0 {
+				require.Equal(t, req.DnsNames[0], svid.Subject.CommonName)
+			}
+		})
+	}
+}
+
+func (s *HandlerSuite) TestMintJWTSVID() {
+	testCases := []struct {
+		name string
+		req  *registration.MintJWTSVIDRequest
+		err  error
+	}{
+		{
+			name: "SPIFFE ID is missing",
+			req: &registration.MintJWTSVIDRequest{
+				Audience: []string{"AUDIENCE"},
+			},
+			err: status.Error(codes.InvalidArgument, `request missing SPIFFE ID`),
+		},
+		{
+			name: "SPIFFE ID is not for a workload in the trust domain",
+			req: &registration.MintJWTSVIDRequest{
+				SpiffeId: "spiffe://example.org",
+				Audience: []string{"AUDIENCE"},
+			},
+			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a valid workload SPIFFE ID: path is empty`),
+		},
+		{
+			name: "SPIFFE ID is not for the trust domain",
+			req: &registration.MintJWTSVIDRequest{
+				SpiffeId: "spiffe://domain.test/workload",
+				Audience: []string{"AUDIENCE"},
+			},
+			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" does not belong to trust domain "example.org"`),
+		},
+		{
+			name: "audience is missing",
+			req: &registration.MintJWTSVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+			},
+			err: status.Error(codes.InvalidArgument, `request must specify at least one audience`),
+		},
+		{
+			name: "success with default TTL",
+			req: &registration.MintJWTSVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+				Audience: []string{"AUDIENCE"},
+			},
+		},
+		{
+			name: "success with specified TTL and extra audience",
+			req: &registration.MintJWTSVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+				Audience: []string{"AUDIENCE1", "AUDIENCE2"},
+				Ttl:      1,
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			req := testCase.req
+			resp, err := s.handler.MintJWTSVID(context.Background(), req)
+			if testCase.err != nil {
+				st := status.Convert(testCase.err)
+				spiretest.RequireGRPCStatus(t, err, st.Code(), st.Message())
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Token)
+
+			token, err := jwt.ParseSigned(resp.Token)
+			require.NoError(t, err)
+
+			var claims jwt.Claims
+			err = token.UnsafeClaimsWithoutVerification(&claims)
+			require.NoError(t, err)
+
+			require.Equal(t, req.SpiffeId, claims.Subject)
+			require.Equal(t, jwt.Audience(req.Audience), claims.Audience)
+			require.NotNil(t, claims.Expiry)
+
+			expiry := time.Unix(int64(*claims.Expiry), 0).UTC()
+			now := s.serverCA.Clock().Now().UTC().Truncate(time.Second)
+			if req.Ttl == 0 {
+				require.Equal(t, now.Add(s.serverCA.JWTSVIDTTL()), expiry)
+			} else {
+				require.Equal(t, now.Add(time.Duration(req.Ttl)*time.Second), expiry)
+			}
+		})
+	}
+
 }
 
 func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode {
