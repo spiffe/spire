@@ -3,6 +3,8 @@ package common
 import (
 	"strconv"
 
+	"google.golang.org/grpc/codes"
+
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -24,6 +26,14 @@ func AddAudience(cc *telemetry.CallCounter, auds ...string) {
 // from the given ID
 func AddCallerID(cc *telemetry.CallCounter, id string) {
 	cc.AddLabel(telemetry.CallerID, id)
+}
+
+// AddErrorClass add Error label to the given counter and
+// error code, if the code is not OK
+func AddErrorClass(cc *telemetry.CallCounter, code codes.Code) {
+	if code != codes.OK {
+		cc.AddLabel(telemetry.Error, code.String())
+	}
 }
 
 // AddRegistered add the Registered label to the given
