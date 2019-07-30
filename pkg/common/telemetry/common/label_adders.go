@@ -29,9 +29,9 @@ func AddCallerID(cc *telemetry.CallCounter, id string) {
 }
 
 // AddErrorClass add Error label to the given counter and
-// error code, if the code is not nil or OK
-func AddErrorClass(cc *telemetry.CallCounter, code *codes.Code) {
-	if code != nil && *code != codes.OK {
+// error code, if the code is not OK
+func AddErrorClass(cc *telemetry.CallCounter, code codes.Code) {
+	if code != codes.OK {
 		cc.AddLabel(telemetry.Error, code.String())
 	}
 }
