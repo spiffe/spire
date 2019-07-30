@@ -485,9 +485,7 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 		defer db.opMu.Unlock()
 	}
 
-	// TODO: as soon as GORM supports it, attach the context
-	// https://github.com/jinzhu/gorm/issues/1231
-	tx := db.Begin()
+	tx := db.BeginTx(ctx, nil /* opts *sql.TxOptions */)
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
