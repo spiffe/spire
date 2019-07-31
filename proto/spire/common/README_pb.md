@@ -1,5 +1,5 @@
 # Protocol Documentation
-<a name="top"></a>
+<a name="top"/>
 
 ## Table of Contents
 
@@ -23,14 +23,14 @@
 
 
 
-<a name="common.proto"></a>
+<a name="common.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
 ## common.proto
 
 
 
-<a name="spire.common.AttestationData"></a>
+<a name="spire.common.AttestationData"/>
 
 ### AttestationData
 A type which contains attestation data for specific platform.
@@ -46,7 +46,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="spire.common.AttestedNode"></a>
+<a name="spire.common.AttestedNode"/>
 
 ### AttestedNode
 Represents an attested SPIRE agent
@@ -64,7 +64,7 @@ Represents an attested SPIRE agent
 
 
 
-<a name="spire.common.Bundle"></a>
+<a name="spire.common.Bundle"/>
 
 ### Bundle
 
@@ -82,7 +82,7 @@ Represents an attested SPIRE agent
 
 
 
-<a name="spire.common.Certificate"></a>
+<a name="spire.common.Certificate"/>
 
 ### Certificate
 Certificate represents a ASN.1/DER encoded X509 certificate
@@ -97,7 +97,7 @@ Certificate represents a ASN.1/DER encoded X509 certificate
 
 
 
-<a name="spire.common.Empty"></a>
+<a name="spire.common.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -107,7 +107,7 @@ Represents an empty message
 
 
 
-<a name="spire.common.PublicKey"></a>
+<a name="spire.common.PublicKey"/>
 
 ### PublicKey
 PublicKey represents a PKIX encoded public key
@@ -124,7 +124,7 @@ PublicKey represents a PKIX encoded public key
 
 
 
-<a name="spire.common.RegistrationEntries"></a>
+<a name="spire.common.RegistrationEntries"/>
 
 ### RegistrationEntries
 A list of registration entries.
@@ -139,7 +139,7 @@ A list of registration entries.
 
 
 
-<a name="spire.common.RegistrationEntry"></a>
+<a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
 This is a curated record that the Server uses to set up and
@@ -158,13 +158,14 @@ manage the various registered nodes and workloads that are controlled by it.
 | downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
 | entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
 | dns_names | [string](#string) | repeated | DNS entries |
+| registrant_id | [string](#string) |  | SPIFFE ID of the workload that created this registration entry |
 
 
 
 
 
 
-<a name="spire.common.Selector"></a>
+<a name="spire.common.Selector"/>
 
 ### Selector
 A type which describes the conditions under which a registration
@@ -181,7 +182,7 @@ entry is matched.
 
 
 
-<a name="spire.common.Selectors"></a>
+<a name="spire.common.Selectors"/>
 
 ### Selectors
 Represents a type with a list of Selector.

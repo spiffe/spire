@@ -61,6 +61,11 @@ func printEntry(e *common.RegistrationEntry) {
 	fmt.Printf("SPIFFE ID     : %s\n", e.SpiffeId)
 	fmt.Printf("Parent ID     : %s\n", e.ParentId)
 
+	// registrant is a new feature, it's not always populated
+	if e.RegistrantId != "" {
+		fmt.Printf("Registrant ID : %s\n", e.RegistrantId)
+	}
+
 	if e.Downstream {
 		fmt.Printf("Downstream    : %t\n", e.Downstream)
 	}

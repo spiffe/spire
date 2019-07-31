@@ -1066,13 +1066,14 @@ func createRegistrationEntry(tx *gorm.DB,
 	}
 
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:    entryID,
-		SpiffeID:   req.Entry.SpiffeId,
-		ParentID:   req.Entry.ParentId,
-		TTL:        req.Entry.Ttl,
-		Admin:      req.Entry.Admin,
-		Downstream: req.Entry.Downstream,
-		Expiry:     req.Entry.EntryExpiry,
+		EntryID:      entryID,
+		SpiffeID:     req.Entry.SpiffeId,
+		ParentID:     req.Entry.ParentId,
+		TTL:          req.Entry.Ttl,
+		Admin:        req.Entry.Admin,
+		Downstream:   req.Entry.Downstream,
+		Expiry:       req.Entry.EntryExpiry,
+		RegistrantID: req.Entry.RegistrantId,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1170,6 +1171,9 @@ func listRegistrationEntries(tx *gorm.DB,
 	}
 	if req.BySpiffeId != nil {
 		entryTx = entryTx.Where("spiffe_id = ?", req.BySpiffeId.Value)
+	}
+	if req.ByRegistrantId != nil {
+		entryTx = entryTx.Where("registrant_id = ?", req.ByRegistrantId.Value)
 	}
 
 	if len(selectorsList) == 0 {
@@ -1345,6 +1349,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.Downstream = req.Entry.Downstream
 	entry.Expiry = req.Entry.EntryExpiry
 	entry.DNSList = dnsList
+	entry.RegistrantID = req.Entry.RegistrantId
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1586,6 +1591,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Downstream:    model.Downstream,
 		EntryExpiry:   model.Expiry,
 		DnsNames:      dnsList,
+		RegistrantId:  model.RegistrantID,
 	}, nil
 }
 

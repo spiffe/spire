@@ -67,7 +67,8 @@ type RegisteredEntry struct {
 	// (optional) expiry of this entry
 	Expiry int64
 	// (optional) DNS entries
-	DNSList []DNSName
+	DNSList      []DNSName
+	RegistrantID string `gorm:"index"`
 }
 
 // JoinToken holds a join token

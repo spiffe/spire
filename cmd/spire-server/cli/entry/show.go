@@ -24,9 +24,10 @@ type ShowConfig struct {
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
 	Selectors StringsFlag
 
-	EntryID  string
-	ParentID string
-	SpiffeID string
+	EntryID      string
+	ParentID     string
+	SpiffeID     string
+	RegistrantID string
 
 	FederatesWith StringsFlag
 	Downstream    bool
@@ -106,7 +107,7 @@ func (s *ShowCLI) fetchEntries(ctx context.Context) error {
 	}
 
 	// If we didn't get any args, fetch everything
-	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 {
+	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 && s.Config.RegistrantID == "" {
 		err := s.fetchAllEntries(ctx)
 		if err != nil {
 			fmt.Printf("Error fetching entries: %s\n", err)
@@ -132,6 +133,11 @@ func (s *ShowCLI) fetchEntries(ctx context.Context) error {
 	err = s.fetchBySelectors(ctx)
 	if err != nil {
 		fmt.Printf("Error fetching by selectors: %s", err)
+		return err
+	}
+
+	if err := s.fetchByRegistrantID(ctx); err != nil {
+		fmt.Printf("Error fetching by registrant ID: %s", err)
 		return err
 	}
 
@@ -203,6 +209,22 @@ func (s *ShowCLI) fetchBySelectors(ctx context.Context) error {
 		}
 
 		entries, err := s.Client.ListBySelector(ctx, selector)
+		if err != nil {
+			return err
+		}
+
+		s.Entries = append(s.Entries, entries.Entries...)
+	}
+
+	return nil
+}
+
+// fetchByRegistrantID appends registration entries which match the configured
+// Registrant ID to `entries`
+func (s *ShowCLI) fetchByRegistrantID(ctx context.Context) error {
+	if s.Config.RegistrantID != "" {
+		registrantID := &registration.SpiffeID{Id: s.Config.RegistrantID}
+		entries, err := s.Client.ListByRegistrantID(ctx, registrantID)
 		if err != nil {
 			return err
 		}
@@ -286,6 +308,7 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	f.StringVar(&c.EntryID, "entryID", "", "The Entry ID of the records to show")
 	f.StringVar(&c.ParentID, "parentID", "", "The Parent ID of the records to show")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
+	f.StringVar(&c.RegistrantID, "registrantID", "", "The Registrant SPIFFE ID of the records to show")
 	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
 	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")

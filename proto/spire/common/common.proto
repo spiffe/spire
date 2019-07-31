@@ -73,7 +73,7 @@ message RegistrationEntry {
     /** DNS entries */
     repeated string dns_names = 10;
     /** SPIFFE ID of the workload that created this registration entry */
-    string registrant = 11;
+    string registrant_id = 11;
 }
 
 /** A list of registration entries. */

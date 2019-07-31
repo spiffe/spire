@@ -119,7 +119,7 @@ service Registration {
     // Return all registration entries for which SPIFFE ID matches.
     rpc ListBySpiffeID(SpiffeID) returns (spire.common.RegistrationEntries);
     // Return all registration entries that were registered by a workload with the provided SPIFFE ID.
-    rpc ListByRegistrant(SpiffeID) returns (spire.common.RegistrationEntries);
+    rpc ListByRegistrantID(SpiffeID) returns (spire.common.RegistrationEntries);
 
     // Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
     rpc CreateFederatedBundle(FederatedBundle) returns (spire.common.Empty);

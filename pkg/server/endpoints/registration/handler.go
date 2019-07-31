@@ -51,7 +51,7 @@ func (h *Handler) CreateEntry(
 	defer counter.Done(&err)
 	addCallerIDLabel(ctx, counter)
 
-	request, err = h.prepareRegistrationEntry(request, false)
+	request, err = h.prepareRegistrationEntry(ctx, request, false)
 	if err != nil {
 		h.Log.Error(err)
 		return nil, err
@@ -156,7 +156,7 @@ func (h *Handler) UpdateEntry(
 		return nil, errors.New("Request is missing entry to update")
 	}
 
-	request.Entry, err = h.prepareRegistrationEntry(request.Entry, true)
+	request.Entry, err = h.prepareRegistrationEntry(ctx, request.Entry, true)
 	if err != nil {
 		h.Log.Error(err)
 		return nil, err
@@ -284,6 +284,35 @@ func (h *Handler) ListBySpiffeID(
 	req := &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
 			Value: request.Id,
+		},
+	}
+	resp, err := ds.ListRegistrationEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &common.RegistrationEntries{
+		Entries: resp.Entries,
+	}, nil
+}
+
+func (h *Handler) ListByRegistrantID(ctx context.Context, request *registration.SpiffeID) (response *common.RegistrationEntries, err error) {
+	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
+	defer counter.Done(&err)
+
+	registrant, err := idutil.NormalizeSpiffeID(request.GetId(), idutil.AllowAny())
+	if err != nil {
+		h.Log.Error(err)
+		return nil, err
+	}
+
+	telemetry_common.AddSPIFFEID(counter, registrant)
+
+	ds := h.getDataStore()
+	req := &datastore.ListRegistrationEntriesRequest{
+		ByRegistrantId: &wrappers.StringValue{
+			Value: registrant,
 		},
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
@@ -594,7 +623,7 @@ func (h *Handler) getDataStore() datastore.DataStore {
 	return h.Catalog.GetDataStore()
 }
 
-func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
+func (h *Handler) prepareRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
 	entry = cloneRegistrationEntry(entry)
 	if forUpdate && entry.EntryId == "" {
 		return nil, errors.New("missing registration entry id")
@@ -613,8 +642,12 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 		return nil, err
 	}
 
-	// Validate Spiffe ID
 	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	if err != nil {
+		return nil, err
+	}
+
+	entry.RegistrantId, err = idutil.NormalizeSpiffeID(getCallerID(ctx), idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
 	if err != nil {
 		return nil, err
 	}
@@ -624,7 +657,7 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	// For the time being, authorization is not per-method. In other words, all or nothing.
-	callerID, err := authorizeCaller(ctx, h.getDataStore())
+	callerID, err := authorizeCaller(ctx, h.getDataStore(), h.TrustDomain.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -661,7 +694,7 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	return spiffeID.String(), nil
 }
 
-func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID string, err error) {
+func authorizeCaller(ctx context.Context, ds datastore.DataStore, trustDomain string) (spiffeID string, err error) {
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
 		return "", status.Error(codes.PermissionDenied, "no peer information for caller")
@@ -688,7 +721,10 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID stri
 		// The caller came over UDS and is therefore authorized but does not
 		// provide a spiffeID. The file permissions on the UDS are restricted to
 		// processes belonging to the same user or group as the server.
-		return "", nil
+		//
+		// In order to provide the "registrant_id" field to the registration entry,
+		// we consider the server to be the authorized caller.
+		return idutil.ServerID(trustDomain), nil
 	default:
 		// The caller came over an unknown transport
 		return "", status.Errorf(codes.PermissionDenied, "unsupported peer auth info type (%T)", authInfo)
