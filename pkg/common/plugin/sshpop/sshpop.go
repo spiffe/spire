@@ -1,4 +1,4 @@
-// Package sshpop implements ssh proof of posession based node attestation.
+// Package sshpop implements ssh proof of possession based node attestation.
 package sshpop
 
 import (

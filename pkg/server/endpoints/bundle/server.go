@@ -57,7 +57,7 @@ func NewServer(config ServerConfig) *Server {
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	// create the listener explicity instead of using ListenAndServeTLS since
+	// create the listener explicitly instead of using ListenAndServeTLS since
 	// it gives us the ability to use/inspect an ephemeral port during testing.
 	listener, err := s.c.listen("tcp", s.c.Address)
 	if err != nil {

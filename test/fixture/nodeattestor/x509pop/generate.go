@@ -27,8 +27,8 @@ func main() {
 	rootCert := createRootCertificate(rootKey, &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		BasicConstraintsValid: true,
-		IsCA:     true,
-		NotAfter: neverExpires,
+		IsCA:                  true,
+		NotAfter:              neverExpires,
 	})
 
 	intermediateKey := generateRSAKey()
@@ -36,8 +36,8 @@ func main() {
 	intermediateCert := createCertificate(intermediateKey, &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		BasicConstraintsValid: true,
-		IsCA:     true,
-		NotAfter: neverExpires,
+		IsCA:                  true,
+		NotAfter:              neverExpires,
 	}, rootKey, rootCert)
 
 	leafKey := generateRSAKey()
