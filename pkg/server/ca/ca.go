@@ -326,7 +326,7 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 		return "", errs.New("unable to sign JWT SVID: %v", err)
 	}
 
-	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, jsr.SpiffeId, jsr.Audience...)
+	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, jsr.SpiffeId)
 
 	return token, nil
 }

@@ -279,8 +279,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	labels = append(selectorsLabels, []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
 		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/one"},
-		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two"},
+		{Name: telemetry.Count, Value: "2"},
 	}...)
 
 	s.metrics.EXPECT().SetGaugeWithLabels(
@@ -325,7 +324,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	labels = append(selectorsLabels, []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
 		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two"},
+		{Name: telemetry.Count, Value: "1"},
 	}...)
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},

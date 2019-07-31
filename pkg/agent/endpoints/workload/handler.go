@@ -76,10 +76,9 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
-		// the number of matching identities in a secure system should be small,
-		// so we append the actual IDs instead of just a count
-		telemetry_common.AddSPIFFEID(counter, identity.Entry.SpiffeId)
 	}
+
+	telemetry_common.AddCount(counter, len(spiffeIDs))
 
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {

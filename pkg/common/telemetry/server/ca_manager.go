@@ -61,24 +61,14 @@ func IncrManagerPrunedBundleCounter(m telemetry.Metrics) {
 }
 
 // IncrServerCASignJWTSVIDCounter indicate Server CA
-// signed a JWT SVID. Takes SVID's SPIFFE ID and audience(s)
-func IncrServerCASignJWTSVIDCounter(m telemetry.Metrics, id string, auds ...string) {
-	labels := []telemetry.Label{
+// signed a JWT SVID. Takes SVID's SPIFFE ID
+func IncrServerCASignJWTSVIDCounter(m telemetry.Metrics, id string) {
+	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, []telemetry.Label{
 		{
 			Name:  telemetry.SPIFFEID,
 			Value: id,
 		},
-	}
-
-	// the number of audiences should be small in a secure system, so we label every audience
-	// element instead of just an audience count
-	for _, audience := range auds {
-		labels = append(labels, telemetry.Label{
-			Name:  telemetry.Audience,
-			Value: audience,
-		})
-	}
-	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, labels)
+	})
 }
 
 // IncrServerCASignX509CACounter indicate Server CA
