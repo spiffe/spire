@@ -110,7 +110,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(gomock.Any())
 
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		{Name: telemetry.Registered, Value: "true"},
@@ -244,7 +244,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
 		{Name: telemetry.Registered, Value: "false"},
 	}
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.Error}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.Error, telemetry.ElapsedTime}, gomock.Any(), labels)
 
@@ -274,7 +274,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/one", audience).Return(ONE, nil)
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
 		{Name: telemetry.Registered, Value: "true"},
@@ -322,7 +322,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
 		{Name: telemetry.Registered, Value: "true"},
@@ -354,12 +354,12 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	}, resp)
 }
 
-func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectors []*common.Selector) {
+func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsCount int) {
 	attestorLabels := []telemetry.Label{{telemetry.Attestor, "fake"}}
 
 	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, float32(1), attestorLabels)
 	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.ElapsedTime}, gomock.Any(), attestorLabels)
-	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(len(selectors)))
+	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(selectorsCount))
 	metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, gomock.Any())
 
 	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connection}, float32(1))
@@ -399,7 +399,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 		},
 	})
 
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, float32(1))
 	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate, telemetry.JWT}, float32(1))
 	s.metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, gomock.Any())
@@ -513,7 +513,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	// token validation failed
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{})
 
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels := []telemetry.Label{
 		{Name: telemetry.Error, Value: "token contains an invalid number of segments"},
 	}
@@ -557,7 +557,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	)
 	s.Require().NoError(err)
 
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
 		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
 		{Name: telemetry.Audience, Value: "audience"},
@@ -585,7 +585,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 		},
 	})
 
-	setupMetricsCommonExpectations(s.metrics, selectors)
+	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
 		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
 		{Name: telemetry.Audience, Value: "audience"},
