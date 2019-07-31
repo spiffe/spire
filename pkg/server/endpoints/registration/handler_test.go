@@ -914,6 +914,15 @@ func (s *HandlerSuite) TestMintX509SVID() {
 			err: status.Error(codes.InvalidArgument, `invalid CSR: signature verify failed`),
 		},
 		{
+			name: "bad DNS name",
+			req: &registration.MintX509SVIDRequest{
+				SpiffeId: "spiffe://example.org/workload",
+				Csr:      csr,
+				DnsNames: []string{"domain."},
+			},
+			err: status.Error(codes.InvalidArgument, `"domain." is not a valid DNS name: label is empty`),
+		},
+		{
 			name: "success with default TTL and no DNS names",
 			req: &registration.MintX509SVIDRequest{
 				SpiffeId: "spiffe://example.org/workload",

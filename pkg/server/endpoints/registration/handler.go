@@ -552,16 +552,19 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
-	if req.SpiffeId == "" {
-		return nil, status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
+	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
+	if err != nil {
+		return nil, err
 	}
+
 	if len(req.Csr) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "request missing CSR")
 	}
 
-	spiffeID, err := idutil.NormalizeSpiffeID(req.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+	for _, dnsName := range req.DnsNames {
+		if err := validateDNS(dnsName); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%q is not a valid DNS name: %v", dnsName, err)
+		}
 	}
 
 	csr, err := x509.ParseCertificateRequest(req.Csr)
@@ -610,16 +613,13 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
-	if req.SpiffeId == "" {
-		return nil, status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
-	}
-	if len(req.Audience) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "request must specify at least one audience")
+	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
+	if err != nil {
+		return nil, err
 	}
 
-	spiffeID, err := idutil.NormalizeSpiffeID(req.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+	if len(req.Audience) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "request must specify at least one audience")
 	}
 
 	token, err := h.ServerCA.SignJWTSVID(ctx, ca.JWTSVIDParams{
@@ -652,6 +652,19 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 	}
 
 	return resp.Node, nil
+}
+
+func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (string, error) {
+	if spiffeID == "" {
+		return "", status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
+	}
+
+	spiffeID, err := idutil.NormalizeSpiffeID(spiffeID, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	if err != nil {
+		return "", status.Errorf(codes.InvalidArgument, err.Error())
+	}
+
+	return spiffeID, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {

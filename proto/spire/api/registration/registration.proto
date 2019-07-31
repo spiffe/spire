@@ -103,8 +103,8 @@ message MintX509SVIDRequest {
     // SPIFFE ID of the X509-SVID
     string spiffe_id = 1;
 
-    // ASN.1 encoded CSR. No fields from the CSR are used. It is only used
-    // to convey proof of ownership of the public key.
+    // ASN.1 encoded CSR. The CSR is only used to convey the public key and 
+    // prove possession of the private key. The rest of the CSR is ignored.
     bytes csr = 2;
 
     // TTL of the X509-SVID. The server default will be used if unset.

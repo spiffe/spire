@@ -599,8 +599,8 @@ func (m *EvictAgentResponse) GetNode() *common.AttestedNode {
 type MintX509SVIDRequest struct {
 	// SPIFFE ID of the X509-SVID
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
-	// ASN.1 encoded CSR. No fields from the CSR are used. It is only used
-	// to convey proof of ownership of the public key.
+	// ASN.1 encoded CSR. The CSR is only used to convey the public key and
+	// prove possession of the private key. The rest of the CSR is ignored.
 	Csr []byte `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
 	// TTL of the X509-SVID. The server default will be used if unset.
 	Ttl int32 `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`

@@ -212,7 +212,7 @@ Represents a ListAgents response
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | SPIFFE ID of the X509-SVID |
-| csr | [bytes](#bytes) |  | ASN.1 encoded CSR. No fields from the CSR are used. It is only used to convey proof of ownership of the public key. |
+| csr | [bytes](#bytes) |  | ASN.1 encoded CSR. The CSR is only used to convey the public key and prove possession of the private key. The rest of the CSR is ignored. |
 | ttl | [int32](#int32) |  | TTL of the X509-SVID. The server default will be used if unset. |
 | dns_names | [string](#string) | repeated | DNS names to include as DNS SANs in the X509-SVID. If set, the first in the list is also set as the X509-SVID common name. |
 
