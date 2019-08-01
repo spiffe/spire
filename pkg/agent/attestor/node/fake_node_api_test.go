@@ -130,12 +130,12 @@ func (n *fakeNodeAPI) createAttestResponse(csr *x509.CertificateRequest, agentID
 
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids: map[string]*node.X509SVID{
-			agentID: &node.X509SVID{
+			agentID: {
 				CertChain: certDER,
 			},
 		},
 		Bundles: map[string]*common.Bundle{
-			"spiffe://domain.test": &common.Bundle{
+			"spiffe://domain.test": {
 				TrustDomainId: "spiffe://domain.test",
 				RootCas: []*common.Certificate{
 					{DerBytes: n.c.CACert.Raw},

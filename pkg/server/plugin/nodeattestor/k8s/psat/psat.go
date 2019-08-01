@@ -44,7 +44,7 @@ type AttestorConfig struct {
 // ClusterConfig holds a single cluster configuration
 type ClusterConfig struct {
 	// Array of whitelisted service accounts names
-	// Attestation is denied if comming from a service account that is not in the list
+	// Attestation is denied if coming from a service account that is not in the list
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
 
 	// Audience for PSAT token validation

@@ -101,7 +101,7 @@ func (m *Mock) WaitForSleep(timeout time.Duration, format string, args ...interf
 	}
 }
 
-// Timer creates a new Timer containing a channel taht will send the time with a period specified by the duration argument.
+// Timer creates a new Timer containing a channel that will send the time with a period specified by the duration argument.
 func (m *Mock) Timer(d time.Duration) *clock.Timer {
 	c := m.Mock.Timer(d)
 	select {

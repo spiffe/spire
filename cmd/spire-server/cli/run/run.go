@@ -233,7 +233,7 @@ func newServerConfig(c *config) (*server.Config, error) {
 
 	ip := net.ParseIP(c.Server.BindAddress)
 	if ip == nil {
-		return nil, fmt.Errorf("could not parse bind_adress %q", c.Server.BindAddress)
+		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
 	}
 	sc.BindAddress = &net.TCPAddr{
 		IP:   ip,

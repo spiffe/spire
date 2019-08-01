@@ -134,7 +134,7 @@ func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
-	// fetch non-existant
+	// fetch non-existent
 	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
@@ -143,7 +143,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NotNil(fresp)
 	s.Require().Nil(fresp.Bundle)
 
-	// update non-existant
+	// update non-existent
 	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
 	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
@@ -151,7 +151,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	expectedCallCounter.Done(&expectedErr)
 	s.RequireGRPCStatus(err, codes.NotFound, expectedErr.Error())
 
-	// delete non-existant
+	// delete non-existent
 	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
