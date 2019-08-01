@@ -160,6 +160,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		{Name: telemetry.Registered, Value: "false"},
+		{Name: telemetry.Error, Value: codes.PermissionDenied.String()},
 	}
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.Error}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.Error, telemetry.ElapsedTime}, gomock.Any(), labels)
@@ -243,6 +244,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
 		{Name: telemetry.Registered, Value: "false"},
+		{Name: telemetry.Error, Value: codes.PermissionDenied.String()},
 	}
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.Error}, float32(1), labels)
@@ -402,6 +404,12 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, float32(1))
 	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate, telemetry.JWT}, float32(1))
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, gomock.Any(), []telemetry.Label{
+		{Name: telemetry.SVIDType, Value: telemetry.JWT},
+	})
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles, telemetry.ElapsedTime}, gomock.Any(), []telemetry.Label{
+		{Name: telemetry.SVIDType, Value: telemetry.JWT},
+	})
 	s.metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, gomock.Any())
 
 	go func() { result <- s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream) }()
