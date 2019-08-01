@@ -602,7 +602,9 @@ type MintX509SVIDRequest struct {
 	// ASN.1 encoded CSR. The CSR is only used to convey the public key and
 	// prove possession of the private key. The rest of the CSR is ignored.
 	Csr []byte `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
-	// TTL of the X509-SVID. The server default will be used if unset.
+	// TTL of the X509-SVID. The server default will be used if unset. The TTL
+	// is advisory only. The actual lifetime of the X509-SVID may be lower
+	// depending on the remaining lifetime of the active SPIRE Server CA.
 	Ttl int32 `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	// DNS names to include as DNS SANs in the X509-SVID. If set, the first
 	// in the list is also set as the X509-SVID common name.
@@ -718,7 +720,9 @@ func (m *MintX509SVIDResponse) GetRootCas() [][]byte {
 type MintJWTSVIDRequest struct {
 	// SPIFFE ID of the JWT-SVID
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
-	// TTL of the JWT-SVID. The server default will be used if unset.
+	// TTL of the JWT-SVID. The server default will be used if unset. The TTL
+	// is advisory only. The actual lifetime of the JWT-SVID may be lower
+	// depending on the remainint lifetime of the active SPIRE Server CA.
 	Ttl int32 `protobuf:"varint,2,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	// List of audience claims to include in the JWT-SVID. At least one must
 	// be set.
