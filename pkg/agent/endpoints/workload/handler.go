@@ -347,8 +347,6 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
-	// the number of selectors should be small, so we append the actual
-	// selectors instead of just a count
 	telemetry_workload.IncrConnectionCounter(h.Metrics)
 
 	return watcher.PID(), selectors, h.Metrics, done, nil
