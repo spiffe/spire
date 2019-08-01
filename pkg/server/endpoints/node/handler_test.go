@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -280,7 +281,7 @@ func (s *HandlerSuite) TestAttestWithUnknownAttestor() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR(agentID),
-	}, noIDExpected, codes.Unknown, `could not find node attestor type "test"`)
+	}, noIDExpected, codes.Unimplemented, `could not find node attestor type "test"`)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
@@ -293,7 +294,7 @@ func (s *HandlerSuite) TestAttestWithMismatchedAgentIDWithDeprecatedCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/other"),
-	}, agentID, codes.Unknown, "attestor returned unexpected response")
+	}, agentID, codes.NotFound, "attestor returned unexpected response")
 
 	s.assertLastLogMessage("Attested SPIFFE ID does not match CSR")
 
@@ -564,8 +565,8 @@ func (s *HandlerSuite) TestFetchX509SVIDWithCurrentAndLegacyCSRs() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs:           map[string][]byte{"an-entry-id": []byte("MALFORMED")},
-		DEPRECATEDCsrs: [][]byte{[]byte{1, 2, 3}},
-	}, codes.Unknown, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
+		DEPRECATEDCsrs: [][]byte{{1, 2, 3}},
+	}, codes.InvalidArgument, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDLimits() {
@@ -580,7 +581,7 @@ func (s *HandlerSuite) TestFetchX509SVIDLimits() {
 	// Test with 5 CSRs (5 count should be added)
 	s.limiter.setNextError(errors.New("limit exceeded"))
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: map[string][]byte{
-		"foo": []byte{1}, "bar": []byte{2}, "boo": []byte{3}, "far": []byte{4}, "bor": []byte{5}},
+		"foo": {1}, "bar": {2}, "boo": {3}, "far": {4}, "bor": {5}},
 	}, codes.ResourceExhausted, "limit exceeded")
 	s.Equal(5, s.limiter.callsFor(CSRMsg))
 }
@@ -628,7 +629,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSR() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: map[string][]byte{"an-entry-id": []byte("MALFORMED")},
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains("failed to parse CSR")
 }
 
@@ -637,7 +638,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSRLegacy() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: [][]byte{[]byte("MALFORMED")},
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains("failed to parse CSR")
 }
 
@@ -646,7 +647,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", workloadID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
 }
 
@@ -655,7 +656,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org/workload"`)
 }
 
@@ -715,7 +716,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
 }
 
@@ -724,7 +725,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(trustDomainID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org"`)
 }
 
@@ -936,7 +937,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithAgentID() {
 			SpiffeId: agentID,
 			Audience: []string{"audience"},
 		},
-	}, codes.Unknown, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/spire/agent/test/id"`)
+	}, codes.PermissionDenied, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/spire/agent/test/id"`)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithUnauthorizedSPIFFEID() {
@@ -947,7 +948,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithUnauthorizedSPIFFEID() {
 			SpiffeId: workloadID,
 			Audience: []string{"audience"},
 		},
-	}, codes.Unknown, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/workload"`)
+	}, codes.PermissionDenied, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/workload"`)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
@@ -1232,6 +1233,7 @@ func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, expectedSPI
 	}
 	fakeErr := errors.New("")
 	defer expectedCounter.Done(&fakeErr)
+	defer expectedCounter.AddLabel(telemetry.Error, errorCode.String())
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()

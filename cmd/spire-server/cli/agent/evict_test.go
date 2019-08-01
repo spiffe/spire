@@ -9,7 +9,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/registration"
 
 	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/test/mock/proto/api/registration"
+	mock_registration "github.com/spiffe/spire/test/mock/proto/api/registration"
 	"github.com/stretchr/testify/suite"
 )
 

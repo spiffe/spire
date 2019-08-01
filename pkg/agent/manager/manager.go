@@ -236,8 +236,8 @@ func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) er
 		m.c.Log.WithError(err).Error("could not store new agent key pair")
 		m.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
 
-		// This error is not returned, to preserve backwards-compability with KeyManagers that were built against the old interface.
-		// If the StorePrivateKey() method isn't avaiable on the plugin, we get a "not implemented" error, which we
+		// This error is not returned, to preserve backwards-compatibility with KeyManagers that were built against the old interface.
+		// If the StorePrivateKey() method isn't available on the plugin, we get a "not implemented" error, which we
 		// should ignore for now, but log an error and warning.
 		// return fmt.Errorf("store key pair: %v", err)
 	}

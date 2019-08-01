@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// attemptsPerRefreshHint is the number of attemps within the returned
+	// attemptsPerRefreshHint is the number of attempts within the returned
 	// refresh hint period that the manager will attempt to refresh the
 	// bundle. It is important to try more than once within a refresh hint
 	// period so we can be resilient to temporary downtime or failures.

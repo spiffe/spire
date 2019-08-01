@@ -74,7 +74,7 @@ func (*CreateUsers) Run(args []string) int {
 			entry := &common.RegistrationEntry{
 				ParentId: parentID,
 				Selectors: []*common.Selector{
-					&common.Selector{
+					{
 						Type:  "unix",
 						Value: selectorValue,
 					},
