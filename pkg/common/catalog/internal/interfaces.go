@@ -4,7 +4,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// PluginServer is the interface for both the primary interface and auxilliary
+// PluginServer is the interface for both the primary interface and auxiliary
 // services served by the plugin.
 type PluginServer interface {
 	// PluginType returns the plugin type
@@ -14,7 +14,7 @@ type PluginServer interface {
 	PluginClient() PluginClient
 
 	// Registers the implementation against the provided gRPC server and
-	// retuns the implementation. The implementation is used to wire up
+	// returns the implementation. The implementation is used to wire up
 	// logging and host services.
 	RegisterPluginServer(server *grpc.Server) interface{}
 }
@@ -27,7 +27,7 @@ type PluginClient interface {
 	NewPluginClient(*grpc.ClientConn) interface{}
 }
 
-// ServiceServer is the interface for both the primary interface and auxilliary
+// ServiceServer is the interface for both the primary interface and auxiliary
 // services served by the plugin.
 type ServiceServer interface {
 	// ServiceType returns the service type
@@ -37,7 +37,7 @@ type ServiceServer interface {
 	ServiceClient() ServiceClient
 
 	// Registers the implementation against the provided gRPC server and
-	// retuns the implementation. The implementation is used to wire up
+	// returns the implementation. The implementation is used to wire up
 	// logging and host services.
 	RegisterServiceServer(server *grpc.Server) interface{}
 }

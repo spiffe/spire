@@ -245,7 +245,7 @@ func (ca *CA) signX509SVID(ctx context.Context, params X509SVIDParams, x509CA *X
 	if err != nil {
 		return nil, err
 	}
-	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// Explicitly set the AKI on the signed certificate, otherwise it won't be
 	// added if the subject and issuer match name match (however unlikely).
 	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
 
@@ -299,7 +299,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 	if err != nil {
 		return nil, err
 	}
-	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// Explicitly set the AKI on the signed certificate, otherwise it won't be
 	// added if the subject and issuer match name matches (unlikely due to the
 	// OU override below, but just to be safe).
 	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId

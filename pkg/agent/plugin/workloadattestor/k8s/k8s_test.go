@@ -289,10 +289,10 @@ func (s *K8sAttestorSuite) TestAttestReachingKubeletViaNodeName() {
 	`)
 	s.requireAttestSuccessWithPod()
 
-	// pick up the node name from the overriden env value
-	s.env["OVERRIDEN_NODE_NAME"] = "localhost"
+	// pick up the node name from the overridden env value
+	s.env["OVERRIDDEN_NODE_NAME"] = "localhost"
 	s.configureSecure(`
-		node_name_env = "OVERRIDEN_NODE_NAME"
+		node_name_env = "OVERRIDDEN_NODE_NAME"
 	`)
 	s.requireAttestSuccessWithPod()
 
@@ -438,7 +438,7 @@ func (s *K8sAttestorSuite) TestConfigure() {
 			err: "cannot use both the read-only and secure port",
 		},
 		{
-			name: "non-existant kubelet ca",
+			name: "non-existent kubelet ca",
 			hcl: `
 				kubelet_ca_path = "no-such-file"
 			`,
@@ -452,7 +452,7 @@ func (s *K8sAttestorSuite) TestConfigure() {
 			err: "unable to parse kubelet CA",
 		},
 		{
-			name: "non-existant token",
+			name: "non-existent token",
 			hcl: `
 				skip_kubelet_verification = true
 				token_path = "no-such-file"

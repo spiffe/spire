@@ -565,7 +565,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithCurrentAndLegacyCSRs() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs:           map[string][]byte{"an-entry-id": []byte("MALFORMED")},
-		DEPRECATEDCsrs: [][]byte{[]byte{1, 2, 3}},
+		DEPRECATEDCsrs: [][]byte{{1, 2, 3}},
 	}, codes.InvalidArgument, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
 }
 
@@ -581,7 +581,7 @@ func (s *HandlerSuite) TestFetchX509SVIDLimits() {
 	// Test with 5 CSRs (5 count should be added)
 	s.limiter.setNextError(errors.New("limit exceeded"))
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: map[string][]byte{
-		"foo": []byte{1}, "bar": []byte{2}, "boo": []byte{3}, "far": []byte{4}, "bor": []byte{5}},
+		"foo": {1}, "bar": {2}, "boo": {3}, "far": {4}, "bor": {5}},
 	}, codes.ResourceExhausted, "limit exceeded")
 	s.Equal(5, s.limiter.callsFor(CSRMsg))
 }
