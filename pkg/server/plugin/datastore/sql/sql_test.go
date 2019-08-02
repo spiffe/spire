@@ -69,7 +69,7 @@ func (s *PluginSuite) SetupTest() {
 	s.ds = s.newPlugin()
 }
 
-func (s *PluginSuite) AfterTest(_, testName string) {
+func (s *PluginSuite) TearDownTest() {
 	s.sqlPlugin.closeDB()
 }
 
