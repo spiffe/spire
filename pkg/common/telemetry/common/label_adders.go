@@ -3,25 +3,14 @@ package common
 import (
 	"strconv"
 
-	"google.golang.org/grpc/codes"
-
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"google.golang.org/grpc/codes"
 )
 
 // AddAttestorType add Attestor type label to the given counter
 // from the given attestor type
 func AddAttestorType(cc *telemetry.CallCounter, aType string) {
 	cc.AddLabel(telemetry.Attestor, aType)
-}
-
-// AddAudience add the Audience label(s) to the given counter
-// from the given audience(s).
-func AddAudience(cc *telemetry.CallCounter, auds ...string) {
-	// the number of audiences should be small in a secure system, so we label every audience
-	// element instead of just an audience count
-	for _, aud := range auds {
-		cc.AddLabel(telemetry.Audience, aud)
-	}
 }
 
 // AddCallerID add the CallerID label to the given counter

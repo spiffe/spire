@@ -437,8 +437,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	telemetry_common.AddAudience(counter, req.Jsr.Audience...)
-
 	return &node.FetchJWTSVIDResponse{
 		Svid: &node.JWTSVID{
 			Token:     token,
