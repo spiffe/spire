@@ -131,7 +131,7 @@ func (h *Handler) FetchEntry(
 		&datastore.FetchRegistrationEntryRequest{EntryId: request.Id},
 	)
 	if err != nil {
-		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to fetch entry: %v", err))
+		err = status.Errorf(codes.Internal, "Error trying to fetch entry: %v", err)
 		h.Log.Error(err)
 		return response, err
 	}
@@ -143,7 +143,7 @@ func (h *Handler) FetchEntry(
 	return fetchResponse.Entry, nil
 }
 
-//FetchEntries Retrieves all registered entries
+//FetchEntries retrieves all registered entries
 func (h *Handler) FetchEntries(
 	ctx context.Context, request *common.Empty) (
 	response *common.RegistrationEntries, err error) {
@@ -158,7 +158,7 @@ func (h *Handler) FetchEntries(
 	ds := h.getDataStore()
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	if err != nil {
-		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to fetch entries: %v", err))
+		err = status.Errorf(codes.Internal, "Error trying to fetch entries: %v", err)
 		h.Log.Error(err)
 		return response, err
 	}
@@ -167,7 +167,7 @@ func (h *Handler) FetchEntries(
 	}, nil
 }
 
-//UpdateEntry Updates a specific registered entry
+//UpdateEntry updates a specific registered entry
 func (h *Handler) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
@@ -197,7 +197,7 @@ func (h *Handler) UpdateEntry(
 		Entry: request.Entry,
 	})
 	if err != nil {
-		err = status.Error(codes.Internal, fmt.Sprintf("Failed to update registration entry: %v", err))
+		err = status.Errorf(codes.Internal, "Failed to update registration entry: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (h *Handler) ListByParentID(
 			},
 		})
 	if err != nil {
-		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by parent ID: %v", err))
+		err = status.Errorf(codes.Internal, "Error trying to list entries by parent ID: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (h *Handler) ListByParentID(
 	}, nil
 }
 
-//ListBySelector Returns all the Entries associated with the Selector
+//ListBySelector returns all the Entries associated with the Selector
 func (h *Handler) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
@@ -268,7 +268,7 @@ func (h *Handler) ListBySelector(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by selector: %v", err))
+		err = status.Errorf(codes.Internal, "Error trying to list entries by selector: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (h *Handler) ListBySelector(
 	}, nil
 }
 
-//ListBySelectors Returns all the Entries associated with the Selectors
+//ListBySelectors returns all the Entries associated with the Selectors
 func (h *Handler) ListBySelectors(
 	ctx context.Context, request *common.Selectors) (
 	response *common.RegistrationEntries, err error) {
@@ -302,7 +302,7 @@ func (h *Handler) ListBySelectors(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by selectors: %v", err))
+		err = status.Errorf(codes.Internal, "Error trying to list entries by selectors: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (h *Handler) ListBySelectors(
 	}, nil
 }
 
-//ListBySpiffeID Returns all the Entries associated with the SPIFFE ID
+//ListBySpiffeID returns all the Entries associated with the SPIFFE ID
 func (h *Handler) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
@@ -341,7 +341,7 @@ func (h *Handler) ListBySpiffeID(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		err = status.Error(codes.Internal, fmt.Sprintf("Error trying to list entries by SPIFFE ID: %v", err))
+		err = status.Errorf(codes.Internal, "Error trying to list entries by SPIFFE ID: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -515,7 +515,7 @@ func (h *Handler) DeleteFederatedBundle(
 
 	mode, err := convertDeleteBundleMode(request.Mode)
 	if err != nil {
-		return nil, status.Error(codes.Unimplemented, err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
@@ -588,7 +588,7 @@ func (h *Handler) FetchBundle(
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("get bundle from datastore: %v", err))
+		return nil, status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
 	}
 	if resp.Bundle == nil {
 		return nil, status.Error(codes.NotFound, "bundle not found")
