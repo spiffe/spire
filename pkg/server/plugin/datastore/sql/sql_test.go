@@ -45,9 +45,10 @@ type PluginSuite struct {
 	cert   *x509.Certificate
 	cacert *x509.Certificate
 
-	dir    string
-	nextID int
-	ds     datastore.Plugin
+	dir       string
+	nextID    int
+	ds        datastore.Plugin
+	sqlPlugin *SQLPlugin
 
 	m               *fakemetrics.FakeMetrics
 	expectedMetrics *fakepluginmetrics.FakePluginMetrics
@@ -60,6 +61,7 @@ func (s *PluginSuite) SetupSuite() {
 
 	s.cacert, _, err = testutil.LoadCAFixture()
 	s.Require().NoError(err)
+
 }
 
 func (s *PluginSuite) SetupTest() {
@@ -67,8 +69,13 @@ func (s *PluginSuite) SetupTest() {
 	s.ds = s.newPlugin()
 }
 
+func (s *PluginSuite) TearDownTest() {
+	s.sqlPlugin.closeDB()
+}
+
 func (s *PluginSuite) newPlugin() datastore.Plugin {
 	p := New()
+	s.sqlPlugin = p
 
 	var ds datastore.Plugin
 
