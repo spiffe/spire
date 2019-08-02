@@ -583,6 +583,12 @@ func (ds *SQLPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
+func (p *SQLPlugin) closeDB() {
+	if p.db != nil {
+		p.db.Close()
+	}
+}
+
 // GetPluginInfo returns the sql plugin
 func (*SQLPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
