@@ -107,9 +107,10 @@ message MintX509SVIDRequest {
     // prove possession of the private key. The rest of the CSR is ignored.
     bytes csr = 2;
 
-    // TTL of the X509-SVID. The server default will be used if unset. The TTL
-    // is advisory only. The actual lifetime of the X509-SVID may be lower 
-    // depending on the remaining lifetime of the active SPIRE Server CA.
+    // TTL of the X509-SVID, in seconds. The server default will be used if
+    // unset. The TTL is advisory only. The actual lifetime of the X509-SVID
+    // may be lower depending on the remaining lifetime of the active SPIRE
+    // Server CA.
     int32 ttl = 3;
 
     // DNS names to include as DNS SANs in the X509-SVID. If set, the first
@@ -130,9 +131,10 @@ message MintJWTSVIDRequest {
     // SPIFFE ID of the JWT-SVID
     string spiffe_id = 1;
 
-    // TTL of the JWT-SVID. The server default will be used if unset. The TTL
-    // is advisory only. The actual lifetime of the JWT-SVID may be lower
-    // depending on the remainint lifetime of the active SPIRE Server CA.
+    // TTL of the JWT-SVID, in seconds. The server default will be used if
+    // unset. The TTL is advisory only. The actual lifetime of the JWT-SVID may
+    // be lower depending on the remaining lifetime of the active SPIRE Server
+    // CA.
     int32 ttl = 2;
 
     // List of audience claims to include in the JWT-SVID. At least one must

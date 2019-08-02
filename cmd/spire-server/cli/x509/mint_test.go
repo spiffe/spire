@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,19 +31,14 @@ const (
 	expectedUsage = `Usage of x509 mint:
   -dns value
     	DNS name that will be included in SVID. Can be used more than once.
-  -out string
-    	Directory to write output to instead of stdout
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
   -spiffeID string
     	SPIFFE ID of the X509-SVID
   -ttl duration
     	TTL of the X509-SVID
-`
-
-	testSVIDPEM = `-----BEGIN CERTIFICATE-----
-AA==
------END CERTIFICATE-----
+  -write string
+    	Directory to write output to instead of stdout
 `
 
 	testKeyPEM = `-----BEGIN PRIVATE KEY-----
@@ -53,6 +52,10 @@ Z84JZjKUN33uWhKdlOVoBpplaJ6hRANCAAQXt5Kz8gRQiSxKhLDyzo7zT/CcGmZJ
 AQ==
 -----END CERTIFICATE-----
 `
+)
+
+var (
+	testKey, _ = pemutil.ParseSigner([]byte(testKeyPEM))
 )
 
 func TestMintSynopsis(t *testing.T) {
@@ -82,6 +85,19 @@ func TestMintRun(t *testing.T) {
 	keyPath := filepath.Join(dir, "key.pem")
 	bundlePath := filepath.Join(dir, "bundle.pem")
 
+	notAfter := time.Now().Add(30 * time.Second)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(0),
+		NotAfter:     notAfter,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, testKey.Public(), testKey)
+	require.NoError(t, err)
+
+	svidPEM := string(pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	}))
+
 	api := new(FakeRegistrationAPI)
 
 	defaultServerDone := spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, util.DefaultSocketPath), api)
@@ -98,7 +114,7 @@ func TestMintRun(t *testing.T) {
 		ttl        time.Duration
 		dnsNames   []string
 		socketPath string
-		out        string
+		write      string
 		extraArgs  []string
 
 		// results
@@ -143,7 +159,7 @@ func TestMintRun(t *testing.T) {
 			code:     1,
 			stderr:   "error: server response missing root CAs\n",
 			resp: &registration.MintX509SVIDResponse{
-				SvidChain: [][]byte{{0x00}},
+				SvidChain: [][]byte{certDER},
 			},
 		},
 		{
@@ -151,7 +167,7 @@ func TestMintRun(t *testing.T) {
 			spiffeID: "spiffe://domain.test/workload",
 			code:     0,
 			resp: &registration.MintX509SVIDResponse{
-				SvidChain: [][]byte{{0x00}},
+				SvidChain: [][]byte{certDER},
 				RootCas:   [][]byte{{0x01}},
 			},
 		},
@@ -161,11 +177,12 @@ func TestMintRun(t *testing.T) {
 			ttl:        time.Minute,
 			socketPath: "other.sock",
 			code:       0,
-			out:        ".",
+			write:      ".",
 			resp: &registration.MintX509SVIDResponse{
-				SvidChain: [][]byte{{0x00}},
+				SvidChain: [][]byte{certDER},
 				RootCas:   [][]byte{{0x01}},
 			},
+			stderr: fmt.Sprintf("X509-SVID lifetime was capped shorter than specified ttl; expires %q\n", notAfter.UTC().Format(time.RFC3339)),
 		},
 	}
 
@@ -180,7 +197,9 @@ func TestMintRun(t *testing.T) {
 				Stdout:  stdout,
 				Stderr:  stderr,
 				BaseDir: dir,
-			}, testGenerateKey)
+			}, func() (crypto.Signer, error) {
+				return testKey, nil
+			})
 
 			args := []string{}
 			if testCase.socketPath != "" {
@@ -192,8 +211,8 @@ func TestMintRun(t *testing.T) {
 			if testCase.ttl != 0 {
 				args = append(args, "-ttl", fmt.Sprint(testCase.ttl))
 			}
-			if testCase.out != "" {
-				args = append(args, "-out", testCase.out)
+			if testCase.write != "" {
+				args = append(args, "-write", testCase.write)
 			}
 			for _, dnsName := range testCase.dnsNames {
 				args = append(args, "-dns", dnsName)
@@ -220,15 +239,15 @@ func TestMintRun(t *testing.T) {
 
 			// assert output file contents
 			if code == 0 {
-				if testCase.out != "" {
-					assert.Equal(t, fmt.Sprintf(`X509-SVID written to %s.
-Private key written to %s.
-Root CAs written to %s.
+				if testCase.write != "" {
+					assert.Equal(t, fmt.Sprintf(`X509-SVID written to %s
+Private key written to %s
+Root CAs written to %s
 `, svidPath, keyPath, bundlePath),
 						stdout.String(), "stdout does not write output paths")
-					assertFileData(t, filepath.Join(dir, testCase.out, "svid.pem"), testSVIDPEM)
-					assertFileData(t, filepath.Join(dir, testCase.out, "key.pem"), testKeyPEM)
-					assertFileData(t, filepath.Join(dir, testCase.out, "bundle.pem"), testBundlePEM)
+					assertFileData(t, filepath.Join(dir, testCase.write, "svid.pem"), svidPEM)
+					assertFileData(t, filepath.Join(dir, testCase.write, "key.pem"), testKeyPEM)
+					assertFileData(t, filepath.Join(dir, testCase.write, "bundle.pem"), testBundlePEM)
 				} else {
 					assert.Equal(t, fmt.Sprintf(`X509-SVID:
 %s
@@ -236,7 +255,7 @@ Private key:
 %s
 Root CAs:
 %s
-`, testSVIDPEM, testKeyPEM, testBundlePEM), stdout.String(), "stdout does not write out PEM")
+`, svidPEM, testKeyPEM, testBundlePEM), stdout.String(), "stdout does not write out PEM")
 
 				}
 			}
@@ -273,10 +292,6 @@ func (r *FakeRegistrationAPI) MintX509SVID(ctx context.Context, req *registratio
 		return nil, errors.New("response not configured in test")
 	}
 	return r.resp, nil
-}
-
-func testGenerateKey() (crypto.Signer, error) {
-	return pemutil.ParseSigner([]byte(testKeyPEM))
 }
 
 func assertFileData(t *testing.T, path string, expectedData string) {

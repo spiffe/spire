@@ -180,7 +180,7 @@ Represents a ListAgents response
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | SPIFFE ID of the JWT-SVID |
-| ttl | [int32](#int32) |  | TTL of the JWT-SVID. The server default will be used if unset. The TTL is advisory only. The actual lifetime of the JWT-SVID may be lower depending on the remainint lifetime of the active SPIRE Server CA. |
+| ttl | [int32](#int32) |  | TTL of the JWT-SVID, in seconds. The server default will be used if unset. The TTL is advisory only. The actual lifetime of the JWT-SVID may be lower depending on the remaining lifetime of the active SPIRE Server CA. |
 | audience | [string](#string) | repeated | List of audience claims to include in the JWT-SVID. At least one must be set. |
 
 
@@ -213,7 +213,7 @@ Represents a ListAgents response
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | SPIFFE ID of the X509-SVID |
 | csr | [bytes](#bytes) |  | ASN.1 encoded CSR. The CSR is only used to convey the public key and prove possession of the private key. The rest of the CSR is ignored. |
-| ttl | [int32](#int32) |  | TTL of the X509-SVID. The server default will be used if unset. The TTL is advisory only. The actual lifetime of the X509-SVID may be lower depending on the remaining lifetime of the active SPIRE Server CA. |
+| ttl | [int32](#int32) |  | TTL of the X509-SVID, in seconds. The server default will be used if unset. The TTL is advisory only. The actual lifetime of the X509-SVID may be lower depending on the remaining lifetime of the active SPIRE Server CA. |
 | dns_names | [string](#string) | repeated | DNS names to include as DNS SANs in the X509-SVID. If set, the first in the list is also set as the X509-SVID common name. |
 
 

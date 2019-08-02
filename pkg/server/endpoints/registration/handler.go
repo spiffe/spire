@@ -581,15 +581,18 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 		TTL:       time.Duration(req.Ttl) * time.Second,
 		DNSList:   req.DnsNames,
 	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
 	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if resp.Bundle == nil {
-		return nil, errors.New("bundle not found")
+		return nil, status.Error(codes.FailedPrecondition, "bundle not found")
 	}
 
 	svidChain := make([][]byte, 0, len(svid))
@@ -628,7 +631,7 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 		Audience: req.Audience,
 	})
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &registration.MintJWTSVIDResponse{

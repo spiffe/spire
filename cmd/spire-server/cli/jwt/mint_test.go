@@ -15,24 +15,36 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
+)
+
+var (
+	testKey, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgy8ps3oQaBaSUFpfd
+XM13o+VSA0tcZteyTvbOdIQNVnKhRANCAAT4dPIORBjghpL5O4h+9kyzZZUAFV9F
+qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
+-----END PRIVATE KEY-----
+`))
 )
 
 const (
 	expectedUsage = `Usage of jwt mint:
   -audience value
     	Audience claim that will be included in the SVID. Can be used more than once.
-  -out string
-    	File to write token to instead of stdout
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
   -spiffeID string
     	SPIFFE ID of the JWT-SVID
   -ttl duration
     	TTL of the JWT-SVID
+  -write string
+    	File to write token to instead of stdout
 `
 )
 
@@ -69,6 +81,19 @@ func TestMintRun(t *testing.T) {
 	otherServerDone := spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, "other.sock"), api)
 	defer otherServerDone()
 
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       testKey,
+	}, nil)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(30 * time.Second)
+	builder := jwt.Signed(signer).Claims(jwt.Claims{
+		Expiry: jwt.NewNumericDate(expiry),
+	})
+	token, err := builder.CompactSerialize()
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name string
 
@@ -77,7 +102,7 @@ func TestMintRun(t *testing.T) {
 		ttl        time.Duration
 		audience   []string
 		socketPath string
-		out        string
+		write      string
 		extraArgs  []string
 
 		// results
@@ -122,7 +147,7 @@ func TestMintRun(t *testing.T) {
 			audience: []string{"AUDIENCE"},
 			code:     0,
 			resp: &registration.MintJWTSVIDResponse{
-				Token: "TOKEN",
+				Token: token,
 			},
 		},
 		{
@@ -132,10 +157,11 @@ func TestMintRun(t *testing.T) {
 			audience:   []string{"AUDIENCE1", "AUDIENCE2"},
 			socketPath: "other.sock",
 			code:       0,
-			out:        "token",
+			write:      "token",
 			resp: &registration.MintJWTSVIDResponse{
-				Token: "TOKEN",
+				Token: token,
 			},
+			stderr: fmt.Sprintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", expiry.UTC().Format(time.RFC3339)),
 		},
 	}
 
@@ -162,8 +188,8 @@ func TestMintRun(t *testing.T) {
 			if testCase.ttl != 0 {
 				args = append(args, "-ttl", fmt.Sprint(testCase.ttl))
 			}
-			if testCase.out != "" {
-				args = append(args, "-out", testCase.out)
+			if testCase.write != "" {
+				args = append(args, "-write", testCase.write)
 			}
 			for _, audience := range testCase.audience {
 				args = append(args, "-audience", audience)
@@ -189,10 +215,10 @@ func TestMintRun(t *testing.T) {
 
 			// assert output file contents
 			if code == 0 {
-				if testCase.out != "" {
-					assert.Equal(t, fmt.Sprintf("JWT-SVID written to %s.\n", svidPath),
+				if testCase.write != "" {
+					assert.Equal(t, fmt.Sprintf("JWT-SVID written to %s\n", svidPath),
 						stdout.String(), "stdout does not write output path")
-					assertFileData(t, filepath.Join(dir, testCase.out), testCase.resp.Token)
+					assertFileData(t, filepath.Join(dir, testCase.write), testCase.resp.Token)
 				} else {
 					assert.Equal(t, stdout.String(), testCase.resp.Token+"\n")
 				}

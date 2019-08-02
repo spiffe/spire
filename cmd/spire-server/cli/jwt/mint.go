@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/spire/api/registration"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 func NewMintCommand() cli.Command {
@@ -31,7 +32,7 @@ type mintCommand struct {
 	spiffeID   string
 	ttl        time.Duration
 	audience   common_cli.StringsFlag
-	out        string
+	write      string
 }
 
 func (c *mintCommand) Help() string {
@@ -61,7 +62,7 @@ func (c *mintCommand) parseFlags(args []string) error {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID of the JWT-SVID")
 	fs.DurationVar(&c.ttl, "ttl", 0, "TTL of the JWT-SVID")
 	fs.Var(&c.audience, "audience", "Audience claim that will be included in the SVID. Can be used more than once.")
-	fs.StringVar(&c.out, "out", "", "File to write token to instead of stdout")
+	fs.StringVar(&c.write, "write", "", "File to write token to instead of stdout")
 	return fs.Parse(args)
 }
 
@@ -80,7 +81,7 @@ func (c *mintCommand) run(args []string) error {
 
 	resp, err := client.MintJWTSVID(context.Background(), &registration.MintJWTSVIDRequest{
 		SpiffeId: c.spiffeID,
-		Ttl:      int32(c.ttl / time.Second),
+		Ttl:      ttlToSeconds(c.ttl),
 		Audience: c.audience,
 	})
 	if err != nil {
@@ -91,19 +92,49 @@ func (c *mintCommand) run(args []string) error {
 		return errors.New("server response missing token")
 	}
 
-	if c.out == "" {
+	if eol, err := getJWTSVIDEndOfLife(resp.Token); err != nil {
+		c.env.ErrPrintf("Unable to determine JWT-SVID lifetime: %v\n", err)
+	} else if eol.Sub(time.Now()) < c.ttl {
+		c.env.ErrPrintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", eol.UTC().Format(time.RFC3339))
+	}
+
+	if c.write == "" {
 		if err := c.env.Println(resp.Token); err != nil {
 			return err
 		}
 	} else {
-		tokenPath := c.env.JoinPath(c.out)
+		tokenPath := c.env.JoinPath(c.write)
 		if err := ioutil.WriteFile(tokenPath, []byte(resp.Token), 0600); err != nil {
 			return fmt.Errorf("unable to write token: %v", err)
 		}
-		if err := c.env.Printf("JWT-SVID written to %s.\n", tokenPath); err != nil {
+		if err := c.env.Printf("JWT-SVID written to %s\n", tokenPath); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func getJWTSVIDEndOfLife(token string) (time.Time, error) {
+	t, err := jwt.ParseSigned(token)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	claims := new(jwt.Claims)
+	if err := t.UnsafeClaimsWithoutVerification(claims); err != nil {
+		return time.Time{}, err
+	}
+
+	if claims.Expiry == nil {
+		return time.Time{}, errors.New("no expiry claim")
+	}
+
+	return claims.Expiry.Time(), nil
+}
+
+// ttlToSeconds returns the number of seconds in a duration, rounded up to
+// the nearest second
+func ttlToSeconds(ttl time.Duration) int32 {
+	return int32((ttl + time.Second - 1) / time.Second)
 }
