@@ -271,7 +271,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		if csrsLen != 0 {
 			// Current agent, use regular signCSRs (it returns svids keyed by entryID)
 			// drop spiffe IDs
-			svids, _, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
+			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 			if err != nil {
 				h.c.Log.Error(err)
 				return status.Error(codes.Internal, "failed to sign CSRs")
@@ -850,11 +850,11 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 
 func (h *Handler) signCSRs(ctx context.Context,
 	peerCert *x509.Certificate, csrs map[string][]byte, regEntries []*common.RegistrationEntry) (
-	svids map[string]*node.X509SVID, spiffeIDs []string, err error) {
+	svids map[string]*node.X509SVID, err error) {
 
 	callerID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	//convert registration entries into a map for easy lookup
@@ -869,7 +869,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 	for entryID, csrBytes := range csrs {
 		csr, err := parseCSR(csrBytes, idutil.AllowAny())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
@@ -890,7 +890,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 				SpiffeId: csr.SpiffeID,
 			})
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			// attested node discrepancies are not likely since the agent
 			// certificate is checked against the attested nodes during the
@@ -898,35 +898,33 @@ func (h *Handler) signCSRs(ctx context.Context,
 			// evicted between authentication and here so these checks should
 			// remain.
 			if res.Node == nil {
-				return nil, nil, errors.New("no record of attested node")
+				return nil, errors.New("no record of attested node")
 			}
 			if res.Node.CertSerialNumber != peerCert.SerialNumber.String() {
-				return nil, nil, errors.New("SVID serial number does not match")
+				return nil, errors.New("SVID serial number does not match")
 			}
 
 			signLog.Debug("Renewing agent SVID")
 			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			svids[entryID] = svid
 
 			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		} else {
 			signLog.Debug("Signing SVID")
 			svid, err := h.buildSVID(ctx, entryID, csr, regEntriesMap)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			svids[entryID] = svid
 		}
-
-		spiffeIDs = append(spiffeIDs, csr.SpiffeID)
 	}
 
-	return svids, spiffeIDs, nil
+	return svids, nil
 }
 
 func (h *Handler) buildSVID(ctx context.Context, id string, csr *CSR, regEntries map[string]*common.RegistrationEntry) (*node.X509SVID, error) {
