@@ -41,6 +41,11 @@ type ACMEConfig struct {
 
 	// Email is the email address of the account to register with ACME
 	Email string
+
+	// ToSAccepted is whether or not the terms of service have been accepted. If
+	// not true, and the provider requires acceptance, then certificate
+	// retrieval will fail.
+	ToSAccepted bool
 }
 
 func ACMEAuth(log logrus.FieldLogger, km keymanager.KeyManager, config ACMEConfig) ServerAuth {
@@ -50,15 +55,24 @@ func ACMEAuth(log logrus.FieldLogger, km keymanager.KeyManager, config ACMEConfi
 		config.DirectoryURL = acme.LetsEncryptURL
 	}
 
+	if !config.ToSAccepted {
+		log.Warn("ACME Terms of Service have not been accepted. See the `tos_accepted` configurable.")
+	}
+
 	return &acmeAuth{
 		m: &autocert.Manager{
 			Prompt: func(tosURL string) bool {
-				log.WithFields(logrus.Fields{
+				tosLog := log.WithFields(logrus.Fields{
 					"directory_url": config.DirectoryURL,
 					"tos_url":       tosURL,
 					"email":         config.Email,
-				}).Info("ACME Terms of Service accepted")
-				return true
+				})
+				if config.ToSAccepted {
+					tosLog.Info("ACME Terms of Service accepted")
+					return true
+				}
+				tosLog.Warn("ACME Terms of Service have not been accepted. See the `tos_accepted` configurable.")
+				return false
 			},
 			Email:      config.Email,
 			Cache:      autocert.DirCache(config.CacheDir),
@@ -101,19 +115,7 @@ func (ks *acmeKeyStore) GetPrivateKey(ctx context.Context, id string) (crypto.Si
 		return nil, nil
 	}
 
-	signer, err := ks.signer(keyID, resp.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	if isACMEAccountKey(id) {
-		// The account key is used to sign JWT tokens and needs to sign things
-		// differently. Unfortunately, github.com/x/crypto/acme does not
-		// properly handle crypto.Signers that aren't of type *ecdsa.PrivateKey
-		// so we have to wrap it here.
-		signer = jwtSigner{Signer: signer}
-	}
-	return signer, nil
+	return ks.signer(keyID, resp.PublicKey, isACMEAccountKey(id))
 }
 
 func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType autocert.KeyType) (crypto.Signer, error) {
@@ -137,16 +139,28 @@ func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType au
 		return nil, errs.Wrap(err)
 	}
 
-	ks.log.Info("Generated new key for ACME %q", id)
-	return ks.signer(keyID, resp.PublicKey)
+	ks.log.WithField("id", id).Info("Generated new key")
+	return ks.signer(keyID, resp.PublicKey, isACMEAccountKey(id))
 }
 
-func (ks *acmeKeyStore) signer(id string, kmPublicKey *keymanager.PublicKey) (crypto.Signer, error) {
+func (ks *acmeKeyStore) signer(id string, kmPublicKey *keymanager.PublicKey, isAccountKey bool) (crypto.Signer, error) {
 	publicKey, err := x509.ParsePKIXPublicKey(kmPublicKey.PkixData)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	return cryptoutil.NewKeyManagerSigner(ks.km, id, publicKey), nil
+	signer, err := cryptoutil.NewKeyManagerSigner(ks.km, id, publicKey), nil
+	if err != nil {
+		return nil, err
+	}
+	if isAccountKey {
+		// The account key is used to sign JWT tokens and needs to sign things
+		// differently. Unfortunately, github.com/x/crypto/acme does not
+		// properly handle crypto.Signers that aren't of type *ecdsa.PrivateKey
+		// so we have to wrap it here.
+		return jwtSigner{Signer: signer}, nil
+	}
+
+	return signer, nil
 }
 
 func isACMEAccountKey(id string) bool {

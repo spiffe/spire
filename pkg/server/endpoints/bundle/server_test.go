@@ -159,69 +159,112 @@ func TestACMEAuth(t *testing.T) {
 
 	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{"domain.test"})
 
-	setup := func(addrCB func(addr net.Addr), expectToSPrompt bool) func(t *testing.T) {
-		return func(t *testing.T) {
-			log, hook := test.NewNullLogger()
-			addr, done := newTestServer(t, testBundleGetter(bundle),
-				ACMEAuth(log, km, ACMEConfig{
-					DirectoryURL: ca.URL,
-					DomainName:   "domain.test",
-					CacheDir:     dir,
-					Email:        "admin@domain.test",
-				}),
-			)
-			defer done()
-
-			addrCB(addr)
-
-			client := http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						RootCAs:    ca.Roots,
-						ServerName: "domain.test",
-					},
-				},
-			}
-
-			resp, err := client.Get(fmt.Sprintf("https://%s", addr))
-			require.NoError(t, err)
-			resp.Body.Close()
-
-			// Assert that the keystore has been populated with the account
-			// key and cert key for the domain.
-			keys, err := km.GetPublicKeys(context.Background(), &keymanager.GetPublicKeysRequest{})
-			require.NoError(t, err)
-			if assert.Len(t, keys.PublicKeys, 2) {
-				assert.Equal(t, "bundle-acme-acme_account+key", keys.PublicKeys[0].Id)
-				assert.Equal(t, "bundle-acme-domain.test", keys.PublicKeys[1].Id)
-			}
-
-			// Make sure we logged the ToS
-			entry := hook.LastEntry()
-			if !expectToSPrompt {
-				assert.Nil(t, entry)
-			} else if assert.NotNil(t, entry) {
-				assert.Equal(t, "ACME Terms of Service accepted", entry.Message)
-				assert.Equal(t, logrus.Fields{
-					"directory_url": ca.URL,
-					"tos_url":       ca.URL + "/tos",
-					"email":         "admin@domain.test",
-				}, entry.Data)
-				assert.Equal(t, logrus.InfoLevel, entry.Level)
-			}
-		}
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:    ca.Roots,
+				ServerName: "domain.test",
+			},
+		},
 	}
 
-	t.Run("initial", setup(func(addr net.Addr) {
-		ca.Resolve("domain.test", addr.String())
-	}, true))
+	// Perform the initial challenge to obtain a new certificate but without
+	// the TOS being accepted. This should fail. We require the ToSAccepted
+	// configurable to be set in order to funcion.
+	t.Run("new-account-tos-not-accepted", func(t *testing.T) {
+		log, hook := test.NewNullLogger()
+		addr, done := newTestServer(t, testBundleGetter(bundle),
+			ACMEAuth(log, km, ACMEConfig{
+				DirectoryURL: ca.URL,
+				DomainName:   "domain.test",
+				CacheDir:     dir,
+				Email:        "admin@domain.test",
+				ToSAccepted:  false,
+			}),
+		)
+		defer done()
 
-	t.Run("cached", setup(func(addr net.Addr) {
-		// Resolve the address to something invalid. If caching is not working,
-		// this will result in the challenge failing, resulting in a handshake
-		// failure.
+		ca.Resolve("domain.test", addr.String())
+
+		// Request should fail since the challenge to obtain a certificate
+		// will not proceed if the TOS has not been accepted.
+		_, err := client.Get(fmt.Sprintf("https://%s", addr))
+		require.Error(t, err)
+
+		if entry := hook.LastEntry(); assert.NotNil(t, entry) {
+			assert.Equal(t, "ACME Terms of Service have not been accepted. See the `tos_accepted` configurable.", entry.Message)
+			assert.Equal(t, logrus.WarnLevel, entry.Level)
+			assert.Equal(t, logrus.Fields{
+				"directory_url": ca.URL,
+				"tos_url":       ca.URL + "/tos",
+				"email":         "admin@domain.test",
+			}, entry.Data)
+		}
+	})
+
+	// Perform the initial challenge to obtain a new certificate.
+	t.Run("initial", func(t *testing.T) {
+		log, hook := test.NewNullLogger()
+		addr, done := newTestServer(t, testBundleGetter(bundle),
+			ACMEAuth(log, km, ACMEConfig{
+				DirectoryURL: ca.URL,
+				DomainName:   "domain.test",
+				CacheDir:     dir,
+				Email:        "admin@domain.test",
+				ToSAccepted:  true,
+			}),
+		)
+		defer done()
+
+		ca.Resolve("domain.test", addr.String())
+
+		resp, err := client.Get(fmt.Sprintf("https://%s", addr))
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		// Assert that the keystore has been populated with the account
+		// key and cert key for the domain.
+		keys, err := km.GetPublicKeys(context.Background(), &keymanager.GetPublicKeysRequest{})
+		require.NoError(t, err)
+		if assert.Len(t, keys.PublicKeys, 2) {
+			assert.Equal(t, "bundle-acme-acme_account+key", keys.PublicKeys[0].Id)
+			assert.Equal(t, "bundle-acme-domain.test", keys.PublicKeys[1].Id)
+		}
+
+		// Make sure we logged the ToS details
+		if entry := hook.LastEntry(); assert.NotNil(t, entry) {
+			assert.Equal(t, "ACME Terms of Service accepted", entry.Message)
+			assert.Equal(t, logrus.InfoLevel, entry.Level)
+			assert.Equal(t, logrus.Fields{
+				"directory_url": ca.URL,
+				"tos_url":       ca.URL + "/tos",
+				"email":         "admin@domain.test",
+			}, entry.Data)
+		}
+	})
+
+	// Now test that the cached credentials are used. This test resolves the
+	// domain to bogus address so that the challenge would fail if it were tried
+	// as a way of telling that the challenge was not attempted
+	t.Run("cached", func(t *testing.T) {
+		log, _ := test.NewNullLogger()
+		addr, done := newTestServer(t, testBundleGetter(bundle),
+			ACMEAuth(log, km, ACMEConfig{
+				DirectoryURL: ca.URL,
+				DomainName:   "domain.test",
+				CacheDir:     dir,
+				Email:        "admin@domain.test",
+				ToSAccepted:  true,
+			}),
+		)
+		defer done()
+
 		ca.Resolve("domain.test", "127.0.0.1:0")
-	}, false))
+
+		resp, err := client.Get(fmt.Sprintf("https://%s", addr))
+		require.NoError(t, err)
+		resp.Body.Close()
+	})
 }
 
 func newTestServer(t *testing.T, bundleGetter BundleGetter, serverAuth ServerAuth) (net.Addr, func()) {

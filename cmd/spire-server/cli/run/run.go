@@ -85,8 +85,8 @@ type caSubjectConfig struct {
 type bundleEndpointACMEConfig struct {
 	DirectoryURL string `hcl:"directory_url"`
 	DomainName   string `hcl:"domain_name"`
-	CacheDir     string `hcl:"cache_dir"`
 	Email        string `hcl:"email"`
+	ToSAccepted  bool   `hcl:"tos_accepted"`
 }
 
 type federatesWithConfig struct {
@@ -282,8 +282,9 @@ func newServerConfig(c *config) (*server.Config, error) {
 		sc.Experimental.BundleEndpointACME = &bundle.ACMEConfig{
 			DirectoryURL: acme.DirectoryURL,
 			DomainName:   acme.DomainName,
-			CacheDir:     acme.CacheDir,
+			CacheDir:     filepath.Join(sc.DataDir, "bundle-acme"),
 			Email:        acme.Email,
+			ToSAccepted:  acme.ToSAccepted,
 		}
 	}
 
@@ -364,7 +365,11 @@ func validateConfig(c *config) error {
 
 	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
 		if acme.DomainName == "" {
-			return errors.New("bundle_endpoint_acme domain name must be configured")
+			return errors.New("bundle_endpoint_acme domain_name must be configured")
+		}
+
+		if acme.Email == "" {
+			return errors.New("bundle_endpoint_acme email must be configured")
 		}
 	}
 

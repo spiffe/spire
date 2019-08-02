@@ -1,22 +1,56 @@
-// Copyright 2018 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
+// Copyright (c) 2009 The Go Authors. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//    * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//    * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//    * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
 // Package acmetest provides types for testing acme and autocert packages.
 //
-// TODO: Consider moving this to x/crypto/acme/internal/acmetest for acme tests as well.
+// SPIRE modifications:
+// - Verifies signatures on incoming requests to ensures requests are signed
+//   appropriately with by the KeyManager.
+// - Tracks accounts and implements the account endpoints (to facilitate
+//   accepting terms-of-service)
+// - Fails new-cert requests if the terms-of-service has not been accepted by
+//   the account.
+
 package acmetest
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -26,6 +60,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/square/go-jose.v2"
 )
 
 // CAServer is a simple test server which implements ACME spec bits needed for testing.
@@ -46,6 +82,7 @@ type CAServer struct {
 	domainAddr     map[string]string         // domain name to addr:port resolution
 	authorizations map[string]*authorization // keyed by domain name
 	errors         []error                   // encountered client errors
+	accounts       map[string]*account       // accounts keyed by public key
 }
 
 // NewCAServer creates a new ACME test server and starts serving requests.
@@ -67,6 +104,7 @@ func NewCAServer(challengeTypes []string, domainsWhitelist []string) *CAServer {
 		domainsWhitelist: whitelist,
 		domainAddr:       make(map[string]string),
 		authorizations:   make(map[string]*authorization),
+		accounts:         make(map[string]*account),
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -125,6 +163,12 @@ func (ca *CAServer) Resolve(domain, addr string) {
 	ca.domainAddr[domain] = addr
 }
 
+type account struct {
+	Resource  string   `json:"resource"`
+	Contact   []string `json:"contact,omitempty"`
+	Agreement string   `json:"agreement,omitempty"`
+}
+
 type discovery struct {
 	NewReg   string `json:"new-reg"`
 	NewAuthz string `json:"new-authz"`
@@ -173,27 +217,84 @@ func (ca *CAServer) handle(w http.ResponseWriter, r *http.Request) {
 
 	// Client key registration request.
 	case r.URL.Path == "/new-reg":
-		// TODO: Check the user account key against a ca.accountKeys?
-		w.Header().Set("Location", ca.serverURL("/account/whocares"))
-		w.Header().Set("Link", fmt.Sprintf("<%s>; rel=terms-of-service", ca.serverURL("/tos")))
-		w.Write([]byte("{}"))
+		acct := new(account)
+		accountKey, err := decodePayload(acct, r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		ca.mu.Lock()
+		defer ca.mu.Unlock()
+		ca.accounts[accountKey] = acct
 
-	case r.URL.Path == "/account/whocares":
-		w.Header().Set("Location", ca.serverURL("/account/whocares"))
-		w.Write([]byte("{}"))
+		// TODO: Check the user account key against a ca.accountKeys?
+		w.Header().Set("Location", ca.serverURL("/account/%s", accountKey))
+		w.Header().Set("Link", fmt.Sprintf("<%s>; rel=terms-of-service", ca.serverURL("/tos")))
+		if err := json.NewEncoder(w).Encode(acct); err != nil {
+			panic(fmt.Sprintf("new-reg response: %v", err))
+		}
+
+	case strings.HasPrefix(r.URL.Path, "/account/"):
+		requestKey := strings.TrimPrefix(r.URL.Path, "/account/")
+
+		acct := new(account)
+		accountKey, err := decodePayload(acct, r.Body)
+		if err != nil {
+			ca.addError(err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if requestKey != accountKey {
+			err := fmt.Errorf("request for account %s from account %s", requestKey, accountKey)
+			ca.addError(err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		ca.mu.Lock()
+		defer ca.mu.Unlock()
+
+		_, ok := ca.accounts[accountKey]
+		if !ok {
+			ca.addErrorLocked(err)
+			http.Error(w, "account not found", http.StatusNotFound)
+			return
+		}
+		ca.accounts[accountKey] = acct
+
+		w.Header().Set("Location", ca.serverURL("/account/%s", accountKey))
+		if err := json.NewEncoder(w).Encode(acct); err != nil {
+			panic(fmt.Sprintf("account response: %v", err))
+		}
 
 	// Domain authorization request.
 	case r.URL.Path == "/new-authz":
 		var req struct {
 			Identifier struct{ Value string }
 		}
-		if err := decodePayload(&req, r.Body); err != nil {
+		accountKey, err := decodePayload(&req, r.Body)
+		if err != nil {
 			ca.addError(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		ca.mu.Lock()
 		defer ca.mu.Unlock()
+		acct, ok := ca.accounts[accountKey]
+		if !ok {
+			err := errors.New("no account; register a new one")
+			ca.addErrorLocked(err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if acct.Agreement != ca.serverURL("/tos") {
+			err := errors.New("account has not accepted TOS")
+			ca.addErrorLocked(err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		authz, ok := ca.authorizations[req.Identifier.Value]
 		if !ok {
 			authz = &authorization{
@@ -223,7 +324,7 @@ func (ca *CAServer) handle(w http.ResponseWriter, r *http.Request) {
 		defer ca.mu.Unlock()
 		if _, ok := ca.authorizations[domain]; !ok {
 			err := fmt.Errorf("challenge accept: no authz for %q", domain)
-			ca.addError(err)
+			ca.addErrorLocked(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -260,7 +361,12 @@ func (ca *CAServer) handle(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			CSR string `json:"csr"`
 		}
-		decodePayload(&req, r.Body)
+		_, err := decodePayload(&req, r.Body)
+		if err != nil {
+			ca.addError(err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		b, _ := base64.RawURLEncoding.DecodeString(req.CSR)
 		csr, err := x509.ParseCertificateRequest(b)
 		if err != nil {
@@ -298,6 +404,10 @@ func (ca *CAServer) handle(w http.ResponseWriter, r *http.Request) {
 func (ca *CAServer) addError(err error) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
+	ca.addErrorLocked(err)
+}
+
+func (ca *CAServer) addErrorLocked(err error) {
 	ca.errors = append(ca.errors, err)
 }
 
@@ -393,16 +503,39 @@ func (ca *CAServer) verifyALPNChallenge(domain string) error {
 	return nil
 }
 
-func decodePayload(v interface{}, r io.Reader) error {
-	var req struct{ Payload string }
-	if err := json.NewDecoder(r).Decode(&req); err != nil {
-		return err
+func decodePayload(v interface{}, r io.Reader) (string, error) {
+	buf := new(bytes.Buffer)
+	if _, err := buf.ReadFrom(r); err != nil {
+		return "", errors.New("unable to read JOSE body")
 	}
-	payload, err := base64.RawURLEncoding.DecodeString(req.Payload)
+	jws, err := jose.ParseSigned(buf.String())
 	if err != nil {
-		return err
+		return "", errors.New("malformed JOSE body")
 	}
-	return json.Unmarshal(payload, v)
+	if len(jws.Signatures) == 0 {
+		return "", errors.New("invalid JOSE body; no signatures")
+	}
+	sig := jws.Signatures[0]
+	key := sig.Protected.JSONWebKey
+	if key == nil {
+		return "", errors.New("invalid JOSE body; missing key in header")
+	}
+
+	//payload := jws.UnsafePayloadWithoutVerification()
+	payload, err := jws.Verify(key.Key)
+	if err != nil {
+		return "", fmt.Errorf("invalid signature: %v", err)
+	}
+	if err := json.Unmarshal(payload, v); err != nil {
+		return "", errors.New("malformed payload")
+	}
+
+	keyDER, err := x509.MarshalPKIXPublicKey(key.Key)
+	if err != nil {
+		return "", errors.New("unable to marshal key")
+	}
+	keyHash := sha256.Sum256(keyDER)
+	return base64.RawURLEncoding.EncodeToString(keyHash[:]), nil
 }
 
 func challengeToken(domain, challType string) string {
