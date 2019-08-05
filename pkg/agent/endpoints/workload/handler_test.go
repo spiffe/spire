@@ -195,7 +195,7 @@ func (s *HandlerTestSuite) TestComposeX509Response() {
 	s.Require().NoError(err)
 
 	svidMsg := &workload.X509SVID{
-		SpiffeId:      "spiffe://example_org/foo",
+		SpiffeId:      "spiffe://example.org/foo",
 		X509Svid:      update.Identities[0].SVID[0].Raw,
 		X509SvidKey:   keyData,
 		Bundle:        update.Bundle.RootCAs()[0].Raw,
@@ -258,12 +258,12 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	identities := []cache.Identity{
 		{
 			Entry: &common.RegistrationEntry{
-				SpiffeId: "spiffe://example_org/one",
+				SpiffeId: "spiffe://example.org/one",
 			},
 		},
 		{
 			Entry: &common.RegistrationEntry{
-				SpiffeId: "spiffe://example_org/two",
+				SpiffeId: "spiffe://example.org/two",
 			},
 		},
 	}
@@ -271,8 +271,8 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
 	ONE := &client.JWTSVID{Token: "ONE"}
 	TWO := &client.JWTSVID{Token: "TWO"}
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example_org/one", audience).Return(ONE, nil)
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example_org/two", audience).Return(TWO, nil)
+	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/one", audience).Return(ONE, nil)
+	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
@@ -307,11 +307,11 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.Require().Equal(&workload.JWTSVIDResponse{
 		Svids: []*workload.JWTSVID{
 			{
-				SpiffeId: "spiffe://example_org/one",
+				SpiffeId: "spiffe://example.org/one",
 				Svid:     "ONE",
 			},
 			{
-				SpiffeId: "spiffe://example_org/two",
+				SpiffeId: "spiffe://example.org/two",
 				Svid:     "TWO",
 			},
 		},
@@ -320,7 +320,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	// fetch SVIDs for specific SPIFFE ID
 	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example_org/two", audience).Return(TWO, nil)
+	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
@@ -340,14 +340,14 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
 	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
-		SpiffeId: "spiffe://example_org/two",
+		SpiffeId: "spiffe://example.org/two",
 		Audience: audience,
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(&workload.JWTSVIDResponse{
 		Svids: []*workload.JWTSVID{
 			{
-				SpiffeId: "spiffe://example_org/two",
+				SpiffeId: "spiffe://example.org/two",
 				Svid:     "TWO",
 			},
 		},
@@ -394,7 +394,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(&workload.JWTBundlesResponse{
 		Bundles: map[string][]byte{
-			"spiffe://example_org":      []byte("{\n    \"keys\": null\n}"),
+			"spiffe://example.org":      []byte("{\n    \"keys\": null\n}"),
 			"spiffe://otherdomain.test": []byte("{\n    \"keys\": null\n}"),
 		},
 	})
@@ -533,7 +533,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	s.Require().NoError(err)
 
 	bundle, err := bundleutil.BundleFromProto(&common.Bundle{
-		TrustDomainId: "spiffe://example_org",
+		TrustDomainId: "spiffe://example.org",
 		JwtSigningKeys: []*common.PublicKey{
 			{
 				Kid:       "kid",
@@ -546,7 +546,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	jwtSigner := jwtsvid.NewSigner(jwtsvid.SignerConfig{})
 
 	svid, err := jwtSigner.SignToken(
-		"spiffe://example_org/blog",
+		"spiffe://example.org/blog",
 		[]string{"audience"},
 		time.Now().Add(time.Minute),
 		signer,
@@ -571,14 +571,14 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().Equal("spiffe://example_org/blog", resp.SpiffeId)
+	s.Require().Equal("spiffe://example.org/blog", resp.SpiffeId)
 	s.Require().NotNil(resp.Claims)
 	s.Require().Len(resp.Claims.Fields, 4)
 
 	// token validated by federated bundle
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{
 		FederatedBundles: map[string]*bundleutil.Bundle{
-			"spiffe://example_org": bundle,
+			"spiffe://example.org": bundle,
 		},
 	})
 
@@ -595,7 +595,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().Equal("spiffe://example_org/blog", resp.SpiffeId)
+	s.Require().Equal("spiffe://example.org/blog", resp.SpiffeId)
 	s.Require().NotNil(resp.Claims)
 	s.Require().Len(resp.Claims.Fields, 4)
 }
@@ -653,14 +653,14 @@ func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 		SVID:       []*x509.Certificate{svid},
 		PrivateKey: key,
 		Entry: &common.RegistrationEntry{
-			SpiffeId:      "spiffe://example_org/foo",
+			SpiffeId:      "spiffe://example.org/foo",
 			FederatesWith: []string{"spiffe://otherdomain.test"},
 		},
 	}
 
 	update := &cache.WorkloadUpdate{
 		Identities: []cache.Identity{identity},
-		Bundle:     bundleutil.BundleFromRootCA("spiffe://example_org", ca),
+		Bundle:     bundleutil.BundleFromRootCA("spiffe://example.org", ca),
 		FederatedBundles: map[string]*bundleutil.Bundle{
 			"spiffe://otherdomain.test": bundleutil.BundleFromRootCA("spiffe://otherdomain.test", ca),
 		},
