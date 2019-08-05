@@ -96,6 +96,16 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
+	// Create uds dir and parents if not exists
+	dir := filepath.Dir(c.BindAddress.String())
+	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
+		c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+	}
+
 	// Set umask before starting up the agent
 	cli.SetUmask(c.Log)
 
