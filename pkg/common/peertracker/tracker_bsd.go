@@ -186,7 +186,7 @@ func (b *bsdWatcher) IsAlive() error {
 	// system for exit detection. Delays can be incurred on either side: in our
 	// kevent consumer or in the kernel. Typically, IsAlive() is called following
 	// workload attestation which can take hundreds of milliseconds, so in practice
-	// we will probably have been notified of an exit by now if it occured prior to
+	// we will probably have been notified of an exit by now if it occurred prior to
 	// or during the attestation process.
 	//
 	// As an extra safety precaution, artificially delay our answer to IsAlive() in

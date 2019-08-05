@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 )
 
 const (
@@ -71,6 +72,7 @@ type experimentalConfig struct {
 	BundleEndpointEnabled bool                           `hcl:"bundle_endpoint_enabled"`
 	BundleEndpointAddress string                         `hcl:"bundle_endpoint_address"`
 	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
+	BundleEndpointACME    *bundleEndpointACMEConfig      `hcl:"bundle_endpoint_acme"`
 	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
 }
 
@@ -78,6 +80,13 @@ type caSubjectConfig struct {
 	Country      []string `hcl:"country"`
 	Organization []string `hcl:"organization"`
 	CommonName   string   `hcl:"common_name"`
+}
+
+type bundleEndpointACMEConfig struct {
+	DirectoryURL string `hcl:"directory_url"`
+	DomainName   string `hcl:"domain_name"`
+	Email        string `hcl:"email"`
+	ToSAccepted  bool   `hcl:"tos_accepted"`
 }
 
 type federatesWithConfig struct {
@@ -233,7 +242,7 @@ func newServerConfig(c *config) (*server.Config, error) {
 
 	ip := net.ParseIP(c.Server.BindAddress)
 	if ip == nil {
-		return nil, fmt.Errorf("could not parse bind_adress %q", c.Server.BindAddress)
+		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
 	}
 	sc.BindAddress = &net.TCPAddr{
 		IP:   ip,
@@ -267,6 +276,16 @@ func newServerConfig(c *config) (*server.Config, error) {
 	sc.Experimental.BundleEndpointAddress = &net.TCPAddr{
 		IP:   net.ParseIP(c.Server.Experimental.BundleEndpointAddress),
 		Port: c.Server.Experimental.BundleEndpointPort,
+	}
+
+	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
+		sc.Experimental.BundleEndpointACME = &bundle.ACMEConfig{
+			DirectoryURL: acme.DirectoryURL,
+			DomainName:   acme.DomainName,
+			CacheDir:     filepath.Join(sc.DataDir, "bundle-acme"),
+			Email:        acme.Email,
+			ToSAccepted:  acme.ToSAccepted,
+		}
 	}
 
 	federatesWith := map[string]bundleClient.TrustDomainConfig{}
@@ -342,6 +361,16 @@ func validateConfig(c *config) error {
 
 	if c.Plugins == nil {
 		return errors.New("plugins section must be configured")
+	}
+
+	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
+		if acme.DomainName == "" {
+			return errors.New("bundle_endpoint_acme domain_name must be configured")
+		}
+
+		if acme.Email == "" {
+			return errors.New("bundle_endpoint_acme email must be configured")
+		}
 	}
 
 	for td, tdConfig := range c.Server.Experimental.FederatesWith {

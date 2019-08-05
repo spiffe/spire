@@ -374,7 +374,7 @@ func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *
 		Subject: pkix.Name{
 			CommonName: cn,
 		},
-		IsCA: true,
+		IsCA:                  true,
 		BasicConstraintsValid: true,
 		NotAfter:              s.clock.Now().Add(10 * time.Minute),
 		SubjectKeyId:          keyID,

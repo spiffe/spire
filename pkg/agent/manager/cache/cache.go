@@ -84,7 +84,7 @@ type X509SVID struct {
 // memory. For maximal safety, the objects should be cloned both coming in and
 // leaving the cache. However, during global updates (e.g. trust bundle is
 // updated for the agent trust domain) in particular, cloning all of the
-// revelant objects for each subscriber causes HUGE amounts of memory pressure
+// relevant objects for each subscriber causes HUGE amounts of memory pressure
 // which adds non-trivial amounts of latency and causes a giant memory spike
 // that could OOM the agent on smaller VMs. For this reason, the cache is
 // presumed to own ALL data passing in and out of the cache. Producers and

@@ -121,7 +121,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		t.Fatal("manager was expected to fail during initialization")
 	}
 
-	// Althought start failed, the Bundle should have been saved, because it should be
+	// Although start failed, the Bundle should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
 	bundle, err := ReadBundle(c.BundleCachePath)
 	if err != nil {
@@ -170,7 +170,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		t.Fatal("manager was expected to fail during initialization")
 	}
 
-	// Althought start failed, the SVID should have been saved, because it should be
+	// Although start failed, the SVID should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
 	svid, err := ReadSVID(c.SVIDCachePath)
 	if err != nil {
@@ -225,7 +225,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 		t.Fatal("manager was expected to fail during initialization")
 	}
 
-	// Althought start failed, the SVID key should have been saved, because it should be
+	// Although start failed, the SVID key should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
 	kresp, err = km.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
 	if err != nil {

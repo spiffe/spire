@@ -60,7 +60,7 @@ func testStatsdConfig() *MetricsConfig {
 		ServiceName: "foo",
 		FileConfig: FileConfig{
 			Statsd: []StatsdConfig{
-				StatsdConfig{
+				{
 					Address: "localhost:8125",
 				},
 			},

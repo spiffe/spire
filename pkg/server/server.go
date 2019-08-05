@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof" // import registers routes on DefaultServeMux
 	"net/url"
 	"os"
 	"runtime"
@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -106,6 +107,10 @@ type ExperimentalConfig struct {
 	// BundleEndpointAddress is the address on which to serve the federation
 	// bundle endpoint.
 	BundleEndpointAddress *net.TCPAddr
+
+	// BundleEndpointACME is the ACME configuration for the bundle endpoint.
+	// If unset, the bundle endpoint will use SPIFFE auth.
+	BundleEndpointACME *bundle.ACMEConfig
 
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
@@ -258,7 +263,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 
 		server := http.Server{
 			Addr:    fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
-			Handler: http.HandlerFunc(pprof.Index),
+			Handler: http.DefaultServeMux,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to
@@ -369,6 +374,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 	}
 	if s.config.Experimental.BundleEndpointEnabled {
 		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
+		config.BundleEndpointACME = s.config.Experimental.BundleEndpointACME
 	}
 	return endpoints.New(config)
 }
