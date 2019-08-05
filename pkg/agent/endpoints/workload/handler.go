@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -76,8 +75,9 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
-		telemetry_common.AddSPIFFEID(counter, identity.Entry.SpiffeId)
 	}
+
+	telemetry_common.AddCount(counter, len(spiffeIDs))
 
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
@@ -347,10 +347,9 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.Metrics, selectorsToLabels(selectors))
-	telemetry_workload.IncrConnectionCounter(metrics)
+	telemetry_workload.IncrConnectionCounter(h.Metrics)
 
-	return watcher.PID(), selectors, metrics, done, nil
+	return watcher.PID(), selectors, h.Metrics, done, nil
 }
 
 // peerWatcher takes a grpc context, and returns a Watcher representing the caller which
@@ -406,14 +405,4 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	}
 
 	return s, nil
-}
-
-func selectorsToLabels(selectors []*common.Selector) (labels []telemetry.Label) {
-	for _, selector := range selectors {
-		labels = append(labels, telemetry.Label{
-			Name:  telemetry.Selector,
-			Value: strings.Join([]string{selector.Type, selector.Value}, ":"),
-		})
-	}
-	return labels
 }
