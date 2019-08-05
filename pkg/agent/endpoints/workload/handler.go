@@ -154,7 +154,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
-		telemetry_workload.IncrValidJWTSVIDErrCounter(metrics, err.Error())
+		telemetry_workload.IncrValidJWTSVIDErrCounter(metrics)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
