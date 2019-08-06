@@ -65,7 +65,7 @@ func (h *Handler) CreateEntry(
 
 	unique, err := h.isEntryUnique(ctx, ds, request)
 	if err != nil {
-		err = status.Error(codes.Internal, "Error trying to create entry")
+		err = status.Errorf(codes.Internal, "Error trying to create entry: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (h *Handler) CreateEntry(
 		&datastore.CreateRegistrationEntryRequest{Entry: request},
 	)
 	if err != nil {
-		err = status.Error(codes.Internal, "entry already exists")
+		err = status.Errorf(codes.Internal, "Error trying to create entry: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
@@ -563,7 +563,7 @@ func (h *Handler) CreateJoinToken(
 		},
 	})
 	if err != nil {
-		err = status.Error(codes.Internal, "Failed to register token")
+		err = status.Errorf(codes.Internal, "Failed to register token: %v", err)
 		h.Log.Error(err)
 		return nil, err
 	}
