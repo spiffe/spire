@@ -103,7 +103,7 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 
 	var serverAuth bundle.ServerAuth
 	if e.c.BundleEndpointACME != nil {
-		serverAuth = bundle.ACMEAuth(e.c.Log.WithField("subsystem_name", "bundle_acme"), e.c.Catalog.GetKeyManager(), *e.c.BundleEndpointACME)
+		serverAuth = bundle.ACMEAuth(e.c.Log.WithField(telemetry.SubsystemName, "bundle_acme"), e.c.Catalog.GetKeyManager(), *e.c.BundleEndpointACME)
 	} else {
 		serverAuth = bundle.SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
 			state := e.c.SVIDObserver.State()
@@ -113,7 +113,7 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 
 	ds := e.c.Catalog.GetDataStore()
 	return bundle.NewServer(bundle.ServerConfig{
-		Log:     e.c.Log.WithField("subsystem_name", "bundle_endpoint"),
+		Log:     e.c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
 		Address: e.c.BundleEndpointAddress.String(),
 		BundleGetter: bundle.BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
 			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
