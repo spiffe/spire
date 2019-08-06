@@ -3,23 +3,14 @@ package common
 import (
 	"strconv"
 
-	"google.golang.org/grpc/codes"
-
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"google.golang.org/grpc/codes"
 )
 
 // AddAttestorType add Attestor type label to the given counter
 // from the given attestor type
 func AddAttestorType(cc *telemetry.CallCounter, aType string) {
 	cc.AddLabel(telemetry.Attestor, aType)
-}
-
-// AddAudience add the Audience label(s) to the given counter
-// from the given audience(s)
-func AddAudience(cc *telemetry.CallCounter, auds ...string) {
-	for _, aud := range auds {
-		cc.AddLabel(telemetry.Audience, aud)
-	}
 }
 
 // AddCallerID add the CallerID label to the given counter
@@ -42,14 +33,20 @@ func AddRegistered(cc *telemetry.CallCounter, reg bool) {
 	cc.AddLabel(telemetry.Registered, strconv.FormatBool(reg))
 }
 
+// AddRegistrationID add RegistrationID label to the given counter
+// from the given ID
+func AddRegistrationID(cc *telemetry.CallCounter, id string) {
+	cc.AddLabel(telemetry.RegistrationID, id)
+}
+
 // AddSPIFFEID add SPIFFE ID label to the given counter
 // from the given ID
 func AddSPIFFEID(cc *telemetry.CallCounter, id string) {
 	cc.AddLabel(telemetry.SPIFFEID, id)
 }
 
-// AddRegistrationID add RegistrationID label to the given counter
-// from the given ID
-func AddRegistrationID(cc *telemetry.CallCounter, id string) {
-	cc.AddLabel(telemetry.RegistrationID, id)
+// AddCount add a count label to the given call counter from
+// the given count
+func AddCount(cc *telemetry.CallCounter, count int) {
+	cc.AddLabel(telemetry.Count, strconv.Itoa(count))
 }

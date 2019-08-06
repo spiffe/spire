@@ -5,7 +5,6 @@ go 1.12
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
 require (
-	bazil.org/fuse v0.0.0-20180421153158-65cc252bf669 // indirect
 	github.com/Azure/azure-sdk-for-go v30.1.0+incompatible
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Azure/go-autorest/autorest v0.2.0
@@ -47,6 +46,8 @@ require (
 	github.com/jinzhu/gorm v1.9.9
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
+	github.com/onsi/ginkgo v1.8.0 // indirect
+	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -61,7 +62,7 @@ require (
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
-	golang.org/x/crypto v0.0.0-20190617133340-57b3e21c3d56
+	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
 	golang.org/x/sys v0.0.0-20190618155005-516e3c20635f
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
