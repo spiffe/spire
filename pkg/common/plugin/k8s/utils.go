@@ -90,10 +90,10 @@ func AgentID(pluginName, trustDomain, cluster, uuid string) string {
 	return u.String()
 }
 
-func MakeSelector(pluginName, kind, value string) *common.Selector {
+func MakeSelector(pluginName, kind string, values ...string) *common.Selector {
 	return &common.Selector{
 		Type:  pluginName,
-		Value: fmt.Sprintf("%s:%s", kind, value),
+		Value: fmt.Sprintf("%s:%s", kind, strings.Join(values, ":")),
 	}
 }
 
