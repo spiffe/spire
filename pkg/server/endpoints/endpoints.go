@@ -101,6 +101,16 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 	}
 	e.c.Log.WithField("addr", e.c.BundleEndpointAddress).Info("Serving bundle endpoint")
 
+	var serverAuth bundle.ServerAuth
+	if e.c.BundleEndpointACME != nil {
+		serverAuth = bundle.ACMEAuth(e.c.Log.WithField("subsystem_name", "bundle_acme"), e.c.Catalog.GetKeyManager(), *e.c.BundleEndpointACME)
+	} else {
+		serverAuth = bundle.SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
+			state := e.c.SVIDObserver.State()
+			return state.SVID, state.Key, nil
+		})
+	}
+
 	ds := e.c.Catalog.GetDataStore()
 	return bundle.NewServer(bundle.ServerConfig{
 		Log:     e.c.Log.WithField("subsystem_name", "bundle_endpoint"),
@@ -117,10 +127,7 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 			}
 			return bundleutil.BundleFromProto(resp.Bundle)
 		}),
-		CredsGetter: bundle.ServerCredsGetterFunc(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
-			state := e.c.SVIDObserver.State()
-			return state.SVID, state.Key, nil
-		}),
+		ServerAuth: serverAuth,
 	}), true
 }
 

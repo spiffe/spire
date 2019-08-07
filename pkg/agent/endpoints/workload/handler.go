@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/workload"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -61,6 +59,9 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	counter := telemetry_workload.StartFetchJWTSVIDCall(metrics)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	var spiffeIDs []string
 	identities := h.Manager.MatchingIdentities(selectors)
@@ -76,8 +77,9 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
-		telemetry_common.AddSPIFFEID(counter, identity.Entry.SpiffeId)
 	}
+
+	telemetry_common.AddCount(counter, len(spiffeIDs))
 
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
@@ -118,7 +120,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 		case update := <-subscriber.Updates():
 			telemetry_workload.IncrUpdateJWTBundlesCounter(metrics)
 			start := time.Now()
-			if err := h.sendJWTBundlesResponse(update, stream); err != nil {
+			if err := h.sendJWTBundlesResponse(update, stream, metrics); err != nil {
 				return err
 			}
 
@@ -162,7 +164,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	s, err := structFromValues(claims)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	return &workload.ValidateJWTSVIDResponse{
@@ -213,6 +215,9 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) (err error) {
 	counter := telemetry_workload.StartFetchX509SVIDCall(metrics)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	if len(update.Identities) == 0 {
 		telemetry_common.AddRegistered(counter, false)
@@ -275,7 +280,13 @@ func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*worklo
 	return resp, nil
 }
 
-func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
+func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, metrics telemetry.Metrics) (err error) {
+	counter := telemetry_workload.StartFetchJWTBundlesCall(metrics)
+	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
+
 	if len(update.Identities) == 0 {
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
@@ -347,10 +358,9 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.Metrics, selectorsToLabels(selectors))
-	telemetry_workload.IncrConnectionCounter(metrics)
+	telemetry_workload.IncrConnectionCounter(h.Metrics)
 
-	return watcher.PID(), selectors, metrics, done, nil
+	return watcher.PID(), selectors, h.Metrics, done, nil
 }
 
 // peerWatcher takes a grpc context, and returns a Watcher representing the caller which
@@ -406,14 +416,4 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	}
 
 	return s, nil
-}
-
-func selectorsToLabels(selectors []*common.Selector) (labels []telemetry.Label) {
-	for _, selector := range selectors {
-		labels = append(labels, telemetry.Label{
-			Name:  telemetry.Selector,
-			Value: strings.Join([]string{selector.Type, selector.Value}, ":"),
-		})
-	}
-	return labels
 }
