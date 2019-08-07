@@ -238,11 +238,10 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	// Add all the SPIFFE IDs to the labels array.
 	for i, svid := range resp.Svids {
-		telemetry_common.AddSPIFFEID(counter, svid.SpiffeId)
-
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 	}
+	telemetry_common.AddCount(counter, len(resp.Svids))
 
 	return nil
 }
