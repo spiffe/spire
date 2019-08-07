@@ -66,7 +66,7 @@ func (m *Manager) pruneEvery(ctx context.Context) error {
 		m.log.Info("automatic registration pruning not enabled")
 		return nil
 	}
-	if m.c.RegistrationPruning <= _warningCadence {
+	if m.c.RegistrationPruning.Seconds() <= _warningCadence {
 		m.log.Warn("automatic registration pruning cadence may be too frequent")
 	}
 
