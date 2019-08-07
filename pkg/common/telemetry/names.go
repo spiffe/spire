@@ -362,6 +362,9 @@ const (
 	// SVIDRotator functionality related to a SVID rotator
 	SVIDRotator = "svid_rotator"
 
+	// RegistrationManager functionality related to a registration manager
+	RegistrationManager = "registration_manager"
+
 	// Telemetry tags a telemetry module
 	Telemetry = "telemetry"
 

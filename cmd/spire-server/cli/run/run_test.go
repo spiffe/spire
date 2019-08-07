@@ -25,6 +25,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
+	assert.Equal(t, c.Server.RegistrationPruning, "1h")
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins

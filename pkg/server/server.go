@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
+	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
 	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -95,6 +96,10 @@ type Config struct {
 
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config
+
+	// RegistrationPruning is the cadence for how often to prune registration
+	// entries. Default is to do no automatic pruning.
+	RegistrationPruning time.Duration
 }
 
 type ExperimentalConfig struct {
@@ -233,6 +238,8 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	bundleManager := s.newBundleManager(cat)
 
+	registrationManager := s.newRegistrationManager(cat, metrics)
+
 	if err := healthChecks.AddCheck("server", s, time.Minute); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
@@ -243,6 +250,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		endpointsServer.ListenAndServe,
 		metrics.ListenAndServe,
 		bundleManager.Run,
+		registrationManager.Run,
 		healthChecks.ListenAndServe,
 	)
 	if err == context.Canceled {
@@ -345,6 +353,16 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		return nil, err
 	}
 	return caManager, nil
+}
+
+func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.Metrics) *registration.Manager {
+	registrationManager := registration.NewManager(registration.ManagerConfig{
+		RegistrationPruning: s.config.RegistrationPruning,
+		DataStore:           cat.GetDataStore(),
+		Log:                 s.config.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationManager),
+		Metrics:             metrics,
+	})
+	return registrationManager
 }
 
 func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
