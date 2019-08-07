@@ -52,8 +52,7 @@ type ManagerConfig struct {
 	Dir            string
 	Log            logrus.FieldLogger
 	Metrics        telemetry.Metrics
-
-	Clock clock.Clock
+	Clock          clock.Clock
 }
 
 type Manager struct {
