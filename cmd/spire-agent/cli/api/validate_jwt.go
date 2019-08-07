@@ -8,8 +8,8 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/workload"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

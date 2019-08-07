@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"

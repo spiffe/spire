@@ -4,7 +4,7 @@ import (
 	"crypto/x509"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 )
