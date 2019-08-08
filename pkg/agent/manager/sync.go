@@ -66,6 +66,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		}
 	})
 	telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, float32(expiring))
+	m.c.Log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updated SVIDs in cache")
 
 	if len(csrs) > 0 {
 		update, err := m.fetchUpdates(ctx, csrs)
