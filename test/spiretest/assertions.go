@@ -112,19 +112,19 @@ func AssertProtoListEqual(tb testing.TB, expected, actual interface{}) bool {
 	return true
 }
 
-func RequireProtoEqual(tb testing.TB, expected, actual proto.Message) {
+func RequireProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...interface{}) {
 	tb.Helper()
-	if !AssertProtoEqual(tb, expected, actual) {
+	if !AssertProtoEqual(tb, expected, actual, msgAndArgs...) {
 		tb.FailNow()
 	}
 }
 
-func AssertProtoEqual(tb testing.TB, expected, actual proto.Message) bool {
+func AssertProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	if !proto.Equal(expected, actual) {
 		// we've already determined they are not equal, but this will give
 		// us nice output with the contents.
-		return assert.Equal(tb, expected, actual)
+		return assert.Equal(tb, expected, actual, msgAndArgs...)
 	}
 	return true
 }
