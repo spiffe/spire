@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/registration"
-
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -23,6 +21,7 @@ import (
 	telemetry_registrationapi "github.com/spiffe/spire/pkg/common/telemetry/server/registrationapi"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"golang.org/x/net/context"
