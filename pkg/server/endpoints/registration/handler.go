@@ -172,6 +172,10 @@ func (h *Handler) UpdateEntry(
 	}
 
 	telemetry_registrationapi.IncrRegistrationAPIUpdatedEntryCounter(h.Metrics)
+	h.Log.WithFields(logrus.Fields{
+		telemetry.ParentID: resp.Entry.ParentId,
+		telemetry.SPIFFEID: resp.Entry.SpiffeId,
+	}).Debug("Workload registration successfully updated")
 
 	return resp.Entry, nil
 }

@@ -95,6 +95,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 		ttl := time.Until(svid.ExpiresAt)
 		telemetry_workload.SetFetchJWTSVIDTTLGauge(metrics, spiffeID, float32(ttl.Seconds()))
+		h.Log.WithFields(logrus.Fields{
+			telemetry.SPIFFEID: spiffeID,
+			telemetry.TTL: ttl.Seconds(),
+		}).Debug("Fetched JWT SVID")
 	}
 
 	return resp, nil
@@ -111,6 +115,8 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	defer done()
 
 	telemetry_workload.IncrFetchJWTBundlesCounter(metrics)
+	log := h.Log.WithField(telemetry.PID, pid)
+	log.Debug("Fetching JWT Bundles")
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
@@ -119,6 +125,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 		select {
 		case update := <-subscriber.Updates():
 			telemetry_workload.IncrUpdateJWTBundlesCounter(metrics)
+			log.Debug("Sending JWT Bundles")
 			start := time.Now()
 			if err := h.sendJWTBundlesResponse(update, stream, metrics); err != nil {
 				return err
@@ -126,10 +133,9 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 			telemetry_workload.MeasureSendJWTBundleLatency(metrics, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.Log.WithFields(logrus.Fields{
-					telemetry.Seconds: time.Since(start).Seconds,
-					telemetry.PID:     pid,
-				}).Warn("Took >1 second to send JWT bundle to PID")
+				log.WithField(telemetry.Seconds, time.Since(start).Seconds).Warn("Took >1 second to send JWT bundle to PID")
+			} else {
+				log.Debug("Sent JWT bundle to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -154,13 +160,19 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	keyStore := keyStoreFromBundles(h.getWorkloadBundles(selectors))
 
+	log := h.Log.WithField(telemetry.Audience, req.Audience)
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
 		telemetry_workload.IncrValidJWTSVIDErrCounter(metrics, err.Error())
+		log.WithFields(logrus.Fields{
+			telemetry.Error:    err.Error(),
+			telemetry.SVID:     req.Svid,
+		}).Warn("Failed to validate JWT")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	telemetry_workload.IncrValidJWTSVIDCounter(metrics, spiffeID, req.Audience)
+	log.WithField(telemetry.SPIFFEID, spiffeID).Debug("Successfully validated JWT")
 
 	s, err := structFromValues(claims)
 	if err != nil {
@@ -242,6 +254,10 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
+		h.Log.WithFields(logrus.Fields{
+			telemetry.SPIFFEID: svid.SpiffeId,
+			telemetry.TTL: ttl.Seconds(),
+		}).Debug("Fetched X.509 SVID")
 	}
 
 	return nil
@@ -338,9 +354,11 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 
 	// add to count of current
 	telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, 1))
+	h.Log.Debug("New active connection to workload API")
 	done := func() {
 		// rely on caller to decrement count of current connections
 		telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, -1))
+		h.Log.Debug("Closing connection to workload API")
 	}
 
 	config := attestor.Config{
