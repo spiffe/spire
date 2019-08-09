@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_registrationapi "github.com/spiffe/spire/pkg/common/telemetry/server/registrationapi"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -39,6 +40,7 @@ type Handler struct {
 	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
+	ServerCA    ca.ServerCA
 }
 
 //CreateEntry creates an entry in the Registration table,
@@ -626,6 +628,98 @@ func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgen
 	return &registration.ListAgentsResponse{Nodes: resp.Nodes}, nil
 }
 
+func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SVIDRequest) (_ *registration.MintX509SVIDResponse, err error) {
+	counter := telemetry_registrationapi.StartMintX509SVIDCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
+	defer counter.Done(&err)
+
+	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(req.Csr) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "request missing CSR")
+	}
+
+	for _, dnsName := range req.DnsNames {
+		if err := validateDNS(dnsName); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%q is not a valid DNS name: %v", dnsName, err)
+		}
+	}
+
+	csr, err := x509.ParseCertificateRequest(req.Csr)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: %v", err)
+	}
+	if err := csr.CheckSignature(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
+	}
+
+	svid, err := h.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  spiffeID,
+		PublicKey: csr.PublicKey,
+		TTL:       time.Duration(req.Ttl) * time.Second,
+		DNSList:   req.DnsNames,
+	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: h.TrustDomain.String(),
+	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if resp.Bundle == nil {
+		return nil, status.Error(codes.FailedPrecondition, "bundle not found")
+	}
+
+	svidChain := make([][]byte, 0, len(svid))
+	for _, cert := range svid {
+		svidChain = append(svidChain, cert.Raw)
+	}
+
+	var rootCAs [][]byte
+	for _, rootCA := range resp.Bundle.RootCas {
+		rootCAs = append(rootCAs, rootCA.DerBytes)
+	}
+
+	return &registration.MintX509SVIDResponse{
+		SvidChain: svidChain,
+		RootCas:   rootCAs,
+	}, nil
+}
+
+func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVIDRequest) (_ *registration.MintJWTSVIDResponse, err error) {
+	counter := telemetry_registrationapi.StartMintJWTSVIDCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
+	defer counter.Done(&err)
+
+	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(req.Audience) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "request must specify at least one audience")
+	}
+
+	token, err := h.ServerCA.SignJWTSVID(ctx, ca.JWTSVIDParams{
+		SpiffeID: spiffeID,
+		TTL:      time.Duration(req.Ttl) * time.Second,
+		Audience: req.Audience,
+	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &registration.MintJWTSVIDResponse{
+		Token: token,
+	}, nil
+}
+
 func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*common.AttestedNode, error) {
 	if agentID == "" {
 		return nil, errors.New("empty agent ID")
@@ -642,6 +736,19 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 	}
 
 	return resp.Node, nil
+}
+
+func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (string, error) {
+	if spiffeID == "" {
+		return "", status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
+	}
+
+	spiffeID, err := idutil.NormalizeSpiffeID(spiffeID, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	if err != nil {
+		return "", status.Errorf(codes.InvalidArgument, err.Error())
+	}
+
+	return spiffeID, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {
