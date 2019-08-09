@@ -65,6 +65,9 @@ const (
 	// Update functionality related to updating some entity; should be used
 	// with other tags to add clarity
 	Update = "update"
+
+	// Mint functionality related to minting identities
+	Mint = "mint"
 )
 
 // Attribute metric tags or labels that are typically an attribute of a
