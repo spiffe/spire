@@ -183,7 +183,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	healthChecks := health.NewChecker(
 		s.config.HealthChecks,
-		s.config.Log.WithField("subsystem_name", "health"),
+		s.config.Log.WithField(telemetry.SubsystemName, "health"),
 	)
 
 	s.config.Log.Info("plugins started")
@@ -381,7 +381,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 
 func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
-		Log:          s.config.Log.WithField("subsystem_name", "bundle_client"),
+		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
 		DataStore:    cat.GetDataStore(),
 		TrustDomains: s.config.Experimental.FederatesWith,
 	})

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -30,5 +31,17 @@ func (f *DurationFlag) Set(v string) error {
 		return err
 	}
 	*f = DurationFlag(d)
+	return nil
+}
+
+// StringsFlag faciliates setting multiple flags
+type StringsFlag []string
+
+func (s *StringsFlag) String() string {
+	return fmt.Sprint(*s)
+}
+
+func (s *StringsFlag) Set(val string) error {
+	*s = append(*s, val)
 	return nil
 }
