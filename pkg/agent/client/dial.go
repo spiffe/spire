@@ -8,6 +8,7 @@ import (
 	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -65,6 +66,7 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 	}
 
 	return grpc.DialContext(ctx, config.Address,
+		grpc.WithBalancerName(roundrobin.Name),
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)

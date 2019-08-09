@@ -214,7 +214,8 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 		return nil, err
 	}
 
-	ac.ServerAddress = net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
+	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
+	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
 
 	td, err := idutil.ParseSpiffeID("spiffe://"+c.Agent.TrustDomain, idutil.AllowAnyTrustDomain())
 	if err != nil {
