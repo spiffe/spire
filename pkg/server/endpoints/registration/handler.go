@@ -15,7 +15,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_registrationapi "github.com/spiffe/spire/pkg/common/telemetry/server/registrationapi"
@@ -676,25 +675,20 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 		BySpiffeId: &wrappers.StringValue{
 			Value: entry.SpiffeId,
 		},
+		ByParentId: &wrappers.StringValue{
+			Value: entry.ParentId,
+		},
+		BySelectors: &datastore.BySelectors{
+			Match:     datastore.BySelectors_MATCH_EXACT,
+			Selectors: entry.Selectors,
+		},
 	}
 	res, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
 		return false, err
 	}
 
-	for _, re := range res.Entries {
-		// If an existing entry matches the new entry's parent id also, we must check its
-		// selectors...
-		if re.ParentId == entry.ParentId {
-			reSelSet := selector.NewSetFromRaw(re.Selectors)
-			entrySelSet := selector.NewSetFromRaw(entry.Selectors)
-			if reSelSet.Equal(entrySelSet) {
-				return false, nil
-			}
-		}
-	}
-
-	return true, nil
+	return len(res.Entries) == 0, nil
 }
 
 func (h *Handler) getDataStore() datastore.DataStore {
