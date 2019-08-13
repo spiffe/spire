@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 )
 
 func protoToX509SVIDs(protoSVIDs *workload.X509SVIDResponse) (*X509SVIDs, error) {

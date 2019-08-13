@@ -8,7 +8,7 @@ import (
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
