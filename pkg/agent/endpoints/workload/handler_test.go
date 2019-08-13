@@ -114,7 +114,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
+		{Name: telemetry.Count, Value: "1"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
@@ -175,7 +175,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
+		{Name: telemetry.Count, Value: "1"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
