@@ -6,22 +6,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io"
 	"net/url"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
-	"github.com/spiffe/spire/pkg/common/grpcutil"
-	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -66,38 +60,6 @@ func New(c *Config) *client {
 		c:                   c,
 		createNewNodeClient: node.NewNodeClient,
 	}
-}
-
-func (c *client) credsFunc() (credentials.TransportCredentials, error) {
-	var tlsCerts []tls.Certificate
-	var tlsConfig *tls.Config
-
-	svid, key, bundle := c.c.KeysAndBundle()
-	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{idutil.ServerID(c.c.TrustDomain.Host)},
-		TrustRoots: util.NewCertPool(bundle...),
-	}
-	tlsCert := tls.Certificate{PrivateKey: key}
-	for _, cert := range svid {
-		tlsCert.Certificate = append(tlsCert.Certificate, cert.Raw)
-	}
-	tlsCerts = append(tlsCerts, tlsCert)
-	tlsConfig = spiffePeer.NewTLSConfig(tlsCerts)
-
-	return credentials.NewTLS(tlsConfig), nil
-}
-
-func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
-	config := grpcutil.GRPCDialerConfig{
-		Log:      grpcutil.LoggerFromFieldLogger(c.c.Log),
-		CredFunc: c.credsFunc,
-	}
-	dialer := grpcutil.NewGRPCDialer(config)
-	conn, err := dialer.Dial(ctx, c.c.Addr)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create connection: %v", err)
-	}
-	return conn, nil
 }
 
 func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest) (*Update, error) {
@@ -227,4 +189,25 @@ func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, *nodeConn,
 	}
 	c.nodeConn.AddRef()
 	return c.createNewNodeClient(c.nodeConn.conn), c.nodeConn, nil
+}
+
+func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
+	return DialServer(ctx, DialServerConfig{
+		Address:     c.c.Addr,
+		TrustDomain: c.c.TrustDomain.Host,
+		GetBundle: func() []*x509.Certificate {
+			_, _, bundle := c.c.KeysAndBundle()
+			return bundle
+		},
+		GetAgentCertificate: func() *tls.Certificate {
+			chain, key, _ := c.c.KeysAndBundle()
+			agentCert := &tls.Certificate{
+				PrivateKey: key,
+			}
+			for _, cert := range chain {
+				agentCert.Certificate = append(agentCert.Certificate, cert.Raw)
+			}
+			return agentCert
+		},
+	})
 }
