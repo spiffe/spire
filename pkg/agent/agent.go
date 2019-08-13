@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof" // import registers routes on DefaultServeMux
 	"os"
 	"path"
 	"runtime"
@@ -119,7 +119,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 
 		server := http.Server{
 			Addr:    fmt.Sprintf("localhost:%d", a.c.ProfilingPort),
-			Handler: http.HandlerFunc(pprof.Index),
+			Handler: http.DefaultServeMux,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to
