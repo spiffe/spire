@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	workload_pb "github.com/spiffe/spire/proto/spire/api/workload"
+	workload_pb "github.com/spiffe/go-spiffe/proto/spiffe/workload"
 )
 
 type Server interface {

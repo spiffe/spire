@@ -31,6 +31,7 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 type Options struct {
 	Clock          clock.Clock
 	X509SVIDTTL    time.Duration
+	JWTSVIDTTL     time.Duration
 	UpstreamCA     upstreamca.UpstreamCA
 	UpstreamBundle bool
 }
@@ -50,6 +51,9 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	}
 	if options.X509SVIDTTL == 0 {
 		options.X509SVIDTTL = time.Minute
+	}
+	if options.JWTSVIDTTL == 0 {
+		options.JWTSVIDTTL = time.Minute
 	}
 
 	log, _ := test.NewNullLogger()
@@ -72,6 +76,7 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 		Metrics:     telemetry.Blackhole{},
 		TrustDomain: url.URL{Scheme: "spiffe", Host: trustDomain},
 		X509SVIDTTL: options.X509SVIDTTL,
+		JWTSVIDTTL:  options.JWTSVIDTTL,
 		Clock:       options.Clock,
 	})
 	serverCA.SetX509CA(x509CA)
@@ -90,4 +95,16 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 
 func (c *CA) Bundle() []*x509.Certificate {
 	return c.bundle
+}
+
+func (c *CA) Clock() clock.Clock {
+	return c.options.Clock
+}
+
+func (c *CA) X509SVIDTTL() time.Duration {
+	return c.options.X509SVIDTTL
+}
+
+func (c *CA) JWTSVIDTTL() time.Duration {
+	return c.options.JWTSVIDTTL
 }

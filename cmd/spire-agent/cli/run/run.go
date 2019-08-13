@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -36,9 +37,10 @@ const (
 
 // config contains all available configurables, arranged by section
 type config struct {
-	Agent     *agentConfig                `hcl:"agent"`
-	Plugins   *catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry telemetry.FileConfig        `hcl:"telemetry"`
+	Agent        *agentConfig                `hcl:"agent"`
+	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
+	HealthChecks health.Config               `hcl:"health_checks"`
 }
 
 type agentConfig struct {
@@ -251,6 +253,7 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry
+	ac.HealthChecks = c.HealthChecks
 
 	return ac, nil
 }

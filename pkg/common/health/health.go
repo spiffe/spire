@@ -31,7 +31,7 @@ func live(w http.ResponseWriter, _ *http.Request) {
 func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 	hc := health.New()
 
-	var server http.Server
+	var server *http.Server
 	// Start HTTP server if address is configured
 	address := config.getAddress()
 	if address != nil {
@@ -40,7 +40,7 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 		handler.HandleFunc(config.getReadyPath(), handlers.NewJSONHandlerFunc(hc, nil))
 		handler.HandleFunc(config.getLivePath(), live)
 
-		server = http.Server{
+		server = &http.Server{
 			Addr:    *address,
 			Handler: handler,
 		}
@@ -48,7 +48,7 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 
 	hc.StatusListener = &statusListener{}
 
-	return &Checker{config: config, server: &server, hc: hc, log: log}
+	return &Checker{config: config, server: server, hc: hc, log: log}
 }
 
 func (c *Checker) AddCheck(name string, checker health.ICheckable, interval time.Duration) error {
@@ -76,7 +76,7 @@ func (c *Checker) ListenAndServe(ctx context.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			c.log.WithField("address", c.config.getAddress()).Info("Serving health checks")
+			c.log.WithField("address", c.server.Addr).Info("Serving health checks")
 			if err := c.server.ListenAndServe(); err != http.ErrServerClosed {
 				c.log.WithError(err).Warn("Error serving health checks")
 			}

@@ -356,6 +356,46 @@ func (mr *MockRegistrationClientMockRecorder) ListFederatedBundles(arg0, arg1 in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFederatedBundles", reflect.TypeOf((*MockRegistrationClient)(nil).ListFederatedBundles), varargs...)
 }
 
+// MintJWTSVID mocks base method
+func (m *MockRegistrationClient) MintJWTSVID(arg0 context.Context, arg1 *registration.MintJWTSVIDRequest, arg2 ...grpc.CallOption) (*registration.MintJWTSVIDResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "MintJWTSVID", varargs...)
+	ret0, _ := ret[0].(*registration.MintJWTSVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MintJWTSVID indicates an expected call of MintJWTSVID
+func (mr *MockRegistrationClientMockRecorder) MintJWTSVID(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MintJWTSVID", reflect.TypeOf((*MockRegistrationClient)(nil).MintJWTSVID), varargs...)
+}
+
+// MintX509SVID mocks base method
+func (m *MockRegistrationClient) MintX509SVID(arg0 context.Context, arg1 *registration.MintX509SVIDRequest, arg2 ...grpc.CallOption) (*registration.MintX509SVIDResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "MintX509SVID", varargs...)
+	ret0, _ := ret[0].(*registration.MintX509SVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MintX509SVID indicates an expected call of MintX509SVID
+func (mr *MockRegistrationClientMockRecorder) MintX509SVID(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MintX509SVID", reflect.TypeOf((*MockRegistrationClient)(nil).MintX509SVID), varargs...)
+}
+
 // UpdateEntry mocks base method
 func (m *MockRegistrationClient) UpdateEntry(arg0 context.Context, arg1 *registration.UpdateEntryRequest, arg2 ...grpc.CallOption) (*common.RegistrationEntry, error) {
 	m.ctrl.T.Helper()
@@ -656,6 +696,36 @@ func (m *MockRegistrationServer) ListFederatedBundles(arg0 *common.Empty, arg1 r
 func (mr *MockRegistrationServerMockRecorder) ListFederatedBundles(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFederatedBundles", reflect.TypeOf((*MockRegistrationServer)(nil).ListFederatedBundles), arg0, arg1)
+}
+
+// MintJWTSVID mocks base method
+func (m *MockRegistrationServer) MintJWTSVID(arg0 context.Context, arg1 *registration.MintJWTSVIDRequest) (*registration.MintJWTSVIDResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MintJWTSVID", arg0, arg1)
+	ret0, _ := ret[0].(*registration.MintJWTSVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MintJWTSVID indicates an expected call of MintJWTSVID
+func (mr *MockRegistrationServerMockRecorder) MintJWTSVID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MintJWTSVID", reflect.TypeOf((*MockRegistrationServer)(nil).MintJWTSVID), arg0, arg1)
+}
+
+// MintX509SVID mocks base method
+func (m *MockRegistrationServer) MintX509SVID(arg0 context.Context, arg1 *registration.MintX509SVIDRequest) (*registration.MintX509SVIDResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MintX509SVID", arg0, arg1)
+	ret0, _ := ret[0].(*registration.MintX509SVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MintX509SVID indicates an expected call of MintX509SVID
+func (mr *MockRegistrationServerMockRecorder) MintX509SVID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MintX509SVID", reflect.TypeOf((*MockRegistrationServer)(nil).MintX509SVID), arg0, arg1)
 }
 
 // UpdateEntry mocks base method
