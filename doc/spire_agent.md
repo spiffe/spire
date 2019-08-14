@@ -76,10 +76,60 @@ Please see the [built-in plugins](#built-in-plugins) section for information on 
 
 ## Telemetry configuration
 
-If telemetry is desired, it may be configured by using a dedicated `telemetry { ... }` section. Prometheus, Statsd, and DogStatsd are currently supported. You may use all, some, or none. Statsd and DogStatsd both support multiple declarations in the event that you want to send metrics to more than one collector. Here is a sample configuration:
+If telemetry is desired, it may be configured by using a dedicated `telemetry { ... }` section. The following metrics collectors are currently supported:
+- Prometheus
+- Statsd
+- DogStatsd
+- M3
+
+You may use all, some, or none. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
+
+- Statsd
+- DogStatsd
+- M3
+
+### Telemetry configuration syntax
+
+| Configuration          | Type          | Description  | Default |
+| ----------------       | ------------- | ------------ | ------- |
+| `EnableTypePrefix`     | `bool`        | Includes metric type information as the second key following the service name | false |
+| `Prometheus`           | `Prometheus`  | Prometheus configuration         | |
+| `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations | |
+| `Statsd`               | `[]Statsd`    | List of Statsd configurations    | |
+| `M3`                   | `[]M3`        | List of M3 configurations        | |
+
+#### `Prometheus`
+
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `host`           | `string`      | Prometheus server host |
+| `port`           | `int`         | Prometheus server port |
+
+#### `DogStatsd`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | DogStatsd address |
+
+#### `Statsd`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | Statsd address |
+
+#### `M3`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | M3 address |
+| `env`            | `string`      | M3 environment, e.g. `production`, `staging` |
+
+When M3 collectors are used, it is highly recommended to set `EnableTypePrefix` to `true` in order to ensure all metrics are emitted properly.
+
+When SPIRE sends metrics to M3, service and type information is stripped from the name of the metric, as they are included as individual tags on the metric.
+
+Here is a sample configuration:
 
 ```hcl
 telemetry {
+        EnableTypePrefix = true
         Prometheus {
                 port = 9988
         }
@@ -95,6 +145,10 @@ telemetry {
         Statsd {
                 address = "collector.example.org:8125"
         }
+
+        M3 = [
+            { address = "localhost:9000" env = "prod" }
+        ]
 }
 ```
 

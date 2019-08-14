@@ -9,6 +9,7 @@ var sinkRunnerFactories = []sinkRunnerFactory{
 	newInmemRunner,
 	newPrometheusRunner,
 	newStatsdRunner,
+	newM3Runner,
 }
 
 type sinkRunnerFactory func(*MetricsConfig) (sinkRunner, error)

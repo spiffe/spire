@@ -47,11 +47,12 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
-	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
-		FileConfig:  a.c.Telemetry,
-		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
-		ServiceName: telemetry.SpireAgent,
-	})
+	metricsConfigBuilder := telemetry.MetricsConfigBuilder{}
+	metricsConfigBuilder.SetFileConfig(a.c.Telemetry)
+	metricsConfigBuilder.SetLogger(a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry))
+	metricsConfigBuilder.SetServiceName(telemetry.SpireAgent)
+	metricsConfig := metricsConfigBuilder.Build()
+	metrics, err := telemetry.NewMetrics(&metricsConfig)
 	if err != nil {
 		return err
 	}

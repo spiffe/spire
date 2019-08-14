@@ -71,6 +71,7 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 	conf := metrics.DefaultConfig(c.ServiceName)
 	conf.EnableHostname = false
 	conf.EnableHostnameLabel = true
+	conf.EnableTypePrefix = c.FileConfig.EnableTypePrefix
 
 	var err error
 	impl.Metrics, err = metrics.New(conf, fanout)

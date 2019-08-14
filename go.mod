@@ -59,6 +59,7 @@ require (
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
 	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
 	github.com/stretchr/testify v1.3.0
+	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
