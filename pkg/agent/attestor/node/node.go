@@ -3,7 +3,6 @@ package attestor
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -13,11 +12,10 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
@@ -27,7 +25,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type AttestationResult struct {
@@ -325,31 +322,13 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 }
 
 func (a *attestor) serverConn(ctx context.Context, bundle []*x509.Certificate) (*grpc.ClientConn, error) {
-	config := grpcutil.GRPCDialerConfig{
-		Log:      grpcutil.LoggerFromFieldLogger(a.c.Log),
-		CredFunc: a.serverCredFunc(bundle),
-	}
-
-	dialer := grpcutil.NewGRPCDialer(config)
-	return dialer.Dial(ctx, a.c.ServerAddress)
-}
-
-func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credentials.TransportCredentials, error) {
-	pool := x509.NewCertPool()
-	for _, c := range bundle {
-		pool.AddCert(c)
-	}
-
-	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{a.serverID().String()},
-		TrustRoots: pool,
-	}
-
-	// Explicitly not mTLS since we don't have an SVID yet
-	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
-	return func() (credentials.TransportCredentials, error) {
-		return credentials.NewTLS(tlsConfig), nil
-	}
+	return client.DialServer(ctx, client.DialServerConfig{
+		Address:     a.c.ServerAddress,
+		TrustDomain: a.c.TrustDomain.Host,
+		GetBundle: func() []*x509.Certificate {
+			return bundle
+		},
+	})
 }
 
 func (a *attestor) parseAttestationResponse(r *node.AttestResponse) (string, []*x509.Certificate, *bundleutil.Bundle, error) {

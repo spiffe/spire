@@ -10,7 +10,7 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
-// StartAttestorCall return metric
+// StartAttestorLatencyCall return metric
 // for agent's Workload API Attestor latency for a specific attestor
 func StartAttestorLatencyCall(m telemetry.Metrics, aType string) *telemetry.CallCounter {
 	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency)
@@ -22,6 +22,14 @@ func StartAttestorLatencyCall(m telemetry.Metrics, aType string) *telemetry.Call
 // for agent's Workload API, on fetching the workload's JWT SVID
 func StartFetchJWTSVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
 	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.FetchJWTSVID)
+	cc.AddLabel(telemetry.SVIDType, telemetry.JWT)
+	return cc
+}
+
+// StartFetchJWTBundlesCall return metric
+// for agent's Workload API, on fetching the workload's JWT Bundles
+func StartFetchJWTBundlesCall(m telemetry.Metrics) *telemetry.CallCounter {
+	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.FetchJWTBundles)
 	cc.AddLabel(telemetry.SVIDType, telemetry.JWT)
 	return cc
 }

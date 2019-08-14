@@ -426,7 +426,11 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, status.Error(codes.PermissionDenied, err.Error())
 	}
 
-	token, err := h.c.ServerCA.SignJWTSVID(ctx, req.Jsr)
+	token, err := h.c.ServerCA.SignJWTSVID(ctx, ca.JWTSVIDParams{
+		SpiffeID: req.Jsr.SpiffeId,
+		TTL:      time.Duration(req.Jsr.Ttl) * time.Second,
+		Audience: req.Jsr.Audience,
+	})
 	if err != nil {
 		h.c.Log.Error(err)
 		return nil, status.Error(codes.Internal, err.Error())

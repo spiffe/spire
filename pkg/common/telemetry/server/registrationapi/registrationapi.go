@@ -77,6 +77,18 @@ func StartUpdateFedBundleCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Update)
 }
 
+// StartMintX509SVIDCall return metric
+// for server's registration API, on minting an X509SVID
+func StartMintX509SVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.RegistrationAPI, telemetry.X509SVID, telemetry.Mint)
+}
+
+// StartMintJWTSVIDCall return metric
+// for server's registration API, on minting a JWTSVID
+func StartMintJWTSVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.RegistrationAPI, telemetry.JWTSVID, telemetry.Mint)
+}
+
 // End Call Counters
 
 // Counters (literal increments, not call counters)

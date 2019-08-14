@@ -513,7 +513,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.ServerPort = 1337
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "192.168.1.1:1337", c.ServerAddress)
+				require.Equal(t, "dns:///192.168.1.1:1337", c.ServerAddress)
 			},
 		},
 		{

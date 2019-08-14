@@ -14,6 +14,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
@@ -26,10 +27,8 @@ import (
 	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/api/workload"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -60,6 +59,9 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	counter := telemetry_workload.StartFetchJWTSVIDCall(metrics)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	var spiffeIDs []string
 	identities := h.Manager.MatchingIdentities(selectors)
@@ -118,7 +120,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 		case update := <-subscriber.Updates():
 			telemetry_workload.IncrUpdateJWTBundlesCounter(metrics)
 			start := time.Now()
-			if err := h.sendJWTBundlesResponse(update, stream); err != nil {
+			if err := h.sendJWTBundlesResponse(update, stream, metrics); err != nil {
 				return err
 			}
 
@@ -162,7 +164,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	s, err := structFromValues(claims)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	return &workload.ValidateJWTSVIDResponse{
@@ -213,6 +215,9 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) (err error) {
 	counter := telemetry_workload.StartFetchX509SVIDCall(metrics)
 	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
 
 	if len(update.Identities) == 0 {
 		telemetry_common.AddRegistered(counter, false)
@@ -233,11 +238,10 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	// Add all the SPIFFE IDs to the labels array.
 	for i, svid := range resp.Svids {
-		telemetry_common.AddSPIFFEID(counter, svid.SpiffeId)
-
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 	}
+	telemetry_common.AddCount(counter, len(resp.Svids))
 
 	return nil
 }
@@ -275,7 +279,13 @@ func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*worklo
 	return resp, nil
 }
 
-func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
+func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, metrics telemetry.Metrics) (err error) {
+	counter := telemetry_workload.StartFetchJWTBundlesCall(metrics)
+	defer counter.Done(&err)
+	defer func() {
+		telemetry_common.AddErrorClass(counter, status.Code(err))
+	}()
+
 	if len(update.Identities) == 0 {
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
