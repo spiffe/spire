@@ -104,6 +104,41 @@ func New() *IIDAttestorPlugin {
 	return p
 }
 
+// get ec2 tags
+func (p *IIDAttestorPlugin) tags(ctx context.Context, c IIDAttestorConfig, doc caws.InstanceIdentityDocument) (caws.InstanceTags, error) {
+	awsSession, err := caws.NewAWSSession(c.AccessKeyID, c.SecretAccessKey, doc.Region)
+	if err != nil {
+		return nil, caws.AttestationStepError("creating AWS session", err)
+	}
+
+	ec2Client := p.hooks.getClient(awsSession)
+
+	query := &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{&doc.InstanceID},
+	}
+
+	result, err := ec2Client.DescribeInstancesWithContext(ctx, query)
+	if err != nil {
+		return nil, caws.AttestationStepError("querying AWS via describe-instances", err)
+	}
+
+	// TODO(wjs): this can blow up in at least 2 ways
+	instance := result.Reservations[0].Instances[0]
+	tags := instanceTags(instance.Tags)
+	return tags, nil
+}
+
+// whyyyy is this a slice
+func instanceTags(tags []*ec2.Tag) caws.InstanceTags {
+	ret := make(caws.InstanceTags, len(tags))
+	for _, tag := range tags {
+		if tag != nil && tag.Key != nil && tag.Value != nil {
+			ret[*tag.Key] = *tag.Value
+		}
+	}
+	return ret
+}
+
 // Attest implements the server side logic for the aws iid node attestation plugin.
 func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	c, err := p.getConfig()
@@ -137,7 +172,12 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return caws.AttestationStepError("unmarshaling the IID", err)
 	}
 
-	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
+	tags, err := p.tags(ctx, *c, doc)
+	if err != nil {
+		return fmt.Errorf("error fetching instance tags: %v", err)
+	}
+
+	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc, tags)
 	if err != nil {
 		return fmt.Errorf("failed to create spiffe ID: %v", err)
 	}
