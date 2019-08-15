@@ -9,9 +9,13 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
+// Label is a label/tag for a metric
 type Label = metrics.Label
+
+// Sink is an interface for emitting metrics
 type Sink = metrics.MetricSink
 
+// Metrics is an interface for all metrics plugins and services
 type Metrics interface {
 	// A Gauge should retain the last value it is set to
 	SetGauge(key []string, val float32)
@@ -77,6 +81,7 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 	return impl, nil
 }
 
+// ListenAndServe starts the metrics process
 func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 	var tasks []func(context.Context) error
 	for _, runner := range m.runners {
@@ -84,4 +89,24 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 	}
 
 	return util.RunTasks(ctx, tasks...)
+}
+
+// SetGaugeWithLabels delegates to embedded metrics, sanitizing labels
+func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Label) {
+	m.Metrics.SetGaugeWithLabels(key, val, GetSanitizedLabels(labels))
+}
+
+// IncrCounterWithLabels delegates to embedded metrics, sanitizing labels
+func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []Label) {
+	m.Metrics.IncrCounterWithLabels(key, val, GetSanitizedLabels(labels))
+}
+
+// AddSampleWithLabels delegates to embedded metrics, sanitizing labels
+func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []Label) {
+	m.Metrics.AddSampleWithLabels(key, val, GetSanitizedLabels(labels))
+}
+
+// MeasureSinceWithLabels delegates to embedded metrics, sanitizing labels
+func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labels []Label) {
+	m.Metrics.MeasureSinceWithLabels(key, start, GetSanitizedLabels(labels))
 }

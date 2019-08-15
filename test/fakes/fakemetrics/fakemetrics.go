@@ -56,7 +56,12 @@ func (m *FakeMetrics) SetGauge(key []string, val float32) {
 func (m *FakeMetrics) SetGaugeWithLabels(key []string, val float32, labels []telemetry.Label) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, MetricItem{Type: SetGaugeWithLabelsType, Key: key, Val: val, Labels: labels})
+	m.metrics = append(m.metrics, MetricItem{
+		Type:   SetGaugeWithLabelsType,
+		Key:    key,
+		Val:    val,
+		Labels: telemetry.GetSanitizedLabels(labels),
+	})
 }
 
 func (m *FakeMetrics) EmitKey(key []string, val float32) {
@@ -74,7 +79,12 @@ func (m *FakeMetrics) IncrCounter(key []string, val float32) {
 func (m *FakeMetrics) IncrCounterWithLabels(key []string, val float32, labels []telemetry.Label) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, MetricItem{Type: IncrCounterWithLabelsType, Key: key, Val: val, Labels: labels})
+	m.metrics = append(m.metrics, MetricItem{
+		Type:   IncrCounterWithLabelsType,
+		Key:    key,
+		Val:    val,
+		Labels: telemetry.GetSanitizedLabels(labels),
+	})
 }
 
 func (m *FakeMetrics) AddSample(key []string, val float32) {
@@ -86,7 +96,12 @@ func (m *FakeMetrics) AddSample(key []string, val float32) {
 func (m *FakeMetrics) AddSampleWithLabels(key []string, val float32, labels []telemetry.Label) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, MetricItem{Type: AddSampleWithLabelsType, Key: key, Val: val, Labels: labels})
+	m.metrics = append(m.metrics, MetricItem{
+		Type:   AddSampleWithLabelsType,
+		Key:    key,
+		Val:    val,
+		Labels: telemetry.GetSanitizedLabels(labels),
+	})
 }
 
 func (m *FakeMetrics) MeasureSince(key []string, start time.Time) {
@@ -100,5 +115,9 @@ func (m *FakeMetrics) MeasureSinceWithLabels(key []string, start time.Time, labe
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// TODO: record `start` when it is convenient to thread a clock through all the telemetry helpers
-	m.metrics = append(m.metrics, MetricItem{Type: MeasureSinceWithLabelsType, Key: key, Labels: labels})
+	m.metrics = append(m.metrics, MetricItem{
+		Type:   MeasureSinceWithLabelsType,
+		Key:    key,
+		Labels: telemetry.GetSanitizedLabels(labels),
+	})
 }

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/telemetry/common"
 )
 
 // Call Counters (timing and success metrics)
@@ -14,7 +13,7 @@ import (
 // for agent's Workload API Attestor latency for a specific attestor
 func StartAttestorLatencyCall(m telemetry.Metrics, aType string) *telemetry.CallCounter {
 	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency)
-	cc.AddLabel(telemetry.Attestor, common.SanitizeLabel(aType))
+	cc.AddLabel(telemetry.Attestor, aType)
 	return cc
 }
 
@@ -73,8 +72,8 @@ func IncrUpdateJWTBundlesCounter(m telemetry.Metrics) {
 // API, on validating JWT SVID. Takes SVID SPIFFE ID and request audience
 func IncrValidJWTSVIDCounter(m telemetry.Metrics, id string, aud string) {
 	m.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
-		common.GetSanitizedLabel(telemetry.Subject, id),
-		common.GetSanitizedLabel(telemetry.Audience, aud),
+		{Name: telemetry.Subject, Value: id},
+		{Name: telemetry.Audience, Value: aud},
 	})
 }
 
@@ -95,7 +94,7 @@ func SetFetchJWTSVIDTTLGauge(m telemetry.Metrics, id string, val float32) {
 		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
 		val,
 		[]telemetry.Label{
-			common.GetSanitizedLabel(telemetry.SPIFFEID, id),
+			{Name: telemetry.SPIFFEID, Value: id},
 		})
 }
 
@@ -106,7 +105,7 @@ func SetFetchX509SVIDTTLGauge(m telemetry.Metrics, id string, val float32) {
 		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
 		val,
 		[]telemetry.Label{
-			common.GetSanitizedLabel(telemetry.SPIFFEID, id),
+			{Name: telemetry.SPIFFEID, Value: id},
 		})
 }
 
