@@ -89,6 +89,7 @@ type IIDAttestorConfig struct {
 	pathTemplate       *template.Template
 	trustDomain        string
 	awsCaCertPublicKey *rsa.PublicKey
+	FetchInstanceTags bool `hcl:"fetch_instance_tags"`
 
 	// Deprecated, use LocalValidAcctIDs
 	SkipEC2AttestCalling bool `hcl:"skip_ec2_attest_calling"`
@@ -102,6 +103,49 @@ func New() *IIDAttestorPlugin {
 	}
 	p.hooks.getEnv = os.Getenv
 	return p
+}
+
+// get ec2 tags
+func (p *IIDAttestorPlugin) tags(ctx context.Context, c IIDAttestorConfig, doc caws.InstanceIdentityDocument) (caws.InstanceTags, error) {
+	awsSession, err := caws.NewAWSSession(c.AccessKeyID, c.SecretAccessKey, doc.Region)
+	if err != nil {
+		return nil, caws.AttestationStepError("creating AWS session", err)
+	}
+
+	ec2Client := p.hooks.getClient(awsSession)
+
+	query := &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{&doc.InstanceID},
+	}
+
+	result, err := ec2Client.DescribeInstancesWithContext(ctx, query)
+	if err != nil {
+		return nil, caws.AttestationStepError("querying AWS via describe-instances", err)
+	}
+
+	// TODO(wjs): this can blow up in at least 2 ways
+	reservations := result.Reservations
+	if len(reservations) == 0 {
+		return nil, errors.New("empty reservation list")
+	}
+	instances := reservations[0].Instances
+	if len(instances) == 0 {
+		return nil, errors.New("empty instance list")
+	}
+	instance := instances[0]
+	tags := instanceTags(instance.Tags)
+	return tags, nil
+}
+
+// whyyyy is this a slice
+func instanceTags(tags []*ec2.Tag) caws.InstanceTags {
+	ret := make(caws.InstanceTags, len(tags))
+	for _, tag := range tags {
+		if tag != nil && tag.Key != nil && tag.Value != nil {
+			ret[*tag.Key] = *tag.Value
+		}
+	}
+	return ret
 }
 
 // Attest implements the server side logic for the aws iid node attestation plugin.
@@ -137,7 +181,15 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return caws.AttestationStepError("unmarshaling the IID", err)
 	}
 
-	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
+	var tags caws.InstanceTags
+	if c.FetchInstanceTags {
+		tags, err = p.tags(stream.Context(), *c, doc)
+		if err != nil {
+			return fmt.Errorf("error fetching instance tags: %v", err)
+		}
+	}
+
+	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc, tags)
 	if err != nil {
 		return fmt.Errorf("failed to create spiffe ID: %v", err)
 	}

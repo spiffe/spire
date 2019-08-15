@@ -212,6 +212,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 		allowList           []string
 		skipBlockDev        bool
 		skipEC2Block        bool
+		fetchInstanceTags   bool
 	}{
 		{
 			desc: "error on call",
@@ -246,6 +247,22 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			},
 			skipBlockDev: true,
 			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+		},
+		{
+			desc: "success, client, no block device, template with tags",
+			mockExpect: func(mock *mock_aws.MockEC2Client) {
+				output := getDefaultDescribeInstancesOutput()
+				output.Reservations[0].Instances[0].Tags = []*ec2.Tag{{Key: awssdk.String("SomeTagKey"), Value: awssdk.String("some-tag-value")}}
+				output.Reservations[0].Instances[0].RootDeviceType = &ebsStoreType
+				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
+				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
+					InstanceIds: []*string{&testInstance},
+				}).Return(&output, nil).Times(2)
+			},
+			skipBlockDev:        true,
+			replacementTemplate: "{{ .PluginName}}/{{ .AccountID }}/{{ .Region }}/{{ .Tags.SomeTagKey }}",
+			expectID:            "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/some-tag-value",
+			fetchInstanceTags:   true,
 		},
 		{
 			desc: "success, client, no block device, other allowed acct, default template",
@@ -339,6 +356,9 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			}
 			if tt.skipEC2Block {
 				configStr = configStr + "\nskip_ec2_attest_calling = true"
+			}
+			if tt.fetchInstanceTags {
+				configStr = configStr + "\nfetch_instance_tags = true"
 			}
 
 			_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
