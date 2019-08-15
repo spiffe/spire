@@ -14,6 +14,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
@@ -26,7 +27,6 @@ import (
 	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/api/workload"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -238,11 +238,10 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	// Add all the SPIFFE IDs to the labels array.
 	for i, svid := range resp.Svids {
-		telemetry_common.AddSPIFFEID(counter, svid.SpiffeId)
-
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 	}
+	telemetry_common.AddCount(counter, len(resp.Svids))
 
 	return nil
 }

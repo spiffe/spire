@@ -13,6 +13,10 @@
     - [JoinToken](#spire.api.registration.JoinToken)
     - [ListAgentsRequest](#spire.api.registration.ListAgentsRequest)
     - [ListAgentsResponse](#spire.api.registration.ListAgentsResponse)
+    - [MintJWTSVIDRequest](#spire.api.registration.MintJWTSVIDRequest)
+    - [MintJWTSVIDResponse](#spire.api.registration.MintJWTSVIDResponse)
+    - [MintX509SVIDRequest](#spire.api.registration.MintX509SVIDRequest)
+    - [MintX509SVIDResponse](#spire.api.registration.MintX509SVIDResponse)
     - [ParentID](#spire.api.registration.ParentID)
     - [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
     - [SpiffeID](#spire.api.registration.SpiffeID)
@@ -167,6 +171,72 @@ Represents a ListAgents response
 
 
 
+<a name="spire.api.registration.MintJWTSVIDRequest"></a>
+
+### MintJWTSVIDRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | SPIFFE ID of the JWT-SVID |
+| ttl | [int32](#int32) |  | TTL of the JWT-SVID, in seconds. The server default will be used if unset. The TTL is advisory only. The actual lifetime of the JWT-SVID may be lower depending on the remaining lifetime of the active SPIRE Server CA. |
+| audience | [string](#string) | repeated | List of audience claims to include in the JWT-SVID. At least one must be set. |
+
+
+
+
+
+
+<a name="spire.api.registration.MintJWTSVIDResponse"></a>
+
+### MintJWTSVIDResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  | JWT-SVID token |
+
+
+
+
+
+
+<a name="spire.api.registration.MintX509SVIDRequest"></a>
+
+### MintX509SVIDRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | SPIFFE ID of the X509-SVID |
+| csr | [bytes](#bytes) |  | ASN.1 encoded CSR. The CSR is only used to convey the public key and prove possession of the private key. The rest of the CSR is ignored. |
+| ttl | [int32](#int32) |  | TTL of the X509-SVID, in seconds. The server default will be used if unset. The TTL is advisory only. The actual lifetime of the X509-SVID may be lower depending on the remaining lifetime of the active SPIRE Server CA. |
+| dns_names | [string](#string) | repeated | DNS names to include as DNS SANs in the X509-SVID. If set, the first in the list is also set as the X509-SVID common name. |
+
+
+
+
+
+
+<a name="spire.api.registration.MintX509SVIDResponse"></a>
+
+### MintX509SVIDResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| svid_chain | [bytes](#bytes) | repeated | X509-SVID chain. This includes the X509-SVID itself and any intermediates necessary to chain back to certificates in the root_cas. |
+| root_cas | [bytes](#bytes) | repeated | X.509 root certificates |
+
+
+
+
+
+
 <a name="spire.api.registration.ParentID"></a>
 
 ### ParentID
@@ -272,6 +342,8 @@ associated with the bundle (e.g. registration entries).
 | FetchBundle | [.spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.api.registration.Bundle) | Retrieves the CA bundle. |
 | EvictAgent | [EvictAgentRequest](#spire.api.registration.EvictAgentRequest) | [EvictAgentResponse](#spire.api.registration.EvictAgentResponse) | EvictAgent removes an attestation entry from the attested nodes store |
 | ListAgents | [ListAgentsRequest](#spire.api.registration.ListAgentsRequest) | [ListAgentsResponse](#spire.api.registration.ListAgentsResponse) | ListAgents will list all attested nodes |
+| MintX509SVID | [MintX509SVIDRequest](#spire.api.registration.MintX509SVIDRequest) | [MintX509SVIDResponse](#spire.api.registration.MintX509SVIDResponse) | MintX509SVID mints an X509-SVID directly with the SPIRE server CA. |
+| MintJWTSVID | [MintJWTSVIDRequest](#spire.api.registration.MintJWTSVIDRequest) | [MintJWTSVIDResponse](#spire.api.registration.MintJWTSVIDResponse) | MintJWTSVID mints a JWT-SVID directly with the SPIRE server CA. |
 
  
 

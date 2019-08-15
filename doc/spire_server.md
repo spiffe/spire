@@ -113,6 +113,20 @@ telemetry {
 }
 ```
 
+## Health check configuration
+
+The server can expose additional endpoint that can be used for health checking. It is enabled by setting `listener_enabled = true`. Currently it exposes 2 paths: one for liveness (is server up) and one for readiness (is server ready to serve requests). By default, health checking endpoint will listen on localhost:80, unless configured otherwise.
+
+```hcl
+health_checks {
+        listener_enabled = true
+        bind_address = "localhost"
+        bind_port = "80"
+        live_path = "/live"
+        ready_path = "/ready"
+}
+```
+
 ## Command line options
 
 ### `spire-server run`
