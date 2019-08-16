@@ -28,6 +28,7 @@ type Config struct {
 	ServerSocketPath               string `hcl:"server_socket_path"`
 	Cluster                        string `hcl:"cluster"`
 	PodLabel                       string `hcl:"pod_label"`
+	PodAnnotation                  string `hcl:"pod_annotation"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -67,6 +68,9 @@ func ParseConfig(hclConfig string) (*Config, error) {
 	}
 	if c.Cluster == "" {
 		return nil, errs.New("cluster must be specified")
+	}
+	if c.PodLabel != "" && c.PodAnnotation != "" {
+		return nil, errs.New("workload registration mode specification is incorrect, can't specify both pod_label and pod_annotation")
 	}
 
 	return c, nil
