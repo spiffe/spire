@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	reSignedX509 = regexp.MustCompile(`\"Signed X509 SVID\"\s.+spiffe_id=\"(spiffe://[^/]+/spire/agent/[^"]+)\"`)
+	reSignedX509 = regexp.MustCompile(`\"Signed [xX]509 SVID.*\".*(spiffe://[^/]+/spire/agent/[^"]+)\"`)
 )
 
 func WaitForNodeAttestation(ctx context.Context, server Object, count int) error {
