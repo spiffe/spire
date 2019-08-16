@@ -27,26 +27,26 @@ var (
 	_invalidCharsRegex = regexp.MustCompile(`\W+_?`)
 )
 
-// sanitizeLabel takes the input string and replaces all groups of
+// sanitize takes the input string and replaces all groups of
 // invalid characters with the valid replacement character.
-func sanitizeLabel(val string) string {
+func sanitize(val string) string {
 	return _invalidCharsRegex.ReplaceAllString(val, _replaceChar)
 }
 
-// getSanitizedLabel take the input name and value, sanitize the
+// sanitizeLabel take the input name and value, sanitize the
 // name and value, and return the resulting telemetry label.
-func getSanitizedLabel(name, val string) Label {
+func sanitizeLabel(name, val string) Label {
 	return Label{
-		Name:  sanitizeLabel(name),
-		Value: sanitizeLabel(val),
+		Name:  sanitize(name),
+		Value: sanitize(val),
 	}
 }
 
-// GetSanitizedLabels sanitize all given labels
-func GetSanitizedLabels(labels []Label) []Label {
+// SanitizeLabels sanitize all given labels
+func SanitizeLabels(labels []Label) []Label {
 	sanitizedLabels := make([]Label, len(labels))
 	for i, label := range labels {
-		sanitizedLabels[i] = getSanitizedLabel(label.Name, label.Value)
+		sanitizedLabels[i] = sanitizeLabel(label.Name, label.Value)
 	}
 
 	return sanitizedLabels

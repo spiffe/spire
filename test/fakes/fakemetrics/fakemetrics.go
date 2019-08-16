@@ -60,7 +60,7 @@ func (m *FakeMetrics) SetGaugeWithLabels(key []string, val float32, labels []tel
 		Type:   SetGaugeWithLabelsType,
 		Key:    key,
 		Val:    val,
-		Labels: telemetry.GetSanitizedLabels(labels),
+		Labels: telemetry.SanitizeLabels(labels),
 	})
 }
 
@@ -83,7 +83,7 @@ func (m *FakeMetrics) IncrCounterWithLabels(key []string, val float32, labels []
 		Type:   IncrCounterWithLabelsType,
 		Key:    key,
 		Val:    val,
-		Labels: telemetry.GetSanitizedLabels(labels),
+		Labels: telemetry.SanitizeLabels(labels),
 	})
 }
 
@@ -100,7 +100,7 @@ func (m *FakeMetrics) AddSampleWithLabels(key []string, val float32, labels []te
 		Type:   AddSampleWithLabelsType,
 		Key:    key,
 		Val:    val,
-		Labels: telemetry.GetSanitizedLabels(labels),
+		Labels: telemetry.SanitizeLabels(labels),
 	})
 }
 
@@ -118,6 +118,6 @@ func (m *FakeMetrics) MeasureSinceWithLabels(key []string, start time.Time, labe
 	m.metrics = append(m.metrics, MetricItem{
 		Type:   MeasureSinceWithLabelsType,
 		Key:    key,
-		Labels: telemetry.GetSanitizedLabels(labels),
+		Labels: telemetry.SanitizeLabels(labels),
 	})
 }

@@ -38,14 +38,14 @@ func TestSanitize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			out := sanitizeLabel(tt.in)
+			out := sanitize(tt.in)
 
 			assert.Equal(t, tt.expect, out)
 		})
 	}
 }
 
-func TestGetSanitizedLabel(t *testing.T) {
+func TestSanitizeLabel(t *testing.T) {
 	labelName := "metric.name"
 	sanitizedLabelName := "metric_name"
 
@@ -73,7 +73,7 @@ func TestGetSanitizedLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			out := getSanitizedLabel(labelName, tt.in)
+			out := sanitizeLabel(labelName, tt.in)
 
 			assert.Equal(t, Label{Name: sanitizedLabelName, Value: tt.expect}, out)
 		})
@@ -131,7 +131,7 @@ func TestGetSanitizedLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			out := GetSanitizedLabels(tt.in)
+			out := SanitizeLabels(tt.in)
 
 			assert.Equal(t, tt.expect, out)
 		})

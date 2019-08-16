@@ -93,20 +93,20 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 
 // SetGaugeWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Label) {
-	m.Metrics.SetGaugeWithLabels(key, val, GetSanitizedLabels(labels))
+	m.Metrics.SetGaugeWithLabels(key, val, SanitizeLabels(labels))
 }
 
 // IncrCounterWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []Label) {
-	m.Metrics.IncrCounterWithLabels(key, val, GetSanitizedLabels(labels))
+	m.Metrics.IncrCounterWithLabels(key, val, SanitizeLabels(labels))
 }
 
 // AddSampleWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []Label) {
-	m.Metrics.AddSampleWithLabels(key, val, GetSanitizedLabels(labels))
+	m.Metrics.AddSampleWithLabels(key, val, SanitizeLabels(labels))
 }
 
 // MeasureSinceWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labels []Label) {
-	m.Metrics.MeasureSinceWithLabels(key, start, GetSanitizedLabels(labels))
+	m.Metrics.MeasureSinceWithLabels(key, start, SanitizeLabels(labels))
 }
