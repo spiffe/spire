@@ -8,8 +8,10 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/bundle"
 	"github.com/spiffe/spire/cmd/spire-server/cli/entry"
 	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
+	"github.com/spiffe/spire/cmd/spire-server/cli/jwt"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	"github.com/spiffe/spire/cmd/spire-server/cli/token"
+	"github.com/spiffe/spire/cmd/spire-server/cli/x509"
 	"github.com/spiffe/spire/pkg/common/version"
 )
 
@@ -64,6 +66,12 @@ func Run(args []string) int {
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil
+		},
+		"x509 mint": func() (cli.Command, error) {
+			return x509.NewMintCommand(), nil
+		},
+		"jwt mint": func() (cli.Command, error) {
+			return jwt.NewMintCommand(), nil
 		},
 	}
 

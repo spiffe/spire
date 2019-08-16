@@ -30,6 +30,7 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -324,6 +325,8 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_psat", Value: "agent_pod_uid:PODUID-1"},
 		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-1"},
 		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-1"},
+		{Type: "k8s_psat", Value: "agent_node_label:NODELABEL-B:B"},
+		{Type: "k8s_psat", Value: "agent_pod_label:PODLABEL-A:A"},
 	}, resp.Selectors)
 
 	// Success with BAR signed token
@@ -338,7 +341,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	s.mockClient.EXPECT().GetPod("NS2", "PODNAME-2").Return(createPod("NODENAME-2"), nil)
 	s.mockClient.EXPECT().GetNode("NODENAME-2").Return(createNode("NODEUID-2"), nil)
 
-	// Success with FOO signed token
+	// Success with BAR signed token
 	resp, err = s.doAttest(makeAttestRequest("BAR", token))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
@@ -446,6 +449,8 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 			"FOO" = {
 				service_account_whitelist = ["NS1:SA1"]
 				kube_config_file = ""
+				allowed_pod_label_keys = ["PODLABEL-A"]
+				allowed_node_label_keys = ["NODELABEL-B"]
 			}
 			"BAR" = {
 				service_account_whitelist = ["NS2:SA2"]
@@ -541,6 +546,12 @@ func createTokenStatus(tokenData *TokenData, authenticated bool) *authv1.TokenRe
 
 func createPod(nodeName string) *v1.Pod {
 	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"PODLABEL-A": "A",
+				"PODLABEL-B": "B",
+			},
+		},
 		Spec: v1.PodSpec{
 			NodeName: nodeName,
 		},
@@ -548,7 +559,13 @@ func createPod(nodeName string) *v1.Pod {
 }
 
 func createNode(nodeUID string) *v1.Node {
-	node := &v1.Node{}
-	node.UID = types.UID(nodeUID)
-	return node
+	return &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			UID: types.UID(nodeUID),
+			Labels: map[string]string{
+				"NODELABEL-A": "A",
+				"NODELABEL-B": "B",
+			},
+		},
+	}
 }

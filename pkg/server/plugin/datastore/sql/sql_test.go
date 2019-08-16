@@ -23,6 +23,7 @@ import (
 	proto_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakepluginmetrics"
 	"github.com/spiffe/spire/test/spiretest"
@@ -35,6 +36,13 @@ var (
 	ctx = context.Background()
 )
 
+const (
+	_ttl                   = time.Duration(time.Hour)
+	_expiredNotAfterString = "2018-01-10T01:34:00+00:00"
+	_validNotAfterString   = "2018-01-10T01:36:00+00:00"
+	_middleTimeString      = "2018-01-10T01:35:00+00:00"
+)
+
 func TestPlugin(t *testing.T) {
 	spiretest.Run(t, new(PluginSuite))
 }
@@ -45,21 +53,43 @@ type PluginSuite struct {
 	cert   *x509.Certificate
 	cacert *x509.Certificate
 
-	dir    string
-	nextID int
-	ds     datastore.Plugin
+	dir       string
+	nextID    int
+	ds        datastore.Plugin
+	sqlPlugin *SQLPlugin
 
 	m               *fakemetrics.FakeMetrics
 	expectedMetrics *fakepluginmetrics.FakePluginMetrics
 }
 
 func (s *PluginSuite) SetupSuite() {
-	var err error
-	s.cert, _, err = testutil.LoadSVIDFixture()
+	clk := clock.New()
+
+	expiredNotAfterTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
+	s.Require().NoError(err)
+	validNotAfterTime, err := time.Parse(time.RFC3339, _validNotAfterString)
 	s.Require().NoError(err)
 
-	s.cacert, _, err = testutil.LoadCAFixture()
+	caTemplate, err := testutil.NewCATemplate(clk, "foo")
 	s.Require().NoError(err)
+
+	caTemplate.NotAfter = expiredNotAfterTime
+	caTemplate.NotBefore = expiredNotAfterTime.Add(-_ttl)
+
+	cacert, cakey, err := testutil.SelfSign(caTemplate)
+	s.Require().NoError(err)
+
+	svidTemplate, err := testutil.NewSVIDTemplate(clk, "spiffe://foo/id1")
+	s.Require().NoError(err)
+
+	svidTemplate.NotAfter = validNotAfterTime
+	svidTemplate.NotBefore = validNotAfterTime.Add(-_ttl)
+
+	cert, _, err := testutil.Sign(svidTemplate, cacert, cakey)
+	s.Require().NoError(err)
+
+	s.cacert = cacert
+	s.cert = cert
 }
 
 func (s *PluginSuite) SetupTest() {
@@ -67,8 +97,13 @@ func (s *PluginSuite) SetupTest() {
 	s.ds = s.newPlugin()
 }
 
+func (s *PluginSuite) TearDownTest() {
+	s.sqlPlugin.closeDB()
+}
+
 func (s *PluginSuite) newPlugin() datastore.Plugin {
 	p := New()
+	s.sqlPlugin = p
 
 	var ds datastore.Plugin
 
@@ -134,7 +169,7 @@ func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
-	// fetch non-existant
+	// fetch non-existent
 	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
@@ -143,7 +178,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NotNil(fresp)
 	s.Require().Nil(fresp.Bundle)
 
-	// update non-existant
+	// update non-existent
 	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Bundle, bundle.TrustDomainId)
 	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
@@ -151,7 +186,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	expectedCallCounter.Done(&expectedErr)
 	s.RequireGRPCStatus(err, codes.NotFound, expectedErr.Error())
 
-	// delete non-existant
+	// delete non-existent
 	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
 	expectedCallCounter.AddLabel(telemetry.Bundle, "spiffe://foo")
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
@@ -297,14 +332,14 @@ func (s *PluginSuite) TestBundlePrune() {
 	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert})
 
 	// Add two JWT signing keys (one valid and one expired)
-	expiredKeyTime, err := time.Parse(time.RFC3339, "2018-01-10T01:35:00+00:00")
+	expiredKeyTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
 	s.Require().NoError(err)
 
-	nonExpiredKeyTime, err := time.Parse(time.RFC3339, "2018-03-10T01:35:00+00:00")
+	nonExpiredKeyTime, err := time.Parse(time.RFC3339, _validNotAfterString)
 	s.Require().NoError(err)
 
 	// middleTime is a point between the two certs expiration time
-	middleTime, err := time.Parse(time.RFC3339, "2018-02-10T01:35:00+00:00")
+	middleTime, err := time.Parse(time.RFC3339, _middleTimeString)
 	s.Require().NoError(err)
 
 	bundle.JwtSigningKeys = []*common.PublicKey{
@@ -1247,7 +1282,8 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestListParentIDEntries() {
-	allEntries := testutil.GetRegistrationEntries("entries.json")
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -1283,14 +1319,15 @@ func (s *PluginSuite) TestListParentIDEntries() {
 					Value: test.parentID,
 				},
 			})
-			s.Require().NoError(err)
-			s.RequireProtoListEqual(test.expectedList, result.Entries)
+			require.NoError(t, err)
+			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
 func (s *PluginSuite) TestListSelectorEntries() {
-	allEntries := testutil.GetRegistrationEntries("entries.json")
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -1338,7 +1375,8 @@ func (s *PluginSuite) TestListSelectorEntries() {
 }
 
 func (s *PluginSuite) TestListMatchingEntries() {
-	allEntries := testutil.GetRegistrationEntries("entries.json")
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -1373,7 +1411,6 @@ func (s *PluginSuite) TestListMatchingEntries() {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
 				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
-				s.Require().NoError(err)
 				require.NoError(t, err)
 				require.NotNil(t, r)
 				require.NotNil(t, r.Entry)
@@ -1385,7 +1422,7 @@ func (s *PluginSuite) TestListMatchingEntries() {
 					Match:     datastore.BySelectors_MATCH_SUBSET,
 				},
 			})
-			s.Require().NoError(err)
+			require.NoError(t, err)
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
 			s.RequireProtoListEqual(test.expectedList, result.Entries)
@@ -1836,10 +1873,10 @@ func (s *PluginSuite) TestBindVar() {
 }
 
 func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interface{}) {
-	invalidRegistrationEntriesJSON, err := ioutil.ReadFile(filePath)
+	entriesJSON, err := ioutil.ReadFile(filePath)
 	s.Require().NoError(err)
 
-	err = json.Unmarshal(invalidRegistrationEntriesJSON, &jsonValue)
+	err = json.Unmarshal(entriesJSON, &jsonValue)
 	s.Require().NoError(err)
 }
 

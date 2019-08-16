@@ -9,7 +9,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/gogo/protobuf/proto"
-	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,7 @@ const (
 	// something is broken is through failure to receive on channels. Using the
 	// following timeout to prevent having to wait for the default go test
 	// timeout (10 minutes) if this happens. The timeout should be large enough
-	// by a comfortable margin to accomodate for slower running platforms, like
+	// by a comfortable margin to accommodate for slower running platforms, like
 	// Travis CI.
 	testTimeout = time.Minute
 )

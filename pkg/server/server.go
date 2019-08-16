@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof" // import registers routes on DefaultServeMux
 	"net/url"
 	"os"
 	"runtime"
@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -107,6 +108,10 @@ type ExperimentalConfig struct {
 	// bundle endpoint.
 	BundleEndpointAddress *net.TCPAddr
 
+	// BundleEndpointACME is the ACME configuration for the bundle endpoint.
+	// If unset, the bundle endpoint will use SPIFFE auth.
+	BundleEndpointACME *bundle.ACMEConfig
+
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
 	FederatesWith map[string]bundle_client.TrustDomainConfig
@@ -178,7 +183,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	healthChecks := health.NewChecker(
 		s.config.HealthChecks,
-		s.config.Log.WithField("subsystem_name", "health"),
+		s.config.Log.WithField(telemetry.SubsystemName, "health"),
 	)
 
 	s.config.Log.Info("plugins started")
@@ -258,7 +263,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 
 		server := http.Server{
 			Addr:    fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
-			Handler: http.HandlerFunc(pprof.Index),
+			Handler: http.DefaultServeMux,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to
@@ -369,13 +374,14 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 	}
 	if s.config.Experimental.BundleEndpointEnabled {
 		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
+		config.BundleEndpointACME = s.config.Experimental.BundleEndpointACME
 	}
 	return endpoints.New(config)
 }
 
 func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
-		Log:          s.config.Log.WithField("subsystem_name", "bundle_client"),
+		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
 		DataStore:    cat.GetDataStore(),
 		TrustDomains: s.config.Experimental.FederatesWith,
 	})

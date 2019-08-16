@@ -60,7 +60,7 @@ func testDogStatsdConfig() *MetricsConfig {
 		ServiceName: "foo",
 		FileConfig: FileConfig{
 			DogStatsd: []DogStatsdConfig{
-				DogStatsdConfig{
+				{
 					Address: "localhost:8125",
 				},
 			},

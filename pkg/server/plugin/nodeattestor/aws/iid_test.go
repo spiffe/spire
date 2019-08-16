@@ -467,11 +467,11 @@ func (s *IIDAttestorSuite) configure() {
 func getDefaultDescribeInstancesOutput() ec2.DescribeInstancesOutput {
 	return ec2.DescribeInstancesOutput{
 		Reservations: []*ec2.Reservation{
-			&ec2.Reservation{
+			{
 				Instances: []*ec2.Instance{
-					&ec2.Instance{
+					{
 						NetworkInterfaces: []*ec2.InstanceNetworkInterface{
-							&ec2.InstanceNetworkInterface{
+							{
 								Attachment: &ec2.InstanceNetworkInterfaceAttachment{},
 							},
 						},

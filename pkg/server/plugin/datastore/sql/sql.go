@@ -583,6 +583,12 @@ func (ds *SQLPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
+func (p *SQLPlugin) closeDB() {
+	if p.db != nil {
+		p.db.Close()
+	}
+}
+
 // GetPluginInfo returns the sql plugin
 func (*SQLPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
@@ -609,9 +615,7 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 		defer db.opMu.Unlock()
 	}
 
-	// TODO: as soon as GORM supports it, attach the context
-	// https://github.com/jinzhu/gorm/issues/1231
-	tx := db.Begin()
+	tx := db.BeginTx(ctx, nil /* opts *sql.TxOptions */)
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
 	}

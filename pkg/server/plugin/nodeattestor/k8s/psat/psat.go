@@ -44,7 +44,7 @@ type AttestorConfig struct {
 // ClusterConfig holds a single cluster configuration
 type ClusterConfig struct {
 	// Array of whitelisted service accounts names
-	// Attestation is denied if comming from a service account that is not in the list
+	// Attestation is denied if coming from a service account that is not in the list
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
 
 	// Audience for PSAT token validation
@@ -55,6 +55,12 @@ type ClusterConfig struct {
 	// Kubernetes configuration file path
 	// Used to create a k8s client to query the API server. If string is empty, in-cluster configuration is used
 	KubeConfigFile string `hcl:"kube_config_file"`
+
+	// Node labels that are allowed to use as selectors
+	AllowedNodeLabelKeys []string `hcl:"allowed_node_label_keys"`
+
+	// Pod labels that are allowed to use as selectors
+	AllowedPodLabelKeys []string `hcl:"allowed_pod_label_keys"`
 }
 
 type attestorConfig struct {
@@ -63,9 +69,11 @@ type attestorConfig struct {
 }
 
 type clusterConfig struct {
-	serviceAccounts map[string]bool
-	audience        []string
-	client          apiserver.Client
+	serviceAccounts      map[string]bool
+	audience             []string
+	client               apiserver.Client
+	allowedNodeLabelKeys map[string]bool
+	allowedPodLabelKeys  map[string]bool
 }
 
 //AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
@@ -176,6 +184,18 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		k8s.MakeSelector(pluginName, "agent_node_uid", nodeUID),
 	}
 
+	for key, value := range node.Labels {
+		if cluster.allowedNodeLabelKeys[key] {
+			selectors = append(selectors, k8s.MakeSelector(pluginName, "agent_node_label", key, value))
+		}
+	}
+
+	for key, value := range pod.Labels {
+		if cluster.allowedPodLabelKeys[key] {
+			selectors = append(selectors, k8s.MakeSelector(pluginName, "agent_pod_label", key, value))
+		}
+	}
+
 	return stream.Send(&nodeattestor.AttestResponse{
 		AgentId:   k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
 		Selectors: selectors,
@@ -220,10 +240,22 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 			audience = *cluster.Audience
 		}
 
+		allowedNodeLabelKeys := make(map[string]bool)
+		for _, label := range cluster.AllowedNodeLabelKeys {
+			allowedNodeLabelKeys[label] = true
+		}
+
+		allowedPodLabelKeys := make(map[string]bool)
+		for _, label := range cluster.AllowedPodLabelKeys {
+			allowedPodLabelKeys[label] = true
+		}
+
 		config.clusters[name] = &clusterConfig{
-			serviceAccounts: serviceAccounts,
-			audience:        audience,
-			client:          apiserver.New(cluster.KubeConfigFile),
+			serviceAccounts:      serviceAccounts,
+			audience:             audience,
+			client:               apiserver.New(cluster.KubeConfigFile),
+			allowedNodeLabelKeys: allowedNodeLabelKeys,
+			allowedPodLabelKeys:  allowedPodLabelKeys,
 		}
 	}
 

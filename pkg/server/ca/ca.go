@@ -18,7 +18,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/zeebo/errs"
 )
 
@@ -36,7 +35,7 @@ const (
 type ServerCA interface {
 	SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error)
 	SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x509.Certificate, error)
-	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
+	SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, error)
 
 	// Sign an SVID used to serve SPIRE server TLS endpoints
 	// This is required because in some cases, an UpstreamCA root is used to bootstrap
@@ -99,6 +98,19 @@ type ServerX509SVIDParams struct {
 	PublicKey crypto.PublicKey
 }
 
+// JWTSVIDParams are parameters relevant to JWT SVID creation
+type JWTSVIDParams struct {
+	// SPIFFE ID of the SVID
+	SpiffeID string
+
+	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
+	// lifetime of the certificate will be capped to that of the signing cert.
+	TTL time.Duration
+
+	// Audience is used for audience claims
+	Audience []string
+}
+
 type X509CA struct {
 	// Signer is used to sign child certificates.
 	Signer crypto.Signer
@@ -129,6 +141,7 @@ type CAConfig struct {
 	Metrics     telemetry.Metrics
 	TrustDomain url.URL
 	X509SVIDTTL time.Duration
+	JWTSVIDTTL  time.Duration
 	Clock       clock.Clock
 	CASubject   pkix.Name
 }
@@ -147,6 +160,9 @@ type CA struct {
 func NewCA(config CAConfig) *CA {
 	if config.X509SVIDTTL <= 0 {
 		config.X509SVIDTTL = DefaultX509SVIDTTL
+	}
+	if config.JWTSVIDTTL <= 0 {
+		config.JWTSVIDTTL = DefaultJWTSVIDTTL
 	}
 	if config.Clock == nil {
 		config.Clock = clock.New()
@@ -229,7 +245,7 @@ func (ca *CA) signX509SVID(ctx context.Context, params X509SVIDParams, x509CA *X
 	if err != nil {
 		return nil, err
 	}
-	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// Explicitly set the AKI on the signed certificate, otherwise it won't be
 	// added if the subject and issuer match name match (however unlikely).
 	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
 
@@ -283,7 +299,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 	if err != nil {
 		return nil, err
 	}
-	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// Explicitly set the AKI on the signed certificate, otherwise it won't be
 	// added if the subject and issuer match name matches (unlikely due to the
 	// OU override below, but just to be safe).
 	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
@@ -305,28 +321,28 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 	return makeSVIDCertChain(x509CA, cert), nil
 }
 
-func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
+func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, error) {
 	jwtKey := ca.JWTKey()
 	if jwtKey == nil {
 		return "", errs.New("JWT key is not available for signing")
 	}
 
-	if err := idutil.ValidateSpiffeID(jsr.SpiffeId, idutil.AllowTrustDomainWorkload(ca.c.TrustDomain.Host)); err != nil {
+	if err := idutil.ValidateSpiffeID(params.SpiffeID, idutil.AllowTrustDomainWorkload(ca.c.TrustDomain.Host)); err != nil {
 		return "", err
 	}
 
-	ttl := time.Duration(jsr.Ttl) * time.Second
+	ttl := params.TTL
 	if ttl <= 0 {
-		ttl = DefaultJWTSVIDTTL
+		ttl = ca.c.JWTSVIDTTL
 	}
 	_, expiresAt := ca.capLifetime(ttl, jwtKey.NotAfter)
 
-	token, err := ca.jwtSigner.SignToken(jsr.SpiffeId, jsr.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
+	token, err := ca.jwtSigner.SignToken(params.SpiffeID, params.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
 	if err != nil {
 		return "", errs.New("unable to sign JWT SVID: %v", err)
 	}
 
-	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, jsr.SpiffeId, jsr.Audience...)
+	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, params.SpiffeID)
 
 	return token, nil
 }
