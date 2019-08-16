@@ -72,26 +72,15 @@ func IncrUpdateJWTBundlesCounter(m telemetry.Metrics) {
 // API, on validating JWT SVID. Takes SVID SPIFFE ID and request audience
 func IncrValidJWTSVIDCounter(m telemetry.Metrics, id string, aud string) {
 	m.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.Subject,
-			Value: id,
-		},
-		{
-			Name:  telemetry.Audience,
-			Value: aud,
-		},
+		{Name: telemetry.Subject, Value: id},
+		{Name: telemetry.Audience, Value: aud},
 	})
 }
 
 // IncrValidJWTSVIDErrCounter indicate call to Workload
-// API, on error validating JWT SVID. Takes error string.
-func IncrValidJWTSVIDErrCounter(m telemetry.Metrics, err string) {
-	m.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.Error,
-			Value: err,
-		},
-	})
+// API, on error validating JWT SVID.
+func IncrValidJWTSVIDErrCounter(m telemetry.Metrics) {
+	m.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1)
 }
 
 // End Counters
