@@ -9,12 +9,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
 const (
-	_pruningCandence = 2 * time.Hour
+	_pruningCandence = 5 * time.Minute
 )
 
 // ManagerConfig is the config for the registration manager
@@ -49,15 +48,7 @@ func NewManager(c ManagerConfig) *Manager {
 
 // Run runs the registration manager
 func (m *Manager) Run(ctx context.Context) error {
-	err := util.RunTasks(ctx,
-		func(ctx context.Context) error {
-			return m.pruneEvery(ctx)
-		},
-	)
-	if err == context.Canceled {
-		err = nil
-	}
-	return err
+	return m.pruneEvery(ctx)
 }
 
 func (m *Manager) pruneEvery(ctx context.Context) error {
@@ -83,8 +74,10 @@ func (m *Manager) prune(ctx context.Context) (err error) {
 		ExpiresBefore: m.c.Clock.Now().Unix(),
 	})
 
-	if err != nil {
-		return fmt.Errorf("unable to prune registration entries: %v", err)
+	if err != nil && err != context.Canceled {
+		err := fmt.Errorf("unable to prune registration entries: %v", err)
+		m.log.Error(err)
+		return err
 	}
 
 	return nil

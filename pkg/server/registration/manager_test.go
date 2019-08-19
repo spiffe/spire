@@ -48,9 +48,9 @@ func (s *ManagerSuite) TearDownTest() {
 func (s *ManagerSuite) TestPruning() {
 	s.setupAndRunManager()
 
-	expiry := s.clock.Now().Add(2 * time.Hour)
+	expiry := s.clock.Now().Add(_pruningCandence)
 
-	// expires in two hours
+	// expires right on the pruning time
 	entry1 := &common.RegistrationEntry{
 		EntryId:  "some ID 1",
 		ParentId: "spiffe://test.test/testA",
@@ -70,7 +70,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	s.NoError(err)
 
-	// expires in two hours hour and one minute
+	// expires in pruning time + one minute
 	entry2 := &common.RegistrationEntry{
 		EntryId:  "some ID 1",
 		ParentId: "spiffe://test.test/testA",
@@ -90,7 +90,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	s.NoError(err)
 
-	// expires in two hours and two minutes
+	// expires in pruning time + two minutes
 	entry3 := &common.RegistrationEntry{
 		EntryId:  "some ID 1",
 		ParentId: "spiffe://test.test/testA",
@@ -117,7 +117,7 @@ func (s *ManagerSuite) TestPruning() {
 	s.Equal([]*common.RegistrationEntry{createResp1.Entry, createResp2.Entry, createResp3.Entry}, listResp.Entries)
 
 	// prune first entry
-	s.clock.Add(2*time.Hour + time.Second)
+	s.clock.Add(_pruningCandence + time.Second)
 	s.m.prune(context.Background())
 	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
