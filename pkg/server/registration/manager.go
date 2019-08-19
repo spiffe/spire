@@ -14,13 +14,12 @@ import (
 )
 
 const (
-	_warningCadence = 60
+	_pruningCandence = 2 * time.Hour
 )
 
 // ManagerConfig is the config for the registration manager
 type ManagerConfig struct {
-	RegistrationPruning time.Duration
-	DataStore           datastore.DataStore
+	DataStore datastore.DataStore
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
@@ -43,7 +42,7 @@ func NewManager(c ManagerConfig) *Manager {
 
 	return &Manager{
 		c:       c,
-		log:     c.Log.WithField(telemetry.RetryInterval, c.RegistrationPruning),
+		log:     c.Log.WithField(telemetry.RetryInterval, _pruningCandence),
 		metrics: c.Metrics,
 	}
 }
@@ -62,15 +61,7 @@ func (m *Manager) Run(ctx context.Context) error {
 }
 
 func (m *Manager) pruneEvery(ctx context.Context) error {
-	if m.c.RegistrationPruning <= 0 {
-		m.log.Info("automatic registration pruning not enabled")
-		return nil
-	}
-	if m.c.RegistrationPruning.Seconds() <= _warningCadence {
-		m.log.Warn("automatic registration pruning cadence may be too frequent")
-	}
-
-	ticker := m.c.Clock.Ticker(m.c.RegistrationPruning)
+	ticker := m.c.Clock.Ticker(_pruningCandence)
 	defer ticker.Stop()
 
 	for {

@@ -96,10 +96,6 @@ type Config struct {
 
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config
-
-	// RegistrationPruning is the cadence for how often to prune registration
-	// entries. Default is to do no automatic pruning.
-	RegistrationPruning time.Duration
 }
 
 type ExperimentalConfig struct {
@@ -357,10 +353,9 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 
 func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.Metrics) *registration.Manager {
 	registrationManager := registration.NewManager(registration.ManagerConfig{
-		RegistrationPruning: s.config.RegistrationPruning,
-		DataStore:           cat.GetDataStore(),
-		Log:                 s.config.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationManager),
-		Metrics:             metrics,
+		DataStore: cat.GetDataStore(),
+		Log:       s.config.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationManager),
+		Metrics:   metrics,
 	})
 	return registrationManager
 }

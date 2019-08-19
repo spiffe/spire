@@ -56,7 +56,6 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 | `svid_ttl`                  | The default SVID TTL                                         | 1h                            |
 | `trust_domain`              | The trust domain that this server belongs to                 |                               |
 | `upstream_bundle`           | Include upstream CA certificates in the trust bundle         | false                         |
-| `registration_pruning`      | How often to auto-prune registration entries                 | Never                         |
 
 | ca_subject Configuration    | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -168,7 +167,7 @@ Creates registration entries.
 | `-data`          | Path to a file containing registration data in JSON format (optional). |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
-| `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned | |
+| `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned. Pruning may be done manually through the API, but also occurs automatically every 2 hours. If Expiry is not set, the entry is always valid and will never be pruned. | |
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 | `-node`          | If set, this entry will be applied to matching nodes rather than workloads | |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |

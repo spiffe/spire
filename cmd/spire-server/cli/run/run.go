@@ -56,7 +56,6 @@ type serverConfig struct {
 	SVIDTTL             string             `hcl:"svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
 	UpstreamBundle      bool               `hcl:"upstream_bundle"`
-	RegistrationPruning string             `hcl:"registration_pruning"`
 
 	ConfigPath string
 
@@ -335,14 +334,6 @@ func newServerConfig(c *config) (*server.Config, error) {
 	sc.PluginConfigs = *c.Plugins
 	sc.Telemetry = c.Telemetry
 	sc.HealthChecks = c.HealthChecks
-
-	if c.Server.RegistrationPruning != "" {
-		pruneCadence, err := time.ParseDuration(c.Server.RegistrationPruning)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse registration pruning cadence %q: %v", c.Server.RegistrationPruning, err)
-		}
-		sc.RegistrationPruning = pruneCadence
-	}
 
 	return sc, nil
 }
