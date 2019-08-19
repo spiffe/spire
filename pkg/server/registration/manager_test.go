@@ -15,10 +15,6 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 )
 
-const (
-	testPruneCadence = time.Minute * 30
-)
-
 func TestManager(t *testing.T) {
 	spiretest.Run(t, new(ManagerSuite))
 }
