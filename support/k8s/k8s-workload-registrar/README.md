@@ -33,6 +33,7 @@ The configuration file is a **required** by the registrar. It contains
 | `server_socket_path`       | string  | required | Path to the Unix domain socket of the SPIRE server | |
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string  | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
+| `pod_annotation`           | string  | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
 
 ### Example
 
@@ -65,12 +66,13 @@ and delete registration entries for workloads running on those pods. The
 workload registration entries are configured to run on any node in the
 cluster.
 
-There are two workload registration modes.
+There are three workload registration modes.
+If you use Service Account Based, don't specify either `pod_label` or `pod_annotation`. If you use Label Based, specify only `pod_label`. If you use Annotation Based, specify only `pod_annotation`.
 
 ### Service Account Based Workload Registration
 
 The SPIFFE ID granted to the workload is derived from the 1) service
-account or 2) a configurable pod label.
+account or 2) a configurable pod label or 3) a configurable pod annotation.
 
 Service account derived workload registration maps the service account into a
 SPIFFE ID of the form
@@ -105,6 +107,26 @@ Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
 ```
 
 Pods that don't contain the pod label are ignored.
+
+### Annotation Based Workload Registration
+
+Annotation based workload registration maps a pod annotation value into a SPIFFE ID of
+the form `spiffe://<TRUSTDOMAIN>/<ANNOTATIONVALUE>`. By using this mode,
+it is possible to freely set the SPIFFE ID path. For example if the registrar
+was configured with the `spiffe.io/spiffe-id` annotation and a pod came in with
+`spiffe.io/spiffe-id: production/example-workload`, the following registration entry would be
+created:
+
+```
+Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
+SPIFFE ID     : spiffe://example.org/production/example-workload
+Parent ID     : spiffe://example.org/k8s-workload-registrar/example-cluster/node
+TTL           : default
+Selector      : k8s:ns:production
+Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
+```
+
+Pods that don't contain the pod annotation are ignored.
 
 ## Deployment
 
