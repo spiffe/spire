@@ -329,7 +329,7 @@ func migrateToV8(tx *gorm.DB) error {
 }
 
 func migrateToV9(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&RegisteredEntry{}, &Selector{}).Error; err != nil {
+	if err := tx.AutoMigrate(&V9RegisteredEntry{}, &Selector{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
