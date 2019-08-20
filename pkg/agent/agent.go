@@ -9,12 +9,14 @@ import (
 	"path"
 	"runtime"
 	"sync"
+	"time"
 
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -72,6 +74,11 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	defer cat.Close()
 
+	healthChecks := health.NewChecker(
+		a.c.HealthChecks,
+		a.c.Log.WithField("subsystem_name", "health"),
+	)
+
 	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
 		return err
@@ -84,10 +91,15 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(ctx, cat, metrics, manager)
 
+	if err := healthChecks.AddCheck("agent", a, time.Minute); err != nil {
+		return fmt.Errorf("failed adding healthcheck: %v", err)
+	}
+
 	err = util.RunTasks(ctx,
 		manager.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
+		healthChecks.ListenAndServe,
 	)
 	if err == context.Canceled {
 		err = nil
@@ -209,4 +221,9 @@ func (a *Agent) bundleCachePath() string {
 
 func (a *Agent) agentSVIDPath() string {
 	return path.Join(a.c.DataDir, "agent_svid.der")
+}
+
+// Status is used as a top-level health check for the Agent.
+func (a *Agent) Status() (interface{}, error) {
+	return nil, nil
 }

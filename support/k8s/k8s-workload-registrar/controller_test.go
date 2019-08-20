@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	fakePod = `
+	fakePodWithLabel = `
 {
 	"kind": "Pod",
 	"apiVersion": "v1",
@@ -35,7 +35,23 @@ var (
 	}
 }
 `
-	fakePodNoLabel = `
+	fakePodWithAnnotation = `
+{
+	"kind": "Pod",
+	"apiVersion": "v1",
+	"metadata": {
+		"name": "PODNAME",
+		"namespace": "NAMESPACE",
+		"annotations": {
+			"spiffe.io/spiffe-id": "ENV/WORKLOAD"
+		}
+	},
+	"spec": {
+		"serviceAccountName": "SERVICEACCOUNT"
+	}
+}
+`
+	fakePodOnlySA = `
 {
 	"kind": "Pod",
 	"apiVersion": "v1",
@@ -51,7 +67,7 @@ var (
 )
 
 func TestControllerInitialization(t *testing.T) {
-	controller, r := newTestController("")
+	controller, r := newTestController("", "")
 
 	// Initialize should create the registration entry for the cluster nodes
 	require.NoError(t, controller.Initialize(context.Background()))
@@ -68,7 +84,7 @@ func TestControllerInitialization(t *testing.T) {
 }
 
 func TestControllerIgnoresKubeNamespaces(t *testing.T) {
-	controller, r := newTestController("")
+	controller, r := newTestController("", "")
 
 	for _, namespace := range []string{"kube-system", "kube-public"} {
 		requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
@@ -81,7 +97,7 @@ func TestControllerIgnoresKubeNamespaces(t *testing.T) {
 			Name:      "PODNAME",
 			Operation: "CREATE",
 			Object: runtime.RawExtension{
-				Raw: []byte(fakePod),
+				Raw: []byte(fakePodWithLabel),
 			},
 		})
 		require.Empty(t, r.GetEntries(), 0)
@@ -89,7 +105,7 @@ func TestControllerIgnoresKubeNamespaces(t *testing.T) {
 }
 
 func TestControllerIgnoresNonPods(t *testing.T) {
-	controller, r := newTestController("")
+	controller, r := newTestController("", "")
 
 	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
@@ -105,7 +121,7 @@ func TestControllerIgnoresNonPods(t *testing.T) {
 }
 
 func TestControllerFailsIfPodUnparsable(t *testing.T) {
-	controller, _ := newTestController("")
+	controller, _ := newTestController("", "")
 
 	requireReviewAdmissionFailure(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
@@ -120,7 +136,7 @@ func TestControllerFailsIfPodUnparsable(t *testing.T) {
 }
 
 func TestControllerIgnoresPodOperationsOtherThanCreateAndDelete(t *testing.T) {
-	controller, _ := newTestController("")
+	controller, _ := newTestController("", "")
 
 	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
@@ -135,7 +151,7 @@ func TestControllerIgnoresPodOperationsOtherThanCreateAndDelete(t *testing.T) {
 }
 
 func TestControllerServiceAccountBasedRegistration(t *testing.T) {
-	controller, r := newTestController("")
+	controller, r := newTestController("", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
 	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
@@ -148,7 +164,7 @@ func TestControllerServiceAccountBasedRegistration(t *testing.T) {
 		Name:      "PODNAME",
 		Operation: "CREATE",
 		Object: runtime.RawExtension{
-			Raw: []byte(fakePod),
+			Raw: []byte(fakePodWithLabel),
 		},
 	})
 
@@ -167,7 +183,7 @@ func TestControllerServiceAccountBasedRegistration(t *testing.T) {
 }
 
 func TestControllerCleansUpOnPodDeletion(t *testing.T) {
-	controller, r := newTestController("")
+	controller, r := newTestController("", "")
 
 	// create an entry for the POD in one service account
 	r.CreateEntry(context.Background(), &common.RegistrationEntry{
@@ -210,7 +226,7 @@ func TestControllerCleansUpOnPodDeletion(t *testing.T) {
 }
 
 func TestControllerLabelBasedRegistration(t *testing.T) {
-	controller, r := newTestController("spire-workload")
+	controller, r := newTestController("spire-workload", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
 	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
@@ -223,7 +239,7 @@ func TestControllerLabelBasedRegistration(t *testing.T) {
 		Name:      "PODNAME",
 		Operation: "CREATE",
 		Object: runtime.RawExtension{
-			Raw: []byte(fakePod),
+			Raw: []byte(fakePodWithLabel),
 		},
 	})
 
@@ -242,7 +258,7 @@ func TestControllerLabelBasedRegistration(t *testing.T) {
 }
 
 func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
-	controller, r := newTestController("spire-workload")
+	controller, r := newTestController("spire-workload", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
 	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
@@ -255,7 +271,7 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 		Name:      "PODNAME",
 		Operation: "CREATE",
 		Object: runtime.RawExtension{
-			Raw: []byte(fakePodNoLabel),
+			Raw: []byte(fakePodOnlySA),
 		},
 	})
 
@@ -263,15 +279,70 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 	require.Len(t, r.GetEntries(), 0)
 }
 
-func newTestController(podLabel string) (*Controller, *fakeRegistrationClient) {
+func TestControllerAnnotationBasedRegistration(t *testing.T) {
+	controller, r := newTestController("", "spiffe.io/spiffe-id")
+
+	// Send in a POD CREATE and assert that it will be admitted
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+		UID: "uid",
+		Kind: metav1.GroupVersionKind{
+			Version: "v1",
+			Kind:    "Pod",
+		},
+		Namespace: "NAMESPACE",
+		Name:      "PODNAME",
+		Operation: "CREATE",
+		Object: runtime.RawExtension{
+			Raw: []byte(fakePodWithAnnotation),
+		},
+	})
+
+	// Assert that the registration entry for the pod was created
+	requireEntriesEqual(t, []*common.RegistrationEntry{
+		{
+			EntryId:  "00000001",
+			ParentId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
+			SpiffeId: "spiffe://domain.test/ENV/WORKLOAD",
+			Selectors: []*common.Selector{
+				{Type: "k8s", Value: "ns:NAMESPACE"},
+				{Type: "k8s", Value: "pod-name:PODNAME"},
+			},
+		},
+	}, r.GetEntries())
+}
+
+func TestControllerAnnotationBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
+	controller, r := newTestController("", "spiffe.io/spiffe-id")
+
+	// Send in a POD CREATE and assert that it will be admitted
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+		UID: "uid",
+		Kind: metav1.GroupVersionKind{
+			Version: "v1",
+			Kind:    "Pod",
+		},
+		Namespace: "NAMESPACE",
+		Name:      "PODNAME",
+		Operation: "CREATE",
+		Object: runtime.RawExtension{
+			Raw: []byte(fakePodOnlySA),
+		},
+	})
+
+	// Assert that the registration entry for the pod was created
+	require.Len(t, r.GetEntries(), 0)
+}
+
+func newTestController(podLabel, podAnnotation string) (*Controller, *fakeRegistrationClient) {
 	log, _ := test.NewNullLogger()
 	r := newFakeRegistrationClient()
 	return NewController(ControllerConfig{
-		Log:         log,
-		R:           r,
-		TrustDomain: "domain.test",
-		Cluster:     "CLUSTER",
-		PodLabel:    podLabel,
+		Log:           log,
+		R:             r,
+		TrustDomain:   "domain.test",
+		Cluster:       "CLUSTER",
+		PodLabel:      podLabel,
+		PodAnnotation: podAnnotation,
 	}), r
 }
 

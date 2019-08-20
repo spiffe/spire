@@ -11,6 +11,7 @@ import (
 	"github.com/golang/mock/gomock"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -18,7 +19,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/api/workload"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
@@ -114,7 +114,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
+		{Name: telemetry.Count, Value: "1"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
@@ -175,7 +175,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
+		{Name: telemetry.Count, Value: "1"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
@@ -522,10 +522,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{})
 
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
-	labels := []telemetry.Label{
-		{Name: telemetry.Error, Value: "token contains an invalid number of segments"},
-	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
 
 	resp, err = s.h.ValidateJWTSVID(makeContext(1), &workload.ValidateJWTSVIDRequest{
 		Audience: "audience",
@@ -566,7 +563,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	s.Require().NoError(err)
 
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
-	labels = []telemetry.Label{
+	labels := []telemetry.Label{
 		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
 		{Name: telemetry.Audience, Value: "audience"},
 	}

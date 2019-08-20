@@ -1,6 +1,8 @@
 package server
 
-import "github.com/spiffe/spire/pkg/common/telemetry"
+import (
+	"github.com/spiffe/spire/pkg/common/telemetry"
+)
 
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
@@ -64,10 +66,7 @@ func IncrManagerPrunedBundleCounter(m telemetry.Metrics) {
 // signed a JWT SVID. Takes SVID's SPIFFE ID
 func IncrServerCASignJWTSVIDCounter(m telemetry.Metrics, id string) {
 	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: id,
-		},
+		{Name: telemetry.SPIFFEID, Value: id},
 	})
 }
 
@@ -75,10 +74,7 @@ func IncrServerCASignJWTSVIDCounter(m telemetry.Metrics, id string) {
 // signed an X509 CA SVID. Takes SVID's SPIFFE ID
 func IncrServerCASignX509CACounter(m telemetry.Metrics, id string) {
 	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.X509CASVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: id,
-		},
+		{Name: telemetry.SPIFFEID, Value: id},
 	})
 }
 
@@ -86,10 +82,7 @@ func IncrServerCASignX509CACounter(m telemetry.Metrics, id string) {
 // signed an X509 SVID. Takes SVID's SPIFFE ID
 func IncrServerCASignX509Counter(m telemetry.Metrics, id string) {
 	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.X509SVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: id,
-		},
+		{Name: telemetry.SPIFFEID, Value: id},
 	})
 }
 
