@@ -122,10 +122,10 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 
 	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
-		database_type = "sqlite3"
-		log_sql = true
-		connection_string = "%s"
-		`, dbPath),
+			database_type = "sqlite3"
+			log_sql = true
+			connection_string = "%s"
+			`, dbPath),
 	})
 	s.Require().NoError(err)
 
@@ -538,6 +538,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		byExpiresBefore    *wrappers.Int64Value
 		expectedList       []*common.AttestedNode
 		expectedPagination *datastore.Pagination
+		err                string
 	}{
 		{
 			name: "pagination_without_token",
@@ -556,11 +557,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				Token:    "0",
 				PageSize: 0,
 			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode4},
-			expectedPagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 0,
-			},
+			err: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
 		},
 		{
 			name: "get_all_nodes_first_page",
@@ -594,12 +591,11 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				PageSize: 2,
 			},
 			expectedPagination: &datastore.Pagination{
-				Token:    "4",
 				PageSize: 2,
 			},
 		},
 		{
-			name: "get_nodes_by_expire_before_get_only_page_fist_page",
+			name: "get_nodes_by_expire_before_get_only_page_first_page",
 			pagination: &datastore.Pagination{
 				Token:    "0",
 				PageSize: 2,
@@ -629,7 +625,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			},
 		},
 		{
-			name: "get_nodes_by_expire_before_get_only_page_third_page_no_resultds",
+			name: "get_nodes_by_expire_before_get_only_page_third_page_no_results",
 			pagination: &datastore.Pagination{
 				Token:    "4",
 				PageSize: 2,
@@ -639,7 +635,6 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			},
 			expectedList: []*common.AttestedNode{},
 			expectedPagination: &datastore.Pagination{
-				Token:    "4",
 				PageSize: 2,
 			},
 		},
@@ -650,6 +645,10 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByExpiresBefore: test.byExpiresBefore,
 				Pagination:      test.pagination,
 			})
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+				return
+			}
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
@@ -871,7 +870,7 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+	s.RequireProtoEqual(createdEntry, fetchRegistrationEntryResponse.Entry)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
@@ -954,7 +953,7 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
-func (s *PluginSuite) TestFetchRegistrationEntries() {
+func (s *PluginSuite) TestListRegistrationEntries() {
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
@@ -995,7 +994,7 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
-func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
+func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
@@ -1041,6 +1040,7 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 		selectors          []*common.Selector
 		expectedList       []*common.RegistrationEntry
 		expectedPagination *datastore.Pagination
+		err                string
 	}{
 		{
 			name: "pagination_without_token",
@@ -1059,11 +1059,7 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 				Token:    "0",
 				PageSize: 0,
 			},
-			expectedList: []*common.RegistrationEntry{entry2, entry1, entry3},
-			expectedPagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 0,
-			},
+			err: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
 		},
 		{
 			name: "get_all_entries_first_page",
@@ -1096,12 +1092,11 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 				PageSize: 2,
 			},
 			expectedPagination: &datastore.Pagination{
-				Token:    "3",
 				PageSize: 2,
 			},
 		},
 		{
-			name: "get_entries_by_selector_get_only_page_fist_page",
+			name: "get_entries_by_selector_get_only_page_first_page",
 			pagination: &datastore.Pagination{
 				Token:    "0",
 				PageSize: 2,
@@ -1121,12 +1116,11 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 			},
 			selectors: selectors,
 			expectedPagination: &datastore.Pagination{
-				Token:    "3",
 				PageSize: 2,
 			},
 		},
 		{
-			name: "get_entries_by_selector_fist_page",
+			name: "get_entries_by_selector_first_page",
 			pagination: &datastore.Pagination{
 				Token:    "0",
 				PageSize: 1,
@@ -1159,19 +1153,27 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 			},
 			selectors: selectors,
 			expectedPagination: &datastore.Pagination{
-				Token:    "3",
 				PageSize: 1,
 			},
 		},
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
-			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-				BySelectors: &datastore.BySelectors{
+			var bySelectors *datastore.BySelectors
+			if test.selectors != nil {
+				bySelectors = &datastore.BySelectors{
 					Selectors: test.selectors,
-				},
-				Pagination: test.pagination,
+					Match:     datastore.BySelectors_MATCH_EXACT,
+				}
+			}
+			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				BySelectors: bySelectors,
+				Pagination:  test.pagination,
 			})
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+				return
+			}
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
@@ -1225,9 +1227,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
-
-	expectedResponse := &datastore.FetchRegistrationEntryResponse{Entry: entry}
-	s.RequireProtoEqual(expectedResponse, fetchRegistrationEntryResponse)
+	s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
+	s.RequireProtoEqual(entry, fetchRegistrationEntryResponse.Entry)
 
 	entry.EntryId = "badid"
 	expectedCallCounter = ds_telemetry.StartUpdateRegistrationCall(s.expectedMetrics)
@@ -1366,6 +1367,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
 					Selectors: test.selectors,
+					Match:     datastore.BySelectors_MATCH_EXACT,
 				},
 			})
 			require.NoError(t, err)

@@ -3,6 +3,7 @@ package sql
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -22,7 +23,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -84,6 +84,7 @@ type configuration struct {
 type sqlDB struct {
 	databaseType     string
 	connectionString string
+	raw              *sql.DB
 	*gorm.DB
 
 	// this lock is only required for synchronized writes with "sqlite3". see
@@ -373,13 +374,7 @@ func (ds *SQLPlugin) GetNodeSelectors(ctx context.Context,
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = getNodeSelectors(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
+	return getNodeSelectors(ctx, ds.db.databaseType, ds.db.raw, req)
 }
 
 // CreateRegistrationEntry stores the given registration entry
@@ -408,13 +403,7 @@ func (ds *SQLPlugin) FetchRegistrationEntry(ctx context.Context,
 	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchRegistrationEntry(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
+	return fetchRegistrationEntry(ctx, ds.db.databaseType, ds.db.raw, req)
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -423,13 +412,7 @@ func (ds *SQLPlugin) ListRegistrationEntries(ctx context.Context,
 	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listRegistrationEntries(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
+	return listRegistrationEntries(ctx, ds.db.databaseType, ds.db.raw, req)
 }
 
 // UpdateRegistrationEntry updates an existing registration entry
@@ -571,8 +554,14 @@ func (ds *SQLPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 			ds.db.Close()
 		}
 
+		raw := db.DB()
+		if raw == nil {
+			return nil, sqlError.New("unable to get raw database object")
+		}
+
 		ds.db = &sqlDB{
 			DB:               db,
+			raw:              raw,
 			databaseType:     config.DatabaseType,
 			connectionString: config.ConnectionString,
 		}
@@ -813,15 +802,11 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 			// TODO: figure out how to do this gracefully with GORM.
 			if err := tx.Exec(bindVars(tx, `DELETE FROM registered_entries WHERE id in (
 				SELECT
-					registered_entries.id
+					registered_entry_id
 				FROM
-					registered_entries
-				INNER JOIN
 					federated_registration_entries
-				ON
-					federated_registration_entries.registered_entry_id = registered_entries.id
 				WHERE
-					federated_registration_entries.bundle_id = ?)`), model.ID).Error; err != nil {
+					bundle_id = ?)`), model.ID).Error; err != nil {
 				return nil, sqlError.Wrap(err)
 			}
 		case datastore.DeleteBundleRequest_DISSOCIATE:
@@ -871,7 +856,7 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 // ListBundles can be used to fetch all existing bundles.
 func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	var bundles []Bundle
-	if err := tx.Find(&bundles).Error; err != nil {
+	if err := tx.Order("id ASC").Find(&bundles).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -953,9 +938,8 @@ func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*d
 func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	p := req.Pagination
 	var err error
-	if p != nil && p.PageSize > 0 {
+	if p != nil {
 		tx, err = applyPagination(p, tx)
-
 		if err != nil {
 			return nil, err
 		}
@@ -970,9 +954,12 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 		return nil, sqlError.Wrap(err)
 	}
 
-	if p != nil && p.PageSize > 0 && len(models) > 0 {
-		lastEntry := models[len(models)-1]
-		p.Token = fmt.Sprint(lastEntry.ID)
+	if p != nil {
+		p.Token = ""
+		if len(models) > 0 {
+			lastEntry := models[len(models)-1]
+			p.Token = fmt.Sprint(lastEntry.ID)
+		}
 	}
 
 	resp := &datastore.ListAttestedNodesResponse{
@@ -1040,19 +1027,30 @@ func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*dat
 	return &datastore.SetNodeSelectorsResponse{}, nil
 }
 
-func getNodeSelectors(tx *gorm.DB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
-	var models []NodeSelector
-	if err := tx.Where("spiffe_id = ?", req.SpiffeId).Find(&models).Error; err != nil {
+func getNodeSelectors(ctx context.Context, dbType string, db *sql.DB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
+	query := "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id"
+	if dbType == PostgreSQL {
+		query = postgreSQLRebind(query)
+	}
+	rows, err := db.QueryContext(ctx, query, req.SpiffeId)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+	defer rows.Close()
+
+	var selectors []*common.Selector
+	for rows.Next() {
+		selector := new(common.Selector)
+		if err := rows.Scan(&selector.Type, &selector.Value); err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+		selectors = append(selectors, selector)
+	}
+
+	if err := rows.Err(); err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	var selectors []*common.Selector
-	for _, selector := range models {
-		selectors = append(selectors, &common.Selector{
-			Type:  selector.Type,
-			Value: selector.Value,
-		})
-	}
 	return &datastore.GetNodeSelectorsResponse{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  req.SpiffeId,
@@ -1124,21 +1122,38 @@ func createRegistrationEntry(tx *gorm.DB,
 	}, nil
 }
 
-func fetchRegistrationEntry(tx *gorm.DB,
-	req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-
-	var fetchedRegisteredEntry RegisteredEntry
-	err := tx.Find(&fetchedRegisteredEntry, "entry_id = ?", req.EntryId).Error
-	switch {
-	case err == gorm.ErrRecordNotFound:
-		return &datastore.FetchRegistrationEntryResponse{}, nil
-	case err != nil:
+func fetchRegistrationEntry(ctx context.Context, dbType string, db *sql.DB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
+	query, args, err := buildFetchRegistrationEntryQuery(dbType, req)
+	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	entry, err := modelToEntry(tx, fetchedRegisteredEntry)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, sqlError.Wrap(err)
+	}
+	defer rows.Close()
+
+	found := false
+	entry := new(common.RegistrationEntry)
+	for rows.Next() {
+		found = true
+		var r entryRow
+		if err := scanEntryRow(rows, &r); err != nil {
+			return nil, err
+		}
+
+		if err := fillEntryFromRow(entry, &r); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	if !found {
+		entry = nil
 	}
 
 	return &datastore.FetchRegistrationEntryResponse{
@@ -1146,127 +1161,765 @@ func fetchRegistrationEntry(tx *gorm.DB,
 	}, nil
 }
 
-func listRegistrationEntries(tx *gorm.DB,
-	req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-	var p *datastore.Pagination
-	var err error
+func buildFetchRegistrationEntryQuery(dbType string, req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+	switch dbType {
+	case SQLite:
+		return buildFetchRegistrationEntryQuerySQLite3(req)
+	case PostgreSQL:
+		return buildFetchRegistrationEntryQueryPostgreSQL(req)
+	case MySQL:
+		return buildFetchRegistrationEntryQueryMySQL(req)
+	default:
+		return "", nil, sqlError.New("unsupported db type: %q", dbType)
+	}
+}
 
-	// list of selector sets to match against
-	var selectorsList [][]*common.Selector
-	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
-		selectorSet := selector.NewSetFromRaw(req.BySelectors.Selectors)
-		switch req.BySelectors.Match {
-		case datastore.BySelectors_MATCH_SUBSET:
-			for combination := range selectorSet.Power() {
-				selectorsList = append(selectorsList, combination.Raw())
-			}
-		case datastore.BySelectors_MATCH_EXACT:
-			selectorsList = append(selectorsList, selectorSet.Raw())
-		default:
-			return nil, fmt.Errorf("unhandled match behavior %q", req.BySelectors.Match)
-		}
+func buildFetchRegistrationEntryQuerySQLite3(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+	const query = `
+WITH listing AS (
+	SELECT id FROM registered_entries WHERE entry_id = ?
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+    registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+    bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+    dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+    selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY selector_id, dns_name_id
+;`
+	return query, []interface{}{req.EntryId}, nil
+}
+
+func buildFetchRegistrationEntryQueryPostgreSQL(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+	const query = `
+WITH listing AS (
+	SELECT id FROM registered_entries WHERE entry_id = $1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+    registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+    bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+    dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+    selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY selector_id, dns_name_id
+;`
+	return query, []interface{}{req.EntryId}, nil
+}
+
+func buildFetchRegistrationEntryQueryMySQL(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+	const query = `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+    registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.entry_id = ?
+ORDER selector_id, dns_name_id
+;`
+	return query, []interface{}{req.EntryId}, nil
+}
+
+func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	if req.Pagination != nil && req.Pagination.PageSize == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	}
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
 	}
 
-	// filter registration entries
-	entryTx := tx
-	if req.ByParentId != nil {
-		entryTx = entryTx.Where("parent_id = ?", req.ByParentId.Value)
-	}
-	if req.BySpiffeId != nil {
-		entryTx = entryTx.Where("spiffe_id = ?", req.BySpiffeId.Value)
-	}
-
-	if len(selectorsList) == 0 {
-		// no selectors to filter against.
-		var entries []RegisteredEntry
-		entries, p, err = findRegisteredEntries(entryTx, req.Pagination)
-		if err != nil {
-			return nil, sqlError.Wrap(err)
-		}
-
-		respEntries, err := modelsToEntries(tx, entries)
-		if err != nil {
-			return nil, sqlError.Wrap(err)
-		}
-
-		return &datastore.ListRegistrationEntriesResponse{
-			Entries:    respEntries,
-			Pagination: p,
-		}, nil
-	}
-
-	modelsSet := make(map[uint]RegisteredEntry)
-	for _, selectors := range selectorsList {
-		refCount := make(map[uint]int)
-		for _, s := range selectors {
-			var results []Selector
-			if err := tx.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error; err != nil {
-				return nil, sqlError.Wrap(err)
-			}
-
-			for _, r := range results {
-				refCount[r.RegisteredEntryID]++
-			}
-		}
-
-		// exclude entry ids that don't have an exact number of selectors
-		entryIDs := make([]uint, 0, len(refCount))
-		for id, count := range refCount {
-			if count == len(selectors) {
-				entryIDs = append(entryIDs, id)
-			}
-		}
-		if len(entryIDs) == 0 {
-			continue
-		}
-
-		// fetch the entries in the id set, filtered by any parent/spiffe id filters
-		// applied globally
-		db := entryTx.Where(entryIDs)
-		var models []RegisteredEntry
-		models, p, err = findRegisteredEntries(db, req.Pagination)
+	for {
+		resp, err := listRegistrationEntriesOnce(ctx, dbType, db, req)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, model := range models {
-			var count int
-			if err := tx.Model(&Selector{}).Where("registered_entry_id = ?", model.ID).Count(&count).Error; err != nil {
-				return nil, sqlError.Wrap(err)
-			}
-			if count == len(selectors) {
-				modelsSet[model.ID] = model
-			}
+		if req.BySelectors == nil || len(resp.Entries) == 0 {
+			return resp, nil
 		}
-	}
 
-	models := make([]RegisteredEntry, 0, len(modelsSet))
-	for _, model := range modelsSet {
-		models = append(models, model)
-	}
+		// Exact/subset matching requires filtering out all registration
+		// entries returned by the query whose selectors are not fully
+		// represented in the request selectors.
+		// TODO: we could probably push this into SQL with some fancy "group
+		// by" count filtering.
+		type selectorKey struct {
+			Type  string
+			Value string
+		}
+		set := make(map[selectorKey]struct{}, len(req.BySelectors.Selectors))
+		for _, s := range req.BySelectors.Selectors {
+			set[selectorKey{Type: s.Type, Value: s.Value}] = struct{}{}
+		}
+		filtered := make([]*common.RegistrationEntry, 0, len(resp.Entries))
+	entryLoop:
+		for _, entry := range resp.Entries {
+			for _, s := range entry.Selectors {
+				if _, ok := set[selectorKey{Type: s.Type, Value: s.Value}]; !ok {
+					continue entryLoop
+				}
+			}
+			filtered = append(filtered, entry)
+		}
+		resp.Entries = filtered
 
-	entries, err := modelsToEntries(tx, models)
+		if len(resp.Entries) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
+			return resp, nil
+		}
+
+		req.Pagination = resp.Pagination
+	}
+}
+
+func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	query, args, err := buildListRegistrationEntriesQuery(dbType, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.ListRegistrationEntriesResponse{
-		Entries:    entries,
-		Pagination: p,
-	}, nil
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+	defer rows.Close()
+
+	var entries []*common.RegistrationEntry
+	if req.Pagination != nil {
+		entries = make([]*common.RegistrationEntry, 0, req.Pagination.PageSize)
+	}
+	var lastEID uint64
+
+	for rows.Next() {
+		var r entryRow
+		if err := scanEntryRow(rows, &r); err != nil {
+			return nil, err
+		}
+
+		var entry *common.RegistrationEntry
+		if len(entries) == 0 || lastEID != r.EId {
+			lastEID = r.EId
+			entry = new(common.RegistrationEntry)
+			entries = append(entries, entry)
+		} else {
+			entry = entries[len(entries)-1]
+		}
+
+		if err := fillEntryFromRow(entry, &r); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.ListRegistrationEntriesResponse{
+		Entries: make([]*common.RegistrationEntry, 0, len(entries)),
+	}
+	for _, entry := range entries {
+		resp.Entries = append(resp.Entries, entry)
+	}
+
+	if req.Pagination != nil {
+		resp.Pagination = &datastore.Pagination{
+			PageSize: req.Pagination.PageSize,
+		}
+		if len(resp.Entries) > 0 {
+			resp.Pagination.Token = strconv.FormatUint(lastEID, 10)
+		}
+	}
+
+	return resp, nil
+}
+
+func buildListRegistrationEntriesQuery(dbType string, req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
+	switch dbType {
+	case SQLite:
+		return buildListRegistrationEntriesQuerySQLite3(req)
+	case PostgreSQL:
+		return buildListRegistrationEntriesQueryPostgreSQL(req)
+	case MySQL:
+		return buildListRegistrationEntriesQueryMySQL(req)
+	default:
+		return "", nil, sqlError.New("unsupported db type: %q", dbType)
+	}
+}
+
+func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
+	builder := new(strings.Builder)
+	builder.WriteString("WITH listing AS (\n\tSELECT id FROM registered_entries ")
+
+	var args []interface{}
+
+	filtered := false
+	where := func(cond string) {
+		if !filtered {
+			builder.WriteString("WHERE\n\t\tid IN (\n\t\t\tSELECT id FROM registered_entries WHERE ")
+		} else {
+			builder.WriteString(" AND ")
+		}
+		filtered = true
+		builder.WriteString(cond)
+	}
+
+	if req.ByParentId != nil {
+		where("parent_id = ?")
+		args = append(args, req.ByParentId.Value)
+	}
+	if req.BySpiffeId != nil {
+		where("spiffe_id = ?")
+		args = append(args, req.BySpiffeId.Value)
+	}
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
+		where("id IN (\n")
+		switch req.BySelectors.Match {
+		case datastore.BySelectors_MATCH_SUBSET:
+			for i, selector := range req.BySelectors.Selectors {
+				if i > 0 {
+					builder.WriteString("\nUNION\n")
+				}
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				args = append(args, selector.Type, selector.Value)
+			}
+		case datastore.BySelectors_MATCH_EXACT:
+			for i, selector := range req.BySelectors.Selectors {
+				if i > 0 {
+					builder.WriteString("\nINTERSECT\n")
+				}
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				args = append(args, selector.Type, selector.Value)
+			}
+		default:
+			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
+		}
+
+		builder.WriteString("\n)")
+	}
+
+	if req.Pagination != nil && len(req.Pagination.Token) > 0 {
+		token, err := strconv.ParseUint(string(req.Pagination.Token), 10, 32)
+		if err != nil {
+			return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+		}
+		where("id > ?")
+		args = append(args, token)
+	}
+
+	if req.Pagination != nil {
+		builder.WriteString(" ORDER BY id ASC LIMIT ")
+		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+	}
+
+	if filtered {
+		// close the IN group
+		builder.WriteString("\n\t\t)")
+	}
+
+	builder.WriteString(")")
+
+	builder.WriteString(`
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+    registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+    bundles B
+INNER JOIN
+    federated_registration_entries F
+ON
+    B.id = F.bundle_id
+WHERE
+    F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+    dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+    selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;
+	`)
+
+	return builder.String(), args, nil
+}
+
+func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
+	builder := new(strings.Builder)
+	builder.WriteString("WITH listing AS (\n\tSELECT id FROM registered_entries ")
+
+	var args []interface{}
+
+	filtered := false
+	where := func(cond string) {
+		if !filtered {
+			builder.WriteString("WHERE\n\t\tid IN (\n\t\t\tSELECT id FROM registered_entries WHERE ")
+		} else {
+			builder.WriteString(" AND ")
+		}
+		filtered = true
+		builder.WriteString(cond)
+	}
+
+	if req.ByParentId != nil {
+		where("parent_id = ?")
+		args = append(args, req.ByParentId.Value)
+	}
+	if req.BySpiffeId != nil {
+		where("spiffe_id = ?")
+		args = append(args, req.BySpiffeId.Value)
+	}
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
+		where("id IN (\n")
+		switch req.BySelectors.Match {
+		case datastore.BySelectors_MATCH_SUBSET:
+			for i, selector := range req.BySelectors.Selectors {
+				if i > 0 {
+					builder.WriteString("\nUNION\n")
+				}
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				args = append(args, selector.Type, selector.Value)
+			}
+		case datastore.BySelectors_MATCH_EXACT:
+			for i, selector := range req.BySelectors.Selectors {
+				if i > 0 {
+					builder.WriteString("\nINTERSECT\n")
+				}
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				args = append(args, selector.Type, selector.Value)
+			}
+		default:
+			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
+		}
+
+		builder.WriteString("\n)")
+	}
+
+	if req.Pagination != nil && len(req.Pagination.Token) > 0 {
+		token, err := strconv.ParseUint(string(req.Pagination.Token), 10, 32)
+		if err != nil {
+			return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+		}
+		where("id > ?")
+		args = append(args, token)
+	}
+
+	if req.Pagination != nil {
+		builder.WriteString(" ORDER BY id ASC LIMIT ")
+		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+	}
+
+	if filtered {
+		// close the IN group
+		builder.WriteString("\n\t\t)")
+	}
+
+	builder.WriteString(")")
+
+	builder.WriteString(`
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+    registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+    bundles B
+INNER JOIN
+    federated_registration_entries F
+ON
+    B.id = F.bundle_id
+WHERE
+    F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+    dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+    selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`)
+
+	return postgreSQLRebind(builder.String()), args, nil
+}
+
+func postgreSQLRebind(s string) string {
+	return bindVarsFn(func(n int) string {
+		return "$" + strconv.Itoa(n)
+	}, s)
+}
+
+func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
+	builder := new(strings.Builder)
+	builder.WriteString(`
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+    registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+`)
+
+	var args []interface{}
+
+	filtered := false
+	where := func(cond string) {
+		if !filtered {
+			builder.WriteString("WHERE E.id IN (\n\tSELECT id FROM (\n\t\tSELECT id FROM registered_entries WHERE ")
+		} else {
+			builder.WriteString(" AND ")
+		}
+		filtered = true
+		builder.WriteString(cond)
+	}
+
+	if req.ByParentId != nil {
+		where("parent_id = ?")
+		args = append(args, req.ByParentId.Value)
+	}
+	if req.BySpiffeId != nil {
+		where("spiffe_id = ?")
+		args = append(args, req.BySpiffeId.Value)
+	}
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
+		where("id IN (\n")
+		switch req.BySelectors.Match {
+		case datastore.BySelectors_MATCH_SUBSET:
+			for i, selector := range req.BySelectors.Selectors {
+				if i > 0 {
+					builder.WriteString("\nUNION\n")
+				}
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				args = append(args, selector.Type, selector.Value)
+			}
+		case datastore.BySelectors_MATCH_EXACT:
+			builder.WriteString("\t\t\tSELECT DISTINCT registered_entry_id FROM (\n")
+			for i, selector := range req.BySelectors.Selectors {
+				if i > 0 {
+					builder.WriteString("\t\t\t\tINNER JOIN\n")
+				}
+				builder.WriteString("\t\t\t\t(")
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				builder.WriteString(") q_")
+				builder.WriteString(strconv.Itoa(i))
+				builder.WriteString("\n")
+				if i > 0 {
+					builder.WriteString("\t\t\t\tUSING(registered_entry_id)\n")
+				}
+				args = append(args, selector.Type, selector.Value)
+			}
+			builder.WriteString("\t\t\t)")
+		default:
+			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
+		}
+
+		builder.WriteString("\n\t\t)")
+	}
+
+	if req.Pagination != nil {
+		token := uint64(0)
+		if len(req.Pagination.Token) > 0 {
+			var err error
+			token, err = strconv.ParseUint(string(req.Pagination.Token), 10, 32)
+			if err != nil {
+				return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+			}
+		}
+		where("id > ?")
+		args = append(args, token)
+	}
+
+	if req.Pagination != nil {
+		builder.WriteString(" ORDER BY id ASC LIMIT ")
+		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+	}
+
+	if filtered {
+		// MySQL 5 does not support LIMIT in all subqueries, so we wrap our ID
+		// aggregation in another subquery so the limit can be applied.
+		builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
+		// close the IN group
+		builder.WriteString("\n)")
+	}
+
+	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id")
+
+	return builder.String(), args, nil
+}
+
+type entryRow struct {
+	EId           uint64
+	EntryID       sql.NullString
+	SpiffeID      sql.NullString
+	ParentID      sql.NullString
+	RegTTL        sql.NullInt64
+	Admin         sql.NullBool
+	Downstream    sql.NullBool
+	Expiry        sql.NullInt64
+	SelectorID    sql.NullInt64
+	SelectorType  sql.NullString
+	SelectorValue sql.NullString
+	TrustDomain   sql.NullString
+	DNSNameID     sql.NullInt64
+	DNSName       sql.NullString
+}
+
+func scanEntryRow(rs *sql.Rows, r *entryRow) error {
+	return sqlError.Wrap(rs.Scan(
+		&r.EId,
+		&r.EntryID,
+		&r.SpiffeID,
+		&r.ParentID,
+		&r.RegTTL,
+		&r.Admin,
+		&r.Downstream,
+		&r.Expiry,
+		&r.SelectorID,
+		&r.SelectorType,
+		&r.SelectorValue,
+		&r.TrustDomain,
+		&r.DNSNameID,
+		&r.DNSName,
+	))
+}
+
+func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
+	if r.EntryID.Valid {
+		entry.EntryId = r.EntryID.String
+	}
+	if r.SpiffeID.Valid {
+		entry.SpiffeId = r.SpiffeID.String
+	}
+	if r.ParentID.Valid {
+		entry.ParentId = r.ParentID.String
+	}
+	if r.RegTTL.Valid {
+		entry.Ttl = int32(r.RegTTL.Int64)
+	}
+	if r.Admin.Valid {
+		entry.Admin = r.Admin.Bool
+	}
+	if r.Downstream.Valid {
+		entry.Downstream = r.Downstream.Bool
+	}
+	if r.Expiry.Valid {
+		entry.EntryExpiry = r.Expiry.Int64
+	}
+
+	if r.SelectorType.Valid {
+		if !r.SelectorValue.Valid {
+			return sqlError.New("expected non-nil selector.value value for entry id %s", entry.EntryId)
+		}
+		entry.Selectors = append(entry.Selectors, &common.Selector{
+			Type:  r.SelectorType.String,
+			Value: r.SelectorValue.String,
+		})
+	}
+
+	if r.DNSName.Valid {
+		entry.DnsNames = append(entry.DnsNames, r.DNSName.String)
+	}
+
+	if r.TrustDomain.Valid {
+		entry.FederatesWith = append(entry.FederatesWith, r.TrustDomain.String)
+	}
+	return nil
 }
 
 // applyPagination  add order limit and token to current query
 func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error) {
-	if p.Token == "" {
-		p.Token = "0"
+	if p.PageSize == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
+	entryTx = entryTx.Order("id asc").Limit(p.PageSize)
 
-	id, err := strconv.ParseUint(p.Token, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse token '%v'", p.Token)
+	if len(p.Token) > 0 {
+		id, err := strconv.ParseUint(p.Token, 10, 32)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", p.Token)
+		}
+		entryTx = entryTx.Where("id > ?", id)
 	}
-	return entryTx.Order("id asc").Limit(p.PageSize).Where("id > ?", id), nil
+	return entryTx, nil
 }
 
 // update pagination token based in last result in returned list
@@ -1276,32 +1929,6 @@ func updatePaginationToken(p *datastore.Pagination, entries []RegisteredEntry) {
 	}
 	lastEntry := (entries)[len(entries)-1]
 	p.Token = fmt.Sprint(lastEntry.ID)
-}
-
-// find registered entries using pagination in case it is configured
-func findRegisteredEntries(entryTx *gorm.DB, p *datastore.Pagination) ([]RegisteredEntry, *datastore.Pagination, error) {
-	var entries []RegisteredEntry
-	var err error
-
-	// if pagination is not nil and page size is greater than 0, add pagination
-	if p != nil && p.PageSize > 0 {
-		entryTx, err = applyPagination(p, entryTx)
-
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	// find by results
-	if err := entryTx.Find(&entries).Error; err != nil {
-		return nil, nil, sqlError.Wrap(err)
-	}
-
-	if p != nil && p.PageSize > 0 {
-		updatePaginationToken(p, entries)
-	}
-
-	return entries, p, nil
 }
 
 func updateRegistrationEntry(tx *gorm.DB,
@@ -1681,15 +2308,19 @@ func (cfg *configuration) Validate() error {
 	return nil
 }
 
-// gormToGRPCStatus takes an error, and converts it to a GRPC error.
-// If the error is a gorm error type with a known mapping to a GRPC
-// status, that code will be set, otherwise the code will be set to
-// Unknown.
+// gormToGRPCStatus takes an error, and converts it to a GRPC error.  If the
+// error is already a gRPC status , it will be returned unmodified. Otherwise
+// if the error is a gorm error type with a known mapping to a GRPC status,
+// that code will be set, otherwise the code will be set to Unknown.
 func gormToGRPCStatus(err error) error {
-	cause := errs.Unwrap(err)
+	unwrapped := errs.Unwrap(err)
+	if _, ok := status.FromError(unwrapped); ok {
+		return unwrapped
+	}
+
 	code := codes.Unknown
 	switch {
-	case gorm.IsRecordNotFoundError(cause):
+	case gorm.IsRecordNotFoundError(unwrapped):
 		code = codes.NotFound
 	default:
 	}
