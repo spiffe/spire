@@ -2,7 +2,6 @@ package registration
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -69,14 +68,13 @@ func (m *Manager) prune(ctx context.Context) (err error) {
 	counter := telemetry_server.StartRegistrationManagerPruneEntryCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	// drop response output
 	_, err = m.c.DataStore.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: m.c.Clock.Now().Unix(),
 	})
 
-	if err != nil && err != context.Canceled {
-		err := fmt.Errorf("unable to prune registration entries: %v", err)
-		m.log.Error(err)
+	// We don't want to log an error if we bailed out to shut down or similar
+	if err != nil && ctx.Err() == nil {
+		m.log.WithError(err).Error("Could not prune registration entries")
 		return err
 	}
 
