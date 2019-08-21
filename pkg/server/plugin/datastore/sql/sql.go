@@ -1318,7 +1318,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.entry_id = ?
-ORDER selector_id, dns_name_id
+ORDER BY selector_id, dns_name_id
 ;`
 	return query, []interface{}{req.EntryId}, nil
 }
@@ -1481,7 +1481,7 @@ func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEnt
 				if i > 0 {
 					builder.WriteString("\nUNION\n")
 				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
 			}
 		case datastore.BySelectors_MATCH_EXACT:
@@ -1489,7 +1489,7 @@ func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEnt
 				if i > 0 {
 					builder.WriteString("\nINTERSECT\n")
 				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
 			}
 		default:
@@ -1609,7 +1609,7 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 				if i > 0 {
 					builder.WriteString("\nUNION\n")
 				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
 			}
 		case datastore.BySelectors_MATCH_EXACT:
@@ -1617,7 +1617,7 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 				if i > 0 {
 					builder.WriteString("\nINTERSECT\n")
 				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
 			}
 		default:
@@ -1768,26 +1768,32 @@ LEFT JOIN
 				if i > 0 {
 					builder.WriteString("\nUNION\n")
 				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
+				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
 			}
 		case datastore.BySelectors_MATCH_EXACT:
-			builder.WriteString("\t\t\tSELECT DISTINCT registered_entry_id FROM (\n")
-			for i, selector := range req.BySelectors.Selectors {
-				if i > 0 {
-					builder.WriteString("\t\t\t\tINNER JOIN\n")
-				}
-				builder.WriteString("\t\t\t\t(")
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE selectors.type=? AND selectors.value=?")
-				builder.WriteString(") q_")
-				builder.WriteString(strconv.Itoa(i))
-				builder.WriteString("\n")
-				if i > 0 {
-					builder.WriteString("\t\t\t\tUSING(registered_entry_id)\n")
-				}
+			if len(req.BySelectors.Selectors) == 1 {
+				selector := req.BySelectors.Selectors[0]
+				builder.WriteString("\t\t\tSELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
+			} else {
+				builder.WriteString("\t\t\tSELECT DISTINCT registered_entry_id FROM (\n")
+				for i, selector := range req.BySelectors.Selectors {
+					if i > 0 {
+						builder.WriteString("\t\t\t\tINNER JOIN\n")
+					}
+					builder.WriteString("\t\t\t\t(")
+					builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
+					builder.WriteString(") q_")
+					builder.WriteString(strconv.Itoa(i))
+					builder.WriteString("\n")
+					if i > 0 {
+						builder.WriteString("\t\t\t\tUSING(registered_entry_id)\n")
+					}
+					args = append(args, selector.Type, selector.Value)
+				}
+				builder.WriteString("\t\t\t)")
 			}
-			builder.WriteString("\t\t\t)")
 		default:
 			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
 		}
