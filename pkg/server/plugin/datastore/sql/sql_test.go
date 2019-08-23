@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -117,66 +118,32 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	s.LoadPlugin(builtin(p), &ds,
 		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
 
-	//
-	// MYSQL
-	//
-	connString := "spire:@tcp(localhost:3306)/spire?parseTime=true"
-	wipeMySQL(s.T(), "spire", connString)
-
+	s.nextID++
+	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
 	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
-			database_type = "mysql"
+			database_type = "sqlite3"
 			log_sql = true
 			connection_string = "%s"
-			`, connString),
+			`, dbPath),
 	})
 	s.Require().NoError(err)
 
-	//s.nextID++
-	//	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
-	//_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-	//	Configuration: fmt.Sprintf(`
-	//		database_type = "sqlite3"
-	//		log_sql = true
-	//		connection_string = "%s"
-	//		`, dbPath),
-	//})
-	//s.Require().NoError(err)
+	// assert that WAL journal mode is enabled
+	jm := struct {
+		JournalMode string
+	}{}
+	p.db.Raw("PRAGMA journal_mode").Scan(&jm)
+	s.Require().Equal(jm.JournalMode, "wal")
 
-	//// assert that WAL journal mode is enabled
-	//jm := struct {
-	//	JournalMode string
-	//}{}
-	//p.db.Raw("PRAGMA journal_mode").Scan(&jm)
-	//s.Require().Equal(jm.JournalMode, "wal")
-
-	//// assert that foreign_key support is enabled
-	//fk := struct {
-	//	ForeignKeys string
-	//}{}
-	//p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
-	//s.Require().Equal(fk.ForeignKeys, "1")
+	// assert that foreign_key support is enabled
+	fk := struct {
+		ForeignKeys string
+	}{}
+	p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
+	s.Require().Equal(fk.ForeignKeys, "1")
 
 	return ds
-}
-
-func wipeMySQL(tb testing.TB, schema, connString string) {
-	db, err := sql.Open("mysql", connString)
-	require.NoError(tb, err)
-	defer db.Close()
-
-	rows, err := db.Query(fmt.Sprintf(`SELECT table_name FROM information_schema.tables WHERE table_schema = '%s';`, schema))
-	require.NoError(tb, err)
-	defer rows.Close()
-
-	for rows.Next() {
-		var q string
-		err = rows.Scan(&q)
-		require.NoError(tb, err)
-		_, err = db.Exec("DROP TABLE " + q)
-		//require.NoError(tb, err)
-	}
-	require.NoError(tb, rows.Err())
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {
@@ -2080,18 +2047,2468 @@ func (s *PluginSuite) TestConfigure() {
 			require.Equal(t, tt.expectIdle, db.Stats().Idle)
 		})
 	}
-
 }
 
-//func TestListRegistrationEntriesQuery(t *testing.T) {
-//	dbType := "mysql"
-//	query, args, err := buildListRegistrationEntriesQuery(dbType, &datastore.ListRegistrationEntriesRequest{
-//		BySelectors: &datastore.BySelectors{
-//			Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-//			Match:     datastore.BySelectors_MATCH_SUBSET,
-//		},
-//	})
-//	require.NoError(t, err)
-//	fmt.Println("QUERY:", query)
-//	fmt.Println("ARGS:", args)
-//}
+func TestListRegistrationEntriesQuery(t *testing.T) {
+	testCases := []struct {
+		dialect string
+		paged   string
+		by      []string
+		query   string
+	}{
+		{
+			dialect: "sqlite3",
+			query: `
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"parent-id"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"spiffe-id"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE spiffe_id = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"parent-id", "spiffe-id"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"selector-subset-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"selector-subset-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"selector-exact-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"selector-exact-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"parent-id", "selector-subset-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"parent-id", "selector-subset-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+
+		{
+			dialect: "sqlite3",
+			by:      []string{"parent-id", "selector-exact-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"parent-id", "selector-exact-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT id FROM (
+			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+			INTERSECT
+			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		)
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			paged:   "no-token",
+			query: `
+WITH listing AS (
+	SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			paged:   "with-token",
+			query: `
+WITH listing AS (
+	SELECT id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"spiffe-id"},
+			paged:   "with-token",
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE spiffe_id = ?
+	) listing WHERE id > ? ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			query: `
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"parent-id"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = $1
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"spiffe-id"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE spiffe_id = $1
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"parent-id", "spiffe-id"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = $1 AND spiffe_id = $2
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"selector-subset-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"selector-subset-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $3 AND value = $4
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"selector-exact-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"selector-exact-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $3 AND value = $4
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"parent-id", "selector-subset-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = $1
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"parent-id", "selector-subset-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = $1
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+
+		{
+			dialect: "postgres",
+			by:      []string{"parent-id", "selector-exact-one"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = $1
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"parent-id", "selector-exact-many"},
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = $1
+		UNION
+		SELECT id FROM (
+			SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+			INTERSECT
+			SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
+		)
+	) listing
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			paged:   "no-token",
+			query: `
+WITH listing AS (
+	SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			paged:   "with-token",
+			query: `
+WITH listing AS (
+	SELECT id FROM registered_entries WHERE id > $1 ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"spiffe-id"},
+			paged:   "with-token",
+			query: `
+WITH listing AS (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE spiffe_id = $1
+	) listing WHERE id > $2 ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"parent-id"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"spiffe-id"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE spiffe_id = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"parent-id", "spiffe-id"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"selector-subset-one"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"selector-subset-many"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"selector-exact-one"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"selector-exact-many"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT DISTINCT id FROM (
+			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_0
+			INNER JOIN
+			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_1
+			USING(id)
+		)
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"parent-id", "selector-subset-one"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"parent-id", "selector-subset-many"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+
+		{
+			dialect: "mysql",
+			by:      []string{"parent-id", "selector-exact-one"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"parent-id", "selector-exact-many"},
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE parent_id = ?
+		UNION
+		SELECT DISTINCT id FROM (
+			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_0
+			INNER JOIN
+			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_1
+			USING(id)
+		)
+	) listing
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			paged:   "no-token",
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
+	) workaround_for_mysql_subquery_limit
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			paged:   "with-token",
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
+	) workaround_for_mysql_subquery_limit
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"spiffe-id"},
+			paged:   "with-token",
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
+	SELECT id FROM (
+	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE spiffe_id = ?
+	) listing WHERE id > ? ORDER BY id ASC LIMIT 1
+	) workaround_for_mysql_subquery_limit
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		name := testCase.dialect + "-list-"
+		if len(testCase.by) == 0 {
+			name += "all"
+		} else {
+			name += "by-" + strings.Join(testCase.by, "-")
+		}
+		if testCase.paged != "" {
+			name += "-paged-" + testCase.paged
+		}
+		t.Run(name, func(t *testing.T) {
+			req := new(datastore.ListRegistrationEntriesRequest)
+			switch testCase.paged {
+			case "":
+			case "no-token":
+				req.Pagination = &datastore.Pagination{
+					PageSize: 1,
+				}
+			case "with-token":
+				req.Pagination = &datastore.Pagination{
+					PageSize: 1,
+					Token:    "2",
+				}
+			default:
+				require.FailNow(t, "unsupported page case: %q", testCase.paged)
+			}
+
+			for _, by := range testCase.by {
+				switch by {
+				case "parent-id":
+					req.ByParentId = &wrappers.StringValue{
+						Value: "spiffe://parent",
+					}
+				case "spiffe-id":
+					req.BySpiffeId = &wrappers.StringValue{
+						Value: "spiffe://id",
+					}
+				case "selector-subset-one":
+					req.BySelectors = &datastore.BySelectors{
+						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
+						Match:     datastore.BySelectors_MATCH_SUBSET,
+					}
+				case "selector-subset-many":
+					req.BySelectors = &datastore.BySelectors{
+						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
+						Match:     datastore.BySelectors_MATCH_SUBSET,
+					}
+				case "selector-exact-one":
+					req.BySelectors = &datastore.BySelectors{
+						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
+						Match:     datastore.BySelectors_MATCH_EXACT,
+					}
+				case "selector-exact-many":
+					req.BySelectors = &datastore.BySelectors{
+						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
+						Match:     datastore.BySelectors_MATCH_EXACT,
+					}
+				default:
+					require.FailNow(t, "unsupported by case: %q", by)
+				}
+			}
+
+			query, _, err := buildListRegistrationEntriesQuery(testCase.dialect, req)
+			require.NoError(t, err)
+			require.Equal(t, testCase.query, query)
+		})
+	}
+}
