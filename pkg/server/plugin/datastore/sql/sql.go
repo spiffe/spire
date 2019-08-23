@@ -1380,6 +1380,9 @@ func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
+	//fmt.Println("QUERY:", query)
+	//fmt.Println("ARGS:", args)
+
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1738,70 +1741,85 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 `)
-
 	var args []interface{}
 
 	filtered := false
-	where := func(cond string) {
+	filter := func(adding bool) {
 		if !filtered {
-			builder.WriteString("WHERE E.id IN (\n\tSELECT id FROM (\n\t\tSELECT id FROM registered_entries WHERE ")
-		} else {
-			builder.WriteString(" AND ")
+			builder.WriteString("WHERE E.id IN (\n\tSELECT id FROM (\n")
+			// MySQL 5.x does not support applying limits to a direct subquery,
+			// so we need to wrap the subquery to apply the limit
+			if adding && req.Pagination != nil {
+				builder.WriteString("\tSELECT id FROM (\n")
+			}
+		} else if adding {
+			builder.WriteString("\t\t\tUNION\n")
 		}
 		filtered = true
-		builder.WriteString(cond)
 	}
 
-	if req.ByParentId != nil {
-		where("parent_id = ?")
-		args = append(args, req.ByParentId.Value)
-	}
-	if req.BySpiffeId != nil {
-		where("spiffe_id = ?")
-		args = append(args, req.BySpiffeId.Value)
+	if req.ByParentId != nil || req.BySpiffeId != nil {
+		filter(true)
+		builder.WriteString("SELECT id FROM registered_entries WHERE ")
+		if req.ByParentId != nil {
+			builder.WriteString("parent_id = ?")
+			args = append(args, req.ByParentId.Value)
+		}
+		if req.BySpiffeId != nil {
+			if req.ByParentId != nil {
+				builder.WriteString(" AND ")
+			}
+			builder.WriteString("spiffe_id = ?")
+			args = append(args, req.BySpiffeId.Value)
+		}
 	}
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
-		where("id IN (\n")
+		filter(true)
 		switch req.BySelectors.Match {
 		case datastore.BySelectors_MATCH_SUBSET:
 			for i, selector := range req.BySelectors.Selectors {
 				if i > 0 {
-					builder.WriteString("\nUNION\n")
+					builder.WriteString("\n\t\t\tUNION\n")
 				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
+				builder.WriteString("\t\t\tSELECT registered_entry_id AS id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
 			}
 		case datastore.BySelectors_MATCH_EXACT:
 			if len(req.BySelectors.Selectors) == 1 {
 				selector := req.BySelectors.Selectors[0]
-				builder.WriteString("\t\t\tSELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
+				builder.WriteString("\t\t\tSELECT registered_entry_id AS id FROM selectors WHERE type=? AND value=?")
 				args = append(args, selector.Type, selector.Value)
 			} else {
-				builder.WriteString("\t\t\tSELECT DISTINCT registered_entry_id FROM (\n")
+				builder.WriteString("\t\t\tSELECT DISTINCT id FROM (\n")
 				for i, selector := range req.BySelectors.Selectors {
 					if i > 0 {
 						builder.WriteString("\t\t\t\tINNER JOIN\n")
 					}
 					builder.WriteString("\t\t\t\t(")
-					builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
+					builder.WriteString("SELECT registered_entry_id AS id FROM selectors WHERE type=? AND value=?")
 					builder.WriteString(") q_")
 					builder.WriteString(strconv.Itoa(i))
 					builder.WriteString("\n")
 					if i > 0 {
-						builder.WriteString("\t\t\t\tUSING(registered_entry_id)\n")
+						builder.WriteString("\t\t\t\tUSING(id)\n")
 					}
 					args = append(args, selector.Type, selector.Value)
 				}
-				builder.WriteString("\t\t\t)")
+				builder.WriteString("\t\t\t)\n")
 			}
 		default:
 			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
 		}
+	}
 
-		builder.WriteString("\n\t\t)")
+	if filtered {
+		// close the listing subquery
+		builder.WriteString("\n\t) listing")
 	}
 
 	if req.Pagination != nil {
+		hasSubquery := filtered
+		filter(false)
 		token := uint64(0)
 		if len(req.Pagination.Token) > 0 {
 			var err error
@@ -1810,21 +1828,17 @@ LEFT JOIN
 				return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
 			}
 		}
-		where("id > ?")
+		if !hasSubquery {
+			builder.WriteString("\t\tSELECT id FROM registered_entries")
+		}
+		builder.WriteString(" WHERE id > ? ORDER BY id ASC LIMIT ")
+		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+		builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
 		args = append(args, token)
 	}
 
-	if req.Pagination != nil {
-		builder.WriteString(" ORDER BY id ASC LIMIT ")
-		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
-	}
-
 	if filtered {
-		// MySQL 5 does not support LIMIT in all subqueries, so we wrap our ID
-		// aggregation in another subquery so the limit can be applied.
-		builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
-		// close the IN group
-		builder.WriteString("\n)")
+		builder.WriteString("\n)\n")
 	}
 
 	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id")
