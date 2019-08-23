@@ -23,7 +23,7 @@ type Rotator interface {
 	State() State
 	Subscribe() observer.Stream
 	GetRotationMtx() *sync.RWMutex
-	SetReleaseConnHook(func())
+	SetRotationFinishedHook(func())
 }
 
 type rotator struct {
@@ -39,8 +39,8 @@ type rotator struct {
 	// Mutex used to prevent rotations when a new connection is being created
 	rotMtx *sync.RWMutex
 
-	// Hook to release client resources after an SVID rotation
-	releaseConnHook func()
+	// Hook that will be called when the SVID rotation finishes
+	rotationFinishedHook func()
 }
 
 type State struct {
@@ -86,8 +86,8 @@ func (r *rotator) GetRotationMtx() *sync.RWMutex {
 	return r.rotMtx
 }
 
-func (r *rotator) SetReleaseConnHook(f func()) {
-	r.releaseConnHook = f
+func (r *rotator) SetRotationFinishedHook(f func()) {
+	r.rotationFinishedHook = f
 }
 
 // shouldRotate returns a boolean informing the caller of whether or not the
@@ -160,8 +160,8 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	// the most up-to-date SVID.
 	r.client.Release()
 
-	if r.releaseConnHook != nil {
-		r.releaseConnHook()
+	if r.rotationFinishedHook != nil {
+		r.rotationFinishedHook()
 	}
 
 	return nil
