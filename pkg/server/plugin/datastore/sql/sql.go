@@ -1195,15 +1195,15 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name
 FROM
-    registered_entries
+	registered_entries
 WHERE id IN (SELECT id FROM listing)
 
 UNION
 
 SELECT
-    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
 FROM
-    bundles B
+	bundles B
 INNER JOIN
 	federated_registration_entries F
 ON
@@ -1214,17 +1214,17 @@ WHERE
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
 FROM
-    dns_names
+	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
 FROM
-    selectors
+	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
@@ -1253,15 +1253,15 @@ SELECT
 	NULL ::integer AS dns_name_id,
 	NULL AS dns_name
 FROM
-    registered_entries
+	registered_entries
 WHERE id IN (SELECT id FROM listing)
 
 UNION
 
 SELECT
-    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
 FROM
-    bundles B
+	bundles B
 INNER JOIN
 	federated_registration_entries F
 ON
@@ -1272,17 +1272,17 @@ WHERE
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
 FROM
-    dns_names
+	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
 FROM
-    selectors
+	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
@@ -1308,7 +1308,7 @@ SELECT
 	D.id AS dns_name_id,
 	D.value AS dns_name
 FROM
-    registered_entries E
+	registered_entries E
 LEFT JOIN
 	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
 LEFT JOIN
@@ -1380,9 +1380,6 @@ func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
-	//fmt.Println("QUERY:", query)
-	//fmt.Println("ARGS:", args)
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1453,75 +1450,13 @@ func buildListRegistrationEntriesQuery(dbType string, req *datastore.ListRegistr
 
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
 	builder := new(strings.Builder)
-	builder.WriteString("WITH listing AS (\n\tSELECT id FROM registered_entries ")
 
-	var args []interface{}
-
-	filtered := false
-	where := func(cond string) {
-		if !filtered {
-			builder.WriteString("WHERE\n\t\tid IN (\n\t\t\tSELECT id FROM registered_entries WHERE ")
-		} else {
-			builder.WriteString(" AND ")
-		}
-		filtered = true
-		builder.WriteString(cond)
+	args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
+	if err != nil {
+		return "", nil, err
 	}
 
-	if req.ByParentId != nil {
-		where("parent_id = ?")
-		args = append(args, req.ByParentId.Value)
-	}
-	if req.BySpiffeId != nil {
-		where("spiffe_id = ?")
-		args = append(args, req.BySpiffeId.Value)
-	}
-	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
-		where("id IN (\n")
-		switch req.BySelectors.Match {
-		case datastore.BySelectors_MATCH_SUBSET:
-			for i, selector := range req.BySelectors.Selectors {
-				if i > 0 {
-					builder.WriteString("\nUNION\n")
-				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
-				args = append(args, selector.Type, selector.Value)
-			}
-		case datastore.BySelectors_MATCH_EXACT:
-			for i, selector := range req.BySelectors.Selectors {
-				if i > 0 {
-					builder.WriteString("\nINTERSECT\n")
-				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
-				args = append(args, selector.Type, selector.Value)
-			}
-		default:
-			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
-		}
-
-		builder.WriteString("\n)")
-	}
-
-	if req.Pagination != nil && len(req.Pagination.Token) > 0 {
-		token, err := strconv.ParseUint(string(req.Pagination.Token), 10, 32)
-		if err != nil {
-			return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
-		}
-		where("id > ?")
-		args = append(args, token)
-	}
-
-	if req.Pagination != nil {
-		builder.WriteString(" ORDER BY id ASC LIMIT ")
-		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
-	}
-
-	if filtered {
-		// close the IN group
-		builder.WriteString("\n\t\t)")
-	}
-
-	builder.WriteString(")")
+	filtered := builder.Len() > 0
 
 	builder.WriteString(`
 SELECT
@@ -1540,116 +1475,64 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name
 FROM
-    registered_entries
-WHERE id IN (SELECT id FROM listing)
-
+	registered_entries
+`)
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 UNION
 
 SELECT
-    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
 FROM
-    bundles B
+	bundles B
 INNER JOIN
-    federated_registration_entries F
+	federated_registration_entries F
 ON
-    B.id = F.bundle_id
-WHERE
-    F.registered_entry_id IN (SELECT id FROM listing)
-
+	B.id = F.bundle_id
+`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
 FROM
-    dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
-
+	dns_names
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
 FROM
-    selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
-
+	selectors
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 ORDER BY e_id, selector_id, dns_name_id
-;
-	`)
+;`)
 
 	return builder.String(), args, nil
 }
 
 func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
 	builder := new(strings.Builder)
-	builder.WriteString("WITH listing AS (\n\tSELECT id FROM registered_entries ")
 
-	var args []interface{}
-
-	filtered := false
-	where := func(cond string) {
-		if !filtered {
-			builder.WriteString("WHERE\n\t\tid IN (\n\t\t\tSELECT id FROM registered_entries WHERE ")
-		} else {
-			builder.WriteString(" AND ")
-		}
-		filtered = true
-		builder.WriteString(cond)
+	args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
+	if err != nil {
+		return "", nil, err
 	}
 
-	if req.ByParentId != nil {
-		where("parent_id = ?")
-		args = append(args, req.ByParentId.Value)
-	}
-	if req.BySpiffeId != nil {
-		where("spiffe_id = ?")
-		args = append(args, req.BySpiffeId.Value)
-	}
-	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
-		where("id IN (\n")
-		switch req.BySelectors.Match {
-		case datastore.BySelectors_MATCH_SUBSET:
-			for i, selector := range req.BySelectors.Selectors {
-				if i > 0 {
-					builder.WriteString("\nUNION\n")
-				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
-				args = append(args, selector.Type, selector.Value)
-			}
-		case datastore.BySelectors_MATCH_EXACT:
-			for i, selector := range req.BySelectors.Selectors {
-				if i > 0 {
-					builder.WriteString("\nINTERSECT\n")
-				}
-				builder.WriteString("SELECT registered_entry_id FROM selectors WHERE type=? AND value=?")
-				args = append(args, selector.Type, selector.Value)
-			}
-		default:
-			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
-		}
-
-		builder.WriteString("\n)")
-	}
-
-	if req.Pagination != nil && len(req.Pagination.Token) > 0 {
-		token, err := strconv.ParseUint(string(req.Pagination.Token), 10, 32)
-		if err != nil {
-			return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
-		}
-		where("id > ?")
-		args = append(args, token)
-	}
-
-	if req.Pagination != nil {
-		builder.WriteString(" ORDER BY id ASC LIMIT ")
-		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
-	}
-
-	if filtered {
-		// close the IN group
-		builder.WriteString("\n\t\t)")
-	}
-
-	builder.WriteString(")")
+	filtered := builder.Len() > 0
 
 	builder.WriteString(`
 SELECT
@@ -1668,38 +1551,49 @@ SELECT
 	NULL ::integer AS dns_name_id,
 	NULL AS dns_name
 FROM
-    registered_entries
-WHERE id IN (SELECT id FROM listing)
-
+	registered_entries
+`)
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 UNION
 
 SELECT
-    F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
 FROM
-    bundles B
+	bundles B
 INNER JOIN
-    federated_registration_entries F
+	federated_registration_entries F
 ON
-    B.id = F.bundle_id
-WHERE
-    F.registered_entry_id IN (SELECT id FROM listing)
-
+	B.id = F.bundle_id
+`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
 FROM
-    dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
-
+	dns_names
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 UNION
 
 SELECT
-    registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
 FROM
-    selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
-
+	selectors
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
 ORDER BY e_id, selector_id, dns_name_id
 ;`)
 
@@ -1731,7 +1625,7 @@ SELECT
 	D.id AS dns_name_id,
 	D.value AS dns_name
 FROM
-    registered_entries E
+	registered_entries E
 LEFT JOIN
 	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
 LEFT JOIN
@@ -1741,26 +1635,39 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 `)
+
+	args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
+	if err != nil {
+		return "", nil, err
+	}
+
+	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
+
+	return builder.String(), args, nil
+}
+
+func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings.Builder, dbType string, req *datastore.ListRegistrationEntriesRequest) ([]interface{}, error) {
 	var args []interface{}
 
-	filtered := false
-	filter := func(adding bool) {
-		if !filtered {
-			builder.WriteString("WHERE E.id IN (\n\tSELECT id FROM (\n")
+	filterCount := 0
+	filter := func() {
+		filterCount++
+		if filterCount == 1 {
+			builder.WriteString(filterExp)
+			builder.WriteString("\tSELECT id FROM (\n")
 			// MySQL 5.x does not support applying limits to a direct subquery,
 			// so we need to wrap the subquery to apply the limit
-			if adding && req.Pagination != nil {
+			if dbType == MySQL && req.Pagination != nil {
 				builder.WriteString("\tSELECT id FROM (\n")
 			}
-		} else if adding {
-			builder.WriteString("\t\t\tUNION\n")
+		} else {
+			builder.WriteString("\t\tUNION\n")
 		}
-		filtered = true
 	}
 
 	if req.ByParentId != nil || req.BySpiffeId != nil {
-		filter(true)
-		builder.WriteString("SELECT id FROM registered_entries WHERE ")
+		filter()
+		builder.WriteString("\t\tSELECT id FROM registered_entries WHERE ")
 		if req.ByParentId != nil {
 			builder.WriteString("parent_id = ?")
 			args = append(args, req.ByParentId.Value)
@@ -1772,78 +1679,108 @@ LEFT JOIN
 			builder.WriteString("spiffe_id = ?")
 			args = append(args, req.BySpiffeId.Value)
 		}
+		builder.WriteRune('\n')
 	}
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
-		filter(true)
+		filter()
 		switch req.BySelectors.Match {
 		case datastore.BySelectors_MATCH_SUBSET:
-			for i, selector := range req.BySelectors.Selectors {
-				if i > 0 {
-					builder.WriteString("\n\t\t\tUNION\n")
+			switch {
+			case len(req.BySelectors.Selectors) == 1:
+				builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
+			default:
+				for i := range req.BySelectors.Selectors {
+					if i > 0 {
+						builder.WriteString("\t\tUNION\n")
+					}
+					builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
 				}
-				builder.WriteString("\t\t\tSELECT registered_entry_id AS id FROM selectors WHERE type=? AND value=?")
-				args = append(args, selector.Type, selector.Value)
 			}
 		case datastore.BySelectors_MATCH_EXACT:
-			if len(req.BySelectors.Selectors) == 1 {
-				selector := req.BySelectors.Selectors[0]
-				builder.WriteString("\t\t\tSELECT registered_entry_id AS id FROM selectors WHERE type=? AND value=?")
-				args = append(args, selector.Type, selector.Value)
-			} else {
-				builder.WriteString("\t\t\tSELECT DISTINCT id FROM (\n")
-				for i, selector := range req.BySelectors.Selectors {
+			switch {
+			case len(req.BySelectors.Selectors) == 1:
+				builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
+			case dbType != MySQL:
+				if filterCount > 1 {
+					// need a subquery to group the intersection
+					builder.WriteString("\t\tSELECT id FROM (\n")
+				}
+				for i := range req.BySelectors.Selectors {
 					if i > 0 {
-						builder.WriteString("\t\t\t\tINNER JOIN\n")
+						if filterCount > 1 {
+							builder.WriteString("\t")
+						}
+						builder.WriteString("\t\tINTERSECT\n")
 					}
-					builder.WriteString("\t\t\t\t(")
-					builder.WriteString("SELECT registered_entry_id AS id FROM selectors WHERE type=? AND value=?")
+					if filterCount > 1 {
+						builder.WriteString("\t")
+					}
+					builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
+				}
+				if filterCount > 1 {
+					builder.WriteString("\t\t)\n")
+				}
+			default:
+				builder.WriteString("\t\tSELECT DISTINCT id FROM (\n")
+				for i := range req.BySelectors.Selectors {
+					if i > 0 {
+						builder.WriteString("\t\t\tINNER JOIN\n")
+					}
+					builder.WriteString("\t\t\t(")
+					builder.WriteString("SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?")
 					builder.WriteString(") q_")
 					builder.WriteString(strconv.Itoa(i))
 					builder.WriteString("\n")
 					if i > 0 {
-						builder.WriteString("\t\t\t\tUSING(id)\n")
+						builder.WriteString("\t\t\tUSING(id)\n")
 					}
-					args = append(args, selector.Type, selector.Value)
 				}
-				builder.WriteString("\t\t\t)\n")
+				builder.WriteString("\t\t)\n")
 			}
 		default:
-			return "", nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
+			return nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
+		}
+
+		for _, selector := range req.BySelectors.Selectors {
+			args = append(args, selector.Type, selector.Value)
 		}
 	}
 
-	if filtered {
+	if filterCount > 0 {
 		// close the listing subquery
-		builder.WriteString("\n\t) listing")
+		builder.WriteString("\t) listing")
 	}
 
 	if req.Pagination != nil {
-		hasSubquery := filtered
-		filter(false)
-		token := uint64(0)
-		if len(req.Pagination.Token) > 0 {
-			var err error
-			token, err = strconv.ParseUint(string(req.Pagination.Token), 10, 32)
-			if err != nil {
-				return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+		if filterCount == 0 {
+			builder.WriteString(filterExp)
+			if dbType == MySQL {
+				builder.WriteString("\tSELECT id FROM (\n\t")
 			}
+			builder.WriteString("\tSELECT id FROM registered_entries")
 		}
-		if !hasSubquery {
-			builder.WriteString("\t\tSELECT id FROM registered_entries")
+		if len(req.Pagination.Token) > 0 {
+			token, err := strconv.ParseUint(string(req.Pagination.Token), 10, 32)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+			}
+			builder.WriteString(" WHERE id > ?")
+			args = append(args, token)
 		}
-		builder.WriteString(" WHERE id > ? ORDER BY id ASC LIMIT ")
+		builder.WriteString(" ORDER BY id ASC LIMIT ")
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
-		builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
-		args = append(args, token)
+		if dbType == MySQL {
+			builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
+		}
+		if filterCount == 0 {
+			builder.WriteString("\n)")
+		}
 	}
 
-	if filtered {
-		builder.WriteString("\n)\n")
+	if filterCount > 0 {
+		builder.WriteString("\n)")
 	}
-
-	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id")
-
-	return builder.String(), args, nil
+	return args, nil
 }
 
 type entryRow struct {
