@@ -117,33 +117,66 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	s.LoadPlugin(builtin(p), &ds,
 		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
 
-	s.nextID++
-	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
+	//
+	// MYSQL
+	//
+	connString := "spire:@tcp(localhost:3306)/spire?parseTime=true"
+	wipeMySQL(s.T(), "spire", connString)
 
 	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
-			database_type = "sqlite3"
+			database_type = "mysql"
 			log_sql = true
 			connection_string = "%s"
-			`, dbPath),
+			`, connString),
 	})
 	s.Require().NoError(err)
 
-	// assert that WAL journal mode is enabled
-	jm := struct {
-		JournalMode string
-	}{}
-	p.db.Raw("PRAGMA journal_mode").Scan(&jm)
-	s.Require().Equal(jm.JournalMode, "wal")
+	//s.nextID++
+	//	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
+	//_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+	//	Configuration: fmt.Sprintf(`
+	//		database_type = "sqlite3"
+	//		log_sql = true
+	//		connection_string = "%s"
+	//		`, dbPath),
+	//})
+	//s.Require().NoError(err)
 
-	// assert that foreign_key support is enabled
-	fk := struct {
-		ForeignKeys string
-	}{}
-	p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
-	s.Require().Equal(fk.ForeignKeys, "1")
+	//// assert that WAL journal mode is enabled
+	//jm := struct {
+	//	JournalMode string
+	//}{}
+	//p.db.Raw("PRAGMA journal_mode").Scan(&jm)
+	//s.Require().Equal(jm.JournalMode, "wal")
+
+	//// assert that foreign_key support is enabled
+	//fk := struct {
+	//	ForeignKeys string
+	//}{}
+	//p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
+	//s.Require().Equal(fk.ForeignKeys, "1")
 
 	return ds
+}
+
+func wipeMySQL(tb testing.TB, schema, connString string) {
+	db, err := sql.Open("mysql", connString)
+	require.NoError(tb, err)
+	defer db.Close()
+
+	rows, err := db.Query(fmt.Sprintf(`SELECT table_name FROM information_schema.tables WHERE table_schema = '%s';`, schema))
+	require.NoError(tb, err)
+	defer rows.Close()
+
+	for rows.Next() {
+		var q string
+		err = rows.Scan(&q)
+		require.NoError(tb, err)
+		_, err = db.Exec("DROP TABLE " + q)
+		//require.NoError(tb, err)
+	}
+	require.NoError(tb, rows.Err())
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {
@@ -1376,7 +1409,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 	}
 }
 
-func (s *PluginSuite) TestListMatchingEntries() {
+func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 	allEntries := make([]*common.RegistrationEntry, 0)
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
@@ -2049,3 +2082,16 @@ func (s *PluginSuite) TestConfigure() {
 	}
 
 }
+
+//func TestListRegistrationEntriesQuery(t *testing.T) {
+//	dbType := "mysql"
+//	query, args, err := buildListRegistrationEntriesQuery(dbType, &datastore.ListRegistrationEntriesRequest{
+//		BySelectors: &datastore.BySelectors{
+//			Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
+//			Match:     datastore.BySelectors_MATCH_SUBSET,
+//		},
+//	})
+//	require.NoError(t, err)
+//	fmt.Println("QUERY:", query)
+//	fmt.Println("ARGS:", args)
+//}
