@@ -383,8 +383,8 @@ func TestSVIDRotation(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
-	releaseConnHookCalled := false
-	m.SetReleaseConnHook(func() { releaseConnHookCalled = true })
+	rotationFinishedHook := false
+	m.SetRotationFinishedHook(func() { rotationFinishedHook = true })
 
 	mockClk.WaitForTickerMulti(time.Second, 2, "svid rotater and syncer didn't create tickers after 1 second")
 
@@ -399,7 +399,7 @@ func TestSVIDRotation(t *testing.T) {
 		s := m.GetCurrentCredentials()
 		svid = s.SVID
 		require.True(t, svidsEqual(svid, baseSVID))
-		require.False(t, releaseConnHookCalled)
+		require.False(t, rotationFinishedHook)
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -415,7 +415,7 @@ func TestSVIDRotation(t *testing.T) {
 			svid = s.SVID
 			key = s.Key
 			if !svidsEqual(svid, baseSVID) {
-				require.True(t, releaseConnHookCalled)
+				require.True(t, rotationFinishedHook)
 				break
 			}
 			time.Sleep(100 * time.Millisecond)

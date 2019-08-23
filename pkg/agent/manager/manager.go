@@ -54,8 +54,8 @@ type Manager interface {
 	// GetCurrentCredentials returns the current SVID and key
 	GetCurrentCredentials() svid.State
 
-	// SetReleaseConnHook sets a hook that will be called when a rotation finished
-	SetReleaseConnHook(func())
+	// SetRotationFinishedHook sets a hook that will be called when a rotation finished
+	SetRotationFinishedHook(func())
 
 	// MatchingIdentities returns all of the cached identities whose
 	// registration entry selectors are a subset of the passed selectors.
@@ -137,8 +137,8 @@ func (m *manager) GetCurrentCredentials() svid.State {
 	return m.svid.State()
 }
 
-func (m *manager) SetReleaseConnHook(f func()) {
-	m.svid.SetReleaseConnHook(f)
+func (m *manager) SetRotationFinishedHook(f func()) {
+	m.svid.SetRotationFinishedHook(f)
 }
 
 func (m *manager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {

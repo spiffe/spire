@@ -138,16 +138,16 @@ func (mr *MockManagerMockRecorder) Run(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockManager)(nil).Run), arg0)
 }
 
-// SetReleaseConnHook mocks base method
-func (m *MockManager) SetReleaseConnHook(arg0 func()) {
+// SetRotationFinishedHook mocks base method
+func (m *MockManager) SetRotationFinishedHook(arg0 func()) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetReleaseConnHook", arg0)
+	m.ctrl.Call(m, "SetRotationFinishedHook", arg0)
 }
 
-// SetReleaseConnHook indicates an expected call of SetReleaseConnHook
-func (mr *MockManagerMockRecorder) SetReleaseConnHook(arg0 interface{}) *gomock.Call {
+// SetRotationFinishedHook indicates an expected call of SetRotationFinishedHook
+func (mr *MockManagerMockRecorder) SetRotationFinishedHook(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReleaseConnHook", reflect.TypeOf((*MockManager)(nil).SetReleaseConnHook), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRotationFinishedHook", reflect.TypeOf((*MockManager)(nil).SetRotationFinishedHook), arg0)
 }
 
 // SubscribeToBundleChanges mocks base method
