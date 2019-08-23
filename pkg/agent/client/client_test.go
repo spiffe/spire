@@ -39,9 +39,29 @@ func TestFetchUpdates(t *testing.T) {
 	nodeFsc.EXPECT().Recv().Return(res, nil)
 	nodeFsc.EXPECT().Recv().Return(nil, io.EOF)
 
-	update, err := client.FetchUpdates(context.Background(), req, false)
-	require.Nil(t, err)
+	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+	client.c.RotMtx.Lock()
 
+	// Do the request in a different go routine
+	var wg sync.WaitGroup
+	var update *Update
+	err := errors.New("a not nil error")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		update, err = client.FetchUpdates(context.Background(), req, false)
+	}()
+
+	// The request should wait until the SVID rotation finishes
+	require.Contains(t, "a not nil error", err.Error())
+	require.Nil(t, update)
+
+	// Simulate the end of the SVID rotation
+	client.c.RotMtx.Unlock()
+	wg.Wait()
+
+	// Assert results
+	require.Nil(t, err)
 	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
 	assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
 	for _, entry := range res.SvidUpdate.RegistrationEntries {
