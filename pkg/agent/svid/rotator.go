@@ -22,6 +22,8 @@ type Rotator interface {
 
 	State() State
 	Subscribe() observer.Stream
+	GetRotationMtx() *sync.RWMutex
+	SetReleaseConnHook(func())
 }
 
 type rotator struct {
@@ -33,6 +35,12 @@ type rotator struct {
 
 	// Mutex used to protect access to c.BundleStream.
 	bsm *sync.RWMutex
+
+	// Mutex used to prevent rotations when a new connection is being created
+	rotMtx *sync.RWMutex
+
+	// Hook to release client resources after an SVID rotation
+	releaseConnHook func()
 }
 
 type State struct {
@@ -74,6 +82,14 @@ func (r *rotator) Subscribe() observer.Stream {
 	return r.state.Observe()
 }
 
+func (r *rotator) GetRotationMtx() *sync.RWMutex {
+	return r.rotMtx
+}
+
+func (r *rotator) SetReleaseConnHook(f func()) {
+	r.releaseConnHook = f
+}
+
 // shouldRotate returns a boolean informing the caller of whether or not the
 // SVID should be rotated.
 func (r *rotator) shouldRotate() bool {
@@ -89,7 +105,11 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	counter := telemetry_agent.StartRotateAgentSVIDCall(r.c.Metrics, r.c.SpiffeID)
 	defer counter.Done(&err)
 
-	r.c.Log.Debug("Rotating agent SVID")
+	// Get the mtx before starting the rotation
+	// In this way, the client do not create new connections until the new SVID is received
+	r.rotMtx.Lock()
+	defer r.rotMtx.Unlock()
+	r.c.Log.Debug("Rotating agent SVIDss")
 
 	key, err := r.newKey(ctx)
 	if err != nil {
@@ -109,7 +129,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 			Csrs: map[string][]byte{
 				r.c.SpiffeID: csr,
 			},
-		})
+		}, true)
 	if err != nil {
 		return err
 	}
@@ -127,17 +147,22 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	// We must release the client because its underlaying connection is tied to an
-	// expired SVID, so next time the client is used, it will get a new connection with
-	// the most up-to-date SVID.
-	r.client.Release()
-
 	s := State{
 		SVID: certs,
 		Key:  key,
 	}
 
 	r.state.Update(s)
+
+	// We must release the client because its underlaying connection is tied to an
+	// expired SVID, so next time the client is used, it will get a new connection with
+	// the most up-to-date SVID.
+	r.client.Release()
+
+	if r.releaseConnHook != nil {
+		r.releaseConnHook()
+	}
+
 	return nil
 }
 

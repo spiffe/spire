@@ -48,6 +48,15 @@ type Manager interface {
 	// bundle changes.
 	SubscribeToBundleChanges() *cache.BundleStream
 
+	// GetRotationMtx returns a mutex that locks in SVIDs rotations
+	GetRotationMtx() *sync.RWMutex
+
+	// GetCurrentCredentials returns the current SVID and key
+	GetCurrentCredentials() svid.State
+
+	// SetReleaseConnHook sets a hook that will be called when a rotation finished
+	SetReleaseConnHook(func())
+
 	// MatchingIdentities returns all of the cached identities whose
 	// registration entry selectors are a subset of the passed selectors.
 	MatchingIdentities(selectors []*common.Selector) []cache.Identity
@@ -118,6 +127,18 @@ func (m *manager) SubscribeToSVIDChanges() observer.Stream {
 
 func (m *manager) SubscribeToBundleChanges() *cache.BundleStream {
 	return m.cache.SubscribeToBundleChanges()
+}
+
+func (m *manager) GetRotationMtx() *sync.RWMutex {
+	return m.svid.GetRotationMtx()
+}
+
+func (m *manager) GetCurrentCredentials() svid.State {
+	return m.svid.State()
+}
+
+func (m *manager) SetReleaseConnHook(f func()) {
+	m.svid.SetReleaseConnHook(f)
 }
 
 func (m *manager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
