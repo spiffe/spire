@@ -383,8 +383,23 @@ func TestSVIDRotation(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
-	rotationFinishedHook := false
-	m.SetRotationFinishedHook(func() { rotationFinishedHook = true })
+	// Define and set a rotation hook
+	rotHookStatus := struct {
+		called bool
+		mtx    sync.RWMutex
+	}{}
+
+	wasRotHookCalled := func() bool {
+		rotHookStatus.mtx.RLock()
+		defer rotHookStatus.mtx.RUnlock()
+		return rotHookStatus.called
+	}
+
+	m.SetRotationFinishedHook(func() {
+		rotHookStatus.mtx.Lock()
+		defer rotHookStatus.mtx.Unlock()
+		rotHookStatus.called = true
+	})
 
 	mockClk.WaitForTickerMulti(time.Second, 2, "svid rotater and syncer didn't create tickers after 1 second")
 
@@ -399,7 +414,7 @@ func TestSVIDRotation(t *testing.T) {
 		s := m.GetCurrentCredentials()
 		svid = s.SVID
 		require.True(t, svidsEqual(svid, baseSVID))
-		require.False(t, rotationFinishedHook)
+		require.False(t, wasRotHookCalled())
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -415,7 +430,7 @@ func TestSVIDRotation(t *testing.T) {
 			svid = s.SVID
 			key = s.Key
 			if !svidsEqual(svid, baseSVID) {
-				require.True(t, rotationFinishedHook)
+				require.True(t, wasRotHookCalled())
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
