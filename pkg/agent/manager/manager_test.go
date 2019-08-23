@@ -383,19 +383,39 @@ func TestSVIDRotation(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
+	releaseConnHookCalled := false
+	m.SetReleaseConnHook(func() { releaseConnHookCalled = true })
+
 	mockClk.WaitForTickerMulti(time.Second, 2, "svid rotater and syncer didn't create tickers after 1 second")
+
+	// Get RLock to simulate an ongoing request (Rotator should wait until mtx is unlocked)
+	m.GetRotationMtx().RLock()
+
 	// now that the ticker is created, cause a tick to happen
 	mockClk.Add(baseTTLSeconds / 2)
+
+	// Loop, we should not detect SVID rotations
+	for i := 0; i < 10; i++ {
+		s := m.GetCurrentCredentials()
+		svid = s.SVID
+		require.True(t, svidsEqual(svid, baseSVID))
+		require.False(t, releaseConnHookCalled)
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// RUnlock simulates the end of the request (Rotator should rotate SVIDs now)
+	m.GetRotationMtx().RUnlock()
 
 	// Loop until we detect an SVID rotation
 	util.RunWithTimeout(t, time.Second, func() {
 		for {
 			// If manager's current SVID is not equals to the first one we generated
 			// it means it rotated, so we must exit the loop.
-			s := m.svid.State()
+			s := m.GetCurrentCredentials()
 			svid = s.SVID
 			key = s.Key
 			if !svidsEqual(svid, baseSVID) {
+				require.True(t, releaseConnHookCalled)
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
