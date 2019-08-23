@@ -50,12 +50,14 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 		Key:  c.SVIDKey,
 	})
 
+	rotMtx := new(sync.RWMutex)
 	bsm := new(sync.RWMutex)
 
 	cfg := &client.Config{
 		TrustDomain: c.TrustDomain,
 		Log:         c.Log,
 		Addr:        c.ServerAddr,
+		RotMtx:      rotMtx,
 		KeysAndBundle: func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
 			s := state.Value().(State)
 
@@ -78,5 +80,6 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 		state:  state,
 		clk:    c.Clk,
 		bsm:    bsm,
+		rotMtx: rotMtx,
 	}, client
 }
