@@ -66,11 +66,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	var spiffeIDs []string
 	identities := h.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
-		telemetry_common.AddRegistered(counter, false)
 		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
-
-	telemetry_common.AddRegistered(counter, true)
 
 	for _, identity := range identities {
 		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
@@ -78,8 +75,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		}
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
 	}
-
-	telemetry_common.AddCount(counter, len(spiffeIDs))
 
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
@@ -220,11 +215,8 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	}()
 
 	if len(update.Identities) == 0 {
-		telemetry_common.AddRegistered(counter, false)
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
-
-	telemetry_common.AddRegistered(counter, true)
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
@@ -241,7 +233,6 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 	}
-	telemetry_common.AddCount(counter, len(resp.Svids))
 
 	return nil
 }

@@ -227,8 +227,6 @@ func (h *Handler) ListByParentID(
 		return nil, err
 	}
 
-	counter.AddLabel("parent_id", request.Id)
-
 	ds := h.getDataStore()
 	listResponse, err := ds.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
@@ -259,8 +257,6 @@ func (h *Handler) ListBySelector(
 		telemetry_common.AddErrorClass(counter, status.Code(err))
 	}()
 
-	counter.AddLabel(telemetry.Selector, fmt.Sprintf("%s:%s", request.Type, request.Value))
-
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
 		BySelectors: &datastore.BySelectors{
@@ -290,10 +286,6 @@ func (h *Handler) ListBySelectors(
 	defer func() {
 		telemetry_common.AddErrorClass(counter, status.Code(err))
 	}()
-
-	for _, selector := range request.Entries {
-		counter.AddLabel("selector", fmt.Sprintf("%s:%s", selector.Type, selector.Value))
-	}
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -332,8 +324,6 @@ func (h *Handler) ListBySpiffeID(
 		return nil, err
 	}
 
-	telemetry_common.AddSPIFFEID(counter, request.Id)
-
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
@@ -371,8 +361,6 @@ func (h *Handler) CreateFederatedBundle(
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-
-	counter.AddLabel(telemetry.TrustDomainID, bundle.TrustDomainId)
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
@@ -474,8 +462,6 @@ func (h *Handler) UpdateFederatedBundle(
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	counter.AddLabel(telemetry.TrustDomainID, bundle.TrustDomainId)
-
 	if bundle.TrustDomainId == h.TrustDomain.String() {
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -507,8 +493,6 @@ func (h *Handler) DeleteFederatedBundle(
 		h.Log.Error(err)
 		return nil, err
 	}
-
-	counter.AddLabel(telemetry.TrustDomainID, request.Id)
 
 	if request.Id == h.TrustDomain.String() {
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")

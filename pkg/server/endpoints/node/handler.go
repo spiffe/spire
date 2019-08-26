@@ -157,7 +157,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	agentID := attestResponse.AgentId
-	telemetry_common.AddSPIFFEID(counter, agentID)
 	log = log.WithField(telemetry.SPIFFEID, agentID)
 
 	if csr.SpiffeID != "" && agentID != csr.SpiffeID {
@@ -287,8 +286,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids = make(map[string]*node.X509SVID)
 		}
-		// Add SVID count to counter
-		telemetry_common.AddCount(counter, len(svids))
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
@@ -398,8 +395,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	case len(req.Jsr.Audience) == 0:
 		return nil, status.Error(codes.InvalidArgument, "request missing audience")
 	}
-
-	telemetry_common.AddSPIFFEID(counter, req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {

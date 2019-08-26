@@ -1191,7 +1191,6 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, expectedSPI
 	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
 	defer expectedCounter.Done(nil)
 	telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
-	telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
@@ -1227,9 +1226,6 @@ func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, expectedSPI
 	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
 	if req.AttestationData != nil && req.AttestationData.Type != "" {
 		telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
-	}
-	if expectedSPIFFE != "" {
-		telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
 	}
 	fakeErr := errors.New("")
 	defer expectedCounter.Done(&fakeErr)

@@ -312,7 +312,6 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse attestation response: %v", err)
 	}
-	telemetry_common.AddSPIFFEID(counter, agentID)
 
 	if deprecatedAgentID != "" && agentID != deprecatedAgentID {
 		return nil, nil, fmt.Errorf("server returned inconsistent SPIFFE ID: expected %q; got %q", deprecatedAgentID, agentID)
