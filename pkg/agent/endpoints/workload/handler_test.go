@@ -522,10 +522,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{})
 
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
-	labels := []telemetry.Label{
-		{Name: telemetry.Error, Value: "token contains an invalid number of segments"},
-	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
 
 	resp, err = s.h.ValidateJWTSVID(makeContext(1), &workload.ValidateJWTSVIDRequest{
 		Audience: "audience",
@@ -566,7 +563,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	s.Require().NoError(err)
 
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
-	labels = []telemetry.Label{
+	labels := []telemetry.Label{
 		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
 		{Name: telemetry.Audience, Value: "audience"},
 	}

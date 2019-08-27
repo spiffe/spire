@@ -688,7 +688,7 @@ func (m *Manager) authorizedCert(ctx context.Context, key crypto.Signer, ck cert
 	return der, leaf, nil
 }
 
-// revokePendingAuthz revokes all authorizations idenfied by the elements of uri slice.
+// revokePendingAuthz revokes all authorizations identified by the elements of uri slice.
 // It ignores revocation errors.
 func (m *Manager) revokePendingAuthz(ctx context.Context, uri []string) {
 	client, err := m.acmeClient(ctx)

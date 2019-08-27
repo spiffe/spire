@@ -128,6 +128,14 @@ func TestParseConfig(t *testing.T) {
 			`,
 			err: "cluster must be specified",
 		},
+		{
+			name: "workload registration mode specification is incorrect",
+			in: testMinimalConfig + `
+				pod_label = "PODLABEL"
+				pod_annotation = "PODANNOTATION"
+			`,
+			err: "workload registration mode specification is incorrect, can't specify both pod_label and pod_annotation",
+		},
 	}
 
 	for _, testCase := range testCases {
