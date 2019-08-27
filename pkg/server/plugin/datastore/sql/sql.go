@@ -1028,10 +1028,7 @@ func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*dat
 }
 
 func getNodeSelectors(ctx context.Context, dbType string, db *sql.DB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
-	query := "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id"
-	if dbType == PostgreSQL {
-		query = postgreSQLRebind(query)
-	}
+	query := maybeRebind(dbType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
 	rows, err := db.QueryContext(ctx, query, req.SpiffeId)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1134,15 +1131,16 @@ func fetchRegistrationEntry(ctx context.Context, dbType string, db *sql.DB, req 
 	}
 	defer rows.Close()
 
-	found := false
-	entry := new(common.RegistrationEntry)
+	var entry *common.RegistrationEntry
 	for rows.Next() {
-		found = true
 		var r entryRow
 		if err := scanEntryRow(rows, &r); err != nil {
 			return nil, err
 		}
 
+		if entry == nil {
+			entry = new(common.RegistrationEntry)
+		}
 		if err := fillEntryFromRow(entry, &r); err != nil {
 			return nil, err
 		}
@@ -1150,10 +1148,6 @@ func fetchRegistrationEntry(ctx context.Context, dbType string, db *sql.DB, req 
 
 	if err := rows.Err(); err != nil {
 		return nil, sqlError.Wrap(err)
-	}
-
-	if !found {
-		entry = nil
 	}
 
 	return &datastore.FetchRegistrationEntryResponse{
@@ -1346,32 +1340,41 @@ func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req
 		// represented in the request selectors.
 		// TODO: we could probably push this into SQL with some fancy "group
 		// by" count filtering.
-		type selectorKey struct {
-			Type  string
-			Value string
-		}
-		set := make(map[selectorKey]struct{}, len(req.BySelectors.Selectors))
-		for _, s := range req.BySelectors.Selectors {
-			set[selectorKey{Type: s.Type, Value: s.Value}] = struct{}{}
-		}
-		filtered := make([]*common.RegistrationEntry, 0, len(resp.Entries))
-	entryLoop:
-		for _, entry := range resp.Entries {
-			for _, s := range entry.Selectors {
-				if _, ok := set[selectorKey{Type: s.Type, Value: s.Value}]; !ok {
-					continue entryLoop
-				}
-			}
-			filtered = append(filtered, entry)
-		}
-		resp.Entries = filtered
-
+		resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
 		if len(resp.Entries) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
 			return resp, nil
 		}
 
 		req.Pagination = resp.Pagination
 	}
+}
+
+func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors []*common.Selector) []*common.RegistrationEntry {
+	type selectorKey struct {
+		Type  string
+		Value string
+	}
+	set := make(map[selectorKey]struct{}, len(selectors))
+	for _, s := range selectors {
+		set[selectorKey{Type: s.Type, Value: s.Value}] = struct{}{}
+	}
+
+	isSubset := func(ss []*common.Selector) bool {
+		for _, s := range ss {
+			if _, ok := set[selectorKey{Type: s.Type, Value: s.Value}]; !ok {
+				return false
+			}
+		}
+		return true
+	}
+
+	filtered := make([]*common.RegistrationEntry, 0, len(entries))
+	for _, entry := range entries {
+		if isSubset(entry.Selectors) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
@@ -1389,6 +1392,10 @@ func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB,
 	var entries []*common.RegistrationEntry
 	if req.Pagination != nil {
 		entries = make([]*common.RegistrationEntry, 0, req.Pagination.PageSize)
+	} else {
+		// start the slice off with a little capacity to avoid the first few
+		// reallocations
+		entries = make([]*common.RegistrationEntry, 0, 64)
 	}
 	var lastEID uint64
 
@@ -1451,12 +1458,13 @@ func buildListRegistrationEntriesQuery(dbType string, req *datastore.ListRegistr
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
 	builder := new(strings.Builder)
 
-	args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
+	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
 	if err != nil {
 		return "", nil, err
 	}
-
-	filtered := builder.Len() > 0
+	if filtered {
+		builder.WriteString(")")
+	}
 
 	builder.WriteString(`
 SELECT
@@ -1527,12 +1535,13 @@ ORDER BY e_id, selector_id, dns_name_id
 func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
 	builder := new(strings.Builder)
 
-	args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
+	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
 	if err != nil {
 		return "", nil, err
 	}
-
-	filtered := builder.Len() > 0
+	if filtered {
+		builder.WriteString(")")
+	}
 
 	builder.WriteString(`
 SELECT
@@ -1600,6 +1609,13 @@ ORDER BY e_id, selector_id, dns_name_id
 	return postgreSQLRebind(builder.String()), args, nil
 }
 
+func maybeRebind(dbType, query string) string {
+	if dbType == PostgreSQL {
+		return postgreSQLRebind(query)
+	}
+	return query
+}
+
 func postgreSQLRebind(s string) string {
 	return bindVarsFn(func(n int) string {
 		return "$" + strconv.Itoa(n)
@@ -1636,9 +1652,13 @@ LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 `)
 
-	args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
+	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
 	if err != nil {
 		return "", nil, err
+	}
+
+	if filtered {
+		builder.WriteString(")")
 	}
 
 	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
@@ -1646,141 +1666,218 @@ LEFT JOIN
 	return builder.String(), args, nil
 }
 
-func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings.Builder, dbType string, req *datastore.ListRegistrationEntriesRequest) ([]interface{}, error) {
-	var args []interface{}
+type idFilterNode struct {
+	// mutually exclusive with children
+	query string
 
-	filterCount := 0
-	filter := func() {
-		filterCount++
-		if filterCount == 1 {
-			builder.WriteString(filterExp)
-			builder.WriteString("\tSELECT id FROM (\n")
-			// MySQL 5.x does not support applying limits to a direct subquery,
-			// so we need to wrap the subquery to apply the limit
-			if dbType == MySQL && req.Pagination != nil {
-				builder.WriteString("\tSELECT id FROM (\n")
-			}
-		} else {
-			builder.WriteString("\t\tUNION\n")
+	// mutually exclusive with query
+	children []idFilterNode
+	union    bool
+	name     string
+
+	fixed bool
+}
+
+func (n idFilterNode) Render(builder *strings.Builder, dbType string, indentation int, eol bool) {
+	n.render(builder, dbType, 0, indentation, true, eol)
+}
+
+func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling int, indentation int, bol, eol bool) {
+	if n.query != "" {
+		if bol {
+			indent(builder, indentation)
 		}
+		builder.WriteString(n.query)
+		if eol {
+			builder.WriteString("\n")
+		}
+		return
 	}
 
+	if !n.fixed && len(n.children) == 1 {
+		n.children[0].render(builder, dbType, sibling, indentation, bol, eol)
+		return
+	}
+
+	if bol {
+		indent(builder, indentation)
+	}
+	needsName := true
+	switch {
+	case n.union:
+		builder.WriteString("SELECT id FROM (\n")
+		for i, child := range n.children {
+			if i > 0 {
+				indent(builder, indentation+1)
+				builder.WriteString("UNION\n")
+			}
+			child.render(builder, dbType, i, indentation+1, true, true)
+		}
+	case dbType != MySQL:
+		builder.WriteString("SELECT id FROM (\n")
+		for i, child := range n.children {
+			if i > 0 {
+				indent(builder, indentation+1)
+				builder.WriteString("INTERSECT\n")
+			}
+			child.render(builder, dbType, i, indentation+1, true, true)
+		}
+	default:
+		needsName = false
+		builder.WriteString("SELECT DISTINCT id FROM (\n")
+		for i, child := range n.children {
+			if i > 0 {
+				indent(builder, indentation+1)
+				builder.WriteString("INNER JOIN\n")
+			}
+			indent(builder, indentation+1)
+			builder.WriteString("(")
+			child.render(builder, dbType, i, indentation+1, false, false)
+			builder.WriteString(") c_")
+			builder.WriteString(strconv.Itoa(i))
+			builder.WriteString("\n")
+			if i > 0 {
+				indent(builder, indentation+1)
+				builder.WriteString("USING(id)\n")
+			}
+		}
+	}
+	indent(builder, indentation)
+	builder.WriteString(")")
+	if n.name != "" {
+		builder.WriteString(" ")
+		builder.WriteString(n.name)
+	} else if needsName {
+		builder.WriteString(" s_")
+		builder.WriteString(strconv.Itoa(sibling))
+	}
+	if eol {
+		builder.WriteString("\n")
+	}
+}
+
+func indent(builder *strings.Builder, indentation int) {
+	switch indentation {
+	case 0:
+	case 1:
+		builder.WriteString("\t")
+	case 2:
+		builder.WriteString("\t\t")
+	case 3:
+		builder.WriteString("\t\t\t")
+	case 4:
+		builder.WriteString("\t\t\t\t")
+	case 5:
+		builder.WriteString("\t\t\t\t\t")
+	default:
+		for i := 0; i < indentation; i++ {
+			builder.WriteString("\t")
+		}
+	}
+}
+
+func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings.Builder, dbType string, req *datastore.ListRegistrationEntriesRequest) (bool, []interface{}, error) {
+	var args []interface{}
+
+	var root idFilterNode
+
 	if req.ByParentId != nil || req.BySpiffeId != nil {
-		filter()
-		builder.WriteString("\t\tSELECT id FROM registered_entries WHERE ")
+		subquery := new(strings.Builder)
+		subquery.WriteString("SELECT id FROM registered_entries WHERE ")
 		if req.ByParentId != nil {
-			builder.WriteString("parent_id = ?")
+			subquery.WriteString("parent_id = ?")
 			args = append(args, req.ByParentId.Value)
 		}
 		if req.BySpiffeId != nil {
 			if req.ByParentId != nil {
-				builder.WriteString(" AND ")
+				subquery.WriteString(" AND ")
 			}
-			builder.WriteString("spiffe_id = ?")
+			subquery.WriteString("spiffe_id = ?")
 			args = append(args, req.BySpiffeId.Value)
 		}
-		builder.WriteRune('\n')
+		root.children = append(root.children, idFilterNode{
+			query: subquery.String(),
+		})
 	}
+
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
-		filter()
 		switch req.BySelectors.Match {
 		case datastore.BySelectors_MATCH_SUBSET:
-			switch {
-			case len(req.BySelectors.Selectors) == 1:
-				builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
-			default:
-				for i := range req.BySelectors.Selectors {
-					if i > 0 {
-						builder.WriteString("\t\tUNION\n")
-					}
-					builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
-				}
+			// subset needs a union, so we need to group them and add the group
+			// as a child to the root.
+			group := idFilterNode{
+				union: true,
 			}
+			for range req.BySelectors.Selectors {
+				group.children = append(group.children, idFilterNode{
+					query: "SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?",
+				})
+			}
+			root.children = append(root.children, group)
 		case datastore.BySelectors_MATCH_EXACT:
-			switch {
-			case len(req.BySelectors.Selectors) == 1:
-				builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
-			case dbType != MySQL:
-				if filterCount > 1 {
-					// need a subquery to group the intersection
-					builder.WriteString("\t\tSELECT id FROM (\n")
-				}
-				for i := range req.BySelectors.Selectors {
-					if i > 0 {
-						if filterCount > 1 {
-							builder.WriteString("\t")
-						}
-						builder.WriteString("\t\tINTERSECT\n")
-					}
-					if filterCount > 1 {
-						builder.WriteString("\t")
-					}
-					builder.WriteString("\t\tSELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?\n")
-				}
-				if filterCount > 1 {
-					builder.WriteString("\t\t)\n")
-				}
-			default:
-				builder.WriteString("\t\tSELECT DISTINCT id FROM (\n")
-				for i := range req.BySelectors.Selectors {
-					if i > 0 {
-						builder.WriteString("\t\t\tINNER JOIN\n")
-					}
-					builder.WriteString("\t\t\t(")
-					builder.WriteString("SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?")
-					builder.WriteString(") q_")
-					builder.WriteString(strconv.Itoa(i))
-					builder.WriteString("\n")
-					if i > 0 {
-						builder.WriteString("\t\t\tUSING(id)\n")
-					}
-				}
-				builder.WriteString("\t\t)\n")
+			// exact match does uses an intersection, so we can just add these
+			// directly to the root idFilterNode, since it is already an intersection
+			for range req.BySelectors.Selectors {
+				root.children = append(root.children, idFilterNode{
+					query: "SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?",
+				})
 			}
 		default:
-			return nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
+			return false, nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
 		}
-
 		for _, selector := range req.BySelectors.Selectors {
 			args = append(args, selector.Type, selector.Value)
 		}
 	}
 
-	if filterCount > 0 {
-		// close the listing subquery
-		builder.WriteString("\t) listing")
+	filtered := false
+	filter := func() {
+		if !filtered {
+			builder.WriteString(filterExp)
+		}
+		filtered = true
+	}
+
+	indentation := 1
+	if req.Pagination != nil && dbType == MySQL {
+		filter()
+		builder.WriteString("\tSELECT id FROM (\n")
+		indentation = 2
+	}
+
+	if len(root.children) > 0 {
+		filter()
+		root.Render(builder, dbType, indentation, req.Pagination == nil)
 	}
 
 	if req.Pagination != nil {
-		if filterCount == 0 {
-			builder.WriteString(filterExp)
-			if dbType == MySQL {
-				builder.WriteString("\tSELECT id FROM (\n\t")
-			}
-			builder.WriteString("\tSELECT id FROM registered_entries")
+		filter()
+		if len(root.children) == 0 {
+			indent(builder, indentation)
+			builder.WriteString("SELECT id FROM registered_entries")
 		}
 		if len(req.Pagination.Token) > 0 {
 			token, err := strconv.ParseUint(string(req.Pagination.Token), 10, 32)
 			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+				return false, nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
 			}
-			builder.WriteString(" WHERE id > ?")
+			if len(root.children) == 1 {
+				builder.WriteString(" AND id > ?")
+			} else {
+				builder.WriteString(" WHERE id > ?")
+			}
 			args = append(args, token)
 		}
 		builder.WriteString(" ORDER BY id ASC LIMIT ")
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+		builder.WriteString("\n")
+
 		if dbType == MySQL {
-			builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
-		}
-		if filterCount == 0 {
-			builder.WriteString("\n)")
+			builder.WriteString("\t) workaround_for_mysql_subquery_limit\n")
 		}
 	}
 
-	if filterCount > 0 {
-		builder.WriteString("\n)")
-	}
-	return args, nil
+	return filtered, args, nil
 }
 
 type entryRow struct {
@@ -2141,7 +2238,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 	}
 
 	var fetchedDNSs []*DNSName
-	if err := tx.Model(&model).Related(&fetchedDNSs).Error; err != nil {
+	if err := tx.Model(&model).Related(&fetchedDNSs).Order("registered_entry_id ASC").Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 

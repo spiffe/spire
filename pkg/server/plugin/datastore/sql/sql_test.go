@@ -538,7 +538,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		byExpiresBefore    *wrappers.Int64Value
 		expectedList       []*common.AttestedNode
 		expectedPagination *datastore.Pagination
-		err                string
+		expectedErr        string
 	}{
 		{
 			name: "pagination_without_token",
@@ -557,7 +557,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				Token:    "0",
 				PageSize: 0,
 			},
-			err: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
+			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
 		},
 		{
 			name: "get_all_nodes_first_page",
@@ -645,8 +645,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByExpiresBefore: test.byExpiresBefore,
 				Pagination:      test.pagination,
 			})
-			if test.err != "" {
-				require.EqualError(t, err, test.err)
+			if test.expectedErr != "" {
+				require.EqualError(t, err, test.expectedErr)
 				return
 			}
 			require.NoError(t, err)
@@ -1196,6 +1196,62 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 	})
 	s.Require().Nil(resp)
 	s.Require().Error(err, "could not parse token 'invalid int'")
+}
+
+func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: "spiffe://example.org/P1",
+		SpiffeId: "spiffe://example.org/S1",
+		Selectors: []*common.Selector{
+			{Type: "T1", Value: "V1"},
+		},
+	})
+
+	// shares a parent ID
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: "spiffe://example.org/P1",
+		SpiffeId: "spiffe://example.org/S2",
+		Selectors: []*common.Selector{
+			{Type: "T2", Value: "V2"},
+		},
+	})
+
+	// shares a spiffe ID
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: "spiffe://example.org/P3",
+		SpiffeId: "spiffe://example.org/S1",
+		Selectors: []*common.Selector{
+			{Type: "T3", Value: "V3"},
+		},
+	})
+
+	// shares selectors
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: "spiffe://example.org/P4",
+		SpiffeId: "spiffe://example.org/S4",
+		Selectors: []*common.Selector{
+			{Type: "T1", Value: "V1"},
+		},
+	})
+
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		ByParentId: &wrappers.StringValue{
+			Value: "spiffe://example.org/P1",
+		},
+		BySpiffeId: &wrappers.StringValue{
+			Value: "spiffe://example.org/S1",
+		},
+		BySelectors: &datastore.BySelectors{
+			Selectors: []*common.Selector{
+				{Type: "T1", Value: "V1"},
+			},
+			Match: datastore.BySelectors_MATCH_EXACT,
+		},
+	})
+
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.RequireProtoListEqual([]*common.RegistrationEntry{entry}, resp.Entries)
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
@@ -1848,6 +1904,13 @@ func (s *PluginSuite) TestMigration() {
 			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
+		case 10:
+			db, err := sqlite{}.connect(&configuration{
+				DatabaseType:     "sqlite3",
+				ConnectionString: fmt.Sprintf("file://%s", dbPath),
+			})
+			s.Require().NoError(err)
+			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -2110,9 +2173,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
-	) listing
+	SELECT id FROM registered_entries WHERE parent_id = ?
 )
 SELECT
 	id as e_id,
@@ -2170,9 +2231,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = ?
-	) listing
+	SELECT id FROM registered_entries WHERE spiffe_id = ?
 )
 SELECT
 	id as e_id,
@@ -2230,9 +2289,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
-	) listing
+	SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
 )
 SELECT
 	id as e_id,
@@ -2290,9 +2347,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 )
 SELECT
 	id as e_id,
@@ -2354,7 +2409,7 @@ WITH listing AS (
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 		UNION
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -2412,9 +2467,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 )
 SELECT
 	id as e_id,
@@ -2476,7 +2529,7 @@ WITH listing AS (
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 		INTERSECT
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -2536,9 +2589,9 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
+		INTERSECT
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -2598,11 +2651,13 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+		INTERSECT
+		SELECT id FROM (
+			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+			UNION
+			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		) s_1
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -2663,9 +2718,9 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
+		INTERSECT
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -2725,13 +2780,11 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
-		SELECT id FROM (
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-			INTERSECT
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-		)
-	) listing
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -2906,9 +2959,70 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
+	SELECT id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "sqlite3",
+			by:      []string{"spiffe-id", "selector-exact-one"},
+			paged:   "with-token",
+			query: `
+WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE spiffe_id = ?
-	) listing WHERE id > ? ORDER BY id ASC LIMIT 1
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	) s_0 WHERE id > ? ORDER BY id ASC LIMIT 1
 )
 SELECT
 	id as e_id,
@@ -3015,9 +3129,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
-	) listing
+	SELECT id FROM registered_entries WHERE parent_id = $1
 )
 SELECT
 	id as e_id,
@@ -3075,9 +3187,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = $1
-	) listing
+	SELECT id FROM registered_entries WHERE spiffe_id = $1
 )
 SELECT
 	id as e_id,
@@ -3135,9 +3245,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1 AND spiffe_id = $2
-	) listing
+	SELECT id FROM registered_entries WHERE parent_id = $1 AND spiffe_id = $2
 )
 SELECT
 	id as e_id,
@@ -3195,9 +3303,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
-	) listing
+	SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
 )
 SELECT
 	id as e_id,
@@ -3259,7 +3365,7 @@ WITH listing AS (
 		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
 		UNION
 		SELECT registered_entry_id AS id FROM selectors WHERE type = $3 AND value = $4
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -3317,9 +3423,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
-	) listing
+	SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
 )
 SELECT
 	id as e_id,
@@ -3381,7 +3485,7 @@ WITH listing AS (
 		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
 		INTERSECT
 		SELECT registered_entry_id AS id FROM selectors WHERE type = $3 AND value = $4
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -3441,9 +3545,9 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = $1
-		UNION
+		INTERSECT
 		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -3503,11 +3607,13 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = $1
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
-	) listing
+		INTERSECT
+		SELECT id FROM (
+			SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+			UNION
+			SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
+		) s_1
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -3568,9 +3674,9 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = $1
-		UNION
+		INTERSECT
 		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
-	) listing
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -3630,13 +3736,11 @@ ORDER BY e_id, selector_id, dns_name_id
 WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE parent_id = $1
-		UNION
-		SELECT id FROM (
-			SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
-			INTERSECT
-			SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
-		)
-	) listing
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
+	) s_0
 )
 SELECT
 	id as e_id,
@@ -3811,9 +3915,70 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
+	SELECT id FROM registered_entries WHERE spiffe_id = $1 AND id > $2 ORDER BY id ASC LIMIT 1
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "postgres",
+			by:      []string{"spiffe-id", "selector-exact-one"},
+			paged:   "with-token",
+			query: `
+WITH listing AS (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE spiffe_id = $1
-	) listing WHERE id > $2 ORDER BY id ASC LIMIT 1
+		INTERSECT
+		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+	) s_0 WHERE id > $4 ORDER BY id ASC LIMIT 1
 )
 SELECT
 	id as e_id,
@@ -3928,9 +4093,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
-	) listing
+	SELECT id FROM registered_entries WHERE parent_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3965,9 +4128,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = ?
-	) listing
+	SELECT id FROM registered_entries WHERE spiffe_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4002,9 +4163,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
-	) listing
+	SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4039,9 +4198,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4080,7 +4237,7 @@ WHERE E.id IN (
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 		UNION
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	) s_0
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4115,9 +4272,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4152,14 +4307,12 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT DISTINCT id FROM (
-			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_0
-			INNER JOIN
-			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_1
-			USING(id)
-		)
-	) listing
+	SELECT DISTINCT id FROM (
+		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_0
+		INNER JOIN
+		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(id)
+	)
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4194,11 +4347,12 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	SELECT DISTINCT id FROM (
+		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+		INNER JOIN
+		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(id)
+	)
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4233,13 +4387,16 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	SELECT DISTINCT id FROM (
+		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+		INNER JOIN
+		(SELECT id FROM (
+			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+			UNION
+			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		) s_1) c_1
+		USING(id)
+	)
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4275,11 +4432,12 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) listing
+	SELECT DISTINCT id FROM (
+		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+		INNER JOIN
+		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(id)
+	)
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4314,16 +4472,15 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
-		UNION
-		SELECT DISTINCT id FROM (
-			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_0
-			INNER JOIN
-			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) q_1
-			USING(id)
-		)
-	) listing
+	SELECT DISTINCT id FROM (
+		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+		INNER JOIN
+		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(id)
+		INNER JOIN
+		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_2
+		USING(id)
+	)
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4434,9 +4591,50 @@ LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
 	SELECT id FROM (
+		SELECT id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
+	) workaround_for_mysql_subquery_limit
+)
+ORDER BY e_id, selector_id, dns_name_id
+;`,
+		},
+		{
+			dialect: "mysql",
+			by:      []string{"spiffe-id", "selector-exact-one"},
+			paged:   "with-token",
+			query: `
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE E.id IN (
 	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = ?
-	) listing WHERE id > ? ORDER BY id ASC LIMIT 1
+		SELECT DISTINCT id FROM (
+			(SELECT id FROM registered_entries WHERE spiffe_id = ?) c_0
+			INNER JOIN
+			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
+			USING(id)
+		) WHERE id > ? ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 ORDER BY e_id, selector_id, dns_name_id
