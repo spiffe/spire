@@ -35,7 +35,7 @@ type Config struct {
 }
 
 type Deps struct {
-	// DataStore is used to retrieve the lastest bundle. It MUST be set.
+	// DataStore is used to retrieve the latest bundle. It MUST be set.
 	DataStore datastore.DataStore
 
 	// X509IdentityFetcher is used to fetch the X509 identity. It MUST be set.
