@@ -166,6 +166,10 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 
 	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.TrustDomainID: m.c.TrustDomain.String(),
+		telemetry.TTL: ttl.Seconds(),
+	}).Debug("Successfully rotated X.509 CA")
 
 	return nil
 }
@@ -350,6 +354,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 
 	if resp.BundleChanged {
 		telemetry_server.IncrManagerPrunedBundleCounter(m.c.Metrics)
+		m.c.Log.Debug("Expired certificates were successfully pruned from bundle")
 		m.bundleUpdated()
 	}
 
