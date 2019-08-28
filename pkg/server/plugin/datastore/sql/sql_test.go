@@ -1684,6 +1684,63 @@ func (s *PluginSuite) TestGetPluginInfo() {
 	s.Require().NotNil(resp)
 }
 
+func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
+	dbName := fmt.Sprintf("v%d.sqlite3", 0)
+	dbPath := filepath.Join(s.dir, "migration-"+dbName)
+	dump := migrationDump(0)
+	s.Require().NotEmpty(dump, "no migration dump set up for version %d", 0)
+	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", 0)
+
+	// configure the datastore to use the new database
+	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`
+				database_type = "sqlite3"
+				connection_string = "file://%s"
+				disable_migration = true
+			`, dbPath),
+	})
+	s.Require().NoError(err)
+
+	// the v0 database has two bundles. the spiffe://otherdomain.org
+	// bundle has been soft-deleted. after migration, it should not
+	// exist. if we try and create a bundle with the same id, it should
+	// fail if the migration did not run.
+	_, err = s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
+		Bundle: bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil),
+	})
+	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: table bundles has no column named data")
+}
+
+func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
+	dbName := fmt.Sprintf("v%d.sqlite3", 9)
+	dbPath := filepath.Join(s.dir, "migration-"+dbName)
+	dump := migrationDump(9)
+	s.Require().NotEmpty(dump, "no migration dump set up for version %d", 9)
+	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", 9)
+
+	// configure the datastore to use the new database
+	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`
+				database_type = "sqlite3"
+				connection_string = "file://%s"
+				disable_migration = true
+			`, dbPath),
+	})
+	s.Require().NoError(err)
+
+	// between 9 and 10 only a new index was added; this should be non-breaking
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		SpiffeId:  "spiffe://example.org/foo",
+		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+	})
+	db, err := sqlite{}.connect(&configuration{
+		DatabaseType:     "sqlite3",
+		ConnectionString: fmt.Sprintf("file://%s", dbPath),
+	})
+	s.Require().NoError(err)
+	s.Require().False(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
+}
+
 func (s *PluginSuite) TestMigration() {
 	for i := 0; i < codeVersion; i++ {
 		dbName := fmt.Sprintf("v%d.sqlite3", i)

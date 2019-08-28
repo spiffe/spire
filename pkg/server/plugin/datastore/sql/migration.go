@@ -17,7 +17,7 @@ const (
 	codeVersion = 10
 )
 
-func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
+func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logger) (err error) {
 	isNew := !db.HasTable(&Bundle{})
 	if err := db.Error; err != nil {
 		return sqlError.Wrap(err)
@@ -27,6 +27,9 @@ func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 		return initDB(db, dbType, log)
 	}
 
+	// TODO related epic https://github.com/spiffe/spire/issues/1083
+	// continue doing this automigration for now; better versioning
+	// pattern should be introduced later
 	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -37,14 +40,19 @@ func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 	}
 	version := migration.Version
 
+	if version == codeVersion {
+		return nil
+	}
+
+	if disableMigration {
+		log.Warn(fmt.Sprintf("auto-migration disabled and DB versions do not match! Errors or degradation may occur! (current=%d, code=%d)", version, codeVersion))
+		return nil
+	}
+
 	if version > codeVersion {
 		err = sqlError.New("backwards migration not supported! (current=%d, code=%d)", version, codeVersion)
 		log.Error(err.Error())
 		return err
-	}
-
-	if version == codeVersion {
-		return nil
 	}
 
 	log.Info("Running migrations...")
