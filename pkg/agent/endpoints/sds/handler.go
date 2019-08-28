@@ -224,25 +224,31 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 		return 0, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: fmt.Sprint(watcher.PID())}})
+	pid := watcher.PID()
+	pidStr := fmt.Sprint(pid)
+	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: pidStr}})
 	telemetry_agent.IncrSDSAPIConnectionCounter(metrics)
 	telemetry_agent.IncrSDSAPIConnectionTotalCounter(metrics)
+	log := h.c.Log.WithField(telemetry.SDSPID, pidStr)
+	log.Debug("Handling SDS API request")
 
-	selectors := h.c.Attestor.Attest(ctx, watcher.PID())
+	selectors := h.c.Attestor.Attest(ctx, pid)
 
 	// Ensure that the original caller is still alive so that we know we didn't
 	// attest some other process that happened to be assigned the original PID
 	err = watcher.IsAlive()
 	if err != nil {
 		telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
+		log.Debug("Finished handling SDS API request due to error")
 		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
 	done := func() {
 		defer telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
+		defer log.Debug("Finished handling SDS API request")
 	}
 
-	return watcher.PID(), selectors, done, nil
+	return pid, selectors, done, nil
 }
 
 func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *api_v2.DiscoveryResponse, err error) {

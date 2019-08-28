@@ -8,12 +8,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 var (
@@ -140,6 +139,31 @@ func (s *Suite) TestAttest() {
 				"group:g2000",
 				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
 				"sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
+			},
+		},
+		{
+			name:   "success getting path and hashing process binary",
+			pid:    12,
+			config: "discover_workload_path = true",
+			selectors: []string{
+				"uid:1000",
+				"user:u1000",
+				"gid:2000",
+				"group:g2000",
+				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
+				"sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
+			},
+		},
+		{
+			name:   "success getting path, disabled hashing process binary",
+			pid:    12,
+			config: "discover_workload_path = true\nworkload_size_limit = -1",
+			selectors: []string{
+				"uid:1000",
+				"user:u1000",
+				"gid:2000",
+				"group:g2000",
+				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
 			},
 		},
 	}

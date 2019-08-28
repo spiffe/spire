@@ -148,20 +148,17 @@ telemetry {
                 port = 9988
         }
 
-        DogStatsd {
-                address = "localhost:8125"
-        }
+        DogStatsd = [
+            { address = "localhost:8125" },
+        ]
 
-        Statsd {
-                address = "localhost:1337"
-        }
-
-        Statsd {
-                address = "collector.example.org:8125"
-        }
-
+        Statsd = [
+            { address = "localhost:1337" },
+            { address = "collector.example.org:8125" },
+        ]
+        
         M3 = [
-            { address = "localhost:9000" env = "prod" }
+            { address = "localhost:9000" env = "prod" },
         ]
 }
 ```
