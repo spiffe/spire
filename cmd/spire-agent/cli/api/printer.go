@@ -3,76 +3,49 @@ package api
 import (
 	"crypto/x509"
 	"fmt"
-	"os"
 	"time"
-
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 )
 
-func printX509SVIDResponse(resp *workload.X509SVIDResponse, respTime time.Duration) {
-	lenMsg := fmt.Sprintf("Received %v bundle", len(resp.Svids))
-	if len(resp.Svids) != 1 {
+func printX509SVIDResponse(svids []*X509SVID, respTime time.Duration) {
+	lenMsg := fmt.Sprintf("Received %d svid", len(svids))
+	if len(svids) != 1 {
 		lenMsg = lenMsg + "s"
 	}
 	lenMsg = lenMsg + fmt.Sprintf(" after %s", respTime)
 
 	fmt.Println(lenMsg)
-	for _, s := range resp.Svids {
+	for _, svid := range svids {
 		fmt.Println()
-		printX509SVID(s)
-		for _, trustDomain := range s.FederatesWith {
-			printX509FederatedBundle(resp, trustDomain)
+		printX509SVID(svid)
+		for trustDomain, bundle := range svid.FederatedBundles {
+			printX509FederatedBundle(trustDomain, bundle)
 		}
 	}
 
 	fmt.Println()
 }
 
-func printX509SVID(msg *workload.X509SVID) {
+func printX509SVID(svid *X509SVID) {
 	// Print SPIFFE ID first so if we run into a problem, we
 	// get to know which record it was
-	fmt.Printf("SPIFFE ID:\t\t%s\n", msg.SpiffeId)
+	fmt.Printf("SPIFFE ID:\t\t%s\n", svid.SPIFFEID)
 
-	// Parse SVID and CA bundle. If we encounter an error,
-	// simply print it and return so we can go to the next bundle
-	svid, err := x509.ParseCertificates(msg.X509Svid)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Could not parse SVID: %s\n", err)
-		return
-	}
-	if len(svid) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: SVID has no certificates\n")
-		return
-	}
-
-	svidBundle, err := x509.ParseCertificates(msg.Bundle)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Could not parse CA Certificates: %s\n", err)
-		return
-	}
-
-	fmt.Printf("SVID Valid After:\t%v\n", svid[0].NotBefore)
-	fmt.Printf("SVID Valid Until:\t%v\n", svid[0].NotAfter)
-	for i, intermediate := range svid[1:] {
+	fmt.Printf("SVID Valid After:\t%v\n", svid.Certificates[0].NotBefore)
+	fmt.Printf("SVID Valid Until:\t%v\n", svid.Certificates[0].NotAfter)
+	for i, intermediate := range svid.Certificates[1:] {
 		num := i + 1
 		fmt.Printf("Intermediate #%v Valid After:\t%v\n", num, intermediate.NotBefore)
 		fmt.Printf("Intermediate #%v Valid Until:\t%v\n", num, intermediate.NotAfter)
 	}
-	for i, ca := range svidBundle {
+	for i, ca := range svid.Bundle {
 		num := i + 1
 		fmt.Printf("CA #%v Valid After:\t%v\n", num, ca.NotBefore)
 		fmt.Printf("CA #%v Valid Until:\t%v\n", num, ca.NotAfter)
 	}
 }
 
-func printX509FederatedBundle(resp *workload.X509SVIDResponse, trustDomain string) {
-	federatedBundle, err := x509.ParseCertificates(resp.FederatedBundles[trustDomain])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Could not parse CA Certificates of federated bundle: %s\n", err)
-		return
-	}
-
-	for i, ca := range federatedBundle {
+func printX509FederatedBundle(trustDomain string, bundle []*x509.Certificate) {
+	for i, ca := range bundle {
 		num := i + 1
 		fmt.Printf("[%s] CA #%v Valid After:\t%v\n", trustDomain, num, ca.NotBefore)
 		fmt.Printf("[%s] CA #%v Valid Until:\t%v\n", trustDomain, num, ca.NotAfter)
