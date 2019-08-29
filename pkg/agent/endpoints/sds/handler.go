@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"sync/atomic"
 
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
@@ -42,6 +43,10 @@ type HandlerConfig struct {
 
 type Handler struct {
 	c HandlerConfig
+
+	// connections is a count of current connections to the API (in other words
+	// how many RPCs are outstanding) tracked for telemetry purposes.
+	connections int32
 
 	hooks struct {
 		// test hook used to synchronize receipt of a stream request
@@ -228,7 +233,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	pidStr := fmt.Sprint(pid)
 	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: pidStr}})
 	telemetry_agent.IncrSDSAPIConnectionCounter(metrics)
-	telemetry_agent.IncrSDSAPIConnectionTotalCounter(metrics)
+	telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, 1))
 	log := h.c.Log.WithField(telemetry.SDSPID, pidStr)
 	log.Debug("Handling SDS API request")
 
@@ -238,14 +243,14 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	// attest some other process that happened to be assigned the original PID
 	err = watcher.IsAlive()
 	if err != nil {
-		telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
+		telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, -1))
 		log.Debug("Finished handling SDS API request due to error")
 		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
 	done := func() {
-		defer telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
-		defer log.Debug("Finished handling SDS API request")
+		telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, -1))
+		log.Debug("Finished handling SDS API request")
 	}
 
 	return pid, selectors, done, nil
