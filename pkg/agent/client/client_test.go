@@ -52,7 +52,7 @@ func TestFetchUpdates(t *testing.T) {
 func newTestFetchX509SVIDRequest() *node.FetchX509SVIDRequest {
 	return &node.FetchX509SVIDRequest{
 		Csrs: map[string][]byte{
-			"entry-id": []byte{1, 2, 3, 4}},
+			"entry-id": {1, 2, 3, 4}},
 	}
 }
 

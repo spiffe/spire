@@ -14,6 +14,10 @@ const (
 	// should be used with other tags to add clarity
 	Activate = "activate"
 
+	// Append functionality related to appending some element (such as part of a bundle);
+	// should be used with other tags to add clarity
+	Append = "append"
+
 	// Attest functionality related to attesting; should be used with other tags
 	// to add clarity
 	Attest = "attest"
@@ -46,6 +50,10 @@ const (
 	// to add clarity
 	Rotate = "rotate"
 
+	// Set functionality related to set/override/clobber of an entity, such as a bundle;
+	// should be used with other tags to add clarity
+	Set = "set"
+
 	// Sign functionality related to signing a token / cert; should be used with other tags
 	// to add clarity
 	Sign = "sign"
@@ -57,6 +65,9 @@ const (
 	// Update functionality related to updating some entity; should be used
 	// with other tags to add clarity
 	Update = "update"
+
+	// Mint functionality related to minting identities
+	Mint = "mint"
 )
 
 // Attribute metric tags or labels that are typically an attribute of a
@@ -137,6 +148,9 @@ const (
 
 	// Nonce tags some nonce for communication
 	Nonce = "nonce"
+
+	// ParentID tags parent ID for an entry
+	ParentID = "parent_id"
 
 	// Path declares some logic path, likely on the file system
 	Path = "path"
@@ -290,6 +304,9 @@ const (
 	// Catalog functionality related to plugin catalog
 	Catalog = "catalog"
 
+	// Datastore functionality related to datastore plugin
+	Datastore = "datastore"
+
 	// Endpoints functionality related to agent/server endpoints
 	Endpoints = "endpoints"
 
@@ -347,6 +364,9 @@ const (
 
 	// SVIDRotator functionality related to a SVID rotator
 	SVIDRotator = "svid_rotator"
+
+	// RegistrationManager functionality related to a registration manager
+	RegistrationManager = "registration_manager"
 
 	// Telemetry tags a telemetry module
 	Telemetry = "telemetry"

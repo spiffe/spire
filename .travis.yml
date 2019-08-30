@@ -10,7 +10,7 @@ cache:
     - .cache
     - $HOME/.build
     # cache the Go module cache
-    - $HOME/gopath/pkg/mod
+    - $HOME/go/pkg/mod
     # cache `go install`-ed binaries across stages. build.sh unsets GOPATH
     # so this is hitting the default go env of $HOME/go
     - $HOME/go/bin

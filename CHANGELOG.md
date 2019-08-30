@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.8.1] - 2019-07-19
+- Failure to obtain peer information from a Workload API connection no longer brings down the agent (#946)
+- Agent now detects expired cached SVID when it starts and will attempt to re-attest instead of failing (#1000)
+- GCP IIT-based node attestation produces selectors for the project, zone, instance name, tags, service accounts, metadata and labels (#969, #1006, #1012)
+- X.509 certificate serial numbers are now random 128-bit numbers (#999)
+- Added SQL table indexes to SQL datastore to improve query performance (#1007)
+- Improved metrics coverage (#931, #932, #935, #968)
+- Plugins can now emit metrics (#990, #993)
+- GCP CloudSQL support (#995)
+- Experimental support for SPIFFE federation (#951, #983)
+- Fixed a peertracker bug parsing /proc/PID/stat on Linux (#982)
+- Fixed a bug causing occasional panics on shutdown when running on a BSD-based system (#970)
+- Fixed a bug in the unix workload attestor failing attestation if the user or group lookup failed (#973)
+- Server plugins can now query for attested agent information (#964)
+- AWS Secrets UpstreamCA plugin can now authenticate to AWS via a Role ARN (#938, #963)
+- K8S Workload Attestor now works with Docker's systemd cgroup driver (#950)
+- Improved documentation and examples (#915, #916, #918, #926, #930, #940, #941, #948, #954, #955, #1014)
+- Fixed SSH-based node attested agent IDs to be URL-safe (#944)
+- Fixed bug preventing agent bootstrapping when an UpstreamCA is used in conjunction with `upstream_bundle = false` (#939)
+- Agent now properly handles signing SVIDs for multiple registration entries mapped to the same SPIFFE ID (#929)
+- Agent Node Attestor plugins no longer have to determine the agent ID (#922)
+- GCP IIT node attestor can now be configured with the host used to obtain the token (#917)
+- Fixed race in bundle pruning for HA deployments (#919)
+- Disk UpstreamCA plugin now supports intermediate CAs (#910)
+- Docker workload attestation now retries connections to the Docker deamon on transient failures (#901)
+- New Kubernetes Workload Registrar that automatically registers Kubernetes workloads (#885, #953)
+- Logs can now be emitted in JSON format (#866)
+
 ## [0.8.0] - 2019-05-20
 - Fix a bug in which the agent periodically logged connection errors (#906)
 - Kubernetes SAT node attestor now supports the TokenReview API (#904)

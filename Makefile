@@ -13,7 +13,7 @@ endif
 export GO111MODULE=on
 
 # Makefile variables
-binary_dirs := $(shell find cmd/* functional/tools/* -maxdepth 0 -type d)
+binary_dirs := $(shell find cmd/* functional/tools/* support/k8s/* -maxdepth 0 -type d)
 docker_volume_gopath := $(shell echo $${GOPATH}/pkg/mod):/root/go/pkg/mod
 docker_volume_spire := $(shell echo $${PWD}):/root/spire
 docker_image = spire-dev:latest

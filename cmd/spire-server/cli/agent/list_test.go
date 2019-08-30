@@ -7,7 +7,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/mock/proto/api/registration"
+	mock_registration "github.com/spiffe/spire/test/mock/proto/api/registration"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -38,7 +38,7 @@ func (s *ListTestSuite) TestRun() {
 	req := &registration.ListAgentsRequest{}
 	resp := &registration.ListAgentsResponse{
 		Nodes: []*common.AttestedNode{
-			&common.AttestedNode{SpiffeId: "spiffe://example.org/spire/agent/join_token/token_a"},
+			{SpiffeId: "spiffe://example.org/spire/agent/join_token/token_a"},
 		},
 	}
 	s.mockClient.EXPECT().ListAgents(gomock.Any(), req).Return(resp, nil)

@@ -21,11 +21,12 @@ import (
 )
 
 type ControllerConfig struct {
-	Log         logrus.FieldLogger
-	R           registration.RegistrationClient
-	TrustDomain string
-	Cluster     string
-	PodLabel    string
+	Log           logrus.FieldLogger
+	R             registration.RegistrationClient
+	TrustDomain   string
+	Cluster       string
+	PodLabel      string
+	PodAnnotation string
 }
 
 type Controller struct {
@@ -105,7 +106,7 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 
 func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
 	if c.c.PodLabel != "" {
-		// the controller has been been configured with a pod label. if the pod
+		// the controller has been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
@@ -114,8 +115,18 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		return nil
 	}
 
-	// the controller has not been configured with a pod label. create an entry
-	// based on the service account.
+	if c.c.PodAnnotation != "" {
+		// the controller has been configured with a pod annotation. if the pod
+		// has that annotation, use the value to construct the pod entry. otherwise
+		// ignore the pod altogether.
+		if annotationValue, ok := pod.Annotations[c.c.PodAnnotation]; ok {
+			return c.createPodEntryByAnnotation(ctx, pod, c.c.PodAnnotation, annotationValue)
+		}
+		return nil
+	}
+
+	// the controller has not been configured with a pod label or a pod annotation.
+	// create an entry based on the service account.
 	return c.createPodEntryByServiceAccount(ctx, pod)
 }
 
@@ -123,6 +134,17 @@ func (c *Controller) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod,
 	return c.createEntry(ctx, &common.RegistrationEntry{
 		ParentId: c.nodeID(),
 		SpiffeId: c.makeID("%s", labelValue),
+		Selectors: []*common.Selector{
+			namespaceSelector(pod.Namespace),
+			podNameSelector(pod.Name),
+		},
+	})
+}
+
+func (c *Controller) createPodEntryByAnnotation(ctx context.Context, pod *corev1.Pod, annotationKey, annotationValue string) error {
+	return c.createEntry(ctx, &common.RegistrationEntry{
+		ParentId: c.nodeID(),
+		SpiffeId: c.makeID("%s", annotationValue),
 		Selectors: []*common.Selector{
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),

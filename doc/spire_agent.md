@@ -84,17 +84,28 @@ telemetry {
                 port = 9988
         }
 
-        DogStatsd {
-                address = "localhost:8125"
-        }
+        DogStatsd = [
+            { address = "localhost:8125" },
+        ]
 
-        Statsd {
-                address = "localhost:1337"
-        }
+        Statsd = [
+            { address = "localhost:1337" },
+            { address = "collector.example.org:8125" },
+        ]
+}
+```
 
-        Statsd {
-                address = "collector.example.org:8125"
-        }
+## Health check configuration
+
+The agent can expose additional endpoint that can be used for health checking. It is enabled by setting `listener_enabled = true`. Currently it exposes 2 paths: one for liveness (is agent up) and one for readiness (is agent ready to serve requests). By default, health checking endpoint will listen on localhost:80, unless configured otherwise.
+
+```hcl
+health_checks {
+        listener_enabled = true
+        bind_address = "localhost"
+        bind_port = "80"
+        live_path = "/live"
+        ready_path = "/ready"
 }
 ```
 
@@ -227,7 +238,7 @@ plugins {
 
 ## Envoy SDS Support
 
-SPIRE agent has **beta** support for the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/secret) (SDS).
+SPIRE agent has **beta** support for the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS).
 When enabled, SDS is served over the same Unix domain socket as the Workload API. Envoy processes connecting to SDS are attested as workloads.
 
 [`auth.TlsCertificate`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#envoy-api-msg-auth-tlscertificate)

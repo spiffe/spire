@@ -47,6 +47,7 @@ func TestAttestor(t *testing.T) {
 	caCert := createCACertificate(t)
 	serverCert := createServerCertificate(t, caCert)
 	agentCert := createAgentCertificate(t, caCert, "/test/foo")
+	expiredCert := createExpiredCertificate(t, caCert)
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{
@@ -163,6 +164,11 @@ func TestAttestor(t *testing.T) {
 		{
 			name:         "success with cached bundle",
 			cachedBundle: caCert.Raw,
+		},
+		{
+			name:            "success with expired cached bundle",
+			bootstrapBundle: caCert,
+			cachedSVID:      expiredCert.Raw,
 		},
 		{
 			name:            "success with join token",
@@ -387,11 +393,21 @@ func createAgentCertificate(t *testing.T, caCert *x509.Certificate, path string)
 	return createCertificate(t, tmpl, caCert)
 }
 
+func createExpiredCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
+	tmpl := &x509.Certificate{
+		NotAfter: time.Now().Add(-1 * time.Hour),
+		URIs:     []*url.URL{idutil.AgentURI("domain.test", "/test/expired")},
+	}
+	return createCertificate(t, tmpl, caCert)
+}
+
 func createCertificate(t *testing.T, tmpl, parent *x509.Certificate) *x509.Certificate {
 	now := time.Now()
 	tmpl.SerialNumber = big.NewInt(0)
 	tmpl.NotBefore = now
-	tmpl.NotAfter = now.Add(time.Hour)
+	if tmpl.NotAfter.IsZero() {
+		tmpl.NotAfter = now.Add(time.Hour)
+	}
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, testKey.Public(), testKey)
 	require.NoError(t, err)
 	cert, err := x509.ParseCertificate(certDER)
@@ -416,4 +432,43 @@ func makeTrustBundle(bootstrapCert *x509.Certificate) []*x509.Certificate {
 		trustBundle = append(trustBundle, bootstrapCert)
 	}
 	return trustBundle
+}
+
+func TestIsSVIDValid(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		Desc          string
+		SVID          []*x509.Certificate
+		ExpectExpired bool
+	}{
+		{
+			Desc: "cert expiration is in the past",
+			SVID: []*x509.Certificate{
+				{NotAfter: now.Add(-2 * time.Second)},
+			},
+			ExpectExpired: true,
+		},
+		{
+			Desc: "cert is about to expire",
+			SVID: []*x509.Certificate{
+				{NotAfter: now.Add(time.Second)},
+			},
+			ExpectExpired: true,
+		},
+		{
+			Desc: "cert expiration is safely in the future",
+			SVID: []*x509.Certificate{
+				{NotAfter: now.Add(time.Minute)},
+			},
+			ExpectExpired: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Desc, func(t *testing.T) {
+			isExpired := isSVIDExpired(tt.SVID, func() time.Time { return now })
+			require.Equal(t, tt.ExpectExpired, isExpired)
+		})
+	}
 }

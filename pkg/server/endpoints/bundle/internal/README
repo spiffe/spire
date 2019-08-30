@@ -1,0 +1,15 @@
+Unfortunately the golang.org/x/crypto/acme/autocert caching strategy is not
+compatible with the SPIRE server KeyManager interface.
+
+As such, golang.org/x/crypto/acme/autocert has been forked and modified to
+facilitate key management via the KeyManager while still using the Cache to
+store certificates. The specific changes are documented below the copyright in
+autocert/autocert.go.
+
+The golang.org/x/crypto/acme/autocert/acmetest package has also been forked for
+use in unit-testing. It has been enhanced to provide some extra features for 
+deeper test coverage. The specific changes are documented below the copyright in
+acmetest/ca.go.
+
+Both packages were forked from the following go module:
+	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4

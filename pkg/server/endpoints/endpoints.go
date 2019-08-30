@@ -2,12 +2,14 @@ package endpoints
 
 import (
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"sync"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -36,7 +38,12 @@ type Server interface {
 }
 
 type endpoints struct {
-	c *Config
+	c            *Config
+	mtx          *sync.RWMutex
+	unixListener *peertracker.ListenerFactory
+
+	svid    []*x509.Certificate
+	svidKey *ecdsa.PrivateKey
 }
 
 // ListenAndServe starts all maintenance routines and endpoints, then blocks
@@ -94,9 +101,19 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 	}
 	e.c.Log.WithField("addr", e.c.BundleEndpointAddress).Info("Serving bundle endpoint")
 
+	var serverAuth bundle.ServerAuth
+	if e.c.BundleEndpointACME != nil {
+		serverAuth = bundle.ACMEAuth(e.c.Log.WithField(telemetry.SubsystemName, "bundle_acme"), e.c.Catalog.GetKeyManager(), *e.c.BundleEndpointACME)
+	} else {
+		serverAuth = bundle.SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
+			state := e.c.SVIDObserver.State()
+			return state.SVID, state.Key, nil
+		})
+	}
+
 	ds := e.c.Catalog.GetDataStore()
 	return bundle.NewServer(bundle.ServerConfig{
-		Log:     e.c.Log.WithField("subsystem_name", "bundle_endpoint"),
+		Log:     e.c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
 		Address: e.c.BundleEndpointAddress.String(),
 		BundleGetter: bundle.BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
 			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
@@ -110,10 +127,7 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 			}
 			return bundleutil.BundleFromProto(resp.Bundle)
 		}),
-		CredsGetter: bundle.ServerCredsGetterFunc(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
-			state := e.c.SVIDObserver.State()
-			return state.SVID, state.Key, nil
-		}),
+		ServerAuth: serverAuth,
 	}), true
 }
 
@@ -140,6 +154,7 @@ func (e *endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
 		Metrics:     e.c.Metrics,
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
+		ServerCA:    e.c.ServerCA,
 	}
 
 	registration_pb.RegisterRegistrationServer(tcpServer, r)
@@ -181,7 +196,7 @@ func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.c.UDSAddr.String())
-	l, err := peertracker.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
+	l, err := e.unixListener.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
 	if err != nil {
 		return err
 	}

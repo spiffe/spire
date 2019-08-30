@@ -114,6 +114,28 @@ interfaces
 Interfaces should be defined in their own file, named (in lowercase) after the name of the
 interface. eg. `foodata.go` implements `type FooData interface{}`
 
+## Metrics
+
+As much as possible, label names should be constants defined in the `telemetry` package.
+
+Labels added to metrics must be singular; that is, the value of a metrics label must not be an
+array or slice, and a label of some name must only be added once. Failure to follow this will
+make metrics less usable for non-tagging metrics libraries such as `statsd`.
+As counter examples, DO NOT do the following:
+```
+[]telemetry.Label{
+  {Name: "someName", "val1"},
+  {Name: "someName", "val2"},
+}
+```
+```
+var callCounter telemetry.CallCounter
+...
+callCounter.AddLabel("someName", "val1")
+...
+callCounter.AddLabel("someName", "val2")
+```
+
 ## Mocks
 
 Unit tests should avoid mock tests as much as possible. When necessary we should inject mocked

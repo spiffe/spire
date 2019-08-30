@@ -71,7 +71,7 @@ run_test() {
 
     # Check bundle was received
     FETCH_RESULT=$(./cmd/spire-agent/spire-agent api fetch x509)
-    echo $FETCH_RESULT | grep "Received 1 bundle"
+    echo $FETCH_RESULT | grep "Received 1 svid"
     FETCH_OK=$?
 
     if [ $FETCH_OK != 0 ] || [ $KEY_OK != 0 ]; then
@@ -79,7 +79,7 @@ run_test() {
         echo
         echo
         echo "Store key status:    $KEY_OK"
-        echo "Fetch bundle status: $FETCH_OK. Details: $FETCH_RESULT"
+        echo "Fetch svid status: $FETCH_OK. Details: $FETCH_RESULT"
         echo
         echo "Test failed."
         echo

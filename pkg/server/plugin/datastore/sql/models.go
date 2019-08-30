@@ -65,7 +65,7 @@ type RegisteredEntry struct {
 	Admin         bool
 	Downstream    bool
 	// (optional) expiry of this entry
-	Expiry int64
+	Expiry int64 `gorm:"index"`
 	// (optional) DNS entries
 	DNSList []DNSName
 }

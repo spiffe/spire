@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"sync"
@@ -19,6 +20,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/proto/spire/api/node"
@@ -28,6 +31,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -51,6 +55,9 @@ const (
 	agentID      = "spiffe://example.org/spire/agent/test/id"
 	downstreamID = "spiffe://example.org/downstream"
 	workloadID   = "spiffe://example.org/workload"
+	joinTokenID  = "spiffe://example.org/spire/agent/join_token/TOKEN"
+	// make more clear in code when no ID is passed as expected param
+	noIDExpected = ""
 
 	// used to cancel stream operations on test failure instead of blocking the
 	// full go test timeout period (i.e. 10 minutes)
@@ -84,6 +91,8 @@ type HandlerSuite struct {
 	logHook          *test.Hook
 	limiter          *fakeLimiter
 	handler          *Handler
+	metrics          *fakemetrics.FakeMetrics
+	expectedMetrics  *fakemetrics.FakeMetrics
 	unattestedClient node.NodeClient
 	attestedClient   node.NodeClient
 	ds               *fakedatastore.DataStore
@@ -119,9 +128,12 @@ func (s *HandlerSuite) SetupTest() {
 	s.agentSVID = s.makeSVID(agentID)
 	s.downstreamSVID = s.makeSVID(downstreamID)
 
+	s.metrics = fakemetrics.New()
+	s.expectedMetrics = fakemetrics.New()
+
 	handler := NewHandler(HandlerConfig{
 		Log:         log,
-		Metrics:     telemetry.Blackhole{},
+		Metrics:     s.metrics,
 		Catalog:     s.catalog,
 		ServerCA:    s.serverCA,
 		TrustDomain: *trustDomainURL,
@@ -191,47 +203,61 @@ func (s *HandlerSuite) TearDownTest() {
 func (s *HandlerSuite) TestAttestLimits() {
 	s.limiter.setNextError(errors.New("limit exceeded"))
 	s.requireAttestFailure(&node.AttestRequest{},
-		codes.ResourceExhausted, "limit exceeded")
+		noIDExpected, codes.ResourceExhausted, "limit exceeded")
 	// Attest always adds 1 count
 	s.Equal(1, s.limiter.callsFor(AttestMsg))
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithNoAttestationData() {
 	s.requireAttestFailure(&node.AttestRequest{},
-		codes.InvalidArgument, "request missing attestation data")
+		noIDExpected, codes.InvalidArgument, "request missing attestation data")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithNoAttestationDataType() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: &common.AttestationData{},
-	}, codes.InvalidArgument, "request missing attestation data type")
+	}, noIDExpected, codes.InvalidArgument, "request missing attestation data type")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithNoCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
-	}, codes.InvalidArgument, "request missing CSR")
+	}, noIDExpected, codes.InvalidArgument, "request missing CSR")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithMalformedCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             []byte("MALFORMED"),
-	}, codes.InvalidArgument, "request CSR is invalid: failed to parse CSR")
+	}, noIDExpected, codes.InvalidArgument, "request CSR is invalid: failed to parse CSR")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithAgentIDFromWrongTrustDomainInCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR("spiffe://otherdomain.test/spire/agent/test/id"),
-	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://otherdomain.test/spire/agent/test/id" does not belong to trust domain`)
+	}, noIDExpected, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://otherdomain.test/spire/agent/test/id" does not belong to trust domain`)
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithNonAgentIDInCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR("spiffe://example.org"),
-	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://example.org" is not a valid agent SPIFFE ID`)
+	}, noIDExpected, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://example.org" is not a valid agent SPIFFE ID`)
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWhenAgentAlreadyAttestedWithDeprecatedCSR() {
@@ -240,20 +266,24 @@ func (s *HandlerSuite) TestAttestWhenAgentAlreadyAttestedWithDeprecatedCSR() {
 	})
 
 	s.createAttestedNode(&common.AttestedNode{
-		SpiffeId: "spiffe://example.org/spire/agent/test/id",
+		SpiffeId: agentID,
 	})
 
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
-	}, codes.Unknown, "reattestation is not permitted")
+		Csr:             s.makeCSR(agentID),
+	}, noIDExpected, codes.Unknown, "reattestation is not permitted")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithUnknownAttestor() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
-	}, codes.Unknown, `could not find node attestor type "test"`)
+		Csr:             s.makeCSR(agentID),
+	}, noIDExpected, codes.Unimplemented, `could not find node attestor type "test"`)
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithMismatchedAgentIDWithDeprecatedCSR() {
@@ -264,17 +294,23 @@ func (s *HandlerSuite) TestAttestWithMismatchedAgentIDWithDeprecatedCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/other"),
-	}, codes.Unknown, "attestor returned unexpected response")
+	}, agentID, codes.NotFound, "attestor returned unexpected response")
 
 	s.assertLastLogMessage("Attested SPIFFE ID does not match CSR")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestSuccess() {
 	s.testAttestSuccess(s.makeCSRWithoutURISAN())
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestSuccessWithDeprecatedCSR() {
 	s.testAttestSuccess(s.makeCSR(agentID))
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) testAttestSuccess(csr []byte) {
@@ -295,7 +331,7 @@ func (s *HandlerSuite) testAttestSuccess(csr []byte) {
 	upd := s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             csr,
-	})
+	}, agentID)
 
 	// assert update contents
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
@@ -329,14 +365,16 @@ func (s *HandlerSuite) TestAttestAgentless() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             agentlessCSR,
-	}, codes.InvalidArgument, "expecting \"/spire/agent/*\"")
+	}, noIDExpected, codes.InvalidArgument, "expecting \"/spire/agent/*\"")
 
 	// If allow agentless is enabled attestation will run successfully
 	s.handler.c.AllowAgentlessNodeAttestors = true
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             agentlessCSR,
-	})
+	}, workloadID)
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestReattestation() {
@@ -355,7 +393,7 @@ func (s *HandlerSuite) TestAttestReattestation() {
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             s.makeCSR(agentID),
-	})
+	}, agentID)
 
 	// Assert the attested node entry has been updated
 	attestedNode := s.fetchAttestedNode(agentID)
@@ -366,6 +404,8 @@ func (s *HandlerSuite) TestAttestReattestation() {
 
 	// Attestation data type is NOT updatable
 	s.Equal("", attestedNode.AttestationDataType)
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestChallengeResponseSuccess() {
@@ -381,25 +421,31 @@ func (s *HandlerSuite) TestAttestChallengeResponseSuccess() {
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             s.makeCSR(agentID),
-	}, "one", "two", "three")
+	}, agentID, "one", "two", "three")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithUnknownJoinToken() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: &common.AttestationData{Type: "join_token", Data: []byte("TOKEN")},
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
-	}, codes.Unknown, "failed to attest: no such token")
+		Csr:             s.makeCSR(joinTokenID),
+	}, noIDExpected, codes.Unknown, "failed to attest: no such token")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithAlreadyUsedJoinToken() {
 	s.createAttestedNode(&common.AttestedNode{
-		SpiffeId: "spiffe://example.org/spire/agent/join_token/TOKEN",
+		SpiffeId: joinTokenID,
 	})
 
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: &common.AttestationData{Type: "join_token", Data: []byte("TOKEN")},
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
-	}, codes.Unknown, "failed to attest: join token has already been used")
+		Csr:             s.makeCSR(joinTokenID),
+	}, noIDExpected, codes.Unknown, "failed to attest: join token has already been used")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithExpiredJoinToken() {
@@ -407,22 +453,26 @@ func (s *HandlerSuite) TestAttestWithExpiredJoinToken() {
 
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("join_token", "TOKEN"),
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
-	}, codes.Unknown, "failed to attest: join token expired")
+		Csr:             s.makeCSR(joinTokenID),
+	}, noIDExpected, codes.Unknown, "failed to attest: join token expired")
 
 	// join token should be removed from the datastore even if attestation failed
 	s.Nil(s.fetchJoinToken("TOKEN"))
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithValidJoinToken() {
 	s.createJoinToken("TOKEN", s.clock.Now().Add(time.Second))
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("join_token", "TOKEN"),
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
-	})
+		Csr:             s.makeCSR(joinTokenID),
+	}, joinTokenID)
 
 	// join token should be removed for successful attestation
 	s.Nil(s.fetchJoinToken("TOKEN"))
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithOnlyAttestorSelectors() {
@@ -436,12 +486,14 @@ func (s *HandlerSuite) TestAttestWithOnlyAttestorSelectors() {
 
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
-	})
+		Csr:             s.makeCSR(agentID),
+	}, agentID)
 
 	s.Equal([]*common.Selector{
 		{Type: "test", Value: "test-attestor-value"},
-	}, s.getNodeSelectors("spiffe://example.org/spire/agent/test/id"))
+	}, s.getNodeSelectors(agentID))
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithOnlyResolverSelectors() {
@@ -453,25 +505,27 @@ func (s *HandlerSuite) TestAttestWithOnlyResolverSelectors() {
 	// this resolver does not match the attestor type and should be ignored
 	s.addResolver("other", fakenoderesolver.Config{
 		Selectors: map[string][]string{
-			"spiffe://example.org/spire/agent/test/id": {"other-resolver-value"},
+			agentID: {"other-resolver-value"},
 		},
 	})
 
 	// this resolver matches the attestor type and should be used
 	s.addResolver("test", fakenoderesolver.Config{
 		Selectors: map[string][]string{
-			"spiffe://example.org/spire/agent/test/id": {"test-resolver-value"},
+			agentID: {"test-resolver-value"},
 		},
 	})
 
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
-	})
+		Csr:             s.makeCSR(agentID),
+	}, agentID)
 
 	s.Equal([]*common.Selector{
 		{Type: "test", Value: "test-resolver-value"},
-	}, s.getNodeSelectors("spiffe://example.org/spire/agent/test/id"))
+	}, s.getNodeSelectors(agentID))
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
@@ -485,19 +539,21 @@ func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
 
 	s.addResolver("test", fakenoderesolver.Config{
 		Selectors: map[string][]string{
-			"spiffe://example.org/spire/agent/test/id": {"test-resolver-value"},
+			agentID: {"test-resolver-value"},
 		},
 	})
 
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
-		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
-	})
+		Csr:             s.makeCSR(agentID),
+	}, agentID)
 
 	s.Equal([]*common.Selector{
 		{Type: "test", Value: "test-resolver-value"},
 		{Type: "test", Value: "test-attestor-value"},
-	}, s.getNodeSelectors("spiffe://example.org/spire/agent/test/id"))
+	}, s.getNodeSelectors(agentID))
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
@@ -509,8 +565,8 @@ func (s *HandlerSuite) TestFetchX509SVIDWithCurrentAndLegacyCSRs() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs:           map[string][]byte{"an-entry-id": []byte("MALFORMED")},
-		DEPRECATEDCsrs: [][]byte{[]byte{1, 2, 3}},
-	}, codes.Unknown, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
+		DEPRECATEDCsrs: [][]byte{{1, 2, 3}},
+	}, codes.InvalidArgument, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDLimits() {
@@ -525,7 +581,7 @@ func (s *HandlerSuite) TestFetchX509SVIDLimits() {
 	// Test with 5 CSRs (5 count should be added)
 	s.limiter.setNextError(errors.New("limit exceeded"))
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: map[string][]byte{
-		"foo": []byte{1}, "bar": []byte{2}, "boo": []byte{3}, "far": []byte{4}, "bor": []byte{5}},
+		"foo": {1}, "bar": {2}, "boo": {3}, "far": {4}, "bor": {5}},
 	}, codes.ResourceExhausted, "limit exceeded")
 	s.Equal(5, s.limiter.callsFor(CSRMsg))
 }
@@ -573,7 +629,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSR() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: map[string][]byte{"an-entry-id": []byte("MALFORMED")},
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains("failed to parse CSR")
 }
 
@@ -582,7 +638,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSRLegacy() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: [][]byte{[]byte("MALFORMED")},
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains("failed to parse CSR")
 }
 
@@ -591,7 +647,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", workloadID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
 }
 
@@ -600,7 +656,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org/workload"`)
 }
 
@@ -660,7 +716,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
 }
 
@@ -669,7 +725,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(trustDomainID),
-	}, codes.Unknown, "failed to sign CSRs")
+	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org"`)
 }
 
@@ -881,7 +937,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithAgentID() {
 			SpiffeId: agentID,
 			Audience: []string{"audience"},
 		},
-	}, codes.Unknown, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/spire/agent/test/id"`)
+	}, codes.PermissionDenied, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/spire/agent/test/id"`)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithUnauthorizedSPIFFEID() {
@@ -892,7 +948,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithUnauthorizedSPIFFEID() {
 			SpiffeId: workloadID,
 			Audience: []string{"audience"},
 		},
-	}, codes.Unknown, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/workload"`)
+	}, codes.PermissionDenied, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/workload"`)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
@@ -912,7 +968,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 
 	s.NotEmpty(svid.Token)
 	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
-	s.Equal(s.clock.Now().Add(ca.DefaultJWTSVIDTTL).Unix(), svid.ExpiresAt)
+	s.Equal(s.clock.Now().Add(s.serverCA.JWTSVIDTTL()).Unix(), svid.ExpiresAt)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
@@ -1131,7 +1187,12 @@ func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) 
 	return resp.Entry
 }
 
-func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, responses ...string) *node.X509SVIDUpdate {
+func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, expectedSPIFFE string, responses ...string) *node.X509SVIDUpdate {
+	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
+	defer expectedCounter.Done(nil)
+	telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
+	telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
+
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 	stream, err := s.unattestedClient.Attest(ctx)
@@ -1153,10 +1214,27 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, responses .
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.SvidUpdate)
+
+	// ensure end of stream so server-side telemetry is done
+	eofResp, err := stream.Recv()
+	s.Require().Nil(eofResp)
+	s.Require().Equal(io.EOF, err)
+
 	return resp.SvidUpdate
 }
 
-func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, errorCode codes.Code, errorContains string) {
+func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, expectedSPIFFE string, errorCode codes.Code, errorContains string) {
+	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
+	if req.AttestationData != nil && req.AttestationData.Type != "" {
+		telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
+	}
+	if expectedSPIFFE != "" {
+		telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
+	}
+	fakeErr := errors.New("")
+	defer expectedCounter.Done(&fakeErr)
+	defer expectedCounter.AddLabel(telemetry.Error, errorCode.String())
+
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 	stream, err := s.unattestedClient.Attest(ctx)

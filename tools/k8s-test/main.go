@@ -75,7 +75,7 @@ func main() {
 			runCmd(WaitForDeploymentCmd(ctx, args[0], interval))
 		},
 	}
-	waitDeploymentCmd.LocalFlags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for deployment status")
+	waitDeploymentCmd.Flags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for deployment status")
 	waitCmd.AddCommand(waitDeploymentCmd)
 
 	waitDaemonSetCmd := &cobra.Command{
@@ -87,7 +87,7 @@ func main() {
 			runCmd(WaitForDaemonSetCmd(ctx, args[0], interval))
 		},
 	}
-	waitDaemonSetCmd.LocalFlags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for daemon set status")
+	waitDaemonSetCmd.Flags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for daemon set status")
 	waitCmd.AddCommand(waitDaemonSetCmd)
 
 	waitNodeAttestationCmd := &cobra.Command{
@@ -99,7 +99,7 @@ func main() {
 			runCmd(WaitForNodeAttestationCmd(ctx, args[0], count))
 		},
 	}
-	waitNodeAttestationCmd.LocalFlags().IntVarP(&count, "count", "c", 1, "number of nodes expected to attest")
+	waitNodeAttestationCmd.Flags().IntVarP(&count, "count", "c", 1, "number of nodes expected to attest")
 	waitCmd.AddCommand(waitNodeAttestationCmd)
 
 	waitWorkloadCredsCmd := &cobra.Command{
@@ -121,9 +121,9 @@ func main() {
 			runCmd(ApplyConfigCmd(ctx, args, !noWait, !noLocal, interval))
 		},
 	}
-	applyCmd.LocalFlags().BoolVarP(&noWait, "no-wait", "", false, "don't wait for all objects after applying")
-	applyCmd.LocalFlags().BoolVarP(&noLocal, "no-local", "", false, "don't use locally built SPIRE images")
-	applyCmd.LocalFlags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for object status")
+	applyCmd.Flags().BoolVarP(&noWait, "no-wait", "", false, "don't wait for all objects after applying")
+	applyCmd.Flags().BoolVarP(&noLocal, "no-local", "", false, "don't use locally built SPIRE images")
+	applyCmd.Flags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for object status")
 	root.AddCommand(applyCmd)
 
 	root.Execute()

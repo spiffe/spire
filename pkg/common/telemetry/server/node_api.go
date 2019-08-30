@@ -20,4 +20,10 @@ func StartNodeAPIFetchX509SVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.NodeAPI, telemetry.X509SVID, telemetry.Fetch)
 }
 
+// StartNodeAPIFetchX509CASVIDCall return metric for
+// the server's Node API, Fetch X509 CA SVID for node.
+func StartNodeAPIFetchX509CASVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.NodeAPI, telemetry.X509CASVID, telemetry.Fetch)
+}
+
 // End Call Counters

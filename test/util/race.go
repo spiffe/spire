@@ -18,14 +18,19 @@ func init() {
 }
 
 func RaceTest(t *testing.T, fn func(*testing.T)) {
-	for i := 0; i < raceTestNumThreads; i++ {
-		t.Run(fmt.Sprintf("thread %v", i), func(t *testing.T) {
-			t.Parallel()
-			for i := 0; i < raceTestNumLoops; i++ {
-				fn(t)
-			}
-		})
-	}
+	// wrap in a top level group to ensure all subtests
+	// complete before this method returns. All subtests
+	// will be run in parallel
+	t.Run("group", func(t *testing.T) {
+		for i := 0; i < raceTestNumThreads; i++ {
+			t.Run(fmt.Sprintf("thread %v", i), func(t *testing.T) {
+				t.Parallel()
+				for i := 0; i < raceTestNumLoops; i++ {
+					fn(t)
+				}
+			})
+		}
+	})
 }
 
 func getEnvInt(name string, fallback int) int {

@@ -9,7 +9,7 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
-// StartAttestorCall return metric
+// StartAttestorLatencyCall return metric
 // for agent's Workload API Attestor latency for a specific attestor
 func StartAttestorLatencyCall(m telemetry.Metrics, aType string) *telemetry.CallCounter {
 	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency)
@@ -21,6 +21,14 @@ func StartAttestorLatencyCall(m telemetry.Metrics, aType string) *telemetry.Call
 // for agent's Workload API, on fetching the workload's JWT SVID
 func StartFetchJWTSVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
 	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.FetchJWTSVID)
+	cc.AddLabel(telemetry.SVIDType, telemetry.JWT)
+	return cc
+}
+
+// StartFetchJWTBundlesCall return metric
+// for agent's Workload API, on fetching the workload's JWT Bundles
+func StartFetchJWTBundlesCall(m telemetry.Metrics) *telemetry.CallCounter {
+	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.FetchJWTBundles)
 	cc.AddLabel(telemetry.SVIDType, telemetry.JWT)
 	return cc
 }
@@ -64,26 +72,15 @@ func IncrUpdateJWTBundlesCounter(m telemetry.Metrics) {
 // API, on validating JWT SVID. Takes SVID SPIFFE ID and request audience
 func IncrValidJWTSVIDCounter(m telemetry.Metrics, id string, aud string) {
 	m.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.Subject,
-			Value: id,
-		},
-		{
-			Name:  telemetry.Audience,
-			Value: aud,
-		},
+		{Name: telemetry.Subject, Value: id},
+		{Name: telemetry.Audience, Value: aud},
 	})
 }
 
 // IncrValidJWTSVIDErrCounter indicate call to Workload
-// API, on error validating JWT SVID. Takes error string.
-func IncrValidJWTSVIDErrCounter(m telemetry.Metrics, err string) {
-	m.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.Error,
-			Value: err,
-		},
-	})
+// API, on error validating JWT SVID.
+func IncrValidJWTSVIDErrCounter(m telemetry.Metrics) {
+	m.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1)
 }
 
 // End Counters

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net"
 
+	proto "github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/api/workload"
-	proto "github.com/spiffe/spire/proto/spire/api/workload"
 )
 
 func (m *spirePlugin) getWorkloadSVID(ctx context.Context, config *Configuration) ([]byte, []byte, []byte, error) {
