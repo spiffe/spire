@@ -19,7 +19,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: example-workload
-          image: gcr.io/spiffe-io/spire-agent
+          image: spire-agent:latest-local
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/run/spire/sockets/agent.sock"]
           volumeMounts:

@@ -207,6 +207,10 @@ SPIRE provides a **beta** implementation of the [Envoy](https://envoyproxy.io)
 (SDS). SDS can be used to transparently install and rotate TLS certificates and
 trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
 
+# Examples
+
+There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) repository.
+
 # Getting Help
 
 If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIFFE Slack Organization](https://slack.spiffe.io/). Most of the maintainers monitor the #spire channel there, and can help direct you to other channels if need be. Please feel free to drop by any time!
