@@ -54,7 +54,7 @@ go-check:
 ##@ Building
 build: $(binary_dirs) ## Build SPIRE binaries
 
-$(binary_dirs): go-check 
+$(binary_dirs): go-check
 	$(docker) /bin/sh -c "cd $@; go build -ldflags $(ldflags)"
 
 all: $(container) build test ## Build and run tests
@@ -138,6 +138,12 @@ vendor: ## Make vendored copy of dependencies.
 
 artifact: ## Build SPIRE artifacts
 	$(docker) ./build.sh artifact
+
+protobuf: utils ## Regenerate the gRPC pb.go and README_pb.md files
+	$(docker) ./build.sh protobuf
+
+protobuf_verify: utils ## Check that the checked-in generated code is up-to-date
+	$(docker) ./build.sh protobuf_verify
 
 noop:
 

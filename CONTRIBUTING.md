@@ -37,6 +37,8 @@ A Makefile is provided for common actions.
 * `clean` - cleans `vendor` directory
 * `distclean` - removes caches in addition to `make clean`
 * `utils` - installs gRPC related development utilities
+* `protobuf` - regenerates the gRPC pb.go and README_pb.md files
+* `protobuf_verify` - checks that the checked-in generated code is up-to-date
 * `help` - shows makefile targets and description
 
 ## Development in Docker
@@ -65,8 +67,8 @@ The script `build.sh` manages the CI build process, implementing several unique 
 checks. It is also used to bootstrap the Go environment in the Docker container.
 
 * `setup` - download and install necessary build tools into the directory `.build-<os>-<arch>`
-* `protobuf` - regenerate the gRPC pb.go and README.md files
-* `protobuf_verify` - check that the checked-in generated code is up-to-date
+* `protobuf` - calls `make protobuf` and regenerates the gRPC pb.go and README_pb.md files
+* `protobuf_verify` - calls `make protobuf_verify` and checks that the checked-in generated code is up-to-date
 * `distclean` - calls `make distclean` and removes the directory `.build-<os>-<arch>`
 * `artifact` - generate a `.tgz` containing all of the SPIFFE binaries
 * `test` - when called from within a Travis-CI build, runs coverage tests in addition to the
