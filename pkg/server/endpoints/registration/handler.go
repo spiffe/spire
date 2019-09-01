@@ -723,6 +723,24 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 	}, nil
 }
 
+// GetNodeSelectors returns node (agent) selectors
+func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNodeSelectorsRequest) (*registration.GetNodeSelectorsResponse, error) {
+	ds := h.Catalog.GetDataStore()
+	r := &datastore.GetNodeSelectorsRequest{
+		SpiffeId: req.SpiffeId,
+	}
+	resp, err := ds.GetNodeSelectors(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	return &registration.GetNodeSelectorsResponse{
+		Selectors: &registration.NodeSelectors{
+			SpiffeId:  resp.Selectors.SpiffeId,
+			Selectors: resp.Selectors.Selectors,
+		},
+	}, nil
+}
+
 func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*common.AttestedNode, error) {
 	if agentID == "" {
 		return nil, errors.New("empty agent ID")
