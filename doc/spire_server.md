@@ -269,6 +269,15 @@ Displays attested nodes.
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
+### `spire-server agent show`
+
+Displays the details (including node selectors) of an attested node given its spiffeID.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-spiffeID` | The SPIFFE ID of the agent to show (agent identity) | |
+
 ### `spire-server healthcheck`
 
 Checks SPIRE server's health.

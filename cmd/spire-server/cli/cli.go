@@ -25,6 +25,9 @@ func Run(args []string) int {
 		"agent list": func() (cli.Command, error) {
 			return &agent.ListCLI{}, nil
 		},
+		"agent show": func() (cli.Command, error) {
+			return &agent.ShowCLI{}, nil
+		},
 		"bundle show": func() (cli.Command, error) {
 			return bundle.NewShowCommand(), nil
 		},
