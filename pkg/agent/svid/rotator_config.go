@@ -17,7 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const defaultInterval = 60 * time.Second
+const defaultInterval = 5 * time.Second
 
 type RotatorConfig struct {
 	Catalog     catalog.Catalog

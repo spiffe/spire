@@ -32,9 +32,15 @@ import (
 const (
 	DefaultCATTL    = 24 * time.Hour
 	backdate        = time.Second * 10
-	rotateInterval  = time.Minute
+	rotateInterval  = time.Second * 10
 	pruneInterval   = 6 * time.Hour
 	safetyThreshold = 24 * time.Hour
+
+	thirtyDays              = 30 * 24 * time.Hour
+	preparationThresholdCap = thirtyDays
+
+	sevenDays              = 7 * 24 * time.Hour
+	activationThresholdCap = sevenDays
 )
 
 type CASetter interface {
@@ -975,12 +981,20 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	return notAfter.Add(-lifetime / 2)
+	threshold := lifetime / 2
+	if threshold > preparationThresholdCap {
+		threshold = preparationThresholdCap
+	}
+	return notAfter.Add(-threshold)
 }
 
 func activationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	return notAfter.Add(-lifetime / 6)
+	threshold := lifetime / 6
+	if threshold > activationThresholdCap {
+		threshold = activationThresholdCap
+	}
+	return notAfter.Add(-threshold)
 }
 
 func newJWTKey(signer crypto.Signer, expiresAt time.Time) (*JWTKey, error) {
