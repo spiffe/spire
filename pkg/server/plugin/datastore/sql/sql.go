@@ -856,7 +856,7 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 // ListBundles can be used to fetch all existing bundles.
 func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	var bundles []Bundle
-	if err := tx.Order("id ASC").Find(&bundles).Error; err != nil {
+	if err := tx.Find(&bundles).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -1325,6 +1325,11 @@ func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req
 		return nil, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
 	}
 
+	// Exact/subset selector matching requires filtering out all registration
+	// entries returned by the query whose selectors are not fully represented
+	// in the request selectors. For this reason, it's possible that a paged
+	// query returns rows that are completely filtered out. If that happens,
+	// keep querying until a page gets at least one result.
 	for {
 		resp, err := listRegistrationEntriesOnce(ctx, dbType, db, req)
 		if err != nil {
@@ -1335,11 +1340,6 @@ func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req
 			return resp, nil
 		}
 
-		// Exact/subset matching requires filtering out all registration
-		// entries returned by the query whose selectors are not fully
-		// represented in the request selectors.
-		// TODO: we could probably push this into SQL with some fancy "group
-		// by" count filtering.
 		resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
 		if len(resp.Entries) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
 			return resp, nil
@@ -1424,10 +1424,7 @@ func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB,
 	}
 
 	resp := &datastore.ListRegistrationEntriesResponse{
-		Entries: make([]*common.RegistrationEntry, 0, len(entries)),
-	}
-	for _, entry := range entries {
-		resp.Entries = append(resp.Entries, entry)
+		Entries: entries,
 	}
 
 	if req.Pagination != nil {
