@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: example-workload
+  namespace: spire
   labels:
     app: example-workload
 spec:
@@ -10,6 +11,7 @@ spec:
       app: example-workload
   template:
     metadata:
+      namespace: spire
       labels:
         app: example-workload
         spire-workload: example-workload

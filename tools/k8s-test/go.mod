@@ -17,3 +17,5 @@ require (
 	k8s.io/apimachinery v0.0.0-20190216013122-f05b8decd79c
 	k8s.io/klog v0.2.0 // indirect
 )
+
+go 1.13

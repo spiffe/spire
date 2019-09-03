@@ -90,6 +90,8 @@ spec:
   selector:
     matchLabels:
       app: spire-agent
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       namespace: spire
@@ -111,6 +113,7 @@ spec:
       containers:
         - name: spire-agent
           image: spire-agent:latest-local
+          imagePullPolicy: Never
           args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:
             - name: spire-config
