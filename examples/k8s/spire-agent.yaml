@@ -1,3 +1,4 @@
+# ServiceAccount for the SPIRE agent
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -34,6 +35,9 @@ roleRef:
 
 ---
 
+# ConfigMap for the SPIRE agent featuring:
+# 1) PSAT node attestation
+# 2) K8S Workload Attestation over the secure kubelet port
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -47,14 +51,14 @@ data:
       server_address = "spire-server"
       server_port = "8081"
       socket_path = "/run/spire/sockets/agent.sock"
-      trust_bundle_path = "/run/spire/config/bootstrap.crt"
+      trust_bundle_path = "/run/spire/bundle/bundle.crt"
       trust_domain = "example.org"
     }
 
     plugins {
       NodeAttestor "k8s_psat" {
         plugin_data {
-          cluster = "demo-cluster"
+          cluster = "example-cluster"
         }
       }
 
@@ -65,28 +69,13 @@ data:
 
       WorkloadAttestor "k8s" {
         plugin_data {
-          kubelet_read_only_port = "10255"
+          # Defaults to the secure kubelet port by default.
+          # Minikube does not have a cert in the cluster CA bundle that
+          # can authenticate the kubelet cert, so skip validation.
+          skip_kubelet_verification = true
         }
       }
-
-      WorkloadAttestor "unix" {
-          plugin_data {
-          }
-      }
     }
-  bootstrap.crt: |
-    -----BEGIN CERTIFICATE-----
-    MIIBzDCCAVOgAwIBAgIJAJM4DhRH0vmuMAoGCCqGSM49BAMEMB4xCzAJBgNVBAYT
-    AlVTMQ8wDQYDVQQKDAZTUElGRkUwHhcNMTgwNTEzMTkzMzQ3WhcNMjMwNTEyMTkz
-    MzQ3WjAeMQswCQYDVQQGEwJVUzEPMA0GA1UECgwGU1BJRkZFMHYwEAYHKoZIzj0C
-    AQYFK4EEACIDYgAEWjB+nSGSxIYiznb84xu5WGDZj80nL7W1c3zf48Why0ma7Y7m
-    CBKzfQkrgDguI4j0Z+0/tDH/r8gtOtLLrIpuMwWHoe4vbVBFte1vj6Xt6WeE8lXw
-    cCvLs/mcmvPqVK9jo10wWzAdBgNVHQ4EFgQUh6XzV6LwNazA+GTEVOdu07o5yOgw
-    DwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwGQYDVR0RBBIwEIYOc3Bp
-    ZmZlOi8vbG9jYWwwCgYIKoZIzj0EAwQDZwAwZAIwE4Me13qMC9i6Fkx0h26y09QZ
-    IbuRqA9puLg9AeeAAyo5tBzRl1YL0KNEp02VKSYJAjBdeJvqjJ9wW55OGj1JQwDF
-    D7kWeEB6oMlwPbI/5hEY3azJi16I0uN1JSYTSWGSqWc=
-    -----END CERTIFICATE-----
 
 ---
 
@@ -107,6 +96,7 @@ spec:
       labels:
         app: spire-agent
     spec:
+      # hostPID is required for K8S Workload Attestation.
       hostPID: true
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -120,11 +110,14 @@ spec:
           args: ["-t", "30", "spire-server:8081"]
       containers:
         - name: spire-agent
-          image: gcr.io/spiffe-io/spire-agent:0.8.0
+          image: spire-agent:latest-local
           args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:
             - name: spire-config
               mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-bundle
+              mountPath: /run/spire/bundle
               readOnly: true
             - name: spire-agent-socket
               mountPath: /run/spire/sockets
@@ -133,21 +126,24 @@ spec:
               mountPath: /var/run/secrets/tokens
           livenessProbe:
             exec:
-              command:
-                - /bin/sh
-                - -c
-                - "/opt/spire/bin/spire-agent api fetch -socketPath /run/spire/sockets/agent.sock 2>&1 | grep -vqE 'connection refused|no such file or directory'"
-            failureThreshold: 2
-            initialDelaySeconds: 15
-            periodSeconds: 60
-            timeoutSeconds: 3
+              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock", "--shallow"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
       volumes:
         - name: spire-config
           configMap:
             name: spire-agent
+        - name: spire-bundle
+          configMap:
+            name: spire-bundle
         - name: spire-agent-socket
           hostPath:
-            path: /run/spire/sockets
+            path: /run/spire/agent-sockets
             type: DirectoryOrCreate
         - name: spire-token
           projected:
