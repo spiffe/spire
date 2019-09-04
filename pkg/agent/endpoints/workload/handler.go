@@ -233,22 +233,26 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 		telemetry_common.AddErrorClass(counter, status.Code(err))
 	}()
 
+	log := h.Log
+
 	if len(update.Identities) == 0 {
 		err := status.Error(codes.PermissionDenied, "no identity issued")
-		h.Log.Error(err)
+		log.WithField(telemetry.Registered, false).Error(err)
 		return err
 	}
+
+	log = log.WithField(telemetry.Registered, true)
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
 		err := status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
-		h.Log.Error(err)
+		log.Error(err)
 		return err
 	}
 
 	err = stream.Send(resp)
 	if err != nil {
-		h.Log.Error(err)
+		log.Error(err)
 		return err
 	}
 
@@ -256,7 +260,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	for i, svid := range resp.Svids {
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
-		h.Log.WithFields(logrus.Fields{
+		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: svid.SpiffeId,
 			telemetry.TTL:      ttl.Seconds(),
 		}).Debug("Fetched X.509 SVID")
