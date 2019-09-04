@@ -107,12 +107,16 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 		if err != nil {
 			return nil, err
 		}
-		sha256Digest, err := getSHA256Digest(processPath, config.WorkloadSizeLimit)
-		if err != nil {
-			return nil, err
-		}
 		selectors = append(selectors, makeSelector("path", processPath))
-		selectors = append(selectors, makeSelector("sha256", sha256Digest))
+
+		if config.WorkloadSizeLimit >= 0 {
+			sha256Digest, err := getSHA256Digest(processPath, config.WorkloadSizeLimit)
+			if err != nil {
+				return nil, err
+			}
+
+			selectors = append(selectors, makeSelector("sha256", sha256Digest))
+		}
 	}
 
 	return &workloadattestor.AttestResponse{
