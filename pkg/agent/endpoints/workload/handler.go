@@ -82,6 +82,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
 	}
 
+	log = log.WithField(telemetry.Count, len(spiffeIDs))
+
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
@@ -255,6 +257,8 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 		log.Error(err)
 		return err
 	}
+
+	log = log.WithField(telemetry.Count, len(resp.Svids))
 
 	// Add all the SPIFFE IDs to the labels array.
 	for i, svid := range resp.Svids {
