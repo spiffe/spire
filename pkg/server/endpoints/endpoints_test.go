@@ -276,6 +276,13 @@ func (s *EndpointsTestSuite) TestClientCertificateVerification() {
 				}
 				return err
 			}
+			// Need to receive a single byte to complete the TLS 1.3 handshake
+			// which was supported in Go1.12 but now default in go1.13 (see
+			// https://golang.org/doc/go1.12#tls_1_3)
+			b := make([]byte, 1)
+			if _, err := conn.Read(b); err != nil {
+				return err
+			}
 			conn.Close()
 			return nil
 		}
