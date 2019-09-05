@@ -123,7 +123,6 @@ func testM3Config() *MetricsConfig {
 	return &MetricsConfig{
 		Logger:      l,
 		ServiceName: "foo",
-		TimerGranularity: time.Millisecond,
 		FileConfig: FileConfig{
 			M3: []M3Config {
 				{
