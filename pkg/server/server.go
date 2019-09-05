@@ -151,12 +151,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 		defer stopProfiling()
 	}
 
-	metricsConfigBuilder := telemetry.MetricsConfigBuilder{}
-	metricsConfigBuilder.SetFileConfig(s.config.Telemetry)
-	metricsConfigBuilder.SetLogger(s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry))
-	metricsConfigBuilder.SetServiceName(telemetry.SpireServer)
-	metricsConfig := metricsConfigBuilder.Build()
-	metrics, err := telemetry.NewMetrics(&metricsConfig)
+	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
+		FileConfig:  s.config.Telemetry,
+		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
+		ServiceName: telemetry.SpireServer,
+	})
 	if err != nil {
 		return err
 	}

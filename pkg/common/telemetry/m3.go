@@ -2,26 +2,26 @@ package telemetry
 
 import (
 	"context"
-	"github.com/uber-go/tally"
-	"github.com/uber-go/tally/m3"
 	"io"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/m3"
 )
 
 type m3Sink struct {
 	closer           io.Closer
 	scope            tally.Scope
-	timerGranularity time.Duration
 	enableTypePrefix bool
 }
 
-func newM3Sink(serviceName, address, env string, timerGranularity time.Duration, enableTypePrefix bool) (*m3Sink, error) {
+func newM3Sink(serviceName, address, env string, enableTypePrefix bool) (*m3Sink, error) {
 	m3Config := m3.Configuration{
-		Env: env,
+		Env:      env,
 		HostPort: address,
-		Service: serviceName,
+		Service:  serviceName,
 	}
 
 	r, err := m3Config.NewReporter()
@@ -36,9 +36,8 @@ func newM3Sink(serviceName, address, env string, timerGranularity time.Duration,
 	reportEvery := time.Second
 	scope, closer := tally.NewRootScope(scopeOpts, reportEvery)
 	sink := &m3Sink{
-		closer: closer,
-		scope: scope,
-		timerGranularity: timerGranularity,
+		closer:           closer,
+		scope:            scope,
 		enableTypePrefix: enableTypePrefix,
 	}
 
@@ -47,7 +46,7 @@ func newM3Sink(serviceName, address, env string, timerGranularity time.Duration,
 
 func newM3TestSink(scope tally.Scope, enableTypePrefix bool) *m3Sink {
 	return &m3Sink{
-		scope: scope,
+		scope:            scope,
 		enableTypePrefix: enableTypePrefix,
 	}
 }
@@ -145,7 +144,7 @@ func (m *m3Sink) addSample(key []string, val float32, scope tally.Scope) {
 
 func (m *m3Sink) addDurationSample(flattenedKey string, val float32, scope tally.Scope) {
 	histogram := scope.Histogram(flattenedKey, tally.DurationBuckets{})
-	dur := time.Duration(int64(val)) * m.timerGranularity
+	dur := time.Duration(int64(val)) * timerGranularity
 	histogram.RecordDuration(dur)
 }
 
@@ -164,7 +163,7 @@ type m3Runner struct {
 func newM3Runner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &m3Runner{}
 	for _, conf := range c.FileConfig.M3 {
-		sink, err := newM3Sink(c.ServiceName, conf.Address, conf.Env, c.TimerGranularity, c.FileConfig.EnableTypePrefix)
+		sink, err := newM3Sink(c.ServiceName, conf.Address, conf.Env, c.FileConfig.EnableTypePrefix)
 		if err != nil {
 			return runner, err
 		}

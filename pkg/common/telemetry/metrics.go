@@ -9,6 +9,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
+const timerGranularity = time.Millisecond
+
 // Label is a label/tag for a metric
 type Label = metrics.Label
 
