@@ -32,6 +32,7 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"os"
 )
 
 var (
@@ -68,14 +69,15 @@ func builtin(p *SQLPlugin) catalog.Plugin {
 // Configuration for the datastore.
 // Pointer values are used to distinguish between "unset" and "zero" values.
 type configuration struct {
-	DatabaseType     string  `hcl:"database_type" json:"database_type"`
-	ConnectionString string  `hcl:"connection_string" json:"connection_string"`
-	RootCAPath       string  `hcl:"root_ca_path" json:"root_ca_path"`
-	ClientCertPath   string  `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKeyPath    string  `hcl:"client_key_path" json:"client_key_path"`
-	ConnMaxLifetime  *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
-	MaxOpenConns     *int    `hcl:"max_open_conns" json:"max_open_conns"`
-	MaxIdleConns     *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
+	DatabaseType         string  `hcl:"database_type" json:"database_type"`
+	ConnectionString     string  `hcl:"connection_string" json:"connection_string"`
+	RootCAPath           string  `hcl:"root_ca_path" json:"root_ca_path"`
+	ClientCertPath       string  `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath        string  `hcl:"client_key_path" json:"client_key_path"`
+	ConnMaxLifetime      *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
+	MaxOpenConns         *int    `hcl:"max_open_conns" json:"max_open_conns"`
+	MaxIdleConns         *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
+	ShowMigrationAndExit bool    `hcl:"show_migrations_and_exit"`
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
@@ -670,6 +672,15 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 			return nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %v", *cfg.ConnMaxLifetime, err)
 		}
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
+	}
+
+	// This will write files and exit
+	if cfg.ShowMigrationAndExit {
+		if err := printMigrateDB(db, cfg.DatabaseType, ds.log); err != nil {
+			// Error has to be printed here, can't return value since this has to call Exit
+			fmt.Fprintf(os.Stderr, "Printing migration files failed: %v", err)
+		}
+		os.Exit(0)
 	}
 
 	if err := migrateDB(db, cfg.DatabaseType, ds.log); err != nil {

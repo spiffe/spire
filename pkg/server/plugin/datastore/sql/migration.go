@@ -2,6 +2,7 @@ package sql
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -65,6 +66,113 @@ func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 
 	log.Info("Done running migrations.")
 	return nil
+}
+
+func printMigrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
+	isNew := !db.HasTable(&Bundle{})
+
+	db.LogMode(true)
+
+	migratefilename := "migrations.txt"
+	migratefile, err := os.OpenFile(migratefilename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Error("Error opening migration file: %v", err)
+		os.Exit(1)
+	}
+	defer migratefile.Close()
+
+	migratelogger := MigrationLogger{}
+	migratelogger.SetOutputfile(migratefile)
+
+	if err := db.Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	if isNew {
+		return initDB(db, dbType, log)
+	}
+
+	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	migration := new(Migration)
+	if err := db.Assign(Migration{}).FirstOrCreate(migration).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	version := migration.Version
+
+	if version > codeVersion {
+		err = sqlError.New("backwards migration not supported! (current=%d, code=%d)", version, codeVersion)
+		log.Error(err.Error())
+		return err
+	}
+
+	if version == codeVersion {
+		return nil
+	}
+
+	db.SetLogger(&migratelogger)
+
+	for version < codeVersion {
+		tx := db.Begin() // TODO option: readonly
+		if err := tx.Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+		migratelogger.outfile.WriteString(fmt.Sprintf("-- Printing migration from v %v to v %v\n", version, version+1))
+		version, err = printMigrateVersion(tx, version, log, migratelogger)
+		if err != nil {
+			return err
+		}
+		log.Info("Done printing migration. Rolling back")
+		tx.Rollback()
+	}
+
+	return nil
+}
+
+func printMigrateVersion(tx *gorm.DB, version int, log hclog.Logger, migratelogger MigrationLogger) (versionOut int, err error) {
+
+	// When a new version is added an entry must be included here that knows
+	// how to bring the previous version up. The migrations are run
+	// sequentially, each in its own transaction, to move from one version to
+	// the next.
+	switch version {
+	case 0:
+		err = migrateToV1(tx)
+	case 1:
+		err = migrateToV2(tx)
+	case 2:
+		err = migrateToV3(tx)
+	case 3:
+		err = migrateToV4(tx)
+	case 4:
+		err = migrateToV5(tx)
+	case 5:
+		err = migrateToV6(tx)
+	case 6:
+		err = migrateToV7(tx)
+	case 7:
+		err = migrateToV8(tx)
+	case 8:
+		err = migrateToV9(tx)
+	case 9:
+		err = migrateToV10(tx)
+	default:
+		err = sqlError.New("no migration support for version %d", version)
+	}
+	if err != nil {
+		return version, err
+	}
+
+	nextVersion := version + 1
+	if err := tx.Model(&Migration{}).Updates(Migration{Version: nextVersion}).Error; err != nil {
+		return version, sqlError.Wrap(err)
+	}
+
+	//log.Info("Rolling back transaction and exiting.")
+	//tx.Rollback()
+	return nextVersion, nil
 }
 
 func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
