@@ -16,6 +16,23 @@ rules:
 - apiGroups: [""]
   resources: ["nodes"]
   verbs: ["get"]
+  # allow "get" access to pods (to resolve selectors for PSAT attention)
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get"]
+  # allow TokenReview requests (to verify service account tokens for PSAT
+  # attestation)
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["get", "create"]
+  # allow access to "get" and "patch" the spire-bundle ConfigMap (for SPIRE
+  # agent bootstrapping, see the spire-bundle ConfigMap below) 
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["spire-bundle"]
+  verbs: ["get", "patch"]
+
+
 
 ---
 
@@ -36,13 +53,6 @@ roleRef:
 
 ---
 
-# Role for the SPIRE server
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  namespace: spire
-  name: spire-server-role
-rules:
   # allow "get" access to pods (to resolve selectors for PSAT attestation)
 - apiGroups: [""]
   resources: ["pods"]
@@ -58,24 +68,6 @@ rules:
   resources: ["configmaps"]
   resourceNames: ["spire-bundle"]
   verbs: ["get", "patch"]
-
----
-
-# RoleBinding granting the spire-server-role to the SPIRE server
-# service account.
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: spire-server-role-binding
-  namespace: spire
-subjects:
-- kind: ServiceAccount
-  name: spire-server
-  namespace: spire
-roleRef:
-  kind: Role
-  name: spire-server-role
-  apiGroup: rbac.authorization.k8s.io
 
 ---
 
@@ -210,6 +202,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: k8s-workload-registrar-secret
+  namespace: spire
 type: Opaque
 data:
   server-key.pem: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZ3RqS0h2ckVjVWJDdWtlUG8KaXJSMDRqSnZyWW1ONlF3cHlQSlFFTWtsZ3MraFJBTkNBQVJVdzRwSG1XQ3pyZmprWHNlbjkrbVNQemlmV1Y0MwpzNlNaMUorK3h2RFhNMmpPaE04NlZwL1JkQzBtMkZOajNXWWc2c3VSbEV6dmYvRncyQ3N1WmJtbwotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==
