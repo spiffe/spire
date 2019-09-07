@@ -14,7 +14,7 @@ metadata:
   name: spire-agent-cluster-role
 rules:
 - apiGroups: [""]
-  resources: ["pods","nodes"]
+  resources: ["pods","nodes","nodes/proxy"]
   verbs: ["get"]
 
 ---
