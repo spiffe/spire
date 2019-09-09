@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"runtime"
 	"strconv"
 	"syscall"
 	"testing"
@@ -116,7 +117,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	// Should return an error once we're no longer tracking
 	peer.disconnect()
 	conn.Close()
-	p.Error(conn.Info.Watcher.IsAlive())
+	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 
 	// Start a forking child and allow it to exit while the grandchild holds the socket
 	peer.connectFromForkingChild(p.unixAddr, p.childPath, doneCh)
@@ -137,7 +138,14 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 
 	// We know the child has exited because we read from doneCh
 	// Call to IsAlive should now return an error
-	p.Error(conn.Info.Watcher.IsAlive())
+	switch runtime.GOOS {
+	case "darwin":
+		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit detected via kevent notification")
+	case "linux":
+		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent: err=no such file or directory")
+	default:
+		p.FailNow("missing case for OS specific failure")
+	}
 
 	// Read a bit of data from our grandchild just to be sure it's still there
 	theSign := make([]byte, 10)
@@ -152,7 +160,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	// the tracker has been closed
 	p.ul.Close()
 	p.ul = nil
-	p.Error(conn.Info.Watcher.IsAlive())
+	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 }
 
 type fakeUDSPeer struct {
