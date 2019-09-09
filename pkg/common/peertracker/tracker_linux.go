@@ -30,7 +30,8 @@ type linuxWatcher struct {
 	gid       uint32
 	pid       int32
 	mtx       sync.Mutex
-	procfh    *os.File
+	procPath  string
+	procfd    int
 	starttime string
 	uid       uint32
 }
@@ -41,8 +42,10 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 		return nil, errors.New("could not resolve caller information")
 	}
 
+	procPath := fmt.Sprintf("/proc/%v", info.PID)
+
 	// Grab a handle to proc first since that's the fastest thing we can do
-	procfh, err := os.Open(fmt.Sprintf("/proc/%v", info.PID))
+	procfd, err := syscall.Open(procPath, syscall.O_RDONLY, 0)
 	if err != nil {
 		return nil, fmt.Errorf("could not open caller's proc directory: %v", err)
 	}
@@ -55,7 +58,8 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 	return &linuxWatcher{
 		gid:       info.GID,
 		pid:       info.PID,
-		procfh:    procfh,
+		procPath:  procPath,
+		procfd:    procfd,
 		starttime: starttime,
 		uid:       info.UID,
 	}, nil
@@ -65,27 +69,32 @@ func (l *linuxWatcher) Close() {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	if l.procfh == nil {
+	if l.procfd < 0 {
 		return
 	}
 
-	l.procfh.Close()
-	l.procfh = nil
+	syscall.Close(l.procfd)
+	l.procfd = -1
 }
 
 func (l *linuxWatcher) IsAlive() error {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	if l.procfh == nil {
+	if l.procfd < 0 {
 		return errors.New("caller is no longer being watched")
 	}
 
-	// First we will check if we can read from the original directory handle. If the
-	// process has exited since we opened it, the read should fail.
-	_, err := l.procfh.Readdir(1)
+	// First we will check if we can read from the original directory handle.
+	// If the process has exited since we opened it, the read should fail (i.e.
+	// the ReadDirent syscall will return -1)
+	var buf [8196]byte
+	n, err := syscall.ReadDirent(l.procfd, buf[:])
 	if err != nil {
-		return errors.New("caller exit suspected due to failed proc read")
+		return fmt.Errorf("caller exit suspected due to failed readdirent: err=%v", err)
+	}
+	if n < 0 {
+		return fmt.Errorf("caller exit suspected due to failed readdirent: n=%d", n)
 	}
 
 	// A successful fd read should indicate that the original process is still alive, however
@@ -98,7 +107,7 @@ func (l *linuxWatcher) IsAlive() error {
 	// TODO: Evaluate the use of `starttime` as the primary exit detection mechanism.
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
-		return errors.New("caller exit suspected due to failed proc read")
+		return fmt.Errorf("caller exit suspected due to failure to get starttime: %v", err)
 	}
 	if currentStarttime != l.starttime {
 		return errors.New("new process detected: starttime mismatch")
@@ -108,13 +117,9 @@ func (l *linuxWatcher) IsAlive() error {
 	// we got beaten by a PID race when opening the proc handle originally, we can at
 	// least get to know that the race winner is running as the same user and group as
 	// the original caller by comparing it to the received CallerInfo.
-	info, err := l.procfh.Stat()
-	if err != nil {
-		return errors.New("caller exit suspected due to failed proc read")
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return errors.New("failed to read proc ownership info: is this a supported system?")
+	var stat syscall.Stat_t
+	if err := syscall.Stat(l.procPath, &stat); err != nil {
+		return fmt.Errorf("caller exit suspected due to failed proc stat: %v", err)
 	}
 	if stat.Uid != l.uid {
 		return fmt.Errorf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
