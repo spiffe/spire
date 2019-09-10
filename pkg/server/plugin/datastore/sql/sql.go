@@ -3,6 +3,7 @@ package sql
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -188,7 +189,7 @@ func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBund
 	))
 	defer callCounter.Done(&err)
 
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	if err = ds.withWriteRepeatableReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = appendBundle(tx, req)
 		return err
 	}); err != nil {
@@ -259,7 +260,7 @@ func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundle
 	))
 	defer callCounter.Done(&err)
 
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	if err = ds.withWriteRepeatableReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = pruneBundle(tx, req, ds.log)
 		return err
 	}); err != nil {
@@ -594,15 +595,19 @@ func (*SQLPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*sp
 	return &pluginInfo, nil
 }
 
+func (ds *SQLPlugin) withWriteRepeatableReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
+	return ds.withTx(ctx, op, false, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+}
+
 func (ds *SQLPlugin) withWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, false)
+	return ds.withTx(ctx, op, false, nil)
 }
 
 func (ds *SQLPlugin) withReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, true)
+	return ds.withTx(ctx, op, true, &sql.TxOptions{ReadOnly: true})
 }
 
-func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool) error {
+func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool, opts *sql.TxOptions) error {
 	ds.mu.Lock()
 	db := ds.db
 	ds.mu.Unlock()
@@ -615,7 +620,7 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 		defer db.opMu.Unlock()
 	}
 
-	tx := db.BeginTx(ctx, nil /* opts *sql.TxOptions */)
+	tx := db.BeginTx(ctx, opts)
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
