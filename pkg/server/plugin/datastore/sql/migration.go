@@ -356,6 +356,12 @@ func migrateToV11(tx *gorm.DB) error {
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx *gorm.DB) error {
+	// GORM creates the federated_registration_entries implicitly with a primary
+	// key tuple (bundle_id, registered_entry_id). Unfortunately, MySQL5 does
+	// not use the primary key index efficiently when joining by registered_entry_id
+	// during registration entry list operations. We can't use gorm AutoMigrate
+	// to introduce the index since there is no explicit struct to add tags to
+	// so we ahve to manually create it.
 	if err := tx.Table("federated_registration_entries").AddIndex("idx_federated_registration_entries_registered_entry_id", "registered_entry_id").Error; err != nil {
 		return sqlError.Wrap(err)
 	}
