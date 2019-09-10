@@ -17,6 +17,17 @@ const (
 	codeVersion = 10
 )
 
+var (
+	// versions of the database that the current code version
+	// could run against without degradation / failure in the event
+	// that auto-migration is disabled
+	// a map is cleaner and faster to look for a particular version
+	// in than looping on a slice
+	safeVersions = map[int]struct{}{
+		9: {},
+	}
+)
+
 func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logger) (err error) {
 	isNew := !db.HasTable(&Bundle{})
 	if err := db.Error; err != nil {
@@ -41,12 +52,22 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	version := migration.Version
 
 	if version == codeVersion {
+		log.Debug(fmt.Sprintf("Code and DB versions are both %d. No migration needed.", version))
 		return nil
 	}
 
 	if disableMigration {
-		log.Warn(fmt.Sprintf("auto-migration disabled and DB versions do not match! Errors or degradation may occur! (current=%d, code=%d)", version, codeVersion))
-		return nil
+		if _, ok := safeVersions[version]; ok {
+			// safe version to run against
+			log.Info(fmt.Sprintf("auto-migration disabled and DB versions do not match."+
+				"Code version %d is backwards compatible with DB version %d", codeVersion, version))
+			return nil
+		}
+		// unsafe version to run against
+		err = sqlError.New("auto-migration disabled and DB versions do not match."+
+			" Code version %d is NOT backwards compatible with DB version %d", codeVersion, version)
+		log.Error(err.Error())
+		return err
 	}
 
 	if version > codeVersion {

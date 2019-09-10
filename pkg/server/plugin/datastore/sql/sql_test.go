@@ -1685,11 +1685,13 @@ func (s *PluginSuite) TestGetPluginInfo() {
 }
 
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
-	dbName := fmt.Sprintf("v%d.sqlite3", 0)
-	dbPath := filepath.Join(s.dir, "migration-"+dbName)
-	dump := migrationDump(0)
-	s.Require().NotEmpty(dump, "no migration dump set up for version %d", 0)
-	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", 0)
+	dbVersion := 8
+
+	dbName := fmt.Sprintf("v%d.sqlite3", dbVersion)
+	dbPath := filepath.Join(s.dir, "unsafe-disabled-migration-"+dbName)
+	dump := migrationDump(dbVersion)
+	s.Require().NotEmpty(dump, "no migration dump set up for version %d", dbVersion)
+	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", dbVersion)
 
 	// configure the datastore to use the new database
 	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
@@ -1699,24 +1701,18 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 				disable_migration = true
 			`, dbPath),
 	})
-	s.Require().NoError(err)
-
-	// the v0 database has two bundles. the spiffe://otherdomain.org
-	// bundle has been soft-deleted. after migration, it should not
-	// exist. if we try and create a bundle with the same id, it should
-	// fail if the migration did not run.
-	_, err = s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-		Bundle: bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil),
-	})
-	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: table bundles has no column named data")
+	s.Require().EqualError(err, fmt.Sprintf("rpc error: code = Unknown desc = datastore-sql: auto-migration disabled and DB versions do not match."+
+		" Code version %d is NOT backwards compatible with DB version %d", codeVersion, dbVersion))
 }
 
 func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
-	dbName := fmt.Sprintf("v%d.sqlite3", 9)
-	dbPath := filepath.Join(s.dir, "migration-"+dbName)
-	dump := migrationDump(9)
-	s.Require().NotEmpty(dump, "no migration dump set up for version %d", 9)
-	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", 9)
+	dbVersion := 9
+
+	dbName := fmt.Sprintf("v%d.sqlite3", dbVersion)
+	dbPath := filepath.Join(s.dir, "safe-disabled-migration-"+dbName)
+	dump := migrationDump(dbVersion)
+	s.Require().NotEmpty(dump, "no migration dump set up for version %d", dbVersion)
+	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", dbVersion)
 
 	// configure the datastore to use the new database
 	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
