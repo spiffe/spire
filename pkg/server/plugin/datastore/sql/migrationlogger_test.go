@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 // Creates a database at a specified migration level
@@ -55,13 +56,16 @@ func (s *PluginSuite) TestDryRunOutput() {
 	migratelogger.SetOutput(testlogger)
 	err = migrateToV8(db)
 	s.Require().NoError(err)
-	s.Require().Equal(testlogger.String(), "CREATE TABLE \"dns_names\" (\"id\" integer primary key autoincrement,\"created_at\" datetime,\"updated_at\" datetime,\"registered_entry_id\" integer,\"value\" varchar(255) );\nCREATE UNIQUE INDEX idx_dns_entry ON \"dns_names\"(registered_entry_id, \"value\") ;\n")
+	s.Require().True(strings.Contains(testlogger.String(), "CREATE TABLE \"dns_names\" (\"id\" integer primary key autoincrement,\"created_at\" datetime,\"updated_at\" datetime,\"registered_entry_id\" integer,\"value\" varchar(255) );\n"))
+	s.Require().True(strings.Contains(testlogger.String(), "CREATE UNIQUE INDEX idx_dns_entry ON \"dns_names\"(registered_entry_id, \"value\") ;\n"))
 
 	testlogger = bytes.NewBufferString("")
 	migratelogger.SetOutput(testlogger)
 	err = migrateToV9(db)
 	s.Require().NoError(err)
-	s.Require().Equal(testlogger.String(), "CREATE INDEX idx_registered_entries_spiffe_id ON \"registered_entries\"(spiffe_id) ;\nCREATE INDEX idx_registered_entries_parent_id ON \"registered_entries\"(parent_id) ;\nCREATE INDEX idx_selectors_type_value ON \"selectors\"(\"type\", \"value\") ;\n")
+	s.Require().True(strings.Contains(testlogger.String(), "CREATE INDEX idx_selectors_type_value ON \"selectors\"(\"type\", \"value\") ;\n"))
+	s.Require().True(strings.Contains(testlogger.String(), "CREATE INDEX idx_registered_entries_parent_id ON \"registered_entries\"(parent_id) ;\n"))
+	s.Require().True(strings.Contains(testlogger.String(), "CREATE INDEX idx_registered_entries_spiffe_id ON \"registered_entries\"(spiffe_id) ;\n"))
 
 	testlogger = bytes.NewBufferString("")
 	migratelogger.SetOutput(testlogger)
