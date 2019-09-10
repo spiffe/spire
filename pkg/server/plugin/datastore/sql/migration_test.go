@@ -353,7 +353,7 @@ COMMIT;
 		CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 		INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 		CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',10);
 		CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
 		DELETE FROM sqlite_sequence;
 		INSERT INTO sqlite_sequence VALUES('migrations',1);

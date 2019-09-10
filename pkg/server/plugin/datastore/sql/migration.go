@@ -24,7 +24,8 @@ var (
 	// a map is cleaner and faster to look for a particular version
 	// in than looping on a slice
 	safeVersions = map[int]struct{}{
-		9: {},
+		9:  {},
+		10: {},
 	}
 )
 

@@ -1771,7 +1771,7 @@ func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
 		{
 			dbVersion: 9,
 			noMigrateValidation: func(dbPath string) {
-				// between 9 and 10 only a new index was added; this should be non-breaking
+				// between 9 and 11 only a new index was added; this should be non-breaking
 				s.createRegistrationEntry(&common.RegistrationEntry{
 					SpiffeId:  "spiffe://example.org/foo",
 					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
@@ -1782,6 +1782,22 @@ func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
 				})
 				s.Require().NoError(err)
 				s.Require().False(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
+			},
+		},
+		{
+			dbVersion: 10,
+			noMigrateValidation: func(dbPath string) {
+				// between 10 and 11 only a new index was added; this should be non-breaking
+				s.createRegistrationEntry(&common.RegistrationEntry{
+					SpiffeId:  "spiffe://example.org/foo",
+					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+				})
+				db, err := sqlite{}.connect(&configuration{
+					DatabaseType:     "sqlite3",
+					ConnectionString: fmt.Sprintf("file://%s", dbPath),
+				})
+				s.Require().NoError(err)
+				s.Require().False(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 			},
 		},
 	}
