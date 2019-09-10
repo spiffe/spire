@@ -238,7 +238,7 @@ plugins {
 
 ## Envoy SDS Support
 
-SPIRE agent has **beta** support for the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/secret) (SDS).
+SPIRE agent has **beta** support for the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS).
 When enabled, SDS is served over the same Unix domain socket as the Workload API. Envoy processes connecting to SDS are attested as workloads.
 
 [`auth.TlsCertificate`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#envoy-api-msg-auth-tlscertificate)

@@ -96,8 +96,15 @@ jobs:
         # Download latest minikube
         - curl -s -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
         # Start up minikube
-        - sudo minikube start --vm-driver=none --extra-config=apiserver.service-account-signing-key-file=/var/lib/minikube/certs/sa.key --extra-config=apiserver.service-account-key-file=/var/lib/minikube/certs/sa.pub --extra-config=apiserver.service-account-issuer=api --extra-config=apiserver.service-account-api-audiences=api,spire-server --extra-config=apiserver.authorization-mode=RBAC
-
+        - |
+          sudo minikube start \
+          --vm-driver=none \
+          --extra-config=apiserver.service-account-signing-key-file=/var/lib/minikube/certs/sa.key \
+          --extra-config=apiserver.service-account-key-file=/var/lib/minikube/certs/sa.pub \
+          --extra-config=apiserver.service-account-issuer=api \
+          --extra-config=apiserver.service-account-api-audiences=api,spire-server \
+          --extra-config=apiserver.authorization-mode=RBAC \
+          --extra-config=kubelet.authentication-token-webhook=true
         # Make sure kubectl configuration is up to date
         - sudo chown -R $USER.$USER ~/.kube
         - sudo chown -R $USER.$USER ~/.minikube
@@ -108,7 +115,7 @@ jobs:
         # Build spire images
         - eval $(minikube docker-env) && make spire-images
         # Run systems tests
-        - examples/k8s/test-all.sh
+        - examples/k8s/test.sh
         # Publish images
         - eval $(minikube docker-env) && .travis/publish-images.sh
 
