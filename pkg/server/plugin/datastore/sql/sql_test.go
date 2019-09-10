@@ -1706,35 +1706,49 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 }
 
 func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
-	dbVersion := 9
+	tests := []struct {
+		dbVersion           int
+		noMigrateValidation func(dbPath string)
+	}{
+		{
+			dbVersion: 9,
+			noMigrateValidation: func(dbPath string) {
+				// between 9 and 10 only a new index was added; this should be non-breaking
+				s.createRegistrationEntry(&common.RegistrationEntry{
+					SpiffeId:  "spiffe://example.org/foo",
+					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+				})
+				db, err := sqlite{}.connect(&configuration{
+					DatabaseType:     "sqlite3",
+					ConnectionString: fmt.Sprintf("file://%s", dbPath),
+				})
+				s.Require().NoError(err)
+				s.Require().False(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
+			},
+		},
+	}
 
-	dbName := fmt.Sprintf("v%d.sqlite3", dbVersion)
-	dbPath := filepath.Join(s.dir, "safe-disabled-migration-"+dbName)
-	dump := migrationDump(dbVersion)
-	s.Require().NotEmpty(dump, "no migration dump set up for version %d", dbVersion)
-	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", dbVersion)
+	for _, tt := range tests {
+		s.Run(fmt.Sprintf("safe with version %d", tt.dbVersion), func() {
+			dbName := fmt.Sprintf("v%d.sqlite3", tt.dbVersion)
+			dbPath := filepath.Join(s.dir, "safe-disabled-migration-"+dbName)
+			dump := migrationDump(tt.dbVersion)
+			s.Require().NotEmpty(dump, "no migration dump set up for version %d", tt.dbVersion)
+			s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", tt.dbVersion)
 
-	// configure the datastore to use the new database
-	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-				database_type = "sqlite3"
-				connection_string = "file://%s"
-				disable_migration = true
-			`, dbPath),
-	})
-	s.Require().NoError(err)
+			// configure the datastore to use the new database
+			_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+				Configuration: fmt.Sprintf(`
+						database_type = "sqlite3"
+						connection_string = "file://%s"
+						disable_migration = true
+					`, dbPath),
+			})
+			s.Require().NoError(err)
 
-	// between 9 and 10 only a new index was added; this should be non-breaking
-	s.createRegistrationEntry(&common.RegistrationEntry{
-		SpiffeId:  "spiffe://example.org/foo",
-		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
-	})
-	db, err := sqlite{}.connect(&configuration{
-		DatabaseType:     "sqlite3",
-		ConnectionString: fmt.Sprintf("file://%s", dbPath),
-	})
-	s.Require().NoError(err)
-	s.Require().False(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
+			tt.noMigrateValidation(dbPath)
+		})
+	}
 }
 
 func (s *PluginSuite) TestMigration() {
