@@ -592,7 +592,7 @@ func (ds *SQLPlugin) withWriteTx(ctx context.Context, op func(tx *gorm.DB) error
 }
 
 func (ds *SQLPlugin) withReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, true, &sql.TxOptions{ReadOnly: true})
+	return ds.withTx(ctx, op, true, nil)
 }
 
 func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool, opts *sql.TxOptions) error {
