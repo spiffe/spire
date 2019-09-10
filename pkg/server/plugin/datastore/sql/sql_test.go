@@ -1702,7 +1702,7 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 			`, dbPath),
 	})
 	s.Require().EqualError(err, fmt.Sprintf("rpc error: code = Unknown desc = datastore-sql: auto-migration disabled and DB versions do not match."+
-		" Code version %d is NOT backwards compatible with DB version %d", codeVersion, dbVersion))
+		" Code version %d is NOT compatible with DB version %d", codeVersion, dbVersion))
 }
 
 func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {

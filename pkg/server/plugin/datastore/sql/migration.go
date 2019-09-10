@@ -60,12 +60,12 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 		if _, ok := safeVersions[version]; ok {
 			// safe version to run against
 			log.Info(fmt.Sprintf("auto-migration disabled and DB versions do not match."+
-				"Code version %d is backwards compatible with DB version %d", codeVersion, version))
+				"Code version %d is compatible with DB version %d", codeVersion, version))
 			return nil
 		}
 		// unsafe version to run against
 		err = sqlError.New("auto-migration disabled and DB versions do not match."+
-			" Code version %d is NOT backwards compatible with DB version %d", codeVersion, version)
+			" Code version %d is NOT compatible with DB version %d", codeVersion, version)
 		log.Error(err.Error())
 		return err
 	}
