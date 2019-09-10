@@ -68,21 +68,20 @@ func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 	return nil
 }
 
-func printMigrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
+func printMigrateDB(db *gorm.DB, dbType string, dryrunfilename string, log hclog.Logger) (err error) {
 	isNew := !db.HasTable(&Bundle{})
 
 	db.LogMode(true)
 
-	migratefilename := "migrations.txt"
-	migratefile, err := os.OpenFile(migratefilename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	migratefile, err := os.OpenFile(dryrunfilename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		log.Error("Error opening migration file: %v", err)
-		os.Exit(1)
+		return err
 	}
 	defer migratefile.Close()
 
 	migratelogger := MigrationLogger{}
-	migratelogger.SetOutputfile(migratefile)
+	migratelogger.SetOutput(migratefile)
 
 	if err := db.Error; err != nil {
 		return sqlError.Wrap(err)
@@ -115,23 +114,23 @@ func printMigrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 	db.SetLogger(&migratelogger)
 
 	for version < codeVersion {
-		tx := db.Begin() // TODO option: readonly
+		tx := db.Begin()
 		if err := tx.Error; err != nil {
 			return sqlError.Wrap(err)
 		}
-		migratelogger.outfile.WriteString(fmt.Sprintf("-- Printing migration from v %v to v %v\n", version, version+1))
-		version, err = printMigrateVersion(tx, version, log, migratelogger)
+		migratelogger.outfile.Write([]byte(fmt.Sprintf("-- Migration from v%v to v%v\n", version, version+1)))
+		version, err = printMigrateVersion(tx, version, log)
 		if err != nil {
 			return err
 		}
-		log.Info("Done printing migration. Rolling back")
+		log.Info(fmt.Sprintf("Done printing migration to %v. Rolling back.", version))
 		tx.Rollback()
 	}
-
+	log.Info(fmt.Sprintf("Migrations written to file %v", dryrunfilename))
 	return nil
 }
 
-func printMigrateVersion(tx *gorm.DB, version int, log hclog.Logger, migratelogger MigrationLogger) (versionOut int, err error) {
+func printMigrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int, err error) {
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run
@@ -170,8 +169,6 @@ func printMigrateVersion(tx *gorm.DB, version int, log hclog.Logger, migratelogg
 		return version, sqlError.Wrap(err)
 	}
 
-	//log.Info("Rolling back transaction and exiting.")
-	//tx.Rollback()
 	return nextVersion, nil
 }
 

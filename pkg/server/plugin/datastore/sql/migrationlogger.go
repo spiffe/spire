@@ -3,26 +3,24 @@ package sql
 import (
 	"database/sql/driver"
 	"fmt"
-	"os"
+	"io"
 	"reflect"
 	"regexp"
 	"time"
 )
 
-// This will only output upgrade steps for *one* version up
-
 type MigrationLogger struct {
-	outfile *os.File
+	outfile io.Writer
 }
 
 func (logger *MigrationLogger) Print(v ...interface{}) {
 	if v[0] == "sql" && len(v) > 1 {
-		logger.outfile.WriteString(format(v...) + "\n")
+		logger.outfile.Write([]byte(format(v...) + "\n"))
 	}
 }
 
-func (logger *MigrationLogger) SetOutputfile(file *os.File) {
-	logger.outfile = file
+func (logger *MigrationLogger) SetOutput(out io.Writer) {
+	logger.outfile = out
 }
 
 // This is a reduced version of gorm's LogFormatter - https://github.com/jinzhu/gorm/blob/master/logger.go
