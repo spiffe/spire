@@ -31,6 +31,7 @@ func WaitForObjects(ctx context.Context, objects []Object, interval time.Duratio
 		case SecretKind:
 		case ServiceKind:
 		case ServiceAccountKind:
+		case ValidatingWebhookConfigurationKind:
 		default:
 			// The default case is just to make sure we conciously handle all
 			// objects that are configured, even if that means do nothing.

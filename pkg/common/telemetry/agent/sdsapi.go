@@ -10,16 +10,9 @@ func IncrSDSAPIConnectionCounter(m telemetry.Metrics) {
 	m.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connection}, 1)
 }
 
-// DecrSDSAPIConnectionTotalCounter indicate one less
-// SDS API active connection (active in that moment)
-func DecrSDSAPIConnectionTotalCounter(m telemetry.Metrics) {
-	m.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, -1)
-}
-
-// IncrSDSAPIConnectionTotalCounter indicate one more
-// SDS API active connections (active in that moment)
-func IncrSDSAPIConnectionTotalCounter(m telemetry.Metrics) {
-	m.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, 1)
+// SetSDSAPIConnectionTotalGauge sets the number of active SDS connections
+func SetSDSAPIConnectionTotalGauge(m telemetry.Metrics, connections int32) {
+	m.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, float32(connections))
 }
 
 // End Counters

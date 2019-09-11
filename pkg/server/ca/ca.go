@@ -343,6 +343,11 @@ func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, er
 	}
 
 	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, params.SpiffeID)
+	ca.c.Log.WithFields(logrus.Fields{
+		telemetry.Audience: params.Audience,
+		telemetry.Expiration: expiresAt.Format(time.RFC3339),
+		telemetry.SPIFFEID: params.SpiffeID,
+	}).Debug("Server CA successfully signed JWT SVID")
 
 	return token, nil
 }

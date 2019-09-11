@@ -1,3 +1,3 @@
 module github.com/spiffe/spire/proto/spire
 
-go 1.12
+go 1.13
