@@ -97,7 +97,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		telemetry_workload.SetFetchJWTSVIDTTLGauge(metrics, spiffeID, float32(ttl.Seconds()))
 		h.Log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: spiffeID,
-			telemetry.TTL: ttl.Seconds(),
+			telemetry.TTL:      ttl.Seconds(),
 		}).Debug("Fetched JWT SVID")
 	}
 
@@ -165,8 +165,8 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	if err != nil {
 		telemetry_workload.IncrValidJWTSVIDErrCounter(metrics)
 		log.WithFields(logrus.Fields{
-			telemetry.Error:    err.Error(),
-			telemetry.SVID:     req.Svid,
+			telemetry.Error: err.Error(),
+			telemetry.SVID:  req.Svid,
 		}).Warn("Failed to validate JWT")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -248,13 +248,12 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 		return err
 	}
 
-	// Add all the SPIFFE IDs to the labels array.
 	for i, svid := range resp.Svids {
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 		h.Log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: svid.SpiffeId,
-			telemetry.TTL: ttl.Seconds(),
+			telemetry.TTL:      ttl.Seconds(),
 		}).Debug("Fetched X.509 SVID")
 	}
 	telemetry_common.AddCount(counter, len(resp.Svids))
