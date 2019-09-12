@@ -29,7 +29,7 @@ type JWTSVID struct {
 }
 
 type Client interface {
-	FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest) (*Update, error)
+	FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest, forRotation bool) (*Update, error)
 	FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error)
 
 	// Release releases any resources that were held by this Client, if any.
@@ -44,6 +44,9 @@ type Config struct {
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
 	// to connect via mTLS to Addr.
 	KeysAndBundle func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
+
+	// RotMtx is used to prevent the creation of new connections during SVID rotations
+	RotMtx *sync.RWMutex
 }
 
 type client struct {
@@ -62,7 +65,12 @@ func New(c *Config) *client {
 	}
 }
 
-func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest) (*Update, error) {
+func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest, forRotation bool) (*Update, error) {
+	if !forRotation {
+		c.c.RotMtx.RLock()
+		defer c.c.RotMtx.RUnlock()
+	}
+
 	nodeClient, nodeConn, err := c.newNodeClient(ctx)
 	if err != nil {
 		return nil, err
@@ -124,6 +132,9 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 }
 
 func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error) {
+	c.c.RotMtx.RLock()
+	defer c.c.RotMtx.RUnlock()
+
 	nodeClient, nodeConn, err := c.newNodeClient(ctx)
 	if err != nil {
 		return nil, err

@@ -32,9 +32,15 @@ import (
 const (
 	DefaultCATTL    = 24 * time.Hour
 	backdate        = time.Second * 10
-	rotateInterval  = time.Minute
+	rotateInterval  = time.Second * 10
 	pruneInterval   = 6 * time.Hour
 	safetyThreshold = 24 * time.Hour
+
+	thirtyDays              = 30 * 24 * time.Hour
+	preparationThresholdCap = thirtyDays
+
+	sevenDays              = 7 * 24 * time.Hour
+	activationThresholdCap = sevenDays
 )
 
 type CASetter interface {
@@ -168,7 +174,7 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.TrustDomainID: m.c.TrustDomain.String(),
-		telemetry.TTL: ttl.Seconds(),
+		telemetry.TTL:           ttl.Seconds(),
 	}).Debug("Successfully rotated X.509 CA")
 
 	return nil
@@ -980,12 +986,20 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	return notAfter.Add(-lifetime / 2)
+	threshold := lifetime / 2
+	if threshold > preparationThresholdCap {
+		threshold = preparationThresholdCap
+	}
+	return notAfter.Add(-threshold)
 }
 
 func activationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	return notAfter.Add(-lifetime / 6)
+	threshold := lifetime / 6
+	if threshold > activationThresholdCap {
+		threshold = activationThresholdCap
+	}
+	return notAfter.Add(-threshold)
 }
 
 func newJWTKey(signer crypto.Signer, expiresAt time.Time) (*JWTKey, error) {

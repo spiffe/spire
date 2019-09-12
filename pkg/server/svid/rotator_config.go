@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	DefaultRotatorInterval = 30 * time.Second
+	DefaultRotatorInterval = 5 * time.Second
 )
 
 type RotatorConfig struct {

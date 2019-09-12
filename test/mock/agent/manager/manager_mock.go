@@ -10,8 +10,10 @@ import (
 	go_observer "github.com/imkira/go-observer"
 	client "github.com/spiffe/spire/pkg/agent/client"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
+	svid "github.com/spiffe/spire/pkg/agent/svid"
 	common "github.com/spiffe/spire/proto/spire/common"
 	reflect "reflect"
+	sync "sync"
 )
 
 // MockManager is a mock of Manager interface
@@ -66,6 +68,34 @@ func (mr *MockManagerMockRecorder) FetchWorkloadUpdate(arg0 interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWorkloadUpdate", reflect.TypeOf((*MockManager)(nil).FetchWorkloadUpdate), arg0)
 }
 
+// GetCurrentCredentials mocks base method
+func (m *MockManager) GetCurrentCredentials() svid.State {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCurrentCredentials")
+	ret0, _ := ret[0].(svid.State)
+	return ret0
+}
+
+// GetCurrentCredentials indicates an expected call of GetCurrentCredentials
+func (mr *MockManagerMockRecorder) GetCurrentCredentials() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentCredentials", reflect.TypeOf((*MockManager)(nil).GetCurrentCredentials))
+}
+
+// GetRotationMtx mocks base method
+func (m *MockManager) GetRotationMtx() *sync.RWMutex {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRotationMtx")
+	ret0, _ := ret[0].(*sync.RWMutex)
+	return ret0
+}
+
+// GetRotationMtx indicates an expected call of GetRotationMtx
+func (mr *MockManagerMockRecorder) GetRotationMtx() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRotationMtx", reflect.TypeOf((*MockManager)(nil).GetRotationMtx))
+}
+
 // Initialize mocks base method
 func (m *MockManager) Initialize(arg0 context.Context) error {
 	m.ctrl.T.Helper()
@@ -106,6 +136,18 @@ func (m *MockManager) Run(arg0 context.Context) error {
 func (mr *MockManagerMockRecorder) Run(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockManager)(nil).Run), arg0)
+}
+
+// SetRotationFinishedHook mocks base method
+func (m *MockManager) SetRotationFinishedHook(arg0 func()) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetRotationFinishedHook", arg0)
+}
+
+// SetRotationFinishedHook indicates an expected call of SetRotationFinishedHook
+func (mr *MockManagerMockRecorder) SetRotationFinishedHook(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRotationFinishedHook", reflect.TypeOf((*MockManager)(nil).SetRotationFinishedHook), arg0)
 }
 
 // SubscribeToBundleChanges mocks base method
