@@ -16,6 +16,11 @@ rules:
 - apiGroups: [""]
   resources: ["nodes"]
   verbs: ["get"]
+  # allow TokenReview requests (to verify service account tokens for PSAT
+  # attestation)
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["get", "create"]
 
 ---
 
@@ -47,11 +52,6 @@ rules:
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get"]
-  # allow TokenReview requests (to verify service account tokens for PSAT
-  # attestation)
-- apiGroups: ["authentication.k8s.io"]
-  resources: ["tokenreviews"]
-  verbs: ["get", "create"]
   # allow access to "get" and "patch" the spire-bundle ConfigMap (for SPIRE
   # agent bootstrapping, see the spire-bundle ConfigMap below)
 - apiGroups: [""]
@@ -205,17 +205,6 @@ data:
 
 ---
 
-# Kubernetes Secret containing the K8S Workload Registrar server key
-apiVersion: v1
-kind: Secret
-metadata:
-  name: k8s-workload-registrar-secret
-type: Opaque
-data:
-  server-key.pem: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZ3RqS0h2ckVjVWJDdWtlUG8KaXJSMDRqSnZyWW1ONlF3cHlQSlFFTWtsZ3MraFJBTkNBQVJVdzRwSG1XQ3pyZmprWHNlbjkrbVNQemlmV1Y0MwpzNlNaMUorK3h2RFhNMmpPaE04NlZwL1JkQzBtMkZOajNXWWc2c3VSbEV6dmYvRncyQ3N1WmJtbwotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==
-
----
-
 # This is the Deployment for the SPIRE server. It waits for SPIRE database to
 # initialize and uses the SPIRE healthcheck command for liveness/readiness
 # probes.
@@ -249,6 +238,7 @@ spec:
       containers:
         - name: spire-server
           image: spire-server:latest-local
+          imagePullPolicy: Never
           args: ["-config", "/run/spire/config/server.conf"]
           ports:
             - containerPort: 8081
@@ -271,6 +261,7 @@ spec:
             periodSeconds: 5
         - name: k8s-workload-registrar
           image: k8s-workload-registrar:latest-local
+          imagePullPolicy: Never
           args: ["-config", "/run/spire/k8s-workload-registrar/conf/k8s-workload-registrar.conf"]
           ports:
           - containerPort: 8443
