@@ -8,9 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/jwtsvid"
-	"github.com/spiffe/spire/pkg/common/pemutil"
-
 	"github.com/golang/mock/gomock"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -18,7 +15,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
