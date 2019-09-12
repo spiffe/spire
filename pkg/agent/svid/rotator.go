@@ -97,7 +97,6 @@ func (r *rotator) shouldRotate() bool {
 
 	ttl := s.SVID[0].NotAfter.Sub(r.clk.Now())
 	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
-
 	return ttl <= watermark
 }
 
