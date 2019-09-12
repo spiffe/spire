@@ -37,3 +37,11 @@ func (s *statsdRunner) run(context.Context) error {
 	// Nothing to do here
 	return nil
 }
+
+func (s *statsdRunner) requiresTypePrefix() bool {
+	return false
+}
+
+func (s *statsdRunner) typeName() string {
+	return "StatsD"
+}

@@ -93,3 +93,11 @@ func (p *prometheusRunner) run(ctx context.Context) error {
 	wg.Wait()
 	return ctx.Err()
 }
+
+func (p *prometheusRunner) requiresTypePrefix() bool {
+	return false
+}
+
+func (p *prometheusRunner) typeName() string {
+	return "Prometheus"
+}

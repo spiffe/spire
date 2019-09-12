@@ -205,3 +205,11 @@ func (r *m3Runner) run(ctx context.Context) error {
 	wg.Wait()
 	return ctx.Err()
 }
+
+func (r *m3Runner) requiresTypePrefix() bool {
+	return true
+}
+
+func (r *m3Runner) typeName() string {
+	return "M3"
+}

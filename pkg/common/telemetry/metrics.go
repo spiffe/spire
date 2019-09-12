@@ -58,10 +58,16 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 	fanout := metrics.FanoutSink{}
 	fanout = append(fanout, c.Sinks...)
 
+	enableTypePrefix := c.FileConfig.EnableTypePrefix
+
 	for _, f := range sinkRunnerFactories {
 		runner, err := f(c)
 		if err != nil {
 			return nil, err
+		}
+
+		if runner.requiresTypePrefix() && !enableTypePrefix {
+			c.Logger.WithField("telemetrySinkTypeName", runner.typeName()).Warn("Telemetry sink type requires telemetry.EnableTypePrefix to be enabled")
 		}
 
 		if runner.isConfigured() {
@@ -73,7 +79,7 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 	conf := metrics.DefaultConfig(c.ServiceName)
 	conf.EnableHostname = false
 	conf.EnableHostnameLabel = true
-	conf.EnableTypePrefix = c.FileConfig.EnableTypePrefix
+	conf.EnableTypePrefix = enableTypePrefix
 
 	var err error
 	impl.Metrics, err = metrics.New(conf, fanout)
