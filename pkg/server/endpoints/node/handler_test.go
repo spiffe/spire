@@ -648,7 +648,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", workloadID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
@@ -657,7 +657,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org/workload"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
@@ -717,7 +717,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
@@ -726,7 +726,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(trustDomainID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
 }
 
 func (s *HandlerSuite) TestFetchX509CASVIDWithUnauthorizedDownstreamCSR() {
@@ -1191,7 +1191,6 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, expectedSPI
 	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
 	defer expectedCounter.Done(nil)
 	telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
-	telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
@@ -1227,9 +1226,6 @@ func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, expectedSPI
 	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
 	if req.AttestationData != nil && req.AttestationData.Type != "" {
 		telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
-	}
-	if expectedSPIFFE != "" {
-		telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
 	}
 	fakeErr := errors.New("")
 	defer expectedCounter.Done(&fakeErr)

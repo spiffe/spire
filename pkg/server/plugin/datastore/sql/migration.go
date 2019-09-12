@@ -14,7 +14,7 @@ import (
 
 const (
 	// version of the database in the code
-	codeVersion = 10
+	codeVersion = 11
 )
 
 func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
@@ -95,6 +95,10 @@ func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 		return sqlError.Wrap(err)
 	}
 
+	if err := addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx); err != nil {
+		return err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -140,6 +144,8 @@ func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int,
 		err = migrateToV9(tx)
 	case 9:
 		err = migrateToV10(tx)
+	case 10:
+		err = migrateToV11(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -337,6 +343,26 @@ func migrateToV9(tx *gorm.DB) error {
 
 func migrateToV10(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func migrateToV11(tx *gorm.DB) error {
+	if err := addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx *gorm.DB) error {
+	// GORM creates the federated_registration_entries implicitly with a primary
+	// key tuple (bundle_id, registered_entry_id). Unfortunately, MySQL5 does
+	// not use the primary key index efficiently when joining by registered_entry_id
+	// during registration entry list operations. We can't use gorm AutoMigrate
+	// to introduce the index since there is no explicit struct to add tags to
+	// so we ahve to manually create it.
+	if err := tx.Table("federated_registration_entries").AddIndex("idx_federated_registration_entries_registered_entry_id", "registered_entry_id").Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil

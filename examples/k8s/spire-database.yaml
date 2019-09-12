@@ -26,6 +26,8 @@ spec:
     matchLabels:
       app: spire-database
   serviceName: spire-database
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       namespace: spire

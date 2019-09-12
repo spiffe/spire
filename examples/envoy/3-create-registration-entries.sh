@@ -1,6 +1,6 @@
 #/bin/bash
 
-set -e
+set -eo pipefail
 
 bb=$(tput bold)
 nn=$(tput sgr0)

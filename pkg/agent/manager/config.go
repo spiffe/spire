@@ -48,7 +48,7 @@ func New(c *Config) (*manager, error) {
 	}
 
 	if c.RotationInterval == 0 {
-		c.RotationInterval = 60 * time.Second
+		c.RotationInterval = svid.DefaultRotatorInterval
 	}
 
 	if c.Clk == nil {

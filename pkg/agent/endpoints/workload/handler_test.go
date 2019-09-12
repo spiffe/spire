@@ -113,8 +113,6 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
-		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.Count, Value: "1"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
@@ -159,7 +157,6 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
-		{Name: telemetry.Registered, Value: "false"},
 		{Name: telemetry.Error, Value: codes.PermissionDenied.String()},
 	}
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.Error}, float32(1), labels)
@@ -174,8 +171,6 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
-		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.Count, Value: "1"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
@@ -243,7 +238,6 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		{Name: telemetry.Registered, Value: "false"},
 		{Name: telemetry.Error, Value: codes.PermissionDenied.String()},
 	}
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
@@ -279,8 +273,6 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.Count, Value: "2"},
 	}
 
 	s.metrics.EXPECT().SetGaugeWithLabels(
@@ -327,8 +319,6 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	setupMetricsCommonExpectations(s.metrics, len(selectors))
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		{Name: telemetry.Registered, Value: "true"},
-		{Name: telemetry.Count, Value: "1"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
 		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
