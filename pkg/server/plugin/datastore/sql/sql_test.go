@@ -65,7 +65,7 @@ type PluginSuite struct {
 }
 
 func (s *PluginSuite) SetupSuite() {
-	clk := clock.New()
+	clk := clock.NewMock(s.T())
 
 	expiredNotAfterTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
 	s.Require().NoError(err)

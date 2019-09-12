@@ -11,11 +11,6 @@ import (
 // Clock is a clock
 type Clock clock.Clock
 
-// New returns a Clock backed by a realtime clock
-func New() Clock {
-	return clock.New()
-}
-
 // Mock is a mock clock that can be precisely controlled
 type Mock struct {
 	*clock.Mock
