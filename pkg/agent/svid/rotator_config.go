@@ -17,7 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const defaultInterval = 60 * time.Second
+const DefaultRotatorInterval = 5 * time.Second
 
 type RotatorConfig struct {
 	Catalog     catalog.Catalog
@@ -42,7 +42,7 @@ type RotatorConfig struct {
 
 func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 	if c.Interval == 0 {
-		c.Interval = defaultInterval
+		c.Interval = DefaultRotatorInterval
 	}
 
 	state := observer.NewProperty(State{
