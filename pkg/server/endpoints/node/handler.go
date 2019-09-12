@@ -931,11 +931,16 @@ func (h *Handler) buildSVID(ctx context.Context, id string, csr *CSR, regEntries
 	if !ok {
 		var idType string
 		if strings.HasPrefix(id, "spiffe://") {
-			idType = "SPIFFE ID"
+			idType = telemetry.SPIFFEID
 		} else {
-			idType = "registration entry ID"
+			idType = telemetry.RegistrationID
 		}
-		return nil, fmt.Errorf("not entitled to sign CSR for %s %q", idType, id)
+		msg := "not entitled to sign CSR for given ID type"
+		h.c.Log.WithFields(logrus.Fields{
+			telemetry.IDType: idType,
+			idType:           id,
+		}).Error(msg)
+		return nil, errors.New(msg)
 	}
 
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{

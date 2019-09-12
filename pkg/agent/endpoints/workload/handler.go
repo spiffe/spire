@@ -260,7 +260,9 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	log = log.WithField(telemetry.Count, len(resp.Svids))
 
-	// Add all the SPIFFE IDs to the labels array.
+	// log and emit telemetry on each SVID
+	// a response has already been sent so nothing is
+	// blocked on this logic
 	for i, svid := range resp.Svids {
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
