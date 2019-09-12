@@ -30,6 +30,7 @@ import (
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -41,6 +42,7 @@ const (
 	_expiredNotAfterString = "2018-01-10T01:34:00+00:00"
 	_validNotAfterString   = "2018-01-10T01:36:00+00:00"
 	_middleTimeString      = "2018-01-10T01:35:00+00:00"
+	_notFoundErrMsg        = "datastore-sql: record not found"
 )
 
 func TestPlugin(t *testing.T) {
@@ -179,16 +181,16 @@ func (s *PluginSuite) TestBundleCRUD() {
 	// update non-existent
 	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
 	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
-	expectedErr := errors.New("datastore-sql: record not found")
+	expectedErr := status.Error(codes.NotFound, _notFoundErrMsg)
 	expectedCallCounter.Done(&expectedErr)
-	s.RequireGRPCStatus(err, codes.NotFound, expectedErr.Error())
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// delete non-existent
 	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
-	expectedErr = errors.New("datastore-sql: record not found")
+	expectedErr = status.Error(codes.NotFound, _notFoundErrMsg)
 	expectedCallCounter.Done(&expectedErr)
-	s.RequireGRPCStatus(err, codes.NotFound, expectedErr.Error())
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// create
 	expectedCallCounter = ds_telemetry.StartCreateBundleCall(s.expectedMetrics)
@@ -669,9 +671,9 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		CertSerialNumber: userial,
 		CertNotAfter:     uexpires,
 	})
-	expectedError := errors.New("datastore-sql: record not found")
+	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
 	expectedCallCounter.Done(&expectedError)
-	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
@@ -722,9 +724,9 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	// delete it before it exists
 	expectedCallCounter := ds_telemetry.StartDeleteNodeCall(s.expectedMetrics)
 	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
-	expectedError := errors.New("datastore-sql: record not found")
+	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
 	expectedCallCounter.Done(&expectedError)
-	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
@@ -1271,9 +1273,9 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
-	expectedError := errors.New("datastore-sql: record not found")
+	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
 	expectedCallCounter.Done(&expectedError)
-	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
@@ -1282,9 +1284,9 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	// delete non-existing
 	expectedCallCounter := ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
 	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: "badid"})
-	expectedError := errors.New("datastore-sql: record not found")
+	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
 	expectedCallCounter.Done(&expectedError)
-	s.RequireGRPCStatus(err, codes.NotFound, expectedError.Error())
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
