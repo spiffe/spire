@@ -123,12 +123,7 @@ func (p *SQLPlugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 
 // CreateBundle stores the given bundle
 func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (resp *datastore.CreateBundleResponse, err error) {
-	callCounter := ds_telemetry.StartCreateBundleCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Bundle,
-			Value: req.Bundle.TrustDomainId,
-		},
-	))
+	callCounter := ds_telemetry.StartCreateBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -143,12 +138,7 @@ func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBund
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
 func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
-	callCounter := ds_telemetry.StartUpdateBundleCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Bundle,
-			Value: req.Bundle.TrustDomainId,
-		},
-	))
+	callCounter := ds_telemetry.StartUpdateBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -162,12 +152,7 @@ func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBund
 
 // SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
 func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
-	callCounter := ds_telemetry.StartSetBundleCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Bundle,
-			Value: req.Bundle.TrustDomainId,
-		},
-	))
+	callCounter := ds_telemetry.StartSetBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -181,12 +166,7 @@ func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequ
 
 // AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
 func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
-	callCounter := ds_telemetry.StartAppendBundleCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Bundle,
-			Value: req.Bundle.TrustDomainId,
-		},
-	))
+	callCounter := ds_telemetry.StartAppendBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteRepeatableReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -200,12 +180,7 @@ func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBund
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
 func (ds *SQLPlugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (resp *datastore.DeleteBundleResponse, err error) {
-	callCounter := ds_telemetry.StartDeleteBundleCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Bundle,
-			Value: req.TrustDomainId,
-		},
-	))
+	callCounter := ds_telemetry.StartDeleteBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -219,12 +194,7 @@ func (ds *SQLPlugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBund
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func (ds *SQLPlugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (resp *datastore.FetchBundleResponse, err error) {
-	callCounter := ds_telemetry.StartFetchBundleCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Bundle,
-			Value: req.TrustDomainId,
-		},
-	))
+	callCounter := ds_telemetry.StartFetchBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -252,12 +222,7 @@ func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundles
 
 // PruneBundle removes expired certs and keys from a bundle
 func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
-	callCounter := ds_telemetry.StartPruneBundleCall(ds.prepareMetricsForCall(ctx,
-		telemetry.Label{
-			Name:  telemetry.Bundle,
-			Value: req.TrustDomainId,
-		},
-	))
+	callCounter := ds_telemetry.StartPruneBundleCall(ds.prepareMetricsForCall(ctx))
 	defer callCounter.Done(&err)
 
 	if err = ds.withWriteRepeatableReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -267,7 +232,6 @@ func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundle
 		return nil, err
 	}
 
-	callCounter.AddLabel(telemetry.Updated, strconv.FormatBool(resp.BundleChanged))
 	return resp, nil
 }
 
@@ -673,8 +637,8 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	return db, nil
 }
 
-func (ds *SQLPlugin) prepareMetricsForCall(ctx context.Context, labels ...telemetry.Label) telemetry.Metrics {
-	return metricsservice.WrapPluginMetricsForContext(ctx, ds.metricsService, ds.log, labels...)
+func (ds *SQLPlugin) prepareMetricsForCall(ctx context.Context) telemetry.Metrics {
+	return metricsservice.WrapPluginMetricsForContext(ctx, ds.metricsService, ds.log)
 }
 
 func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
