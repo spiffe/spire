@@ -3,9 +3,33 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 )
+
+func FindPodNameByPrefix(ctx context.Context, prefix string) (string, error) {
+	pods, err := GetPods(ctx)
+	if err != nil {
+		return "", nil
+	}
+
+	var names []string
+	for _, pod := range pods {
+		if strings.HasPrefix(pod.Name, prefix) {
+			names = append(names, pod.Name)
+		}
+	}
+
+	switch len(names) {
+	case 0:
+		return "", fmt.Errorf("no pod found with prefix %q", prefix)
+	case 1:
+		return names[0], nil
+	default:
+		return "", fmt.Errorf("more than one pod found with prefix %q: %q", prefix, names)
+	}
+}
 
 func GetPods(ctx context.Context) ([]v1.Pod, error) {
 	var list v1.PodList

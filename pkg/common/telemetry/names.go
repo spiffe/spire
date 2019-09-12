@@ -133,6 +133,9 @@ const (
 	// FederatedRemoved labels some count of federated bundles that have been removed from an entity
 	FederatedRemoved = "fed_rem"
 
+	// IDType tags some type of ID (eg. registration ID, SPIFFE ID...)
+	IDType = "id_type"
+
 	// IssuedAt tags an issuance timestamp
 	IssuedAt = "issued_at"
 

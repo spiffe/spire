@@ -51,18 +51,18 @@ func (mr *MockClientMockRecorder) FetchJWTSVID(arg0, arg1 interface{}) *gomock.C
 }
 
 // FetchUpdates mocks base method
-func (m *MockClient) FetchUpdates(arg0 context.Context, arg1 *node.FetchX509SVIDRequest) (*client.Update, error) {
+func (m *MockClient) FetchUpdates(arg0 context.Context, arg1 *node.FetchX509SVIDRequest, arg2 bool) (*client.Update, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchUpdates", arg0, arg1)
+	ret := m.ctrl.Call(m, "FetchUpdates", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*client.Update)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchUpdates indicates an expected call of FetchUpdates
-func (mr *MockClientMockRecorder) FetchUpdates(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) FetchUpdates(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUpdates", reflect.TypeOf((*MockClient)(nil).FetchUpdates), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUpdates", reflect.TypeOf((*MockClient)(nil).FetchUpdates), arg0, arg1, arg2)
 }
 
 // Release mocks base method

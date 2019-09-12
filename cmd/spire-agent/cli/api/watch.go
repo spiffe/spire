@@ -50,10 +50,15 @@ func (w *WatchCLI) Run(args []string) int {
 			client.Stop()
 			return 0
 		case err := <-errChan:
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			return 1
 		case u := <-client.UpdateChan():
-			printX509SVIDResponse(u, time.Since(updateTime))
+			svids, err := parseAndValidateX509SVIDResponse(u)
+			if err == nil {
+				printX509SVIDResponse(svids, time.Since(updateTime))
+			} else {
+				fmt.Fprintln(os.Stderr, err)
+			}
 			updateTime = time.Now()
 		}
 	}

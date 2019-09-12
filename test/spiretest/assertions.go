@@ -98,14 +98,16 @@ func AssertProtoListEqual(tb testing.TB, expected, actual interface{}) bool {
 		return assert.Fail(tb, "actual value is not a slice of elements that implement proto.Message")
 	}
 
-	if !assert.Equal(tb, ev.Len(), av.Len(), "slice lengths are not equal") {
-		return false
+	if !assert.Equal(tb, ev.Len(), av.Len(), "expected %d elements in list; got %d", ev.Len(), av.Len()) {
+		// get the nice output
+		return assert.Equal(tb, expected, actual)
 	}
 	for i := 0; i < ev.Len(); i++ {
 		e := ev.Index(i).Interface().(proto.Message)
 		a := av.Index(i).Interface().(proto.Message)
-		if !AssertProtoEqual(tb, e, a) {
-			return false
+		if !AssertProtoEqual(tb, e, a, "proto %d in list is not equal", i) {
+			// get the nice output
+			return assert.Equal(tb, expected, actual)
 		}
 	}
 

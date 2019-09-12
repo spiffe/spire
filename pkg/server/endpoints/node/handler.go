@@ -157,7 +157,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	agentID := attestResponse.AgentId
-	telemetry_common.AddSPIFFEID(counter, agentID)
 	log = log.WithField(telemetry.SPIFFEID, agentID)
 
 	if csr.SpiffeID != "" && agentID != csr.SpiffeID {
@@ -287,8 +286,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids = make(map[string]*node.X509SVID)
 		}
-		// Add SVID count to counter
-		telemetry_common.AddCount(counter, len(svids))
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
@@ -398,8 +395,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	case len(req.Jsr.Audience) == 0:
 		return nil, status.Error(codes.InvalidArgument, "request missing audience")
 	}
-
-	telemetry_common.AddSPIFFEID(counter, req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
@@ -936,11 +931,16 @@ func (h *Handler) buildSVID(ctx context.Context, id string, csr *CSR, regEntries
 	if !ok {
 		var idType string
 		if strings.HasPrefix(id, "spiffe://") {
-			idType = "SPIFFE ID"
+			idType = telemetry.SPIFFEID
 		} else {
-			idType = "registration entry ID"
+			idType = telemetry.RegistrationID
 		}
-		return nil, fmt.Errorf("not entitled to sign CSR for %s %q", idType, id)
+		msg := "not entitled to sign CSR for given ID type"
+		h.c.Log.WithFields(logrus.Fields{
+			telemetry.IDType: idType,
+			idType:           id,
+		}).Error(msg)
+		return nil, errors.New(msg)
 	}
 
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
