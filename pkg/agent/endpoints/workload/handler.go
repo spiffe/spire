@@ -57,6 +57,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 	defer done()
 
+	log := h.Log
+
 	counter := telemetry_workload.StartFetchJWTSVIDCall(metrics)
 	defer counter.Done(&err)
 	defer func() {
@@ -66,11 +68,12 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	var spiffeIDs []string
 	identities := h.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
-		telemetry_common.AddRegistered(counter, false)
-		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
+		err := status.Errorf(codes.PermissionDenied, "no identity issued")
+		log.WithField(telemetry.Registered, false).Error(err)
+		return nil, err
 	}
 
-	telemetry_common.AddRegistered(counter, true)
+	log = log.WithField(telemetry.Registered, true)
 
 	for _, identity := range identities {
 		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
@@ -79,14 +82,18 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
 	}
 
-	telemetry_common.AddCount(counter, len(spiffeIDs))
+	log = log.WithField(telemetry.Count, len(spiffeIDs))
 
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
+		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
+
 		var svid *client.JWTSVID
 		svid, err = h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "could not fetch %q JWTSVID: %v", spiffeID, err)
+			err = status.Errorf(codes.Unavailable, "could not fetch JWTSVID: %v", err)
+			loopLog.Error(err)
+			return nil, err
 		}
 		resp.Svids = append(resp.Svids, &workload.JWTSVID{
 			SpiffeId: spiffeID,
@@ -95,10 +102,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 		ttl := time.Until(svid.ExpiresAt)
 		telemetry_workload.SetFetchJWTSVIDTTLGauge(metrics, spiffeID, float32(ttl.Seconds()))
-		h.Log.WithFields(logrus.Fields{
-			telemetry.SPIFFEID: spiffeID,
-			telemetry.TTL:      ttl.Seconds(),
-		}).Debug("Fetched JWT SVID")
+		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
 	}
 
 	return resp, nil
@@ -231,22 +235,30 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 		telemetry_common.AddErrorClass(counter, status.Code(err))
 	}()
 
+	log := h.Log
+
 	if len(update.Identities) == 0 {
-		telemetry_common.AddRegistered(counter, false)
-		return status.Errorf(codes.PermissionDenied, "no identity issued")
+		err := status.Error(codes.PermissionDenied, "no identity issued")
+		log.WithField(telemetry.Registered, false).Error(err)
+		return err
 	}
 
-	telemetry_common.AddRegistered(counter, true)
+	log = log.WithField(telemetry.Registered, true)
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
-		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+		err := status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+		log.Error(err)
+		return err
 	}
 
 	err = stream.Send(resp)
 	if err != nil {
+		log.Error(err)
 		return err
 	}
+
+	log = log.WithField(telemetry.Count, len(resp.Svids))
 
 	// log and emit telemetry on each SVID
 	// a response has already been sent so nothing is
@@ -254,12 +266,11 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	for i, svid := range resp.Svids {
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
-		h.Log.WithFields(logrus.Fields{
+		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: svid.SpiffeId,
 			telemetry.TTL:      ttl.Seconds(),
 		}).Debug("Fetched X.509 SVID")
 	}
-	telemetry_common.AddCount(counter, len(resp.Svids))
 
 	return nil
 }

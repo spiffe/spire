@@ -103,7 +103,7 @@ func (r *rotator) shouldRotate() bool {
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	counter := telemetry_agent.StartRotateAgentSVIDCall(r.c.Metrics, r.c.SpiffeID)
+	counter := telemetry_agent.StartRotateAgentSVIDCall(r.c.Metrics)
 	defer counter.Done(&err)
 
 	// Get the mtx before starting the rotation
