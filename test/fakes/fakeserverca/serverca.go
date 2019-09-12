@@ -47,7 +47,7 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 		options = new(Options)
 	}
 	if options.Clock == nil {
-		options.Clock = clock.New()
+		options.Clock = clock.NewMock(t)
 	}
 	if options.X509SVIDTTL == 0 {
 		options.X509SVIDTTL = time.Minute

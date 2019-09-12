@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/spiffe/spire/test/clock"
+	"github.com/andres-erbsen/clock"
 )
 
 const (
