@@ -110,7 +110,7 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		req.Csrs[csr.EntryID] = csrBytes
 	}
 
-	update, err := m.client.FetchUpdates(ctx, req)
+	update, err := m.client.FetchUpdates(ctx, req, false)
 	if err != nil {
 		return nil, err
 	}
