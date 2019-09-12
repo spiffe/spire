@@ -236,6 +236,26 @@ func (mr *MockRegistrationClientMockRecorder) FetchFederatedBundle(arg0, arg1 in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockRegistrationClient)(nil).FetchFederatedBundle), varargs...)
 }
 
+// GetNodeSelectors mocks base method
+func (m *MockRegistrationClient) GetNodeSelectors(arg0 context.Context, arg1 *registration.GetNodeSelectorsRequest, arg2 ...grpc.CallOption) (*registration.GetNodeSelectorsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetNodeSelectors", varargs...)
+	ret0, _ := ret[0].(*registration.GetNodeSelectorsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNodeSelectors indicates an expected call of GetNodeSelectors
+func (mr *MockRegistrationClientMockRecorder) GetNodeSelectors(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodeSelectors", reflect.TypeOf((*MockRegistrationClient)(nil).GetNodeSelectors), varargs...)
+}
+
 // ListAgents mocks base method
 func (m *MockRegistrationClient) ListAgents(arg0 context.Context, arg1 *registration.ListAgentsRequest, arg2 ...grpc.CallOption) (*registration.ListAgentsResponse, error) {
 	m.ctrl.T.Helper()
@@ -607,6 +627,21 @@ func (m *MockRegistrationServer) FetchFederatedBundle(arg0 context.Context, arg1
 func (mr *MockRegistrationServerMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockRegistrationServer)(nil).FetchFederatedBundle), arg0, arg1)
+}
+
+// GetNodeSelectors mocks base method
+func (m *MockRegistrationServer) GetNodeSelectors(arg0 context.Context, arg1 *registration.GetNodeSelectorsRequest) (*registration.GetNodeSelectorsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNodeSelectors", arg0, arg1)
+	ret0, _ := ret[0].(*registration.GetNodeSelectorsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNodeSelectors indicates an expected call of GetNodeSelectors
+func (mr *MockRegistrationServerMockRecorder) GetNodeSelectors(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodeSelectors", reflect.TypeOf((*MockRegistrationServer)(nil).GetNodeSelectors), arg0, arg1)
 }
 
 // ListAgents mocks base method
