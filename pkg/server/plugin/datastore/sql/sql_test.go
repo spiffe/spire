@@ -1741,87 +1741,8 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 				disable_migration = true
 			`, dbPath),
 	})
-	s.Require().EqualError(err, fmt.Sprintf("rpc error: code = Unknown desc = datastore-sql: auto-migration disabled and DB schema versions do not match."+
-		" Code schema version %d is NOT compatible with DB schema version %d", latestSchemaVersion, dbVersion))
-}
-
-func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
-	tests := []struct {
-		dbVersion           int
-		noMigrateValidation func(dbPath string)
-	}{
-		{
-			dbVersion: 9,
-			noMigrateValidation: func(dbPath string) {
-				// between 9 and 12 only a new index was added; this should be non-breaking
-				s.createRegistrationEntry(&common.RegistrationEntry{
-					SpiffeId:  "spiffe://example.org/foo",
-					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
-				})
-				db, err := sqlite{}.connect(&configuration{
-					DatabaseType:     "sqlite3",
-					ConnectionString: fmt.Sprintf("file://%s", dbPath),
-				})
-				s.Require().NoError(err)
-				s.Require().False(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
-			},
-		},
-		{
-			dbVersion: 10,
-			noMigrateValidation: func(dbPath string) {
-				// between 10 and 12 only a new index was added; this should be non-breaking
-				s.createRegistrationEntry(&common.RegistrationEntry{
-					SpiffeId:  "spiffe://example.org/foo",
-					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
-				})
-				db, err := sqlite{}.connect(&configuration{
-					DatabaseType:     "sqlite3",
-					ConnectionString: fmt.Sprintf("file://%s", dbPath),
-				})
-				s.Require().NoError(err)
-				s.Require().False(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
-			},
-		},
-		{
-			dbVersion: 11,
-			noMigrateValidation: func(dbPath string) {
-				// between 11 and 12 a new column was added to the migrations table, and we
-				// *always* migrate that table; this should be non-breaking
-				s.createRegistrationEntry(&common.RegistrationEntry{
-					SpiffeId:  "spiffe://example.org/foo",
-					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
-				})
-				db, err := sqlite{}.connect(&configuration{
-					DatabaseType:     "sqlite3",
-					ConnectionString: fmt.Sprintf("file://%s", dbPath),
-				})
-				s.Require().NoError(err)
-				s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		s.Run(fmt.Sprintf("safe with version %d", tt.dbVersion), func() {
-			dbName := fmt.Sprintf("v%d.sqlite3", tt.dbVersion)
-			dbPath := filepath.Join(s.dir, "safe-disabled-migration-"+dbName)
-			dump := migrationDump(tt.dbVersion)
-			s.Require().NotEmpty(dump, "no migration dump set up for version %d", tt.dbVersion)
-			s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", tt.dbVersion)
-
-			// configure the datastore to use the new database
-			_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-				Configuration: fmt.Sprintf(`
-						database_type = "sqlite3"
-						connection_string = "file://%s"
-						disable_migration = true
-					`, dbPath),
-			})
-			s.Require().NoError(err)
-
-			tt.noMigrateValidation(dbPath)
-		})
-	}
+	s.Require().EqualError(err, fmt.Sprintf("rpc error: code = Unknown desc = datastore-sql:"+
+		" You must be upgrading from version %s or higher to disable auto-migration", minimumCodeVersionToDisableMigrate))
 }
 
 func (s *PluginSuite) TestMigration() {

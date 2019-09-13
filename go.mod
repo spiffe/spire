@@ -33,7 +33,7 @@ require (
 	github.com/gogo/googleapis v1.2.0
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/mock v1.3.1
-	github.com/golang/protobuf v1.3.1
+	github.com/golang/protobuf v1.3.2
 	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/googleapis/gnostic v0.3.0 // indirect
 	github.com/gorilla/mux v1.7.2 // indirect
@@ -69,7 +69,7 @@ require (
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/tools v0.0.0-20190618163018-fdf1049a943a
 	google.golang.org/api v0.6.0
-	google.golang.org/grpc v1.22.0
+	google.golang.org/grpc v1.23.1
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637

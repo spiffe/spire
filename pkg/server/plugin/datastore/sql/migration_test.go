@@ -409,6 +409,7 @@ COMMIT;
 		CREATE INDEX idx_federated_registration_entries_registered_entry_id ON "federated_registration_entries"(registered_entry_id) ;
 		COMMIT;
 		`,
+		// below this point is SPIRE Code version 0.9.X
 		// future v12 database entry, in which code_version string was added to migrations table
 	}
 )
