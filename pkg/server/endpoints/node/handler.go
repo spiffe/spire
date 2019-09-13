@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"io"
 	"net"
 	"net/url"
@@ -133,7 +134,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 		attestStream, err := nodeAttestor.Attest(ctx)
 		if err != nil {
-			return fmt.Errorf("unable to open attest stream: %v", err)
+			return errorutil.WrapAndLogError(h.c.Log, err, "unable to open attest stream")
 		}
 
 		attestResponse, err = h.doAttestChallengeResponse(ctx, stream, attestStream, request, attestedBefore)
@@ -149,7 +150,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	} else {
 		attestResponse, err = h.attestToken(ctx, request.AttestationData)
 		if err != nil {
-			return fmt.Errorf("failed to attest: %v", err)
+			return errorutil.WrapAndLogError(h.c.Log, err, "failed to attest")
 		}
 	}
 
@@ -307,23 +308,30 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
+		err := status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	entry, ok := getDownstreamEntry(ctx)
 	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "downstream entry is required for this request")
+		err = status.Error(codes.InvalidArgument, "downstream entry is required for this request")
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	err = h.limiter.Limit(ctx, CSRMsg, 1)
 	if err != nil {
-		return nil, status.Error(codes.ResourceExhausted, err.Error())
+		err = status.Error(codes.ResourceExhausted, err.Error())
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	downstreamID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
 		h.c.Log.Error(err)
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, err
 	}
 
 	sourceAddress := "unknown"
@@ -338,7 +346,9 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 
 	csr, err := h.parseX509CACSR(req.Csr)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	signLog.Debug("Signing downstream CA SVID")
@@ -348,12 +358,16 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	return &node.FetchX509CASVIDResponse{
@@ -367,34 +381,52 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	defer counter.Done(&err)
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
-		return nil, status.Error(codes.ResourceExhausted, err.Error())
+		err = status.Error(codes.ResourceExhausted, err.Error())
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "client SVID is required for this request")
+		err := status.Error(codes.InvalidArgument, "client SVID is required for this request")
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	// validate request parameters
 	switch {
 	case req.Jsr == nil:
-		return nil, status.Error(codes.InvalidArgument, "request missing JSR")
+		err = status.Error(codes.InvalidArgument, "request missing JSR")
+		h.c.Log.Error(err)
+		return nil, err
 	case req.Jsr.SpiffeId == "":
-		return nil, status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
+		err = status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
+		h.c.Log.Error(err)
+		return nil, err
 	case len(req.Jsr.Audience) == 0:
-		return nil, status.Error(codes.InvalidArgument, "request missing audience")
+		err = status.Error(codes.InvalidArgument, "request missing audience")
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
+	log := h.c.Log.WithFields(logrus.Fields{
+		telemetry.AgentID: agentID,
+		telemetry.SPIFFEID: req.Jsr.SpiffeId,
+	})
+
 	if err != nil {
-		h.c.Log.Error(err)
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
+		log.Error(err)
+		return nil, err
 	}
 
 	ds := h.c.Catalog.GetDataStore()
 	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		log.Error(err)
+		return nil, err
 	}
 
 	found := false
@@ -404,10 +436,11 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 			break
 		}
 	}
+
 	if !found {
-		err := fmt.Errorf("caller %q is not authorized for %q", agentID, req.Jsr.SpiffeId)
-		h.c.Log.Error(err)
-		return nil, status.Error(codes.PermissionDenied, err.Error())
+		err = status.Error(codes.PermissionDenied, "caller is not authorized")
+		log.Error(err)
+		return nil, err
 	}
 
 	token, err := h.c.ServerCA.SignJWTSVID(ctx, ca.JWTSVIDParams{
@@ -416,13 +449,16 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		Audience: req.Jsr.Audience,
 	})
 	if err != nil {
-		h.c.Log.Error(err)
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		log.Error(err)
+		return nil, err
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		log.Error(err)
+		return nil, err
 	}
 
 	return &node.FetchJWTSVIDResponse{
@@ -470,7 +506,9 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		ctx = withDownstreamEntry(ctx, entry)
 	// method not handled
 	default:
-		return nil, status.Errorf(codes.PermissionDenied, "authorization not implemented for method %q", fullMethod)
+		err := status.Errorf(codes.PermissionDenied, "authorization not implemented for method %q", fullMethod)
+		h.c.Log.Error(err)
+		return nil, err
 	}
 
 	return ctx, nil
@@ -487,8 +525,8 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, er
 		return false, err
 	}
 
-	node := fetchResponse.Node
-	if node != nil && node.SpiffeId == baseSpiffeID {
+	n := fetchResponse.Node
+	if n != nil && n.SpiffeId == baseSpiffeID {
 		return true, nil
 	}
 
@@ -509,7 +547,7 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	// certificate on the connection could have expired after the initial
 	// handshake.
 	if h.c.Clock.Now().After(cert.NotAfter) {
-		return fmt.Errorf("agent %q SVID has expired", agentID)
+		return errors.New("agent SVID has expired")
 	}
 
 	resp, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
@@ -519,12 +557,12 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 		return err
 	}
 
-	node := resp.Node
-	if node == nil {
-		return fmt.Errorf("agent %q is not attested", agentID)
+	n := resp.Node
+	if n == nil {
+		return errors.New("agent is not attested")
 	}
-	if node.CertSerialNumber != cert.SerialNumber.String() {
-		return fmt.Errorf("agent %q SVID does not match expected serial number", agentID)
+	if n.CertSerialNumber != cert.SerialNumber.String() {
+		return errors.New("agent SVID does not match expected serial number")
 	}
 
 	return nil
@@ -538,7 +576,9 @@ func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certifi
 
 	// peer SVIDs must be unexpired and have a corresponding downstream entry
 	if h.c.Clock.Now().After(cert.NotAfter) {
-		return nil, fmt.Errorf("peer %q SVID has expired", peerID)
+		err = errors.New("peer SVID has expired")
+		h.c.Log.WithField(telemetry.PeerID, peerID).Error(err)
+		return nil, err
 	}
 
 	return h.getDownstreamEntry(ctx, peerID)
@@ -552,8 +592,7 @@ func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 	for {
 		response, err := h.attest(ctx, attestStream, request, attestedBefore)
 		if err != nil {
-			h.c.Log.Error(err)
-			return nil, fmt.Errorf("failed to attest: %v", err)
+			return nil, errorutil.WrapAndLogError(h.c.Log, err, "failed to attest")
 		}
 		if response.Challenge == nil {
 			return response, nil
@@ -564,12 +603,12 @@ func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 		}
 
 		if err := nodeStream.Send(challengeResponse); err != nil {
-			return nil, fmt.Errorf("failed to send challenge request: %v", err)
+			return nil, errorutil.WrapAndLogError(h.c.Log, err, "failed to send challenge request")
 		}
 
 		request, err = nodeStream.Recv()
 		if err != nil {
-			return nil, fmt.Errorf("failed to receive challenge response: %v", err)
+			return nil, errorutil.WrapAndLogError(h.c.Log, err, "failed to receive challenge response")
 		}
 	}
 }
@@ -750,7 +789,9 @@ func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*com
 		}
 	}
 
-	return nil, fmt.Errorf("%q is not an authorized downstream workload", callerID)
+	err = errors.New("unauthorized downstream workload")
+	h.c.Log.WithField(telemetry.CallerID, callerID).Error(err)
+	return nil, err
 }
 
 // signCSRsLegacy receives CSRs as a slice of []bytes in contrast with 'SignCSRs'.
@@ -776,7 +817,7 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 	svids = make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
 	for _, csrBytes := range csrs {
-		csr, err := parseCSR(csrBytes, idutil.AllowAny())
+		csr, err := h.parseCSR(csrBytes, idutil.AllowAny())
 		if err != nil {
 			return nil, err
 		}
@@ -855,7 +896,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 	svids = make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
 	for entryID, csrBytes := range csrs {
-		csr, err := parseCSR(csrBytes, idutil.AllowAny())
+		csr, err := h.parseCSR(csrBytes, idutil.AllowAny())
 		if err != nil {
 			return nil, err
 		}
@@ -997,7 +1038,7 @@ func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.
 		TrustDomainId: trustDomainID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch bundle: %v", err)
+		return nil, errorutil.WrapAndLogError(h.c.Log, err,"failed to fetch bundle")
 	}
 	if resp.Bundle == nil {
 		return nil, errors.New("bundle not found")
@@ -1012,13 +1053,13 @@ type CSR struct {
 
 func (h *Handler) parseAttestCSR(csrBytes []byte) (*CSR, error) {
 	if h.c.AllowAgentlessNodeAttestors {
-		return parseCSR(csrBytes, idutil.AllowAnyInTrustDomain(h.c.TrustDomain.Host))
+		return h.parseCSR(csrBytes, idutil.AllowAnyInTrustDomain(h.c.TrustDomain.Host))
 	}
-	return parseCSR(csrBytes, idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host))
+	return h.parseCSR(csrBytes, idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host))
 }
 
 func (h *Handler) parseX509CACSR(csrBytes []byte) (*CSR, error) {
-	csr, err := parseCSR(csrBytes, idutil.AllowTrustDomain(h.c.TrustDomain.Host))
+	csr, err := h.parseCSR(csrBytes, idutil.AllowTrustDomain(h.c.TrustDomain.Host))
 	if err != nil {
 		return nil, err
 	}
@@ -1026,6 +1067,47 @@ func (h *Handler) parseX509CACSR(csrBytes []byte) (*CSR, error) {
 		return nil, errors.New("X509 CA CSR is missing the SPIFFE ID")
 	}
 	return csr, nil
+}
+
+func (h *Handler) parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, error) {
+	csr, err := x509.ParseCertificateRequest(csrBytes)
+	if err != nil {
+		return nil, errorutil.WrapAndLogError(h.c.Log, err, "failed to parse CSR")
+	}
+
+	var spiffeID string
+	switch len(csr.URIs) {
+	case 0:
+	case 1:
+		spiffeID, err = idutil.NormalizeSpiffeID(csr.URIs[0].String(), mode)
+		if err != nil {
+			return nil, errorutil.WrapAndLogError(h.c.Log, err, "invalid SPIFFE ID")
+		}
+	default:
+		return nil, errors.New("CSR cannot have more than one URI SAN")
+	}
+
+	return &CSR{
+		SpiffeID:  spiffeID,
+		PublicKey: csr.PublicKey,
+	}, nil
+}
+
+func (h *Handler) getSpiffeIDFromCSR(csrBytes []byte, mode idutil.ValidationMode) (string, error) {
+	csr, err := x509.ParseCertificateRequest(csrBytes)
+	if err != nil {
+		h.c.Log.Error(err)
+		return "", errorutil.WrapAndLogError(h.c.Log, err, "failed to parse CSR")
+	}
+	if len(csr.URIs) != 1 {
+		return "", errors.New("the CSR must have exactly one URI SAN")
+	}
+
+	spiffeID, err := idutil.NormalizeSpiffeIDURL(csr.URIs[0], mode)
+	if err != nil {
+		return "", err
+	}
+	return spiffeID.String(), nil
 }
 
 func getPeerCertificateFromRequestContext(ctx context.Context) (cert *x509.Certificate, err error) {
@@ -1068,46 +1150,6 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 	}
 
 	return nil
-}
-
-func parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, error) {
-	csr, err := x509.ParseCertificateRequest(csrBytes)
-	if err != nil {
-		return nil, fmt.Errorf("request CSR is invalid: failed to parse CSR: %v", err)
-	}
-
-	var spiffeID string
-	switch len(csr.URIs) {
-	case 0:
-	case 1:
-		spiffeID, err = idutil.NormalizeSpiffeID(csr.URIs[0].String(), mode)
-		if err != nil {
-			return nil, fmt.Errorf("request CSR is invalid: invalid SPIFFE ID: %v", err)
-		}
-	default:
-		return nil, errors.New("request CSR is invalid: cannot have more than one URI SAN")
-	}
-
-	return &CSR{
-		SpiffeID:  spiffeID,
-		PublicKey: csr.PublicKey,
-	}, nil
-}
-
-func getSpiffeIDFromCSR(csrBytes []byte, mode idutil.ValidationMode) (string, error) {
-	csr, err := x509.ParseCertificateRequest(csrBytes)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse CSR: %v", err)
-	}
-	if len(csr.URIs) != 1 {
-		return "", errors.New("the CSR must have exactly one URI SAN")
-	}
-
-	spiffeID, err := idutil.NormalizeSpiffeIDURL(csr.URIs[0], mode)
-	if err != nil {
-		return "", err
-	}
-	return spiffeID.String(), nil
 }
 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {

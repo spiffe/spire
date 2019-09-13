@@ -2,6 +2,7 @@ package fakeregistrationclient
 
 import (
 	"context"
+	"github.com/sirupsen/logrus/hooks/test"
 	"net"
 	"testing"
 	"time"
@@ -49,8 +50,10 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(ds)
+	logger, _ := test.NewNullLogger()
 	server := &ep_registration.Handler{
 		Catalog:     catalog,
+		Log:         logger,
 		Metrics:     telemetry.Blackhole{},
 		TrustDomain: *trustDomainURL,
 	}

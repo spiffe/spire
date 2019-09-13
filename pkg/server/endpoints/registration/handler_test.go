@@ -919,7 +919,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 				Csr:      csr,
 				DnsNames: []string{"domain."},
 			},
-			err: status.Error(codes.InvalidArgument, `"domain." is not a valid DNS name: label is empty`),
+			err: status.Error(codes.InvalidArgument, `invalid DNS name: label is empty`),
 		},
 		{
 			name: "success with default TTL and no DNS names",

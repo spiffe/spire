@@ -76,6 +76,9 @@ const (
 	// Address tags some network address
 	Address = "address"
 
+	// Agent SPIFFE ID
+	AgentID = "agent_id"
+
 	// Attempt tags some count of attempts
 	Attempt = "attempt"
 
@@ -108,6 +111,9 @@ const (
 
 	// DiscoveredSelectors tags selectors for some registration
 	DiscoveredSelectors = "discovered_selectors"
+
+	// DNS name is a name which is resolvable with DNS
+	DNSName = "dns_name"
 
 	// ElapsedTime tags some duration of time. Reserved for use in telemetry package on
 	// call counters. Exported for tests only.
@@ -158,6 +164,9 @@ const (
 
 	// Path declares some logic path, likely on the file system
 	Path = "path"
+
+	// Peer ID is the SPIFFE ID of a peer
+	PeerID = "peer_id"
 
 	// PID declares some process ID
 	PID = "pid"

@@ -329,22 +329,30 @@ func (h *Handler) CreateFederatedBundle(
 
 	bundle := request.Bundle
 	if bundle == nil {
-		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
+		err = status.Error(codes.InvalidArgument, "bundle field is required")
+		h.Log.Error(err)
+		return nil, err
 	}
 	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	ds := h.getDataStore()
 	if _, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	return &common.Empty{}, nil
@@ -366,7 +374,9 @@ func (h *Handler) FetchFederatedBundle(
 	}
 
 	if request.Id == h.TrustDomain.String() {
-		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	ds := h.getDataStore()
@@ -374,10 +384,14 @@ func (h *Handler) FetchFederatedBundle(
 		TrustDomainId: request.Id,
 	})
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 	if resp.Bundle == nil {
-		return nil, status.Error(codes.NotFound, "bundle not found")
+		err = status.Error(codes.NotFound, "bundle not found")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	return &registration.FederatedBundle{
@@ -420,22 +434,30 @@ func (h *Handler) UpdateFederatedBundle(
 
 	bundle := request.Bundle
 	if bundle == nil {
-		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
+		err = status.Error(codes.InvalidArgument, "bundle field is required")
+		h.Log.Error(err)
+		return nil, err
 	}
 	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	ds := h.getDataStore()
 	if _, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	return &common.Empty{}, err
@@ -457,12 +479,16 @@ func (h *Handler) DeleteFederatedBundle(
 	}
 
 	if request.Id == h.TrustDomain.String() {
-		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	mode, err := convertDeleteBundleMode(request.Mode)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	ds := h.getDataStore()
@@ -470,7 +496,9 @@ func (h *Handler) DeleteFederatedBundle(
 		TrustDomainId: request.Id,
 		Mode:          mode,
 	}); err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	return &common.Empty{}, nil
@@ -485,14 +513,18 @@ func (h *Handler) CreateJoinToken(
 	defer counter.Done(&err)
 
 	if request.Ttl < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Ttl is required, you must provide one")
+		err = status.Error(codes.InvalidArgument, "Ttl is required, you must provide one")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
 		u, err := uuid.NewV4()
 		if err != nil {
-			return nil, status.Error(codes.Internal, "Error generating uuid token: %v")
+			err = status.Errorf(codes.Internal, "Error generating uuid token: %v", err)
+			h.Log.Error(err)
+			return nil, err
 		}
 		request.Token = u.String()
 	}
@@ -529,10 +561,14 @@ func (h *Handler) FetchBundle(
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
+		err = status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
+		h.Log.Error(err)
+		return nil, err
 	}
 	if resp.Bundle == nil {
-		return nil, status.Error(codes.NotFound, "bundle not found")
+		err = status.Error(codes.NotFound, "bundle not found")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	return &registration.Bundle{
@@ -546,7 +582,7 @@ func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.Evi
 	log := h.Log.WithField(telemetry.SPIFFEID, spiffeID)
 	deletedNode, err := h.deleteAttestedNode(ctx, spiffeID)
 	if err != nil {
-		log.Warn("Fail to evict agent")
+		log.WithField(telemetry.Error, err).Warn("Failed to evict agent")
 		return nil, err
 	}
 
@@ -562,6 +598,7 @@ func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgen
 	req := &datastore.ListAttestedNodesRequest{}
 	resp, err := ds.ListAttestedNodes(ctx, req)
 	if err != nil {
+		h.Log.Error(err)
 		return nil, err
 	}
 	return &registration.ListAgentsResponse{Nodes: resp.Nodes}, nil
@@ -574,25 +611,35 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 
 	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
 	if err != nil {
+		h.Log.Error(err)
 		return nil, err
 	}
 
 	if len(req.Csr) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "request missing CSR")
+		err = status.Error(codes.InvalidArgument, "request missing CSR")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	for _, dnsName := range req.DnsNames {
 		if err := validateDNS(dnsName); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "%q is not a valid DNS name: %v", dnsName, err)
+			err = status.Errorf(codes.InvalidArgument, "invalid DNS name: %v", err)
+			h.Log.WithField(telemetry.DNSName, dnsName).Error(err)
+			return nil, err
 		}
 	}
 
 	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: %v", err)
+		err = status.Errorf(codes.InvalidArgument, "invalid CSR: %v", err)
+		h.Log.Error(err)
+		return nil, err
 	}
 	if err := csr.CheckSignature(); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
+		h.Log.WithField(telemetry.Error, err)
+		err = status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	svid, err := h.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
@@ -602,17 +649,23 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 		DNSList:   req.DnsNames,
 	})
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		h.Log.Error(err)
+		return nil, err
 	}
 	if resp.Bundle == nil {
-		return nil, status.Error(codes.FailedPrecondition, "bundle not found")
+		err = status.Error(codes.FailedPrecondition, "bundle not found")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	svidChain := make([][]byte, 0, len(svid))
@@ -638,11 +691,14 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 
 	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
 	if err != nil {
+		h.Log.Error(err)
 		return nil, err
 	}
 
 	if len(req.Audience) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "request must specify at least one audience")
+		err = status.Error(codes.InvalidArgument, "request must specify at least one audience")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	token, err := h.ServerCA.SignJWTSVID(ctx, ca.JWTSVIDParams{
@@ -651,7 +707,8 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 		Audience: req.Audience,
 	})
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		err = status.Error(codes.Internal, err.Error())
+		return nil, err
 	}
 
 	return &registration.MintJWTSVIDResponse{
@@ -667,6 +724,7 @@ func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNod
 	}
 	resp, err := ds.GetNodeSelectors(ctx, r)
 	if err != nil {
+		h.Log.Error(err)
 		return nil, err
 	}
 	return &registration.GetNodeSelectorsResponse{
@@ -766,6 +824,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	// For the time being, authorization is not per-method. In other words, all or nothing.
 	callerID, err := authorizeCaller(ctx, h.getDataStore())
 	if err != nil {
+		h.Log.Error(err)
 		return nil, err
 	}
 	if callerID != "" {

@@ -61,6 +61,7 @@ func NewHandler(config HandlerConfig) *Handler {
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
 	_, selectors, done, err := h.startCall(stream.Context())
 	if err != nil {
+		h.c.Log.Error(err)
 		return err
 	}
 	defer done()
@@ -157,11 +158,13 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				continue
 			}
 		case err := <-errch:
+			h.c.Log.Error(err)
 			return err
 		}
 
 		resp, err := h.buildResponse(versionInfo, lastReq, upd)
 		if err != nil {
+			h.c.Log.Error(err)
 			return err
 		}
 
@@ -171,6 +174,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			telemetry.Count:       len(resp.Resources),
 		}).Debug("Sending StreamSecrets response")
 		if err := stream.Send(resp); err != nil {
+			h.c.Log.Error(err)
 			return err
 		}
 
@@ -201,6 +205,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 	}).Debug("Received FetchSecrets request")
 	_, selectors, done, err := h.startCall(ctx)
 	if err != nil {
+		h.c.Log.Error(err)
 		return nil, err
 	}
 	defer done()
@@ -209,6 +214,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 
 	resp, err := h.buildResponse("", req, upd)
 	if err != nil {
+		h.c.Log.Error(err)
 		return nil, err
 	}
 

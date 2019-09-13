@@ -110,6 +110,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 	pid, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
+		h.Log.Error(err)
 		return err
 	}
 	defer done()
@@ -128,6 +129,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 			log.Debug("Sending JWT Bundles")
 			start := time.Now()
 			if err := h.sendJWTBundlesResponse(update, stream, metrics); err != nil {
+				log.Error(err)
 				return err
 			}
 
@@ -146,21 +148,27 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 // ValidateJWTSVID processes request for JWT SVID validation
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
 	if req.Audience == "" {
-		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
+		err := status.Error(codes.InvalidArgument, "audience must be specified")
+		h.Log.Error(err)
+		return nil, err
 	}
+
+	log := h.Log.WithField(telemetry.Audience, req.Audience)
 	if req.Svid == "" {
-		return nil, status.Error(codes.InvalidArgument, "svid must be specified")
+		err := status.Error(codes.InvalidArgument, "svid must be specified")
+		log.Error(err)
+		return nil, err
 	}
 
 	_, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
+		log.Error(err)
 		return nil, err
 	}
 	defer done()
 
 	keyStore := keyStoreFromBundles(h.getWorkloadBundles(selectors))
 
-	log := h.Log.WithField(telemetry.Audience, req.Audience)
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
 		telemetry_workload.IncrValidJWTSVIDErrCounter(metrics)
@@ -176,7 +184,9 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	s, err := structFromValues(claims)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		err = status.Error(codes.InvalidArgument, err.Error())
+		log.Error(err)
+		return nil, err
 	}
 
 	return &workload.ValidateJWTSVIDResponse{
