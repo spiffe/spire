@@ -81,11 +81,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 				CodeVersion: codeVersion.String(),
 			}
 
-			tx := db.Begin()
-			if err := tx.Error; err != nil {
-				return sqlError.Wrap(err)
-			}
-			if err := tx.Model(&Migration{}).Updates(newMigration).Error; err != nil {
+			if err := db.Model(&Migration{}).Updates(newMigration).Error; err != nil {
 				return sqlError.Wrap(err)
 			}
 		}

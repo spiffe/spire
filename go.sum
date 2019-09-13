@@ -283,6 +283,7 @@ github.com/spiffe/go-spiffe v0.0.0-20190518123159-37d000f27824 h1:YsdhHHmqm/1DWk
 github.com/spiffe/go-spiffe v0.0.0-20190518123159-37d000f27824/go.mod h1:q0X9/v75lQ+eeb7Sp2P/FJvmfm9MT7RLmnZS2Gidvns=
 github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae h1:GB1bW3Tds3dAewsZpQFaTg93KFkaIc4bbVFjQpYf4fQ=
 github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae/go.mod h1:HyNeJnVYkDyQgB2qcSPxVYkAA2F3lQu51bDxNpFcKxY=
+github.com/spiffe/spire v0.0.0-20190913185326-05c71d488dea/go.mod h1:kIxhNwdNIcyuMy/viU36luawSNMF/FsX0cSNbOVnoek=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1 h1:2vfRuCMp5sSVIDSqO8oNnWJq7mPa6KVP3iPIwFBuy8A=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

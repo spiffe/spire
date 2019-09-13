@@ -2046,7 +2046,6 @@ func (s *PluginSuite) TestConfigure() {
 		expectMaxOpenConns int
 		expectIdle         int
 	}{
-
 		{
 			desc:               "defaults",
 			expectMaxOpenConns: 0,
