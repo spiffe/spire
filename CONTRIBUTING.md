@@ -83,11 +83,6 @@ In addition to the conventions covered in the SPIFFE project's
 [CONTRIBUTING](https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md), the following
 conventions apply to the SPIRE repository:
 
-## Version Compatibility
-
-SPIRE maintains compatibility across versions for +/- 1 major version. That is, major version X
-is compatible with major versions X-1 and X+1, but X+1 it not guaranteed to be compatible with X-1.
-
 ## SQL Plugin Changes
 
 Datastore changes must be present in at least one full major release cycle prior to introducing code changes that depend on them.
