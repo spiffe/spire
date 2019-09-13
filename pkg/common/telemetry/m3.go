@@ -14,10 +14,9 @@ import (
 type m3Sink struct {
 	closer           io.Closer
 	scope            tally.Scope
-	enableTypePrefix bool
 }
 
-func newM3Sink(serviceName, address, env string, enableTypePrefix bool) (*m3Sink, error) {
+func newM3Sink(serviceName, address, env string) (*m3Sink, error) {
 	m3Config := m3.Configuration{
 		Env:      env,
 		HostPort: address,
@@ -36,9 +35,8 @@ func newM3Sink(serviceName, address, env string, enableTypePrefix bool) (*m3Sink
 	reportEvery := time.Second
 	scope, closer := tally.NewRootScope(scopeOpts, reportEvery)
 	sink := &m3Sink{
-		closer:           closer,
-		scope:            scope,
-		enableTypePrefix: enableTypePrefix,
+		closer: closer,
+		scope:  scope,
 	}
 
 	return sink, nil
@@ -46,8 +44,7 @@ func newM3Sink(serviceName, address, env string, enableTypePrefix bool) (*m3Sink
 
 func newM3TestSink(scope tally.Scope, enableTypePrefix bool) *m3Sink {
 	return &m3Sink{
-		scope:            scope,
-		enableTypePrefix: enableTypePrefix,
+		scope: scope,
 	}
 }
 
@@ -90,16 +87,9 @@ func (m *m3Sink) subscopeWithLabels(labels []Label) tally.Scope {
 
 // Flattens the key for formatting, removes spaces
 func (m *m3Sink) flattenKey(parts []string) string {
-	var keyParts []string
-	if m.enableTypePrefix {
-		// Ignore service name and type of metric as part of metric name,
-		// i.e. prefer "foo_bar" to "service_counter_foo_bar"
-		keyParts = parts[2:]
-	} else {
-		keyParts = parts[1:]
-	}
-
-	return strings.Join(keyParts, "_")
+	// Ignore service name and type of metric as part of metric name,
+	// i.e. prefer "foo_bar" to "service_counter_foo_bar"
+	return strings.Join(parts[2:], "_")
 }
 
 func labelsToTags(labels []Label) map[string]string {
@@ -135,7 +125,7 @@ func (m *m3Sink) getCounter(key []string, scope tally.Scope) tally.Counter {
 
 func (m *m3Sink) addSample(key []string, val float32, scope tally.Scope) {
 	flattenedKey := m.flattenKey(key)
-	if m.enableTypePrefix && key[1] == "timer" {
+	if key[1] == "timer" {
 		m.addDurationSample(flattenedKey, val, scope)
 	} else {
 		addValueSample(flattenedKey, val, scope)
@@ -163,7 +153,7 @@ type m3Runner struct {
 func newM3Runner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &m3Runner{}
 	for _, conf := range c.FileConfig.M3 {
-		sink, err := newM3Sink(c.ServiceName, conf.Address, conf.Env, c.FileConfig.EnableTypePrefix)
+		sink, err := newM3Sink(c.ServiceName, conf.Address, conf.Env)
 		if err != nil {
 			return runner, err
 		}
@@ -208,8 +198,4 @@ func (r *m3Runner) run(ctx context.Context) error {
 
 func (r *m3Runner) requiresTypePrefix() bool {
 	return true
-}
-
-func (r *m3Runner) typeName() string {
-	return "M3"
 }

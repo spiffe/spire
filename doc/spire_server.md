@@ -106,7 +106,6 @@ You may use all, some, or none. The following collectors support multiple declar
 
 | Configuration          | Type          | Description  | Default |
 | ----------------       | ------------- | ------------ | ------- |
-| `EnableTypePrefix`     | `bool`        | Includes metric type information as the second key following the service name | false |
 | `Prometheus`           | `Prometheus`  | Prometheus configuration         | |
 | `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations | |
 | `Statsd`               | `[]Statsd`    | List of Statsd configurations    | |
@@ -135,15 +134,10 @@ You may use all, some, or none. The following collectors support multiple declar
 | `address`        | `string`      | M3 address |
 | `env`            | `string`      | M3 environment, e.g. `production`, `staging` |
 
-When M3 collectors are used, it is highly recommended to set `EnableTypePrefix` to `true` in order to ensure all metrics are emitted properly.
-
-When SPIRE sends metrics to M3, service and type information is stripped from the name of the metric, as they are included as individual tags on the metric.
-
 Here is a sample configuration:
 
 ```hcl
 telemetry {
-        EnableTypePrefix = true
         Prometheus {
                 port = 9988
         }

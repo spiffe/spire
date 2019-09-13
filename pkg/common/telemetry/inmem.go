@@ -66,7 +66,3 @@ func (i *inmemRunner) run(ctx context.Context) error {
 func (i *inmemRunner) requiresTypePrefix() bool {
 	return false
 }
-
-func (i *inmemRunner) typeName() string {
-	return "InMemory"
-}

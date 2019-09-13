@@ -97,7 +97,3 @@ func (p *prometheusRunner) run(ctx context.Context) error {
 func (p *prometheusRunner) requiresTypePrefix() bool {
 	return false
 }
-
-func (p *prometheusRunner) typeName() string {
-	return "Prometheus"
-}

@@ -12,7 +12,6 @@ type MetricsConfig struct {
 }
 
 type FileConfig struct {
-	EnableTypePrefix bool              `hcl:"EnableTypePrefix"`
 	Prometheus       *PrometheusConfig `hcl:"Prometheus"`
 	DogStatsd        []DogStatsdConfig `hcl:"DogStatsd"`
 	Statsd           []StatsdConfig    `hcl:"Statsd"`

@@ -28,7 +28,4 @@ type sinkRunner interface {
 	// When this returns true, this sink requires that the telemetry.EnableTypePrefix
 	// config parameter be set to true to function properly.
 	requiresTypePrefix() bool
-
-	// Returns a human-readable name for this type of sinkRunner
-	typeName() string
 }
