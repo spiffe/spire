@@ -1069,6 +1069,28 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 
 }
 
+func (s *HandlerSuite) TestGetNodeSelectors() {
+	// Setting node selectors
+	ctx := context.Background()
+	spiffeID := "spiffe://example.org/spire/agent/k8s_sat/demo-cluster/c54f273c-f9c2-4d08-9d6f-08879e418aef"
+	selectors := []*common.Selector{
+		{Type: "k8s_sat", Value: "agent_ns:spire"},
+		{Type: "k8s_sat", Value: "agent_sa:spire-agent"},
+		{Type: "k8s_sat", Value: "cluster:demo-cluster"},
+	}
+	expectedNodeSelectors := &registration.NodeSelectors{
+		SpiffeId:  spiffeID,
+		Selectors: selectors,
+	}
+	s.setNodeSelectors(spiffeID, selectors)
+
+	// Getting node selectors
+	req := &registration.GetNodeSelectorsRequest{SpiffeId: spiffeID}
+	resp, err := s.handler.GetNodeSelectors(ctx, req)
+	s.Require().NoError(err)
+	s.Equal(resp.Selectors, expectedNodeSelectors)
+}
+
 func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode {
 	createResponse, err := s.ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
@@ -1272,6 +1294,16 @@ func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) 
 	})
 	s.Require().NoError(err)
 	return resp.Entry
+}
+
+func (s *HandlerSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
+	_, err := s.ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
+		Selectors: &datastore.NodeSelectors{
+			SpiffeId:  spiffeID,
+			Selectors: selectors,
+		},
+	})
+	s.Require().NoError(err)
 }
 
 func (s *HandlerSuite) requireErrorContains(err error, contains string) {

@@ -55,7 +55,7 @@ var (
 )
 
 func TestInitializationFailure(t *testing.T) {
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
@@ -85,7 +85,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
@@ -137,7 +137,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
@@ -185,7 +185,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
@@ -252,7 +252,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,
@@ -383,19 +383,54 @@ func TestSVIDRotation(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
+	// Define and set a rotation hook
+	rotHookStatus := struct {
+		called bool
+		mtx    sync.RWMutex
+	}{}
+
+	wasRotHookCalled := func() bool {
+		rotHookStatus.mtx.RLock()
+		defer rotHookStatus.mtx.RUnlock()
+		return rotHookStatus.called
+	}
+
+	m.SetRotationFinishedHook(func() {
+		rotHookStatus.mtx.Lock()
+		defer rotHookStatus.mtx.Unlock()
+		rotHookStatus.called = true
+	})
+
 	mockClk.WaitForTickerMulti(time.Second, 2, "svid rotater and syncer didn't create tickers after 1 second")
+
+	// Get RLock to simulate an ongoing request (Rotator should wait until mtx is unlocked)
+	m.GetRotationMtx().RLock()
+
 	// now that the ticker is created, cause a tick to happen
 	mockClk.Add(baseTTLSeconds / 2)
+
+	// Loop, we should not detect SVID rotations
+	for i := 0; i < 10; i++ {
+		s := m.GetCurrentCredentials()
+		svid = s.SVID
+		require.True(t, svidsEqual(svid, baseSVID))
+		require.False(t, wasRotHookCalled())
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// RUnlock simulates the end of the request (Rotator should rotate SVIDs now)
+	m.GetRotationMtx().RUnlock()
 
 	// Loop until we detect an SVID rotation
 	util.RunWithTimeout(t, time.Second, func() {
 		for {
 			// If manager's current SVID is not equals to the first one we generated
 			// it means it rotated, so we must exit the loop.
-			s := m.svid.State()
+			s := m.GetCurrentCredentials()
 			svid = s.SVID
 			key = s.Key
 			if !svidsEqual(svid, baseSVID) {
+				require.True(t, wasRotHookCalled())
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -555,7 +590,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,
@@ -617,7 +652,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,
@@ -678,7 +713,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,

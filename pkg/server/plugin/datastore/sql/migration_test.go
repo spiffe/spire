@@ -373,6 +373,7 @@ COMMIT;
 		CREATE INDEX idx_registered_entries_expiry ON "registered_entries"(expiry) ;
 		COMMIT;
 		`,
+		// v11 database entry, in which index was added to federated_registration_entries registered_entry_id field
 	}
 )
 

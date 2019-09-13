@@ -3,6 +3,9 @@ package telemetry
 import (
 	"sync"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // CallCounter is used to track timing and other information about a "call". It
@@ -52,15 +55,21 @@ func (c *CallCounter) AddLabel(name, value string) {
 // Done finishes the "call" and emits metrics. No other calls to the CallCounter
 // should be done during or after the call to Done. In other words, it is not
 // thread-safe and is intended to be the final call to the CallCounter struct.
+// Emits latency and counter metrics, including adding a Status label according
+// to gRPC code of the given error. If nil error, the code is OK (success).
 func (c *CallCounter) Done(errp *error) {
 	if c.done {
 		return
 	}
 	c.done = true
 	key := c.key
-	if errp != nil && *errp != nil {
-		key = append(key, "error")
+
+	code := codes.OK
+	if errp != nil {
+		code = status.Code(*errp)
 	}
+	c.AddLabel(Status, code.String())
+
 	c.metrics.IncrCounterWithLabels(key, 1, c.labels)
 	c.metrics.MeasureSinceWithLabels(append(key, ElapsedTime), c.start, c.labels)
 }

@@ -19,7 +19,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -1191,7 +1190,6 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, expectedSPI
 	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
 	defer expectedCounter.Done(nil)
 	telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
-	telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
@@ -1228,12 +1226,8 @@ func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, expectedSPI
 	if req.AttestationData != nil && req.AttestationData.Type != "" {
 		telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
 	}
-	if expectedSPIFFE != "" {
-		telemetry_common.AddSPIFFEID(expectedCounter, expectedSPIFFE)
-	}
-	fakeErr := errors.New("")
-	defer expectedCounter.Done(&fakeErr)
-	defer expectedCounter.AddLabel(telemetry.Error, errorCode.String())
+	expectErr := status.Error(errorCode, "")
+	defer expectedCounter.Done(&expectErr)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()

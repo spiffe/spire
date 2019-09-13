@@ -198,7 +198,7 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 // the the provided certificate to the client.Client caller.
 func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 	s.client.EXPECT().
-		FetchUpdates(gomock.Any(), gomock.Any()).
+		FetchUpdates(gomock.Any(), gomock.Any(), true).
 		Return(&client.Update{
 			SVIDs: map[string]*node.X509SVID{
 				s.r.c.SpiffeID: {

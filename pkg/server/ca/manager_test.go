@@ -506,6 +506,26 @@ func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	s.Equal("Notifier failed to handle event", entry.Message)
 }
 
+func (s *ManagerSuite) TestPreparationThresholdCap() {
+	issuedAt := time.Now()
+	notAfter := issuedAt.Add(365 * 24 * time.Hour)
+
+	// Expect the preparation threshold to get capped since 1/2 of the lifetime
+	// exceeds the thirty day cap.
+	threshold := preparationThreshold(issuedAt, notAfter)
+	s.Require().Equal(thirtyDays, notAfter.Sub(threshold))
+}
+
+func (s *ManagerSuite) TestActivationThreshholdCap() {
+	issuedAt := time.Now()
+	notAfter := issuedAt.Add(365 * 24 * time.Hour)
+
+	// Expect the activation threshold to get capped since 1/6 of the lifetime
+	// exceeds the seven day cap.
+	threshold := activationThreshold(issuedAt, notAfter)
+	s.Require().Equal(sevenDays, notAfter.Sub(threshold))
+}
+
 func (s *ManagerSuite) initSelfSignedManager() {
 	s.cat.SetUpstreamCA(nil)
 	s.m = NewManager(s.selfSignedConfig())
