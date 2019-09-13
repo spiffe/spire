@@ -1753,7 +1753,7 @@ func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
 		{
 			dbVersion: 9,
 			noMigrateValidation: func(dbPath string) {
-				// between 9 and 11 only a new index was added; this should be non-breaking
+				// between 9 and 12 only a new index was added; this should be non-breaking
 				s.createRegistrationEntry(&common.RegistrationEntry{
 					SpiffeId:  "spiffe://example.org/foo",
 					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
@@ -1769,7 +1769,7 @@ func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
 		{
 			dbVersion: 10,
 			noMigrateValidation: func(dbPath string) {
-				// between 10 and 11 only a new index was added; this should be non-breaking
+				// between 10 and 12 only a new index was added; this should be non-breaking
 				s.createRegistrationEntry(&common.RegistrationEntry{
 					SpiffeId:  "spiffe://example.org/foo",
 					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
@@ -1780,6 +1780,23 @@ func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
 				})
 				s.Require().NoError(err)
 				s.Require().False(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
+			},
+		},
+		{
+			dbVersion: 11,
+			noMigrateValidation: func(dbPath string) {
+				// between 11 and 12 a new column was added to the migrations table, and we
+				// *always* migrate that table; this should be non-breaking
+				s.createRegistrationEntry(&common.RegistrationEntry{
+					SpiffeId:  "spiffe://example.org/foo",
+					Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+				})
+				db, err := sqlite{}.connect(&configuration{
+					DatabaseType:     "sqlite3",
+					ConnectionString: fmt.Sprintf("file://%s", dbPath),
+				})
+				s.Require().NoError(err)
+				s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 			},
 		},
 	}
