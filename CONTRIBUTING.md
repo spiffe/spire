@@ -83,10 +83,6 @@ In addition to the conventions covered in the SPIFFE project's
 [CONTRIBUTING](https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md), the following
 conventions apply to the SPIRE repository:
 
-## Version Support
-
-SPIRE maintains support only for the latest major version and the previous major version.
-
 ## Version Compatibility
 
 SPIRE maintains compatibility across versions for +/- 1 major version. That is, major version X
