@@ -56,10 +56,7 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 		return nil, errors.New("logger must be configured")
 	}
 
-	impl := &MetricsImpl{
-		c: c,
-		metricsSinks: make([]*metrics.Metrics, 0),
-	}
+	impl := &MetricsImpl{c: c}
 
 	for _, f := range sinkRunnerFactories {
 		runner, err := f(c)
