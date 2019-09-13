@@ -2,31 +2,51 @@ package sql
 
 import (
 	"fmt"
+	"math"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/golang/protobuf/proto"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/version"
 )
 
 const (
-	// version of the database in the code
-	codeVersion = 11
+	// the latest schema version of the database in the code
+	latestSchemaVersion = 12
+
+	// the version in which the current migration design was
+	// introduced
+	// TODO related epic https://github.com/spiffe/spire/issues/1083
+	// This is not a part of the final design for migration safety discussed,
+	// but helps in this in-between phase to make sure a version is available
+	// for comparison. When SPIRE Code version gets bumped to 0.10, this
+	// should be removed.
+	preMigrationDesignVersion = "0.8.2"
 )
 
 var (
-	// versions of the database that the current code version
+	// Versions of the database that the current code version
 	// could run against without degradation / failure in the event
 	// that auto-migration is disabled
-	// a map is cleaner and faster to look for a particular version
+	// This is not a part of the final design for migration safety discussed
+	// in https://github.com/spiffe/spire/issues/1083, but acknowledges versions
+	// safe to use pre-tracking of SPIRE Code version in migration table.
+	// When SPIRE Code version gets bumped to 0.9, this `safeVersions` map should be removed.
+	// A map is cleaner and faster to look for a particular version
 	// in than looping on a slice
 	safeVersions = map[int]struct{}{
 		9:  {},
 		10: {},
+		11: {},
 	}
+
+	// the current code version
+	codeVersion = semver.MustParse(version.Version())
 )
 
 func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logger) (err error) {
@@ -40,8 +60,9 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	}
 
 	// TODO related epic https://github.com/spiffe/spire/issues/1083
-	// continue doing this automigration for now; better versioning
-	// pattern should be introduced later
+	// continue doing this automigration for now
+	// eventually SPIRE Code will be bumped to version 0.10, where we can
+	// expect that the `migrations` table exists and this can be removed
 	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -50,40 +71,82 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	if err := db.Assign(Migration{}).FirstOrCreate(migration).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
-	version := migration.Version
 
-	if version == codeVersion {
-		log.Debug(fmt.Sprintf("Code and DB versions are both %d. No migration needed.", version))
+	schemaVersion := migration.Version
+
+	dbCodeVersionStr := migration.CodeVersion
+	if dbCodeVersionStr == "" {
+		dbCodeVersionStr = preMigrationDesignVersion
+	}
+	dbCodeVersion, err := semver.Parse(dbCodeVersionStr)
+	if err != nil {
+		return err
+	}
+
+	if schemaVersion == latestSchemaVersion {
+		log.Debug(fmt.Sprintf("Code and DB schema versions are both %d. No migration needed.", schemaVersion))
+
+		// if code version greater than stored, store newer code version
+		if codeVersion.GT(dbCodeVersion) {
+			newMigration := Migration{
+				Version:     latestSchemaVersion,
+				CodeVersion: codeVersion.String(),
+			}
+
+			tx := db.Begin()
+			if err := tx.Error; err != nil {
+				return sqlError.Wrap(err)
+			}
+			if err := tx.Model(&Migration{}).Updates(newMigration).Error; err != nil {
+				return sqlError.Wrap(err)
+			}
+		}
 		return nil
 	}
 
-	if disableMigration {
-		if _, ok := safeVersions[version]; ok {
-			// safe version to run against
-			log.Info(fmt.Sprintf("auto-migration disabled and DB versions do not match."+
-				"Code version %d is compatible with DB version %d", codeVersion, version))
-			return nil
-		}
-		// unsafe version to run against
-		err = sqlError.New("auto-migration disabled and DB versions do not match."+
-			" Code version %d is NOT compatible with DB version %d", codeVersion, version)
+	// TODO related epic https://github.com/spiffe/spire/issues/1083
+	// currently we are comparing minor version changes since SPIRE is pre-1.0.
+	// Once SPIRE is 1.0 we should compare major versions (+- 1 allowed),
+	// either allowing the last pre-1.0 minor release or disallowing all 0.X
+	// releases. Once SPIRE is 2.0 we can get rid of the special logic and
+	// only compare major versions.
+	if dbCodeVersion.Major != codeVersion.Major || math.Abs(float64(dbCodeVersion.Minor-codeVersion.Minor)) > 1 {
+		// DB schema versions do not match, and the Code versions are incompatible
+		err = sqlError.New("Code version %s is NOT compatible with DB code version %s", codeVersion.String(), dbCodeVersion.String())
 		log.Error(err.Error())
 		return err
 	}
 
-	if version > codeVersion {
-		err = sqlError.New("backwards migration not supported! (current=%d, code=%d)", version, codeVersion)
+	if disableMigration {
+		if _, ok := safeVersions[schemaVersion]; ok {
+			// safe schemaVersion to run against
+			log.Info(fmt.Sprintf("auto-migration disabled and DB schema versions do not match."+
+				"Code schema version %d is compatible with DB schema version %d", latestSchemaVersion, schemaVersion))
+			return nil
+		}
+		// unsafe schemaVersion to run against
+		err = sqlError.New("auto-migration disabled and DB schema versions do not match."+
+			" Code schema version %d is NOT compatible with DB schema version %d", latestSchemaVersion, schemaVersion)
 		log.Error(err.Error())
 		return err
+	}
+
+	// at this point:
+	// - auto-migration is enabled
+	// - code version difference is not too large to support
+
+	if schemaVersion > latestSchemaVersion {
+		log.Warn(fmt.Sprintf("backwards DB schema migration not supported! (current=%d, latest=%d)", schemaVersion, latestSchemaVersion))
+		return nil
 	}
 
 	log.Info("Running migrations...")
-	for version < codeVersion {
+	for schemaVersion < latestSchemaVersion {
 		tx := db.Begin()
 		if err := tx.Error; err != nil {
 			return sqlError.Wrap(err)
 		}
-		version, err = migrateVersion(tx, version, log)
+		schemaVersion, err = migrateVersion(tx, schemaVersion, log)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -120,7 +183,7 @@ func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	if err := tx.Assign(Migration{Version: codeVersion}).FirstOrCreate(&Migration{}).Error; err != nil {
+	if err := tx.Assign(Migration{Version: latestSchemaVersion}).FirstOrCreate(&Migration{}).Error; err != nil {
 		tx.Rollback()
 		return sqlError.Wrap(err)
 	}
@@ -146,14 +209,14 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 	return tx
 }
 
-func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int, err error) {
-	log.Info("migrating version", telemetry.VersionInfo, version)
+func migrateVersion(tx *gorm.DB, currVersion int, log hclog.Logger) (versionOut int, err error) {
+	log.Info("migrating version", telemetry.VersionInfo, currVersion)
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run
 	// sequentially, each in its own transaction, to move from one version to
 	// the next.
-	switch version {
+	switch currVersion {
 	case 0:
 		err = migrateToV1(tx)
 	case 1:
@@ -176,16 +239,21 @@ func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int,
 		err = migrateToV10(tx)
 	case 10:
 		err = migrateToV11(tx)
+	case 11:
+		err = migrateToV12(tx)
 	default:
-		err = sqlError.New("no migration support for version %d", version)
+		err = sqlError.New("no migration support for version %d", currVersion)
 	}
 	if err != nil {
-		return version, err
+		return currVersion, err
 	}
 
-	nextVersion := version + 1
-	if err := tx.Model(&Migration{}).Updates(Migration{Version: nextVersion}).Error; err != nil {
-		return version, sqlError.Wrap(err)
+	nextVersion := currVersion + 1
+	if err := tx.Model(&Migration{}).Updates(Migration{
+		Version:     nextVersion,
+		CodeVersion: version.Version(),
+	}).Error; err != nil {
+		return currVersion, sqlError.Wrap(err)
 	}
 
 	return nextVersion, nil
@@ -385,6 +453,13 @@ func migrateToV11(tx *gorm.DB) error {
 	return nil
 }
 
+func migrateToV12(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&Migration{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
 func addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx *gorm.DB) error {
 	// GORM creates the federated_registration_entries implicitly with a primary
 	// key tuple (bundle_id, registered_entry_id). Unfortunately, MySQL5 does
@@ -556,4 +631,16 @@ type V8Selector struct {
 	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
 	Type              string `gorm:"unique_index:idx_selector_entry"`
 	Value             string `gorm:"unique_index:idx_selector_entry"`
+}
+
+type V11Migration struct {
+	Model
+
+	// Database version
+	Version int
+}
+
+// TableName gets table name for v11 migrations table
+func (V11Migration) TableName() string {
+	return "migrations"
 }

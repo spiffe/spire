@@ -1741,8 +1741,8 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 				disable_migration = true
 			`, dbPath),
 	})
-	s.Require().EqualError(err, fmt.Sprintf("rpc error: code = Unknown desc = datastore-sql: auto-migration disabled and DB versions do not match."+
-		" Code version %d is NOT compatible with DB version %d", codeVersion, dbVersion))
+	s.Require().EqualError(err, fmt.Sprintf("rpc error: code = Unknown desc = datastore-sql: auto-migration disabled and DB schema versions do not match."+
+		" Code schema version %d is NOT compatible with DB schema version %d", latestSchemaVersion, dbVersion))
 }
 
 func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
@@ -1808,7 +1808,7 @@ func (s *PluginSuite) TestDisabledMigrationNonBreakingChanges() {
 }
 
 func (s *PluginSuite) TestMigration() {
-	for i := 0; i < codeVersion; i++ {
+	for i := 0; i < latestSchemaVersion; i++ {
 		dbName := fmt.Sprintf("v%d.sqlite3", i)
 		dbPath := filepath.Join(s.dir, "migration-"+dbName)
 		dump := migrationDump(i)
@@ -1976,6 +1976,13 @@ func (s *PluginSuite) TestMigration() {
 			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
+		case 11:
+			db, err := sqlite{}.connect(&configuration{
+				DatabaseType:     "sqlite3",
+				ConnectionString: fmt.Sprintf("file://%s", dbPath),
+			})
+			s.Require().NoError(err)
+			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
