@@ -100,22 +100,22 @@ cmd: ## Opens a shell in docker container
 spire-images: spire-server-image spire-agent-image k8s-workload-registrar-image ## Builds SPIRE Server and Agent docker images
 
 .PHONY: spire-server-image
-spire-server-image: Dockerfile.server ## Builds SPIRE Server docker image
-	docker build --build-arg goversion=$(goversion-required) -t spire-server -f Dockerfile.server .
+spire-server-image: Dockerfile.images ## Builds SPIRE Server docker image
+	docker build --build-arg goversion=$(goversion-required) --target spire-server -t spire-server -f Dockerfile.images .
 	# tag the image for local use (in systems tests, for example). "latest"
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
 	docker tag spire-server:latest spire-server:latest-local
 
 .PHONY: spire-agent-image
-spire-agent-image: Dockerfile.agent ## Builds SPIRE Agent docker image
-	docker build --build-arg goversion=$(goversion-required) -t spire-agent -f Dockerfile.agent .
+spire-agent-image: Dockerfile.images ## Builds SPIRE Agent docker image
+	docker build --build-arg goversion=$(goversion-required) --target spire-server -t spire-agent -f Dockerfile.images .
 	# tag the image for local use (in systems tests, for example). "latest"
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
 	docker tag spire-agent:latest spire-agent:latest-local
 
 .PHONY: k8s-workload-registrar-image
-k8s-workload-registrar-image: Dockerfile.k8s-workload-registrar ## Builds SPIRE K8S Workload Registrar docker image
-	docker build --build-arg goversion=$(goversion-required) -t k8s-workload-registrar -f Dockerfile.k8s-workload-registrar .
+k8s-workload-registrar-image: Dockerfile.images ## Builds SPIRE K8S Workload Registrar docker image
+	docker build --build-arg goversion=$(goversion-required) --target k8s-workload-registrar -t k8s-workload-registrar -f Dockerfile.images .
 	# tag the image for local use (in systems tests, for example). "latest"
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
 	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
