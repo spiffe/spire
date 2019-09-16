@@ -108,7 +108,7 @@ spire-server-image: Dockerfile.images ## Builds SPIRE Server docker image
 
 .PHONY: spire-agent-image
 spire-agent-image: Dockerfile.images ## Builds SPIRE Agent docker image
-	docker build --build-arg goversion=$(goversion-required) --target spire-server -t spire-agent -f Dockerfile.images .
+	docker build --build-arg goversion=$(goversion-required) --target spire-agent -t spire-agent -f Dockerfile.images .
 	# tag the image for local use (in systems tests, for example). "latest"
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
 	docker tag spire-agent:latest spire-agent:latest-local
