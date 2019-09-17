@@ -1,0 +1,22 @@
+#!/bin/bash
+
+log-debug "creating registration entry..."
+docker-compose exec spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload" \
+    -selector "unix:uid:0" \
+    -ttl 0
+
+# Wait up to 30 seconds for the agent to sync the entry
+NUMCHECKS=30
+for ((i=1;i<=NUMCHECKS;i++)); do
+    log-info "checking for synced workload entry ($i of $NUMCHECKS)..."
+    docker-compose logs spire-agent
+    if docker-compose logs spire-agent | grep "spiffe://domain.test/workload"; then
+        exit 0
+    fi
+    sleep 1
+done
+
+fail-now "timed out waiting for agent to sync down entry"
