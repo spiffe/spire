@@ -874,10 +874,12 @@ func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logge
 
 func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
 	model := AttestedNode{
-		SpiffeID:     req.Node.SpiffeId,
-		DataType:     req.Node.AttestationDataType,
-		SerialNumber: req.Node.CertSerialNumber,
-		ExpiresAt:    time.Unix(req.Node.CertNotAfter, 0),
+		SpiffeID:             req.Node.SpiffeId,
+		DataType:             req.Node.AttestationDataType,
+		SerialNumber:         req.Node.CertSerialNumber,
+		ExpiresAt:            time.Unix(req.Node.CertNotAfter, 0),
+		PreparedSerialNumber: req.Node.PreparedCertSerialNumber,
+		PreparedExpiresAt:    time.Unix(req.Node.PreparedCertNotAfter, 0),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
@@ -948,8 +950,10 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 	}
 
 	updates := AttestedNode{
-		SerialNumber: req.CertSerialNumber,
-		ExpiresAt:    time.Unix(req.CertNotAfter, 0),
+		SerialNumber:         req.CertSerialNumber,
+		ExpiresAt:            time.Unix(req.CertNotAfter, 0),
+		PreparedSerialNumber: req.PreparedCertSerialNumber,
+		PreparedExpiresAt:    time.Unix(req.PreparedCertNotAfter, 0),
 	}
 
 	if err := tx.Model(&model).Updates(updates).Error; err != nil {
@@ -2249,10 +2253,12 @@ func newRegistrationEntryID() (string, error) {
 
 func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
 	return &common.AttestedNode{
-		SpiffeId:            model.SpiffeID,
-		AttestationDataType: model.DataType,
-		CertSerialNumber:    model.SerialNumber,
-		CertNotAfter:        model.ExpiresAt.Unix(),
+		SpiffeId:                 model.SpiffeID,
+		AttestationDataType:      model.DataType,
+		CertSerialNumber:         model.SerialNumber,
+		CertNotAfter:             model.ExpiresAt.Unix(),
+		PreparedCertSerialNumber: model.PreparedSerialNumber,
+		PreparedCertNotAfter:     model.PreparedExpiresAt.Unix(),
 	}
 }
 

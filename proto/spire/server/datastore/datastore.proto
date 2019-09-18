@@ -151,6 +151,10 @@ message UpdateAttestedNodeRequest {
     string cert_serial_number = 2;
 
     int64 cert_not_after = 3;
+
+    string prepared_cert_serial_number = 4;
+
+    int64 prepared_cert_not_after = 5;
 }
 
 message UpdateAttestedNodeResponse {
