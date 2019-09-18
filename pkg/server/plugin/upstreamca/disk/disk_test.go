@@ -6,10 +6,13 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/x509svid"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	testutil "github.com/spiffe/spire/test/util"
@@ -36,12 +39,16 @@ func TestDisk(t *testing.T) {
 type DiskSuite struct {
 	spiretest.Suite
 
+	clock     *clock.Mock
 	rawPlugin *DiskPlugin
 	p         upstreamca.Plugin
 }
 
 func (s *DiskSuite) SetupTest() {
+	s.clock = clock.NewMock(s.T())
+
 	p := New()
+	p.clock = s.clock
 
 	// This ensures that there are only specific tests that do the verify
 	// flow lowering the cost of "refreshing" all of the cert material
@@ -66,6 +73,7 @@ func (s *DiskSuite) TestConfigureUsingECKey() {
 	err := s.configureWith("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
 	s.Require().NoError(err)
 }
+
 func (s *DiskSuite) TestConfigureUsingPKCS1Key() {
 	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS1/cert.pem")
 	s.Require().NoError(err)
@@ -218,6 +226,42 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 	testCSR()
 }
 
+func (s *DiskSuite) TestDeprecatedTTLUsedIfSet() {
+	err := s.configureWithTTL("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem", "10h")
+	s.Require().NoError(err)
+
+	// Submit CSR with 1 hour preferred TTL. The deprecated TTL configurable
+	// (10 hours) should take precedence.
+	s.testCSRTTL(3600, time.Hour*10)
+}
+
+func (s *DiskSuite) TestDeprecatedTTLUsesPreferredIfNoDeprecatedTTLSet() {
+	err := s.configureWith("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
+	s.Require().NoError(err)
+
+	// If the preferred TTL is set, it should be used.
+	s.testCSRTTL(3600, time.Hour)
+
+	// If the preferred TTL is zero, the default should be used.
+	s.testCSRTTL(0, x509svid.DefaultUpstreamCATTL)
+}
+
+func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
+	validSpiffeID := "spiffe://localhost"
+	csr, _, err := util.NewCSRTemplate(validSpiffeID)
+	s.Require().NoError(err)
+
+	resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr, PreferredTtl: preferredTTL})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.SignedCertificate)
+
+	certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+	s.Require().NoError(err)
+	s.Require().Len(certs, 1)
+	s.Require().Equal(s.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
+}
+
 func testCSRResp(t *testing.T, resp *upstreamca.SubmitCSRResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
 	certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
 	require.NoError(t, err)
@@ -268,11 +312,15 @@ func (s *DiskSuite) TestRace() {
 	})
 }
 
-func (s *DiskSuite) configureWith(keyFilePath string, certFilePath string) error {
+func (s *DiskSuite) configureWith(keyFilePath, certFilePath string) error {
+	return s.configureWithTTL(keyFilePath, certFilePath, "")
+}
+
+func (s *DiskSuite) configureWithTTL(keyFilePath, certFilePath, deprecatedTTL string) error {
 	config, err := json.Marshal(Configuration{
-		KeyFilePath:  keyFilePath,
-		CertFilePath: certFilePath,
-		TTL:          "1h",
+		KeyFilePath:   keyFilePath,
+		CertFilePath:  certFilePath,
+		DeprecatedTTL: deprecatedTTL,
 	})
 	s.Require().NoError(err)
 

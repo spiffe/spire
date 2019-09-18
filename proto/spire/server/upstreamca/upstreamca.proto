@@ -23,6 +23,11 @@ message SignedCertificate {
 message SubmitCSRRequest {
     // Certificate signing request
     bytes csr = 1;
+
+    // Preferred TTL is the TTL preferred by SPIRE server for signed CA. If
+    // zero, the plugin should determine its own TTL value.  Upstream CA
+    // plugins are free to ignore this and use their own policies around TTLs. 
+    int32 preferred_ttl = 2;
 }
 
 message SubmitCSRResponse {

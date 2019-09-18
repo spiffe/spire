@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 )
@@ -17,6 +18,7 @@ const (
 type UpstreamCAOptions struct {
 	Backdate time.Duration
 	TTL      time.Duration
+	Clock    clock.Clock
 }
 
 type UpstreamCA struct {
@@ -29,8 +31,8 @@ func NewUpstreamCA(keypair x509util.Keypair, trustDomain string, options Upstrea
 	if options.Backdate <= 0 {
 		options.Backdate = DefaultUpstreamCABackdate
 	}
-	if options.TTL <= 0 {
-		options.TTL = DefaultUpstreamCATTL
+	if options.Clock == nil {
+		options.Clock = clock.New()
 	}
 
 	return &UpstreamCA{
@@ -40,7 +42,7 @@ func NewUpstreamCA(keypair x509util.Keypair, trustDomain string, options Upstrea
 	}
 }
 
-func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte) (*x509.Certificate, error) {
+func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL time.Duration) (*x509.Certificate, error) {
 	csr, err := ParseAndValidateCSR(csrDER, idutil.AllowTrustDomain(ca.trustDomain))
 	if err != nil {
 		return nil, err
@@ -51,10 +53,20 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte) (*x509.Certifi
 		return nil, err
 	}
 
-	now := time.Now()
+	// Prefer the CA TTL setting, if configured. Then fall back to the
+	// "preferred TTL in the request. Finally, if neither is set, use the
+	// default.
+	caTTL := DefaultUpstreamCATTL
+	switch {
+	case ca.options.TTL > 0:
+		caTTL = ca.options.TTL
+	case preferredTTL > 0:
+		caTTL = preferredTTL
+	}
 
+	now := ca.options.Clock.Now()
 	notBefore := now.Add(-ca.options.Backdate)
-	notAfter := now.Add(ca.options.TTL)
+	notAfter := now.Add(caTTL)
 
 	caCert, err := ca.keypair.GetCertificate(ctx)
 	if err != nil {

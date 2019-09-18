@@ -199,6 +199,7 @@ Represents the plugin metadata.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | csr | [bytes](#bytes) |  | Certificate signing request |
+| preferred_ttl | [int32](#int32) |  | Preferred TTL is the TTL preferred by SPIRE server for signed CA. If zero, the plugin should determine its own TTL value. Upstream CA plugins are free to ignore this and use their own policies around TTLs. |
 
 
 
