@@ -186,7 +186,7 @@ func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 			TTL: 30 * time.Minute,
 		})
 
-	cert, err := ca.SignCSR(ctx, req.Csr)
+	cert, err := ca.SignCSR(ctx, req.Csr, 0)
 	if err != nil {
 		return nil, fmt.Errorf("unable to sign CSR: %v", err)
 	}

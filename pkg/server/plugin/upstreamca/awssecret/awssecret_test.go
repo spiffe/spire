@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/x509svid"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 )
@@ -41,12 +44,14 @@ func TestAWSSecret(t *testing.T) {
 type AWSSecretSuite struct {
 	spiretest.Suite
 
+	clock         *clock.Mock
 	client        secretsManagerClient
 	awsUpstreamCA upstreamca.Plugin
 }
 
-func (s *AWSSecretSuite) SetupTest() {
-	s.awsUpstreamCA = s.newAWSUpstreamCA()
+func (as *AWSSecretSuite) SetupTest() {
+	as.clock = clock.NewMock(as.T())
+	as.awsUpstreamCA = as.newAWSUpstreamCA("")
 }
 
 func (as *AWSSecretSuite) TestConfigureNoGlobal() {
@@ -114,11 +119,45 @@ func (as *AWSSecretSuite) Test_SubmitInvalidCSR() {
 	as.Require().Nil(resp)
 }
 
+func (as *AWSSecretSuite) TestDeprecatedTTLUsedIfSet() {
+	awsUpstreamCA := as.newAWSUpstreamCA("10h")
+
+	// Submit CSR with 1 hour preferred TTL. The deprecated TTL configurable
+	// (10 hours) should take precedence.
+	as.testCSRTTL(awsUpstreamCA, 3600, time.Hour*10)
+}
+
+func (as *AWSSecretSuite) TestDeprecatedTTLUsesPreferredIfNoDeprecatedTTLSet() {
+	awsUpstreamCA := as.newAWSUpstreamCA("")
+
+	// If the preferred TTL is set, it should be used.
+	as.testCSRTTL(awsUpstreamCA, 3600, time.Hour)
+
+	// If the preferred TTL is zero, the default should be used.
+	as.testCSRTTL(awsUpstreamCA, 0, x509svid.DefaultUpstreamCATTL)
+}
+
+func (as *AWSSecretSuite) testCSRTTL(plugin upstreamca.Plugin, preferredTTL int32, expectedTTL time.Duration) {
+	validSpiffeID := "spiffe://localhost"
+	csr, _, err := util.NewCSRTemplate(validSpiffeID)
+	as.Require().NoError(err)
+
+	resp, err := plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr, PreferredTtl: preferredTTL})
+	as.Require().NoError(err)
+	as.Require().NotNil(resp)
+	as.Require().NotNil(resp.SignedCertificate)
+
+	certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+	as.Require().NoError(err)
+	as.Require().Len(certs, 1)
+	as.Require().Equal(as.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
+}
+
 func (as *AWSSecretSuite) TestFailConfiguration() {
 	config := AWSSecretConfiguration{
 		KeyFileARN:      "",
 		CertFileARN:     "",
-		TTL:             "1h",
+		DeprecatedTTL:   "1h",
 		AccessKeyID:     "keyid",
 		Region:          "us-west-2",
 		SecretAccessKey: "accesskey",
@@ -131,7 +170,10 @@ func (as *AWSSecretSuite) TestFailConfiguration() {
 	}
 
 	m := newPlugin(newFakeSecretsManagerClient)
-	_, err := m.Configure(ctx, pluginConfig)
+
+	var plugin upstreamca.Plugin
+	as.LoadPlugin(builtin(m), &plugin)
+	_, err := plugin.Configure(ctx, pluginConfig)
 	as.Require().Error(err)
 }
 
@@ -141,11 +183,11 @@ func (as *AWSSecretSuite) TestAWSSecret_GetPluginInfo() {
 	as.Require().NotNil(res)
 }
 
-func (as *AWSSecretSuite) newAWSUpstreamCA() upstreamca.Plugin {
+func (as *AWSSecretSuite) newAWSUpstreamCA(deprecatedTTL string) upstreamca.Plugin {
 	config := AWSSecretConfiguration{
 		KeyFileARN:      "key",
 		CertFileARN:     "cert",
-		TTL:             "1h",
+		DeprecatedTTL:   deprecatedTTL,
 		AccessKeyID:     "keyid",
 		SecretAccessKey: "accesskey",
 	}
@@ -161,10 +203,12 @@ func (as *AWSSecretSuite) newAWSUpstreamCA() upstreamca.Plugin {
 	as.Require().NoError(err)
 
 	m := newPlugin(newFakeSecretsManagerClient)
-	_, err = m.Configure(ctx, pluginConfig)
-	as.Require().NoError(err)
+	m.hooks.clock = as.clock
 
 	var plugin upstreamca.Plugin
 	as.LoadPlugin(builtin(m), &plugin)
+	_, err = plugin.Configure(ctx, pluginConfig)
+	as.Require().NoError(err)
+
 	return plugin
 }
