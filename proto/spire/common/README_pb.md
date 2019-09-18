@@ -1,5 +1,5 @@
 # Protocol Documentation
-<a name="top"/>
+<a name="top"></a>
 
 ## Table of Contents
 
@@ -23,14 +23,14 @@
 
 
 
-<a name="common.proto"/>
+<a name="common.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## common.proto
 
 
 
-<a name="spire.common.AttestationData"/>
+<a name="spire.common.AttestationData"></a>
 
 ### AttestationData
 A type which contains attestation data for specific platform.
@@ -46,7 +46,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="spire.common.AttestedNode"/>
+<a name="spire.common.AttestedNode"></a>
 
 ### AttestedNode
 Represents an attested SPIRE agent
@@ -66,7 +66,7 @@ Represents an attested SPIRE agent
 
 
 
-<a name="spire.common.Bundle"/>
+<a name="spire.common.Bundle"></a>
 
 ### Bundle
 
@@ -84,7 +84,7 @@ Represents an attested SPIRE agent
 
 
 
-<a name="spire.common.Certificate"/>
+<a name="spire.common.Certificate"></a>
 
 ### Certificate
 Certificate represents a ASN.1/DER encoded X509 certificate
@@ -99,7 +99,7 @@ Certificate represents a ASN.1/DER encoded X509 certificate
 
 
 
-<a name="spire.common.Empty"/>
+<a name="spire.common.Empty"></a>
 
 ### Empty
 Represents an empty message
@@ -109,7 +109,7 @@ Represents an empty message
 
 
 
-<a name="spire.common.PublicKey"/>
+<a name="spire.common.PublicKey"></a>
 
 ### PublicKey
 PublicKey represents a PKIX encoded public key
@@ -126,7 +126,7 @@ PublicKey represents a PKIX encoded public key
 
 
 
-<a name="spire.common.RegistrationEntries"/>
+<a name="spire.common.RegistrationEntries"></a>
 
 ### RegistrationEntries
 A list of registration entries.
@@ -141,7 +141,7 @@ A list of registration entries.
 
 
 
-<a name="spire.common.RegistrationEntry"/>
+<a name="spire.common.RegistrationEntry"></a>
 
 ### RegistrationEntry
 This is a curated record that the Server uses to set up and
@@ -166,7 +166,7 @@ manage the various registered nodes and workloads that are controlled by it.
 
 
 
-<a name="spire.common.Selector"/>
+<a name="spire.common.Selector"></a>
 
 ### Selector
 A type which describes the conditions under which a registration
@@ -183,7 +183,7 @@ entry is matched.
 
 
 
-<a name="spire.common.Selectors"/>
+<a name="spire.common.Selectors"></a>
 
 ### Selectors
 Represents a type with a list of Selector.

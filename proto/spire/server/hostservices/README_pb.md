@@ -1,23 +1,7 @@
 # Protocol Documentation
-<a name="top"/>
+<a name="top"></a>
 
 ## Table of Contents
-
-- [common.proto](#common.proto)
-    - [AttestationData](#spire.common.AttestationData)
-    - [AttestedNode](#spire.common.AttestedNode)
-    - [Bundle](#spire.common.Bundle)
-    - [Certificate](#spire.common.Certificate)
-    - [Empty](#spire.common.Empty)
-    - [PublicKey](#spire.common.PublicKey)
-    - [RegistrationEntries](#spire.common.RegistrationEntries)
-    - [RegistrationEntry](#spire.common.RegistrationEntry)
-    - [Selector](#spire.common.Selector)
-    - [Selectors](#spire.common.Selectors)
-  
-  
-  
-  
 
 - [identityprovider.proto](#identityprovider.proto)
     - [FetchX509IdentityRequest](#spire.server.hostservices.FetchX509IdentityRequest)
@@ -43,198 +27,14 @@
 
 
 
-<a name="common.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## common.proto
-
-
-
-<a name="spire.common.AttestationData"/>
-
-### AttestationData
-A type which contains attestation data for specific platform.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestation data. |
-
-
-
-
-
-
-<a name="spire.common.AttestedNode"/>
-
-### AttestedNode
-Represents an attested SPIRE agent
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| attestation_data_type | [string](#string) |  | Attestation data type |
-| cert_serial_number | [string](#string) |  | Node certificate serial number |
-| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-| prepared_cert_serial_number | [string](#string) |  | Node certificate serial number |
-| prepared_cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-
-
-
-
-
-
-<a name="spire.common.Bundle"/>
-
-### Bundle
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| trust_domain_id | [string](#string) |  | the SPIFFE ID of the trust domain the bundle belongs to |
-| root_cas | [Certificate](#spire.common.Certificate) | repeated | list of root CA certificates |
-| jwt_signing_keys | [PublicKey](#spire.common.PublicKey) | repeated | list of JWT signing keys |
-| refresh_hint | [int64](#int64) |  | refresh hint is a hint, in seconds, on how often a bundle consumer should poll for bundle updates |
-
-
-
-
-
-
-<a name="spire.common.Certificate"/>
-
-### Certificate
-Certificate represents a ASN.1/DER encoded X509 certificate
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| der_bytes | [bytes](#bytes) |  |  |
-
-
-
-
-
-
-<a name="spire.common.Empty"/>
-
-### Empty
-Represents an empty message
-
-
-
-
-
-
-<a name="spire.common.PublicKey"/>
-
-### PublicKey
-PublicKey represents a PKIX encoded public key
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| pkix_bytes | [bytes](#bytes) |  | PKIX encoded key data |
-| kid | [string](#string) |  | key identifier |
-| not_after | [int64](#int64) |  | not after (seconds since unix epoch, 0 means &#34;never expires&#34;) |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntries"/>
-
-### RegistrationEntries
-A list of registration entries.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntry"/>
-
-### RegistrationEntry
-This is a curated record that the Server uses to set up and
-manage the various registered nodes and workloads that are controlled by it.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
-| ttl | [int32](#int32) |  | Time to live. |
-| federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
-| entry_id | [string](#string) |  | Entry ID |
-| admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
-| downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
-| entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
-| dns_names | [string](#string) | repeated | DNS entries |
-
-
-
-
-
-
-<a name="spire.common.Selector"/>
-
-### Selector
-A type which describes the conditions under which a registration
-entry is matched.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
-| value | [string](#string) |  | The value to be attested. |
-
-
-
-
-
-
-<a name="spire.common.Selectors"/>
-
-### Selectors
-Represents a type with a list of Selector.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [Selector](#spire.common.Selector) | repeated | A list of Selector. |
-
-
-
-
-
- 
-
- 
-
- 
-
- 
-
-
-
-<a name="identityprovider.proto"/>
+<a name="identityprovider.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## identityprovider.proto
 
 
 
-<a name="spire.server.hostservices.FetchX509IdentityRequest"/>
+<a name="spire.server.hostservices.FetchX509IdentityRequest"></a>
 
 ### FetchX509IdentityRequest
 
@@ -244,7 +44,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.hostservices.FetchX509IdentityResponse"/>
+<a name="spire.server.hostservices.FetchX509IdentityResponse"></a>
 
 ### FetchX509IdentityResponse
 
@@ -253,14 +53,14 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | identity | [X509Identity](#spire.server.hostservices.X509Identity) |  |  |
-| bundle | [.spire.common.Bundle](#spire.server.hostservices..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.hostservices.X509Identity"/>
+<a name="spire.server.hostservices.X509Identity"></a>
 
 ### X509Identity
 
@@ -282,27 +82,27 @@ Represents a type with a list of Selector.
  
 
 
-<a name="spire.server.hostservices.IdentityProvider"/>
+<a name="spire.server.hostservices.IdentityProvider"></a>
 
 ### IdentityProvider
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchX509Identity | [FetchX509IdentityRequest](#spire.server.hostservices.FetchX509IdentityRequest) | [FetchX509IdentityResponse](#spire.server.hostservices.FetchX509IdentityRequest) |  |
+| FetchX509Identity | [FetchX509IdentityRequest](#spire.server.hostservices.FetchX509IdentityRequest) | [FetchX509IdentityResponse](#spire.server.hostservices.FetchX509IdentityResponse) |  |
 
  
 
 
 
-<a name="agentstore.proto"/>
+<a name="agentstore.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## agentstore.proto
 
 
 
-<a name="spire.server.hostservices.AgentInfo"/>
+<a name="spire.server.hostservices.AgentInfo"></a>
 
 ### AgentInfo
 
@@ -317,7 +117,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.hostservices.GetAgentInfoRequest"/>
+<a name="spire.server.hostservices.GetAgentInfoRequest"></a>
 
 ### GetAgentInfoRequest
 
@@ -332,7 +132,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.hostservices.GetAgentInfoResponse"/>
+<a name="spire.server.hostservices.GetAgentInfoResponse"></a>
 
 ### GetAgentInfoResponse
 
@@ -353,14 +153,14 @@ Represents a type with a list of Selector.
  
 
 
-<a name="spire.server.hostservices.AgentStore"/>
+<a name="spire.server.hostservices.AgentStore"></a>
 
 ### AgentStore
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GetAgentInfo | [GetAgentInfoRequest](#spire.server.hostservices.GetAgentInfoRequest) | [GetAgentInfoResponse](#spire.server.hostservices.GetAgentInfoRequest) |  |
+| GetAgentInfo | [GetAgentInfoRequest](#spire.server.hostservices.GetAgentInfoRequest) | [GetAgentInfoResponse](#spire.server.hostservices.GetAgentInfoResponse) |  |
 
  
 

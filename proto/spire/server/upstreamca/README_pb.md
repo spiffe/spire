@@ -1,21 +1,7 @@
 # Protocol Documentation
-<a name="top"/>
+<a name="top"></a>
 
 ## Table of Contents
-
-- [plugin.proto](#plugin.proto)
-    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
-    - [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig)
-    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
-    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
-    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-    - [InitRequest](#spire.common.plugin.InitRequest)
-    - [InitResponse](#spire.common.plugin.InitResponse)
-  
-  
-  
-    - [PluginInit](#spire.common.plugin.PluginInit)
-  
 
 - [upstreamca.proto](#upstreamca.proto)
     - [SignedCertificate](#spire.server.upstreamca.SignedCertificate)
@@ -31,150 +17,14 @@
 
 
 
-<a name="plugin.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## plugin.proto
-
-
-
-<a name="spire.common.plugin.ConfigureRequest"/>
-
-### ConfigureRequest
-Represents the plugin-specific configuration string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| configuration | [string](#string) |  | The configuration for the plugin. |
-| globalConfig | [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig) |  | Global configurations. |
-
-
-
-
-
-
-<a name="spire.common.plugin.ConfigureRequest.GlobalConfig"/>
-
-### ConfigureRequest.GlobalConfig
-Global configuration nested type.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| trustDomain | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="spire.common.plugin.ConfigureResponse"/>
-
-### ConfigureResponse
-Represents a list of configuration problems
-found in the configuration string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors |
-
-
-
-
-
-
-<a name="spire.common.plugin.GetPluginInfoRequest"/>
-
-### GetPluginInfoRequest
-Represents an empty request.
-
-
-
-
-
-
-<a name="spire.common.plugin.GetPluginInfoResponse"/>
-
-### GetPluginInfoResponse
-Represents the plugin metadata.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| name | [string](#string) |  |  |
-| category | [string](#string) |  |  |
-| type | [string](#string) |  |  |
-| description | [string](#string) |  |  |
-| dateCreated | [string](#string) |  |  |
-| location | [string](#string) |  |  |
-| version | [string](#string) |  |  |
-| author | [string](#string) |  |  |
-| company | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="spire.common.plugin.InitRequest"/>
-
-### InitRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| host_services | [string](#string) | repeated |  |
-
-
-
-
-
-
-<a name="spire.common.plugin.InitResponse"/>
-
-### InitResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| plugin_services | [string](#string) | repeated |  |
-
-
-
-
-
- 
-
- 
-
- 
-
-
-<a name="spire.common.plugin.PluginInit"/>
-
-### PluginInit
-
-
-| Method Name | Request Type | Response Type | Description |
-| ----------- | ------------ | ------------- | ------------|
-| Init | [InitRequest](#spire.common.plugin.InitRequest) | [InitResponse](#spire.common.plugin.InitRequest) |  |
-
- 
-
-
-
-<a name="upstreamca.proto"/>
+<a name="upstreamca.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## upstreamca.proto
 
 
 
-<a name="spire.server.upstreamca.SignedCertificate"/>
+<a name="spire.server.upstreamca.SignedCertificate"></a>
 
 ### SignedCertificate
 
@@ -190,7 +40,7 @@ Represents the plugin metadata.
 
 
 
-<a name="spire.server.upstreamca.SubmitCSRRequest"/>
+<a name="spire.server.upstreamca.SubmitCSRRequest"></a>
 
 ### SubmitCSRRequest
 
@@ -206,7 +56,7 @@ Represents the plugin metadata.
 
 
 
-<a name="spire.server.upstreamca.SubmitCSRResponse"/>
+<a name="spire.server.upstreamca.SubmitCSRResponse"></a>
 
 ### SubmitCSRResponse
 
@@ -229,16 +79,16 @@ Represents the plugin metadata.
  
 
 
-<a name="spire.server.upstreamca.UpstreamCA"/>
+<a name="spire.server.upstreamca.UpstreamCA"></a>
 
 ### UpstreamCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin. |
-| SubmitCSR | [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRRequest) | Signs a certificate from the request |
+| Configure | [.spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [.spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureResponse) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [.spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [.spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | Returns the version and related metadata of the installed plugin. */ |
+| SubmitCSR | [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRResponse) | Signs a certificate from the request |
 
  
 

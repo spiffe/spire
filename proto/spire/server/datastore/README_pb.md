@@ -1,52 +1,7 @@
 # Protocol Documentation
-<a name="top"/>
+<a name="top"></a>
 
 ## Table of Contents
-
-- [wrappers.proto](#wrappers.proto)
-    - [BoolValue](#google.protobuf.BoolValue)
-    - [BytesValue](#google.protobuf.BytesValue)
-    - [DoubleValue](#google.protobuf.DoubleValue)
-    - [FloatValue](#google.protobuf.FloatValue)
-    - [Int32Value](#google.protobuf.Int32Value)
-    - [Int64Value](#google.protobuf.Int64Value)
-    - [StringValue](#google.protobuf.StringValue)
-    - [UInt32Value](#google.protobuf.UInt32Value)
-    - [UInt64Value](#google.protobuf.UInt64Value)
-  
-  
-  
-  
-
-- [plugin.proto](#plugin.proto)
-    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
-    - [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig)
-    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
-    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
-    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-    - [InitRequest](#spire.common.plugin.InitRequest)
-    - [InitResponse](#spire.common.plugin.InitResponse)
-  
-  
-  
-    - [PluginInit](#spire.common.plugin.PluginInit)
-  
-
-- [common.proto](#common.proto)
-    - [AttestationData](#spire.common.AttestationData)
-    - [AttestedNode](#spire.common.AttestedNode)
-    - [Bundle](#spire.common.Bundle)
-    - [Certificate](#spire.common.Certificate)
-    - [Empty](#spire.common.Empty)
-    - [PublicKey](#spire.common.PublicKey)
-    - [RegistrationEntries](#spire.common.RegistrationEntries)
-    - [RegistrationEntry](#spire.common.RegistrationEntry)
-    - [Selector](#spire.common.Selector)
-    - [Selectors](#spire.common.Selectors)
-  
-  
-  
-  
 
 - [datastore.proto](#datastore.proto)
     - [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest)
@@ -115,503 +70,14 @@
 
 
 
-<a name="wrappers.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## wrappers.proto
-
-
-
-<a name="google.protobuf.BoolValue"/>
-
-### BoolValue
-Wrapper message for `bool`.
-
-The JSON representation for `BoolValue` is JSON `true` and `false`.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [bool](#bool) |  | The bool value. |
-
-
-
-
-
-
-<a name="google.protobuf.BytesValue"/>
-
-### BytesValue
-Wrapper message for `bytes`.
-
-The JSON representation for `BytesValue` is JSON string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [bytes](#bytes) |  | The bytes value. |
-
-
-
-
-
-
-<a name="google.protobuf.DoubleValue"/>
-
-### DoubleValue
-Wrapper message for `double`.
-
-The JSON representation for `DoubleValue` is JSON number.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [double](#double) |  | The double value. |
-
-
-
-
-
-
-<a name="google.protobuf.FloatValue"/>
-
-### FloatValue
-Wrapper message for `float`.
-
-The JSON representation for `FloatValue` is JSON number.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [float](#float) |  | The float value. |
-
-
-
-
-
-
-<a name="google.protobuf.Int32Value"/>
-
-### Int32Value
-Wrapper message for `int32`.
-
-The JSON representation for `Int32Value` is JSON number.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [int32](#int32) |  | The int32 value. |
-
-
-
-
-
-
-<a name="google.protobuf.Int64Value"/>
-
-### Int64Value
-Wrapper message for `int64`.
-
-The JSON representation for `Int64Value` is JSON string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [int64](#int64) |  | The int64 value. |
-
-
-
-
-
-
-<a name="google.protobuf.StringValue"/>
-
-### StringValue
-Wrapper message for `string`.
-
-The JSON representation for `StringValue` is JSON string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [string](#string) |  | The string value. |
-
-
-
-
-
-
-<a name="google.protobuf.UInt32Value"/>
-
-### UInt32Value
-Wrapper message for `uint32`.
-
-The JSON representation for `UInt32Value` is JSON number.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [uint32](#uint32) |  | The uint32 value. |
-
-
-
-
-
-
-<a name="google.protobuf.UInt64Value"/>
-
-### UInt64Value
-Wrapper message for `uint64`.
-
-The JSON representation for `UInt64Value` is JSON string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [uint64](#uint64) |  | The uint64 value. |
-
-
-
-
-
- 
-
- 
-
- 
-
- 
-
-
-
-<a name="plugin.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## plugin.proto
-
-
-
-<a name="spire.common.plugin.ConfigureRequest"/>
-
-### ConfigureRequest
-Represents the plugin-specific configuration string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| configuration | [string](#string) |  | The configuration for the plugin. |
-| globalConfig | [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig) |  | Global configurations. |
-
-
-
-
-
-
-<a name="spire.common.plugin.ConfigureRequest.GlobalConfig"/>
-
-### ConfigureRequest.GlobalConfig
-Global configuration nested type.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| trustDomain | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="spire.common.plugin.ConfigureResponse"/>
-
-### ConfigureResponse
-Represents a list of configuration problems
-found in the configuration string.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors |
-
-
-
-
-
-
-<a name="spire.common.plugin.GetPluginInfoRequest"/>
-
-### GetPluginInfoRequest
-Represents an empty request.
-
-
-
-
-
-
-<a name="spire.common.plugin.GetPluginInfoResponse"/>
-
-### GetPluginInfoResponse
-Represents the plugin metadata.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| name | [string](#string) |  |  |
-| category | [string](#string) |  |  |
-| type | [string](#string) |  |  |
-| description | [string](#string) |  |  |
-| dateCreated | [string](#string) |  |  |
-| location | [string](#string) |  |  |
-| version | [string](#string) |  |  |
-| author | [string](#string) |  |  |
-| company | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="spire.common.plugin.InitRequest"/>
-
-### InitRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| host_services | [string](#string) | repeated |  |
-
-
-
-
-
-
-<a name="spire.common.plugin.InitResponse"/>
-
-### InitResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| plugin_services | [string](#string) | repeated |  |
-
-
-
-
-
- 
-
- 
-
- 
-
-
-<a name="spire.common.plugin.PluginInit"/>
-
-### PluginInit
-
-
-| Method Name | Request Type | Response Type | Description |
-| ----------- | ------------ | ------------- | ------------|
-| Init | [InitRequest](#spire.common.plugin.InitRequest) | [InitResponse](#spire.common.plugin.InitRequest) |  |
-
- 
-
-
-
-<a name="common.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## common.proto
-
-
-
-<a name="spire.common.AttestationData"/>
-
-### AttestationData
-A type which contains attestation data for specific platform.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestation data. |
-
-
-
-
-
-
-<a name="spire.common.AttestedNode"/>
-
-### AttestedNode
-Represents an attested SPIRE agent
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| attestation_data_type | [string](#string) |  | Attestation data type |
-| cert_serial_number | [string](#string) |  | Node certificate serial number |
-| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-| prepared_cert_serial_number | [string](#string) |  | Node certificate serial number |
-| prepared_cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-
-
-
-
-
-
-<a name="spire.common.Bundle"/>
-
-### Bundle
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| trust_domain_id | [string](#string) |  | the SPIFFE ID of the trust domain the bundle belongs to |
-| root_cas | [Certificate](#spire.common.Certificate) | repeated | list of root CA certificates |
-| jwt_signing_keys | [PublicKey](#spire.common.PublicKey) | repeated | list of JWT signing keys |
-| refresh_hint | [int64](#int64) |  | refresh hint is a hint, in seconds, on how often a bundle consumer should poll for bundle updates |
-
-
-
-
-
-
-<a name="spire.common.Certificate"/>
-
-### Certificate
-Certificate represents a ASN.1/DER encoded X509 certificate
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| der_bytes | [bytes](#bytes) |  |  |
-
-
-
-
-
-
-<a name="spire.common.Empty"/>
-
-### Empty
-Represents an empty message
-
-
-
-
-
-
-<a name="spire.common.PublicKey"/>
-
-### PublicKey
-PublicKey represents a PKIX encoded public key
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| pkix_bytes | [bytes](#bytes) |  | PKIX encoded key data |
-| kid | [string](#string) |  | key identifier |
-| not_after | [int64](#int64) |  | not after (seconds since unix epoch, 0 means &#34;never expires&#34;) |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntries"/>
-
-### RegistrationEntries
-A list of registration entries.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntry"/>
-
-### RegistrationEntry
-This is a curated record that the Server uses to set up and
-manage the various registered nodes and workloads that are controlled by it.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
-| ttl | [int32](#int32) |  | Time to live. |
-| federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
-| entry_id | [string](#string) |  | Entry ID |
-| admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
-| downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
-| entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
-| dns_names | [string](#string) | repeated | DNS entries |
-
-
-
-
-
-
-<a name="spire.common.Selector"/>
-
-### Selector
-A type which describes the conditions under which a registration
-entry is matched.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
-| value | [string](#string) |  | The value to be attested. |
-
-
-
-
-
-
-<a name="spire.common.Selectors"/>
-
-### Selectors
-Represents a type with a list of Selector.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [Selector](#spire.common.Selector) | repeated | A list of Selector. |
-
-
-
-
-
- 
-
- 
-
- 
-
- 
-
-
-
-<a name="datastore.proto"/>
+<a name="datastore.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## datastore.proto
 
 
 
-<a name="spire.server.datastore.AppendBundleRequest"/>
+<a name="spire.server.datastore.AppendBundleRequest"></a>
 
 ### AppendBundleRequest
 
@@ -619,14 +85,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.AppendBundleResponse"/>
+<a name="spire.server.datastore.AppendBundleResponse"></a>
 
 ### AppendBundleResponse
 
@@ -634,14 +100,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.BySelectors"/>
+<a name="spire.server.datastore.BySelectors"></a>
 
 ### BySelectors
 
@@ -649,7 +115,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated |  |
+| selectors | [spire.common.Selector](#spire.common.Selector) | repeated |  |
 | match | [BySelectors.MatchBehavior](#spire.server.datastore.BySelectors.MatchBehavior) |  |  |
 
 
@@ -657,7 +123,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.CreateAttestedNodeRequest"/>
+<a name="spire.server.datastore.CreateAttestedNodeRequest"></a>
 
 ### CreateAttestedNodeRequest
 
@@ -665,14 +131,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
+| node | [spire.common.AttestedNode](#spire.common.AttestedNode) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateAttestedNodeResponse"/>
+<a name="spire.server.datastore.CreateAttestedNodeResponse"></a>
 
 ### CreateAttestedNodeResponse
 
@@ -680,14 +146,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
+| node | [spire.common.AttestedNode](#spire.common.AttestedNode) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateBundleRequest"/>
+<a name="spire.server.datastore.CreateBundleRequest"></a>
 
 ### CreateBundleRequest
 
@@ -695,14 +161,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateBundleResponse"/>
+<a name="spire.server.datastore.CreateBundleResponse"></a>
 
 ### CreateBundleResponse
 
@@ -710,14 +176,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateJoinTokenRequest"/>
+<a name="spire.server.datastore.CreateJoinTokenRequest"></a>
 
 ### CreateJoinTokenRequest
 
@@ -732,7 +198,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.CreateJoinTokenResponse"/>
+<a name="spire.server.datastore.CreateJoinTokenResponse"></a>
 
 ### CreateJoinTokenResponse
 
@@ -747,7 +213,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.CreateRegistrationEntryRequest"/>
+<a name="spire.server.datastore.CreateRegistrationEntryRequest"></a>
 
 ### CreateRegistrationEntryRequest
 
@@ -755,14 +221,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateRegistrationEntryResponse"/>
+<a name="spire.server.datastore.CreateRegistrationEntryResponse"></a>
 
 ### CreateRegistrationEntryResponse
 
@@ -770,14 +236,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.DeleteAttestedNodeRequest"/>
+<a name="spire.server.datastore.DeleteAttestedNodeRequest"></a>
 
 ### DeleteAttestedNodeRequest
 
@@ -792,7 +258,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteAttestedNodeResponse"/>
+<a name="spire.server.datastore.DeleteAttestedNodeResponse"></a>
 
 ### DeleteAttestedNodeResponse
 
@@ -800,14 +266,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
+| node | [spire.common.AttestedNode](#spire.common.AttestedNode) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.DeleteBundleRequest"/>
+<a name="spire.server.datastore.DeleteBundleRequest"></a>
 
 ### DeleteBundleRequest
 
@@ -823,7 +289,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteBundleResponse"/>
+<a name="spire.server.datastore.DeleteBundleResponse"></a>
 
 ### DeleteBundleResponse
 
@@ -831,14 +297,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.DeleteJoinTokenRequest"/>
+<a name="spire.server.datastore.DeleteJoinTokenRequest"></a>
 
 ### DeleteJoinTokenRequest
 
@@ -853,7 +319,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteJoinTokenResponse"/>
+<a name="spire.server.datastore.DeleteJoinTokenResponse"></a>
 
 ### DeleteJoinTokenResponse
 
@@ -868,7 +334,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteRegistrationEntryRequest"/>
+<a name="spire.server.datastore.DeleteRegistrationEntryRequest"></a>
 
 ### DeleteRegistrationEntryRequest
 
@@ -883,7 +349,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteRegistrationEntryResponse"/>
+<a name="spire.server.datastore.DeleteRegistrationEntryResponse"></a>
 
 ### DeleteRegistrationEntryResponse
 
@@ -891,14 +357,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.FetchAttestedNodeRequest"/>
+<a name="spire.server.datastore.FetchAttestedNodeRequest"></a>
 
 ### FetchAttestedNodeRequest
 
@@ -913,7 +379,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.FetchAttestedNodeResponse"/>
+<a name="spire.server.datastore.FetchAttestedNodeResponse"></a>
 
 ### FetchAttestedNodeResponse
 
@@ -921,14 +387,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
+| node | [spire.common.AttestedNode](#spire.common.AttestedNode) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.FetchBundleRequest"/>
+<a name="spire.server.datastore.FetchBundleRequest"></a>
 
 ### FetchBundleRequest
 
@@ -943,7 +409,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.FetchBundleResponse"/>
+<a name="spire.server.datastore.FetchBundleResponse"></a>
 
 ### FetchBundleResponse
 
@@ -951,14 +417,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.FetchJoinTokenRequest"/>
+<a name="spire.server.datastore.FetchJoinTokenRequest"></a>
 
 ### FetchJoinTokenRequest
 
@@ -973,7 +439,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.FetchJoinTokenResponse"/>
+<a name="spire.server.datastore.FetchJoinTokenResponse"></a>
 
 ### FetchJoinTokenResponse
 
@@ -988,7 +454,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.FetchRegistrationEntryRequest"/>
+<a name="spire.server.datastore.FetchRegistrationEntryRequest"></a>
 
 ### FetchRegistrationEntryRequest
 
@@ -1003,7 +469,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.FetchRegistrationEntryResponse"/>
+<a name="spire.server.datastore.FetchRegistrationEntryResponse"></a>
 
 ### FetchRegistrationEntryResponse
 
@@ -1011,14 +477,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.GetNodeSelectorsRequest"/>
+<a name="spire.server.datastore.GetNodeSelectorsRequest"></a>
 
 ### GetNodeSelectorsRequest
 
@@ -1033,7 +499,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.GetNodeSelectorsResponse"/>
+<a name="spire.server.datastore.GetNodeSelectorsResponse"></a>
 
 ### GetNodeSelectorsResponse
 
@@ -1048,7 +514,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.JoinToken"/>
+<a name="spire.server.datastore.JoinToken"></a>
 
 ### JoinToken
 
@@ -1064,7 +530,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.ListAttestedNodesRequest"/>
+<a name="spire.server.datastore.ListAttestedNodesRequest"></a>
 
 ### ListAttestedNodesRequest
 
@@ -1072,7 +538,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| by_expires_before | [.google.protobuf.Int64Value](#spire.server.datastore..google.protobuf.Int64Value) |  |  |
+| by_expires_before | [google.protobuf.Int64Value](#google.protobuf.Int64Value) |  |  |
 | pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
@@ -1080,7 +546,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.ListAttestedNodesResponse"/>
+<a name="spire.server.datastore.ListAttestedNodesResponse"></a>
 
 ### ListAttestedNodesResponse
 
@@ -1088,7 +554,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodes | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) | repeated |  |
+| nodes | [spire.common.AttestedNode](#spire.common.AttestedNode) | repeated |  |
 | pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
@@ -1096,7 +562,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.ListBundlesRequest"/>
+<a name="spire.server.datastore.ListBundlesRequest"></a>
 
 ### ListBundlesRequest
 
@@ -1106,7 +572,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.ListBundlesResponse"/>
+<a name="spire.server.datastore.ListBundlesResponse"></a>
 
 ### ListBundlesResponse
 
@@ -1114,14 +580,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundles | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) | repeated |  |
+| bundles | [spire.common.Bundle](#spire.common.Bundle) | repeated |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.ListRegistrationEntriesRequest"/>
+<a name="spire.server.datastore.ListRegistrationEntriesRequest"></a>
 
 ### ListRegistrationEntriesRequest
 
@@ -1129,9 +595,9 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| by_parent_id | [.google.protobuf.StringValue](#spire.server.datastore..google.protobuf.StringValue) |  |  |
+| by_parent_id | [google.protobuf.StringValue](#google.protobuf.StringValue) |  |  |
 | by_selectors | [BySelectors](#spire.server.datastore.BySelectors) |  |  |
-| by_spiffe_id | [.google.protobuf.StringValue](#spire.server.datastore..google.protobuf.StringValue) |  |  |
+| by_spiffe_id | [google.protobuf.StringValue](#google.protobuf.StringValue) |  |  |
 | pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
@@ -1139,7 +605,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.ListRegistrationEntriesResponse"/>
+<a name="spire.server.datastore.ListRegistrationEntriesResponse"></a>
 
 ### ListRegistrationEntriesResponse
 
@@ -1147,7 +613,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated |  |
+| entries | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | repeated |  |
 | pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
@@ -1155,7 +621,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.NodeSelectors"/>
+<a name="spire.server.datastore.NodeSelectors"></a>
 
 ### NodeSelectors
 
@@ -1164,14 +630,14 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated | Node selectors |
+| selectors | [spire.common.Selector](#spire.common.Selector) | repeated | Node selectors |
 
 
 
 
 
 
-<a name="spire.server.datastore.Pagination"/>
+<a name="spire.server.datastore.Pagination"></a>
 
 ### Pagination
 
@@ -1187,7 +653,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.PruneBundleRequest"/>
+<a name="spire.server.datastore.PruneBundleRequest"></a>
 
 ### PruneBundleRequest
 
@@ -1203,7 +669,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.PruneBundleResponse"/>
+<a name="spire.server.datastore.PruneBundleResponse"></a>
 
 ### PruneBundleResponse
 
@@ -1218,7 +684,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.PruneJoinTokensRequest"/>
+<a name="spire.server.datastore.PruneJoinTokensRequest"></a>
 
 ### PruneJoinTokensRequest
 
@@ -1233,7 +699,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.PruneJoinTokensResponse"/>
+<a name="spire.server.datastore.PruneJoinTokensResponse"></a>
 
 ### PruneJoinTokensResponse
 
@@ -1243,7 +709,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.PruneRegistrationEntriesRequest"/>
+<a name="spire.server.datastore.PruneRegistrationEntriesRequest"></a>
 
 ### PruneRegistrationEntriesRequest
 
@@ -1258,7 +724,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.PruneRegistrationEntriesResponse"/>
+<a name="spire.server.datastore.PruneRegistrationEntriesResponse"></a>
 
 ### PruneRegistrationEntriesResponse
 
@@ -1268,7 +734,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.SetBundleRequest"/>
+<a name="spire.server.datastore.SetBundleRequest"></a>
 
 ### SetBundleRequest
 
@@ -1276,14 +742,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.SetBundleResponse"/>
+<a name="spire.server.datastore.SetBundleResponse"></a>
 
 ### SetBundleResponse
 
@@ -1291,14 +757,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.SetNodeSelectorsRequest"/>
+<a name="spire.server.datastore.SetNodeSelectorsRequest"></a>
 
 ### SetNodeSelectorsRequest
 
@@ -1313,7 +779,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.SetNodeSelectorsResponse"/>
+<a name="spire.server.datastore.SetNodeSelectorsResponse"></a>
 
 ### SetNodeSelectorsResponse
 
@@ -1323,7 +789,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.UpdateAttestedNodeRequest"/>
+<a name="spire.server.datastore.UpdateAttestedNodeRequest"></a>
 
 ### UpdateAttestedNodeRequest
 
@@ -1342,7 +808,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.UpdateAttestedNodeResponse"/>
+<a name="spire.server.datastore.UpdateAttestedNodeResponse"></a>
 
 ### UpdateAttestedNodeResponse
 
@@ -1350,14 +816,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
+| node | [spire.common.AttestedNode](#spire.common.AttestedNode) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.UpdateBundleRequest"/>
+<a name="spire.server.datastore.UpdateBundleRequest"></a>
 
 ### UpdateBundleRequest
 
@@ -1365,14 +831,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.UpdateBundleResponse"/>
+<a name="spire.server.datastore.UpdateBundleResponse"></a>
 
 ### UpdateBundleResponse
 
@@ -1380,14 +846,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.UpdateRegistrationEntryRequest"/>
+<a name="spire.server.datastore.UpdateRegistrationEntryRequest"></a>
 
 ### UpdateRegistrationEntryRequest
 
@@ -1395,14 +861,14 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.UpdateRegistrationEntryResponse"/>
+<a name="spire.server.datastore.UpdateRegistrationEntryResponse"></a>
 
 ### UpdateRegistrationEntryResponse
 
@@ -1410,7 +876,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  |  |
 
 
 
@@ -1419,7 +885,7 @@ Represents a type with a list of Selector.
  
 
 
-<a name="spire.server.datastore.BySelectors.MatchBehavior"/>
+<a name="spire.server.datastore.BySelectors.MatchBehavior"></a>
 
 ### BySelectors.MatchBehavior
 
@@ -1431,7 +897,7 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteBundleRequest.Mode"/>
+<a name="spire.server.datastore.DeleteBundleRequest.Mode"></a>
 
 ### DeleteBundleRequest.Mode
 Mode controls the delete behavior if there are other records
@@ -1449,40 +915,40 @@ associated with the bundle (e.g. registration entries).
  
 
 
-<a name="spire.server.datastore.DataStore"/>
+<a name="spire.server.datastore.DataStore"></a>
 
 ### DataStore
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateBundle | [CreateBundleRequest](#spire.server.datastore.CreateBundleRequest) | [CreateBundleResponse](#spire.server.datastore.CreateBundleRequest) | Creates a bundle |
-| FetchBundle | [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest) | [FetchBundleResponse](#spire.server.datastore.FetchBundleRequest) | Fetches a specific bundle |
-| ListBundles | [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest) | [ListBundlesResponse](#spire.server.datastore.ListBundlesRequest) | Lists bundles (optionally filtered) |
-| UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleRequest) | Updates a specific bundle |
-| SetBundle | [SetBundleRequest](#spire.server.datastore.SetBundleRequest) | [SetBundleResponse](#spire.server.datastore.SetBundleRequest) | Sets bundle contents (creates if it does not exist) |
-| AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleRequest) | Appends contents from a specific bundle (creates if it does not exist) |
-| DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleRequest) | Deletes a specific bundle |
-| PruneBundle | [PruneBundleRequest](#spire.server.datastore.PruneBundleRequest) | [PruneBundleResponse](#spire.server.datastore.PruneBundleRequest) | Prunes all expired certificates and JWT signing keys from a bundle |
-| CreateAttestedNode | [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest) | [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeRequest) | Creates an attested node |
-| FetchAttestedNode | [FetchAttestedNodeRequest](#spire.server.datastore.FetchAttestedNodeRequest) | [FetchAttestedNodeResponse](#spire.server.datastore.FetchAttestedNodeRequest) | Fetches a specific attested node |
-| ListAttestedNodes | [ListAttestedNodesRequest](#spire.server.datastore.ListAttestedNodesRequest) | [ListAttestedNodesResponse](#spire.server.datastore.ListAttestedNodesRequest) | Lists attested nodes (optionally filtered) |
-| UpdateAttestedNode | [UpdateAttestedNodeRequest](#spire.server.datastore.UpdateAttestedNodeRequest) | [UpdateAttestedNodeResponse](#spire.server.datastore.UpdateAttestedNodeRequest) | Updates a specific attested node |
-| DeleteAttestedNode | [DeleteAttestedNodeRequest](#spire.server.datastore.DeleteAttestedNodeRequest) | [DeleteAttestedNodeResponse](#spire.server.datastore.DeleteAttestedNodeRequest) | Deletes a specific attested node |
-| SetNodeSelectors | [SetNodeSelectorsRequest](#spire.server.datastore.SetNodeSelectorsRequest) | [SetNodeSelectorsResponse](#spire.server.datastore.SetNodeSelectorsRequest) | Sets the set of selectors for a specific node id |
-| GetNodeSelectors | [GetNodeSelectorsRequest](#spire.server.datastore.GetNodeSelectorsRequest) | [GetNodeSelectorsResponse](#spire.server.datastore.GetNodeSelectorsRequest) | Gets the set of node selectors for a specific node id |
-| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryRequest) | Creates a registration entry |
-| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryRequest) | Fetches a specific registration entry |
-| ListRegistrationEntries | [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest) | [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesRequest) | Lists registration entries (optionally filtered) |
-| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryRequest) | Updates a specific registration entry |
-| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryRequest) | Deletes a specific registration entry |
-| PruneRegistrationEntries | [PruneRegistrationEntriesRequest](#spire.server.datastore.PruneRegistrationEntriesRequest) | [PruneRegistrationEntriesResponse](#spire.server.datastore.PruneRegistrationEntriesRequest) | Prunes all registration entries that expire before the specified timestamp |
-| CreateJoinToken | [CreateJoinTokenRequest](#spire.server.datastore.CreateJoinTokenRequest) | [CreateJoinTokenResponse](#spire.server.datastore.CreateJoinTokenRequest) | Creates a join token |
-| FetchJoinToken | [FetchJoinTokenRequest](#spire.server.datastore.FetchJoinTokenRequest) | [FetchJoinTokenResponse](#spire.server.datastore.FetchJoinTokenRequest) | Fetches a specific join token |
-| DeleteJoinToken | [DeleteJoinTokenRequest](#spire.server.datastore.DeleteJoinTokenRequest) | [DeleteJoinTokenResponse](#spire.server.datastore.DeleteJoinTokenRequest) | Delete a specific join token |
-| PruneJoinTokens | [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest) | [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensRequest) | Prunes all join tokens that expire before the specified timestamp |
-| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration |
-| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
+| CreateBundle | [CreateBundleRequest](#spire.server.datastore.CreateBundleRequest) | [CreateBundleResponse](#spire.server.datastore.CreateBundleResponse) | Creates a bundle |
+| FetchBundle | [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest) | [FetchBundleResponse](#spire.server.datastore.FetchBundleResponse) | Fetches a specific bundle |
+| ListBundles | [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest) | [ListBundlesResponse](#spire.server.datastore.ListBundlesResponse) | Lists bundles (optionally filtered) |
+| UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleResponse) | Updates a specific bundle |
+| SetBundle | [SetBundleRequest](#spire.server.datastore.SetBundleRequest) | [SetBundleResponse](#spire.server.datastore.SetBundleResponse) | Sets bundle contents (creates if it does not exist) |
+| AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse) | Appends contents from a specific bundle (creates if it does not exist) |
+| DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleResponse) | Deletes a specific bundle |
+| PruneBundle | [PruneBundleRequest](#spire.server.datastore.PruneBundleRequest) | [PruneBundleResponse](#spire.server.datastore.PruneBundleResponse) | Prunes all expired certificates and JWT signing keys from a bundle |
+| CreateAttestedNode | [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest) | [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeResponse) | Creates an attested node |
+| FetchAttestedNode | [FetchAttestedNodeRequest](#spire.server.datastore.FetchAttestedNodeRequest) | [FetchAttestedNodeResponse](#spire.server.datastore.FetchAttestedNodeResponse) | Fetches a specific attested node |
+| ListAttestedNodes | [ListAttestedNodesRequest](#spire.server.datastore.ListAttestedNodesRequest) | [ListAttestedNodesResponse](#spire.server.datastore.ListAttestedNodesResponse) | Lists attested nodes (optionally filtered) |
+| UpdateAttestedNode | [UpdateAttestedNodeRequest](#spire.server.datastore.UpdateAttestedNodeRequest) | [UpdateAttestedNodeResponse](#spire.server.datastore.UpdateAttestedNodeResponse) | Updates a specific attested node |
+| DeleteAttestedNode | [DeleteAttestedNodeRequest](#spire.server.datastore.DeleteAttestedNodeRequest) | [DeleteAttestedNodeResponse](#spire.server.datastore.DeleteAttestedNodeResponse) | Deletes a specific attested node |
+| SetNodeSelectors | [SetNodeSelectorsRequest](#spire.server.datastore.SetNodeSelectorsRequest) | [SetNodeSelectorsResponse](#spire.server.datastore.SetNodeSelectorsResponse) | Sets the set of selectors for a specific node id |
+| GetNodeSelectors | [GetNodeSelectorsRequest](#spire.server.datastore.GetNodeSelectorsRequest) | [GetNodeSelectorsResponse](#spire.server.datastore.GetNodeSelectorsResponse) | Gets the set of node selectors for a specific node id |
+| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryResponse) | Creates a registration entry |
+| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryResponse) | Fetches a specific registration entry |
+| ListRegistrationEntries | [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest) | [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesResponse) | Lists registration entries (optionally filtered) |
+| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse) | Updates a specific registration entry |
+| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryResponse) | Deletes a specific registration entry |
+| PruneRegistrationEntries | [PruneRegistrationEntriesRequest](#spire.server.datastore.PruneRegistrationEntriesRequest) | [PruneRegistrationEntriesResponse](#spire.server.datastore.PruneRegistrationEntriesResponse) | Prunes all registration entries that expire before the specified timestamp |
+| CreateJoinToken | [CreateJoinTokenRequest](#spire.server.datastore.CreateJoinTokenRequest) | [CreateJoinTokenResponse](#spire.server.datastore.CreateJoinTokenResponse) | Creates a join token |
+| FetchJoinToken | [FetchJoinTokenRequest](#spire.server.datastore.FetchJoinTokenRequest) | [FetchJoinTokenResponse](#spire.server.datastore.FetchJoinTokenResponse) | Fetches a specific join token |
+| DeleteJoinToken | [DeleteJoinTokenRequest](#spire.server.datastore.DeleteJoinTokenRequest) | [DeleteJoinTokenResponse](#spire.server.datastore.DeleteJoinTokenResponse) | Delete a specific join token |
+| PruneJoinTokens | [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest) | [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensResponse) | Prunes all join tokens that expire before the specified timestamp |
+| Configure | [.spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [.spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureResponse) | Applies the plugin configuration |
+| GetPluginInfo | [.spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [.spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | Returns the version and related metadata of the installed plugin |
 
  
 

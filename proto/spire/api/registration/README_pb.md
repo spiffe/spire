@@ -1,23 +1,7 @@
 # Protocol Documentation
-<a name="top"/>
+<a name="top"></a>
 
 ## Table of Contents
-
-- [common.proto](#common.proto)
-    - [AttestationData](#spire.common.AttestationData)
-    - [AttestedNode](#spire.common.AttestedNode)
-    - [Bundle](#spire.common.Bundle)
-    - [Certificate](#spire.common.Certificate)
-    - [Empty](#spire.common.Empty)
-    - [PublicKey](#spire.common.PublicKey)
-    - [RegistrationEntries](#spire.common.RegistrationEntries)
-    - [RegistrationEntry](#spire.common.RegistrationEntry)
-    - [Selector](#spire.common.Selector)
-    - [Selectors](#spire.common.Selectors)
-  
-  
-  
-  
 
 - [registration.proto](#registration.proto)
     - [Bundle](#spire.api.registration.Bundle)
@@ -51,198 +35,14 @@
 
 
 
-<a name="common.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## common.proto
-
-
-
-<a name="spire.common.AttestationData"/>
-
-### AttestationData
-A type which contains attestation data for specific platform.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestation data. |
-
-
-
-
-
-
-<a name="spire.common.AttestedNode"/>
-
-### AttestedNode
-Represents an attested SPIRE agent
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| attestation_data_type | [string](#string) |  | Attestation data type |
-| cert_serial_number | [string](#string) |  | Node certificate serial number |
-| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-| prepared_cert_serial_number | [string](#string) |  | Node certificate serial number |
-| prepared_cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-
-
-
-
-
-
-<a name="spire.common.Bundle"/>
-
-### Bundle
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| trust_domain_id | [string](#string) |  | the SPIFFE ID of the trust domain the bundle belongs to |
-| root_cas | [Certificate](#spire.common.Certificate) | repeated | list of root CA certificates |
-| jwt_signing_keys | [PublicKey](#spire.common.PublicKey) | repeated | list of JWT signing keys |
-| refresh_hint | [int64](#int64) |  | refresh hint is a hint, in seconds, on how often a bundle consumer should poll for bundle updates |
-
-
-
-
-
-
-<a name="spire.common.Certificate"/>
-
-### Certificate
-Certificate represents a ASN.1/DER encoded X509 certificate
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| der_bytes | [bytes](#bytes) |  |  |
-
-
-
-
-
-
-<a name="spire.common.Empty"/>
-
-### Empty
-Represents an empty message
-
-
-
-
-
-
-<a name="spire.common.PublicKey"/>
-
-### PublicKey
-PublicKey represents a PKIX encoded public key
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| pkix_bytes | [bytes](#bytes) |  | PKIX encoded key data |
-| kid | [string](#string) |  | key identifier |
-| not_after | [int64](#int64) |  | not after (seconds since unix epoch, 0 means &#34;never expires&#34;) |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntries"/>
-
-### RegistrationEntries
-A list of registration entries.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntry"/>
-
-### RegistrationEntry
-This is a curated record that the Server uses to set up and
-manage the various registered nodes and workloads that are controlled by it.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
-| ttl | [int32](#int32) |  | Time to live. |
-| federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
-| entry_id | [string](#string) |  | Entry ID |
-| admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
-| downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
-| entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
-| dns_names | [string](#string) | repeated | DNS entries |
-
-
-
-
-
-
-<a name="spire.common.Selector"/>
-
-### Selector
-A type which describes the conditions under which a registration
-entry is matched.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
-| value | [string](#string) |  | The value to be attested. |
-
-
-
-
-
-
-<a name="spire.common.Selectors"/>
-
-### Selectors
-Represents a type with a list of Selector.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [Selector](#spire.common.Selector) | repeated | A list of Selector. |
-
-
-
-
-
- 
-
- 
-
- 
-
- 
-
-
-
-<a name="registration.proto"/>
+<a name="registration.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## registration.proto
 
 
 
-<a name="spire.api.registration.Bundle"/>
+<a name="spire.api.registration.Bundle"></a>
 
 ### Bundle
 CA Bundle of the server
@@ -250,14 +50,14 @@ CA Bundle of the server
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.api.registration..spire.common.Bundle) |  | Common bundle format |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  | Common bundle format |
 
 
 
 
 
 
-<a name="spire.api.registration.DeleteFederatedBundleRequest"/>
+<a name="spire.api.registration.DeleteFederatedBundleRequest"></a>
 
 ### DeleteFederatedBundleRequest
 
@@ -273,7 +73,7 @@ CA Bundle of the server
 
 
 
-<a name="spire.api.registration.EvictAgentRequest"/>
+<a name="spire.api.registration.EvictAgentRequest"></a>
 
 ### EvictAgentRequest
 Represents an evict request
@@ -288,7 +88,7 @@ Represents an evict request
 
 
 
-<a name="spire.api.registration.EvictAgentResponse"/>
+<a name="spire.api.registration.EvictAgentResponse"></a>
 
 ### EvictAgentResponse
 Represents an evict response
@@ -296,14 +96,14 @@ Represents an evict response
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [.spire.common.AttestedNode](#spire.api.registration..spire.common.AttestedNode) |  | Node contains the evicted node |
+| node | [spire.common.AttestedNode](#spire.common.AttestedNode) |  | Node contains the evicted node |
 
 
 
 
 
 
-<a name="spire.api.registration.FederatedBundle"/>
+<a name="spire.api.registration.FederatedBundle"></a>
 
 ### FederatedBundle
 A CA bundle for a different Trust Domain than the one used and managed by the Server.
@@ -311,14 +111,14 @@ A CA bundle for a different Trust Domain than the one used and managed by the Se
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [.spire.common.Bundle](#spire.api.registration..spire.common.Bundle) |  | Common bundle format |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  | Common bundle format |
 
 
 
 
 
 
-<a name="spire.api.registration.FederatedBundleID"/>
+<a name="spire.api.registration.FederatedBundleID"></a>
 
 ### FederatedBundleID
 A type that represents a federated bundle id.
@@ -333,7 +133,7 @@ A type that represents a federated bundle id.
 
 
 
-<a name="spire.api.registration.GetNodeSelectorsRequest"/>
+<a name="spire.api.registration.GetNodeSelectorsRequest"></a>
 
 ### GetNodeSelectorsRequest
 Represents a GetNodeSelectors request
@@ -348,7 +148,7 @@ Represents a GetNodeSelectors request
 
 
 
-<a name="spire.api.registration.GetNodeSelectorsResponse"/>
+<a name="spire.api.registration.GetNodeSelectorsResponse"></a>
 
 ### GetNodeSelectorsResponse
 Represents a GetNodeSelectors response
@@ -363,7 +163,7 @@ Represents a GetNodeSelectors response
 
 
 
-<a name="spire.api.registration.JoinToken"/>
+<a name="spire.api.registration.JoinToken"></a>
 
 ### JoinToken
 JoinToken message is used for registering a new token
@@ -379,7 +179,7 @@ JoinToken message is used for registering a new token
 
 
 
-<a name="spire.api.registration.ListAgentsRequest"/>
+<a name="spire.api.registration.ListAgentsRequest"></a>
 
 ### ListAgentsRequest
 Represents a ListAgents request
@@ -389,7 +189,7 @@ Represents a ListAgents request
 
 
 
-<a name="spire.api.registration.ListAgentsResponse"/>
+<a name="spire.api.registration.ListAgentsResponse"></a>
 
 ### ListAgentsResponse
 Represents a ListAgents response
@@ -397,14 +197,14 @@ Represents a ListAgents response
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodes | [.spire.common.AttestedNode](#spire.api.registration..spire.common.AttestedNode) | repeated | List of all attested agents |
+| nodes | [spire.common.AttestedNode](#spire.common.AttestedNode) | repeated | List of all attested agents |
 
 
 
 
 
 
-<a name="spire.api.registration.MintJWTSVIDRequest"/>
+<a name="spire.api.registration.MintJWTSVIDRequest"></a>
 
 ### MintJWTSVIDRequest
 
@@ -421,7 +221,7 @@ Represents a ListAgents response
 
 
 
-<a name="spire.api.registration.MintJWTSVIDResponse"/>
+<a name="spire.api.registration.MintJWTSVIDResponse"></a>
 
 ### MintJWTSVIDResponse
 
@@ -436,7 +236,7 @@ Represents a ListAgents response
 
 
 
-<a name="spire.api.registration.MintX509SVIDRequest"/>
+<a name="spire.api.registration.MintX509SVIDRequest"></a>
 
 ### MintX509SVIDRequest
 
@@ -454,7 +254,7 @@ Represents a ListAgents response
 
 
 
-<a name="spire.api.registration.MintX509SVIDResponse"/>
+<a name="spire.api.registration.MintX509SVIDResponse"></a>
 
 ### MintX509SVIDResponse
 
@@ -470,7 +270,7 @@ Represents a ListAgents response
 
 
 
-<a name="spire.api.registration.NodeSelectors"/>
+<a name="spire.api.registration.NodeSelectors"></a>
 
 ### NodeSelectors
 
@@ -479,14 +279,14 @@ Represents a ListAgents response
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| selectors | [.spire.common.Selector](#spire.api.registration..spire.common.Selector) | repeated | Node selectors |
+| selectors | [spire.common.Selector](#spire.common.Selector) | repeated | Node selectors |
 
 
 
 
 
 
-<a name="spire.api.registration.ParentID"/>
+<a name="spire.api.registration.ParentID"></a>
 
 ### ParentID
 A type that represents a parent Id.
@@ -501,7 +301,7 @@ A type that represents a parent Id.
 
 
 
-<a name="spire.api.registration.RegistrationEntryID"/>
+<a name="spire.api.registration.RegistrationEntryID"></a>
 
 ### RegistrationEntryID
 A type that represents the id of an entry.
@@ -516,7 +316,7 @@ A type that represents the id of an entry.
 
 
 
-<a name="spire.api.registration.SpiffeID"/>
+<a name="spire.api.registration.SpiffeID"></a>
 
 ### SpiffeID
 A type that represents a SPIFFE Id.
@@ -531,7 +331,7 @@ A type that represents a SPIFFE Id.
 
 
 
-<a name="spire.api.registration.UpdateEntryRequest"/>
+<a name="spire.api.registration.UpdateEntryRequest"></a>
 
 ### UpdateEntryRequest
 A type used to update registration entries
@@ -539,7 +339,7 @@ A type used to update registration entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [.spire.common.RegistrationEntry](#spire.api.registration..spire.common.RegistrationEntry) |  | Registration entry to update |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  | Registration entry to update |
 
 
 
@@ -548,7 +348,7 @@ A type used to update registration entries
  
 
 
-<a name="spire.api.registration.DeleteFederatedBundleRequest.Mode"/>
+<a name="spire.api.registration.DeleteFederatedBundleRequest.Mode"></a>
 
 ### DeleteFederatedBundleRequest.Mode
 Mode controls the delete behavior if there are other records
@@ -566,34 +366,34 @@ associated with the bundle (e.g. registration entries).
  
 
 
-<a name="spire.api.registration.Registration"/>
+<a name="spire.api.registration.Registration"></a>
 
 ### Registration
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateEntry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | [RegistrationEntryID](#spire.common.RegistrationEntry) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
-| DeleteEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [spire.common.RegistrationEntry](#spire.api.registration.RegistrationEntryID) | Deletes an entry and returns the deleted entry. |
-| FetchEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [spire.common.RegistrationEntry](#spire.api.registration.RegistrationEntryID) | Retrieve a specific registered entry. |
-| FetchEntries | [spire.common.Empty](#spire.common.Empty) | [spire.common.RegistrationEntries](#spire.common.Empty) | Retrieve all registered entries. |
-| UpdateEntry | [UpdateEntryRequest](#spire.api.registration.UpdateEntryRequest) | [spire.common.RegistrationEntry](#spire.api.registration.UpdateEntryRequest) | Updates a specific registered entry. |
-| ListByParentID | [ParentID](#spire.api.registration.ParentID) | [spire.common.RegistrationEntries](#spire.api.registration.ParentID) | Returns all the Entries associated with the ParentID value. |
-| ListBySelector | [spire.common.Selector](#spire.common.Selector) | [spire.common.RegistrationEntries](#spire.common.Selector) | Returns all the entries associated with a selector value. |
-| ListBySelectors | [spire.common.Selectors](#spire.common.Selectors) | [spire.common.RegistrationEntries](#spire.common.Selectors) | Returns all the entries matching the set of selectors |
-| ListBySpiffeID | [SpiffeID](#spire.api.registration.SpiffeID) | [spire.common.RegistrationEntries](#spire.api.registration.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
-| CreateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
-| FetchFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [FederatedBundle](#spire.api.registration.FederatedBundleID) | Retrieves a single federated bundle |
-| ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [FederatedBundle](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
-| UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
-| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest) | [spire.common.Empty](#spire.api.registration.DeleteFederatedBundleRequest) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| CreateEntry | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
+| DeleteEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | Deletes an entry and returns the deleted entry. |
+| FetchEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | Retrieve a specific registered entry. |
+| FetchEntries | [.spire.common.Empty](#spire.common.Empty) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Retrieve all registered entries. |
+| UpdateEntry | [UpdateEntryRequest](#spire.api.registration.UpdateEntryRequest) | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | Updates a specific registered entry. |
+| ListByParentID | [ParentID](#spire.api.registration.ParentID) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the Entries associated with the ParentID value. |
+| ListBySelector | [.spire.common.Selector](#spire.common.Selector) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the entries associated with a selector value. |
+| ListBySelectors | [.spire.common.Selectors](#spire.common.Selectors) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the entries matching the set of selectors |
+| ListBySpiffeID | [SpiffeID](#spire.api.registration.SpiffeID) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Return all registration entries for which SPIFFE ID matches. |
+| CreateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [.spire.common.Empty](#spire.common.Empty) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
+| FetchFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [FederatedBundle](#spire.api.registration.FederatedBundle) | Retrieves a single federated bundle |
+| ListFederatedBundles | [.spire.common.Empty](#spire.common.Empty) | [FederatedBundle](#spire.api.registration.FederatedBundle) stream | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
+| UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [.spire.common.Empty](#spire.common.Empty) | Updates a particular Federated Bundle. Useful for rotation. |
+| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest) | [.spire.common.Empty](#spire.common.Empty) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 | CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |
-| FetchBundle | [spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.common.Empty) | Retrieves the CA bundle. |
-| EvictAgent | [EvictAgentRequest](#spire.api.registration.EvictAgentRequest) | [EvictAgentResponse](#spire.api.registration.EvictAgentRequest) | EvictAgent removes an attestation entry from the attested nodes store |
-| ListAgents | [ListAgentsRequest](#spire.api.registration.ListAgentsRequest) | [ListAgentsResponse](#spire.api.registration.ListAgentsRequest) | ListAgents will list all attested nodes |
-| MintX509SVID | [MintX509SVIDRequest](#spire.api.registration.MintX509SVIDRequest) | [MintX509SVIDResponse](#spire.api.registration.MintX509SVIDRequest) | MintX509SVID mints an X509-SVID directly with the SPIRE server CA. |
-| MintJWTSVID | [MintJWTSVIDRequest](#spire.api.registration.MintJWTSVIDRequest) | [MintJWTSVIDResponse](#spire.api.registration.MintJWTSVIDRequest) | MintJWTSVID mints a JWT-SVID directly with the SPIRE server CA. |
-| GetNodeSelectors | [GetNodeSelectorsRequest](#spire.api.registration.GetNodeSelectorsRequest) | [GetNodeSelectorsResponse](#spire.api.registration.GetNodeSelectorsRequest) | GetNodeSelectors gets node (agent) selectors |
+| FetchBundle | [.spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.api.registration.Bundle) | Retrieves the CA bundle. |
+| EvictAgent | [EvictAgentRequest](#spire.api.registration.EvictAgentRequest) | [EvictAgentResponse](#spire.api.registration.EvictAgentResponse) | EvictAgent removes an attestation entry from the attested nodes store |
+| ListAgents | [ListAgentsRequest](#spire.api.registration.ListAgentsRequest) | [ListAgentsResponse](#spire.api.registration.ListAgentsResponse) | ListAgents will list all attested nodes |
+| MintX509SVID | [MintX509SVIDRequest](#spire.api.registration.MintX509SVIDRequest) | [MintX509SVIDResponse](#spire.api.registration.MintX509SVIDResponse) | MintX509SVID mints an X509-SVID directly with the SPIRE server CA. |
+| MintJWTSVID | [MintJWTSVIDRequest](#spire.api.registration.MintJWTSVIDRequest) | [MintJWTSVIDResponse](#spire.api.registration.MintJWTSVIDResponse) | MintJWTSVID mints a JWT-SVID directly with the SPIRE server CA. |
+| GetNodeSelectors | [GetNodeSelectorsRequest](#spire.api.registration.GetNodeSelectorsRequest) | [GetNodeSelectorsResponse](#spire.api.registration.GetNodeSelectorsResponse) | GetNodeSelectors gets node (agent) selectors |
 
  
 

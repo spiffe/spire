@@ -1,5 +1,5 @@
 # Protocol Documentation
-<a name="top"/>
+<a name="top"></a>
 
 ## Table of Contents
 
@@ -21,14 +21,14 @@
 
 
 
-<a name="plugin.proto"/>
+<a name="plugin.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## plugin.proto
 
 
 
-<a name="spire.common.plugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"></a>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -44,7 +44,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="spire.common.plugin.ConfigureRequest.GlobalConfig"/>
+<a name="spire.common.plugin.ConfigureRequest.GlobalConfig"></a>
 
 ### ConfigureRequest.GlobalConfig
 Global configuration nested type.
@@ -59,7 +59,7 @@ Global configuration nested type.
 
 
 
-<a name="spire.common.plugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"></a>
 
 ### ConfigureResponse
 Represents a list of configuration problems
@@ -75,7 +75,7 @@ found in the configuration string.
 
 
 
-<a name="spire.common.plugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"></a>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -85,7 +85,7 @@ Represents an empty request.
 
 
 
-<a name="spire.common.plugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"></a>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -108,7 +108,7 @@ Represents the plugin metadata.
 
 
 
-<a name="spire.common.plugin.InitRequest"/>
+<a name="spire.common.plugin.InitRequest"></a>
 
 ### InitRequest
 
@@ -123,7 +123,7 @@ Represents the plugin metadata.
 
 
 
-<a name="spire.common.plugin.InitResponse"/>
+<a name="spire.common.plugin.InitResponse"></a>
 
 ### InitResponse
 
@@ -144,14 +144,14 @@ Represents the plugin metadata.
  
 
 
-<a name="spire.common.plugin.PluginInit"/>
+<a name="spire.common.plugin.PluginInit"></a>
 
 ### PluginInit
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Init | [InitRequest](#spire.common.plugin.InitRequest) | [InitResponse](#spire.common.plugin.InitRequest) |  |
+| Init | [InitRequest](#spire.common.plugin.InitRequest) | [InitResponse](#spire.common.plugin.InitResponse) |  |
 
  
 

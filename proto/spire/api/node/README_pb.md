@@ -1,23 +1,7 @@
 # Protocol Documentation
-<a name="top"/>
+<a name="top"></a>
 
 ## Table of Contents
-
-- [common.proto](#common.proto)
-    - [AttestationData](#spire.common.AttestationData)
-    - [AttestedNode](#spire.common.AttestedNode)
-    - [Bundle](#spire.common.Bundle)
-    - [Certificate](#spire.common.Certificate)
-    - [Empty](#spire.common.Empty)
-    - [PublicKey](#spire.common.PublicKey)
-    - [RegistrationEntries](#spire.common.RegistrationEntries)
-    - [RegistrationEntry](#spire.common.RegistrationEntry)
-    - [Selector](#spire.common.Selector)
-    - [Selectors](#spire.common.Selectors)
-  
-  
-  
-  
 
 - [node.proto](#node.proto)
     - [AttestRequest](#spire.api.node.AttestRequest)
@@ -46,198 +30,14 @@
 
 
 
-<a name="common.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## common.proto
-
-
-
-<a name="spire.common.AttestationData"/>
-
-### AttestationData
-A type which contains attestation data for specific platform.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestation data. |
-
-
-
-
-
-
-<a name="spire.common.AttestedNode"/>
-
-### AttestedNode
-Represents an attested SPIRE agent
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| attestation_data_type | [string](#string) |  | Attestation data type |
-| cert_serial_number | [string](#string) |  | Node certificate serial number |
-| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-| prepared_cert_serial_number | [string](#string) |  | Node certificate serial number |
-| prepared_cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-
-
-
-
-
-
-<a name="spire.common.Bundle"/>
-
-### Bundle
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| trust_domain_id | [string](#string) |  | the SPIFFE ID of the trust domain the bundle belongs to |
-| root_cas | [Certificate](#spire.common.Certificate) | repeated | list of root CA certificates |
-| jwt_signing_keys | [PublicKey](#spire.common.PublicKey) | repeated | list of JWT signing keys |
-| refresh_hint | [int64](#int64) |  | refresh hint is a hint, in seconds, on how often a bundle consumer should poll for bundle updates |
-
-
-
-
-
-
-<a name="spire.common.Certificate"/>
-
-### Certificate
-Certificate represents a ASN.1/DER encoded X509 certificate
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| der_bytes | [bytes](#bytes) |  |  |
-
-
-
-
-
-
-<a name="spire.common.Empty"/>
-
-### Empty
-Represents an empty message
-
-
-
-
-
-
-<a name="spire.common.PublicKey"/>
-
-### PublicKey
-PublicKey represents a PKIX encoded public key
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| pkix_bytes | [bytes](#bytes) |  | PKIX encoded key data |
-| kid | [string](#string) |  | key identifier |
-| not_after | [int64](#int64) |  | not after (seconds since unix epoch, 0 means &#34;never expires&#34;) |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntries"/>
-
-### RegistrationEntries
-A list of registration entries.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
-
-
-
-
-
-
-<a name="spire.common.RegistrationEntry"/>
-
-### RegistrationEntry
-This is a curated record that the Server uses to set up and
-manage the various registered nodes and workloads that are controlled by it.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
-| ttl | [int32](#int32) |  | Time to live. |
-| federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
-| entry_id | [string](#string) |  | Entry ID |
-| admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
-| downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
-| entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
-| dns_names | [string](#string) | repeated | DNS entries |
-
-
-
-
-
-
-<a name="spire.common.Selector"/>
-
-### Selector
-A type which describes the conditions under which a registration
-entry is matched.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
-| value | [string](#string) |  | The value to be attested. |
-
-
-
-
-
-
-<a name="spire.common.Selectors"/>
-
-### Selectors
-Represents a type with a list of Selector.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [Selector](#spire.common.Selector) | repeated | A list of Selector. |
-
-
-
-
-
- 
-
- 
-
- 
-
- 
-
-
-
-<a name="node.proto"/>
+<a name="node.proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## node.proto
 
 
 
-<a name="spire.api.node.AttestRequest"/>
+<a name="spire.api.node.AttestRequest"></a>
 
 ### AttestRequest
 Represents a request to attest the node.
@@ -245,7 +45,7 @@ Represents a request to attest the node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestation_data | [.spire.common.AttestationData](#spire.api.node..spire.common.AttestationData) |  | A type which contains attestation data for specific platform. |
+| attestation_data | [spire.common.AttestationData](#spire.common.AttestationData) |  | A type which contains attestation data for specific platform. |
 | csr | [bytes](#bytes) |  | Certificate signing request. |
 | response | [bytes](#bytes) |  | Attestation challenge response |
 
@@ -254,7 +54,7 @@ Represents a request to attest the node.
 
 
 
-<a name="spire.api.node.AttestResponse"/>
+<a name="spire.api.node.AttestResponse"></a>
 
 ### AttestResponse
 Represents a response that contains  map of signed SVIDs and an array of
@@ -271,7 +71,7 @@ all current Registration Entries which are relevant to the caller SPIFFE ID
 
 
 
-<a name="spire.api.node.Bundle"/>
+<a name="spire.api.node.Bundle"></a>
 
 ### Bundle
 Trust domain bundle
@@ -287,7 +87,7 @@ Trust domain bundle
 
 
 
-<a name="spire.api.node.FetchJWTSVIDRequest"/>
+<a name="spire.api.node.FetchJWTSVIDRequest"></a>
 
 ### FetchJWTSVIDRequest
 
@@ -302,7 +102,7 @@ Trust domain bundle
 
 
 
-<a name="spire.api.node.FetchJWTSVIDResponse"/>
+<a name="spire.api.node.FetchJWTSVIDResponse"></a>
 
 ### FetchJWTSVIDResponse
 
@@ -317,7 +117,7 @@ Trust domain bundle
 
 
 
-<a name="spire.api.node.FetchX509CASVIDRequest"/>
+<a name="spire.api.node.FetchX509CASVIDRequest"></a>
 
 ### FetchX509CASVIDRequest
 
@@ -332,7 +132,7 @@ Trust domain bundle
 
 
 
-<a name="spire.api.node.FetchX509CASVIDResponse"/>
+<a name="spire.api.node.FetchX509CASVIDResponse"></a>
 
 ### FetchX509CASVIDResponse
 
@@ -341,14 +141,14 @@ Trust domain bundle
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | svid | [X509SVID](#spire.api.node.X509SVID) |  |  |
-| bundle | [.spire.common.Bundle](#spire.api.node..spire.common.Bundle) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.api.node.FetchX509SVIDRequest"/>
+<a name="spire.api.node.FetchX509SVIDRequest"></a>
 
 ### FetchX509SVIDRequest
 Represents a request with a list of CSR.
@@ -364,7 +164,7 @@ Represents a request with a list of CSR.
 
 
 
-<a name="spire.api.node.FetchX509SVIDRequest.CsrsEntry"/>
+<a name="spire.api.node.FetchX509SVIDRequest.CsrsEntry"></a>
 
 ### FetchX509SVIDRequest.CsrsEntry
 
@@ -380,7 +180,7 @@ Represents a request with a list of CSR.
 
 
 
-<a name="spire.api.node.FetchX509SVIDResponse"/>
+<a name="spire.api.node.FetchX509SVIDResponse"></a>
 
 ### FetchX509SVIDResponse
 Represents a response that contains  map of signed SVIDs and an array
@@ -396,7 +196,7 @@ of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
 
 
-<a name="spire.api.node.JSR"/>
+<a name="spire.api.node.JSR"></a>
 
 ### JSR
 JSR is a JWT SVID signing request.
@@ -413,7 +213,7 @@ JSR is a JWT SVID signing request.
 
 
 
-<a name="spire.api.node.JWTSVID"/>
+<a name="spire.api.node.JWTSVID"></a>
 
 ### JWTSVID
 JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
@@ -430,7 +230,7 @@ JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
 
 
 
-<a name="spire.api.node.X509SVID"/>
+<a name="spire.api.node.X509SVID"></a>
 
 ### X509SVID
 A type which contains the &#34;Spiffe Verifiable Identity Document&#34; and
@@ -447,7 +247,7 @@ a TTL indicating when the SVID expires.
 
 
 
-<a name="spire.api.node.X509SVIDUpdate"/>
+<a name="spire.api.node.X509SVIDUpdate"></a>
 
 ### X509SVIDUpdate
 A message returned by the Spire Server, which includes a map of signed SVIDs and
@@ -457,7 +257,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values keyed by: - SPIFFE ID in message &#39;AttestResponse&#39; (Map[SPIFFE_ID] =&gt; SVID) - Entry ID in message &#39;FetchX509SVIDResponse&#39; (Map[Entry_ID] =&gt; SVID) |
-| registration_entries | [.spire.common.RegistrationEntry](#spire.api.node..spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
+| registration_entries | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 | bundles | [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry) | repeated | Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE ID. Bundles included are the trust bundle for the server trust domain and any federated trust domain bundles applicable to the SVIDs. Supersedes the deprecated `bundle` field. |
 
 
@@ -465,7 +265,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 
 
 
-<a name="spire.api.node.X509SVIDUpdate.BundlesEntry"/>
+<a name="spire.api.node.X509SVIDUpdate.BundlesEntry"></a>
 
 ### X509SVIDUpdate.BundlesEntry
 
@@ -474,14 +274,14 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [.spire.common.Bundle](#spire.api.node..spire.common.Bundle) |  |  |
+| value | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
 
 
 
-<a name="spire.api.node.X509SVIDUpdate.SvidsEntry"/>
+<a name="spire.api.node.X509SVIDUpdate.SvidsEntry"></a>
 
 ### X509SVIDUpdate.SvidsEntry
 
@@ -503,17 +303,17 @@ a list of all current Registration Entries which are relevant to the caller SPIF
  
 
 
-<a name="spire.api.node.Node"/>
+<a name="spire.api.node.Node"></a>
 
 ### Node
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Attest | [AttestRequest](#spire.api.node.AttestRequest) | [AttestResponse](#spire.api.node.AttestRequest) | Attest the node, get base node SVID. |
-| FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
-| FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDRequest) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
-| FetchX509CASVID | [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest) | [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDRequest) | Fetches an X509 CA SVID for a downstream SPIRE server. |
+| Attest | [AttestRequest](#spire.api.node.AttestRequest) stream | [AttestResponse](#spire.api.node.AttestResponse) stream | Attest the node, get base node SVID. |
+| FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) stream | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse) stream | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
+| FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
+| FetchX509CASVID | [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest) | [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse) | Fetches an X509 CA SVID for a downstream SPIRE server. |
 
  
 
