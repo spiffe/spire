@@ -1,7 +1,21 @@
 # Protocol Documentation
-<a name="top"></a>
+<a name="top"/>
 
 ## Table of Contents
+
+- [plugin.proto](#plugin.proto)
+    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
+    - [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig)
+    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
+    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
+    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
+    - [InitRequest](#spire.common.plugin.InitRequest)
+    - [InitResponse](#spire.common.plugin.InitResponse)
+  
+  
+  
+    - [PluginInit](#spire.common.plugin.PluginInit)
+  
 
 - [keymanager.proto](#keymanager.proto)
     - [GenerateKeyRequest](#spire.server.keymanager.GenerateKeyRequest)
@@ -26,14 +40,150 @@
 
 
 
-<a name="keymanager.proto"></a>
+<a name="plugin.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## plugin.proto
+
+
+
+<a name="spire.common.plugin.ConfigureRequest"/>
+
+### ConfigureRequest
+Represents the plugin-specific configuration string.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| configuration | [string](#string) |  | The configuration for the plugin. |
+| globalConfig | [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig) |  | Global configurations. |
+
+
+
+
+
+
+<a name="spire.common.plugin.ConfigureRequest.GlobalConfig"/>
+
+### ConfigureRequest.GlobalConfig
+Global configuration nested type.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trustDomain | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.common.plugin.ConfigureResponse"/>
+
+### ConfigureResponse
+Represents a list of configuration problems
+found in the configuration string.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| errorList | [string](#string) | repeated | A list of errors |
+
+
+
+
+
+
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
+
+### GetPluginInfoRequest
+Represents an empty request.
+
+
+
+
+
+
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
+
+### GetPluginInfoResponse
+Represents the plugin metadata.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| name | [string](#string) |  |  |
+| category | [string](#string) |  |  |
+| type | [string](#string) |  |  |
+| description | [string](#string) |  |  |
+| dateCreated | [string](#string) |  |  |
+| location | [string](#string) |  |  |
+| version | [string](#string) |  |  |
+| author | [string](#string) |  |  |
+| company | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.common.plugin.InitRequest"/>
+
+### InitRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| host_services | [string](#string) | repeated |  |
+
+
+
+
+
+
+<a name="spire.common.plugin.InitResponse"/>
+
+### InitResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| plugin_services | [string](#string) | repeated |  |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+
+<a name="spire.common.plugin.PluginInit"/>
+
+### PluginInit
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| Init | [InitRequest](#spire.common.plugin.InitRequest) | [InitResponse](#spire.common.plugin.InitRequest) |  |
+
+ 
+
+
+
+<a name="keymanager.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
 ## keymanager.proto
 
 
 
-<a name="spire.server.keymanager.GenerateKeyRequest"></a>
+<a name="spire.server.keymanager.GenerateKeyRequest"/>
 
 ### GenerateKeyRequest
 
@@ -49,7 +199,7 @@
 
 
 
-<a name="spire.server.keymanager.GenerateKeyResponse"></a>
+<a name="spire.server.keymanager.GenerateKeyResponse"/>
 
 ### GenerateKeyResponse
 
@@ -64,7 +214,7 @@
 
 
 
-<a name="spire.server.keymanager.GetPublicKeyRequest"></a>
+<a name="spire.server.keymanager.GetPublicKeyRequest"/>
 
 ### GetPublicKeyRequest
 
@@ -79,7 +229,7 @@
 
 
 
-<a name="spire.server.keymanager.GetPublicKeyResponse"></a>
+<a name="spire.server.keymanager.GetPublicKeyResponse"/>
 
 ### GetPublicKeyResponse
 
@@ -94,7 +244,7 @@
 
 
 
-<a name="spire.server.keymanager.GetPublicKeysRequest"></a>
+<a name="spire.server.keymanager.GetPublicKeysRequest"/>
 
 ### GetPublicKeysRequest
 
@@ -104,7 +254,7 @@
 
 
 
-<a name="spire.server.keymanager.GetPublicKeysResponse"></a>
+<a name="spire.server.keymanager.GetPublicKeysResponse"/>
 
 ### GetPublicKeysResponse
 
@@ -119,7 +269,7 @@
 
 
 
-<a name="spire.server.keymanager.PSSOptions"></a>
+<a name="spire.server.keymanager.PSSOptions"/>
 
 ### PSSOptions
 
@@ -135,7 +285,7 @@
 
 
 
-<a name="spire.server.keymanager.PublicKey"></a>
+<a name="spire.server.keymanager.PublicKey"/>
 
 ### PublicKey
 
@@ -152,7 +302,7 @@
 
 
 
-<a name="spire.server.keymanager.SignDataRequest"></a>
+<a name="spire.server.keymanager.SignDataRequest"/>
 
 ### SignDataRequest
 
@@ -170,7 +320,7 @@
 
 
 
-<a name="spire.server.keymanager.SignDataResponse"></a>
+<a name="spire.server.keymanager.SignDataResponse"/>
 
 ### SignDataResponse
 
@@ -187,7 +337,7 @@
  
 
 
-<a name="spire.server.keymanager.HashAlgorithm"></a>
+<a name="spire.server.keymanager.HashAlgorithm"/>
 
 ### HashAlgorithm
 
@@ -208,7 +358,7 @@
 
 
 
-<a name="spire.server.keymanager.KeyType"></a>
+<a name="spire.server.keymanager.KeyType"/>
 
 ### KeyType
 
@@ -228,19 +378,19 @@
  
 
 
-<a name="spire.server.keymanager.KeyManager"></a>
+<a name="spire.server.keymanager.KeyManager"/>
 
 ### KeyManager
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GenerateKey | [GenerateKeyRequest](#spire.server.keymanager.GenerateKeyRequest) | [GenerateKeyResponse](#spire.server.keymanager.GenerateKeyResponse) | Generates a new key |
-| GetPublicKey | [GetPublicKeyRequest](#spire.server.keymanager.GetPublicKeyRequest) | [GetPublicKeyResponse](#spire.server.keymanager.GetPublicKeyResponse) | Get a public key by key id |
-| GetPublicKeys | [GetPublicKeysRequest](#spire.server.keymanager.GetPublicKeysRequest) | [GetPublicKeysResponse](#spire.server.keymanager.GetPublicKeysResponse) | Gets all public keys |
-| SignData | [SignDataRequest](#spire.server.keymanager.SignDataRequest) | [SignDataResponse](#spire.server.keymanager.SignDataResponse) | Signs data with private key |
-| Configure | [.spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [.spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureResponse) | Applies the plugin configuration |
-| GetPluginInfo | [.spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [.spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | Returns the version and related metadata of the installed plugin |
+| GenerateKey | [GenerateKeyRequest](#spire.server.keymanager.GenerateKeyRequest) | [GenerateKeyResponse](#spire.server.keymanager.GenerateKeyRequest) | Generates a new key |
+| GetPublicKey | [GetPublicKeyRequest](#spire.server.keymanager.GetPublicKeyRequest) | [GetPublicKeyResponse](#spire.server.keymanager.GetPublicKeyRequest) | Get a public key by key id |
+| GetPublicKeys | [GetPublicKeysRequest](#spire.server.keymanager.GetPublicKeysRequest) | [GetPublicKeysResponse](#spire.server.keymanager.GetPublicKeysRequest) | Gets all public keys |
+| SignData | [SignDataRequest](#spire.server.keymanager.SignDataRequest) | [SignDataResponse](#spire.server.keymanager.SignDataRequest) | Signs data with private key |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
 
  
 

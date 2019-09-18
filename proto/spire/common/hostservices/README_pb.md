@@ -1,5 +1,5 @@
 # Protocol Documentation
-<a name="top"></a>
+<a name="top"/>
 
 ## Table of Contents
 
@@ -25,14 +25,14 @@
 
 
 
-<a name="metricsservice.proto"></a>
+<a name="metricsservice.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
 ## metricsservice.proto
 
 
 
-<a name="spire.common.hostservices.AddSampleRequest"></a>
+<a name="spire.common.hostservices.AddSampleRequest"/>
 
 ### AddSampleRequest
 
@@ -49,7 +49,7 @@
 
 
 
-<a name="spire.common.hostservices.AddSampleResponse"></a>
+<a name="spire.common.hostservices.AddSampleResponse"/>
 
 ### AddSampleResponse
 
@@ -59,7 +59,7 @@
 
 
 
-<a name="spire.common.hostservices.EmitKeyRequest"></a>
+<a name="spire.common.hostservices.EmitKeyRequest"/>
 
 ### EmitKeyRequest
 
@@ -75,7 +75,7 @@
 
 
 
-<a name="spire.common.hostservices.EmitKeyResponse"></a>
+<a name="spire.common.hostservices.EmitKeyResponse"/>
 
 ### EmitKeyResponse
 
@@ -85,7 +85,7 @@
 
 
 
-<a name="spire.common.hostservices.IncrCounterRequest"></a>
+<a name="spire.common.hostservices.IncrCounterRequest"/>
 
 ### IncrCounterRequest
 
@@ -102,7 +102,7 @@
 
 
 
-<a name="spire.common.hostservices.IncrCounterResponse"></a>
+<a name="spire.common.hostservices.IncrCounterResponse"/>
 
 ### IncrCounterResponse
 
@@ -112,7 +112,7 @@
 
 
 
-<a name="spire.common.hostservices.Label"></a>
+<a name="spire.common.hostservices.Label"/>
 
 ### Label
 
@@ -128,7 +128,7 @@
 
 
 
-<a name="spire.common.hostservices.MeasureSinceRequest"></a>
+<a name="spire.common.hostservices.MeasureSinceRequest"/>
 
 ### MeasureSinceRequest
 
@@ -145,7 +145,7 @@
 
 
 
-<a name="spire.common.hostservices.MeasureSinceResponse"></a>
+<a name="spire.common.hostservices.MeasureSinceResponse"/>
 
 ### MeasureSinceResponse
 
@@ -155,7 +155,7 @@
 
 
 
-<a name="spire.common.hostservices.SetGaugeRequest"></a>
+<a name="spire.common.hostservices.SetGaugeRequest"/>
 
 ### SetGaugeRequest
 
@@ -172,7 +172,7 @@
 
 
 
-<a name="spire.common.hostservices.SetGaugeResponse"></a>
+<a name="spire.common.hostservices.SetGaugeResponse"/>
 
 ### SetGaugeResponse
 
@@ -188,18 +188,18 @@
  
 
 
-<a name="spire.common.hostservices.MetricsService"></a>
+<a name="spire.common.hostservices.MetricsService"/>
 
 ### MetricsService
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| SetGauge | [SetGaugeRequest](#spire.common.hostservices.SetGaugeRequest) | [SetGaugeResponse](#spire.common.hostservices.SetGaugeResponse) |  |
-| EmitKey | [EmitKeyRequest](#spire.common.hostservices.EmitKeyRequest) | [EmitKeyResponse](#spire.common.hostservices.EmitKeyResponse) |  |
-| IncrCounter | [IncrCounterRequest](#spire.common.hostservices.IncrCounterRequest) | [IncrCounterResponse](#spire.common.hostservices.IncrCounterResponse) |  |
-| AddSample | [AddSampleRequest](#spire.common.hostservices.AddSampleRequest) | [AddSampleResponse](#spire.common.hostservices.AddSampleResponse) |  |
-| MeasureSince | [MeasureSinceRequest](#spire.common.hostservices.MeasureSinceRequest) | [MeasureSinceResponse](#spire.common.hostservices.MeasureSinceResponse) |  |
+| SetGauge | [SetGaugeRequest](#spire.common.hostservices.SetGaugeRequest) | [SetGaugeResponse](#spire.common.hostservices.SetGaugeRequest) |  |
+| EmitKey | [EmitKeyRequest](#spire.common.hostservices.EmitKeyRequest) | [EmitKeyResponse](#spire.common.hostservices.EmitKeyRequest) |  |
+| IncrCounter | [IncrCounterRequest](#spire.common.hostservices.IncrCounterRequest) | [IncrCounterResponse](#spire.common.hostservices.IncrCounterRequest) |  |
+| AddSample | [AddSampleRequest](#spire.common.hostservices.AddSampleRequest) | [AddSampleResponse](#spire.common.hostservices.AddSampleRequest) |  |
+| MeasureSince | [MeasureSinceRequest](#spire.common.hostservices.MeasureSinceRequest) | [MeasureSinceResponse](#spire.common.hostservices.MeasureSinceRequest) |  |
 
  
 
