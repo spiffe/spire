@@ -85,7 +85,7 @@ conventions apply to the SPIRE repository:
 
 ## SQL Plugin Changes
 
-Datastore changes must be present in at least one full major release cycle prior to introducing code changes that depend on them.
+Datastore changes must be present in at least one full minor release cycle prior to introducing code changes that depend on them.
 
 ## Directory layout
 
