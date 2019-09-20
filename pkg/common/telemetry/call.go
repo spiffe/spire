@@ -19,12 +19,11 @@ import (
 //     call.AddLabel("food", "burgers")
 // }
 //
-// In the simplest case, if no labels are going to be added, the CountCall function
-// provides an easier interface:
+// See `Done` doc for labels automatically added.
 //
-// func Foo() (err error) {
-//     defer CountCall(metrics, "foo")(&err)
-// }
+// Instances of this struct should only be created directly by this package
+// and its subpackages, which define the specific metrics that are emitted.
+// It is left exported for testing purposes.
 type CallCounter struct {
 	metrics Metrics
 	key     []string
