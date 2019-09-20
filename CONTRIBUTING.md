@@ -142,6 +142,14 @@ callCounter.AddLabel("someName", "val1")
 callCounter.AddLabel("someName", "val2")
 ```
 
+## Logs and Errors
+
+Errors should start with lower case, and logged messages should follow standard casing.
+
+Log messages should make use of logging fields to convey additional information, rather than
+using string formatting which increases the cardinality of messages for log watchers to
+look for and hinders aggregation.
+
 ## Mocks
 
 Unit tests should avoid mock tests as much as possible. When necessary we should inject mocked

@@ -108,7 +108,7 @@ func (m *UpstreamCA) Intermediate() *x509.Certificate {
 }
 
 func (m *UpstreamCA) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
-	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr)
+	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
 		return nil, err
 	}

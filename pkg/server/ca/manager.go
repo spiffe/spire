@@ -200,7 +200,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	var trustBundle []*x509.Certificate
 	upstreamCA, useUpstream := m.c.Catalog.GetUpstreamCA()
 	if useUpstream {
-		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamCA, m.c.UpstreamBundle)
+		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamCA, m.c.UpstreamBundle, m.c.CATTL)
 	} else {
 		notBefore := now.Add(-backdate)
 		notAfter := now.Add(m.c.CATTL)
@@ -900,14 +900,15 @@ func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain strin
 	}, trustBundle, nil
 }
 
-func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool) (*X509CA, []*x509.Certificate, error) {
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool, caTTL time.Duration) (*X509CA, []*x509.Certificate, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	resp, err := upstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
-		Csr: csr,
+		Csr:          csr,
+		PreferredTtl: int32(caTTL / time.Second),
 	})
 	if err != nil {
 		return nil, nil, errs.New("upstream CA failed with %v", err)
