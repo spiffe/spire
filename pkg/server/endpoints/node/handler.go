@@ -534,17 +534,24 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 
 	currentSerial, preparedSerial := resp.Node.CertSerialNumber, resp.Node.PreparedCertSerialNumber
 	if currentSerial != "" && cert.SerialNumber.String() == currentSerial {
-		h.c.Log.Debugf("Agent SVID validated, current serial: %v", currentSerial)
 		return nil
 	}
 
 	// New SVID activation
 	if preparedSerial != "" && cert.SerialNumber.String() == preparedSerial {
-		return h.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+		fieldLog := h.c.Log.WithFields(logrus.Fields{"agent": agentID, "prepared_serial": preparedSerial})
+		fieldLog.Debug("Activating agent SVID")
+		err := h.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
 			SpiffeId:         resp.Node.SpiffeId,
 			CertSerialNumber: resp.Node.PreparedCertSerialNumber,
 			CertNotAfter:     resp.Node.PreparedCertNotAfter,
 		})
+
+		if err != nil {
+			fieldLog.Warningf("Failed to activate agent SVID: %v", err)
+			return fmt.Errorf("failed to activate agent SVID: %v", err)
+		}
+		return nil
 	}
 
 	return fmt.Errorf("agent %q SVID does not match expected serial number", agentID)

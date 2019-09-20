@@ -14,7 +14,7 @@ import (
 
 const (
 	// version of the database in the code
-	codeVersion = 11
+	codeVersion = 12
 )
 
 func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
@@ -146,6 +146,8 @@ func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int,
 		err = migrateToV10(tx)
 	case 10:
 		err = migrateToV11(tx)
+	case 11:
+		err = migrateToV12(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -212,7 +214,7 @@ func migrateToV3(tx *gorm.DB) (err error) {
 		}
 	}
 
-	var attestedNodes []*AttestedNode
+	var attestedNodes []*V3AttestedNode
 	if err := tx.Find(&attestedNodes).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -351,6 +353,13 @@ func migrateToV10(tx *gorm.DB) error {
 func migrateToV11(tx *gorm.DB) error {
 	if err := addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx); err != nil {
 		return err
+	}
+	return nil
+}
+
+func migrateToV12(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 	return nil
 }

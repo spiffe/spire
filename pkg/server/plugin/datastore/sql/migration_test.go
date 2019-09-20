@@ -374,6 +374,13 @@ COMMIT;
 		COMMIT;
 		`,
 		// v11 database entry, in which index was added to federated_registration_entries registered_entry_id field
+		`
+		BEGIN TRANSACTION;
+		CREATE TABLE IF NOT EXISTS "attested_node_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"spiffe_id" varchar(255),"data_type" varchar(255),"serial_number" varchar(255),"expires_at" datetime );
+		INSERT INTO attested_node_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','spiffe://example.org/host','test','111','2018-12-19 15:26:58-07:00');
+		COMMIT;
+		`,
+		// v12 database entry, in which the table 'attested_node_entries' gained two columns: 'prepared_serial_number' and 'prepared_expires_at'
 	}
 )
 

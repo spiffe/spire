@@ -879,7 +879,7 @@ func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (
 		SerialNumber:         req.Node.CertSerialNumber,
 		ExpiresAt:            time.Unix(req.Node.CertNotAfter, 0),
 		PreparedSerialNumber: req.Node.PreparedCertSerialNumber,
-		PreparedExpiresAt:    time.Unix(req.Node.PreparedCertNotAfter, 0),
+		PreparedExpiresAt:    nullableUnixTimeToDBTime(req.Node.PreparedCertNotAfter),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
@@ -953,7 +953,7 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 		SerialNumber:         req.CertSerialNumber,
 		ExpiresAt:            time.Unix(req.CertNotAfter, 0),
 		PreparedSerialNumber: req.PreparedCertSerialNumber,
-		PreparedExpiresAt:    time.Unix(req.PreparedCertNotAfter, 0),
+		PreparedExpiresAt:    nullableUnixTimeToDBTime(req.PreparedCertNotAfter),
 	}
 
 	if err := tx.Model(&model).Updates(updates).Error; err != nil {
@@ -2258,7 +2258,7 @@ func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
 		CertSerialNumber:         model.SerialNumber,
 		CertNotAfter:             model.ExpiresAt.Unix(),
 		PreparedCertSerialNumber: model.PreparedSerialNumber,
-		PreparedCertNotAfter:     model.PreparedExpiresAt.Unix(),
+		PreparedCertNotAfter:     nullableDBTimeToUnixTime(model.PreparedExpiresAt),
 	}
 }
 
@@ -2351,4 +2351,19 @@ func gormToGRPCStatus(err error) error {
 	}
 
 	return status.Error(code, err.Error())
+}
+
+func nullableDBTimeToUnixTime(dbTime *time.Time) int64 {
+	if dbTime == nil {
+		return 0
+	}
+	return dbTime.Unix()
+}
+
+func nullableUnixTimeToDBTime(unixTime int64) *time.Time {
+	if unixTime == 0 {
+		return nil
+	}
+	dbTime := time.Unix(unixTime, 0)
+	return &dbTime
 }

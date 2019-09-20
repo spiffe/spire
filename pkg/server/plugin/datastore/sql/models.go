@@ -31,11 +31,24 @@ type AttestedNode struct {
 	SerialNumber         string
 	ExpiresAt            time.Time
 	PreparedSerialNumber string
-	PreparedExpiresAt    time.Time
+	PreparedExpiresAt    *time.Time
 }
 
 // TableName gets table name of AttestedNode
 func (AttestedNode) TableName() string {
+	return "attested_node_entries"
+}
+
+type V3AttestedNode struct {
+	Model
+
+	SpiffeID     string `gorm:"unique_index"`
+	DataType     string
+	SerialNumber string
+	ExpiresAt    time.Time
+}
+
+func (V3AttestedNode) TableName() string {
 	return "attested_node_entries"
 }
 

@@ -1893,6 +1893,33 @@ func (s *PluginSuite) TestMigration() {
 			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
+		case 11:
+			// Ensure attested_nodes_entries gained two new columns
+			db, err := sqlite{}.connect(&configuration{
+				DatabaseType:     "sqlite3",
+				ConnectionString: fmt.Sprintf("file://%s", dbPath),
+			})
+			s.Require().NoError(err)
+
+			// Assert attested_node_entries tables gained the 'prepared' columns
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "prepared_serial_number"))
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "prepared_expires_at"))
+
+			resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
+				SpiffeId: "spiffe://example.org/host",
+			})
+			s.Require().NoError(err)
+
+			// Assert current serial numbers and expiration time remains the same
+			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
+			s.Require().NoError(err)
+			s.Require().Equal(expectedTime.Unix(), resp.Node.CertNotAfter)
+			s.Require().Equal("111", resp.Node.CertSerialNumber)
+
+			// Assert the new fields are empty for pre-existing entries
+			s.Require().Empty(resp.Node.PreparedCertSerialNumber)
+			s.Require().Empty(resp.Node.PreparedCertNotAfter)
+
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
