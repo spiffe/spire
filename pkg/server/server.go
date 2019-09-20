@@ -154,7 +154,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  s.config.Telemetry,
 		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
-		ServiceName: "spire_server",
+		ServiceName: telemetry.SpireServer,
 	})
 	if err != nil {
 		return err
