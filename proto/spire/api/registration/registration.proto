@@ -103,7 +103,7 @@ message MintX509SVIDRequest {
     // SPIFFE ID of the X509-SVID
     string spiffe_id = 1;
 
-    // ASN.1 encoded CSR. The CSR is only used to convey the public key and 
+    // ASN.1 encoded CSR. The CSR is only used to convey the public key and
     // prove possession of the private key. The rest of the CSR is ignored.
     bytes csr = 2;
 
@@ -145,6 +145,24 @@ message MintJWTSVIDRequest {
 message MintJWTSVIDResponse {
     // JWT-SVID token
     string token = 1;
+}
+
+message NodeSelectors {
+    // Node SPIFFE ID
+    string spiffe_id = 1;
+
+    // Node selectors
+    repeated spire.common.Selector selectors = 2;
+}
+
+// Represents a GetNodeSelectors request
+message GetNodeSelectorsRequest{
+    string spiffe_id = 1;
+}
+
+// Represents a GetNodeSelectors response
+message GetNodeSelectorsResponse {
+    NodeSelectors selectors = 1;
 }
 
 service Registration {
@@ -194,4 +212,7 @@ service Registration {
 
     // MintJWTSVID mints a JWT-SVID directly with the SPIRE server CA.
     rpc MintJWTSVID(MintJWTSVIDRequest) returns (MintJWTSVIDResponse);
+
+    // GetNodeSelectors gets node (agent) selectors
+    rpc GetNodeSelectors(GetNodeSelectorsRequest) returns (GetNodeSelectorsResponse);
 }

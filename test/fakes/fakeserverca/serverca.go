@@ -47,7 +47,7 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 		options = new(Options)
 	}
 	if options.Clock == nil {
-		options.Clock = clock.New()
+		options.Clock = clock.NewMock(t)
 	}
 	if options.X509SVIDTTL == 0 {
 		options.X509SVIDTTL = time.Minute
@@ -65,7 +65,7 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	var bundle []*x509.Certificate
 	var err error
 	if options.UpstreamCA != nil {
-		x509CA, bundle, err = ca.UpstreamSignX509CA(context.Background(), signer, trustDomain, subject, options.UpstreamCA, options.UpstreamBundle)
+		x509CA, bundle, err = ca.UpstreamSignX509CA(context.Background(), signer, trustDomain, subject, options.UpstreamCA, options.UpstreamBundle, 0)
 	} else {
 		x509CA, bundle, err = ca.SelfSignX509CA(context.Background(), signer, trustDomain, subject, notBefore, notAfter)
 	}

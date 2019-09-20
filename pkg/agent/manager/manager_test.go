@@ -55,7 +55,7 @@ var (
 )
 
 func TestInitializationFailure(t *testing.T) {
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
@@ -85,7 +85,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
@@ -137,7 +137,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
@@ -185,7 +185,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
@@ -252,7 +252,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,
@@ -590,7 +590,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,
@@ -652,7 +652,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,
@@ -713,7 +713,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	}
 	defer l.Close()
 
-	clk := clock.New()
+	clk := clock.NewMock(t)
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
 		trustDomain:   trustDomain,

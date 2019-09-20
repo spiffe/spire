@@ -50,9 +50,6 @@ func (h *Handler) CreateEntry(
 
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 	addCallerIDLabel(ctx, counter)
 
 	request, err = h.prepareRegistrationEntry(request, false)
@@ -97,9 +94,6 @@ func (h *Handler) DeleteEntry(
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	ds := h.getDataStore()
 	req := &datastore.DeleteRegistrationEntryRequest{
@@ -123,9 +117,6 @@ func (h *Handler) FetchEntry(
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
@@ -152,9 +143,6 @@ func (h *Handler) FetchEntries(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -176,9 +164,6 @@ func (h *Handler) UpdateEntry(
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	if request.Entry == nil {
 		err = status.Error(codes.InvalidArgument, "Request is missing entry to update")
@@ -220,9 +205,6 @@ func (h *Handler) ListByParentID(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
@@ -257,9 +239,6 @@ func (h *Handler) ListBySelector(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -287,9 +266,6 @@ func (h *Handler) ListBySelectors(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -317,9 +293,6 @@ func (h *Handler) ListBySpiffeID(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
@@ -353,9 +326,6 @@ func (h *Handler) CreateFederatedBundle(
 	counter := telemetry_registrationapi.StartCreateFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	bundle := request.Bundle
 	if bundle == nil {
@@ -387,9 +357,6 @@ func (h *Handler) FetchFederatedBundle(
 	counter := telemetry_registrationapi.StartFetchFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
@@ -422,9 +389,6 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	counter := telemetry_registrationapi.StartListFedBundlesCall(h.Metrics)
 	addCallerIDLabel(stream.Context(), counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	ds := h.getDataStore()
 	resp, err := ds.ListBundles(stream.Context(), &datastore.ListBundlesRequest{})
@@ -453,9 +417,6 @@ func (h *Handler) UpdateFederatedBundle(
 	counter := telemetry_registrationapi.StartUpdateFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	bundle := request.Bundle
 	if bundle == nil {
@@ -487,9 +448,6 @@ func (h *Handler) DeleteFederatedBundle(
 	counter := telemetry_registrationapi.StartDeleteFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
@@ -525,9 +483,6 @@ func (h *Handler) CreateJoinToken(
 	counter := telemetry_registrationapi.StartCreateJoinTokenCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	if request.Ttl < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Ttl is required, you must provide one")
@@ -568,9 +523,6 @@ func (h *Handler) FetchBundle(
 	counter := telemetry_registrationapi.StartFetchBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
@@ -704,6 +656,24 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 
 	return &registration.MintJWTSVIDResponse{
 		Token: token,
+	}, nil
+}
+
+// GetNodeSelectors returns node (agent) selectors
+func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNodeSelectorsRequest) (*registration.GetNodeSelectorsResponse, error) {
+	ds := h.Catalog.GetDataStore()
+	r := &datastore.GetNodeSelectorsRequest{
+		SpiffeId: req.SpiffeId,
+	}
+	resp, err := ds.GetNodeSelectors(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	return &registration.GetNodeSelectorsResponse{
+		Selectors: &registration.NodeSelectors{
+			SpiffeId:  resp.Selectors.SpiffeId,
+			Selectors: resp.Selectors.Selectors,
+		},
 	}, nil
 }
 

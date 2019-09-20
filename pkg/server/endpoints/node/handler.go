@@ -66,9 +66,6 @@ func NewHandler(config HandlerConfig) *Handler {
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	log := h.c.Log
 
@@ -220,9 +217,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
 	counter := telemetry_server.StartNodeAPIFetchX509SVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	peerCert, ok := getPeerCertificate(server.Context())
 	if !ok {
@@ -311,8 +305,6 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	counter := telemetry_server.StartNodeAPIFetchX509CASVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
 
-	defer func() { telemetry_common.AddErrorClass(counter, status.Code(err)) }()
-
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
@@ -373,9 +365,6 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
 	counter := telemetry_server.StartNodeAPIFetchJWTSVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
