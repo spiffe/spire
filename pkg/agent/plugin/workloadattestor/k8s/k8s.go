@@ -327,21 +327,29 @@ func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 	}
 
 	for _, cgroup := range cgroups {
-		// We are only interested in kube pods entries. Example entry:
+		// We are only interested in kube pods entries. Example entries:
 		// 11:hugetlb:/kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
-		if len(cgroup.GroupPath) < 9 {
+		// 12:pids:/docker/8d461fa5765781bcf5f7eb192f101bc3103d4b932e26236f43feecfa20664f96/kubepods/besteffort/poddaa5c7ee-3484-4533-af39-3591564fd03e/aff34703e5e1f89443e9a1bffcc80f43f74d4808a2dd22c8f88c08547b323934
+		groupPath := cgroup.GroupPath
+		if len(groupPath) < 9 {
 			continue
 		}
 
-		substring := cgroup.GroupPath[:9]
-		if substring == "/kubepods" {
-			parts := strings.Split(cgroup.GroupPath, "/")
+		if strings.Contains(groupPath, "/kubepods") {
+			// Trim unnecessary prefix given when running on kind.
+			// Ex "/docker/8d461fa5765781bcf5f7eb192f101bc3103d4b932e26236f43feecfa20664f96"
+			kubePods := strings.Index(groupPath, "/kubepods")
+			if kubePods > -1 {
+				groupPath = groupPath[kubePods:]
+			}
+
+			parts := strings.Split(groupPath, "/")
 			if len(parts) < 5 {
-				log.Printf("Kube pod entry found, but without container id: %v", substring)
+				log.Println("Kube pod entry found, but without container id")
 				continue
 			}
 			id := strings.TrimSuffix(parts[4], ".scope")
-			// Trim the id of any container runtime prefixes.  Ex "docker-" or "crio-"
+			// Trim the id of any container runtime prefixes. Ex "docker-" or "crio-"
 			dash := strings.Index(id, "-")
 			if dash > -1 {
 				id = id[dash+1:]
