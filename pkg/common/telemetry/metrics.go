@@ -9,6 +9,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
+const timerGranularity = time.Millisecond
+
 // Label is a label/tag for a metric
 type Label = metrics.Label
 
@@ -42,6 +44,8 @@ type MetricsImpl struct {
 
 	c       *MetricsConfig
 	runners []sinkRunner
+	// Each instance of metrics.Metrics in the slice corresponds to one metrics sink type
+	metricsSinks []*metrics.Metrics
 }
 
 var _ Metrics = (*MetricsImpl)(nil)
@@ -53,8 +57,6 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 	}
 
 	impl := &MetricsImpl{c: c}
-	fanout := metrics.FanoutSink{}
-	fanout = append(fanout, c.Sinks...)
 
 	for _, f := range sinkRunnerFactories {
 		runner, err := f(c)
@@ -62,20 +64,25 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 			return nil, err
 		}
 
-		if runner.isConfigured() {
-			fanout = append(fanout, runner.sinks()...)
-			impl.runners = append(impl.runners, runner)
+		if !runner.isConfigured() {
+			continue
 		}
-	}
 
-	conf := metrics.DefaultConfig(c.ServiceName)
-	conf.EnableHostname = false
-	conf.EnableHostnameLabel = true
+		fanout := metrics.FanoutSink{}
+		fanout = append(fanout, runner.sinks()...)
 
-	var err error
-	impl.Metrics, err = metrics.New(conf, fanout)
-	if err != nil {
-		return nil, err
+		conf := metrics.DefaultConfig(c.ServiceName)
+		conf.EnableHostname = false
+		conf.EnableHostnameLabel = true
+		conf.EnableTypePrefix = runner.requiresTypePrefix()
+
+		metricsSink, err := metrics.New(conf, fanout)
+		if err != nil {
+			return nil, err
+		}
+
+		impl.metricsSinks = append(impl.metricsSinks, metricsSink)
+		impl.runners = append(impl.runners, runner)
 	}
 
 	return impl, nil
@@ -91,22 +98,64 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 	return util.RunTasks(ctx, tasks...)
 }
 
+func (m *MetricsImpl) SetGauge(key []string, val float32) {
+	for _, s := range m.metricsSinks {
+		s.SetGauge(key, val)
+	}
+}
+
 // SetGaugeWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Label) {
-	m.Metrics.SetGaugeWithLabels(key, val, SanitizeLabels(labels))
+	sanitizedLabels := SanitizeLabels(labels)
+	for _, s := range m.metricsSinks {
+		s.SetGaugeWithLabels(key, val, sanitizedLabels)
+	}
+}
+
+func (m *MetricsImpl) EmitKey(key []string, val float32) {
+	for _, s := range m.metricsSinks {
+		s.EmitKey(key, val)
+	}
+}
+
+func (m *MetricsImpl) IncrCounter(key []string, val float32) {
+	for _, s := range m.metricsSinks {
+		s.IncrCounter(key, val)
+	}
 }
 
 // IncrCounterWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []Label) {
-	m.Metrics.IncrCounterWithLabels(key, val, SanitizeLabels(labels))
+	sanitizedLabels := SanitizeLabels(labels)
+	for _, s := range m.metricsSinks {
+		s.IncrCounterWithLabels(key, val, sanitizedLabels)
+	}
+}
+
+func (m *MetricsImpl) AddSample(key []string, val float32) {
+	for _, s := range m.metricsSinks {
+		s.AddSample(key, val)
+	}
 }
 
 // AddSampleWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []Label) {
-	m.Metrics.AddSampleWithLabels(key, val, SanitizeLabels(labels))
+	sanitizedLabels := SanitizeLabels(labels)
+	for _, s := range m.metricsSinks {
+		s.AddSampleWithLabels(key, val, sanitizedLabels)
+	}
+}
+
+func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
+	for _, s := range m.metricsSinks {
+		s.MeasureSince(key, start)
+	}
 }
 
 // MeasureSinceWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labels []Label) {
-	m.Metrics.MeasureSinceWithLabels(key, start, SanitizeLabels(labels))
+	sanitizedLabels := SanitizeLabels(labels)
+	for _, s := range m.metricsSinks {
+		s.MeasureSinceWithLabels(key, start, sanitizedLabels)
+	}
 }
