@@ -17,24 +17,20 @@ import (
 	"time"
 )
 
-var (
-	// The "never expires" timestamp from RFC5280. Probably not a good
-	// idea in practice.
-	neverExpires = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
-)
-
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Fprintln(os.Stderr, "usage: gencerts SERVERDIR AGENTDIR [AGENTDIR...]")
 		os.Exit(1)
 	}
 
+	notAfter := time.Now().Add(time.Minute * 10)
+
 	caKey := generateKey()
 	caCert := createRootCertificate(caKey, &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		NotAfter:              neverExpires,
+		NotAfter:              notAfter,
 		Subject:               pkix.Name{CommonName: "Agent CA"},
 	})
 
@@ -45,7 +41,7 @@ func main() {
 		agentCert := createCertificate(agentKey, &x509.Certificate{
 			SerialNumber: big.NewInt(int64(i)),
 			KeyUsage:     x509.KeyUsageDigitalSignature,
-			NotAfter:     neverExpires,
+			NotAfter:     notAfter,
 			Subject:      pkix.Name{CommonName: filepath.Base(dir)},
 		}, caKey, caCert)
 

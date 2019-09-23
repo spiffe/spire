@@ -3,7 +3,6 @@ services:
   spire-server:
     image: SPIRE-SERVER-IMAGE
     hostname: spire-server
-    restart: on-failure
     privileged: true
     volumes:
       - ./conf/server:/opt/spire/conf/server
@@ -11,8 +10,8 @@ services:
   spire-agent:
     image: SPIRE-AGENT-IMAGE
     hostname: spire-agent
-    restart: on-failure
     privileged: true
+    depends_on: ["spire-server"]
     volumes:
       - ./conf/agent:/opt/spire/conf/agent
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
