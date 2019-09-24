@@ -12,10 +12,10 @@ type MetricsConfig struct {
 }
 
 type FileConfig struct {
-	Prometheus *PrometheusConfig `hcl:"Prometheus"`
-
-	DogStatsd []DogStatsdConfig `hcl:"DogStatsd"`
-	Statsd    []StatsdConfig    `hcl:"Statsd"`
+	Prometheus       *PrometheusConfig `hcl:"Prometheus"`
+	DogStatsd        []DogStatsdConfig `hcl:"DogStatsd"`
+	Statsd           []StatsdConfig    `hcl:"Statsd"`
+	M3               []M3Config        `hcl:"M3"`
 }
 
 type DogStatsdConfig struct {
@@ -29,4 +29,9 @@ type PrometheusConfig struct {
 
 type StatsdConfig struct {
 	Address string `hcl:"address"`
+}
+
+type M3Config struct {
+	Address string `hcl:"address"`
+	Env     string `hcl:"env"`
 }

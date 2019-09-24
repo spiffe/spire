@@ -1,0 +1,57 @@
+#!/bin/bash
+
+norm=$(tput sgr0) || true
+red=$(tput setaf 1) || true
+green=$(tput setaf 2) || true
+yellow=$(tput setaf 3) || true
+bold=$(tput bold) || true
+
+timestamp() {
+    date -u "+[%Y-%m-%dT%H:%M:%SZ]"
+}
+
+log-info() {
+    echo "${bold}$(timestamp) $*${norm}"
+}
+
+log-err() {
+    echo "${red}$(timestamp) $*${norm}"
+}
+
+log-warn() {
+    echo "${yellow}$(timestamp) $*${norm}"
+}
+
+log-success() {
+    echo "${green}$(timestamp) $*${norm}"
+}
+
+log-debug() {
+    echo "${norm}$(timestamp) $*"
+}
+
+fail-now() {
+    log-err "$*"
+    exit 1
+}
+
+docker-up() {
+    if [ $# -eq 0 ]; then
+        log-debug "bringing up services..."
+    else
+        log-debug "bringing up $*..."
+    fi
+    docker-compose up -d "$@" || fail-now "failed to bring up services."
+}
+
+docker-down() {
+    log-debug "bringing down services..."
+    docker-compose down
+}
+
+fingerprint() {
+	# calculate the SHA1 digest of the DER bytes of the certificate using the
+	# "coreutils" output format (`-r`) to provide uniform output from
+	# `openssl sha1` on macOS and linux.
+	openssl x509 -in "$1" -outform DER | openssl sha1 -r | awk '{print $1}'
+}
