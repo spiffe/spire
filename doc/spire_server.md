@@ -90,7 +90,51 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 ## Telemetry configuration
 
-If telemetry is desired, it may be configured by using a dedicated `telemetry { ... }` section. Prometheus, Statsd, and DogStatsd are currently supported. You may use all, some, or none. Statsd and DogStatsd both support multiple declarations in the event that you want to send metrics to more than one collector. Here is a sample configuration:
+If telemetry is desired, it may be configured by using a dedicated `telemetry { ... }` section. The following metrics collectors are currently supported:
+- Prometheus
+- Statsd
+- DogStatsd
+- M3
+
+You may use all, some, or none. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
+
+- Statsd
+- DogStatsd
+- M3
+
+### Telemetry configuration syntax
+
+| Configuration          | Type          | Description  | Default |
+| ----------------       | ------------- | ------------ | ------- |
+| `Prometheus`           | `Prometheus`  | Prometheus configuration         | |
+| `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations | |
+| `Statsd`               | `[]Statsd`    | List of Statsd configurations    | |
+| `M3`                   | `[]M3`        | List of M3 configurations        | |
+
+#### `Prometheus`
+
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `host`           | `string`      | Prometheus server host |
+| `port`           | `int`         | Prometheus server port |
+
+#### `DogStatsd`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | DogStatsd address |
+
+#### `Statsd`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | Statsd address |
+
+#### `M3`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | M3 address |
+| `env`            | `string`      | M3 environment, e.g. `production`, `staging` |
+
+Here is a sample configuration:
 
 ```hcl
 telemetry {
@@ -105,6 +149,10 @@ telemetry {
         Statsd = [
             { address = "localhost:1337" },
             { address = "collector.example.org:8125" },
+        ]
+        
+        M3 = [
+            { address = "localhost:9000" env = "prod" },
         ]
 }
 ```

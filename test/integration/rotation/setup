@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+[ -d "${ROOTDIR}" ]
+[ -d "${TESTDIR}" ]
+
+cp "${TESTDIR}/docker-compose.yaml" .
+
+mkdir -p conf/server
+cp "${TESTDIR}/server.conf" conf/server/server.conf
+
+mkdir -p conf/agent
+cp "${TESTDIR}/agent.conf" conf/agent/agent.conf
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
