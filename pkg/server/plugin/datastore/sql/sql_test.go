@@ -1901,6 +1901,11 @@ func (s *PluginSuite) TestMigration() {
 			})
 			s.Require().NoError(err)
 
+			// Assert migration version is now 12
+			migration := Migration{}
+			db.First(&migration)
+			s.Require().Equal(12, migration.Version)
+
 			// Assert attested_node_entries tables gained the 'prepared' columns
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "prepared_serial_number"))
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "prepared_expires_at"))
