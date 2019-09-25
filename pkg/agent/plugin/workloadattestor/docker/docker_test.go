@@ -12,12 +12,18 @@ import (
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
 	gomock "github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	filesystem_mock "github.com/spiffe/spire/test/mock/common/filesystem"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	testCgroupEntries = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testContainerID   = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
 )
 
 func TestDockerSelectors(t *testing.T) {
@@ -84,13 +90,11 @@ func TestDockerSelectors(t *testing.T) {
 			mockDocker := NewMockDockerClient(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-			p := New()
+			p := newTestPlugin(t)
 			p.docker = mockDocker
 			p.fs = mockFS
-			p.cgroupContainerIndex = 1
-			p.cgroupPrefix = "/docker"
 
-			cgroupFile, cleanup := newTestFile(t, "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973")
+			cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 			defer cleanup()
 			ctx := context.Background()
 			container := types.ContainerJSON{
@@ -101,7 +105,7 @@ func TestDockerSelectors(t *testing.T) {
 				},
 			}
 			mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
-			mockDocker.EXPECT().ContainerInspect(ctx, "6469646e742065787065637420616e796f6e6520746f20726561642074686973").Return(container, nil)
+			mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
 
 			res, err := p.Attest(ctx, &workloadattestor.AttestRequest{Pid: 123})
 			require.NoError(t, err)
@@ -119,26 +123,30 @@ func newTestFile(t *testing.T, data string) (filename string, cleanup func()) {
 	return f.Name(), func() { os.Remove(f.Name()) }
 }
 
-func TestDockerCgroupFormatErrors(t *testing.T) {
+func TestDockerMatchers(t *testing.T) {
 	tests := []struct {
-		desc                    string
-		cfgCgroupPrefix         string
-		cfgCgroupContainerIndex int
-		mockCgroupEntries       string
-		expectErr               string
+		desc      string
+		matchers  []string
+		cgroups   string
+		hasMatch  bool
+		expectErr string
 	}{
 		{
-			desc:                    "no container id found at requested index",
-			cfgCgroupPrefix:         "/docker",
-			cfgCgroupContainerIndex: 2,
-			mockCgroupEntries:       "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973",
-			expectErr:               `workloadattestor/docker: no cgroup "/docker" entries found at index 2`,
+			desc:     "no match",
+			cgroups:  testCgroupEntries,
+			matchers: []string{"/docker/*/<id>"},
 		},
 		{
-			desc:                    "no cgroup prefix found is ok",
-			cfgCgroupPrefix:         "/foo",
-			cfgCgroupContainerIndex: 2,
-			mockCgroupEntries:       "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973",
+			desc:     "one miss one match",
+			cgroups:  testCgroupEntries,
+			matchers: []string{"/docker/*/<id>", "/docker/<id>"},
+			hasMatch: true,
+		},
+		{
+			desc:      "no container id",
+			cgroups:   "10:cpu:/docker/",
+			matchers:  []string{"/docker/<id>"},
+			expectErr: "a pattern matched, but no container id was found",
 		},
 	}
 
@@ -146,17 +154,30 @@ func TestDockerCgroupFormatErrors(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
+			mockDocker := NewMockDockerClient(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-			p := New()
+			p := newTestPlugin(t)
+			p.docker = mockDocker
 			p.fs = mockFS
-			p.cgroupContainerIndex = tt.cfgCgroupContainerIndex
-			p.cgroupPrefix = tt.cfgCgroupPrefix
 
-			cgroupFile, cleanup := newTestFile(t, tt.mockCgroupEntries)
+			finder, err := cgroup.NewContainerIDFinder(tt.matchers)
+			require.NoError(t, err)
+
+			p.containerIDFinder = finder
+
+			cgroupFile, cleanup := newTestFile(t, tt.cgroups)
 			defer cleanup()
 			mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 
+			if tt.hasMatch {
+				container := types.ContainerJSON{
+					Config: &container.Config{
+						Image: "image-id",
+					},
+				}
+				mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
+			}
 			res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
 			if tt.expectErr != "" {
 				require.Error(t, err)
@@ -164,9 +185,15 @@ func TestDockerCgroupFormatErrors(t *testing.T) {
 				require.Nil(t, res)
 				return
 			}
+
 			require.NoError(t, err)
 			require.NotNil(t, res)
-			require.Len(t, res.Selectors, 0)
+
+			if tt.hasMatch {
+				require.Len(t, res.Selectors, 1)
+			} else {
+				require.Len(t, res.Selectors, 0)
+			}
 		})
 	}
 }
@@ -176,7 +203,7 @@ func TestCgroupFileNotFound(t *testing.T) {
 	defer mockCtrl.Finish()
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-	p := New()
+	p := newTestPlugin(t)
 	p.fs = mockFS
 
 	mockFS.EXPECT().Open("/proc/123/cgroup").Return(nil, errors.New("no proc exists"))
@@ -193,16 +220,16 @@ func TestDockerError(t *testing.T) {
 	mockDocker := NewMockDockerClient(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-	p := New()
+	p := newTestPlugin(t)
 	p.docker = mockDocker
 	p.fs = mockFS
 	p.retryer = disabledRetryer
 
-	cgroupFile, cleanup := newTestFile(t, "1:foo:/bar")
+	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 	defer cleanup()
 	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 	mockDocker.EXPECT().
-		ContainerInspect(gomock.Any(), "bar").
+		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error"))
 
 	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
@@ -218,16 +245,16 @@ func TestDockerErrorRetries(t *testing.T) {
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
-	p := New()
+	p := newTestPlugin(t)
 	p.docker = mockDocker
 	p.fs = mockFS
 	p.retryer.clock = mockClock
 
-	cgroupFile, cleanup := newTestFile(t, "1:foo:/bar")
+	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 	defer cleanup()
 	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 	mockDocker.EXPECT().
-		ContainerInspect(gomock.Any(), "bar").
+		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error")).
 		Times(4)
 
@@ -253,18 +280,18 @@ func TestDockerErrorContextCancel(t *testing.T) {
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
-	p := New()
-	p.docker = mockDocker
+	p := newTestPlugin(t)
 	p.fs = mockFS
+	p.docker = mockDocker
 	p.retryer.clock = mockClock
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cgroupFile, cleanup := newTestFile(t, "1:foo:/bar")
+	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 	defer cleanup()
 	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 	mockDocker.EXPECT().
-		ContainerInspect(gomock.Any(), "bar").
+		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error"))
 
 	go func() {
@@ -285,21 +312,54 @@ func TestDockerConfig(t *testing.T) {
 		Configuration: `
 docker_socket_path = "unix:///socket_path"
 docker_version = "1.20"
-cgroup_prefix = "prefix"
-cgroup_container_index = 8
+container_id_cgroup_matchers = [
+  "/docker/<id>",
+]
 `,
 	}
+	expectFinder, err := cgroup.NewContainerIDFinder([]string{"/docker/<id>"})
+	require.NoError(t, err)
+
 	res, err := doConfigure(t, p, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, p.docker)
 	require.Equal(t, "unix:///socket_path", p.docker.(*dockerclient.Client).DaemonHost())
 	require.Equal(t, "1.20", p.docker.(*dockerclient.Client).ClientVersion())
-	require.Equal(t, "prefix", p.cgroupPrefix)
-	require.Equal(t, 8, p.cgroupContainerIndex)
+	require.Equal(t, expectFinder, p.containerIDFinder)
+
+	t.Run("bad matcher", func(t *testing.T) {
+		p := New()
+		cfg := &spi.ConfigureRequest{
+			Configuration: `
+container_id_cgroup_matchers = [
+	"/docker/",
+]`,
+		}
+
+		_, err := doConfigure(t, p, cfg)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `must contain the container id token "<id>" exactly once`)
+	})
+
+	t.Run("bad hcl", func(t *testing.T) {
+		p := New()
+		cfg := &spi.ConfigureRequest{
+			Configuration: `
+container_id_cgroup_matchers = [
+	"/docker/"`,
+		}
+
+		_, err := doConfigure(t, p, cfg)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "error parsing list, expected comma or list end")
+	})
 }
 
 func TestDockerConfigDefault(t *testing.T) {
+	defaultFinder, err := cgroup.NewContainerIDFinder(defaultContainerIDMatchers)
+	require.NoError(t, err)
+
 	p := New()
 	cfg := &spi.ConfigureRequest{}
 	res, err := doConfigure(t, p, cfg)
@@ -308,8 +368,7 @@ func TestDockerConfigDefault(t *testing.T) {
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
 	require.Equal(t, "1.41", p.docker.(*dockerclient.Client).ClientVersion())
-	require.Equal(t, "/docker", p.cgroupPrefix)
-	require.Equal(t, 1, p.cgroupContainerIndex)
+	require.Equal(t, defaultFinder, p.containerIDFinder)
 }
 
 func doAttest(t *testing.T, p *DockerPlugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
@@ -328,4 +387,14 @@ func doConfigure(t *testing.T, p *DockerPlugin, req *spi.ConfigureRequest) (*spi
 	done := spiretest.LoadPlugin(t, builtin(p), &wp)
 	defer done()
 	return wp.Configure(context.Background(), req)
+}
+
+func newTestPlugin(t *testing.T) *DockerPlugin {
+	finder, err := cgroup.NewContainerIDFinder(defaultContainerIDMatchers)
+	require.NoError(t, err)
+
+	p := New()
+	p.containerIDFinder = finder
+
+	return p
 }
