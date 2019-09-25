@@ -66,9 +66,6 @@ func NewHandler(config HandlerConfig) *Handler {
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	log := h.c.Log
 
@@ -157,7 +154,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	agentID := attestResponse.AgentId
-	telemetry_common.AddSPIFFEID(counter, agentID)
 	log = log.WithField(telemetry.SPIFFEID, agentID)
 
 	if csr.SpiffeID != "" && agentID != csr.SpiffeID {
@@ -221,9 +217,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
 	counter := telemetry_server.StartNodeAPIFetchX509SVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	peerCert, ok := getPeerCertificate(server.Context())
 	if !ok {
@@ -287,8 +280,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids = make(map[string]*node.X509SVID)
 		}
-		// Add SVID count to counter
-		telemetry_common.AddCount(counter, len(svids))
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
@@ -313,8 +304,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVIDRequest) (_ *node.FetchX509CASVIDResponse, err error) {
 	counter := telemetry_server.StartNodeAPIFetchX509CASVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
-
-	defer func() { telemetry_common.AddErrorClass(counter, status.Code(err)) }()
 
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
@@ -376,9 +365,6 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
 	counter := telemetry_server.StartNodeAPIFetchJWTSVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
-	defer func() {
-		telemetry_common.AddErrorClass(counter, status.Code(err))
-	}()
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
@@ -398,8 +384,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	case len(req.Jsr.Audience) == 0:
 		return nil, status.Error(codes.InvalidArgument, "request missing audience")
 	}
-
-	telemetry_common.AddSPIFFEID(counter, req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {

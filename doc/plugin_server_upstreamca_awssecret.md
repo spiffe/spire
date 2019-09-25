@@ -7,23 +7,26 @@ the ServerCA plugin.
 
 The plugin accepts the following configuration options:
 
-| Configuration           | Description                           |
-| ----------------------- | ------------------------------------- |
-| ttl                     | The TTL for issued certificates       |
-| region                  | AWS Region to use                     |
-| cert_file_arn           | ARN of the "upstream" CA certificate  |
-| key_file_arn            | ARN of the "upstream" CA key file     |
-| access_key_id           | AWS access key ID                     |
-| secret_access_key       | AWS secret access key                 |
-| secret_token            | AWS secret token                      |
-| assume_role_arn         | ARN of role to assume                 |
+| Configuration           | Description                                  |
+| ----------------------- | -------------------------------------------- |
+| ttl                     | The TTL for issued certificates (deprecated) |
+| region                  | AWS Region to use                            |
+| cert_file_arn           | ARN of the "upstream" CA certificate         |
+| key_file_arn            | ARN of the "upstream" CA key file            |
+| access_key_id           | AWS access key ID                            |
+| secret_access_key       | AWS secret access key                        |
+| secret_token            | AWS secret token                             |
+| assume_role_arn         | ARN of role to assume                        |
+
++The `ttl` configurable is deprecated. When unset, the plugin will use the
++preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
++configurable.
 
 A sample configuration:
 
 ```
     UpstreamCA "awssecret" {
         plugin_data {
-            ttl = "1h",
             region = "us-west-2",
             cert_file_arn = "cert",
             key_file_arn = "key",

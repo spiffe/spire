@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -32,13 +34,16 @@ type Configuration struct {
 	trustDomain string
 	ttl         time.Duration
 
-	TTL            string `hcl:"ttl" json:"ttl"` // time to live for generated certs
+	DeprecatedTTL  string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
 	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
 }
 
 type DiskPlugin struct {
+	log   hclog.Logger
+	clock clock.Clock
+
 	_testOnlyShouldVerify bool
 
 	mtx        sync.Mutex
@@ -54,8 +59,13 @@ type caCerts struct {
 
 func New() *DiskPlugin {
 	return &DiskPlugin{
+		clock:                 clock.New(),
 		_testOnlyShouldVerify: true,
 	}
+}
+
+func (p *DiskPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -73,12 +83,15 @@ func (p *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, errors.New("trust_domain is required")
 	}
 
-	ttl, err := time.ParseDuration(config.TTL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid TTL value: %v", err)
+	if config.DeprecatedTTL != "" {
+		ttl, err := time.ParseDuration(config.DeprecatedTTL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TTL value: %v", err)
+		}
+		config.ttl = ttl
+		p.log.Warn("Using deprecated ttl configurable. Use the server ca_ttl configurable instead.")
 	}
 
-	config.ttl = ttl
 	config.trustDomain = req.GlobalConfig.TrustDomain
 
 	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(config)
@@ -107,7 +120,7 @@ func (p *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCS
 		return nil, err
 	}
 
-	cert, err := upstreamCA.SignCSR(ctx, request.Csr)
+	cert, err := upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +226,8 @@ func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Up
 		x509util.NewMemoryKeypair(caCert, key),
 		config.trustDomain,
 		x509svid.UpstreamCAOptions{
-			TTL: config.ttl,
+			TTL:   config.ttl,
+			Clock: p.clock,
 		},
 	), caCerts, nil
 }

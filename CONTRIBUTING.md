@@ -118,7 +118,9 @@ interface. eg. `foodata.go` implements `type FooData interface{}`
 
 ## Metrics
 
-As much as possible, label names should be constants defined in the `telemetry` package.
+As much as possible, label names should be constants defined in the `telemetry` package. Additionally,
+specific metrics should be centrally defined in the `telemetry` package or its subpackages. Functions
+desiring metrics should delegate counter, gauge, timer, etc. creation to such packages.
 
 Labels added to metrics must be singular; that is, the value of a metrics label must not be an
 array or slice, and a label of some name must only be added once. Failure to follow this will
@@ -137,6 +139,14 @@ callCounter.AddLabel("someName", "val1")
 ...
 callCounter.AddLabel("someName", "val2")
 ```
+
+## Logs and Errors
+
+Errors should start with lower case, and logged messages should follow standard casing.
+
+Log messages should make use of logging fields to convey additional information, rather than
+using string formatting which increases the cardinality of messages for log watchers to
+look for and hinders aggregation.
 
 ## Mocks
 

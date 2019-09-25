@@ -94,8 +94,6 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		if !csr.CurrentSVIDExpiresAt.IsZero() {
 			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
 		}
-		counter.AddLabel(telemetry.SPIFFEID, csr.SpiffeID)
-		counter.AddLabel(telemetry.RegistrationID, csr.EntryID)
 
 		// Since entryIDs are unique, this shouldn't happen. Log just in case
 		if _, ok := privateKeys[csr.EntryID]; ok {
@@ -112,7 +110,7 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		req.Csrs[csr.EntryID] = csrBytes
 	}
 
-	update, err := m.client.FetchUpdates(ctx, req)
+	update, err := m.client.FetchUpdates(ctx, req, false)
 	if err != nil {
 		return nil, err
 	}

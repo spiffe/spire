@@ -32,9 +32,15 @@ import (
 const (
 	DefaultCATTL    = 24 * time.Hour
 	backdate        = time.Second * 10
-	rotateInterval  = time.Minute
+	rotateInterval  = time.Second * 10
 	pruneInterval   = 6 * time.Hour
 	safetyThreshold = 24 * time.Hour
+
+	thirtyDays              = 30 * 24 * time.Hour
+	preparationThresholdCap = thirtyDays
+
+	sevenDays              = 7 * 24 * time.Hour
+	activationThresholdCap = sevenDays
 )
 
 type CASetter interface {
@@ -168,7 +174,7 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.TrustDomainID: m.c.TrustDomain.String(),
-		telemetry.TTL: ttl.Seconds(),
+		telemetry.TTL:           ttl.Seconds(),
 	}).Debug("Successfully rotated X.509 CA")
 
 	return nil
@@ -194,7 +200,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	var trustBundle []*x509.Certificate
 	upstreamCA, useUpstream := m.c.Catalog.GetUpstreamCA()
 	if useUpstream {
-		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamCA, m.c.UpstreamBundle)
+		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamCA, m.c.UpstreamBundle, m.c.CATTL)
 	} else {
 		notBefore := now.Add(-backdate)
 		notAfter := now.Add(m.c.CATTL)
@@ -894,14 +900,15 @@ func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain strin
 	}, trustBundle, nil
 }
 
-func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool) (*X509CA, []*x509.Certificate, error) {
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool, caTTL time.Duration) (*X509CA, []*x509.Certificate, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	resp, err := upstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
-		Csr: csr,
+		Csr:          csr,
+		PreferredTtl: int32(caTTL / time.Second),
 	})
 	if err != nil {
 		return nil, nil, errs.New("upstream CA failed with %v", err)
@@ -980,12 +987,20 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	return notAfter.Add(-lifetime / 2)
+	threshold := lifetime / 2
+	if threshold > preparationThresholdCap {
+		threshold = preparationThresholdCap
+	}
+	return notAfter.Add(-threshold)
 }
 
 func activationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	return notAfter.Add(-lifetime / 6)
+	threshold := lifetime / 6
+	if threshold > activationThresholdCap {
+		threshold = activationThresholdCap
+	}
+	return notAfter.Add(-threshold)
 }
 
 func newJWTKey(signer crypto.Signer, expiresAt time.Time) (*JWTKey, error) {

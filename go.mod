@@ -59,6 +59,7 @@ require (
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
 	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
 	github.com/stretchr/testify v1.3.0
+	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
@@ -77,5 +78,5 @@ require (
 	k8s.io/apimachinery v0.0.0-20190221213512-86fb29eff628
 	k8s.io/client-go v10.0.0+incompatible
 	k8s.io/klog v0.2.0 // indirect
-	sigs.k8s.io/yaml v1.1.0 // indirect
+	sigs.k8s.io/yaml v1.1.0
 )

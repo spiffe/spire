@@ -10,6 +10,8 @@
     - [EvictAgentResponse](#spire.api.registration.EvictAgentResponse)
     - [FederatedBundle](#spire.api.registration.FederatedBundle)
     - [FederatedBundleID](#spire.api.registration.FederatedBundleID)
+    - [GetNodeSelectorsRequest](#spire.api.registration.GetNodeSelectorsRequest)
+    - [GetNodeSelectorsResponse](#spire.api.registration.GetNodeSelectorsResponse)
     - [JoinToken](#spire.api.registration.JoinToken)
     - [ListAgentsRequest](#spire.api.registration.ListAgentsRequest)
     - [ListAgentsResponse](#spire.api.registration.ListAgentsResponse)
@@ -17,6 +19,7 @@
     - [MintJWTSVIDResponse](#spire.api.registration.MintJWTSVIDResponse)
     - [MintX509SVIDRequest](#spire.api.registration.MintX509SVIDRequest)
     - [MintX509SVIDResponse](#spire.api.registration.MintX509SVIDResponse)
+    - [NodeSelectors](#spire.api.registration.NodeSelectors)
     - [ParentID](#spire.api.registration.ParentID)
     - [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
     - [SpiffeID](#spire.api.registration.SpiffeID)
@@ -130,6 +133,36 @@ A type that represents a federated bundle id.
 
 
 
+<a name="spire.api.registration.GetNodeSelectorsRequest"></a>
+
+### GetNodeSelectorsRequest
+Represents a GetNodeSelectors request
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.api.registration.GetNodeSelectorsResponse"></a>
+
+### GetNodeSelectorsResponse
+Represents a GetNodeSelectors response
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [NodeSelectors](#spire.api.registration.NodeSelectors) |  |  |
+
+
+
+
+
+
 <a name="spire.api.registration.JoinToken"></a>
 
 ### JoinToken
@@ -231,6 +264,22 @@ Represents a ListAgents response
 | ----- | ---- | ----- | ----------- |
 | svid_chain | [bytes](#bytes) | repeated | X509-SVID chain. This includes the X509-SVID itself and any intermediates necessary to chain back to certificates in the root_cas. |
 | root_cas | [bytes](#bytes) | repeated | X.509 root certificates |
+
+
+
+
+
+
+<a name="spire.api.registration.NodeSelectors"></a>
+
+### NodeSelectors
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | Node SPIFFE ID |
+| selectors | [spire.common.Selector](#spire.common.Selector) | repeated | Node selectors |
 
 
 
@@ -344,6 +393,7 @@ associated with the bundle (e.g. registration entries).
 | ListAgents | [ListAgentsRequest](#spire.api.registration.ListAgentsRequest) | [ListAgentsResponse](#spire.api.registration.ListAgentsResponse) | ListAgents will list all attested nodes |
 | MintX509SVID | [MintX509SVIDRequest](#spire.api.registration.MintX509SVIDRequest) | [MintX509SVIDResponse](#spire.api.registration.MintX509SVIDResponse) | MintX509SVID mints an X509-SVID directly with the SPIRE server CA. |
 | MintJWTSVID | [MintJWTSVIDRequest](#spire.api.registration.MintJWTSVIDRequest) | [MintJWTSVIDResponse](#spire.api.registration.MintJWTSVIDResponse) | MintJWTSVID mints a JWT-SVID directly with the SPIRE server CA. |
+| GetNodeSelectors | [GetNodeSelectorsRequest](#spire.api.registration.GetNodeSelectorsRequest) | [GetNodeSelectorsResponse](#spire.api.registration.GetNodeSelectorsResponse) | GetNodeSelectors gets node (agent) selectors |
 
  
 

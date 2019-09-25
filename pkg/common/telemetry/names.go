@@ -113,7 +113,8 @@ const (
 	// call counters. Exported for tests only.
 	ElapsedTime = "elapsed_time"
 
-	// Error tag for some error that occurred
+	// Error tag for some error that occurred. Limited usage, such as logging errors at
+	// non-error level.
 	Error = "error"
 
 	// Expect tags an expected value, as opposed to the one received. Message should clarify
@@ -233,6 +234,9 @@ const (
 
 	// SPIFFEID tags a SPIFFE ID
 	SPIFFEID = "spiffe_id"
+
+	// Status tags status of call (OK, or some error), or status of some process
+	Status = "status"
 
 	// Subject tags some subject (likely a SPIFFE ID, and likely for a token); should be used
 	// with other tags to add clarity
@@ -360,6 +364,9 @@ const (
 
 	// SpireAgent typically the entire spire agent service
 	SpireAgent = "spire_agent"
+
+	// SpireServer typically the entire spire server
+	SpireServer = "spire_server"
 
 	// SVID functionality related to a SVID; should be used with other tags
 	// to add clarity

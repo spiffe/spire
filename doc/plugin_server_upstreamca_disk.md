@@ -16,10 +16,14 @@ The plugin accepts the following configuration options:
 
 | Configuration   | Description                                          |
 | ----------------| ---------------------------------------------------- |
-| ttl             | The TTL for issued certificates                      |
+| ttl             | The TTL for issued certificates (deprecated)         |
 | cert_file_path  | Path to the "upstream" CA certificate                |
 | key_file_path   | Path to the "upstream" CA key file                   |
 | bundle_file_path| Path to the trust bundle that signed the upstream CA |
+
+The `ttl` configurable is deprecated. When unset, the plugin will use the
+preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
+configurable.
 
 The `disk` plugin is able to function as either a root CA, or join an existing PKI.
 
@@ -40,7 +44,6 @@ A sample configuration:
 ```
     UpstreamCA "disk" {
         plugin_data {
-            ttl = "1h"
             cert_file_path = "conf/server/dummy_upstream_ca.crt"
             key_file_path = "conf/server/dummy_upstream_ca.key"
         }
