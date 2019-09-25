@@ -6,15 +6,15 @@ ADD go.mod /spire/go.mod
 ADD proto/spire/go.mod /spire/proto/spire/go.mod
 RUN cd /spire && go mod download
 ADD . /spire
-RUN cd /spire && make test
-RUN cd /spire && make cmd/spire-server
-RUN cd /spire && make cmd/spire-agent
-RUN cd /spire/support/k8s/k8s-workload-registrar && go build
+WORKDIR /spire
+RUN make cmd/spire-server
+RUN make cmd/spire-agent
+RUN make support/k8s/k8s-workload-registrar
 
 # Common base
 FROM alpine AS spire-base
-RUN apk add dumb-init 
-RUN apk add ca-certificates
+RUN apk --no-cache add dumb-init
+RUN apk --no-cache add ca-certificates
 RUN mkdir -p /opt/spire/bin
 
 # SPIRE Server
