@@ -31,11 +31,6 @@ message SubmitCSRRequest {
 }
 
 message SubmitCSRResponse {
-    // Signed certificate (DEPRECATED)
-    bytes DEPRECATED_cert = 1;
-    // Upstream trust bundle (DEPRECATED)
-    bytes DEPRECATED_upstreamTrustBundle = 2;
-
     // Signed certificate
     SignedCertificate signed_certificate = 3;
 }
