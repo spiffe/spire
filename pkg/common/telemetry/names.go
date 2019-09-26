@@ -365,6 +365,9 @@ const (
 	// SpireAgent typically the entire spire agent service
 	SpireAgent = "spire_agent"
 
+	// SpireServer typically the entire spire server
+	SpireServer = "spire_server"
+
 	// SVID functionality related to a SVID; should be used with other tags
 	// to add clarity
 	SVID = "svid"

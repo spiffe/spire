@@ -26,7 +26,7 @@ gitdirty := $(shell git status -s)
 ifneq ($(gitdirty),)
 	gittag :=
 endif
-ldflags := '-X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
+ldflags := '-s -w -X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
 
 utils = github.com/spiffe/spire/tools/spire-plugingen
 

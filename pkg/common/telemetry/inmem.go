@@ -62,3 +62,7 @@ func (i *inmemRunner) run(ctx context.Context) error {
 	wg.Wait()
 	return nil
 }
+
+func (i *inmemRunner) requiresTypePrefix() bool {
+	return false
+}
