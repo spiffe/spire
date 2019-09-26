@@ -429,32 +429,35 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			// TODO: should it really?
-			msg:       "upstream_bundle should default to false if not set",
+			msg:       "upstream_bundle should be nil if not set",
 			fileInput: func(c *config) {},
 			cliInput:  func(c *serverConfig) {},
 			test: func(t *testing.T, c *config) {
-				require.Equal(t, false, c.Server.UpstreamBundle)
+				require.Nil(t, c.Server.UpstreamBundle)
 			},
 		},
 		{
 			msg: "upstream_bundle should be configurable by file",
 			fileInput: func(c *config) {
-				c.Server.UpstreamBundle = true
+				value := true
+				c.Server.UpstreamBundle = &value
 			},
 			cliInput: func(c *serverConfig) {},
 			test: func(t *testing.T, c *config) {
-				require.Equal(t, true, c.Server.UpstreamBundle)
+				require.NotNil(t, c.Server.UpstreamBundle)
+				require.Equal(t, true, *c.Server.UpstreamBundle)
 			},
 		},
 		{
 			msg:       "upstream_bundle should be configurable by CLI flag",
 			fileInput: func(c *config) {},
 			cliInput: func(c *serverConfig) {
-				c.UpstreamBundle = true
+				value := true
+				c.UpstreamBundle = &value
 			},
 			test: func(t *testing.T, c *config) {
-				require.Equal(t, true, c.Server.UpstreamBundle)
+				require.NotNil(t, c.Server.UpstreamBundle)
+				require.Equal(t, true, *c.Server.UpstreamBundle)
 			},
 		},
 		//{
@@ -605,7 +608,8 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg: "upstream_bundle is configured correctly",
 			input: func(c *config) {
-				c.Server.UpstreamBundle = true
+				value := true
+				c.Server.UpstreamBundle = &value
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.True(t, c.UpstreamBundle)
