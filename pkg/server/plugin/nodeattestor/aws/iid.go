@@ -89,9 +89,6 @@ type IIDAttestorConfig struct {
 	pathTemplate       *template.Template
 	trustDomain        string
 	awsCaCertPublicKey *rsa.PublicKey
-
-	// Deprecated, use LocalValidAcctIDs
-	SkipEC2AttestCalling bool `hcl:"skip_ec2_attest_calling"`
 }
 
 // New creates a new IITAttestorPlugin.
@@ -199,11 +196,6 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if err != nil {
 		err := fmt.Errorf("Error decoding AWS IID Attestor configuration: %v", err)
 		return resp, err
-	}
-
-	if config.SkipEC2AttestCalling {
-		p.log.Warn("skip_ec2_attest_calling is a deprecated flag and will be ignored." +
-			" Use account_ids_for_local_validation instead.")
 	}
 
 	block, _ := pem.Decode([]byte(awsCaCertPEM))
