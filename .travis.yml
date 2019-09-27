@@ -21,21 +21,25 @@ stages:
   - test
   - build release
   - publish images
+  - nightly integration tests
 
 jobs:
   include:
     - stage: setup
+      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh setup
         - ./build.sh utils
       os: macos
     - stage: setup
+      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh setup
         - ./build.sh utils
       os: linux
       dist: xenial
     - stage: lint
+      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh protobuf_verify
         - shellcheck build.sh
@@ -44,15 +48,18 @@ jobs:
       os: linux 
       dist: xenial
     - stage: test
+      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh race-test
       os: macos
     - stage: test
+      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh race-test
       os: linux
       dist: xenial
     - stage: build release
+      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh binaries
         - ./build.sh integration
@@ -83,7 +90,7 @@ jobs:
             condition: $GITHUB_TOKEN != ""
 
     - stage: publish images
-      if: type = push AND (tag IS present OR branch = master)
+      if: env(TRAVIS_EVENT_TYPE) != cron AND type = push AND (tag IS present OR branch = master)
       env:
         - CHANGE_MINIKUBE_NONE_USER=true
       os: linux
@@ -118,6 +125,12 @@ jobs:
         - examples/k8s/test.sh
         # Publish images
         - eval $(minikube docker-env) && .travis/publish-images.sh
+    - stage: nightly integration tests
+      if: env(TRAVIS_EVENT_TYPE) == cron
+      os: linux
+      dist: xenial
+      script:
+        - test/integration/test-nightly.sh
 
 notifications:
     slack:

@@ -31,10 +31,14 @@ import (
 )
 
 const (
-	pid                       = 123
+	pid = 123
+
 	podListFilePath           = "testdata/pod_list.json"
+	kindPodListFilePath       = "testdata/kind_pod_list.json"
 	podListNotRunningFilePath = "testdata/pod_list_not_running.json"
+
 	cgPidInPodFilePath        = "testdata/cgroups_pid_in_pod.txt"
+	cgPidInKindPodFilePath    = "testdata/cgroups_pid_in_kind_pod.txt"
 	cgInitPidInPodFilePath    = "testdata/cgroups_init_pid_in_pod.txt"
 	cgPidNotInPodFilePath     = "testdata/cgroups_pid_not_in_pod.txt"
 	cgSystemdPidInPodFilePath = "testdata/systemd_cgroups_pid_in_pod.txt"
@@ -71,6 +75,20 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "pod-owner-uid:ReplicationController:2c401175-b29f-11e7-9350-020968147796"},
 		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
 		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "sa:default"},
+	}
+
+	testKindPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
+		{Type: "k8s", Value: "container-name:workload-api-client"},
+		{Type: "k8s", Value: "node-name:kind-control-plane"},
+		{Type: "k8s", Value: "ns:default"},
+		{Type: "k8s", Value: "pod-label:app:sample-workload"},
+		{Type: "k8s", Value: "pod-label:pod-template-hash:6658cb9566"},
+		{Type: "k8s", Value: "pod-name:sample-workload-6658cb9566-5n4b4"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicaSet:349d135e-3781-43e3-bc25-c900aedf1d0c"},
+		{Type: "k8s", Value: "pod-owner:ReplicaSet:sample-workload-6658cb9566"},
+		{Type: "k8s", Value: "pod-uid:a2830d0d-b0f0-4ff0-81b5-0ee4e299cf80"},
 		{Type: "k8s", Value: "sa:default"},
 	}
 
@@ -138,6 +156,13 @@ func (s *K8sAttestorSuite) TestAttestWithPidInPod() {
 	s.configureInsecure()
 
 	s.requireAttestSuccessWithPod()
+}
+
+func (s *K8sAttestorSuite) TestAttestWithPidInKindPod() {
+	s.startInsecureKubelet()
+	s.configureInsecure()
+
+	s.requireAttestSuccessWithKindPod()
 }
 
 func (s *K8sAttestorSuite) TestAttestWithPidInPodSystemdCgroups() {
@@ -756,6 +781,12 @@ func (s *K8sAttestorSuite) requireAttestSuccessWithPod() {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 	s.requireAttestSuccess(testPodSelectors)
+}
+
+func (s *K8sAttestorSuite) requireAttestSuccessWithKindPod() {
+	s.addPodListResponse(kindPodListFilePath)
+	s.addCgroupsResponse(cgPidInKindPodFilePath)
+	s.requireAttestSuccess(testKindPodSelectors)
 }
 
 func (s *K8sAttestorSuite) requireAttestSuccessWithPodSystemdCgroups() {

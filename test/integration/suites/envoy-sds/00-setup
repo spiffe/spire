@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/upstream-agent conf/downstream-agent
+
+docker build --target envoy-agent-mashup -t envoy-agent-mashup .
