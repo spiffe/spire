@@ -1,6 +1,13 @@
 package sql
 
-import "database/sql"
+import (
+	"database/sql"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/blang/semver"
+)
 
 var (
 	migrationDumps = []string{
@@ -436,4 +443,122 @@ func dumpDB(path string, statements string) error {
 	}
 
 	return nil
+}
+
+func TestGetDBCodeVersion(t *testing.T) {
+	tests := []struct {
+		desc            string
+		storedMigration Migration
+		expectVersion   semver.Version
+		expectErr       string
+	}{
+		{
+			desc:            "no code version",
+			storedMigration: Migration{},
+			expectVersion:   semver.Version{},
+		},
+		{
+			desc:            "code version, valid",
+			storedMigration: Migration{CodeVersion: "1.2.3"},
+			expectVersion:   semver.Version{Major: 1, Minor: 2, Patch: 3, Pre: nil, Build: nil},
+		},
+		{
+			desc:            "code version, invalid",
+			storedMigration: Migration{CodeVersion: "a.2*.3"},
+			expectErr:       "unable to parse code version from DB: Invalid character(s) found in major number \"a\"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			retVersion, err := getDBCodeVersion(tt.storedMigration)
+
+			if tt.expectErr != "" {
+				assert.Equal(t, semver.Version{}, retVersion)
+				assert.Equal(t, tt.expectErr, err.Error())
+				return
+			}
+
+			assert.Equal(t, tt.expectVersion, retVersion)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestIsCompatibleCodeVersion(t *testing.T) {
+	tests := []struct {
+		desc             string
+		dbCodeVersion    semver.Version
+		expectCompatible bool
+	}{
+		{
+			desc:             "backwards compatible 1 minor version",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 8},
+			expectCompatible: true,
+		},
+		{
+			desc:             "forwards compatible 1 minor version",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 10},
+			expectCompatible: true,
+		},
+		{
+			desc:             "compatible with self",
+			dbCodeVersion:    codeVersion,
+			expectCompatible: true,
+		},
+		{
+			desc:             "not backwards compatible 2 minor versions",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 7},
+			expectCompatible: false,
+		},
+		{
+			desc:             "not forwards compatible 2 minor versions",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 11},
+			expectCompatible: false,
+		},
+		{
+			desc:             "not compatible with different major version",
+			dbCodeVersion:    semver.Version{Major: 1, Minor: 9},
+			expectCompatible: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			compatible := isCompatibleCodeVersion(tt.dbCodeVersion)
+
+			assert.Equal(t, tt.expectCompatible, compatible)
+		})
+	}
+}
+
+func TestIsDisabledMigrationAllowed(t *testing.T) {
+	tests := []struct {
+		desc          string
+		dbCodeVersion semver.Version
+		expectErr     string
+	}{
+		{
+			desc:          "allowed",
+			dbCodeVersion: semver.Version{Major: 0, Minor: 10},
+		},
+		{
+			desc:          "not allowed, versioning",
+			dbCodeVersion: semver.Version{Major: 0, Minor: 11},
+			expectErr:     "auto-migration must be enabled for current DB",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			err := isDisabledMigrationAllowed(tt.dbCodeVersion)
+
+			if tt.expectErr != "" {
+				assert.Equal(t, tt.expectErr, err.Error())
+				return
+			}
+
+			assert.NoError(t, err)
+		})
+	}
 }
