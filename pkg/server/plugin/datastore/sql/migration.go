@@ -41,22 +41,15 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	}
 
 	// TODO related epic https://github.com/spiffe/spire/issues/1083
-	// We do not allow breaking changes in 0.X beyond version 0.9.0, but
-	// 1.0+ may have such changes. Thus iff Major version is 0, we are
-	// compatible. This logic will change in 1.0+.
-	// With 1.0 code, we will need a proper version check between code and db versions.
+	// The version comparison logic in this package is specific to pre-1.0 versioning semantics.
+	// It will need to be updated prior to releasing 1.0. Ensure that we're still building a pre-1.0
+	// version before continuing, and fail if we're not.
 	if codeVersion.Major != 0 {
-		err = sqlError.New("current migration code not compatible with %s release", codeVersion.String())
-		log.Error(err.Error())
-		return err
+		log.Error("Migration code needs updating for current release version", telemetry.VersionInfo, codeVersion.String())
+		return sqlError.New("current migration code not compatible with current release version")
 	}
 
-	// TODO related epic https://github.com/spiffe/spire/issues/1083
-	// continue doing this automigration for now
-	// eventually SPIRE Code will be bumped to version 0.10, where we can
-	// expect that the `migrations` table exists and has the CodeVersion column,
-	// and then this can be removed. The below `Assign` check may be a new guard
-	// against pre-0.9 versions due to mismatching model
+	// ensure migrations table exists so we can check versioning in all cases
 	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -69,27 +62,23 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	schemaVersion := migration.Version
 
 	var dbCodeVersion semver.Version
-	// Auto-migrate can only be safely disabled if 0.9.0 migrations have already been run
-	// We know if 0.9.0 migrations have been run because dbCodeVersion will be populated if so
-	// TODO: related epic https://github.com/spiffe/spire/issues/1083
-	// This check can be removed in 0.10.0
+	// we will have a blank code version from pre-0.9, and fresh, datastores
 	if migration.CodeVersion == "" {
 		if disableMigration {
-			err := sqlError.New("must upgrade from version %s or higher to disable auto-migration", minimumCodeVersionToDisableMigrate)
-			log.Error(err.Error())
-			return err
+			log.Error(fmt.Sprintf("Must upgrade from version %s or higher to disable auto-migration", minimumCodeVersionToDisableMigrate))
+			return sqlError.New("auto-migration must be enabled for current DB")
 		}
 		// set to 0.0.0
 		dbCodeVersion = semver.Version{}
 	} else {
 		dbCodeVersion, err = semver.Parse(migration.CodeVersion)
 		if err != nil {
-			return err
+			return sqlError.New("unable to parse code version from DB: %v", err)
 		}
 	}
 
 	if schemaVersion == latestSchemaVersion {
-		log.Debug(fmt.Sprintf("Code and DB schema versions are both %d. No migration needed.", schemaVersion))
+		log.Debug("Code and DB schema versions are the same. No migration needed.", telemetry.VersionInfo, schemaVersion)
 
 		// same DB schema; if current code version greater than stored, store newer code version
 		if codeVersion.GT(dbCodeVersion) {
@@ -109,8 +98,9 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	// minor from the stored code version) then we are done here
 	if disableMigration {
 		if !isCompatibleCodeVersion(dbCodeVersion) {
-			return sqlError.New("auto-migrate is disabled but current code version %s is not compatible with the current DB schema version %d",
-				codeVersion.String(), schemaVersion)
+			log.Error("Auto-migrate is disabled but current code version is not compatible with the current DB schema version",
+				telemetry.VersionInfo, codeVersion.String(), telemetry.Datastore, schemaVersion)
+			return sqlError.New("auto-migration must be enabled for current DB")
 		}
 		return nil
 	}
@@ -120,18 +110,18 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	// Otherwise, we should bail out. Migration rollbacks are not supported.
 	if schemaVersion > latestSchemaVersion {
 		if !isCompatibleCodeVersion(dbCodeVersion) {
-			return sqlError.New("incompatible DB schema %d is too new for code version %s, upgrade SPIRE Server",
-				schemaVersion, codeVersion.String())
+			log.Error("Incompatible DB schema is too new for code version, upgrade SPIRE Server",
+				telemetry.VersionInfo, codeVersion.String(), telemetry.Datastore, schemaVersion)
+			return sqlError.New("incompatible DB schema and code version")
 		}
-		log.Warn(fmt.Sprintf("DB schema %d is ahead of code version %s with schema version %d, upgrading SPIRE Server is recommended",
-			schemaVersion, codeVersion.String(), latestSchemaVersion))
+		log.Warn("DB schema is ahead of code version, upgrading SPIRE Server is recommended",
+			telemetry.VersionInfo, codeVersion.String(), telemetry.Datastore, schemaVersion)
 		return nil
 	}
 
 	// at this point:
 	// - auto-migration is enabled
 	// - schema version of DB is behind
-	// - code version difference is not too large to support
 
 	log.Info("Running migrations...")
 	for schemaVersion < latestSchemaVersion {

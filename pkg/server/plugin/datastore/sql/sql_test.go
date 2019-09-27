@@ -1741,8 +1741,8 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 				disable_migration = true
 			`, dbPath),
 	})
-	s.Require().EqualError(err, fmt.Sprintf("rpc error: code = Unknown desc = datastore-sql:"+
-		" must upgrade from version %s or higher to disable auto-migration", minimumCodeVersionToDisableMigrate))
+	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql:"+
+		" auto-migration must be enabled for current DB")
 }
 
 func (s *PluginSuite) TestMigration() {
