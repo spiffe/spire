@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 )
 
@@ -61,7 +62,7 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 	counter := telemetry_agent.StartNodeAttestCall(a.c.Metrics)
 	defer counter.Done(&err)
 
-	bundle, err := a.loadBundle()
+	bundle, bootstrapping, err := a.loadBundle()
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +71,21 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 		return nil, err
 	}
 
-	if svid == nil {
+	switch {
+	case svid == nil:
 		svid, bundle, err = a.newSVID(ctx, key, bundle)
 		if err != nil {
 			return nil, err
 		}
+	case bootstrapping:
+		// This is a bizarre case where we have an SVID but were unable to
+		// load a bundle from the cache which suggests some tampering with the
+		// cache on disk.
+		// TODO: figure out if there are safe actions to take instead of
+		// failing out
+		return nil, errs.New("SVID loaded but no bundle in cache")
 	}
+
 	return &AttestationResult{Bundle: bundle, SVID: svid, Key: key}, nil
 }
 
@@ -129,23 +139,25 @@ func isSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
 	return timeNow().Add(clockSkew).Sub(certExpiresAt) >= 0
 }
 
-func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
+func (a *attestor) loadBundle() (*bundleutil.Bundle, bool, error) {
+	var bootstrapping bool
 	bundle, err := manager.ReadBundle(a.c.BundleCachePath)
 	if err == manager.ErrNotCached {
 		bundle = a.c.TrustBundle
+		bootstrapping = true
+		// Is this an insecure bootstrapping?
+		if bundle == nil {
+			return nil, true, nil
+		}
 	} else if err != nil {
-		return nil, fmt.Errorf("load bundle: %v", err)
-	}
-
-	if bundle == nil {
-		return nil, errors.New("load bundle: no bundle available")
+		return nil, false, fmt.Errorf("load bundle: %v", err)
 	}
 
 	if len(bundle) < 1 {
-		return nil, errors.New("load bundle: no certs in bundle")
+		return nil, false, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), nil
+	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), bootstrapping, nil
 }
 
 func (a *attestor) fetchAttestationData(
@@ -221,7 +233,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 
 	telemetry_common.AddAttestorType(counter, attestorName)
 
-	conn, err := a.serverConn(ctx, bundle.RootCAs())
+	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create attestation client: %v", err)
 	}
@@ -320,13 +332,21 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	return svid, bundle, nil
 }
 
-func (a *attestor) serverConn(ctx context.Context, bundle []*x509.Certificate) (*grpc.ClientConn, error) {
+func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*grpc.ClientConn, error) {
+	var getBundle func() []*x509.Certificate
+	// If the bundle is nil, it is because we are doing an insecure bootstrap.
+	if bundle != nil {
+		getBundle = func() []*x509.Certificate {
+			return bundle.RootCAs()
+		}
+	}
+
 	return client.DialServer(ctx, client.DialServerConfig{
-		Address:     a.c.ServerAddress,
-		TrustDomain: a.c.TrustDomain.Host,
-		GetBundle: func() []*x509.Certificate {
-			return bundle
-		},
+		Log:               a.c.Log,
+		Address:           a.c.ServerAddress,
+		TrustDomain:       a.c.TrustDomain.Host,
+		GetBundle:         getBundle,
+		InsecureBootstrap: bundle == nil,
 	})
 }
 

@@ -44,17 +44,18 @@ type config struct {
 }
 
 type agentConfig struct {
-	DataDir         string `hcl:"data_dir"`
-	EnableSDS       bool   `hcl:"enable_sds"`
-	JoinToken       string `hcl:"join_token"`
-	LogFile         string `hcl:"log_file"`
-	LogFormat       string `hcl:"log_format"`
-	LogLevel        string `hcl:"log_level"`
-	ServerAddress   string `hcl:"server_address"`
-	ServerPort      int    `hcl:"server_port"`
-	SocketPath      string `hcl:"socket_path"`
-	TrustBundlePath string `hcl:"trust_bundle_path"`
-	TrustDomain     string `hcl:"trust_domain"`
+	DataDir           string `hcl:"data_dir"`
+	EnableSDS         bool   `hcl:"enable_sds"`
+	JoinToken         string `hcl:"join_token"`
+	LogFile           string `hcl:"log_file"`
+	LogFormat         string `hcl:"log_format"`
+	LogLevel          string `hcl:"log_level"`
+	ServerAddress     string `hcl:"server_address"`
+	ServerPort        int    `hcl:"server_port"`
+	SocketPath        string `hcl:"socket_path"`
+	TrustBundlePath   string `hcl:"trust_bundle_path"`
+	InsecureBootstrap bool   `hcl:"insecure_bootstrap"`
+	TrustDomain       string `hcl:"trust_domain"`
 
 	ConfigPath string
 
@@ -176,6 +177,7 @@ func parseFlags(args []string) (*agentConfig, error) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
+	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps insecurely with the server")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -224,11 +226,13 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 	ac.TrustDomain = *td
 
 	// Parse trust bundle
-	bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse trust bundle: %s", err)
+	if c.Agent.TrustBundlePath != "" {
+		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse trust bundle: %s", err)
+		}
+		ac.TrustBundle = bundle
 	}
-	ac.TrustBundle = bundle
 
 	ac.BindAddress = &net.UnixAddr{
 		Name: c.Agent.SocketPath,
@@ -276,8 +280,11 @@ func validateConfig(c *config) error {
 		return errors.New("trust_domain must be configured")
 	}
 
-	if c.Agent.TrustBundlePath == "" {
-		return errors.New("trust_bundle_path must be configured")
+	switch {
+	case c.Agent.InsecureBootstrap:
+		c.Agent.TrustBundlePath = ""
+	case c.Agent.TrustBundlePath == "":
+		return errors.New("trust_bundle_path must be configured unless insecure_bootstrap is set")
 	}
 
 	if c.Plugins == nil {
