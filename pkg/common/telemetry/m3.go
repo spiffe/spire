@@ -12,8 +12,8 @@ import (
 )
 
 type m3Sink struct {
-	closer           io.Closer
-	scope            tally.Scope
+	closer io.Closer
+	scope  tally.Scope
 }
 
 func newM3Sink(serviceName, address, env string) (*m3Sink, error) {

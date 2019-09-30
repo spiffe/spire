@@ -181,9 +181,7 @@ func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Up
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, c := range bundleCerts {
-			trustBundle = append(trustBundle, c)
-		}
+		trustBundle = append(trustBundle, bundleCerts...)
 	}
 
 	// Validate cert matches private key
