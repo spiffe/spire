@@ -1,0 +1,40 @@
+version: '3'
+services:
+  spire-server:
+    image: SPIRE-SERVER-IMAGE
+    hostname: spire-server
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  upstream-proxy:
+    image: envoy-agent-mashup
+    hostname: upstream-proxy
+    depends_on: ["spire-server", "upstream-socat"]
+    volumes:
+      - ./conf/upstream-envoy:/opt/envoy/conf
+      - ./conf/upstream-agent:/opt/spire/conf/agent
+  downstream-proxy:
+    image: envoy-agent-mashup
+    hostname: downstream-proxy
+    depends_on: ["spire-server", "upstream-proxy"]
+    volumes:
+      - ./conf/downstream-agent:/opt/spire/conf/agent
+      - ./conf/downstream-envoy:/opt/envoy/conf
+  upstream-socat:
+    image: alpine/socat:latest
+    hostname: upstream-socat
+    command: ["-d", "-d", "TCP-LISTEN:8000,fork", "OPEN:\"/tmp/howdy\",creat,append"]
+  downstream-socat-mtls:
+    image: alpine/socat:latest
+    hostname: downstream-socat-mtls
+    restart: on-failure
+    depends_on: ["downstream-proxy"]
+    tty: true
+    command: ["-d", "-d", "TCP-LISTEN:8001,fork", "TCP:downstream-proxy:8001"]
+  downstream-socat-tls:
+    image: alpine/socat:latest
+    hostname: downstream-socat-tls
+    restart: on-failure
+    depends_on: ["downstream-proxy"]
+    tty: true
+    command: ["-d", "-d", "TCP-LISTEN:8002,fork", "TCP:downstream-proxy:8002"]

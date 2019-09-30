@@ -1,0 +1,81 @@
+node:
+  id: "upstream-envoy"
+  cluster: "test"
+static_resources:
+  listeners:
+  - name: listener-sds-mtls
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8001
+    filter_chains:
+    - filters:
+      - name: envoy.tcp_proxy
+        config:
+          cluster: upstream_socat
+          stat_prefix: upstream_socat_mtls
+      tls_context:
+        common_tls_context:
+          tls_certificate_sds_secret_configs:
+          - name: "spiffe://domain.test/upstream-workload"
+            sds_config:
+              api_config_source:
+                api_type: GRPC
+                grpc_services:
+                  envoy_grpc:
+                    cluster_name: spire_agent
+          combined_validation_context:
+            default_validation_context:
+              verify_subject_alt_name:
+                - "spiffe://domain.test/downstream-workload"
+            validation_context_sds_secret_config:
+              name: "spiffe://domain.test"
+              sds_config:
+                api_config_source:
+                  api_type: GRPC
+                  grpc_services:
+                    envoy_grpc:
+                      cluster_name: spire_agent
+          tls_params:
+           ecdh_curves:
+             - X25519:P-256:P-521:P-384
+  - name: listener-sds-tls
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8002
+    filter_chains:
+    - filters:
+      - name: envoy.tcp_proxy
+        config:
+          cluster: upstream_socat
+          stat_prefix: upstream_socat_tls
+      tls_context:
+        common_tls_context:
+          tls_certificate_sds_secret_configs:
+          - name: "spiffe://domain.test/upstream-workload"
+            sds_config:
+              api_config_source:
+                api_type: GRPC
+                grpc_services:
+                  envoy_grpc:
+                    cluster_name: spire_agent
+          tls_params:
+             ecdh_curves:
+               - X25519:P-256:P-521:P-384
+
+  clusters:
+  - name: spire_agent
+    connect_timeout: 0.25s
+    http2_protocol_options: {}
+    hosts:
+      - pipe:
+          path: /opt/shared/agent.sock
+  - name: upstream_socat
+    connect_timeout: 0.25s
+    type: strict_dns
+    lb_policy: ROUND_ROBIN
+    hosts:
+      - socket_address:
+          address: upstream-socat
+          port_value: 8000
