@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/spiffe/spire/pkg/common/errorutil"
+	"github.com/spiffe/spire/pkg/common/logutil"
 	"io"
 	"net"
 	"net/url"
@@ -122,7 +123,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		if csr.SpiffeID != "" {
 			attestedBefore, err = h.isAttested(ctx, csr.SpiffeID)
 			if err != nil {
-				h.c.Log.Error(err)
+				logutil.LogError(h.c.Log, err)
 				return status.Error(codes.Internal, "failed to determine if agent has already attested")
 			}
 		}
@@ -244,13 +245,13 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		agentID, err := getSpiffeIDFromCert(peerCert)
 		if err != nil {
-			h.c.Log.Error(err)
+			logutil.LogError(h.c.Log, err)
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
 		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), agentID)
 		if err != nil {
-			h.c.Log.Error(err)
+			logutil.LogError(h.c.Log, err)
 			return status.Error(codes.Internal, "failed to fetch agent registration entries")
 		}
 
@@ -267,14 +268,14 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			// drop spiffe IDs
 			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 			if err != nil {
-				h.c.Log.Error(err)
+				logutil.LogError(h.c.Log, err)
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
 		} else if csrsLenDeprecated != 0 {
 			// Legacy agent, use legacy SignCSRs (it returns svids keyed by spiffeID)
 			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
 			if err != nil {
-				h.c.Log.Error(err)
+				logutil.LogError(h.c.Log, err)
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
 		} else {
@@ -284,7 +285,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
-			h.c.Log.Error(err)
+			logutil.LogError(h.c.Log, err)
 			return status.Error(codes.Internal, err.Error())
 		}
 
@@ -309,28 +310,28 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
 		err := status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
 	entry, ok := getDownstreamEntry(ctx)
 	if !ok {
 		err = status.Error(codes.InvalidArgument, "downstream entry is required for this request")
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
 	err = h.limiter.Limit(ctx, CSRMsg, 1)
 	if err != nil {
 		err = status.Error(codes.ResourceExhausted, err.Error())
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
 	downstreamID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
 		err = status.Error(codes.InvalidArgument, err.Error())
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
@@ -347,7 +348,7 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	csr, err := h.parseX509CACSR(req.Csr)
 	if err != nil {
 		err = status.Error(codes.InvalidArgument, err.Error())
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
@@ -359,14 +360,14 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	})
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
 	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
@@ -382,14 +383,14 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
 		err = status.Error(codes.ResourceExhausted, err.Error())
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
 		err := status.Error(codes.InvalidArgument, "client SVID is required for this request")
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
@@ -397,15 +398,15 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	switch {
 	case req.Jsr == nil:
 		err = status.Error(codes.InvalidArgument, "request missing JSR")
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	case req.Jsr.SpiffeId == "":
 		err = status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	case len(req.Jsr.Audience) == 0:
 		err = status.Error(codes.InvalidArgument, "request missing audience")
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
@@ -417,7 +418,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 
 	if err != nil {
 		err = status.Error(codes.InvalidArgument, err.Error())
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
@@ -425,7 +426,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID)
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
@@ -439,7 +440,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 
 	if !found {
 		err = status.Error(codes.PermissionDenied, "caller is not authorized")
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
@@ -450,14 +451,14 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	})
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
@@ -480,12 +481,12 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		"/spire.api.node.Node/FetchJWTSVID":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
-			h.c.Log.Error(err)
+			logutil.LogError(h.c.Log, err)
 			return nil, status.Error(codes.Unauthenticated, "agent SVID is required for this request")
 		}
 
 		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
-			h.c.Log.Error(err)
+			logutil.LogError(h.c.Log, err)
 			return nil, status.Error(codes.PermissionDenied, "agent is not attested or no longer valid")
 		}
 
@@ -493,12 +494,12 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	case "/spire.api.node.Node/FetchX509CASVID":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
-			h.c.Log.Error(err)
+			logutil.LogError(h.c.Log, err)
 			return nil, status.Error(codes.Unauthenticated, "downstream SVID is required for this request")
 		}
 		entry, err := h.validateDownstreamSVID(ctx, peerCert)
 		if err != nil {
-			h.c.Log.Error(err)
+			logutil.LogError(h.c.Log, err)
 			return nil, status.Error(codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 		}
 
@@ -507,7 +508,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	// method not handled
 	default:
 		err := status.Errorf(codes.PermissionDenied, "authorization not implemented for method %q", fullMethod)
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, err
 	}
 
@@ -577,7 +578,8 @@ func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certifi
 	// peer SVIDs must be unexpired and have a corresponding downstream entry
 	if h.c.Clock.Now().After(cert.NotAfter) {
 		err = errors.New("peer SVID has expired")
-		h.c.Log.WithField(telemetry.PeerID, peerID).Error(err)
+		log := h.c.Log.WithField(telemetry.PeerID, peerID)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
@@ -642,7 +644,7 @@ func (h *Handler) attestToken(ctx context.Context, attestationData *common.Attes
 	attestedBefore, err := h.isAttested(ctx, agentID)
 	switch {
 	case err != nil:
-		h.c.Log.Error(err)
+		logutil.LogError(h.c.Log, err)
 		return nil, errors.New("failed to determine if agent has already attested")
 	case attestedBefore:
 		return nil, errors.New("join token has already been used")
@@ -790,7 +792,8 @@ func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*com
 	}
 
 	err = errors.New("unauthorized downstream workload")
-	h.c.Log.WithField(telemetry.CallerID, callerID).Error(err)
+	log := h.c.Log.WithField(telemetry.CallerID, callerID)
+	logutil.LogError(log, err)
 	return nil, err
 }
 
@@ -1096,7 +1099,6 @@ func (h *Handler) parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, e
 func (h *Handler) getSpiffeIDFromCSR(csrBytes []byte, mode idutil.ValidationMode) (string, error) {
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
-		h.c.Log.Error(err)
 		return "", errorutil.WrapAndLogError(h.c.Log, err, "failed to parse CSR")
 	}
 	if len(csr.URIs) != 1 {

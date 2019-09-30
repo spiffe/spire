@@ -2,6 +2,7 @@ package sql
 
 import (
 	"fmt"
+	"github.com/spiffe/spire/pkg/common/logutil"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -39,7 +40,7 @@ func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 
 	if version > codeVersion {
 		err = sqlError.New("backwards migration not supported! (current=%d, code=%d)", version, codeVersion)
-		log.Error(err.Error())
+		logutil.LogPluginError(log, err)
 		return err
 	}
 

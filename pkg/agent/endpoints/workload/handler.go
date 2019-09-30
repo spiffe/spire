@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spiffe/spire/pkg/common/logutil"
 	"sync/atomic"
 	"time"
 
@@ -65,7 +66,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	identities := h.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
 		err := status.Errorf(codes.PermissionDenied, "no identity issued")
-		log.WithField(telemetry.Registered, false).Error(err)
+		log = log.WithField(telemetry.Registered, false)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
@@ -88,7 +90,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		svid, err = h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
 			err = status.Errorf(codes.Unavailable, "could not fetch JWTSVID: %v", err)
-			loopLog.Error(err)
+			logutil.LogError(loopLog, err)
 			return nil, err
 		}
 		resp.Svids = append(resp.Svids, &workload.JWTSVID{
@@ -110,7 +112,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 	pid, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
-		h.Log.Error(err)
+		logutil.LogError(h.Log, err)
 		return err
 	}
 	defer done()
@@ -129,7 +131,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 			log.Debug("Sending JWT Bundles")
 			start := time.Now()
 			if err := h.sendJWTBundlesResponse(update, stream, metrics); err != nil {
-				log.Error(err)
+				logutil.LogError(log, err)
 				return err
 			}
 
@@ -149,20 +151,20 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
 	if req.Audience == "" {
 		err := status.Error(codes.InvalidArgument, "audience must be specified")
-		h.Log.Error(err)
+		logutil.LogError(h.Log, err)
 		return nil, err
 	}
 
 	log := h.Log.WithField(telemetry.Audience, req.Audience)
 	if req.Svid == "" {
 		err := status.Error(codes.InvalidArgument, "svid must be specified")
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
 	_, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 	defer done()
@@ -185,7 +187,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	s, err := structFromValues(claims)
 	if err != nil {
 		err = status.Error(codes.InvalidArgument, err.Error())
-		log.Error(err)
+		logutil.LogError(log, err)
 		return nil, err
 	}
 
@@ -242,7 +244,8 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	if len(update.Identities) == 0 {
 		err := status.Error(codes.PermissionDenied, "no identity issued")
-		log.WithField(telemetry.Registered, false).Error(err)
+		log = log.WithField(telemetry.Registered, false)
+		logutil.LogError(log, err)
 		return err
 	}
 
@@ -251,13 +254,13 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
 		err := status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
-		log.Error(err)
+		logutil.LogError(log, err)
 		return err
 	}
 
 	err = stream.Send(resp)
 	if err != nil {
-		log.Error(err)
+		logutil.LogError(log, err)
 		return err
 	}
 

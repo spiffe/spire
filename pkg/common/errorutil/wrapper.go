@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/logutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -12,7 +13,8 @@ import (
 // This function is intended to be used to wrap errors and emit ERROR level logs
 // when an error is received from calling a function/method inside of a function or private method.
 func WrapAndLogError(logger logrus.FieldLogger, err error, newErrStr string) error {
-	logger.WithField(telemetry.Error, err).Error(newErrStr)
+	log := logger.WithField(telemetry.Error, err)
+	logutil.LogErrorStr(log, newErrStr)
 	return wrapError(err, newErrStr)
 }
 
@@ -21,7 +23,8 @@ func WrapAndLogError(logger logrus.FieldLogger, err error, newErrStr string) err
 // This function is intended to be used from plugin code using hclog to wrap errors and emit ERROR level logs
 // when an error is received from calling a function/method inside of a function or private method.
 func WrapAndLogPluginError(logger hclog.Logger, err error, newErrStr string) error {
-	logger.With(telemetry.Error, err).Error(newErrStr)
+	log := logger.With(telemetry.Error, err)
+	logutil.LogPluginErrorStr(log, newErrStr)
 	return wrapError(err, newErrStr)
 }
 
