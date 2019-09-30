@@ -57,53 +57,73 @@ func (s *Suite) SetupTest() {
 }
 
 func (s *Suite) TestAttestSuccess() {
-	s.configure()
-
-	require := s.Require()
-
-	stream, done := s.attest()
-	defer done()
-
-	// send down good attestation data
-	attestationData := &x509pop.AttestationData{
-		Certificates: s.leafBundle,
-	}
-	err := stream.Send(&nodeattestor.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "x509pop",
-			Data: s.marshal(attestationData),
+	tests := []struct {
+		desc          string
+		giveConfig    string
+		expectAgentID string
+	}{
+		{
+			desc:          "default success",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
 		},
-	})
-	require.NoError(err)
+		{
+			desc:          "success with custom agent id",
+			giveConfig:    `agent_path_template = "/cn/{{ .Subject.CommonName }}"`,
+			expectAgentID: "spiffe://example.org/spire/agent/cn/some%20common%20name",
+		},
+	}
 
-	// receive and parse challenge
-	resp, err := stream.Recv()
-	require.NoError(err)
-	require.Equal("", resp.AgentId)
-	s.NotEmpty(resp.Challenge)
+	for _, tt := range tests {
+		s.T().Run(tt.desc, func(t *testing.T) {
+			s.configure(tt.giveConfig)
 
-	challenge := new(x509pop.Challenge)
-	s.unmarshal(resp.Challenge, challenge)
+			require := s.Require()
 
-	// calculate and send the response
-	response, err := x509pop.CalculateResponse(s.leafKey, challenge)
-	require.NoError(err)
-	err = stream.Send(&nodeattestor.AttestRequest{
-		Response: s.marshal(response),
-	})
-	require.NoError(err)
+			stream, done := s.attest()
+			defer done()
 
-	// receive the attestation result
-	resp, err = stream.Recv()
-	require.NoError(err)
-	require.Equal("spiffe://example.org/spire/agent/x509pop/"+x509pop.Fingerprint(s.leafCert), resp.AgentId)
-	require.Nil(resp.Challenge)
-	require.Len(resp.Selectors, 3)
-	require.EqualValues([]*common.Selector{
-		{Type: "x509pop", Value: "subject:cn:some common name"},
-		{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
-		{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
-	}, resp.Selectors)
+			// send down good attestation data
+			attestationData := &x509pop.AttestationData{
+				Certificates: s.leafBundle,
+			}
+			err := stream.Send(&nodeattestor.AttestRequest{
+				AttestationData: &common.AttestationData{
+					Type: "x509pop",
+					Data: s.marshal(attestationData),
+				},
+			})
+			require.NoError(err)
+
+			// receive and parse challenge
+			resp, err := stream.Recv()
+			require.NoError(err)
+			require.Equal("", resp.AgentId)
+			s.NotEmpty(resp.Challenge)
+
+			challenge := new(x509pop.Challenge)
+			s.unmarshal(resp.Challenge, challenge)
+
+			// calculate and send the response
+			response, err := x509pop.CalculateResponse(s.leafKey, challenge)
+			require.NoError(err)
+			err = stream.Send(&nodeattestor.AttestRequest{
+				Response: s.marshal(response),
+			})
+			require.NoError(err)
+
+			// receive the attestation result
+			resp, err = stream.Recv()
+			require.NoError(err)
+			require.Equal(tt.expectAgentID, resp.AgentId)
+			require.Nil(resp.Challenge)
+			require.Len(resp.Selectors, 3)
+			require.EqualValues([]*common.Selector{
+				{Type: "x509pop", Value: "subject:cn:some common name"},
+				{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
+				{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
+			}, resp.Selectors)
+		})
+	}
 }
 
 func (s *Suite) TestAttestFailure() {
@@ -157,7 +177,7 @@ func (s *Suite) TestAttestFailure() {
 		"x509pop: not configured")
 
 	// now configure
-	s.configure()
+	s.configure("")
 
 	// unexpected data type
 	attestFails(&common.AttestationData{Type: "foo"},
@@ -252,11 +272,12 @@ func (s *Suite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) configure() {
+func (s *Suite) configure(extraConfig string) {
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
 ca_bundle_path = %q
-`, s.rootCertPath),
+%s
+`, s.rootCertPath, extraConfig),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
