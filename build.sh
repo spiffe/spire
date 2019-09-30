@@ -9,14 +9,7 @@ if [[ -n $TRAVIS ]] ; then
 	BUILD_ROOT=$HOME/.build
 fi
 
-ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r ARTIFACT_DIRS
-RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r RELEASE_DIRS
-SOURCE_PKGS="$(go list ./cmd/... ./pkg/... ./support/... 2>/dev/null)"
-declare -r SOURCE_PKGS
-RELEASE_FILES="LICENSE README.md conf"
-declare -r RELEASE_FILES
+declare -r RELEASE_FILES="LICENSE README.md conf"
 
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
@@ -48,6 +41,18 @@ declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
 
 _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
+
+_artifact_dirs() {
+	find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null
+}
+
+_release_dirs() {
+	find cmd/* -maxdepth 0 -type d 2>/dev/null
+}
+
+_source_pkgs() {
+	go list ./cmd/... ./pkg/... ./support/... 2>/dev/null
+}
 
 _fetch_url() {
 	mkdir -p "${BUILD_CACHE}"
@@ -179,7 +184,7 @@ build_race_test() {
 		_log_info "running coverage tests"
 		rm -rf test_results
 		mkdir -p test_results
-		for _n in ${SOURCE_PKGS}; do
+		for _n in $(_source_pkgs); do
 			go test -race -cover -covermode=atomic -coverprofile="test_results/$(echo "$_n" | sed 's/\//_/g').out" "${_n}"
 		done
 		# several tests set the umask to 000, which gets applied to the results files
@@ -200,7 +205,7 @@ build_release() {
 	_tag="$(git describe --abbrev=0 2>/dev/null || true)"
 	_always="$(git describe --always || true)"
 	if [[ "$_tag" == "$_always" ]]; then
-		build_artifact "$_tag" "$RELEASE_DIRS"
+		build_artifact "$_tag" "$(_release_dirs)"
 	fi
 }
 
@@ -209,7 +214,7 @@ build_artifact() {
 	local _version="$1" _dirs="$2"
 	local _libc _tgz _sum _binaries _n _tmp _tar_opts=()
 
-	[[ -z "$_dirs" ]] && _dirs="$ARTIFACT_DIRS"
+	[[ -z "$_dirs" ]] && _dirs="$(_artifact_dirs)"
 	_dirs_array=()
 	for _dir in $_dirs; do
 		_dirs_array+=( "$_dir" )
