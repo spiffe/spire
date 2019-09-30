@@ -245,9 +245,7 @@ func (s *IIDResolverSuite) configureResolver() {
 func (s *IIDResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
 	var selectorValues []string
 	for _, values := range selectorValueSets {
-		for _, value := range values {
-			selectorValues = append(selectorValues, value)
-		}
+		selectorValues = append(selectorValues, values...)
 	}
 	sort.Strings(selectorValues)
 	selectors := &common.Selectors{}
