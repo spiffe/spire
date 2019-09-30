@@ -19,6 +19,7 @@ import (
 	nr_aws_iid "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	nr_noop "github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
+	no_gcpbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcpbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
@@ -94,6 +95,7 @@ func BuiltIns() []catalog.Plugin {
 		km_memory.BuiltIn(),
 		// Notifiers
 		no_k8sbundle.BuiltIn(),
+		no_gcpbundle.BuiltIn(),
 	}
 }
 
