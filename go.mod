@@ -13,10 +13,8 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.1.0 // indirect
 	// version 1.14
 	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190405210948-c70a36b8193f
-	github.com/InVisionApp/go-health v2.1.0+incompatible
-	github.com/InVisionApp/go-logger v1.0.1 // indirect
+	github.com/InVisionApp/go-health v1.1.7-0.20190926150048-b5cab38233bb
 	github.com/Microsoft/go-winio v0.4.12 // indirect
-	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878
 	github.com/aws/aws-sdk-go v1.20.3
@@ -26,7 +24,6 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/envoyproxy/go-control-plane v0.8.0
-	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/gogo/googleapis v1.2.0
@@ -47,7 +44,6 @@ require (
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
-	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -58,7 +54,7 @@ require (
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
 	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/testify v1.4.0
 	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
@@ -78,5 +74,5 @@ require (
 	k8s.io/apimachinery v0.0.0-20190221213512-86fb29eff628
 	k8s.io/client-go v10.0.0+incompatible
 	k8s.io/klog v0.2.0 // indirect
-	sigs.k8s.io/yaml v1.1.0
+	sigs.k8s.io/yaml v1.1.0 // indirect
 )
