@@ -76,6 +76,7 @@ type configuration struct {
 	ConnMaxLifetime  *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
 	MaxOpenConns     *int    `hcl:"max_open_conns" json:"max_open_conns"`
 	MaxIdleConns     *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
+	DisableMigration bool    `hcl:"disable_migration" json:"disable_migration"`
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
@@ -629,7 +630,7 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
 
-	if err := migrateDB(db, cfg.DatabaseType, ds.log); err != nil {
+	if err := migrateDB(db, cfg.DatabaseType, cfg.DisableMigration, ds.log); err != nil {
 		db.Close()
 		return nil, err
 	}

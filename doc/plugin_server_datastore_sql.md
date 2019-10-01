@@ -12,6 +12,7 @@ The `sql` plugin implements a sql based storage option for the SPIRE server usin
 | max_open_conns    | The maximum number of open db connections (default: unlimited)             |
 | max_idle_conns    | The maximum number of idle connections in the pool (default: 2)            |
 | conn_max_lifetime | The maximum amount of time a connection may be reused (default: unlimited) |
+| disable_migration | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
 
 The plugin defaults to an in-memory database and any information in the data store is lost on restart.
 

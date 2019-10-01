@@ -83,6 +83,10 @@ In addition to the conventions covered in the SPIFFE project's
 [CONTRIBUTING](https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md), the following
 conventions apply to the SPIRE repository:
 
+## SQL Plugin Changes
+
+Datastore changes must be present in at least one full minor release cycle prior to introducing code changes that depend on them.
+
 ## Directory layout
 
 `/cmd/{spire-server,spire-agent}/`
