@@ -16,6 +16,9 @@ const (
 
 type SignerConfig struct {
 	Clock clock.Clock
+
+	// Issuer is used as the value of the issuer (iss) claim, if set.
+	Issuer string
 }
 
 type Signer struct {
@@ -53,6 +56,10 @@ func (s *Signer) SignToken(spiffeID string, audience []string, expires time.Time
 		"exp": expires.Unix(),
 		"aud": audienceClaim(audience),
 		"iat": s.c.Clock.Now().Unix(),
+	}
+
+	if s.c.Issuer != "" {
+		claims["iss"] = s.c.Issuer
 	}
 
 	token := jwt.NewWithClaims(signingMethodES256, claims)

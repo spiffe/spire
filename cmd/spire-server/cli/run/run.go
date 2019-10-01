@@ -47,6 +47,7 @@ type serverConfig struct {
 	BindPort            int                `hcl:"bind_port"`
 	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
 	CATTL               string             `hcl:"ca_ttl"`
+	JWTIssuer           string             `hcl:"jwt_issuer"`
 	DataDir             string             `hcl:"data_dir"`
 	Experimental        experimentalConfig `hcl:"experimental"`
 	LogFile             string             `hcl:"log_file"`
@@ -322,6 +323,8 @@ func newServerConfig(c *config) (*server.Config, error) {
 		}
 		sc.CATTL = ttl
 	}
+
+	sc.JWTIssuer = c.Server.JWTIssuer
 
 	if subject := c.Server.CASubject; subject != nil {
 		sc.CASubject = pkix.Name{

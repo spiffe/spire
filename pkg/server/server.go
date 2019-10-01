@@ -88,6 +88,10 @@ type Config struct {
 	// self-signed CA certificates, otherwise it is up to the upstream CA.
 	CATTL time.Duration
 
+	// JWTIssuer is used as the issuer claim in JWT-SVIDs minted by the server.
+	// If unset, the JWT-SVID will not have an issuer claim.
+	JWTIssuer string
+
 	// CASubject is the subject used in the CA certificate
 	CASubject pkix.Name
 
@@ -328,6 +332,7 @@ func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:     metrics,
 		X509SVIDTTL: s.config.SVIDTTL,
+		JWTIssuer:   s.config.JWTIssuer,
 		TrustDomain: s.config.TrustDomain,
 		CASubject:   s.config.CASubject,
 	})

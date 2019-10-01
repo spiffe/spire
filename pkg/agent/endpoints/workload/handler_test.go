@@ -26,8 +26,8 @@ import (
 	mock_cache "github.com/spiffe/spire/test/mock/agent/manager/cache"
 	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
 	mock_workload "github.com/spiffe/spire/test/mock/proto/api/workload"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
-	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -43,11 +43,11 @@ KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 )
 
 func TestHandler(t *testing.T) {
-	suite.Run(t, new(HandlerTestSuite))
+	spiretest.Run(t, new(HandlerTestSuite))
 }
 
 type HandlerTestSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	h    *Handler
 	ctrl *gomock.Controller
@@ -558,7 +558,9 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	})
 	s.Require().NoError(err)
 
-	jwtSigner := jwtsvid.NewSigner(jwtsvid.SignerConfig{})
+	jwtSigner := jwtsvid.NewSigner(jwtsvid.SignerConfig{
+		Issuer: "issuer",
+	})
 
 	svid, err := jwtSigner.SignToken(
 		"spiffe://example.org/blog",
@@ -590,7 +592,27 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	s.Require().NotNil(resp)
 	s.Require().Equal("spiffe://example.org/blog", resp.SpiffeId)
 	s.Require().NotNil(resp.Claims)
-	s.Require().Len(resp.Claims.Fields, 4)
+	s.Require().Len(resp.Claims.Fields, 5)
+	s.AssertProtoEqual(
+		&structpb.Value{
+			Kind: &structpb.Value_StringValue{
+				StringValue: "audience",
+			},
+		}, resp.Claims.Fields["aud"])
+	s.NotEmpty(resp.Claims.Fields["exp"])
+	s.NotEmpty(resp.Claims.Fields["iat"])
+	s.AssertProtoEqual(
+		&structpb.Value{
+			Kind: &structpb.Value_StringValue{
+				StringValue: "issuer",
+			},
+		}, resp.Claims.Fields["iss"])
+	s.AssertProtoEqual(
+		&structpb.Value{
+			Kind: &structpb.Value_StringValue{
+				StringValue: "spiffe://example.org/blog",
+			},
+		}, resp.Claims.Fields["sub"])
 
 	// token validated by federated bundle
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{
@@ -616,7 +638,27 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	s.Require().NotNil(resp)
 	s.Require().Equal("spiffe://example.org/blog", resp.SpiffeId)
 	s.Require().NotNil(resp.Claims)
-	s.Require().Len(resp.Claims.Fields, 4)
+	s.Require().Len(resp.Claims.Fields, 5)
+	s.AssertProtoEqual(
+		&structpb.Value{
+			Kind: &structpb.Value_StringValue{
+				StringValue: "audience",
+			},
+		}, resp.Claims.Fields["aud"])
+	s.NotEmpty(resp.Claims.Fields["exp"])
+	s.NotEmpty(resp.Claims.Fields["iat"])
+	s.AssertProtoEqual(
+		&structpb.Value{
+			Kind: &structpb.Value_StringValue{
+				StringValue: "issuer",
+			},
+		}, resp.Claims.Fields["iss"])
+	s.AssertProtoEqual(
+		&structpb.Value{
+			Kind: &structpb.Value_StringValue{
+				StringValue: "spiffe://example.org/blog",
+			},
+		}, resp.Claims.Fields["sub"])
 }
 
 func (s *HandlerTestSuite) TestStructFromValues() {
