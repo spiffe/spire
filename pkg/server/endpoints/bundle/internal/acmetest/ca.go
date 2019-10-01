@@ -95,9 +95,7 @@ type CAServer struct {
 // list of domains. Otherwise, any domain name is allowed.
 func NewCAServer(challengeTypes []string, domainsWhitelist []string) *CAServer {
 	var whitelist []string
-	for _, name := range domainsWhitelist {
-		whitelist = append(whitelist, name)
-	}
+	whitelist = append(whitelist, domainsWhitelist...)
 	sort.Strings(whitelist)
 	ca := &CAServer{
 		challengeTypes:   challengeTypes,

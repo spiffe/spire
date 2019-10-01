@@ -8,22 +8,30 @@ require (
 	github.com/Azure/azure-sdk-for-go v30.1.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.2.0
 	github.com/Azure/go-autorest/autorest/azure/auth v0.1.0
+	github.com/DATA-DOG/go-sqlmock v1.3.3 // indirect
 	// version 1.14
 	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190405210948-c70a36b8193f
 	github.com/InVisionApp/go-health v2.1.0+incompatible
+	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
+	github.com/alicebob/miniredis v2.5.0+incompatible // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878
 	github.com/aws/aws-sdk-go v1.20.3
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/boltdb/bolt v1.3.1 // indirect
+	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/docker v0.7.3-0.20190312165151-258edd715d46
 	github.com/envoyproxy/go-control-plane v0.8.0
+	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8 // indirect
+	github.com/go-redis/redis v6.15.5+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/gogo/googleapis v1.2.0
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/mock v1.3.1
 	github.com/golang/protobuf v1.3.2
+	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
 	github.com/hashicorp/go-hclog v0.9.2
 	github.com/hashicorp/go-plugin v1.0.1
@@ -32,13 +40,16 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.9
 	github.com/mitchellh/cli v1.0.0
+	github.com/onsi/gomega v1.7.0 // indirect
 	github.com/prometheus/client_golang v1.0.0
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
 	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/testify v1.4.0
 	github.com/uber-go/tally v3.3.12+incompatible
+	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
+	github.com/zaffka/mongodb-boltdb-mock v0.0.0-20180816124423-49954d88fa3e // indirect
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
@@ -55,5 +66,4 @@ require (
 	k8s.io/api v0.0.0-20190222213804-5cb15d344471
 	k8s.io/apimachinery v0.0.0-20190221213512-86fb29eff628
 	k8s.io/client-go v10.0.0+incompatible
-	sigs.k8s.io/yaml v1.1.0
 )

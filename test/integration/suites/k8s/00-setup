@@ -1,0 +1,50 @@
+#!/bin/bash
+
+KUBECTLPATH=$(command -v kubectl)
+KINDPATH=$(command -v kind)
+
+set -e
+
+UNAME=$(uname | awk '{print tolower($0)}')
+
+KINDVERSION=v0.5.1
+KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
+KUBECTLVERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"
+
+# Ensure kubectl is available
+mkdir -p ./bin
+if [ -n "${KUBECTLPATH}" ]; then
+    ln -s "${KUBECTLPATH}" ./bin/kubectl
+else
+    log-info "downloading kubectl from ${KUBECTLURL}..."
+    curl -# -f -Lo ./bin/kubectl "${KUBECTLURL}"
+    chmod +x ./bin/kubectl
+fi
+
+# Ensure kind is available
+mkdir -p ./bin
+if [ -n "${KINDPATH}" ]; then
+    ln -s "${KINDPATH}" ./bin/kind
+else
+    log-info "downloading kind from ${KINDURL}..."
+    curl -# -f -Lo ./bin/kind "${KINDURL}"
+    chmod +x ./bin/kind
+fi
+
+# We must supply an absolute path to the configuration directory. Replace the
+# CONFDIR variable in the kind configuration with the conf directory of the 
+# running test.
+sed -i.bak "s#CONFDIR#${PWD}/conf#g" conf/kind-config.yaml
+rm conf/kind-config.yaml.bak
+
+log-info "starting cluster..."
+./bin/kind create cluster --name k8stest --config ./conf/kind-config.yaml || fail-now "unable to create cluster"
+
+log-info "loading container images..."
+./bin/kind load docker-image --name k8stest SPIRE-SERVER-IMAGE
+./bin/kind load docker-image --name k8stest SPIRE-AGENT-IMAGE
+./bin/kind load docker-image --name k8stest K8S-WORKLOAD-REGISTRAR-IMAGE
+
+
+

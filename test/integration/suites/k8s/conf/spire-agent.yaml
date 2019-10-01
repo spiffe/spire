@@ -33,6 +33,7 @@ roleRef:
   name: spire-agent-cluster-role
   apiGroup: rbac.authorization.k8s.io
 
+
 ---
 
 # ConfigMap for the SPIRE agent featuring:
