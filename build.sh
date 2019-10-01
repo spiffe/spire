@@ -50,10 +50,6 @@ _release_dirs() {
 	find cmd/* -maxdepth 0 -type d 2>/dev/null
 }
 
-_source_pkgs() {
-	go list ./cmd/... ./pkg/... ./support/... 2>/dev/null
-}
-
 _fetch_url() {
 	mkdir -p "${BUILD_CACHE}"
 	if [[ ! -r ${BUILD_CACHE}/${2} ]]; then
@@ -184,12 +180,7 @@ build_race_test() {
 		_log_info "running coverage tests"
 		rm -rf test_results
 		mkdir -p test_results
-		for _n in $(_source_pkgs); do
-			go test -race -cover -covermode=atomic -coverprofile="test_results/$(echo "$_n" | sed 's/\//_/g').out" "${_n}"
-		done
-		# several tests set the umask to 000, which gets applied to the results files
-		chmod u+r test_results/*
-		gocoverutil -coverprofile=test_results/cover.report merge test_results/*.out
+		make COVERPROFILE="test_results/cover.report" race-test
 		goveralls -coverprofile=test_results/cover.report -service=ci
 	else
 		make race-test
