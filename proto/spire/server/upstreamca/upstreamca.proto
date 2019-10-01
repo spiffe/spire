@@ -31,6 +31,8 @@ message SubmitCSRRequest {
 }
 
 message SubmitCSRResponse {
+    reserved 1, 2;
+
     // Signed certificate
     SignedCertificate signed_certificate = 3;
 }
