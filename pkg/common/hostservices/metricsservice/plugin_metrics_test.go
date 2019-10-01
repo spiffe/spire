@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupPluginMetricsWrapper(ctx context.Context, m hostservices.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
-	return WrapPluginMetricsForContext(ctx, m, log, labels...)
+func setupPluginMetricsWrapper(m hostservices.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
+	return WrapPluginMetrics(m, log, labels...)
 }
 
 func TestWrapPluginMetricsForContext(t *testing.T) {
-	metrics := WrapPluginMetricsForContext(context.Background(), nil, nil, []telemetry.Label{
+	metrics := WrapPluginMetrics(nil, nil, []telemetry.Label{
 		{
 			Name:  "name1",
 			Value: "val1",
@@ -70,7 +70,7 @@ func TestWrapEmitKey(t *testing.T) {
 				Val: tt.inVal,
 			}).Return(&hostservices.EmitKeyResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger())
+			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger())
 			metricsWrapper.EmitKey(tt.inKey, tt.inVal)
 		})
 	}
@@ -134,7 +134,7 @@ func TestWrapSetGaugeWithLabels(t *testing.T) {
 				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
 			}).Return(&hostservices.SetGaugeResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
+			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
 			metricsWrapper.SetGaugeWithLabels(tt.inKey, tt.inVal, tt.inLabels)
 		})
 	}
@@ -198,7 +198,7 @@ func TestWrapIncrCounterWithLabels(t *testing.T) {
 				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
 			}).Return(&hostservices.IncrCounterResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
+			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
 			metricsWrapper.IncrCounterWithLabels(tt.inKey, tt.inVal, tt.inLabels)
 		})
 	}
@@ -262,7 +262,7 @@ func TestWrapAddSampleWithLabels(t *testing.T) {
 				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
 			}).Return(&hostservices.AddSampleResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
+			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
 			metricsWrapper.AddSampleWithLabels(tt.inKey, tt.inVal, tt.inLabels)
 		})
 	}
@@ -326,7 +326,7 @@ func TestWrapMeasureSinceWithLabels(t *testing.T) {
 				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
 			}).Return(&hostservices.MeasureSinceResponse{}, nil)
 
-			metricsWrapper := setupPluginMetricsWrapper(ctx, mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
+			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
 			metricsWrapper.MeasureSinceWithLabels(tt.inKey, tt.inTime, tt.inLabels)
 		})
 	}

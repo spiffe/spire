@@ -201,6 +201,9 @@ const (
 	// RetryInterval tags some interval for retry logic
 	RetryInterval = "retry_interval"
 
+	// Schema tags database schema version
+	Schema = "schema"
+
 	// Seconds tags some count of seconds; should be used with other tags and message
 	// to add clarity
 	Seconds = "seconds"

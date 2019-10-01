@@ -99,10 +99,14 @@ func (DNSName) TableName() string {
 	return "dns_names"
 }
 
-// Migration holds version information
+// Migration holds database schema version number, and
+// the SPIRE Code version number
 type Migration struct {
 	Model
 
 	// Database version
 	Version int
+
+	// SPIRE Code versioning
+	CodeVersion string
 }
