@@ -1063,9 +1063,7 @@ func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle *bu
 
 	var regEntries []*common.RegistrationEntry
 	for _, regEntriesKey := range regEntriesKeys {
-		for _, regEntry := range regEntriesMap[regEntriesKey] {
-			regEntries = append(regEntries, regEntry)
-		}
+		regEntries = append(regEntries, regEntriesMap[regEntriesKey]...)
 	}
 
 	return &node.FetchX509SVIDResponse{
