@@ -936,51 +936,22 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 }
 
 func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
-	if resp.SignedCertificate != nil {
-		certChain, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
-		if err != nil {
-			return nil, nil, err
-		}
-		if len(certChain) == 0 {
-			return nil, nil, errs.New("upstream CA returned an empty cert chain")
-		}
-		trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
-		if err != nil {
-			return nil, nil, err
-		}
-		if len(trustBundle) == 0 {
-			return nil, nil, errs.New("upstream CA returned an empty trust bundle")
-		}
-		return certChain, trustBundle, nil
+	if resp.SignedCertificate == nil {
+		return nil, nil, errs.New("upstream CA returned a nil signed certificate")
 	}
-
-	// This is an old response from the upstream CA. The assumption from the
-	// manager was that Cert contained a single certificate representing the
-	// newly signed CA certificate and UpstreamTrustBundle contained the rest
-	// of the full chain back to the upstream "root".
-	cert, err := x509.ParseCertificate(resp.DEPRECATEDCert)
+	certChain, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
 	if err != nil {
 		return nil, nil, err
 	}
-	trustBundle, err := x509.ParseCertificates(resp.DEPRECATEDUpstreamTrustBundle)
+	if len(certChain) == 0 {
+		return nil, nil, errs.New("upstream CA returned an empty cert chain")
+	}
+	trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	certChain := []*x509.Certificate{cert}
-
-	switch len(trustBundle) {
-	case 0:
-		return nil, nil, errors.New("upstream CA returned an empty trust bundle")
-	case 1:
-		return certChain, trustBundle, nil
-	default:
-		// append the "intermediates" at the start of the upstream bundle
-		certChain = append(certChain, trustBundle[:len(trustBundle)-1]...)
-		// only consider the "root" of the upstream bundle as part of the
-		// trust bundle
-		trustBundle = trustBundle[len(trustBundle)-1:]
-		return certChain, trustBundle, nil
+	if len(trustBundle) == 0 {
+		return nil, nil, errs.New("upstream CA returned an empty trust bundle")
 	}
 	return certChain, trustBundle, nil
 }

@@ -64,8 +64,6 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| DEPRECATED_cert | [bytes](#bytes) |  | Signed certificate (DEPRECATED) |
-| DEPRECATED_upstreamTrustBundle | [bytes](#bytes) |  | Upstream trust bundle (DEPRECATED) |
 | signed_certificate | [SignedCertificate](#spire.server.upstreamca.SignedCertificate) |  | Signed certificate |
 
 
