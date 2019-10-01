@@ -1,6 +1,7 @@
 package x509pop
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -12,13 +13,27 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net/url"
-	"path"
+	"text/template"
+
+	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
 const (
 	nonceLen = 32
+
+	// PluginName for X.509 Proof of Posession
+	PluginName = "x509pop"
 )
+
+// DefaultAgentPathTemplate is the default text/template
+var DefaultAgentPathTemplate = template.Must(template.New("agent-svid").Parse("{{ .PluginName }}/{{ .Fingerprint }}"))
+
+type agentPathTemplateData struct {
+	*x509.Certificate
+	Fingerprint string
+	PluginName  string
+	TrustDomain string
+}
 
 type AttestationData struct {
 	// DER encoded x509 certificate chain leading back to the trusted root. The
@@ -249,13 +264,18 @@ func Fingerprint(cert *x509.Certificate) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func AgentID(trustDomain string, cert *x509.Certificate) string {
-	u := url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   path.Join("spire", "agent", "x509pop", Fingerprint(cert)),
+// MakeSpiffeID creates a SPIFFE ID from X.509 Certificate data.
+func MakeSpiffeID(trustDomain string, agentPathTemplate *template.Template, cert *x509.Certificate) (string, error) {
+	var agentPath bytes.Buffer
+	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
+		Certificate: cert,
+		PluginName:  PluginName,
+		Fingerprint: Fingerprint(cert),
+	}); err != nil {
+		return "", err
 	}
-	return u.String()
+
+	return idutil.AgentURI(trustDomain, agentPath.String()).String(), nil
 }
 
 func randBytes(n int) ([]byte, error) {

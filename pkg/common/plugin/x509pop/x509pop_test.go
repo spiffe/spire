@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
 	"testing"
+	"text/template"
 
 	"github.com/stretchr/testify/require"
 )
@@ -124,4 +126,47 @@ func createBadCertificate(privateKey, publicKey interface{}) (*x509.Certificate,
 		return nil, err
 	}
 	return x509.ParseCertificate(certBytes)
+}
+
+func TestMakeSPIFFEID(t *testing.T) {
+	tests := []struct {
+		desc         string
+		template     *template.Template
+		expectSPIFFE string
+		expectErr    string
+	}{
+		{
+			desc:         "default template with sha1",
+			template:     DefaultAgentPathTemplate,
+			expectSPIFFE: "spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+		},
+		{
+			desc:         "custom template with subject identifiers",
+			template:     template.Must(template.New("test").Parse("foo/{{ .Subject.CommonName }}")),
+			expectSPIFFE: "spiffe://example.org/spire/agent/foo/test-cert",
+		},
+		{
+			desc:      "custom template with nonexistant fields",
+			template:  template.Must(template.New("test").Parse("{{ .Foo }}")),
+			expectErr: `template: test:1:3: executing "test" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cert := &x509.Certificate{
+				Subject: pkix.Name{
+					CommonName: "test-cert",
+				},
+			}
+			spiffeid, err := MakeSpiffeID("example.org", tt.template, cert)
+			if tt.expectErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectSPIFFE, spiffeid)
+		})
+	}
 }

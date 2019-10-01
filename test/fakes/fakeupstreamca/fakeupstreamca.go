@@ -32,9 +32,8 @@ zFoQQSb86LNz+t2Jy/3Ydrwln2AGsii8NKRr9xAVcWR6wR/lVmen81SH
 )
 
 type Config struct {
-	TrustDomain         string
-	UseDeprecatedFields bool
-	UseIntermediate     bool
+	TrustDomain     string
+	UseIntermediate bool
 }
 
 type UpstreamCA struct {
@@ -108,21 +107,12 @@ func (m *UpstreamCA) Intermediate() *x509.Certificate {
 }
 
 func (m *UpstreamCA) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
-	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr)
+	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
 		return nil, err
 	}
 
 	chain := append([]*x509.Certificate{cert}, m.chain...)
-
-	if m.config.UseDeprecatedFields {
-		return &upstreamca.SubmitCSRResponse{
-			// Signed CA only
-			DEPRECATEDCert: certsDER(chain[0:1]),
-			// Chain from intermediates back to the root
-			DEPRECATEDUpstreamTrustBundle: certsDER(chain[1:]),
-		}, nil
-	}
 
 	return &upstreamca.SubmitCSRResponse{
 		SignedCertificate: &upstreamca.SignedCertificate{

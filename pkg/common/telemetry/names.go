@@ -210,6 +210,9 @@ const (
 	// RetryInterval tags some interval for retry logic
 	RetryInterval = "retry_interval"
 
+	// Schema tags database schema version
+	Schema = "schema"
+
 	// Seconds tags some count of seconds; should be used with other tags and message
 	// to add clarity
 	Seconds = "seconds"
@@ -373,6 +376,9 @@ const (
 
 	// SpireAgent typically the entire spire agent service
 	SpireAgent = "spire_agent"
+
+	// SpireServer typically the entire spire server
+	SpireServer = "spire_server"
 
 	// SVID functionality related to a SVID; should be used with other tags
 	// to add clarity

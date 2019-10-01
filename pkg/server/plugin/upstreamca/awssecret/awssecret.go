@@ -10,8 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -35,7 +37,7 @@ func builtin(p *AWSSecretPlugin) catalog.Plugin {
 }
 
 type AWSSecretConfiguration struct {
-	TTL             string `hcl:"ttl" json:"ttl"` // time to live for generated certs
+	DeprecatedTTL   string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	Region          string `hcl:"region" json:"region"`
 	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn"`
 	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn"`
@@ -46,11 +48,14 @@ type AWSSecretConfiguration struct {
 }
 
 type AWSSecretPlugin struct {
+	log hclog.Logger
+
 	mtx        sync.RWMutex
 	cert       *x509.Certificate
 	upstreamCA *x509svid.UpstreamCA
 
 	hooks struct {
+		clock     clock.Clock
 		getenv    func(string) string
 		newClient func(config *AWSSecretConfiguration, region string) (secretsManagerClient, error)
 	}
@@ -62,9 +67,14 @@ func New() *AWSSecretPlugin {
 
 func newPlugin(newClient func(config *AWSSecretConfiguration, region string) (secretsManagerClient, error)) *AWSSecretPlugin {
 	p := &AWSSecretPlugin{}
+	p.hooks.clock = clock.New()
 	p.hooks.getenv = os.Getenv
 	p.hooks.newClient = newClient
 	return p
+}
+
+func (m *AWSSecretPlugin) SetLogger(log hclog.Logger) {
+	m.log = log
 }
 
 func (m *AWSSecretPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -95,7 +105,8 @@ func (m *AWSSecretPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 		x509util.NewMemoryKeypair(cert, key),
 		req.GlobalConfig.TrustDomain,
 		x509svid.UpstreamCAOptions{
-			TTL: ttl,
+			TTL:   ttl,
+			Clock: m.hooks.clock,
 		})
 
 	return &spi.ConfigureResponse{}, nil
@@ -113,7 +124,7 @@ func (m *AWSSecretPlugin) SubmitCSR(ctx context.Context, request *upstreamca.Sub
 		return nil, errors.New("invalid state: not configured")
 	}
 
-	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr)
+	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
 		return nil, err
 	}
@@ -184,9 +195,14 @@ func (m *AWSSecretPlugin) validateConfig(ctx context.Context, req *spi.Configure
 		config.SecurityToken = m.hooks.getenv("AWS_SESSION_TOKEN")
 	}
 
-	ttl, err := time.ParseDuration(config.TTL)
-	if err != nil {
-		return nil, -1, fmt.Errorf("invalid TTL value: %v", err)
+	var ttl time.Duration
+	if config.DeprecatedTTL != "" {
+		var err error
+		ttl, err = time.ParseDuration(config.DeprecatedTTL)
+		if err != nil {
+			return nil, -1, fmt.Errorf("invalid TTL value: %v", err)
+		}
+		m.log.Warn("Using deprecated ttl configurable. Use the server ca_ttl configurable instead.")
 	}
 
 	switch {
