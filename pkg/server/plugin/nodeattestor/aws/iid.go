@@ -89,9 +89,6 @@ type IIDAttestorConfig struct {
 	pathTemplate       *template.Template
 	trustDomain        string
 	awsCaCertPublicKey *rsa.PublicKey
-
-	// Deprecated, use LocalValidAcctIDs
-	SkipEC2AttestCalling bool `hcl:"skip_ec2_attest_calling"`
 }
 
 // New creates a new IITAttestorPlugin.
@@ -137,7 +134,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return caws.AttestationStepError("unmarshaling the IID", err)
 	}
 
-	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
+	agentID, err := makeSpiffeID(c.trustDomain, c.pathTemplate, doc)
 	if err != nil {
 		return fmt.Errorf("failed to create spiffe ID: %v", err)
 	}
@@ -201,11 +198,6 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return resp, err
 	}
 
-	if config.SkipEC2AttestCalling {
-		p.log.Warn("skip_ec2_attest_calling is a deprecated flag and will be ignored." +
-			" Use account_ids_for_local_validation instead.")
-	}
-
 	block, _ := pem.Decode([]byte(awsCaCertPEM))
 
 	awsCaCert, err := x509.ParseCertificate(block.Bytes)
@@ -246,7 +238,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 
-	config.pathTemplate = caws.DefaultAgentPathTemplate
+	config.pathTemplate = defaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
 		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
 		if err != nil {

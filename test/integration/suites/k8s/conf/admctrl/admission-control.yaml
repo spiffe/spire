@@ -5,4 +5,4 @@ plugins:
   configuration:
     apiVersion: apiserver.config.k8s.io/v1alpha1
     kind: WebhookAdmission
-    kubeConfigFile: /var/lib/spire/kubeconfig.yaml
+    kubeConfigFile: /etc/kubernetes/pki/admctrl/kubeconfig.yaml
