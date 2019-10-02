@@ -345,23 +345,7 @@ func newServerConfig(c *config) (*server.Config, error) {
 		// no UpstreamCA configured
 	case c.Server.UpstreamBundle == nil:
 		// relying on the default upstream_bundle value of false
-		sc.Log.Warn(`Deprecation warning!
-The upstream_bundle configurable is undergoing deprecation (see issue #1095).
-A future release will remove the configurable and hard code the value to true.
-The configurable is currently set to the default value of false. Starting with
-the next release, the default value will be true. Consider migrating your
-deployment to an upstream_bundle value of true, ahead of the future
-deprecation. If that is not a possibility, you should at a minimum explicitly
-set the configurable to false to avoid a behavior change during upgrade.
-`)
-	case !sc.UpstreamBundle:
-		// explicitly setting upstream_bundle value to false
-		sc.Log.Warn(`Deprecation warning!
-The upstream_bundle configurable is undergoing deprecation (see issue #1095).
-A future release will remove the configurable and hard code the value to true.
-The configurable is currently set to false. Consider migrating your deployment
-to an upstream_bundle value of true, ahead of the future deprecation.
-`)
+		sc.Log.Warn("The `upstream_bundle` configurable is not set, and you are using an UpstreamCA. The default value will be changed from `false` to `true` in a future release.  Please see issue #1095 and the configuration documentation for more information.")
 	}
 
 	return sc, nil
