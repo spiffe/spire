@@ -431,11 +431,15 @@ type maybeBoolValue struct {
 	p **bool
 }
 
-func newMaybeBoolValue(p **bool) maybeBoolValue {
-	return maybeBoolValue{p: p}
+func newMaybeBoolValue(p **bool) *maybeBoolValue {
+	return &maybeBoolValue{p: p}
 }
 
-func (b maybeBoolValue) Set(s string) error {
+func (b *maybeBoolValue) Set(s string) error {
+	if b.p == nil {
+		// This should never happen, but just in case.
+		return errors.New("cannot set a zero-valued maybeBoolValue")
+	}
 	v, err := strconv.ParseBool(s)
 	if err != nil {
 		err = errors.New("parse error")
@@ -444,9 +448,9 @@ func (b maybeBoolValue) Set(s string) error {
 	return err
 }
 
-func (b maybeBoolValue) String() string {
+func (b *maybeBoolValue) String() string {
 	var v bool
-	if *b.p != nil {
+	if b.p != nil && *b.p != nil {
 		v = **b.p
 	}
 	return strconv.FormatBool(v)
