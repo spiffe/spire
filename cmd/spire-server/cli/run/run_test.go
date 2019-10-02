@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -164,6 +165,16 @@ func TestMergeInput(t *testing.T) {
 			},
 			test: func(t *testing.T, c *config) {
 				require.Equal(t, 1337, c.Server.BindPort)
+			},
+		},
+		{
+			msg: "ca_key_type should be configurable by file",
+			fileInput: func(c *config) {
+				c.Server.CAKeyType = "rsa-2048"
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.Equal(t, "rsa-2048", c.Server.CAKeyType)
 			},
 		},
 		{
@@ -564,6 +575,15 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "jwt_issuer is correctly configured",
+			input: func(c *config) {
+				c.Server.JWTIssuer = "ISSUER"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "ISSUER", c.JWTIssuer)
+			},
+		},
+		{
 			msg: "logger gets set correctly",
 			input: func(c *config) {
 				c.Server.LogLevel = "WARN"
@@ -656,6 +676,52 @@ func TestNewServerConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *config) {
 				c.Server.SVIDTTL = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "rsa-2048 ca_key_type is correctly parsed",
+			input: func(c *config) {
+				c.Server.CAKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
+			},
+		},
+		{
+			msg: "rsa-4096 ca_key_type is correctly parsed",
+			input: func(c *config) {
+				c.Server.CAKeyType = "rsa-4096"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_RSA_4096, c.CAKeyType)
+			},
+		},
+		{
+			msg: "ec-p256 ca_key_type is correctly parsed",
+			input: func(c *config) {
+				c.Server.CAKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_EC_P256, c.CAKeyType)
+			},
+		},
+		{
+			msg: "ec-p384 ca_key_type is correctly parsed",
+			input: func(c *config) {
+				c.Server.CAKeyType = "ec-p384"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_EC_P384, c.CAKeyType)
+			},
+		},
+		{
+			msg:         "unsupported ca_key_type is rejected",
+			expectError: true,
+			input: func(c *config) {
+				c.Server.CAKeyType = "rsa-1024"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)

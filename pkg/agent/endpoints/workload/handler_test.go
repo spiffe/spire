@@ -591,7 +591,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 			},
 			workloadUpdate: &cache.WorkloadUpdate{},
 			code:           codes.InvalidArgument,
-			msg:            "token contains an invalid number of segments",
+			msg:            "square/go-jose: compact JWS format must have three parts",
 		},
 		{
 			name: "validated by our trust domain bundle",
@@ -683,8 +683,16 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 			// verify audience
 			spiretest.AssertProtoEqual(t,
 				&structpb.Value{
-					Kind: &structpb.Value_StringValue{
-						StringValue: "audience",
+					Kind: &structpb.Value_ListValue{
+						ListValue: &structpb.ListValue{
+							Values: []*structpb.Value{
+								&structpb.Value{
+									Kind: &structpb.Value_StringValue{
+										StringValue: "audience",
+									},
+								},
+							},
+						},
 					},
 				}, resp.Claims.Fields["aud"])
 			// verify expiration is set

@@ -3,11 +3,13 @@ package jwtsvid
 import (
 	"context"
 	"crypto"
-	"errors"
 	"fmt"
+	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/zeebo/errs"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 type KeyStore interface {
@@ -36,73 +38,78 @@ func (t *keyStore) FindPublicKey(ctx context.Context, trustDomainId, keyID strin
 	return publicKey, nil
 }
 
-func getSigningKey(ctx context.Context, keyStore KeyStore, t *jwt.Token, claims jwt.MapClaims) (string, interface{}, error) {
-	if t.Method.Alg() != jwt.SigningMethodES256.Alg() {
-		return "", nil, fmt.Errorf("unexpected token signature algorithm: %s", t.Method.Alg())
-	}
-	keyID, _ := t.Header[keyIDHeader].(string)
-	if keyID == "" {
-		return "", nil, errors.New("token missing key id")
-	}
-	sub, _ := claims["sub"].(string)
-	if sub == "" {
-		return "", nil, errors.New("token missing subject claim")
-	}
-
-	id, err := idutil.ParseSpiffeID(sub, idutil.AllowAnyTrustDomainWorkload())
+func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (string, map[string]interface{}, error) {
+	tok, err := jwt.ParseSigned(token)
 	if err != nil {
-		return "", nil, fmt.Errorf("token has in invalid subject claim: %v", err)
+		return "", nil, errs.Wrap(err)
 	}
 
-	// construct the trust domain id from the spiffe id
-	trustDomainId := *id
-	trustDomainId.Path = ""
+	if len(tok.Headers) != 1 {
+		return "", nil, errs.New("expected a single token header; got %d", len(tok.Headers))
+	}
 
+	// Make sure it has an algorithm supported by JWT-SVID
+	alg := tok.Headers[0].Algorithm
+	switch jose.SignatureAlgorithm(alg) {
+	case jose.RS256, jose.RS384, jose.RS512,
+		jose.ES256, jose.ES384, jose.ES512,
+		jose.PS256, jose.PS384, jose.PS512:
+	default:
+		return "", nil, errs.New("unsupported token signature algorithm %q", alg)
+	}
+
+	// Obtain the key ID from the header
+	keyID := tok.Headers[0].KeyID
+	if keyID == "" {
+		return "", nil, errs.New("token header missing key id")
+	}
+
+	// Parse out the unverified claims. We need to look up the key by the trust
+	// domain of the SPIFFE ID. We'll verify the signature on the claims below
+	// when creating the generic map of claims that we return to the caller.
+	var claims jwt.Claims
+	if err := tok.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return "", nil, errs.Wrap(err)
+	}
+	if claims.Subject == "" {
+		return "", nil, errs.New("token missing subject claim")
+	}
+	spiffeID, err := idutil.ParseSpiffeID(claims.Subject, idutil.AllowAnyTrustDomainWorkload())
+	if err != nil {
+		return "", nil, errs.New("token has in invalid subject claim: %v", err)
+	}
+
+	// Construct the trust domain id from the SPIFFE ID and look up key by ID
+	trustDomainId := *spiffeID
+	trustDomainId.Path = ""
 	key, err := keyStore.FindPublicKey(ctx, trustDomainId.String(), keyID)
 	if err != nil {
 		return "", nil, err
 	}
 
-	return id.String(), key, nil
-}
+	// Now obtain the generic claims map verified using the obtained key
+	claimsMap := make(map[string]interface{})
+	if err := tok.Claims(key, &claimsMap); err != nil {
+		return "", nil, errs.Wrap(err)
+	}
 
-func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (string, jwt.MapClaims, error) {
-	var spiffeID string
-	claims := make(jwt.MapClaims)
-	if _, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (key interface{}, err error) {
-		spiffeID, key, err = getSigningKey(ctx, keyStore, t, claims)
-		return key, err
+	// Now that the signature over the claims has been verified, validate the
+	// standard claims.
+	if err := claims.Validate(jwt.Expected{
+		Audience: audience,
+		Time:     time.Now(),
 	}); err != nil {
+		// Convert expected validation errors for pretty errors
+		switch err {
+		case jwt.ErrExpired:
+			err = errs.New("token has expired")
+		case jwt.ErrInvalidAudience:
+			err = errs.New("expected audience in %q (audience=%q)", audience, claims.Audience)
+		default:
+			err = errs.Wrap(err)
+		}
 		return "", nil, err
 	}
 
-	switch audienceClaim := claims["aud"].(type) {
-	case []interface{}:
-		found := false
-		for _, audValue := range audienceClaim {
-			if aud, ok := audValue.(string); ok && stringInList(aud, audience) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return "", nil, fmt.Errorf("expected audience in %q (audience=%q)", audience, audienceClaim)
-		}
-	case string:
-		if !stringInList(audienceClaim, audience) {
-			return "", nil, fmt.Errorf("expected audience in %q (audience=%q)", audience, audienceClaim)
-		}
-	default:
-		return "", nil, errors.New("token missing audience claim")
-	}
-	return spiffeID, claims, nil
-}
-
-func stringInList(s string, ss []string) bool {
-	for _, candidate := range ss {
-		if s == candidate {
-			return true
-		}
-	}
-	return false
+	return spiffeID.String(), claimsMap, nil
 }
