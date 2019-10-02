@@ -285,14 +285,18 @@ func (s *ManagerSuite) TestX509CARotationMetric() {
 	s.m.c.Metrics = metrics
 
 	initTime := s.clock.Now()
-	preparationTime1 := initTime.Add(prepareAfter)
 
 	// rotate CA to preparation mark
-	s.setTimeAndRotateX509CA(preparationTime1)
+	s.setTimeAndRotateX509CA(initTime.Add(prepareAfter + time.Second))
+
+	// reset the metrics rotate CA to activate mark
+	metrics.Reset()
+	s.setTimeAndRotateX509CA(initTime.Add(activateAfter + time.Second))
 
 	// create expected metrics with ttl from certificate
 	expected := fakemetrics.New()
 	ttl := s.currentX509CA().Certificate.NotAfter.Sub(s.clock.Now())
+	telemetry_server.IncrActivateX509CAManagerCounter(expected)
 	telemetry_server.SetX509CARotateGauge(expected, s.m.c.TrustDomain.String(), float32(ttl.Seconds()))
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())

@@ -170,13 +170,6 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 		m.activateX509CA()
 	}
 
-	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
-	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
-	m.c.Log.WithFields(logrus.Fields{
-		telemetry.TrustDomainID: m.c.TrustDomain.String(),
-		telemetry.TTL:           ttl.Seconds(),
-	}).Debug("Successfully rotated X.509 CA")
-
 	return nil
 }
 
@@ -238,6 +231,14 @@ func (m *Manager) activateX509CA() {
 		telemetry.Expiration: timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
 	}).Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
+
+	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
+	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.TrustDomainID: m.c.TrustDomain.String(),
+		telemetry.TTL:           ttl.Seconds(),
+	}).Debug("Successfully rotated X.509 CA")
+
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
 }
 
