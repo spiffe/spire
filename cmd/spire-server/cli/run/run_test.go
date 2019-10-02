@@ -224,7 +224,16 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "bar", c.Server.DataDir)
 			},
 		},
-
+		{
+			msg: "jwt_issuer should be configurable by file",
+			fileInput: func(c *config) {
+				c.Server.JWTIssuer = "ISSUER"
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.Equal(t, "ISSUER", c.Server.JWTIssuer)
+			},
+		},
 		{
 			msg: "log_file should be configurable by file",
 			fileInput: func(c *config) {

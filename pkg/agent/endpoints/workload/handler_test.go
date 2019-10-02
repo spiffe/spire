@@ -2,7 +2,6 @@ package workload
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"testing"
@@ -28,18 +27,20 @@ import (
 	mock_workload "github.com/spiffe/spire/test/mock/proto/api/workload"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
 )
 
 var (
-	jwtSigningKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
+	jwtSigningKey, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGZx/yLVskGyXAyIT
 uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
 KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
------END PRIVATE KEY-----`)
+-----END PRIVATE KEY-----
+`))
 )
 
 func TestHandler(t *testing.T) {
@@ -491,62 +492,13 @@ func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
 }
 
 func (s *HandlerTestSuite) TestValidateJWTSVID() {
-	// no audience
-	resp, err := s.h.ValidateJWTSVID(makeContext(0), &workload.ValidateJWTSVIDRequest{})
-	s.requireErrorContains(err, "audience must be specified")
-	s.Require().Nil(resp)
-
-	// no svid
-	resp, err = s.h.ValidateJWTSVID(makeContext(0), &workload.ValidateJWTSVIDRequest{
-		Audience: "audience",
-	})
-	s.requireErrorContains(err, "svid must be specified")
-	s.Require().Nil(resp)
-
-	// missing security header
-	resp, err = s.h.ValidateJWTSVID(context.Background(), &workload.ValidateJWTSVIDRequest{
-		Audience: "audience",
-		Svid:     "svid",
-	})
-	s.requireErrorContains(err, "Security header missing from request")
-	s.Require().Nil(resp)
-
-	// missing peer info
-	resp, err = s.h.ValidateJWTSVID(makeContext(0), &workload.ValidateJWTSVIDRequest{
-		Audience: "audience",
-		Svid:     "svid",
-	})
-	s.requireErrorContains(err, "Unable to fetch watcher from context")
-	s.Require().Nil(resp)
-
-	// set up attestation
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
 	s.attestor.SetSelectors(1, selectors)
-
-	// token validation failed
-	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{})
-
 	attestorStatusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
 
-	setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
-	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
-
-	resp, err = s.h.ValidateJWTSVID(makeContext(1), &workload.ValidateJWTSVIDRequest{
-		Audience: "audience",
-		Svid:     "svid",
-	})
-	s.Require().Equal(codes.InvalidArgument, status.Convert(err).Code())
-	s.requireErrorContains(err, "token contains an invalid number of segments")
-	s.Require().Nil(resp)
-
-	// build up bundle and sign token with key
-	key, err := pemutil.ParsePrivateKey(jwtSigningKeyPEM)
+	// build up bundle that has the JWT signing public key
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
 	s.Require().NoError(err)
-	signer, ok := key.(crypto.Signer)
-	s.Require().True(ok)
-	pkixBytes, err := x509.MarshalPKIXPublicKey(signer.Public())
-	s.Require().NoError(err)
-
 	bundle, err := bundleutil.BundleFromProto(&common.Bundle{
 		TrustDomainId: "spiffe://example.org",
 		JwtSigningKeys: []*common.PublicKey{
@@ -558,107 +510,207 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	})
 	s.Require().NoError(err)
 
+	// Sign a token with an issuer
 	jwtSigner := jwtsvid.NewSigner(jwtsvid.SignerConfig{
 		Issuer: "issuer",
 	})
-
 	svid, err := jwtSigner.SignToken(
 		"spiffe://example.org/blog",
 		[]string{"audience"},
 		time.Now().Add(time.Minute),
-		signer,
+		jwtSigningKey,
 		"kid",
 	)
 	s.Require().NoError(err)
 
-	attestorStatusLabel = telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
-	labels := []telemetry.Label{
-		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
-		{Name: telemetry.Audience, Value: "audience"},
-	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), labels)
-
-	// token validated by bundle
-	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{
-		Bundle: bundle,
-	})
-	resp, err = s.h.ValidateJWTSVID(makeContext(1), &workload.ValidateJWTSVIDRequest{
-		Audience: "audience",
-		Svid:     svid,
-	})
+	// Sign a token without an issuer
+	jwtSignerNoIssuer := jwtsvid.NewSigner(jwtsvid.SignerConfig{})
+	svidNoIssuer, err := jwtSignerNoIssuer.SignToken(
+		"spiffe://example.org/blog",
+		[]string{"audience"},
+		time.Now().Add(time.Minute),
+		jwtSigningKey,
+		"kid",
+	)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Equal("spiffe://example.org/blog", resp.SpiffeId)
-	s.Require().NotNil(resp.Claims)
-	s.Require().Len(resp.Claims.Fields, 5)
-	s.AssertProtoEqual(
-		&structpb.Value{
-			Kind: &structpb.Value_StringValue{
-				StringValue: "audience",
-			},
-		}, resp.Claims.Fields["aud"])
-	s.NotEmpty(resp.Claims.Fields["exp"])
-	s.NotEmpty(resp.Claims.Fields["iat"])
-	s.AssertProtoEqual(
-		&structpb.Value{
-			Kind: &structpb.Value_StringValue{
-				StringValue: "issuer",
-			},
-		}, resp.Claims.Fields["iss"])
-	s.AssertProtoEqual(
-		&structpb.Value{
-			Kind: &structpb.Value_StringValue{
-				StringValue: "spiffe://example.org/blog",
-			},
-		}, resp.Claims.Fields["sub"])
 
-	// token validated by federated bundle
-	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{
-		FederatedBundles: map[string]*bundleutil.Bundle{
-			"spiffe://example.org": bundle,
+	testCases := []struct {
+		name           string
+		ctx            context.Context
+		req            *workload.ValidateJWTSVIDRequest
+		workloadUpdate *cache.WorkloadUpdate
+		code           codes.Code
+		msg            string
+		labels         []telemetry.Label
+		issuer         string
+	}{
+		{
+			name: "no audience",
+			ctx:  makeContext(1),
+			req: &workload.ValidateJWTSVIDRequest{
+				Svid: "svid",
+			},
+			code: codes.InvalidArgument,
+			msg:  "audience must be specified",
 		},
-	})
-
-	attestorStatusLabel = telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
-	labels = []telemetry.Label{
-		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
-		{Name: telemetry.Audience, Value: "audience"},
+		{
+			name: "no svid",
+			ctx:  makeContext(1),
+			req: &workload.ValidateJWTSVIDRequest{
+				Audience: "audience",
+			},
+			code: codes.InvalidArgument,
+			msg:  "svid must be specified",
+		},
+		{
+			name: "missing security header",
+			ctx:  context.Background(),
+			req: &workload.ValidateJWTSVIDRequest{
+				Audience: "audience",
+				Svid:     "svid",
+			},
+			code: codes.InvalidArgument,
+			msg:  "Security header missing from request",
+		},
+		{
+			name: "missing peer info",
+			ctx:  makeContext(0),
+			req: &workload.ValidateJWTSVIDRequest{
+				Audience: "audience",
+				Svid:     "svid",
+			},
+			code: codes.Internal,
+			msg:  "Is this a supported system? Please report this bug: Unable to fetch watcher from context",
+		},
+		{
+			name: "malformed token",
+			ctx:  makeContext(1),
+			req: &workload.ValidateJWTSVIDRequest{
+				Audience: "audience",
+				Svid:     "svid",
+			},
+			workloadUpdate: &cache.WorkloadUpdate{},
+			code:           codes.InvalidArgument,
+			msg:            "token contains an invalid number of segments",
+		},
+		{
+			name: "validated by our trust domain bundle",
+			ctx:  makeContext(1),
+			req: &workload.ValidateJWTSVIDRequest{
+				Audience: "audience",
+				Svid:     svid,
+			},
+			workloadUpdate: &cache.WorkloadUpdate{
+				Bundle: bundle,
+			},
+			code: codes.OK,
+			labels: []telemetry.Label{
+				{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
+				{Name: telemetry.Audience, Value: "audience"},
+			},
+			issuer: "issuer",
+		},
+		{
+			name: "validated by our trust domain bundle",
+			ctx:  makeContext(1),
+			req: &workload.ValidateJWTSVIDRequest{
+				Audience: "audience",
+				Svid:     svid,
+			},
+			workloadUpdate: &cache.WorkloadUpdate{
+				FederatedBundles: map[string]*bundleutil.Bundle{
+					"spiffe://example.org": bundle,
+				},
+			},
+			code: codes.OK,
+			labels: []telemetry.Label{
+				{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
+				{Name: telemetry.Audience, Value: "audience"},
+			},
+			issuer: "issuer",
+		},
+		{
+			name: "validate token without an issuer",
+			ctx:  makeContext(1),
+			req: &workload.ValidateJWTSVIDRequest{
+				Audience: "audience",
+				Svid:     svidNoIssuer,
+			},
+			workloadUpdate: &cache.WorkloadUpdate{
+				Bundle: bundle,
+			},
+			code: codes.OK,
+			labels: []telemetry.Label{
+				{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
+				{Name: telemetry.Audience, Value: "audience"},
+			},
+		},
 	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), labels)
 
-	resp, err = s.h.ValidateJWTSVID(makeContext(1), &workload.ValidateJWTSVIDRequest{
-		Audience: "audience",
-		Svid:     svid,
-	})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Equal("spiffe://example.org/blog", resp.SpiffeId)
-	s.Require().NotNil(resp.Claims)
-	s.Require().Len(resp.Claims.Fields, 5)
-	s.AssertProtoEqual(
-		&structpb.Value{
-			Kind: &structpb.Value_StringValue{
-				StringValue: "audience",
-			},
-		}, resp.Claims.Fields["aud"])
-	s.NotEmpty(resp.Claims.Fields["exp"])
-	s.NotEmpty(resp.Claims.Fields["iat"])
-	s.AssertProtoEqual(
-		&structpb.Value{
-			Kind: &structpb.Value_StringValue{
-				StringValue: "issuer",
-			},
-		}, resp.Claims.Fields["iss"])
-	s.AssertProtoEqual(
-		&structpb.Value{
-			Kind: &structpb.Value_StringValue{
-				StringValue: "spiffe://example.org/blog",
-			},
-		}, resp.Claims.Fields["sub"])
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			if testCase.workloadUpdate != nil {
+				// Setup a bunch of expectations around metrics if the test
+				// is expecting to successfully attest (i.e. return a
+				// workload update)
+				s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(testCase.workloadUpdate)
+				setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
+				if len(testCase.labels) > 0 {
+					s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), testCase.labels)
+				} else {
+					s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
+				}
+			}
+
+			resp, err := s.h.ValidateJWTSVID(testCase.ctx, testCase.req)
+			if testCase.code != codes.OK {
+				spiretest.RequireGRPCStatus(t, err, testCase.code, testCase.msg)
+				require.Nil(t, resp)
+				return
+			}
+			spiretest.RequireGRPCStatus(t, err, testCase.code, "")
+			require.NotNil(t, resp)
+
+			require.Equal(t, "spiffe://example.org/blog", resp.SpiffeId)
+			require.NotNil(t, resp.Claims)
+
+			expectedNumFields := 4
+			if testCase.issuer != "" {
+				expectedNumFields++
+			}
+			assert.Len(t, resp.Claims.Fields, expectedNumFields)
+
+			// verify audience
+			spiretest.AssertProtoEqual(t,
+				&structpb.Value{
+					Kind: &structpb.Value_StringValue{
+						StringValue: "audience",
+					},
+				}, resp.Claims.Fields["aud"])
+			// verify expiration is set
+			assert.NotEmpty(t, resp.Claims.Fields["exp"])
+			// verify issued at is set
+			assert.NotEmpty(t, resp.Claims.Fields["iat"])
+			// verify issuer
+			if testCase.issuer != "" {
+				spiretest.AssertProtoEqual(t,
+					&structpb.Value{
+						Kind: &structpb.Value_StringValue{
+							StringValue: testCase.issuer,
+						},
+					}, resp.Claims.Fields["iss"])
+			} else {
+				assert.Nil(t, resp.Claims.Fields["iss"])
+			}
+			// verify subject
+			spiretest.AssertProtoEqual(t,
+				&structpb.Value{
+					Kind: &structpb.Value_StringValue{
+						StringValue: "spiffe://example.org/blog",
+					},
+				}, resp.Claims.Fields["sub"])
+		})
+	}
 }
 
 func (s *HandlerTestSuite) TestStructFromValues() {
