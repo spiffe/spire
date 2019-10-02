@@ -134,7 +134,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return caws.AttestationStepError("unmarshaling the IID", err)
 	}
 
-	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
+	agentID, err := makeSpiffeID(c.trustDomain, c.pathTemplate, doc)
 	if err != nil {
 		return fmt.Errorf("failed to create spiffe ID: %v", err)
 	}
@@ -238,7 +238,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 
-	config.pathTemplate = caws.DefaultAgentPathTemplate
+	config.pathTemplate = defaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
 		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
 		if err != nil {
