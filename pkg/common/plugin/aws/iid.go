@@ -1,16 +1,12 @@
 package aws
 
 import (
-	"bytes"
 	"fmt"
-	"net/url"
-	"text/template"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
 const (
@@ -21,15 +17,6 @@ const (
 	// SecretAccessKeyVarName env car name for AWS secret access key
 	SecretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY"
 )
-
-// DefaultAgentPathTemplate is the default text/template
-var DefaultAgentPathTemplate = template.Must(template.New("agent-svid").Parse("{{ .PluginName}}/{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}"))
-
-type agentPathTemplateData struct {
-	InstanceIdentityDocument
-	PluginName  string
-	TrustDomain string
-}
 
 // SessionConfig is a common config for AWS session config.
 type SessionConfig struct {
@@ -53,19 +40,6 @@ type IIDAttestationData struct {
 // AttestationStepError error with attestation
 func AttestationStepError(step string, cause error) error {
 	return fmt.Errorf("Attempted AWS IID attestation but an error occurred %s: %s", step, cause)
-}
-
-// MakeSpiffeID create spiffe ID from IID data
-func MakeSpiffeID(trustDomain string, agentPathTemplate *template.Template, doc InstanceIdentityDocument) (*url.URL, error) {
-	var agentPath bytes.Buffer
-	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
-		InstanceIdentityDocument: doc,
-		PluginName:               PluginName,
-	}); err != nil {
-		return nil, err
-	}
-
-	return idutil.AgentURI(trustDomain, agentPath.String()), nil
 }
 
 // NewAWSSession create an AWS Session from the config and given region
