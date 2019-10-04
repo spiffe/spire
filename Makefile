@@ -26,7 +26,7 @@ gitdirty := $(shell git status -s)
 ifneq ($(gitdirty),)
 	gittag :=
 endif
-ldflags := '-X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
+ldflags := '-s -w -X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
 
 utils = github.com/spiffe/spire/tools/spire-plugingen
 
@@ -65,7 +65,12 @@ test: ## Run tests
 	$(docker) go test github.com/spiffe/spire/...
 
 race-test: ## Run race tests
+ifneq ($(COVERPROFILE),)
+	$(docker) go test -race -cover -covermode=atomic -coverprofile="$(COVERPROFILE)" github.com/spiffe/spire/...
+else
 	$(docker) go test -race github.com/spiffe/spire/...
+endif
+
 
 integration: ## Run integration tests
 	$(docker) script/e2e_test.sh

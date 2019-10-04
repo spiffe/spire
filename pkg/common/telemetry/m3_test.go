@@ -24,7 +24,7 @@ func TestNewM3Runner(t *testing.T) {
 
 func TestMultipleM3Sinks(t *testing.T) {
 	config := testM3Config()
-	sink2 := M3Config {
+	sink2 := M3Config{
 		Address: "localhost:9002",
 		Env:     "test2",
 	}
@@ -124,10 +124,10 @@ func testM3Config() *MetricsConfig {
 		Logger:      l,
 		ServiceName: "foo",
 		FileConfig: FileConfig{
-			M3: []M3Config {
+			M3: []M3Config{
 				{
 					Address: "localhost:9001",
-					Env: "test",
+					Env:     "test",
 				},
 			},
 		},

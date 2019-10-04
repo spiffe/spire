@@ -1,0 +1,159 @@
+{
+  "apiVersion": "v1",
+  "items": [
+      {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+              "creationTimestamp": "2019-09-20T06:13:48Z",
+              "generateName": "sample-workload-6658cb9566-",
+              "labels": {
+                  "app": "sample-workload",
+                  "pod-template-hash": "6658cb9566"
+              },
+              "name": "sample-workload-6658cb9566-5n4b4",
+              "namespace": "default",
+              "ownerReferences": [
+                  {
+                      "apiVersion": "apps/v1",
+                      "blockOwnerDeletion": true,
+                      "controller": true,
+                      "kind": "ReplicaSet",
+                      "name": "sample-workload-6658cb9566",
+                      "uid": "349d135e-3781-43e3-bc25-c900aedf1d0c"
+                  }
+              ],
+              "resourceVersion": "17021",
+              "selfLink": "/api/v1/namespaces/default/pods/sample-workload-6658cb9566-5n4b4",
+              "uid": "a2830d0d-b0f0-4ff0-81b5-0ee4e299cf80"
+          },
+          "spec": {
+              "containers": [
+                  {
+                      "args": [
+                          "api",
+                          "watch",
+                          "-socketPath",
+                          "/run/spire/sockets/agent.sock"
+                      ],
+                      "command": [
+                          "/opt/spire/bin/spire-agent"
+                      ],
+                      "image": "gcr.io/spiffe-io/spire-agent:0.8.1",
+                      "imagePullPolicy": "IfNotPresent",
+                      "name": "workload-api-client",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File",
+                      "volumeMounts": [
+                          {
+                              "mountPath": "/run/spire/sockets",
+                              "name": "spire-agent-socket",
+                              "readOnly": true
+                          },
+                          {
+                              "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                              "name": "default-token-qfslv",
+                              "readOnly": true
+                          }
+                      ]
+                  }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "enableServiceLinks": true,
+              "nodeName": "kind-control-plane",
+              "priority": 0,
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "default",
+              "serviceAccountName": "default",
+              "terminationGracePeriodSeconds": 30,
+              "tolerations": [
+                  {
+                      "effect": "NoExecute",
+                      "key": "node.kubernetes.io/not-ready",
+                      "operator": "Exists",
+                      "tolerationSeconds": 300
+                  },
+                  {
+                      "effect": "NoExecute",
+                      "key": "node.kubernetes.io/unreachable",
+                      "operator": "Exists",
+                      "tolerationSeconds": 300
+                  }
+              ],
+              "volumes": [
+                  {
+                      "hostPath": {
+                          "path": "/run/spire/sockets",
+                          "type": "Directory"
+                      },
+                      "name": "spire-agent-socket"
+                  },
+                  {
+                      "name": "default-token-qfslv",
+                      "secret": {
+                          "defaultMode": 420,
+                          "secretName": "default-token-qfslv"
+                      }
+                  }
+              ]
+          },
+          "status": {
+              "conditions": [
+                  {
+                      "lastProbeTime": null,
+                      "lastTransitionTime": "2019-09-20T06:13:48Z",
+                      "status": "True",
+                      "type": "Initialized"
+                  },
+                  {
+                      "lastProbeTime": null,
+                      "lastTransitionTime": "2019-09-20T06:13:49Z",
+                      "status": "True",
+                      "type": "Ready"
+                  },
+                  {
+                      "lastProbeTime": null,
+                      "lastTransitionTime": "2019-09-20T06:13:49Z",
+                      "status": "True",
+                      "type": "ContainersReady"
+                  },
+                  {
+                      "lastProbeTime": null,
+                      "lastTransitionTime": "2019-09-20T06:13:48Z",
+                      "status": "True",
+                      "type": "PodScheduled"
+                  }
+              ],
+              "containerStatuses": [
+                  {
+                      "containerID": "containerd://09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+                      "image": "gcr.io/spiffe-io/spire-agent:0.8.1",
+                      "imageID": "gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941",
+                      "lastState": {},
+                      "name": "workload-api-client",
+                      "ready": true,
+                      "restartCount": 0,
+                      "state": {
+                          "running": {
+                              "startedAt": "2019-09-20T06:13:49Z"
+                          }
+                      }
+                  }
+              ],
+              "hostIP": "172.17.0.2",
+              "phase": "Running",
+              "podIP": "10.244.0.8",
+              "qosClass": "BestEffort",
+              "startTime": "2019-09-20T06:13:48Z"
+          }
+      }
+  ],
+  "kind": "List",
+  "metadata": {
+      "resourceVersion": "",
+      "selfLink": ""
+  }
+}

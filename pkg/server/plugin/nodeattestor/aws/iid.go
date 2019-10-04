@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -30,9 +32,10 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
-const (
-	pluginName = "aws_iid"
+var _awsTimeout = 5 * time.Second
 
+const (
+	pluginName                               = "aws_iid"
 	maxSecondsBetweenDeviceAttachments int64 = 60
 )
 
@@ -56,6 +59,7 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 7zvWbGd9c9+Rm3p04oTvhup99la7kZqevJK0QRdD/6NpCKsqP/0=
 -----END CERTIFICATE-----`
 
+// BuiltIn creates a new built-in plugin
 func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
@@ -89,9 +93,6 @@ type IIDAttestorConfig struct {
 	pathTemplate       *template.Template
 	trustDomain        string
 	awsCaCertPublicKey *rsa.PublicKey
-
-	// Deprecated, use LocalValidAcctIDs
-	SkipEC2AttestCalling bool `hcl:"skip_ec2_attest_calling"`
 }
 
 // New creates a new IITAttestorPlugin.
@@ -125,19 +126,46 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return fmt.Errorf("unexpected attestation data type %q", genAttestData.Type)
 	}
 
-	var attestationData caws.IIDAttestationData
-	err = json.Unmarshal(genAttestData.Data, &attestationData)
+	validDoc, err := unmarshalAndValidateIdentityDocument(genAttestData.Data, c.awsCaCertPublicKey)
 	if err != nil {
-		return caws.AttestationStepError("unmarshaling the attestation data", err)
+		return err
 	}
 
-	var doc caws.InstanceIdentityDocument
-	err = json.Unmarshal([]byte(attestationData.Document), &doc)
-	if err != nil {
-		return caws.AttestationStepError("unmarshaling the IID", err)
+	inTrustAcctList := false
+	for _, id := range c.LocalValidAcctIDs {
+		if validDoc.AccountID == id {
+			inTrustAcctList = true
+			break
+		}
 	}
 
-	agentID, err := caws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
+	// Ideally we wouldn't do this work at all if the agent has already attested
+	// e.g. do it after the call to `p.IsAttested`, however, we may need
+	// the instance to construct tags used in the agent ID.
+	//
+	// This overhead will only effect agents attempting to re-attest which
+	// should be a very small portion of the overall server workload. This
+	// is a potential DoS vector.
+	shouldCheckBlockDevice := !inTrustAcctList && !c.SkipBlockDevice
+	var instance *ec2.Instance
+	if strings.Contains(c.AgentPathTemplate, ".Tags") || shouldCheckBlockDevice {
+		var err error
+		instance, err = p.getEC2Instance(stream.Context(), c, validDoc)
+		if err != nil {
+			return err
+		}
+	}
+
+	if shouldCheckBlockDevice {
+		err = p.checkBlockDevice(instance)
+		if err != nil {
+			return fmt.Errorf("failed aws ec2 attestation: %v", err)
+		}
+	}
+
+	tags := tagsFromInstance(instance)
+
+	agentID, err := makeSpiffeID(c.trustDomain, c.pathTemplate, validDoc, tags)
 	if err != nil {
 		return fmt.Errorf("failed to create spiffe ID: %v", err)
 	}
@@ -148,35 +176,6 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return err
 	case attested:
 		return errors.New("IID has already been used to attest an agent")
-	}
-
-	docHash := sha256.Sum256([]byte(attestationData.Document))
-
-	sigBytes, err := base64.StdEncoding.DecodeString(attestationData.Signature)
-	if err != nil {
-		return caws.AttestationStepError("base64 decoding the IID signature", err)
-	}
-
-	err = rsa.VerifyPKCS1v15(c.awsCaCertPublicKey, crypto.SHA256, docHash[:], sigBytes)
-	if err != nil {
-		return caws.AttestationStepError("verifying the cryptographic signature", err)
-	}
-
-	inTrustAcctList := false
-	for _, id := range c.LocalValidAcctIDs {
-		if doc.AccountID == id {
-			inTrustAcctList = true
-			break
-		}
-	}
-
-	// query AWS for additional information if account ID was not in
-	// allowed list
-	if !inTrustAcctList {
-		err = p.ec2Attestation(stream.Context(), *c, doc)
-		if err != nil {
-			return fmt.Errorf("failed aws ec2 attestation: %v", err)
-		}
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
@@ -199,11 +198,6 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if err != nil {
 		err := fmt.Errorf("Error decoding AWS IID Attestor configuration: %v", err)
 		return resp, err
-	}
-
-	if config.SkipEC2AttestCalling {
-		p.log.Warn("skip_ec2_attest_calling is a deprecated flag and will be ignored." +
-			" Use account_ids_for_local_validation instead.")
 	}
 
 	block, _ := pem.Decode([]byte(awsCaCertPEM))
@@ -246,7 +240,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 
-	config.pathTemplate = caws.DefaultAgentPathTemplate
+	config.pathTemplate = defaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
 		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
 		if err != nil {
@@ -273,29 +267,7 @@ func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-// perform attestation backed by returns from AWS EC2 call(s)
-// meant to be called as part of Attest, and so uses the config from that call
-// for consistency rather than fetching a fresher (potentially altered) config.
-// returns nil on success
-func (p *IIDAttestorPlugin) ec2Attestation(ctx context.Context, c IIDAttestorConfig, doc caws.InstanceIdentityDocument) error {
-	awsSession, err := caws.NewAWSSession(c.AccessKeyID, c.SecretAccessKey, doc.Region)
-	if err != nil {
-		return caws.AttestationStepError("creating AWS session", err)
-	}
-
-	ec2Client := p.hooks.getClient(awsSession)
-
-	query := &ec2.DescribeInstancesInput{
-		InstanceIds: []*string{&doc.InstanceID},
-	}
-
-	result, err := ec2Client.DescribeInstancesWithContext(ctx, query)
-	if err != nil {
-		return caws.AttestationStepError("querying AWS via describe-instances", err)
-	}
-
-	instance := result.Reservations[0].Instances[0]
-
+func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 	ifaceZeroDeviceIndex := *instance.NetworkInterfaces[0].Attachment.DeviceIndex
 
 	if ifaceZeroDeviceIndex != 0 {
@@ -308,7 +280,7 @@ func (p *IIDAttestorPlugin) ec2Attestation(ctx context.Context, c IIDAttestorCon
 	// skip anti-tampering mechanism when RootDeviceType is instance-store
 	// specifically, if device type is persistent, and the device was attached past
 	// a threshold time after instance boot, fail attestation
-	if *instance.RootDeviceType != ec2.DeviceTypeInstanceStore && !c.SkipBlockDevice {
+	if *instance.RootDeviceType != ec2.DeviceTypeInstanceStore {
 		rootDeviceIndex := -1
 		for i, bdm := range instance.BlockDeviceMappings {
 			if *bdm.DeviceName == *instance.RootDeviceName {
@@ -343,4 +315,74 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 		return nil, errors.New("not configured")
 	}
 	return p.config, nil
+}
+
+func (p *IIDAttestorPlugin) getEC2Instance(ctx context.Context, c *IIDAttestorConfig, doc caws.InstanceIdentityDocument) (*ec2.Instance, error) {
+	awsSession, err := caws.NewAWSSession(c.AccessKeyID, c.SecretAccessKey, doc.Region)
+	if err != nil {
+		return nil, caws.AttestationStepError("creating AWS session", err)
+	}
+
+	ec2Client := p.hooks.getClient(awsSession)
+
+	query := &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{&doc.InstanceID},
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, _awsTimeout)
+	defer cancel()
+
+	result, err := ec2Client.DescribeInstancesWithContext(ctx, query)
+	if err != nil {
+		return nil, caws.AttestationStepError("querying AWS via describe-instances", err)
+	}
+
+	if len(result.Reservations) < 1 {
+		return nil, caws.AttestationStepError("querying AWS via describe-instances", errors.New("returned no reservations"))
+	}
+
+	if len(result.Reservations[0].Instances) < 1 {
+		return nil, caws.AttestationStepError("querying AWS via describe-instances", errors.New("returned no instances"))
+	}
+
+	return result.Reservations[0].Instances[0], nil
+}
+
+func tagsFromInstance(instance *ec2.Instance) instanceTags {
+	if instance == nil {
+		return make(instanceTags)
+	}
+
+	tags := make(instanceTags, len(instance.Tags))
+	for _, tag := range instance.Tags {
+		if tag != nil && tag.Key != nil && tag.Value != nil {
+			tags[*tag.Key] = *tag.Value
+		}
+	}
+	return tags
+}
+
+func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (caws.InstanceIdentityDocument, error) {
+	var attestationData caws.IIDAttestationData
+	if err := json.Unmarshal(data, &attestationData); err != nil {
+		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("unmarshaling the attestation data", err)
+	}
+
+	var doc caws.InstanceIdentityDocument
+	if err := json.Unmarshal([]byte(attestationData.Document), &doc); err != nil {
+		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("unmarshaling the IID", err)
+	}
+
+	docHash := sha256.Sum256([]byte(attestationData.Document))
+
+	sigBytes, err := base64.StdEncoding.DecodeString(attestationData.Signature)
+	if err != nil {
+		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("base64 decoding the IID signature", err)
+	}
+
+	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, docHash[:], sigBytes); err != nil {
+		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("verifying the cryptographic signature", err)
+	}
+
+	return doc, nil
 }

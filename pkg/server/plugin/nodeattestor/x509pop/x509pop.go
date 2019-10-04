@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"text/template"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -31,12 +32,14 @@ func builtin(p *X509PoPPlugin) catalog.Plugin {
 }
 
 type configuration struct {
-	trustDomain string
-	trustBundle *x509.CertPool
+	trustDomain  string
+	trustBundle  *x509.CertPool
+	pathTemplate *template.Template
 }
 
 type X509PoPConfig struct {
-	CABundlePath string `hcl:"ca_bundle_path"`
+	CABundlePath      string `hcl:"ca_bundle_path"`
+	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 type X509PoPPlugin struct {
@@ -128,8 +131,13 @@ func (p *X509PoPPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) er
 		return newError("challenge response verification failed: %v", err)
 	}
 
+	spiffeid, err := x509pop.MakeSpiffeID(c.trustDomain, c.pathTemplate, leaf)
+	if err != nil {
+		return newError("failed to make spiffe id: %v", err)
+	}
+
 	return stream.Send(&nodeattestor.AttestResponse{
-		AgentId:   x509pop.AgentID(c.trustDomain, leaf),
+		AgentId:   spiffeid,
 		Selectors: buildSelectors(leaf, chains),
 	})
 }
@@ -157,9 +165,19 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest
 		return nil, newError("unable to load trust bundle: %v", err)
 	}
 
+	pathTemplate := x509pop.DefaultAgentPathTemplate
+	if len(config.AgentPathTemplate) > 0 {
+		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
+		}
+		pathTemplate = tmpl
+	}
+
 	p.setConfiguration(&configuration{
-		trustDomain: req.GlobalConfig.TrustDomain,
-		trustBundle: trustBundle,
+		trustDomain:  req.GlobalConfig.TrustDomain,
+		trustBundle:  trustBundle,
+		pathTemplate: pathTemplate,
 	})
 
 	return &spi.ConfigureResponse{}, nil

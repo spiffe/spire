@@ -142,17 +142,8 @@ func (s *ManagerSuite) TestSelfSigning() {
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
-	s.testUpstreamSignedWithoutUpstreamBundle(false)
-}
-
-func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundleDeprecated() {
-	s.testUpstreamSignedWithoutUpstreamBundle(true)
-}
-
-func (s *ManagerSuite) testUpstreamSignedWithoutUpstreamBundle(useDeprecatedFields bool) {
 	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
-		TrustDomain:         testTrustDomain,
-		UseDeprecatedFields: useDeprecatedFields,
+		TrustDomain: testTrustDomain,
 	})
 	s.initUpstreamSignedManager(upstreamCA, false)
 
@@ -170,17 +161,8 @@ func (s *ManagerSuite) testUpstreamSignedWithoutUpstreamBundle(useDeprecatedFiel
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
-	s.testUpstreamSignedWithUpstreamBundle(false)
-}
-
-func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundleDeprecated() {
-	s.testUpstreamSignedWithUpstreamBundle(true)
-}
-
-func (s *ManagerSuite) testUpstreamSignedWithUpstreamBundle(useDeprecatedFields bool) {
 	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
-		TrustDomain:         testTrustDomain,
-		UseDeprecatedFields: useDeprecatedFields,
+		TrustDomain: testTrustDomain,
 	})
 	s.initUpstreamSignedManager(upstreamCA, true)
 
@@ -200,18 +182,9 @@ func (s *ManagerSuite) testUpstreamSignedWithUpstreamBundle(useDeprecatedFields 
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
-	s.testUpstreamIntermediateSignedWithUpstreamBundle(false)
-}
-
-func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundleDeprecated() {
-	s.testUpstreamIntermediateSignedWithUpstreamBundle(true)
-}
-
-func (s *ManagerSuite) testUpstreamIntermediateSignedWithUpstreamBundle(useDeprecatedFields bool) {
 	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
-		TrustDomain:         testTrustDomain,
-		UseIntermediate:     true,
-		UseDeprecatedFields: useDeprecatedFields,
+		TrustDomain:     testTrustDomain,
+		UseIntermediate: true,
 	})
 	s.initUpstreamSignedManager(upstreamCA, true)
 
@@ -312,14 +285,18 @@ func (s *ManagerSuite) TestX509CARotationMetric() {
 	s.m.c.Metrics = metrics
 
 	initTime := s.clock.Now()
-	preparationTime1 := initTime.Add(prepareAfter)
 
 	// rotate CA to preparation mark
-	s.setTimeAndRotateX509CA(preparationTime1)
+	s.setTimeAndRotateX509CA(initTime.Add(prepareAfter + time.Second))
+
+	// reset the metrics rotate CA to activate mark
+	metrics.Reset()
+	s.setTimeAndRotateX509CA(initTime.Add(activateAfter + time.Second))
 
 	// create expected metrics with ttl from certificate
 	expected := fakemetrics.New()
 	ttl := s.currentX509CA().Certificate.NotAfter.Sub(s.clock.Now())
+	telemetry_server.IncrActivateX509CAManagerCounter(expected)
 	telemetry_server.SetX509CARotateGauge(expected, s.m.c.TrustDomain.String(), float32(ttl.Seconds()))
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())

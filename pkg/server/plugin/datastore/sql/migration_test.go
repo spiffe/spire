@@ -1,6 +1,13 @@
 package sql
 
-import "database/sql"
+import (
+	"database/sql"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/blang/semver"
+)
 
 var (
 	migrationDumps = []string{
@@ -200,7 +207,7 @@ CREATE TABLE IF NOT EXISTS "join_tokens" ("id" integer primary key autoincrement
 CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',5);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence VALUES('migrations',1);
 INSERT INTO sqlite_sequence VALUES('bundles',1);
@@ -229,7 +236,7 @@ CREATE TABLE IF NOT EXISTS "join_tokens" ("id" integer primary key autoincrement
 CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',6);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence VALUES('migrations',1);
 INSERT INTO sqlite_sequence VALUES('bundles',1);
@@ -258,7 +265,7 @@ CREATE TABLE IF NOT EXISTS "join_tokens" ("id" integer primary key autoincrement
 CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',7);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence VALUES('migrations',1);
 INSERT INTO sqlite_sequence VALUES('bundles',1);
@@ -287,7 +294,7 @@ CREATE TABLE IF NOT EXISTS "join_tokens" ("id" integer primary key autoincrement
 CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',8);
 CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence VALUES('migrations',1);
@@ -319,7 +326,7 @@ COMMIT;
 		CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 		INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 		CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',9);
 		CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
 		DELETE FROM sqlite_sequence;
 		INSERT INTO sqlite_sequence VALUES('migrations',1);
@@ -353,7 +360,7 @@ COMMIT;
 		CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 		INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 		CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',10);
 		CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
 		DELETE FROM sqlite_sequence;
 		INSERT INTO sqlite_sequence VALUES('migrations',1);
@@ -388,7 +395,7 @@ COMMIT;
 		CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
 		INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
 		CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer );
-		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',4);
+		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',11);
 		CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
 		DELETE FROM sqlite_sequence;
 		INSERT INTO sqlite_sequence VALUES('migrations',1);
@@ -407,10 +414,10 @@ COMMIT;
 		CREATE INDEX idx_registered_entries_parent_id ON "registered_entries"(parent_id) ;
 		CREATE INDEX idx_registered_entries_expiry ON "registered_entries"(expiry) ;
 		CREATE INDEX idx_federated_registration_entries_registered_entry_id ON "federated_registration_entries"(registered_entry_id) ;
-		INSERT INTO attested_node_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','spiffe://example.org/host','test','111','2018-12-19 15:26:58-07:00');
 		COMMIT;
 		`,
-		// v12 database entry, in which the table 'attested_node_entries' gained two columns: 'prepared_serial_number' and 'prepared_expires_at'
+		// below this point is SPIRE Code version 0.9.X
+		// future v12 database entry, in which code_version string was added to migrations table
 	}
 )
 
@@ -436,4 +443,122 @@ func dumpDB(path string, statements string) error {
 	}
 
 	return nil
+}
+
+func TestGetDBCodeVersion(t *testing.T) {
+	tests := []struct {
+		desc            string
+		storedMigration Migration
+		expectVersion   semver.Version
+		expectErr       string
+	}{
+		{
+			desc:            "no code version",
+			storedMigration: Migration{},
+			expectVersion:   semver.Version{},
+		},
+		{
+			desc:            "code version, valid",
+			storedMigration: Migration{CodeVersion: "1.2.3"},
+			expectVersion:   semver.Version{Major: 1, Minor: 2, Patch: 3, Pre: nil, Build: nil},
+		},
+		{
+			desc:            "code version, invalid",
+			storedMigration: Migration{CodeVersion: "a.2*.3"},
+			expectErr:       "unable to parse code version from DB: Invalid character(s) found in major number \"a\"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			retVersion, err := getDBCodeVersion(tt.storedMigration)
+
+			if tt.expectErr != "" {
+				assert.Equal(t, semver.Version{}, retVersion)
+				assert.Equal(t, tt.expectErr, err.Error())
+				return
+			}
+
+			assert.Equal(t, tt.expectVersion, retVersion)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestIsCompatibleCodeVersion(t *testing.T) {
+	tests := []struct {
+		desc             string
+		dbCodeVersion    semver.Version
+		expectCompatible bool
+	}{
+		{
+			desc:             "backwards compatible 1 minor version",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 8},
+			expectCompatible: true,
+		},
+		{
+			desc:             "forwards compatible 1 minor version",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 10},
+			expectCompatible: true,
+		},
+		{
+			desc:             "compatible with self",
+			dbCodeVersion:    codeVersion,
+			expectCompatible: true,
+		},
+		{
+			desc:             "not backwards compatible 2 minor versions",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 7},
+			expectCompatible: false,
+		},
+		{
+			desc:             "not forwards compatible 2 minor versions",
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 11},
+			expectCompatible: false,
+		},
+		{
+			desc:             "not compatible with different major version",
+			dbCodeVersion:    semver.Version{Major: 1, Minor: 9},
+			expectCompatible: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			compatible := isCompatibleCodeVersion(tt.dbCodeVersion)
+
+			assert.Equal(t, tt.expectCompatible, compatible)
+		})
+	}
+}
+
+func TestIsDisabledMigrationAllowed(t *testing.T) {
+	tests := []struct {
+		desc          string
+		dbCodeVersion semver.Version
+		expectErr     string
+	}{
+		{
+			desc:          "allowed",
+			dbCodeVersion: semver.Version{Major: 0, Minor: 10},
+		},
+		{
+			desc:          "not allowed, versioning",
+			dbCodeVersion: semver.Version{Major: 0, Minor: 11},
+			expectErr:     "auto-migration must be enabled for current DB",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			err := isDisabledMigrationAllowed(tt.dbCodeVersion)
+
+			if tt.expectErr != "" {
+				assert.Equal(t, tt.expectErr, err.Error())
+				return
+			}
+
+			assert.NoError(t, err)
+		})
+	}
 }
