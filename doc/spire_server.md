@@ -49,9 +49,10 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 | `ca_subject`                | The Subject that CA certificates should use (see below)      |                               |
 | `ca_ttl`                    | The default CA/signing key TTL                               | 24h                           |
 | `data_dir`                  | A directory the server can use for its runtime               |                               |
+| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                 |                               |
 | `log_file`                  | File to write logs to                                        |                               |
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>          | INFO                          |
-| `log_format`                | Format of logs, \<text\|json\>                               | Text                              |
+| `log_format`                | Format of logs, \<text\|json\>                               | text                          |
 | `registration_uds_path`     | Location to bind the registration API socket                 | /tmp/spire-registration.sock  |
 | `svid_ttl`                  | The default SVID TTL                                         | 1h                            |
 | `trust_domain`              | The trust domain that this server belongs to                 |                               |
