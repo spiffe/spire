@@ -19,7 +19,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 12
+	latestSchemaVersion = 13
 
 	// version in which new DB migration / compatibility design
 	// was introduced; it is the minimum SPIRE Code version in the DB
@@ -247,6 +247,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log hclog.Logger) (versionOut 
 		err = migrateToV11(tx)
 	case 11:
 		err = migrateToV12(tx)
+	case 12:
+		err = migrateToV13(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", currVersion)
 	}
@@ -460,14 +462,14 @@ func migrateToV11(tx *gorm.DB) error {
 }
 
 func migrateToV12(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+	if err := tx.AutoMigrate(&Migration{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
 }
 
-func migrateToV12(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&Migration{}).Error; err != nil {
+func migrateToV13(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
