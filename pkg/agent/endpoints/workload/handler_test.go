@@ -591,7 +591,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 			},
 			workloadUpdate: &cache.WorkloadUpdate{},
 			code:           codes.InvalidArgument,
-			msg:            "square/go-jose: compact JWS format must have three parts",
+			msg:            "unable to parse JWT token",
 		},
 		{
 			name: "validated by our trust domain bundle",

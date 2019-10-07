@@ -41,7 +41,7 @@ func (t *keyStore) FindPublicKey(ctx context.Context, trustDomainId, keyID strin
 func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (string, map[string]interface{}, error) {
 	tok, err := jwt.ParseSigned(token)
 	if err != nil {
-		return "", nil, errs.Wrap(err)
+		return "", nil, errs.New("unable to parse JWT token")
 	}
 
 	if len(tok.Headers) != 1 {

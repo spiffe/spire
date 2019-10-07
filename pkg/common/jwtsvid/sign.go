@@ -58,19 +58,17 @@ func (s *Signer) SignToken(spiffeID string, audience []string, expires time.Time
 
 	claims := jwt.Claims{
 		Subject:  spiffeID,
+		Issuer:   s.c.Issuer,
 		Expiry:   jwt.NewNumericDate(expires),
 		Audience: audience,
 		IssuedAt: jwt.NewNumericDate(s.c.Clock.Now()),
-	}
-	if s.c.Issuer != "" {
-		claims.Issuer = s.c.Issuer
 	}
 
 	var alg jose.SignatureAlgorithm
 	switch publicKey := signer.Public().(type) {
 	case *rsa.PublicKey:
 		// Prevent the use of keys smaller than 2048 bits
-		if publicKey.Size() <= 128 {
+		if publicKey.Size() < 256 {
 			return "", errs.New("unsupported RSA key size: %d", publicKey.Size())
 		}
 		alg = jose.RS256
