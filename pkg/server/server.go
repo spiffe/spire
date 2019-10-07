@@ -32,6 +32,7 @@ import (
 	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"google.golang.org/grpc"
 )
 
@@ -100,6 +101,9 @@ type Config struct {
 
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config
+
+	// CAKeyType is the key type used for the X509 and JWT signing keys
+	CAKeyType keymanager.KeyType
 }
 
 type ExperimentalConfig struct {
@@ -349,6 +353,8 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CATTL:          s.config.CATTL,
 		CASubject:      s.config.CASubject,
 		Dir:            s.config.DataDir,
+		X509CAKeyType:  s.config.CAKeyType,
+		JWTKeyType:     s.config.CAKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err

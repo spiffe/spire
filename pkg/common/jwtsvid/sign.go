@@ -2,12 +2,17 @@ package jwtsvid
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"errors"
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/zeebo/errs"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -51,23 +56,55 @@ func (s *Signer) SignToken(spiffeID string, audience []string, expires time.Time
 		return "", errors.New("kid is required")
 	}
 
-	claims := jwt.MapClaims{
-		"sub": spiffeID,
-		"exp": expires.Unix(),
-		"aud": audienceClaim(audience),
-		"iat": s.c.Clock.Now().Unix(),
+	claims := jwt.Claims{
+		Subject:  spiffeID,
+		Issuer:   s.c.Issuer,
+		Expiry:   jwt.NewNumericDate(expires),
+		Audience: audience,
+		IssuedAt: jwt.NewNumericDate(s.c.Clock.Now()),
 	}
 
-	if s.c.Issuer != "" {
-		claims["iss"] = s.c.Issuer
+	var alg jose.SignatureAlgorithm
+	switch publicKey := signer.Public().(type) {
+	case *rsa.PublicKey:
+		// Prevent the use of keys smaller than 2048 bits
+		if publicKey.Size() < 256 {
+			return "", errs.New("unsupported RSA key size: %d", publicKey.Size())
+		}
+		alg = jose.RS256
+	case *ecdsa.PublicKey:
+		params := publicKey.Params()
+		switch params.BitSize {
+		case 256:
+			alg = jose.ES256
+		case 384:
+			alg = jose.ES384
+		default:
+			return "", errs.New("unable to determine signature algorithm for EC public key size %d", params.BitSize)
+		}
+	default:
+		return "", errs.New("unable to determine signature algorithm for public key type %T", publicKey)
 	}
 
-	token := jwt.NewWithClaims(signingMethodES256, claims)
-	token.Header[keyIDHeader] = kid
-	signedToken, err := token.SignedString(signer)
+	jwtSigner, err := jose.NewSigner(
+		jose.SigningKey{
+			Algorithm: alg,
+			Key: jose.JSONWebKey{
+				Key:   cryptosigner.Opaque(signer),
+				KeyID: kid,
+			},
+		},
+		new(jose.SignerOptions).WithType("JWT"),
+	)
 	if err != nil {
-		return "", err
+		return "", errs.Wrap(err)
 	}
+
+	signedToken, err := jwt.Signed(jwtSigner).Claims(claims).CompactSerialize()
+	if err != nil {
+		return "", errs.Wrap(err)
+	}
+
 	return signedToken, nil
 }
 
