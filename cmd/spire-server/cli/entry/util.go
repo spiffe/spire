@@ -77,6 +77,9 @@ func printEntry(e *common.RegistrationEntry) {
 	for _, id := range e.FederatesWith {
 		fmt.Printf("FederatesWith : %s\n", id)
 	}
+	for _, dnsName := range e.DnsNames {
+		fmt.Printf("DNS Name      : %s\n", dnsName)
+	}
 
 	// admin is rare, so only show admin if true to keep
 	// from muddying the output.
@@ -87,7 +90,7 @@ func printEntry(e *common.RegistrationEntry) {
 	fmt.Println()
 }
 
-// Define a custom type for string lists. Doing
+// StringsFlag defines a custom type for string lists. Doing
 // this allows us to support repeatable string flags.
 type StringsFlag []string
 
