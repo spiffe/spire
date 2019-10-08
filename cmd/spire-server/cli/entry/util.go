@@ -78,7 +78,7 @@ func printEntry(e *common.RegistrationEntry) {
 		fmt.Printf("FederatesWith : %s\n", id)
 	}
 	for _, dnsName := range e.DnsNames {
-		fmt.Printf("DNS Name      : %s\n", dnsName)
+		fmt.Printf("DNS name      : %s\n", dnsName)
 	}
 
 	// admin is rare, so only show admin if true to keep
