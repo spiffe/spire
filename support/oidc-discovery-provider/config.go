@@ -63,7 +63,7 @@ type ACMEConfig struct {
 	CacheDir string `hcl:"-"`
 
 	// RawCacheDir is used to determine whether the cache was explicitly disabled
-	// (by setting to an empty) string. Consumers should use Cache instead.
+	// (by setting to an empty) string. Consumers should use CacheDir instead.
 	RawCacheDir *string `hcl:"cache_dir"`
 }
 
@@ -143,7 +143,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	case c.RegistrationAPI == nil && c.WorkloadAPI == nil:
 		return nil, errs.New("one of registration_api or workload_api section must be configured")
 	case c.RegistrationAPI != nil && c.WorkloadAPI != nil:
-		return nil, errs.New("registration_api and workload_api sections are mutually exclusive")
+		return nil, errs.New("registration_api and workload_api configuration sections are mutually exclusive")
 	case c.RegistrationAPI != nil:
 		if c.RegistrationAPI.SocketPath == "" {
 			return nil, errs.New("registration_api.socket_path must be configured")

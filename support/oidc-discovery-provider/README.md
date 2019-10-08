@@ -8,17 +8,17 @@ It provides the following endpoints:
 
 | Verb  | Path                                | Description                               |
 | ----- | ------------------------------------| ------------------------------------------|
-| `GET` | `/.well-known/openid-configuration` | Returns the OIDC configuration document   |
+| `GET` | `/.well-known/openid-configuration` | Returns the OIDC discovery document   |
 | `GET` | `/keys`                             | Returns the JWKS for JWT validation       |
 
-The helper by default relies on ACME to obtain TLS certificates that it uses to
+The provider by default relies on ACME to obtain TLS certificates that it uses to
 serve the documents securely.
 
 ## Configuration
 
 ### Command Line Configuration
 
-The registrar has the following command line flags:
+The provider has the following command line flags:
 
 | Flag         | Description                                                      | Default                       |
 | ------------ | -----------------------------------------------------------------| ----------------------------- |
@@ -27,15 +27,15 @@ The registrar has the following command line flags:
 
 ### HCL Configuration
 
-The configuration file is a **required** by the registrar. It contains
+The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
 | Key                | Type    | Required? | Description                              | Default |
 | ------------------ | --------| ---------| ----------------------------------------- | ------- |
 | `log_format`       | string  | optional | Format of the logs (either `"TEXT"` or `"JSON"`) | `""` |
-| `log_level`        | string  | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
+| `log_level`        | string  | required | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
 | `log_path`         | string  | optional | Path on disk to write the log | |
-| `log_requests`     | bool    | optional | If true, all HTTP requests are logged to the debug channel | false |
+| `log_requests`     | bool    | optional | If true, all HTTP requests are logged at the debug level | false |
 | `domain`           | string  | required | The domain the provider is being served from | |
 | `insecure_addr`    | string  | optional\* | If provided, the provider will serve HTTP (insecure) from the specified address instead of using ACME to serve HTTPS. | false |
 | `acme`             | section | required\* | Provides the ACME configuration. Required unless `insecure_addr` is set. | |
@@ -51,7 +51,7 @@ testing or otherwise if you know what you are doing and accept the risks.
 
 | Key                | Type    | Required?   | Description                              | Default |
 | ------------------ | --------| ----------- | ----------------------------------------- | ------- |
-| `cache_dir`        | string  | required    | The directory used to cache the ACME-obtained credentials. Disabled if explicitly set to the empty string | `./acme-cache` |
+| `cache_dir`        | string  | optional    | The directory used to cache the ACME-obtained credentials. Disabled if explicitly set to the empty string | `./.acme-cache` |
 | `directory_url`    | string  | optional    | The ACME directory URL to use. Uses Let's Encrypt if unset. | |
 | `email`            | string  | recommended | The email address used to register with the ACME service | |
 | `tos_accepted`     | bool    | required    | Indicates explicit acceptance of the ACME service Terms of Service. Must be true. | |
@@ -67,7 +67,7 @@ testing or otherwise if you know what you are doing and accept the risks.
 
 | Key                | Type     | Required? | Description                              | Default |
 | ------------------ | -------- | ---------| ----------------------------------------- | ------- |
-| `socket_path`      | string   | required | Path on disk to the Registration API Unix Domain socket. | |
+| `socket_path`      | string   | required | Path on disk to the Workload API Unix Domain socket. | |
 | `poll_interval`    | duration | optional | How often to poll for changes to the public key material. | `"10s"` |
 | `trust_domain`     | string   | required | Trust domain of the workload. This is used to pick the bundle out of the Workload API response. | |
 

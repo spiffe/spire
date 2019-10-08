@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	DefaultRegistrationAPIPollInterval = time.Second * 5
+	DefaultRegistrationAPIPollInterval = time.Second * 10
 )
 
 type RegistrationAPISourceConfig struct {
@@ -113,7 +113,7 @@ func (s *RegistrationAPISource) pollOnce(ctx context.Context, client registratio
 
 func (s *RegistrationAPISource) parseBundle(bundle *common.Bundle) {
 	if bundle == nil {
-		s.log.Error("No bundle")
+		s.log.Error("Received an empty bundle from the Registration API")
 		return
 	}
 

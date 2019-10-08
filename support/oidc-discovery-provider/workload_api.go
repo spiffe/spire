@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	DefaultWorkloadAPIPollInterval = time.Second * 5
+	DefaultWorkloadAPIPollInterval = time.Second * 10
 )
 
 type WorkloadAPISourceConfig struct {
@@ -116,17 +116,17 @@ func (s *WorkloadAPISource) pollOnce(ctx context.Context, client workload_pb.Spi
 
 	stream, err := client.FetchJWTBundles(ctx, &workload_pb.JWTBundlesRequest{})
 	if err != nil {
-		s.log.WithError(err).Warn("FetchJWTBundles stream failed")
+		s.log.WithError(err).Warn("Failed to fetch JWKS from the Workload API")
 		return
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
 		if err == io.EOF {
-			s.log.Warn("FetchJWTBundles stream closed before bundle received")
+			s.log.Warn("Workload API stream closed before bundle received")
 			return
 		}
-		s.log.WithError(err).Warn("FetchJWTBundles stream failed")
+		s.log.WithError(err).Warn("Failed to fetch JWKS from the Workload API")
 		return
 	}
 
@@ -135,7 +135,7 @@ func (s *WorkloadAPISource) pollOnce(ctx context.Context, client workload_pb.Spi
 
 func (s *WorkloadAPISource) parseBundle(bundle []byte) {
 	if bundle == nil {
-		s.log.WithField("trust_domain_id", s.trustDomainID).Error("No bundle for trust domain")
+		s.log.WithField("trust_domain_id", s.trustDomainID).Error("No bundle for trust domain in Workload API response")
 		return
 	}
 
@@ -149,7 +149,7 @@ func (s *WorkloadAPISource) parseBundle(bundle []byte) {
 
 	jwks := new(jose.JSONWebKeySet)
 	if err := json.Unmarshal(bundle, jwks); err != nil {
-		s.log.WithError(err).Error("Failed to unmarshal trust domain bundle")
+		s.log.WithError(err).Error("Failed to parse trust domain bundle received from the Workload API")
 		return
 	}
 
