@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"time"
 
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/sirupsen/logrus"
@@ -11,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 type BuiltInPlugin struct {
@@ -121,6 +123,10 @@ func newBuiltInServer() *grpc.Server {
 	return grpc.NewServer(
 		grpc.StreamInterceptor(grpc_recovery.StreamServerInterceptor()),
 		grpc.UnaryInterceptor(grpc_recovery.UnaryServerInterceptor()),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: time.Hour,
+			MaxConnectionAge:  6 * time.Hour,
+		}),
 	)
 }
 
