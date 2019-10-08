@@ -204,7 +204,7 @@ func TestParseConfig(t *testing.T) {
 				registration_api {}
 				workload_api {}
 			`,
-			err: "registration_api and workload_api sections are mutually exclusive",
+			err: "registration_api and workload_api configuration sections are mutually exclusive",
 		},
 		{
 			name: "minimal registration API config",
