@@ -47,8 +47,8 @@ The configuration file is **required** by the provider. It contains
 
 | Key                | Type    | Required?   | Description                              | Default |
 | ------------------ | --------| ----------- | ----------------------------------------- | ------- |
-| `cache_dir`        | string  | optional    | The directory used to cache the ACME-obtained credentials. Disabled if explicitly set to the empty string | `./.acme-cache` |
-| `directory_url`    | string  | optional    | The ACME directory URL to use. Uses Let's Encrypt if unset. | |
+| `cache_dir`        | string  | optional    | The directory used to cache the ACME-obtained credentials. Disabled if explicitly set to the empty string | `"./.acme-cache"` |
+| `directory_url`    | string  | optional    | The ACME directory URL to use. Uses Let's Encrypt if unset. | `"https://acme-v01.api.letsencrypt.org/directory"` |
 | `email`            | string  | required    | The email address used to register with the ACME service | |
 | `tos_accepted`     | bool    | required    | Indicates explicit acceptance of the ACME service Terms of Service. Must be true. | |
 
