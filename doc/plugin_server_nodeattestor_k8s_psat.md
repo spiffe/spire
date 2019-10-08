@@ -75,4 +75,4 @@ This plugin generates the following selectors:
 The node and pod selectors are only provided for label keys in the `allowed_node_label_keys` and `allowed_pod_label_keys` configurables.
 
 
-A full example of this attestor is provided [here](../examples/k8s/simple_psat/README.md).
+A full example of this attestor is provided [here](https://github.com/spiffe/spire-examples/tree/54dbcbc8c378bb11c5040eb261ec51bc82f8a79b/examples/k8s/simple_psat).
