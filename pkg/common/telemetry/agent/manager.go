@@ -1,6 +1,8 @@
 package agent
 
-import "github.com/spiffe/spire/pkg/common/telemetry"
+import (
+	"github.com/spiffe/spire/pkg/common/telemetry"
+)
 
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
@@ -20,10 +22,7 @@ func StartManagerFetchUpdatesCall(m telemetry.Metrics) *telemetry.CallCounter {
 // Takes registration entry SPIFFE ID
 func IncrRegistrationEntryCreatedCounter(m telemetry.Metrics, id string) {
 	labels := []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: id,
-		},
+		{Name: telemetry.SPIFFEID, Value: id},
 	}
 	m.IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Create}, 1, labels)
 }
@@ -32,10 +31,7 @@ func IncrRegistrationEntryCreatedCounter(m telemetry.Metrics, id string) {
 // Takes registration entry SPIFFE ID
 func IncrRegistrationEntryUpdatedCounter(m telemetry.Metrics, id string) {
 	labels := []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: id,
-		},
+		{Name: telemetry.SPIFFEID, Value: id},
 	}
 	m.IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Update}, 1, labels)
 }
@@ -44,10 +40,7 @@ func IncrRegistrationEntryUpdatedCounter(m telemetry.Metrics, id string) {
 // Takes registration entry SPIFFE ID
 func IncrRegistrationEntryDeletedCounter(m telemetry.Metrics, id string) {
 	labels := []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: id,
-		},
+		{Name: telemetry.SPIFFEID, Value: id},
 	}
 	m.IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Delete}, 1, labels)
 }

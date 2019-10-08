@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -36,9 +37,10 @@ const (
 
 // config contains all available configurables, arranged by section
 type config struct {
-	Agent     *agentConfig                `hcl:"agent"`
-	Plugins   *catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry telemetry.FileConfig        `hcl:"telemetry"`
+	Agent        *agentConfig                `hcl:"agent"`
+	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
+	HealthChecks health.Config               `hcl:"health_checks"`
 }
 
 type agentConfig struct {
@@ -94,6 +96,16 @@ func (*RunCLI) Run(args []string) int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
+	}
+
+	// Create uds dir and parents if not exists
+	dir := filepath.Dir(c.BindAddress.String())
+	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
+		c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 	}
 
 	// Set umask before starting up the agent
@@ -202,7 +214,8 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 		return nil, err
 	}
 
-	ac.ServerAddress = net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
+	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
+	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
 
 	td, err := idutil.ParseSpiffeID("spiffe://"+c.Agent.TrustDomain, idutil.AllowAnyTrustDomain())
 	if err != nil {
@@ -241,6 +254,7 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry
+	ac.HealthChecks = c.HealthChecks
 
 	return ac, nil
 }

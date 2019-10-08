@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -121,6 +121,17 @@ func TestStartStop(t *testing.T) {
 		err := c.Start(context.Background())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "client cannot start once stopped")
+	})
+}
+
+func TestGetAgentAddress(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		require.Equal(t, "unix:///tmp/agent.sock", GetAgentAddress())
+	})
+	t.Run("env", func(t *testing.T) {
+		os.Setenv(EnvVarAgentAddress, "/foo")
+		defer os.Unsetenv(EnvVarAgentAddress)
+		require.Equal(t, "/foo", GetAgentAddress())
 	})
 }
 
@@ -234,13 +245,9 @@ func (m *mockHandler) WaitForCall() {
 }
 
 func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
-	m.t.Run("check security header", func(t *testing.T) {
-		md, ok := metadata.FromIncomingContext(stream.Context())
-		require.True(t, ok, "Request doesn't contain grpc metadata.")
-		require.Len(t, md.Get("workload.spiffe.io"), 1)
-		require.Equal(t, "true", md.Get("workload.spiffe.io")[0])
-	})
-
+	if err := checkHeader(stream.Context()); err != nil {
+		return err
+	}
 	for {
 		select {
 		case name := <-m.sendX509Response:
@@ -285,13 +292,18 @@ func (m *mockHandler) ValidateJWTSVID(context.Context, *workload.ValidateJWTSVID
 	return nil, errors.New("unimplemented")
 }
 
-func TestGetAgentAddress(t *testing.T) {
-	t.Run("default", func(t *testing.T) {
-		require.Equal(t, "unix:///tmp/agent.sock", GetAgentAddress())
-	})
-	t.Run("env", func(t *testing.T) {
-		os.Setenv(EnvVarAgentAddress, "/foo")
-		defer os.Unsetenv(EnvVarAgentAddress)
-		require.Equal(t, "/foo", GetAgentAddress())
-	})
+func checkHeader(ctx context.Context) error {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return errors.New("request context does not contain metadata")
+	}
+	value := md.Get("workload.spiffe.io")
+	if len(value) == 0 {
+		return errors.New("request does not have workload.spiffe.io metadata")
+	}
+	if value[0] != "true" {
+		return errors.New("request workload.spiffe.io metadata is not \"true\"")
+	}
+
+	return nil
 }

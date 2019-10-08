@@ -112,6 +112,20 @@ telemetry {
 }
 ```
 
+## Health check configuration
+
+The server can expose additional endpoint that can be used for health checking. It is enabled by setting `listener_enabled = true`. Currently it exposes 2 paths: one for liveness (is server up) and one for readiness (is server ready to serve requests). By default, health checking endpoint will listen on localhost:80, unless configured otherwise.
+
+```hcl
+health_checks {
+        listener_enabled = true
+        bind_address = "localhost"
+        bind_port = "80"
+        live_path = "/live"
+        ready_path = "/ready"
+}
+```
+
 ## Command line options
 
 ### `spire-server run`
@@ -153,7 +167,7 @@ Creates registration entries.
 | `-data`          | Path to a file containing registration data in JSON format (optional). |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
-| `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned | |
+| `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned from the datastore. Please note that this is a data management feature and not a security feature (optional).| |
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 | `-node`          | If set, this entry will be applied to matching nodes rather than workloads | |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |

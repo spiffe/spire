@@ -37,7 +37,7 @@ func embellishSQLite3ConnString(connectionString string) (string, error) {
 	switch {
 	case u.Scheme == "":
 		// connection string is a path. move the path section into the
-		// opaque section so it renders propertly for sqlite3, for example:
+		// opaque section so it renders property for sqlite3, for example:
 		// data.db = file:data.db
 		// ./data.db = file:./data.db
 		// /data.db = file:/data.db

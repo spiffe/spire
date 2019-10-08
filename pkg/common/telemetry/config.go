@@ -23,7 +23,8 @@ type DogStatsdConfig struct {
 }
 
 type PrometheusConfig struct {
-	Port int `hcl:"port"`
+	Host string `hcl:"host"`
+	Port int    `hcl:"port"`
 }
 
 type StatsdConfig struct {

@@ -17,7 +17,7 @@ var (
 )
 
 // signingMethodECDSA is a copy of the implementation of the JWT package
-// modified to accomodate both an *ecdsa.PrivateKey and a crypto.Signer based
+// modified to accommodate both an *ecdsa.PrivateKey and a crypto.Signer based
 // key. It can be thrown away as soon as
 // https://github.com/dgrijalva/jwt-go/pull/236 is merged.
 type signingMethodECDSA struct {

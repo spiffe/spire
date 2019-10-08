@@ -5,7 +5,6 @@ go 1.12
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
 require (
-	bazil.org/fuse v0.0.0-20180421153158-65cc252bf669 // indirect
 	github.com/Azure/azure-sdk-for-go v30.1.0+incompatible
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Azure/go-autorest/autorest v0.2.0
@@ -14,6 +13,8 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.1.0 // indirect
 	// version 1.14
 	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190405210948-c70a36b8193f
+	github.com/InVisionApp/go-health v2.1.0+incompatible
+	github.com/InVisionApp/go-logger v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.4.12 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
@@ -45,6 +46,8 @@ require (
 	github.com/jinzhu/gorm v1.9.9
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
+	github.com/onsi/ginkgo v1.8.0 // indirect
+	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -53,19 +56,19 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.3 // indirect
-	github.com/spiffe/go-spiffe v0.0.0-20190518123159-37d000f27824
-	github.com/spiffe/spire/proto/spire v0.0.0-00010101000000-000000000000
+	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
+	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
 	github.com/stretchr/testify v1.3.0
 	github.com/zeebo/errs v1.2.0
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
-	golang.org/x/crypto v0.0.0-20190617133340-57b3e21c3d56
+	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
 	golang.org/x/sys v0.0.0-20190618155005-516e3c20635f
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/tools v0.0.0-20190618163018-fdf1049a943a
 	google.golang.org/api v0.6.0
-	google.golang.org/grpc v1.21.1
+	google.golang.org/grpc v1.22.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637

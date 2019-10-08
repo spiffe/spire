@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -19,6 +20,9 @@ type Config struct {
 
 	// If true, enables an Envoy SecretDiscoveryService server
 	EnableSDS bool
+
+	// HealthChecks provides the configuration for health monitoring
+	HealthChecks health.Config
 
 	// Configurations for agent plugins
 	PluginConfigs catalog.HCLPluginConfigMap

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof" // import registers routes on DefaultServeMux
 	"net/url"
 	"os"
 	"runtime"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -23,8 +24,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
+	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
 	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -90,6 +93,9 @@ type Config struct {
 
 	// Telemetry provides the configuration for metrics exporting
 	Telemetry telemetry.FileConfig
+
+	// HealthChecks provides the configuration for health monitoring
+	HealthChecks health.Config
 }
 
 type ExperimentalConfig struct {
@@ -102,6 +108,10 @@ type ExperimentalConfig struct {
 	// BundleEndpointAddress is the address on which to serve the federation
 	// bundle endpoint.
 	BundleEndpointAddress *net.TCPAddr
+
+	// BundleEndpointACME is the ACME configuration for the bundle endpoint.
+	// If unset, the bundle endpoint will use SPIFFE auth.
+	BundleEndpointACME *bundle.ACMEConfig
 
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
@@ -172,6 +182,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 	defer cat.Close()
 
+	healthChecks := health.NewChecker(
+		s.config.HealthChecks,
+		s.config.Log.WithField(telemetry.SubsystemName, "health"),
+	)
+
 	s.config.Log.Info("plugins started")
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
@@ -219,12 +234,20 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	bundleManager := s.newBundleManager(cat)
 
+	registrationManager := s.newRegistrationManager(cat, metrics)
+
+	if err := healthChecks.AddCheck("server", s, time.Minute); err != nil {
+		return fmt.Errorf("failed adding healthcheck: %v", err)
+	}
+
 	err = util.RunTasks(ctx,
 		caManager.Run,
 		svidRotator.Run,
 		endpointsServer.ListenAndServe,
 		metrics.ListenAndServe,
 		bundleManager.Run,
+		registrationManager.Run,
+		healthChecks.ListenAndServe,
 	)
 	if err == context.Canceled {
 		err = nil
@@ -244,7 +267,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 
 		server := http.Server{
 			Addr:    fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
-			Handler: http.HandlerFunc(pprof.Index),
+			Handler: http.DefaultServeMux,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to
@@ -328,6 +351,15 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 	return caManager, nil
 }
 
+func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.Metrics) *registration.Manager {
+	registrationManager := registration.NewManager(registration.ManagerConfig{
+		DataStore: cat.GetDataStore(),
+		Log:       s.config.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationManager),
+		Metrics:   metrics,
+	})
+	return registrationManager
+}
+
 func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
 		ServerCA:    serverCA,
@@ -355,13 +387,14 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 	}
 	if s.config.Experimental.BundleEndpointEnabled {
 		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
+		config.BundleEndpointACME = s.config.Experimental.BundleEndpointACME
 	}
 	return endpoints.New(config)
 }
 
 func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
-		Log:          s.config.Log.WithField("subsystem_name", "bundle_client"),
+		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
 		DataStore:    cat.GetDataStore(),
 		TrustDomains: s.config.Experimental.FederatesWith,
 	})
@@ -415,4 +448,9 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		}
 	}
 	return nil
+}
+
+// Status is used as a top-level health check for the Server.
+func (s *Server) Status() (interface{}, error) {
+	return nil, nil
 }
