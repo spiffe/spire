@@ -32,20 +32,16 @@ The configuration file is **required** by the provider. It contains
 
 | Key                | Type    | Required? | Description                              | Default |
 | ------------------ | --------| ---------| ----------------------------------------- | ------- |
+| `acme`             | section | required | Provides the ACME configuration. | |
+| `domain`           | string  | required | The domain the provider is being served from | |
 | `log_format`       | string  | optional | Format of the logs (either `"TEXT"` or `"JSON"`) | `""` |
 | `log_level`        | string  | required | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
 | `log_path`         | string  | optional | Path on disk to write the log | |
 | `log_requests`     | bool    | optional | If true, all HTTP requests are logged at the debug level | false |
-| `domain`           | string  | required | The domain the provider is being served from | |
-| `insecure_addr`    | string  | optional\* | If provided, the provider will serve HTTP (insecure) from the specified address instead of using ACME to serve HTTPS. | false |
-| `acme`             | section | required\* | Provides the ACME configuration. Required unless `insecure_addr` is set. | |
-| `registration_api` | section | required\*\* | Provides Registration API details. Required unless the `workload_api` section is defined | |
-| `workload_api`     | section | required\*\* | Provides Workload API details. Required unless the `registration_api` section is defined | |
+| `registration_api` | section | required\* | Provides Registration API details. Required unless the `workload_api` section is defined | |
+| `workload_api`     | section | required\* | Provides Workload API details. Required unless the `registration_api` section is defined | |
 
-\* - Using ACME to provide TLS protected HTTP is the preferred way to deploy
-this provider. `insecure_addr` should only be used to bypass this mode if for
-testing or otherwise if you know what you are doing and accept the risks.
-\*\* - Either `registration_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document.
+\* - Either `registration_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document.
 
 #### ACME Section
 
@@ -53,7 +49,7 @@ testing or otherwise if you know what you are doing and accept the risks.
 | ------------------ | --------| ----------- | ----------------------------------------- | ------- |
 | `cache_dir`        | string  | optional    | The directory used to cache the ACME-obtained credentials. Disabled if explicitly set to the empty string | `./.acme-cache` |
 | `directory_url`    | string  | optional    | The ACME directory URL to use. Uses Let's Encrypt if unset. | |
-| `email`            | string  | recommended | The email address used to register with the ACME service | |
+| `email`            | string  | required    | The email address used to register with the ACME service | |
 | `tos_accepted`     | bool    | required    | Indicates explicit acceptance of the ACME service Terms of Service. Must be true. | |
 
 #### Registration API Section

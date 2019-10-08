@@ -94,9 +94,11 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Allow clients to cache up to 1 hour
-	// TODO: pick a better age? or no caching at all?
+	// Disable caching
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=3600, must-revalidate, no-transform")
 	http.ServeContent(w, r, "keys", modTime, bytes.NewReader(jwksBytes))
 }

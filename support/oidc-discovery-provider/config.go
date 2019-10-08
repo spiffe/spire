@@ -136,7 +136,9 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	case c.InsecureAddr != "":
 		return nil, errs.New("insecure_addr and the acme section are mutually exclusive")
 	case !c.ACME.ToSAccepted:
-		return nil, errs.New("acme.tos_accepted must be set to true")
+		return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
+	case c.ACME.Email == "":
+		return nil, errs.New("email must be configured in the acme configuration section")
 	}
 
 	switch {
@@ -146,12 +148,12 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		return nil, errs.New("registration_api and workload_api configuration sections are mutually exclusive")
 	case c.RegistrationAPI != nil:
 		if c.RegistrationAPI.SocketPath == "" {
-			return nil, errs.New("registration_api.socket_path must be configured")
+			return nil, errs.New("socket_path must be configured in the registration_api configuration section")
 		}
 		if c.RegistrationAPI.RawPollInterval != "" {
 			c.RegistrationAPI.PollInterval, err = time.ParseDuration(c.RegistrationAPI.RawPollInterval)
 			if err != nil {
-				return nil, errs.New("invalid registration_api.poll_interval: %v", err)
+				return nil, errs.New("invalid poll_interval in the registration_api configuration section: %v", err)
 			}
 		}
 		if c.RegistrationAPI.PollInterval <= 0 {
@@ -159,15 +161,15 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		}
 	case c.WorkloadAPI != nil:
 		if c.WorkloadAPI.SocketPath == "" {
-			return nil, errs.New("workload_api.socket_path must be configured")
+			return nil, errs.New("socket_path must be configured in the workload_api configuration section")
 		}
 		if c.WorkloadAPI.TrustDomain == "" {
-			return nil, errs.New("workload_api.trust_domain must be configured")
+			return nil, errs.New("trust_domain must be configured in the workload_api configuration section")
 		}
 		if c.WorkloadAPI.RawPollInterval != "" {
 			c.WorkloadAPI.PollInterval, err = time.ParseDuration(c.WorkloadAPI.RawPollInterval)
 			if err != nil {
-				return nil, errs.New("invalid workload_api.poll_interval: %v", err)
+				return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
 			}
 		}
 		if c.WorkloadAPI.PollInterval <= 0 {
