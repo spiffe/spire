@@ -142,6 +142,7 @@ type CAConfig struct {
 	TrustDomain url.URL
 	X509SVIDTTL time.Duration
 	JWTSVIDTTL  time.Duration
+	JWTIssuer   string
 	Clock       clock.Clock
 	CASubject   pkix.Name
 }
@@ -171,7 +172,8 @@ func NewCA(config CAConfig) *CA {
 	return &CA{
 		c: config,
 		jwtSigner: jwtsvid.NewSigner(jwtsvid.SignerConfig{
-			Clock: config.Clock,
+			Clock:  config.Clock,
+			Issuer: config.JWTIssuer,
 		}),
 	}
 }

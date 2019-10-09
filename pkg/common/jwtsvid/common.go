@@ -4,7 +4,8 @@ import (
 	"errors"
 	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/zeebo/errs"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 func audienceClaim(audience []string) interface{} {
@@ -15,19 +16,23 @@ func audienceClaim(audience []string) interface{} {
 }
 
 func GetTokenExpiry(token string) (time.Time, time.Time, error) {
-	claims := new(jwt.StandardClaims)
-	_, _, err := new(jwt.Parser).ParseUnverified(token, claims)
+	tok, err := jwt.ParseSigned(token)
 	if err != nil {
-		return time.Time{}, time.Time{}, err
+		return time.Time{}, time.Time{}, errs.Wrap(err)
 	}
-	if claims.IssuedAt == 0 {
+
+	claims := jwt.Claims{}
+	if err := tok.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return time.Time{}, time.Time{}, errs.Wrap(err)
+	}
+	if claims.IssuedAt == nil {
 		return time.Time{}, time.Time{}, errors.New("JWT missing iat claim")
 	}
-	if claims.ExpiresAt == 0 {
+	if claims.Expiry == nil {
 		return time.Time{}, time.Time{}, errors.New("JWT missing exp claim")
 	}
 
-	issuedAt := time.Unix(claims.IssuedAt, 0).UTC()
-	expiresAt := time.Unix(claims.ExpiresAt, 0).UTC()
+	issuedAt := claims.IssuedAt.Time().UTC()
+	expiresAt := claims.Expiry.Time().UTC()
 	return issuedAt, expiresAt, nil
 }
