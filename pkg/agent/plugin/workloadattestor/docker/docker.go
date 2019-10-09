@@ -23,6 +23,7 @@ const (
 	pluginName          = "docker"
 	subselectorLabel    = "label"
 	subselectorImageID  = "image_id"
+	subselectorEnv      = "env"
 	defaultCgroupPrefix = "/docker"
 )
 
@@ -136,6 +137,12 @@ func getSelectorsFromConfig(cfg *container.Config) []*common.Selector {
 		selectors = append(selectors, &common.Selector{
 			Type:  pluginName,
 			Value: fmt.Sprintf("%s:%s:%s", subselectorLabel, label, value),
+		})
+	}
+	for _, e := range cfg.Env {
+		selectors = append(selectors, &common.Selector{
+			Type:  pluginName,
+			Value: fmt.Sprintf("%s:%s", subselectorEnv, e),
 		})
 	}
 	if cfg.Image != "" {

@@ -20,40 +20,47 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDockerLabels(t *testing.T) {
+func TestDockerSelectors(t *testing.T) {
 	tests := []struct {
 		desc                string
 		mockContainerLabels map[string]string
+		mockEnv             []string
 		mockImageID         string
 		requireResult       func(*testing.T, *workloadattestor.AttestResponse)
 	}{
 		{
-			desc:                "single label",
+			desc:                "single label; single env",
 			mockContainerLabels: map[string]string{"this": "that"},
+			mockEnv:             []string{"VAR=val"},
 			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
-				require.Len(t, res.Selectors, 1)
+				require.Len(t, res.Selectors, 2)
 				require.Equal(t, "docker", res.Selectors[0].Type)
 				require.Equal(t, "label:this:that", res.Selectors[0].Value)
+				require.Equal(t, "docker", res.Selectors[0].Type)
+				require.Equal(t, "env:VAR=val", res.Selectors[1].Value)
 			},
 		},
 		{
-			desc:                "many labels",
+			desc:                "many labels; many env",
 			mockContainerLabels: map[string]string{"this": "that", "here": "there", "up": "down"},
+			mockEnv:             []string{"VAR=val", "VAR2=val"},
 			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
-				require.Len(t, res.Selectors, 3)
-				expectedLabels := map[string]bool{
-					"label:this:that":  true,
-					"label:here:there": true,
-					"label:up:down":    true,
+				require.Len(t, res.Selectors, 5)
+				expectedSelectors := []string{
+					"label:this:that",
+					"label:here:there",
+					"label:up:down",
+					"env:VAR=val",
+					"env:VAR2=val",
 				}
-				for _, selector := range res.Selectors {
+				for i, selector := range res.Selectors {
 					require.Equal(t, "docker", selector.Type)
-					require.Contains(t, expectedLabels, selector.Value)
+					require.Equal(t, expectedSelectors[i], selector.Value)
 				}
 			},
 		},
 		{
-			desc:                "no labels for container",
+			desc:                "no labels or env for container",
 			mockContainerLabels: map[string]string{},
 			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
 				require.Len(t, res.Selectors, 0)
@@ -90,6 +97,7 @@ func TestDockerLabels(t *testing.T) {
 				Config: &container.Config{
 					Labels: tt.mockContainerLabels,
 					Image:  tt.mockImageID,
+					Env:    tt.mockEnv,
 				},
 			}
 			mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
