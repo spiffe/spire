@@ -874,13 +874,11 @@ func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logge
 }
 
 func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
-	model := AttestedNode{
-		SpiffeID:             req.Node.SpiffeId,
-		DataType:             req.Node.AttestationDataType,
-		SerialNumber:         req.Node.CertSerialNumber,
-		ExpiresAt:            time.Unix(req.Node.CertNotAfter, 0),
-		PreparedSerialNumber: req.Node.PreparedCertSerialNumber,
-		PreparedExpiresAt:    nullableUnixTimeToDBTime(req.Node.PreparedCertNotAfter),
+	model := V3AttestedNode{
+		SpiffeID:     req.Node.SpiffeId,
+		DataType:     req.Node.AttestationDataType,
+		SerialNumber: req.Node.CertSerialNumber,
+		ExpiresAt:    time.Unix(req.Node.CertNotAfter, 0),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
@@ -893,7 +891,7 @@ func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (
 }
 
 func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
@@ -920,7 +918,7 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
 	}
 
-	var models []AttestedNode
+	var models []V3AttestedNode
 	if err := tx.Find(&models).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -945,16 +943,14 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 }
 
 func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	updates := AttestedNode{
-		SerialNumber:         req.CertSerialNumber,
-		ExpiresAt:            time.Unix(req.CertNotAfter, 0),
-		PreparedSerialNumber: req.PreparedCertSerialNumber,
-		PreparedExpiresAt:    nullableUnixTimeToDBTime(req.PreparedCertNotAfter),
+	updates := V3AttestedNode{
+		SerialNumber: req.CertSerialNumber,
+		ExpiresAt:    time.Unix(req.CertNotAfter, 0),
 	}
 
 	if err := tx.Model(&model).Updates(updates).Error; err != nil {
@@ -967,7 +963,7 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 }
 
 func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -2252,14 +2248,12 @@ func newRegistrationEntryID() (string, error) {
 	return u.String(), nil
 }
 
-func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
+func modelToAttestedNode(model V3AttestedNode) *common.AttestedNode {
 	return &common.AttestedNode{
-		SpiffeId:                 model.SpiffeID,
-		AttestationDataType:      model.DataType,
-		CertSerialNumber:         model.SerialNumber,
-		CertNotAfter:             model.ExpiresAt.Unix(),
-		PreparedCertSerialNumber: model.PreparedSerialNumber,
-		PreparedCertNotAfter:     nullableDBTimeToUnixTime(model.PreparedExpiresAt),
+		SpiffeId:            model.SpiffeID,
+		AttestationDataType: model.DataType,
+		CertSerialNumber:    model.SerialNumber,
+		CertNotAfter:        model.ExpiresAt.Unix(),
 	}
 }
 
@@ -2352,19 +2346,4 @@ func gormToGRPCStatus(err error) error {
 	}
 
 	return status.Error(code, err.Error())
-}
-
-func nullableDBTimeToUnixTime(dbTime *time.Time) int64 {
-	if dbTime == nil {
-		return 0
-	}
-	return dbTime.Unix()
-}
-
-func nullableUnixTimeToDBTime(unixTime int64) *time.Time {
-	if unixTime == 0 {
-		return nil
-	}
-	dbTime := time.Unix(unixTime, 0)
-	return &dbTime
 }

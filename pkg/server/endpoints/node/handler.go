@@ -119,7 +119,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		// TODO: remove in SPIRE 0.10
 		attestedBefore := true
 		if csr.SpiffeID != "" {
-			attestedBefore, _, err = h.isAttested(ctx, csr.SpiffeID)
+			attestedBefore, err = h.isAttested(ctx, csr.SpiffeID)
 			if err != nil {
 				h.c.Log.Error(err)
 				return status.Error(codes.Internal, "failed to determine if agent has already attested")
@@ -182,21 +182,13 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return status.Error(codes.Internal, "failed to compose response")
 	}
 
-	isAttested, node, err := h.isAttested(ctx, agentID)
+	isAttested, err := h.isAttested(ctx, agentID)
 	switch {
 	case err != nil:
 		log.WithError(err).Error("Failed to determine if agent has already attested")
 		return status.Error(codes.Internal, "failed to determine if agent has already attested")
 	case isAttested:
-		req := &datastore.UpdateAttestedNodeRequest{
-			SpiffeId:                 node.SpiffeId,
-			CertNotAfter:             node.CertNotAfter,
-			CertSerialNumber:         node.CertSerialNumber,
-			PreparedCertNotAfter:     svid[0].NotAfter.Unix(),
-			PreparedCertSerialNumber: svid[0].SerialNumber.String(),
-		}
-
-		if err := h.updateAttestedNode(ctx, req); err != nil {
+		if err := h.updateAttestationEntry(ctx, svid[0]); err != nil {
 			log.WithError(err).Error("Failed to update attestation entry")
 			return status.Error(codes.Internal, "failed to update attestation entry")
 		}
@@ -484,7 +476,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	return ctx, nil
 }
 
-func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, *common.AttestedNode, error) {
+func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, error) {
 	ds := h.c.Catalog.GetDataStore()
 
 	fetchRequest := &datastore.FetchAttestedNodeRequest{
@@ -492,15 +484,15 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, *c
 	}
 	fetchResponse, err := ds.FetchAttestedNode(ctx, fetchRequest)
 	if err != nil {
-		return false, nil, err
+		return false, err
 	}
 
 	node := fetchResponse.Node
 	if node != nil && node.SpiffeId == baseSpiffeID {
-		return true, node, nil
+		return true, nil
 	}
 
-	return false, nil, nil
+	return false, nil
 }
 
 func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate) error {
@@ -531,30 +523,11 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	if node == nil {
 		return fmt.Errorf("agent %q is not attested", agentID)
 	}
-
-	currentSerial, preparedSerial := resp.Node.CertSerialNumber, resp.Node.PreparedCertSerialNumber
-	if currentSerial != "" && cert.SerialNumber.String() == currentSerial {
-		return nil
+	if node.CertSerialNumber != cert.SerialNumber.String() {
+		return fmt.Errorf("agent %q SVID does not match expected serial number", agentID)
 	}
 
-	// New SVID activation
-	if preparedSerial != "" && cert.SerialNumber.String() == preparedSerial {
-		fieldLog := h.c.Log.WithFields(logrus.Fields{"agent": agentID, "prepared_serial": preparedSerial})
-		fieldLog.Debug("Activating agent SVID")
-		err := h.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-			SpiffeId:         resp.Node.SpiffeId,
-			CertSerialNumber: resp.Node.PreparedCertSerialNumber,
-			CertNotAfter:     resp.Node.PreparedCertNotAfter,
-		})
-
-		if err != nil {
-			fieldLog.Warningf("Failed to activate agent SVID: %v", err)
-			return fmt.Errorf("failed to activate agent SVID: %v", err)
-		}
-		return nil
-	}
-
-	return fmt.Errorf("agent %q SVID does not match expected serial number", agentID)
+	return nil
 }
 
 func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certificate) (*common.RegistrationEntry, error) {
@@ -627,7 +600,7 @@ func (h *Handler) attestToken(ctx context.Context, attestationData *common.Attes
 		Path:   path.Join("spire", "agent", "join_token", tokenValue),
 	}).String()
 
-	attestedBefore, _, err := h.isAttested(ctx, agentID)
+	attestedBefore, err := h.isAttested(ctx, agentID)
 	switch {
 	case err != nil:
 		h.c.Log.Error(err)
@@ -669,10 +642,21 @@ func (h *Handler) attestToken(ctx context.Context, attestationData *common.Attes
 	}, nil
 }
 
-func (h *Handler) updateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest) error {
+func (h *Handler) updateAttestationEntry(ctx context.Context, cert *x509.Certificate) error {
 	ds := h.c.Catalog.GetDataStore()
+
+	spiffeID, err := getSpiffeIDFromCert(cert)
+	if err != nil {
+		return err
+	}
+
+	req := &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         spiffeID,
+		CertNotAfter:     cert.NotAfter.Unix(),
+		CertSerialNumber: cert.SerialNumber.String(),
+	}
 	if _, err := ds.UpdateAttestedNode(ctx, req); err != nil {
-		return fmt.Errorf("failed to update attested node %q: %v", req.SpiffeId, err)
+		return err
 	}
 
 	return nil
@@ -836,15 +820,7 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 			}
 			svids[csr.SpiffeID] = svid
 
-			req := &datastore.UpdateAttestedNodeRequest{
-				SpiffeId:                 res.Node.SpiffeId,
-				CertNotAfter:             res.Node.CertNotAfter,
-				CertSerialNumber:         res.Node.CertSerialNumber,
-				PreparedCertNotAfter:     svidCert.NotAfter.Unix(),
-				PreparedCertSerialNumber: svidCert.SerialNumber.String(),
-			}
-
-			if err := h.updateAttestedNode(ctx, req); err != nil {
+			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
 				return nil, err
 			}
 		} else {
@@ -923,15 +899,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 			svids[entryID] = svid
 
-			req := &datastore.UpdateAttestedNodeRequest{
-				SpiffeId:                 res.Node.SpiffeId,
-				CertNotAfter:             res.Node.CertNotAfter,
-				CertSerialNumber:         res.Node.CertSerialNumber,
-				PreparedCertNotAfter:     svidCert.NotAfter.Unix(),
-				PreparedCertSerialNumber: svidCert.SerialNumber.String(),
-			}
-
-			if err := h.updateAttestedNode(ctx, req); err != nil {
+			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
 				return nil, err
 			}
 		} else {
