@@ -13,7 +13,6 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/logutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
 )
@@ -68,9 +67,8 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 
 	dbCodeVersion, err := getDBCodeVersion(*migration)
 	if err != nil {
-		err = sqlError.New("error getting DB code version: %v", err)
-		logutil.LogPluginError(log, err)
-		return err
+		log.Error("Error getting DB code version", "error", err.Error())
+		return sqlError.New("error getting DB code version: %v", err)
 	}
 
 	log = log.With(telemetry.VersionInfo, dbCodeVersion.String())

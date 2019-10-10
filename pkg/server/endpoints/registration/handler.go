@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/spiffe/spire/pkg/common/logutil"
 	"net/url"
 	"regexp"
 	"strings"
@@ -56,7 +55,7 @@ func (h *Handler) CreateEntry(
 	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
 		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
+		h.Log.WithError(err).Error("CreateRegistrationEntry: Request parameter validation error")
 		return nil, err
 	}
 
@@ -64,24 +63,21 @@ func (h *Handler) CreateEntry(
 
 	unique, err := h.isEntryUnique(ctx, ds, request)
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to create entry: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("CreateRegistrationEntry: Error trying to create entry")
+		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
 	if !unique {
-		err = status.Error(codes.AlreadyExists, "entry already exists")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("CreateRegistrationEntry: Entry already exists")
+		return nil, status.Error(codes.AlreadyExists, "entry already exists")
 	}
 
 	createResponse, err := ds.CreateRegistrationEntry(ctx,
 		&datastore.CreateRegistrationEntryRequest{Entry: request},
 	)
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to create entry: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("CreateRegistrationEntry: Error trying to create entry")
+		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
 	return &registration.RegistrationEntryID{Id: createResponse.Entry.EntryId}, nil
@@ -102,9 +98,8 @@ func (h *Handler) DeleteEntry(
 	}
 	resp, err := ds.DeleteRegistrationEntry(ctx, req)
 	if err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return &common.RegistrationEntry{}, err
+		h.Log.WithError(err).Error("DeleteRegistrationEntry: Error deleting registration entry")
+		return &common.RegistrationEntry{}, status.Error(codes.Internal, err.Error())
 	}
 
 	return resp.Entry, nil
@@ -124,14 +119,12 @@ func (h *Handler) FetchEntry(
 		&datastore.FetchRegistrationEntryRequest{EntryId: request.Id},
 	)
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to fetch entry: %v", err)
-		logutil.LogError(h.Log, err)
-		return response, err
+		h.Log.WithError(err).Error("FetchRegistrationEntry: Error trying to fetch entry")
+		return response, status.Errorf(codes.Internal, "error trying to fetch entry: %v", err)
 	}
 	if fetchResponse.Entry == nil {
-		err = status.Error(codes.NotFound, "no such registration entry")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("FetchRegistrationEntry: No such registration entry")
+		return nil, status.Error(codes.NotFound, "no such registration entry")
 	}
 	return fetchResponse.Entry, nil
 }
@@ -148,9 +141,8 @@ func (h *Handler) FetchEntries(
 	ds := h.getDataStore()
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to fetch entries: %v", err)
-		logutil.LogError(h.Log, err)
-		return response, err
+		h.Log.WithError(err).Error("FetchRegistrationEntries: Error trying to fetch entries")
+		return response, status.Errorf(codes.Internal, "error trying to fetch entries: %v", err)
 	}
 	return &common.RegistrationEntries{
 		Entries: fetchResponse.Entries,
@@ -167,16 +159,14 @@ func (h *Handler) UpdateEntry(
 	defer counter.Done(&err)
 
 	if request.Entry == nil {
-		err = status.Error(codes.InvalidArgument, "Request is missing entry to update")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("UpdateRegistrationEntry: Request is missing entry to update")
+		return nil, status.Error(codes.InvalidArgument, "request is missing entry to update")
 	}
 
 	request.Entry, err = h.prepareRegistrationEntry(request.Entry, true)
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("UpdateRegistrationEntry: Error validating request parameters")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
@@ -184,9 +174,8 @@ func (h *Handler) UpdateEntry(
 		Entry: request.Entry,
 	})
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Failed to update registration entry: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("UpdateRegistrationEntry: Failed to update registration entry")
+		return nil, status.Errorf(codes.Internal, "failed to update registration entry: %v", err)
 	}
 
 	telemetry_registrationapi.IncrRegistrationAPIUpdatedEntryCounter(h.Metrics)
@@ -209,9 +198,8 @@ func (h *Handler) ListByParentID(
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("ListRegistrationsByParentID: Failed to normalize SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
@@ -222,9 +210,8 @@ func (h *Handler) ListByParentID(
 			},
 		})
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to list entries by parent ID: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("ListRegistrationsByParentID: Failed to list entries by parent ID")
+		return nil, status.Errorf(codes.Internal, "error trying to list entries by parent ID: %v", err)
 	}
 
 	return &common.RegistrationEntries{
@@ -249,9 +236,8 @@ func (h *Handler) ListBySelector(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to list entries by selector: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("ListRegistrationsBySelector: Failed to list entries by selector")
+		return nil, status.Errorf(codes.Internal, "error trying to list entries by selector: %v", err)
 	}
 
 	return &common.RegistrationEntries{
@@ -276,9 +262,8 @@ func (h *Handler) ListBySelectors(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to list entries by selectors: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("ListRegistrationsBySelectors: Failed to list entries by selectors")
+		return nil, status.Errorf(codes.Internal, "error trying to list entries by selectors: %v", err)
 	}
 
 	return &common.RegistrationEntries{
@@ -297,9 +282,8 @@ func (h *Handler) ListBySpiffeID(
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("ListRegistrationsBySpiffeID: Failed to normalize SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
@@ -310,9 +294,8 @@ func (h *Handler) ListBySpiffeID(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Error trying to list entries by SPIFFE ID: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("ListRegistrationsBySpiffeID: Failed to list entries by SPIFFE ID")
+		return nil, status.Errorf(codes.Internal, "error trying to list entries by SPIFFE ID: %v", err)
 	}
 
 	return &common.RegistrationEntries{
@@ -330,30 +313,26 @@ func (h *Handler) CreateFederatedBundle(
 
 	bundle := request.Bundle
 	if bundle == nil {
-		err = status.Error(codes.InvalidArgument, "bundle field is required")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("CreateFederatedBundle: Bundle field is required")
+		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
 	}
 	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("CreateFederatedBundle: Failed to normalize SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("CreateFederatedBundle: Federated bundle id cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
 	if _, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("CreateFederatedBundle: Failed to create bundle")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &common.Empty{}, nil
@@ -369,15 +348,13 @@ func (h *Handler) FetchFederatedBundle(
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("FetchFederatedBundle: Failed to normalize SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if request.Id == h.TrustDomain.String() {
-		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("FetchFederatedBundle: Federated bundle id cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
@@ -385,14 +362,12 @@ func (h *Handler) FetchFederatedBundle(
 		TrustDomainId: request.Id,
 	})
 	if err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("FetchFederatedBundle: Failed to fetch bundle")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if resp.Bundle == nil {
-		err = status.Error(codes.NotFound, "bundle not found")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("FetchFederatedBundle: Bundle not found")
+		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.FederatedBundle{
@@ -408,6 +383,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	ds := h.getDataStore()
 	resp, err := ds.ListBundles(stream.Context(), &datastore.ListBundlesRequest{})
 	if err != nil {
+		h.Log.WithError(err).Error("ListFederatedBundles: Failed to list bundles")
 		return status.Error(codes.Internal, err.Error())
 	}
 
@@ -418,6 +394,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 		if err := stream.Send(&registration.FederatedBundle{
 			Bundle: bundle,
 		}); err != nil {
+			h.Log.WithError(err).Error("ListFederatedBundles: Failed to send response over stream")
 			return status.Error(codes.Internal, err.Error())
 		}
 	}
@@ -435,30 +412,26 @@ func (h *Handler) UpdateFederatedBundle(
 
 	bundle := request.Bundle
 	if bundle == nil {
-		err = status.Error(codes.InvalidArgument, "bundle field is required")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("UpdateFederatedBundle: Bundle field is required")
+		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
 	}
 	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("UpdateFederatedBundle: Failed to normalize SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("UpdateFederatedBundle: Federated bundle ID cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
 	if _, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("UpdateFederatedBundle: Failed to update federated bundle")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &common.Empty{}, err
@@ -474,22 +447,19 @@ func (h *Handler) DeleteFederatedBundle(
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("DeleteFederatedBundle: Failed to normalize SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if request.Id == h.TrustDomain.String() {
-		err = status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("DeleteFederatedBundle: Federated bundle ID cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	mode, err := convertDeleteBundleMode(request.Mode)
 	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("DeleteFederatedBundle: Unknown delete bundle mode in request")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
@@ -497,9 +467,8 @@ func (h *Handler) DeleteFederatedBundle(
 		TrustDomainId: request.Id,
 		Mode:          mode,
 	}); err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("DeleteFederatedBundle: Failed to delete federated bundle")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &common.Empty{}, nil
@@ -514,18 +483,16 @@ func (h *Handler) CreateJoinToken(
 	defer counter.Done(&err)
 
 	if request.Ttl < 1 {
-		err = status.Error(codes.InvalidArgument, "Ttl is required, you must provide one")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("CreateJoinToken: TTL is required")
+		return nil, status.Error(codes.InvalidArgument, "ttl is required, you must provide one")
 	}
 
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
 		u, err := uuid.NewV4()
 		if err != nil {
-			err = status.Errorf(codes.Internal, "Error generating uuid token: %v", err)
-			logutil.LogError(h.Log, err)
-			return nil, err
+			h.Log.WithError(err).Error("CreateJoinToken: Failed to generate UUID token")
+			return nil, status.Errorf(codes.Internal, "error generating uuid token: %v", err)
 		}
 		request.Token = u.String()
 	}
@@ -540,8 +507,7 @@ func (h *Handler) CreateJoinToken(
 		},
 	})
 	if err != nil {
-		err = status.Errorf(codes.Internal, "Failed to register token: %v", err)
-		logutil.LogError(h.Log, err)
+		h.Log.WithError(err).Error("CreateJoinToken: Failed to create join token")
 		return nil, err
 	}
 
@@ -562,14 +528,12 @@ func (h *Handler) FetchBundle(
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		err = status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("FetchBundle: Failed to get bundle from datastore")
+		return nil, status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
 	}
 	if resp.Bundle == nil {
-		err = status.Error(codes.NotFound, "bundle not found")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("FetchBundle: Bundle not found")
+		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.Bundle{
@@ -583,7 +547,7 @@ func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.Evi
 	log := h.Log.WithField(telemetry.SPIFFEID, spiffeID)
 	deletedNode, err := h.deleteAttestedNode(ctx, spiffeID)
 	if err != nil {
-		log.WithField(telemetry.Error, err).Warn("Failed to evict agent")
+		log.WithError(err).Warn("EvictAgent: Failed to evict agent")
 		return nil, err
 	}
 
@@ -599,7 +563,7 @@ func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgen
 	req := &datastore.ListAttestedNodesRequest{}
 	resp, err := ds.ListAttestedNodes(ctx, req)
 	if err != nil {
-		logutil.LogError(h.Log, err)
+		h.Log.WithError(err).Error("ListAgents: Failed to list attested nodes")
 		return nil, err
 	}
 	return &registration.ListAgentsResponse{Nodes: resp.Nodes}, nil
@@ -612,36 +576,30 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 
 	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
 	if err != nil {
-		logutil.LogError(h.Log, err)
+		h.Log.WithError(err).Error("MintX509SVID: Failed to normalize SPIFFE ID for minting")
 		return nil, err
 	}
 
 	if len(req.Csr) == 0 {
-		err = status.Error(codes.InvalidArgument, "request missing CSR")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("MintX509SVID: Request missing CSR")
+		return nil, status.Error(codes.InvalidArgument, "request missing CSR")
 	}
 
 	for _, dnsName := range req.DnsNames {
 		if err := validateDNS(dnsName); err != nil {
-			err = status.Errorf(codes.InvalidArgument, "invalid DNS name: %v", err)
-			log := h.Log.WithField(telemetry.DNSName, dnsName)
-			logutil.LogError(log, err)
-			return nil, err
+			h.Log.WithField(telemetry.DNSName, dnsName).Error("MintX509SVID: Invalid DNS name")
+			return nil, status.Errorf(codes.InvalidArgument, "invalid DNS name: %v", err)
 		}
 	}
 
 	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
-		err = status.Errorf(codes.InvalidArgument, "invalid CSR: %v", err)
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("MintX509SVID: Invalid CSR")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: %v", err)
 	}
 	if err := csr.CheckSignature(); err != nil {
-		h.Log.WithField(telemetry.Error, err)
-		err = status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("MintX509SVID: Invalid CSR: signature verification failed")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
 	}
 
 	svid, err := h.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
@@ -651,23 +609,20 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 		DNSList:   req.DnsNames,
 	})
 	if err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("MintX509SVID: Failed to sign X.509 SVID")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("MintX509SVID: Failed to fetch bundle from datastore")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if resp.Bundle == nil {
-		err = status.Error(codes.FailedPrecondition, "bundle not found")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("MintX509SVID: Bundle not found")
+		return nil, status.Error(codes.FailedPrecondition, "bundle not found")
 	}
 
 	svidChain := make([][]byte, 0, len(svid))
@@ -693,14 +648,13 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 
 	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
 	if err != nil {
-		logutil.LogError(h.Log, err)
+		h.Log.WithError(err).Error("MintJWTSVID: Failed to normalize SPIFFE ID for minting")
 		return nil, err
 	}
 
 	if len(req.Audience) == 0 {
-		err = status.Error(codes.InvalidArgument, "request must specify at least one audience")
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.Error("MintJWTSVID: Request must specify at least one audience")
+		return nil, status.Error(codes.InvalidArgument, "request must specify at least one audience")
 	}
 
 	token, err := h.ServerCA.SignJWTSVID(ctx, ca.JWTSVIDParams{
@@ -709,9 +663,8 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 		Audience: req.Audience,
 	})
 	if err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		logutil.LogError(h.Log, err)
-		return nil, err
+		h.Log.WithError(err).Error("MintJWTSVID: Failed to sign JWT SVID")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &registration.MintJWTSVIDResponse{
@@ -727,7 +680,7 @@ func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNod
 	}
 	resp, err := ds.GetNodeSelectors(ctx, r)
 	if err != nil {
-		logutil.LogError(h.Log, err)
+		h.Log.WithError(err).Error("GetNodeSelectors: Failed to get node selectors")
 		return nil, err
 	}
 	return &registration.GetNodeSelectorsResponse{
@@ -827,7 +780,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	// For the time being, authorization is not per-method. In other words, all or nothing.
 	callerID, err := authorizeCaller(ctx, h.getDataStore())
 	if err != nil {
-		logutil.LogError(h.Log, err)
+		h.Log.WithError(err).Error("Failed to authorize caller")
 		return nil, err
 	}
 	if callerID != "" {

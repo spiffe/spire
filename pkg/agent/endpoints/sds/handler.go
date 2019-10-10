@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/spiffe/spire/pkg/common/logutil"
 	"io"
 	"strconv"
 	"sync/atomic"
@@ -62,7 +61,7 @@ func NewHandler(config HandlerConfig) *Handler {
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
 	_, selectors, done, err := h.startCall(stream.Context())
 	if err != nil {
-		logutil.LogError(h.c.Log, err)
+		h.c.Log.WithError(err).Error("StreamSecrets: Failed to fetch stream secrets during context parsing")
 		return err
 	}
 	defer done()
@@ -159,13 +158,13 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				continue
 			}
 		case err := <-errch:
-			logutil.LogError(h.c.Log, err)
+			h.c.Log.WithError(err).Error("Received error from stream secrets server")
 			return err
 		}
 
 		resp, err := h.buildResponse(versionInfo, lastReq, upd)
 		if err != nil {
-			logutil.LogError(h.c.Log, err)
+			h.c.Log.WithError(err).Error("Error building stream secrets response")
 			return err
 		}
 
@@ -175,7 +174,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			telemetry.Count:       len(resp.Resources),
 		}).Debug("Sending StreamSecrets response")
 		if err := stream.Send(resp); err != nil {
-			logutil.LogError(h.c.Log, err)
+			h.c.Log.WithError(err).Error("Error sending secrets over stream")
 			return err
 		}
 
@@ -206,7 +205,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 	}).Debug("Received FetchSecrets request")
 	_, selectors, done, err := h.startCall(ctx)
 	if err != nil {
-		logutil.LogError(h.c.Log, err)
+		h.c.Log.WithError(err).Error("FetchSecrets: Failed to fetch secrets during context parsing")
 		return nil, err
 	}
 	defer done()
@@ -215,7 +214,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 
 	resp, err := h.buildResponse("", req, upd)
 	if err != nil {
-		logutil.LogError(h.c.Log, err)
+		h.c.Log.WithError(err).Error("FetchSecrets: Error building fetch secrets response")
 		return nil, err
 	}
 
