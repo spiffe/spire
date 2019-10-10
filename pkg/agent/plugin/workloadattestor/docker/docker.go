@@ -157,7 +157,7 @@ func (p *DockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest)
 		return nil, err
 	}
 
-	var opts []func(*dockerclient.Client) error
+	var opts []dockerclient.Opt
 	if config.DockerSocketPath != "" {
 		opts = append(opts, dockerclient.WithHost(config.DockerSocketPath))
 	}

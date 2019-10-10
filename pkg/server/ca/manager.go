@@ -54,6 +54,8 @@ type ManagerConfig struct {
 	TrustDomain    url.URL
 	UpstreamBundle bool
 	CATTL          time.Duration
+	X509CAKeyType  keymanager.KeyType
+	JWTKeyType     keymanager.KeyType
 	CASubject      pkix.Name
 	Dir            string
 	Log            logrus.FieldLogger
@@ -80,6 +82,12 @@ func NewManager(c ManagerConfig) *Manager {
 	}
 	if c.Clock == nil {
 		c.Clock = clock.New()
+	}
+	if c.X509CAKeyType == 0 {
+		c.X509CAKeyType = keymanager.KeyType_EC_P384
+	}
+	if c.JWTKeyType == 0 {
+		c.JWTKeyType = keymanager.KeyType_EC_P256
 	}
 
 	return &Manager{
@@ -170,13 +178,6 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 		m.activateX509CA()
 	}
 
-	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
-	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
-	m.c.Log.WithFields(logrus.Fields{
-		telemetry.TrustDomainID: m.c.TrustDomain.String(),
-		telemetry.TTL:           ttl.Seconds(),
-	}).Debug("Successfully rotated X.509 CA")
-
 	return nil
 }
 
@@ -191,7 +192,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 
 	now := m.c.Clock.Now()
 	km := m.c.Catalog.GetKeyManager()
-	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), keymanager.KeyType_EC_P384)
+	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), m.c.X509CAKeyType)
 	if err != nil {
 		return err
 	}
@@ -238,6 +239,14 @@ func (m *Manager) activateX509CA() {
 		telemetry.Expiration: timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
 	}).Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
+
+	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
+	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.TrustDomainID: m.c.TrustDomain.String(),
+		telemetry.TTL:           ttl.Seconds(),
+	}).Debug("Successfully rotated X.509 CA")
+
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
 }
 
@@ -282,7 +291,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 	notAfter := now.Add(m.c.CATTL)
 
 	km := m.c.Catalog.GetKeyManager()
-	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), keymanager.KeyType_EC_P256)
+	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), m.c.JWTKeyType)
 	if err != nil {
 		return err
 	}
@@ -857,10 +866,11 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.
 		Host:   trustDomain,
 	}
 
+	// SignatureAlgorithm is not provided. The crypto/x509 package will
+	// select the algorithm appropriately based on the signer key type.
 	template := x509.CertificateRequest{
-		Subject:            subject,
-		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		URIs:               []*url.URL{spiffeID},
+		Subject: subject,
+		URIs:    []*url.URL{spiffeID},
 	}
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, signer)

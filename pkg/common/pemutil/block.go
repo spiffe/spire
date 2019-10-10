@@ -97,6 +97,8 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 			block.Object, err = x509.ParseECPrivateKey(pemBlock.Bytes)
 		case privateKeyType:
 			block.Object, err = x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
+		case publicKeyType:
+			block.Object, err = x509.ParsePKIXPublicKey(pemBlock.Bytes)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse %q PEM block %d: %v", pemBlock.Type, blockno, err)

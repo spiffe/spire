@@ -40,6 +40,12 @@ func New() *FakeMetrics {
 	}
 }
 
+func (m *FakeMetrics) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.metrics = nil
+}
+
 // AllMetrics return all collected metrics
 func (m *FakeMetrics) AllMetrics() []MetricItem {
 	m.mu.Lock()

@@ -3,6 +3,8 @@ package ca
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -22,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"github.com/spiffe/spire/proto/spire/server/notifier"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/clock"
@@ -31,6 +34,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -285,14 +289,18 @@ func (s *ManagerSuite) TestX509CARotationMetric() {
 	s.m.c.Metrics = metrics
 
 	initTime := s.clock.Now()
-	preparationTime1 := initTime.Add(prepareAfter)
 
 	// rotate CA to preparation mark
-	s.setTimeAndRotateX509CA(preparationTime1)
+	s.setTimeAndRotateX509CA(initTime.Add(prepareAfter + time.Second))
+
+	// reset the metrics rotate CA to activate mark
+	metrics.Reset()
+	s.setTimeAndRotateX509CA(initTime.Add(activateAfter + time.Second))
 
 	// create expected metrics with ttl from certificate
 	expected := fakemetrics.New()
 	ttl := s.currentX509CA().Certificate.NotAfter.Sub(s.clock.Now())
+	telemetry_server.IncrActivateX509CAManagerCounter(expected)
 	telemetry_server.SetX509CARotateGauge(expected, s.m.c.TrustDomain.String(), float32(ttl.Seconds()))
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
@@ -499,6 +507,147 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 	s.Require().Equal(sevenDays, notAfter.Sub(threshold))
 }
 
+func (s *ManagerSuite) TestAlternateKeyTypes() {
+	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+		TrustDomain: testTrustDomain,
+	})
+
+	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
+		publicKey, ok := signer.Public().(*rsa.PublicKey)
+		t.Logf("PUBLIC KEY TYPE: %T", signer.Public())
+		if assert.True(t, ok, "Signer is not RSA") {
+			assert.Equal(t, keySize, publicKey.Size(), "Incorrect key size")
+		}
+	}
+
+	expectRSA2048 := func(t *testing.T, signer crypto.Signer) {
+		expectRSA(t, signer, 256)
+	}
+
+	expectRSA4096 := func(t *testing.T, signer crypto.Signer) {
+		expectRSA(t, signer, 512)
+	}
+
+	expectEC := func(t *testing.T, signer crypto.Signer, keySize int) {
+		publicKey, ok := signer.Public().(*ecdsa.PublicKey)
+		t.Logf("PUBLIC KEY TYPE: %T", signer.Public())
+		if assert.True(t, ok, "Signer is not ECDSA") {
+			assert.Equal(t, keySize, publicKey.Params().BitSize, "Incorrect key bit size")
+		}
+	}
+
+	expectEC256 := func(t *testing.T, signer crypto.Signer) {
+		expectEC(t, signer, 256)
+	}
+
+	expectEC384 := func(t *testing.T, signer crypto.Signer) {
+		expectEC(t, signer, 384)
+	}
+
+	testCases := []struct {
+		name          string
+		upstreamCA    upstreamca.UpstreamCA
+		x509CAKeyType keymanager.KeyType
+		jwtKeyType    keymanager.KeyType
+		checkX509CA   func(*testing.T, crypto.Signer)
+		checkJWTKey   func(*testing.T, crypto.Signer)
+	}{
+		{
+			name:        "self-signed with defaults",
+			checkX509CA: expectEC384,
+			checkJWTKey: expectEC256,
+		},
+		{
+			name:          "self-signed with RSA 2048",
+			x509CAKeyType: keymanager.KeyType_RSA_2048,
+			jwtKeyType:    keymanager.KeyType_RSA_2048,
+			checkX509CA:   expectRSA2048,
+			checkJWTKey:   expectRSA2048,
+		},
+		{
+			name:          "self-signed with RSA 4096",
+			x509CAKeyType: keymanager.KeyType_RSA_4096,
+			jwtKeyType:    keymanager.KeyType_RSA_4096,
+			checkX509CA:   expectRSA4096,
+			checkJWTKey:   expectRSA4096,
+		},
+		{
+			name:          "self-signed with EC P256",
+			x509CAKeyType: keymanager.KeyType_EC_P256,
+			jwtKeyType:    keymanager.KeyType_EC_P256,
+			checkX509CA:   expectEC256,
+			checkJWTKey:   expectEC256,
+		},
+		{
+			name:          "self-signed with EC P384",
+			x509CAKeyType: keymanager.KeyType_EC_P384,
+			jwtKeyType:    keymanager.KeyType_EC_P384,
+			checkX509CA:   expectEC384,
+			checkJWTKey:   expectEC384,
+		},
+		{
+			name:        "upstream-signed with defaults",
+			upstreamCA:  upstreamCA,
+			checkX509CA: expectEC384,
+			checkJWTKey: expectEC256,
+		},
+		{
+			name:          "upstream-signed with RSA 2048",
+			upstreamCA:    upstreamCA,
+			x509CAKeyType: keymanager.KeyType_RSA_2048,
+			jwtKeyType:    keymanager.KeyType_RSA_2048,
+			checkX509CA:   expectRSA2048,
+			checkJWTKey:   expectRSA2048,
+		},
+		{
+			name:          "upstream-signed with RSA 4096",
+			upstreamCA:    upstreamCA,
+			x509CAKeyType: keymanager.KeyType_RSA_4096,
+			jwtKeyType:    keymanager.KeyType_RSA_4096,
+			checkX509CA:   expectRSA4096,
+			checkJWTKey:   expectRSA4096,
+		},
+		{
+			name:          "upstream-signed with EC P256",
+			upstreamCA:    upstreamCA,
+			x509CAKeyType: keymanager.KeyType_EC_P256,
+			jwtKeyType:    keymanager.KeyType_EC_P256,
+			checkX509CA:   expectEC256,
+			checkJWTKey:   expectEC256,
+		},
+		{
+			name:          "upstream-signed with EC P384",
+			upstreamCA:    upstreamCA,
+			x509CAKeyType: keymanager.KeyType_EC_P384,
+			jwtKeyType:    keymanager.KeyType_EC_P384,
+			checkX509CA:   expectEC384,
+			checkJWTKey:   expectEC384,
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			c := s.selfSignedConfig()
+			c.X509CAKeyType = testCase.x509CAKeyType
+			c.JWTKeyType = testCase.jwtKeyType
+			c.UpstreamBundle = false
+
+			// Reset the key manager for each test case to ensure a fresh
+			// rotation.
+			s.cat.SetKeyManager(memory.New())
+
+			// Optionally provide an upstream CA
+			s.cat.SetUpstreamCA(testCase.upstreamCA)
+
+			s.m = NewManager(c)
+			assert.NoError(t, s.m.Initialize(context.Background()))
+
+			testCase.checkX509CA(t, s.currentX509CA().Signer)
+			testCase.checkJWTKey(t, s.currentJWTKey().Signer)
+		})
+	}
+}
+
 func (s *ManagerSuite) initSelfSignedManager() {
 	s.cat.SetUpstreamCA(nil)
 	s.m = NewManager(s.selfSignedConfig())
@@ -519,6 +668,10 @@ func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
 }
 
 func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
+	return s.selfSignedConfigWithKeyTypes(0, 0)
+}
+
+func (s *ManagerSuite) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType keymanager.KeyType) ManagerConfig {
 	return ManagerConfig{
 		CA:          s.ca,
 		Catalog:     s.cat,
@@ -526,11 +679,13 @@ func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
 		CASubject: pkix.Name{
 			CommonName: "SPIRE",
 		},
-		CATTL:   testCATTL,
-		Dir:     s.dir,
-		Metrics: telemetry.Blackhole{},
-		Log:     s.log,
-		Clock:   s.clock,
+		CATTL:         testCATTL,
+		X509CAKeyType: x509CAKeyType,
+		JWTKeyType:    jwtKeyType,
+		Dir:           s.dir,
+		Metrics:       telemetry.Blackhole{},
+		Log:           s.log,
+		Clock:         s.clock,
 	}
 }
 
