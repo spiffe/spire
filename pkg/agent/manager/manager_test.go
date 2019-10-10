@@ -401,7 +401,8 @@ func TestSVIDRotation(t *testing.T) {
 		rotHookStatus.called = true
 	})
 
-	mockClk.WaitForTickerMulti(time.Second, 2, "svid rotater and syncer didn't create tickers after 1 second")
+	mockClk.WaitForTicker(time.Second, "svid rotater didn't create tickers after 1 second")
+	mockClk.WaitForAfter(time.Second, "svid syncer didn't wait after 1 second")
 
 	// Get RLock to simulate an ongoing request (Rotator should wait until mtx is unlocked)
 	m.GetRotationMtx().RLock()
