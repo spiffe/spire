@@ -60,8 +60,9 @@ func NewHandler(config HandlerConfig) *Handler {
 
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
 	_, selectors, done, err := h.startCall(stream.Context())
+	log := h.c.Log.WithField(telemetry.Method, telemetry.StreamSecrets)
 	if err != nil {
-		h.c.Log.WithError(err).Error("StreamSecrets: Failed to fetch stream secrets during context parsing")
+		log.WithError(err).Error("Failed to fetch stream secrets during context parsing")
 		return err
 	}
 	defer done()
@@ -95,7 +96,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 	for {
 		select {
 		case newReq := <-reqch:
-			h.c.Log.WithFields(logrus.Fields{
+			log.WithFields(logrus.Fields{
 				telemetry.ResourceNames: newReq.ResourceNames,
 				telemetry.VersionInfo:   newReq.VersionInfo,
 				telemetry.Nonce:         newReq.ResponseNonce,
@@ -104,7 +105,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 
 			// If there's error detail, always log it
 			if newReq.ErrorDetail != nil {
-				h.c.Log.WithFields(logrus.Fields{
+				log.WithFields(logrus.Fields{
 					telemetry.ResourceNames: newReq.ResourceNames,
 					telemetry.Error:         newReq.ErrorDetail.Message,
 				}).Error("Envoy reported errors applying secrets")
@@ -116,7 +117,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				// The nonce should match the last sent nonce, otherwise
 				// it's stale and the request should be ignored.
 				if lastNonce != newReq.ResponseNonce {
-					h.c.Log.WithFields(logrus.Fields{
+					log.WithFields(logrus.Fields{
 						telemetry.Nonce:  newReq.ResponseNonce,
 						telemetry.Expect: lastNonce,
 					}).Warn("Received unexpected nonce; ignoring request")
@@ -126,7 +127,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				if newReq.VersionInfo == "" || newReq.VersionInfo != versionInfo {
 					// The caller has failed to apply the last update.
 					// A NACK might also contain an update to the resource hint, so we need to continue processing.
-					h.c.Log.WithFields(logrus.Fields{
+					log.WithFields(logrus.Fields{
 						telemetry.VersionInfo: newReq.VersionInfo,
 						telemetry.Expect:      versionInfo,
 					}).Error("Client rejected expected version and rolled back")
@@ -158,23 +159,23 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				continue
 			}
 		case err := <-errch:
-			h.c.Log.WithError(err).Error("Received error from stream secrets server")
+			log.WithError(err).Error("Received error from stream secrets server")
 			return err
 		}
 
 		resp, err := h.buildResponse(versionInfo, lastReq, upd)
 		if err != nil {
-			h.c.Log.WithError(err).Error("Error building stream secrets response")
+			log.WithError(err).Error("Error building stream secrets response")
 			return err
 		}
 
-		h.c.Log.WithFields(logrus.Fields{
+		log.WithFields(logrus.Fields{
 			telemetry.VersionInfo: resp.VersionInfo,
 			telemetry.Nonce:       resp.Nonce,
 			telemetry.Count:       len(resp.Resources),
 		}).Debug("Sending StreamSecrets response")
 		if err := stream.Send(resp); err != nil {
-			h.c.Log.WithError(err).Error("Error sending secrets over stream")
+			log.WithError(err).Error("Error sending secrets over stream")
 			return err
 		}
 
@@ -200,12 +201,13 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
-	h.c.Log.WithFields(logrus.Fields{
+	log := h.c.Log.WithField(telemetry.Method, telemetry.FetchSecrets)
+	log.WithFields(logrus.Fields{
 		telemetry.ResourceNames: req.ResourceNames,
 	}).Debug("Received FetchSecrets request")
 	_, selectors, done, err := h.startCall(ctx)
 	if err != nil {
-		h.c.Log.WithError(err).Error("FetchSecrets: Failed to fetch secrets during context parsing")
+		log.WithError(err).Error("Failed to fetch secrets during context parsing")
 		return nil, err
 	}
 	defer done()
@@ -214,11 +216,11 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 
 	resp, err := h.buildResponse("", req, upd)
 	if err != nil {
-		h.c.Log.WithError(err).Error("FetchSecrets: Error building fetch secrets response")
+		log.WithError(err).Error("Error building fetch secrets response")
 		return nil, err
 	}
 
-	h.c.Log.WithFields(logrus.Fields{
+	log.WithFields(logrus.Fields{
 		telemetry.Count: len(resp.Resources),
 	}).Debug("Sending FetchSecrets response")
 
@@ -232,7 +234,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
 	watcher, err := peerWatcher(ctx)
 	if err != nil {
-		return 0, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
+		return 0, nil, nil, status.Errorf(codes.Internal, "is this a supported system? Please report this bug: %v", err)
 	}
 
 	pid := watcher.PID()
@@ -251,7 +253,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	if err != nil {
 		telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, -1))
 		log.Debug("Finished handling SDS API request due to error")
-		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
+		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "could not verify existence of the original caller: %v", err)
 	}
 
 	done := func() {

@@ -744,7 +744,7 @@ func (s *HandlerSuite) TestListBySpiffeID() {
 func (s *HandlerSuite) TestCreateJoinToken() {
 	// No ttl
 	resp, err := s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo"})
-	s.requireErrorContains(err, "Ttl is required")
+	s.requireErrorContains(err, "ttl is required")
 	s.Require().Nil(resp)
 
 	// No token specified (one will be generated)

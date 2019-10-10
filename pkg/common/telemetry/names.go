@@ -106,6 +106,9 @@ const (
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
 
+	// CsrSpiffeId represents the SPIFFE ID in a Certificate Signing Request.
+	CsrSpiffeId = "csr_spiffe_id"
+
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"
 
@@ -155,6 +158,9 @@ const (
 
 	// Kid tags some key ID
 	Kid = "kid"
+
+	// NodeAttestorType declares the type of node attestation.
+	NodeAttestorType = "node_attestor_type"
 
 	// Nonce tags some nonce for communication
 	Nonce = "nonce"
@@ -359,6 +365,9 @@ const (
 	// used with other tags to add clarity
 	Manager = "manager"
 
+	// Method is the full name of the method invoked
+	Method = "method"
+
 	// NewSVID functionality related to creation of a new SVID
 	NewSVID = "new_svid"
 
@@ -409,18 +418,82 @@ const (
 // Operation metric tags or labels that are typically a specific
 // operation or API
 const (
+
+	// CreateFederatedBundle functionality related to creating a federated bundle
+	CreateFederatedBundle = "create_federated_bundle"
+
+	// CreateJoinToken functionality related to creating a join token
+	CreateJoinToken = "create_join_token"
+
+	// CreateRegistrationEntry functionality related to creating a registration entry
+	CreateRegistrationEntry = "create_registration_entry"
+
+	// DeleteFederatedBundle functionality related to deleting a federated bundle
+	DeleteFederatedBundle = "delete_federated_bundle"
+
+	// DeleteRegistrationEntry functionality related to deleting a registration entry
+	DeleteRegistrationEntry = "delete_registration_entry"
+
+	// EvictAgent funtionality related to evicting an agent
+	EvictAgent = "evict_agent"
+
+	// FetchBundle functionality related to fetching a CA bundle
+	FetchBundle = "fetch_bundle"
+
+	// FetchFederatedBundle functionality related to fetching a federated bundle
+	FetchFederatedBundle = "fetch_federated_bundle"
+
 	// FetchJWTSVID functionality related to fetching a JWT SVID
 	FetchJWTSVID = "fetch_jwt_svid"
 
 	// FetchJWTBundles functionality related to fetching JWT bundles
 	FetchJWTBundles = "fetch_jwt_bundles"
 
+	// FetchRegistrationEntry functionality related to fetching a registration entry
+	FetchRegistrationEntry = "fetch_registration_entry"
+
+	// FetchRegistrationEntries functionality related to fetching registration entries
+	FetchRegistrationEntries = "fetch_registration_entries"
+
+	// FetchSecrets functionality related to fetching secrets
+	FetchSecrets = "fetch_secrets"
+
 	// FetchUpdates functionality related to fetching updates; should be used
 	// with other tags to add clarity
 	FetchUpdates = "fetch_updates"
 
+	// FetchX509CASVID functionality related to fetching an X509 SVID
+	FetchX509CASVID = "fetch_x509_ca_svid"
+
 	// FetchX509SVID functionality related to fetching an X509 SVID
 	FetchX509SVID = "fetch_x509_svid"
+
+	// GetNodeSelectors functionality related to getting node selectors
+	GetNodeSelectors = "get_node_selectors"
+
+	// ListAgents functionality related to listing agents
+	ListAgents = "list_agents"
+
+	// ListFederatedBundles functionality related to listing federated bundles
+	ListFederatedBundles = "list_federated_bundles"
+
+	// ListRegistrationsByParentID functionality related to listing registrations by parent ID
+	ListRegistrationsByParentID = "list_registrations_by_parent_id"
+
+	// ListRegistrationsBySelector functionality related to listing registrations by selector
+	ListRegistrationsBySelector = "list_registrations_by_selector"
+
+	// ListRegistrationsBySelectors functionality related to listing registrations by selectors
+	ListRegistrationsBySelectors = "list_registrations_by_selectors"
+
+	// ListRegistrationsBySPIFFEID functionality related to listing registrations by SPIFFE ID
+	ListRegistrationsBySPIFFEID = "list_registrations_by_spiffe_id"
+
+	// MintJWTSVID functionality related to minting a JWT SVID
+	MintJWTSVID = "mint_jwt_svid"
+
+	// MintX509SVID functionality related to minting an X.509 SVID
+	MintX509SVID = "mint_x509_svid"
 
 	// NodeAPI functionality related to attested/attesting nodes (agents)
 	NodeAPI = "node_api"
@@ -433,8 +506,17 @@ const (
 	// to add clarity
 	SDSAPI = "sds_api"
 
+	// StreamSecrets functionality related to streaming secrets
+	StreamSecrets = "stream_secrets"
+
 	// SubsystemName declares field for some subsystem name (an API, module...)
 	SubsystemName = "subsystem_name"
+
+	// UpdateFederatedBundle functionality related to updating a federated bundle
+	UpdateFederatedBundle = "update_federated_bundle"
+
+	// UpdateRegistrationEntry functionality related to updating a registration entry
+	UpdateRegistrationEntry = "update_registration_entry"
 
 	// ValidateJWTSVID functionality related validating a JWT SVID
 	ValidateJWTSVID = "validate_jwt_svid"

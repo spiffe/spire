@@ -51,11 +51,12 @@ func (h *Handler) CreateEntry(
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
 	addCallerIDLabel(ctx, counter)
+	log := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntry)
 
 	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
 		err = status.Error(codes.InvalidArgument, err.Error())
-		h.Log.WithError(err).Error("CreateRegistrationEntry: Request parameter validation error")
+		log.WithError(err).Error("Request parameter validation error")
 		return nil, err
 	}
 
@@ -63,12 +64,12 @@ func (h *Handler) CreateEntry(
 
 	unique, err := h.isEntryUnique(ctx, ds, request)
 	if err != nil {
-		h.Log.WithError(err).Error("CreateRegistrationEntry: Error trying to create entry")
+		log.WithError(err).Error("Error trying to create entry")
 		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
 	if !unique {
-		h.Log.Error("CreateRegistrationEntry: Entry already exists")
+		log.Error("Entry already exists")
 		return nil, status.Error(codes.AlreadyExists, "entry already exists")
 	}
 
@@ -76,7 +77,7 @@ func (h *Handler) CreateEntry(
 		&datastore.CreateRegistrationEntryRequest{Entry: request},
 	)
 	if err != nil {
-		h.Log.WithError(err).Error("CreateRegistrationEntry: Error trying to create entry")
+		log.WithError(err).Error("Error trying to create entry")
 		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
@@ -91,6 +92,7 @@ func (h *Handler) DeleteEntry(
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.DeleteRegistrationEntry)
 
 	ds := h.getDataStore()
 	req := &datastore.DeleteRegistrationEntryRequest{
@@ -98,7 +100,7 @@ func (h *Handler) DeleteEntry(
 	}
 	resp, err := ds.DeleteRegistrationEntry(ctx, req)
 	if err != nil {
-		h.Log.WithError(err).Error("DeleteRegistrationEntry: Error deleting registration entry")
+		log.WithError(err).Error("Error deleting registration entry")
 		return &common.RegistrationEntry{}, status.Error(codes.Internal, err.Error())
 	}
 
@@ -113,17 +115,18 @@ func (h *Handler) FetchEntry(
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntry)
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
 		&datastore.FetchRegistrationEntryRequest{EntryId: request.Id},
 	)
 	if err != nil {
-		h.Log.WithError(err).Error("FetchRegistrationEntry: Error trying to fetch entry")
+		log.WithError(err).Error("Error trying to fetch entry")
 		return response, status.Errorf(codes.Internal, "error trying to fetch entry: %v", err)
 	}
 	if fetchResponse.Entry == nil {
-		h.Log.Error("FetchRegistrationEntry: No such registration entry")
+		log.Error("No such registration entry")
 		return nil, status.Error(codes.NotFound, "no such registration entry")
 	}
 	return fetchResponse.Entry, nil
@@ -137,11 +140,12 @@ func (h *Handler) FetchEntries(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntries)
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	if err != nil {
-		h.Log.WithError(err).Error("FetchRegistrationEntries: Error trying to fetch entries")
+		log.WithError(err).Error("Error trying to fetch entries")
 		return response, status.Errorf(codes.Internal, "error trying to fetch entries: %v", err)
 	}
 	return &common.RegistrationEntries{
@@ -157,15 +161,16 @@ func (h *Handler) UpdateEntry(
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.UpdateRegistrationEntry)
 
 	if request.Entry == nil {
-		h.Log.Error("UpdateRegistrationEntry: Request is missing entry to update")
+		log.Error("Request is missing entry to update")
 		return nil, status.Error(codes.InvalidArgument, "request is missing entry to update")
 	}
 
 	request.Entry, err = h.prepareRegistrationEntry(request.Entry, true)
 	if err != nil {
-		h.Log.WithError(err).Error("UpdateRegistrationEntry: Error validating request parameters")
+		log.WithError(err).Error("Error validating request parameters")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -174,12 +179,12 @@ func (h *Handler) UpdateEntry(
 		Entry: request.Entry,
 	})
 	if err != nil {
-		h.Log.WithError(err).Error("UpdateRegistrationEntry: Failed to update registration entry")
+		log.WithError(err).Error("Failed to update registration entry")
 		return nil, status.Errorf(codes.Internal, "failed to update registration entry: %v", err)
 	}
 
 	telemetry_registrationapi.IncrRegistrationAPIUpdatedEntryCounter(h.Metrics)
-	h.Log.WithFields(logrus.Fields{
+	log.WithFields(logrus.Fields{
 		telemetry.ParentID: resp.Entry.ParentId,
 		telemetry.SPIFFEID: resp.Entry.SpiffeId,
 	}).Debug("Workload registration successfully updated")
@@ -195,10 +200,11 @@ func (h *Handler) ListByParentID(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsByParentID)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
-		h.Log.WithError(err).Error("ListRegistrationsByParentID: Failed to normalize SPIFFE ID")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -210,7 +216,7 @@ func (h *Handler) ListByParentID(
 			},
 		})
 	if err != nil {
-		h.Log.WithError(err).Error("ListRegistrationsByParentID: Failed to list entries by parent ID")
+		log.WithError(err).Error("Failed to list entries by parent ID")
 		return nil, status.Errorf(codes.Internal, "error trying to list entries by parent ID: %v", err)
 	}
 
@@ -227,6 +233,7 @@ func (h *Handler) ListBySelector(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySelector)
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -236,7 +243,7 @@ func (h *Handler) ListBySelector(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		h.Log.WithError(err).Error("ListRegistrationsBySelector: Failed to list entries by selector")
+		log.WithError(err).Error("Failed to list entries by selector")
 		return nil, status.Errorf(codes.Internal, "error trying to list entries by selector: %v", err)
 	}
 
@@ -253,6 +260,7 @@ func (h *Handler) ListBySelectors(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySelectors)
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -262,7 +270,7 @@ func (h *Handler) ListBySelectors(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		h.Log.WithError(err).Error("ListRegistrationsBySelectors: Failed to list entries by selectors")
+		log.WithError(err).Error("Failed to list entries by selectors")
 		return nil, status.Errorf(codes.Internal, "error trying to list entries by selectors: %v", err)
 	}
 
@@ -279,10 +287,11 @@ func (h *Handler) ListBySpiffeID(
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySPIFFEID)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
-		h.Log.WithError(err).Error("ListRegistrationsBySpiffeID: Failed to normalize SPIFFE ID")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -294,7 +303,7 @@ func (h *Handler) ListBySpiffeID(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		h.Log.WithError(err).Error("ListRegistrationsBySpiffeID: Failed to list entries by SPIFFE ID")
+		log.WithError(err).Error("Failed to list entries by SPIFFE ID")
 		return nil, status.Errorf(codes.Internal, "error trying to list entries by SPIFFE ID: %v", err)
 	}
 
@@ -310,20 +319,21 @@ func (h *Handler) CreateFederatedBundle(
 	counter := telemetry_registrationapi.StartCreateFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.CreateFederatedBundle)
 
 	bundle := request.Bundle
 	if bundle == nil {
-		h.Log.Error("CreateFederatedBundle: Bundle field is required")
+		log.Error("Bundle field is required")
 		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
 	}
 	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		h.Log.WithError(err).Error("CreateFederatedBundle: Failed to normalize SPIFFE ID")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		h.Log.Error("CreateFederatedBundle: Federated bundle id cannot match server trust domain")
+		log.Error("Federated bundle id cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
@@ -331,7 +341,7 @@ func (h *Handler) CreateFederatedBundle(
 	if _, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		h.Log.WithError(err).Error("CreateFederatedBundle: Failed to create bundle")
+		log.WithError(err).Error("Failed to create bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -345,15 +355,16 @@ func (h *Handler) FetchFederatedBundle(
 	counter := telemetry_registrationapi.StartFetchFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.FetchFederatedBundle)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		h.Log.WithError(err).Error("FetchFederatedBundle: Failed to normalize SPIFFE ID")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if request.Id == h.TrustDomain.String() {
-		h.Log.Error("FetchFederatedBundle: Federated bundle id cannot match server trust domain")
+		log.Error("Federated bundle id cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
@@ -362,11 +373,11 @@ func (h *Handler) FetchFederatedBundle(
 		TrustDomainId: request.Id,
 	})
 	if err != nil {
-		h.Log.WithError(err).Error("FetchFederatedBundle: Failed to fetch bundle")
+		log.WithError(err).Error("Failed to fetch bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if resp.Bundle == nil {
-		h.Log.Error("FetchFederatedBundle: Bundle not found")
+		log.Error("Bundle not found")
 		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
@@ -379,11 +390,12 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	counter := telemetry_registrationapi.StartListFedBundlesCall(h.Metrics)
 	addCallerIDLabel(stream.Context(), counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.ListFederatedBundles)
 
 	ds := h.getDataStore()
 	resp, err := ds.ListBundles(stream.Context(), &datastore.ListBundlesRequest{})
 	if err != nil {
-		h.Log.WithError(err).Error("ListFederatedBundles: Failed to list bundles")
+		log.WithError(err).Error("Failed to list bundles")
 		return status.Error(codes.Internal, err.Error())
 	}
 
@@ -394,7 +406,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 		if err := stream.Send(&registration.FederatedBundle{
 			Bundle: bundle,
 		}); err != nil {
-			h.Log.WithError(err).Error("ListFederatedBundles: Failed to send response over stream")
+			log.WithError(err).Error("Failed to send response over stream")
 			return status.Error(codes.Internal, err.Error())
 		}
 	}
@@ -409,20 +421,21 @@ func (h *Handler) UpdateFederatedBundle(
 	counter := telemetry_registrationapi.StartUpdateFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.UpdateFederatedBundle)
 
 	bundle := request.Bundle
 	if bundle == nil {
-		h.Log.Error("UpdateFederatedBundle: Bundle field is required")
+		log.Error("Bundle field is required")
 		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
 	}
 	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		h.Log.WithError(err).Error("UpdateFederatedBundle: Failed to normalize SPIFFE ID")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		h.Log.Error("UpdateFederatedBundle: Federated bundle ID cannot match server trust domain")
+		log.Error("Federated bundle ID cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
@@ -430,7 +443,7 @@ func (h *Handler) UpdateFederatedBundle(
 	if _, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle,
 	}); err != nil {
-		h.Log.WithError(err).Error("UpdateFederatedBundle: Failed to update federated bundle")
+		log.WithError(err).Error("Failed to update federated bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -444,21 +457,22 @@ func (h *Handler) DeleteFederatedBundle(
 	counter := telemetry_registrationapi.StartDeleteFedBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.DeleteFederatedBundle)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		h.Log.WithError(err).Error("DeleteFederatedBundle: Failed to normalize SPIFFE ID")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if request.Id == h.TrustDomain.String() {
-		h.Log.Error("DeleteFederatedBundle: Federated bundle ID cannot match server trust domain")
+		log.Error("Federated bundle ID cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	mode, err := convertDeleteBundleMode(request.Mode)
 	if err != nil {
-		h.Log.WithError(err).Error("DeleteFederatedBundle: Unknown delete bundle mode in request")
+		log.WithError(err).Error("Unknown delete bundle mode in request")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -467,7 +481,7 @@ func (h *Handler) DeleteFederatedBundle(
 		TrustDomainId: request.Id,
 		Mode:          mode,
 	}); err != nil {
-		h.Log.WithError(err).Error("DeleteFederatedBundle: Failed to delete federated bundle")
+		log.WithError(err).Error("Failed to delete federated bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -481,9 +495,10 @@ func (h *Handler) CreateJoinToken(
 	counter := telemetry_registrationapi.StartCreateJoinTokenCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.CreateJoinToken)
 
 	if request.Ttl < 1 {
-		h.Log.Error("CreateJoinToken: TTL is required")
+		log.Error("TTL is required")
 		return nil, status.Error(codes.InvalidArgument, "ttl is required, you must provide one")
 	}
 
@@ -491,7 +506,7 @@ func (h *Handler) CreateJoinToken(
 	if request.Token == "" {
 		u, err := uuid.NewV4()
 		if err != nil {
-			h.Log.WithError(err).Error("CreateJoinToken: Failed to generate UUID token")
+			log.WithError(err).Error("Failed to generate UUID token")
 			return nil, status.Errorf(codes.Internal, "error generating uuid token: %v", err)
 		}
 		request.Token = u.String()
@@ -507,8 +522,8 @@ func (h *Handler) CreateJoinToken(
 		},
 	})
 	if err != nil {
-		h.Log.WithError(err).Error("CreateJoinToken: Failed to create join token")
-		return nil, err
+		log.WithError(err).Error("Failed to register token")
+		return nil, status.Errorf(codes.Internal, "Failed to register token: %v", err)
 	}
 
 	return request, nil
@@ -522,17 +537,18 @@ func (h *Handler) FetchBundle(
 	counter := telemetry_registrationapi.StartFetchBundleCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.FetchBundle)
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		h.Log.WithError(err).Error("FetchBundle: Failed to get bundle from datastore")
+		log.WithError(err).Error("Failed to get bundle from datastore")
 		return nil, status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
 	}
 	if resp.Bundle == nil {
-		h.Log.Error("FetchBundle: Bundle not found")
+		log.Error("Bundle not found")
 		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
@@ -544,10 +560,14 @@ func (h *Handler) FetchBundle(
 //EvictAgent removes a node from the attested nodes store
 func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
 	spiffeID := evictRequest.GetSpiffeID()
-	log := h.Log.WithField(telemetry.SPIFFEID, spiffeID)
+	log := h.Log.WithFields(logrus.Fields{
+		telemetry.Method: telemetry.EvictAgent,
+		telemetry.SPIFFEID: spiffeID,
+	})
+
 	deletedNode, err := h.deleteAttestedNode(ctx, spiffeID)
 	if err != nil {
-		log.WithError(err).Warn("EvictAgent: Failed to evict agent")
+		log.WithError(err).Warn("Failed to evict agent")
 		return nil, err
 	}
 
@@ -559,11 +579,12 @@ func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.Evi
 
 //ListAgents returns the list of attested nodes
 func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
+	log := h.Log.WithField(telemetry.Method, telemetry.ListAgents)
 	ds := h.Catalog.GetDataStore()
 	req := &datastore.ListAttestedNodesRequest{}
 	resp, err := ds.ListAttestedNodes(ctx, req)
 	if err != nil {
-		h.Log.WithError(err).Error("ListAgents: Failed to list attested nodes")
+		log.WithError(err).Error("Failed to list attested nodes")
 		return nil, err
 	}
 	return &registration.ListAgentsResponse{Nodes: resp.Nodes}, nil
@@ -573,32 +594,33 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 	counter := telemetry_registrationapi.StartMintX509SVIDCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.MintX509SVID)
 
 	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
 	if err != nil {
-		h.Log.WithError(err).Error("MintX509SVID: Failed to normalize SPIFFE ID for minting")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID for minting")
 		return nil, err
 	}
 
 	if len(req.Csr) == 0 {
-		h.Log.Error("MintX509SVID: Request missing CSR")
+		log.Error("Request missing CSR")
 		return nil, status.Error(codes.InvalidArgument, "request missing CSR")
 	}
 
 	for _, dnsName := range req.DnsNames {
 		if err := validateDNS(dnsName); err != nil {
-			h.Log.WithField(telemetry.DNSName, dnsName).Error("MintX509SVID: Invalid DNS name")
+			log.WithField(telemetry.DNSName, dnsName).Error("Invalid DNS name")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid DNS name: %v", err)
 		}
 	}
 
 	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
-		h.Log.WithError(err).Error("MintX509SVID: Invalid CSR")
+		log.WithError(err).Error("Invalid CSR")
 		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: %v", err)
 	}
 	if err := csr.CheckSignature(); err != nil {
-		h.Log.WithError(err).Error("MintX509SVID: Invalid CSR: signature verification failed")
+		log.WithError(err).Error("Invalid CSR: signature verification failed")
 		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
 	}
 
@@ -609,7 +631,7 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 		DNSList:   req.DnsNames,
 	})
 	if err != nil {
-		h.Log.WithError(err).Error("MintX509SVID: Failed to sign X.509 SVID")
+		log.WithError(err).Error("Failed to sign X.509 SVID")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -617,11 +639,11 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
-		h.Log.WithError(err).Error("MintX509SVID: Failed to fetch bundle from datastore")
+		log.WithError(err).Error("Failed to fetch bundle from datastore")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if resp.Bundle == nil {
-		h.Log.Error("MintX509SVID: Bundle not found")
+		log.Error("Bundle not found")
 		return nil, status.Error(codes.FailedPrecondition, "bundle not found")
 	}
 
@@ -645,15 +667,16 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 	counter := telemetry_registrationapi.StartMintJWTSVIDCall(h.Metrics)
 	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.MintJWTSVID)
 
 	spiffeID, err := h.normalizeSPIFFEIDForMinting(req.SpiffeId)
 	if err != nil {
-		h.Log.WithError(err).Error("MintJWTSVID: Failed to normalize SPIFFE ID for minting")
+		log.WithError(err).Error("Failed to normalize SPIFFE ID for minting")
 		return nil, err
 	}
 
 	if len(req.Audience) == 0 {
-		h.Log.Error("MintJWTSVID: Request must specify at least one audience")
+		log.Error("Request must specify at least one audience")
 		return nil, status.Error(codes.InvalidArgument, "request must specify at least one audience")
 	}
 
@@ -663,7 +686,7 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 		Audience: req.Audience,
 	})
 	if err != nil {
-		h.Log.WithError(err).Error("MintJWTSVID: Failed to sign JWT SVID")
+		log.WithError(err).Error("Failed to sign JWT SVID")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -674,13 +697,14 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 
 // GetNodeSelectors returns node (agent) selectors
 func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNodeSelectorsRequest) (*registration.GetNodeSelectorsResponse, error) {
+	log := h.Log.WithField(telemetry.Method, telemetry.GetNodeSelectors)
 	ds := h.Catalog.GetDataStore()
 	r := &datastore.GetNodeSelectorsRequest{
 		SpiffeId: req.SpiffeId,
 	}
 	resp, err := ds.GetNodeSelectors(ctx, r)
 	if err != nil {
-		h.Log.WithError(err).Error("GetNodeSelectors: Failed to get node selectors")
+		log.WithError(err).Error("Failed to get node selectors")
 		return nil, err
 	}
 	return &registration.GetNodeSelectorsResponse{

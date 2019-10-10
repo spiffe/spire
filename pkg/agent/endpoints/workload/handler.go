@@ -46,6 +46,7 @@ type Handler struct {
 
 // FetchJWTSVID processes request for a JWT SVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
+	log := h.Log.WithField(telemetry.Method, telemetry.FetchJWTSVID)
 	if len(req.Audience) == 0 {
 		return nil, errs.New("audience must be specified")
 	}
@@ -56,15 +57,13 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 	defer done()
 
-	log := h.Log
-
 	counter := telemetry_workload.StartFetchJWTSVIDCall(metrics)
 	defer counter.Done(&err)
 
 	var spiffeIDs []string
 	identities := h.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
-		log.WithField(telemetry.Registered, false).Error("FetchJWTSVID: No identity issued")
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -86,7 +85,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		var svid *client.JWTSVID
 		svid, err = h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
-			log.WithError(err).Error("FetchJWTSVID: Could not fetch JWTSVID")
+			log.WithError(err).Error("Could not fetch JWTSVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWTSVID: %v", err)
 		}
 		resp.Svids = append(resp.Svids, &workload.JWTSVID{
@@ -104,17 +103,18 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 // FetchJWTBundles processes request for JWT bundles
 func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
+	log := h.Log.WithField(telemetry.Method, telemetry.FetchJWTBundles)
 	ctx := stream.Context()
 
 	pid, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
-		h.Log.WithError(err).Error("FetchJWTBundles: Failed to fetch JWT Bundles during context parsing")
+		log.WithError(err).Error("Failed to fetch JWT Bundles during context parsing")
 		return err
 	}
 	defer done()
 
 	telemetry_workload.IncrFetchJWTBundlesCounter(metrics)
-	log := h.Log.WithField(telemetry.PID, pid)
+	log = log.WithField(telemetry.PID, pid)
 	log.Debug("Fetching JWT Bundles")
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
@@ -127,7 +127,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 			log.Debug("Sending JWT Bundles")
 			start := time.Now()
 			if err := h.sendJWTBundlesResponse(update, stream, metrics); err != nil {
-				log.WithError(err).Error("FetchJWTBundles: Failed to send response")
+				log.WithError(err).Error("Failed to send response")
 				return err
 			}
 
@@ -145,20 +145,21 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 // ValidateJWTSVID processes request for JWT SVID validation
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
+	log := h.Log.WithField(telemetry.Method, telemetry.ValidateJWTSVID)
 	if req.Audience == "" {
-		h.Log.Error("ValidateJWTSVID: audience must be specified")
+		log.Error("audience must be specified")
 		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
 
-	log := h.Log.WithField(telemetry.Audience, req.Audience)
+	log = log.WithField(telemetry.Audience, req.Audience)
 	if req.Svid == "" {
-		log.Error("ValidateJWTSVID: svid must be specified")
+		log.Error("svid must be specified")
 		return nil, status.Error(codes.InvalidArgument, "svid must be specified")
 	}
 
 	_, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
-		log.WithError(err).Error("ValidateJWTSVID: Failed to validate JWT SVID during context parsing")
+		log.WithError(err).Error("Failed to validate JWT SVID during context parsing")
 		return nil, err
 	}
 	defer done()
@@ -180,7 +181,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	s, err := structFromValues(claims)
 	if err != nil {
-		log.WithError(err).Error("ValidateJWTSVID: Error deserializing claims from JWT SVID")
+		log.WithError(err).Error("Error deserializing claims from JWT SVID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -236,7 +237,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	log := h.Log
 
 	if len(update.Identities) == 0 {
-		log.WithField(telemetry.Registered, false).WithError(err).Error("FetchX509SVID: No identity issued")
+		log.WithField(telemetry.Registered, false).WithError(err).Error("No identity issued")
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -244,13 +245,13 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
-		log.WithError(err).Error("FetchX509SVID: Could not serialize response")
+		log.WithError(err).Error("Could not serialize X.509 SVID response")
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
 	err = stream.Send(resp)
 	if err != nil {
-		log.WithError(err).Error("FetchX509SVID: Stream send failed")
+		log.WithError(err).Error("Stream send of X.509 SVID response failed")
 		return err
 	}
 
