@@ -19,7 +19,7 @@ require (
 	github.com/alicebob/miniredis v2.5.0+incompatible // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878
-	github.com/aws/aws-sdk-go v1.20.3
+	github.com/aws/aws-sdk-go v1.21.7
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b // indirect
