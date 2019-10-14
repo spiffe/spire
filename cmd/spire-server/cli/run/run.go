@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
 const (
@@ -58,7 +60,7 @@ type serverConfig struct {
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
 	SVIDTTL             string             `hcl:"svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
-	UpstreamBundle      bool               `hcl:"upstream_bundle"`
+	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
 
 	ConfigPath string
 
@@ -204,7 +206,7 @@ func parseFlags(args []string) (*serverConfig, error) {
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.BoolVar(&c.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
+	flags.Var(newMaybeBoolValue(&c.UpstreamBundle), "upstreamBundle", "Include upstream CA certificates in the bundle")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -273,7 +275,9 @@ func newServerConfig(c *config) (*server.Config, error) {
 	}
 	sc.Log = logger
 
-	sc.UpstreamBundle = c.Server.UpstreamBundle
+	if c.Server.UpstreamBundle != nil {
+		sc.UpstreamBundle = *c.Server.UpstreamBundle
+	}
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
 	sc.Experimental.BundleEndpointEnabled = c.Server.Experimental.BundleEndpointEnabled
 	sc.Experimental.BundleEndpointAddress = &net.TCPAddr{
@@ -346,6 +350,15 @@ func newServerConfig(c *config) (*server.Config, error) {
 	sc.PluginConfigs = *c.Plugins
 	sc.Telemetry = c.Telemetry
 	sc.HealthChecks = c.HealthChecks
+
+	// Write out deprecation warnings
+	switch {
+	case len(sc.PluginConfigs[upstreamca.Type]) == 0:
+		// no UpstreamCA configured
+	case c.Server.UpstreamBundle == nil:
+		// relying on the default upstream_bundle value of false
+		sc.Log.Warn("The `upstream_bundle` configurable is not set, and you are using an UpstreamCA. The default value will be changed from `false` to `true` in a future release.  Please see issue #1095 and the configuration documentation for more information.")
+	}
 
 	return sc, nil
 }
@@ -424,3 +437,34 @@ func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
 		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("CA key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
+
+type maybeBoolValue struct {
+	p **bool
+}
+
+func newMaybeBoolValue(p **bool) *maybeBoolValue {
+	return &maybeBoolValue{p: p}
+}
+
+func (b *maybeBoolValue) Set(s string) error {
+	if b.p == nil {
+		// This should never happen, but just in case.
+		return errors.New("cannot set a zero-valued maybeBoolValue")
+	}
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		err = errors.New("parse error")
+	}
+	*b.p = &v
+	return err
+}
+
+func (b *maybeBoolValue) String() string {
+	var v bool
+	if b.p != nil && *b.p != nil {
+		v = **b.p
+	}
+	return strconv.FormatBool(v)
+}
+
+func (b maybeBoolValue) IsBoolFlag() bool { return true }
