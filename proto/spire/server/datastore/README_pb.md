@@ -800,8 +800,8 @@
 | spiffe_id | [string](#string) |  |  |
 | cert_serial_number | [string](#string) |  |  |
 | cert_not_after | [int64](#int64) |  |  |
-| prepared_cert_serial_number | [string](#string) |  |  |
-| prepared_cert_not_after | [int64](#int64) |  |  |
+| new_cert_serial_number | [string](#string) |  |  |
+| new_cert_not_after | [int64](#int64) |  |  |
 
 
 

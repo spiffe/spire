@@ -1933,9 +1933,9 @@ func (s *PluginSuite) TestMigration() {
 			db.First(&migration)
 			s.Require().Equal(13, migration.Version)
 
-			// Assert attested_node_entries tables gained the 'prepared' columns
-			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "prepared_serial_number"))
-			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "prepared_expires_at"))
+			// Assert attested_node_entries tables gained the new columns
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
 
 			resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
 				SpiffeId: "spiffe://example.org/host",
@@ -1949,8 +1949,8 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Equal("111", resp.Node.CertSerialNumber)
 
 			// Assert the new fields are empty for pre-existing entries
-			s.Require().Empty(resp.Node.PreparedCertSerialNumber)
-			s.Require().Empty(resp.Node.PreparedCertNotAfter)
+			s.Require().Empty(resp.Node.NewCertSerialNumber)
+			s.Require().Empty(resp.Node.NewCertNotAfter)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

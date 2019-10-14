@@ -300,8 +300,8 @@ func (s *DataStore) UpdateAttestedNode(ctx context.Context,
 	}
 	node.CertSerialNumber = req.CertSerialNumber
 	node.CertNotAfter = req.CertNotAfter
-	node.PreparedCertSerialNumber = req.PreparedCertSerialNumber
-	node.PreparedCertNotAfter = req.PreparedCertNotAfter
+	node.NewCertSerialNumber = req.NewCertSerialNumber
+	node.NewCertNotAfter = req.NewCertNotAfter
 
 	return &datastore.UpdateAttestedNodeResponse{
 		Node: cloneAttestedNode(node),

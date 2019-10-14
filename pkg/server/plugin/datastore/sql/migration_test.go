@@ -454,7 +454,7 @@ COMMIT;
 		INSERT INTO attested_node_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','spiffe://example.org/host','test','111','2018-12-19 15:26:58-07:00');
 		COMMIT;
 		`,
-		// future v13 database entry, in which the table 'attested_node_entries' gained two columns: 'prepared_serial_number' and 'prepared_expires_at'
+		// future v13 database entry, in which the table 'attested_node_entries' gained two columns: 'new_serial_number' and 'new_expires_at'
 	}
 )
 

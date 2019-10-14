@@ -44,10 +44,10 @@ message AttestedNode {
     int64 cert_not_after = 4;
 
     // Node certificate serial number
-    string prepared_cert_serial_number = 5;
+    string new_cert_serial_number = 5;
 
     // Node certificate not_after (seconds since unix epoch)
-    int64 prepared_cert_not_after = 6;
+    int64 new_cert_not_after = 6;
 }
 
 /** This is a curated record that the Server uses to set up and
