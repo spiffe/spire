@@ -452,13 +452,13 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		Audience: req.Jsr.Audience,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to sign JWT SVID")
+		log.WithError(err).Error("Failed to sign JWT-SVID")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
-		log.WithError(err).Error("Failed to get JWT SVID expiry")
+		log.WithError(err).Error("Failed to get JWT-SVID expiry")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 

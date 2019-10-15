@@ -44,7 +44,7 @@ type Handler struct {
 	connections int32
 }
 
-// FetchJWTSVID processes request for a JWT SVID
+// FetchJWTSVID processes request for a JWT-SVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchJWTSVID)
 	if len(req.Audience) == 0 {
@@ -85,8 +85,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		var svid *client.JWTSVID
 		svid, err = h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
-			log.WithError(err).Error("Could not fetch JWTSVID")
-			return nil, status.Errorf(codes.Unavailable, "could not fetch JWTSVID: %v", err)
+			log.WithError(err).Error("Could not fetch JWT-SVID")
+			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
 		}
 		resp.Svids = append(resp.Svids, &workload.JWTSVID{
 			SpiffeId: spiffeID,
@@ -143,23 +143,23 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	}
 }
 
-// ValidateJWTSVID processes request for JWT SVID validation
+// ValidateJWTSVID processes request for JWT-SVID validation
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
 	log := h.Log.WithField(telemetry.Method, telemetry.ValidateJWTSVID)
 	if req.Audience == "" {
-		log.Error("audience must be specified")
+		log.Error("Missing required audience parameter")
 		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
 
 	log = log.WithField(telemetry.Audience, req.Audience)
 	if req.Svid == "" {
-		log.Error("svid must be specified")
+		log.Error("Missing required svid parameter")
 		return nil, status.Error(codes.InvalidArgument, "svid must be specified")
 	}
 
 	_, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to validate JWT SVID during context parsing")
+		log.WithError(err).Error("Failed to validate JWT-SVID during context parsing")
 		return nil, err
 	}
 	defer done()
@@ -181,7 +181,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	s, err := structFromValues(claims)
 	if err != nil {
-		log.WithError(err).Error("Error deserializing claims from JWT SVID")
+		log.WithError(err).Error("Error deserializing claims from JWT-SVID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -251,7 +251,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	err = stream.Send(resp)
 	if err != nil {
-		log.WithError(err).Error("Stream send of X.509 SVID response failed")
+		log.WithError(err).Error("Failed to send X.509 SVID response")
 		return err
 	}
 

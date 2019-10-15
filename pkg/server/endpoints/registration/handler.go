@@ -686,7 +686,7 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 		Audience: req.Audience,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to sign JWT SVID")
+		log.WithError(err).Error("Failed to sign JWT-SVID")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 

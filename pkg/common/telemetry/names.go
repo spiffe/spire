@@ -149,7 +149,7 @@ const (
 	// IssuedAt tags an issuance timestamp
 	IssuedAt = "issued_at"
 
-	// JWT declares JWT SVID type, clarifying metrics
+	// JWT declares JWT-SVID type, clarifying metrics
 	JWT = "jwt"
 
 	// JWTKeys tags some count or list of JWT Keys. Should NEVER provide the actual keys, use
@@ -357,7 +357,7 @@ const (
 	// to add clarity. Should NEVER actually provide the key itself, use Key ID instead.
 	JWTKey = "jwt_key"
 
-	// JWTSVID functionality related to a JWT SVID; should be used with other tags
+	// JWTSVID functionality related to a JWT-SVID; should be used with other tags
 	// to add clarity
 	JWTSVID = "jwt_svid"
 
@@ -443,7 +443,7 @@ const (
 	// FetchFederatedBundle functionality related to fetching a federated bundle
 	FetchFederatedBundle = "fetch_federated_bundle"
 
-	// FetchJWTSVID functionality related to fetching a JWT SVID
+	// FetchJWTSVID functionality related to fetching a JWT-SVID
 	FetchJWTSVID = "fetch_jwt_svid"
 
 	// FetchJWTBundles functionality related to fetching JWT bundles
@@ -489,7 +489,7 @@ const (
 	// ListRegistrationsBySPIFFEID functionality related to listing registrations by SPIFFE ID
 	ListRegistrationsBySPIFFEID = "list_registrations_by_spiffe_id"
 
-	// MintJWTSVID functionality related to minting a JWT SVID
+	// MintJWTSVID functionality related to minting a JWT-SVID
 	MintJWTSVID = "mint_jwt_svid"
 
 	// MintX509SVID functionality related to minting an X.509 SVID
@@ -518,7 +518,7 @@ const (
 	// UpdateRegistrationEntry functionality related to updating a registration entry
 	UpdateRegistrationEntry = "update_registration_entry"
 
-	// ValidateJWTSVID functionality related validating a JWT SVID
+	// ValidateJWTSVID functionality related validating a JWT-SVID
 	ValidateJWTSVID = "validate_jwt_svid"
 
 	// WorkloadAPI flagging usage of workload API; should be used with other tags
