@@ -177,7 +177,7 @@ func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.WithField(telemetry.Address, l.Addr()).Info("Starting TCP server")
+	e.c.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting TCP server")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -209,7 +209,7 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.WithField(telemetry.Address, l.Addr()).Info("Starting UDS server")
+	e.c.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting UDS server")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -230,7 +230,7 @@ func (e *endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 		certs, roots, err := e.getCerts(ctx)
 		if err != nil {
-			e.c.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr()).Error("Could not generate TLS config for gRPC client")
+			e.c.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr().String()).Error("Could not generate TLS config for gRPC client")
 			return nil, err
 		}
 

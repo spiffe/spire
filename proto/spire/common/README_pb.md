@@ -58,6 +58,8 @@ Represents an attested SPIRE agent
 | attestation_data_type | [string](#string) |  | Attestation data type |
 | cert_serial_number | [string](#string) |  | Node certificate serial number |
 | cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
+| new_cert_serial_number | [string](#string) |  | Node certificate serial number |
+| new_cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
 
 
 

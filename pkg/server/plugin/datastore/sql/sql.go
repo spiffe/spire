@@ -874,7 +874,7 @@ func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logge
 }
 
 func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
-	model := AttestedNode{
+	model := V3AttestedNode{
 		SpiffeID:     req.Node.SpiffeId,
 		DataType:     req.Node.AttestationDataType,
 		SerialNumber: req.Node.CertSerialNumber,
@@ -891,7 +891,7 @@ func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (
 }
 
 func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
@@ -918,7 +918,7 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
 	}
 
-	var models []AttestedNode
+	var models []V3AttestedNode
 	if err := tx.Find(&models).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -943,12 +943,12 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 }
 
 func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	updates := AttestedNode{
+	updates := V3AttestedNode{
 		SerialNumber: req.CertSerialNumber,
 		ExpiresAt:    time.Unix(req.CertNotAfter, 0),
 	}
@@ -963,7 +963,7 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 }
 
 func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -2248,7 +2248,7 @@ func newRegistrationEntryID() (string, error) {
 	return u.String(), nil
 }
 
-func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
+func modelToAttestedNode(model V3AttestedNode) *common.AttestedNode {
 	return &common.AttestedNode{
 		SpiffeId:            model.SpiffeID,
 		AttestationDataType: model.DataType,
