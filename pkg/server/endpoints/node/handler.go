@@ -201,7 +201,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 	p, ok := peer.FromContext(ctx)
 	if ok {
-		log.WithField(telemetry.Address, p.Addr).Info("Node attestation request completed")
+		log.WithField(telemetry.Address, p.Addr.String()).Info("Node attestation request completed")
 	}
 
 	if err := stream.Send(response); err != nil {
