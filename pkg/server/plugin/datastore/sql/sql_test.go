@@ -1330,7 +1330,7 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 
 	// We have two registration entries
 	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
-	entriesResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+	entriesResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Len(entriesResp.Entries, 2)
@@ -1344,7 +1344,7 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 
 	// Make sure we have now only one registration entry
 	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
-	entriesResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Len(entriesResp.Entries, 1)
