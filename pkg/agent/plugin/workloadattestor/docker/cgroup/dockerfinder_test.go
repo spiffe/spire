@@ -90,13 +90,6 @@ func TestContainerIDFinders(t *testing.T) {
 			},
 			expectErr: `pattern "/<id>/<id>" must contain the container id token "<id>" exactly once`,
 		},
-		{
-			msg: "bad regex characters",
-			matchers: []string{
-				"\\<id>",
-			},
-			expectErr: "error parsing regexp",
-		},
 	}
 
 	for _, tt := range tests {
@@ -108,6 +101,8 @@ func TestContainerIDFinders(t *testing.T) {
 				return
 			}
 
+			require.NoError(t, err)
+			require.NotNil(t, cf)
 			for _, noMatch := range tt.expectNoMatch {
 				id, ok := cf.FindContainerID(noMatch)
 				assert.False(t, ok, "expected to not find %q but did", noMatch)

@@ -35,12 +35,24 @@ type ContainerIDFinder interface {
 }
 
 func newContainerIDFinder(pattern string) (ContainerIDFinder, error) {
-	if strings.Count(pattern, string(ContainerIDToken)) != 1 {
+	idTokenCount := 0
+	elems := strings.Split(pattern, "/")
+	for i, e := range elems {
+		switch e {
+		case string(WildcardToken):
+			elems[i] = regexpWildcard
+		case string(ContainerIDToken):
+			idTokenCount++
+			elems[i] = regexpWildcardSubmatch
+		default:
+			elems[i] = regexp.QuoteMeta(e)
+		}
+	}
+	if idTokenCount != 1 {
 		return nil, fmt.Errorf("pattern %q must contain the container id token %q exactly once", pattern, ContainerIDToken)
 	}
-	pattern = strings.ReplaceAll(pattern, string(WildcardToken), regexpWildcard)
-	pattern = strings.Replace(pattern, string(ContainerIDToken), regexpWildcardSubmatch, 1)
-	pattern = "^" + pattern + "$"
+
+	pattern = "^" + strings.Join(elems, "/") + "$"
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create container id fetcher: %v", err)
