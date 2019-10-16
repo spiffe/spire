@@ -283,7 +283,9 @@ func validateConfig(c *config) error {
 
 	switch {
 	case c.Agent.InsecureBootstrap:
-		c.Agent.TrustBundlePath = ""
+		if c.Agent.TrustBundlePath != "" {
+			return errors.New("trust_bundle_path must be not be configured when insecure_bootstrap is set")
+		}
 	case c.Agent.TrustBundlePath == "":
 		return errors.New("trust_bundle_path must be configured unless insecure_bootstrap is set")
 	}

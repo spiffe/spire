@@ -153,6 +153,10 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, fmt.Errorf("load bundle: %v", err)
 	}
 
+	if bundle == nil {
+		return nil, errors.New("load bundle: no bundle available")
+	}
+
 	if len(bundle) < 1 {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
@@ -344,20 +348,17 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	}
 
 	if !a.c.InsecureBootstrap {
-		// We shouldn't get here, since loadBundle() should fail if the
-		// bundle is empty, but just in case...
+		// We shouldn't get here since loadBundle() should fail if the bundle
+		// is empty, but just in case...
 		return nil, errs.New("no bundle and not doing insecure bootstrap")
 	}
 
 	// Insecure bootstrapping. Do not verify the server chain but rather do a
-	// simple soft verification that the server URI matches the expected SPIFFE
-	// ID. This is not a security feature but rather a check that we've reached
-	// what appears to be the right trust domain server.
+	// simple, soft verification that the server URI matches the expected
+	// SPIFFE ID. This is not a security feature but rather a check that we've
+	// reached what appears to be the right trust domain server.
 	tlsConfig := &tls.Config{
-		// Disable standard verification. The VerifyPeerCertificate callback
-		// will implement SPIFFE authentication.
 		InsecureSkipVerify: true,
-
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			a.c.Log.Warn("Insecure bootstrap enabled; skipping server certificate verification")
 			if len(rawCerts) == 0 {
