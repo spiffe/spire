@@ -67,6 +67,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 
 	dbCodeVersion, err := getDBCodeVersion(*migration)
 	if err != nil {
+		log.Error("Error getting DB code version", "error", err.Error())
 		return sqlError.New("error getting DB code version: %v", err)
 	}
 
