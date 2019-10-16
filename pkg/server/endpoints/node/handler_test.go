@@ -629,7 +629,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSR() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: map[string][]byte{"an-entry-id": []byte("MALFORMED")},
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains("failed to parse CSR")
+	s.assertLastLogMessageContains("Failed to sign CSRs")
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSRLegacy() {
@@ -638,7 +638,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSRLegacy() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: [][]byte{[]byte("MALFORMED")},
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains("failed to parse CSR")
+	s.assertLastLogMessageContains("Failed to sign CSRs for legacy agent")
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
@@ -647,7 +647,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", workloadID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
+	s.assertLastLogMessageContains(`Failed to sign CSRs`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
@@ -656,7 +656,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
+	s.assertLastLogMessageContains(`Failed to sign CSRs for legacy agent`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
@@ -716,7 +716,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
+	s.assertLastLogMessageContains(`Failed to sign CSRs`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
@@ -725,7 +725,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(trustDomainID),
 	}, codes.Internal, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for given ID type`)
+	s.assertLastLogMessageContains(`Failed to sign CSRs for legacy agent`)
 }
 
 func (s *HandlerSuite) TestFetchX509CASVIDWithUnauthorizedDownstreamCSR() {
@@ -735,7 +735,7 @@ func (s *HandlerSuite) TestFetchX509CASVIDWithUnauthorizedDownstreamCSR() {
 		Csr: s.makeCSR(trustDomainID),
 	})
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
-	s.assertLastLogMessageContains(`"spiffe://example.org/spire/agent/test/id" is not an authorized downstream workload`)
+	s.assertLastLogMessageContains(`Peer is not a valid downstream SPIRE server`)
 }
 
 func (s *HandlerSuite) TestFetchX509CASVID() {
@@ -936,7 +936,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithAgentID() {
 			SpiffeId: agentID,
 			Audience: []string{"audience"},
 		},
-	}, codes.PermissionDenied, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/spire/agent/test/id"`)
+	}, codes.PermissionDenied, `caller is not authorized`)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithUnauthorizedSPIFFEID() {
@@ -947,7 +947,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithUnauthorizedSPIFFEID() {
 			SpiffeId: workloadID,
 			Audience: []string{"audience"},
 		},
-	}, codes.PermissionDenied, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/workload"`)
+	}, codes.PermissionDenied, `caller is not authorized`)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
@@ -1003,13 +1003,13 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
 	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage("no peer information")
+	s.assertLastLogMessage("Downstream SVID is required for this request")
 
 	// non-TLS peer context
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
 	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage("no TLS auth info for peer")
+	s.assertLastLogMessage("Downstream SVID is required for this request")
 
 	// no verified chains on TLS peer context
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
@@ -1017,13 +1017,13 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 	}), fullMethod)
 	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage("no verified client certificate presented by peer")
+	s.assertLastLogMessage("Downstream SVID is required for this request")
 
 	// no downstream registration entry
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`"spiffe://example.org/downstream" is not an authorized downstream workload`)
+	s.assertLastLogMessage(`Peer is not a valid downstream SPIRE server`)
 
 	// good certificate
 	downstreamEntry := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -1054,13 +1054,13 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
 	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage("no peer information")
+	s.assertLastLogMessage("Agent SVID is required for this request")
 
 	// non-TLS peer context
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
 	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage("no TLS auth info for peer")
+	s.assertLastLogMessage("Agent SVID is required for this request")
 
 	// no verified chains on TLS peer context
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
@@ -1068,13 +1068,13 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	}), fullMethod)
 	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage("no verified client certificate presented by peer")
+	s.assertLastLogMessage("Agent SVID is required for this request")
 
 	// no attested certificate with matching SPIFFE ID
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" is not attested`)
+	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
 	// good certificate
 	s.attestAgent()
@@ -1089,7 +1089,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
+	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 	s.clock.Set(peerCert.NotAfter)
 
 	// serial number does not match
@@ -1097,7 +1097,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
+	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 }
 
 func (s *HandlerSuite) addAttestor(name string, config fakeservernodeattestor.Config) {
@@ -1305,7 +1305,7 @@ func (s *HandlerSuite) requireFetchJWTSVIDFailure(req *node.FetchJWTSVIDRequest,
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 	resp, err := s.attestedClient.FetchJWTSVID(ctx, req)
-	s.Require().Contains(errorContains, status.Convert(err).Message())
+	s.Require().Contains(status.Convert(err).Message(), errorContains)
 	s.Require().Equal(errorCode, status.Code(err))
 	s.Require().Nil(resp)
 }
