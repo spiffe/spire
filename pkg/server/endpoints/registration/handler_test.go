@@ -744,7 +744,7 @@ func (s *HandlerSuite) TestListBySpiffeID() {
 func (s *HandlerSuite) TestCreateJoinToken() {
 	// No ttl
 	resp, err := s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo"})
-	s.requireErrorContains(err, "Ttl is required")
+	s.requireErrorContains(err, "ttl is required")
 	s.Require().Nil(resp)
 
 	// No token specified (one will be generated)
@@ -919,7 +919,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 				Csr:      csr,
 				DnsNames: []string{"domain."},
 			},
-			err: status.Error(codes.InvalidArgument, `"domain." is not a valid DNS name: label is empty`),
+			err: status.Error(codes.InvalidArgument, `invalid DNS name: label is empty`),
 		},
 		{
 			name: "success with default TTL and no DNS names",
