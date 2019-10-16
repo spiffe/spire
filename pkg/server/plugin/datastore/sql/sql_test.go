@@ -1254,6 +1254,36 @@ func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
 	s.RequireProtoListEqual([]*common.RegistrationEntry{entry}, resp.Entries)
 }
 
+func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
+	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: &common.RegistrationEntry{
+			Selectors: []*common.Selector{
+				{Type: "TYPE", Value: "VALUE"},
+			},
+			SpiffeId: "SpiffeId",
+			ParentId: "ParentId",
+			DnsNames: []string{
+				"abcd.efg",
+				"somehost",
+			},
+		},
+	})
+	s.Require().NoError(err)
+
+	// This is gross. Since the bug that left selectors around have been fixed,
+	// I'm not sure how else to test this other than just sneaking in there
+	// and removing the registered_entries row.
+	res, err := s.sqlPlugin.db.raw.Exec("DELETE FROM registered_entries")
+	s.Require().NoError(err)
+	rowsAffected, err := res.RowsAffected()
+	s.Require().Equal(int64(1), rowsAffected)
+
+	// Assert that no rows are returned.
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Empty(resp.Entries)
+}
+
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
