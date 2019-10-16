@@ -13,7 +13,7 @@ endif
 export GO111MODULE=on
 
 # Makefile variables
-binary_dirs := $(shell find cmd/* functional/tools/* support/k8s/* -maxdepth 0 -type d)
+binary_dirs := $(shell find cmd/* functional/tools/* support/k8s/* support/oidc-discovery-provider -maxdepth 0 -type d)
 docker_volume_gopath := $(shell echo $${GOPATH}/pkg/mod):/root/go/pkg/mod
 docker_volume_spire := $(shell echo $${PWD}):/root/spire
 docker_image = spire-dev:latest
@@ -65,7 +65,12 @@ test: ## Run tests
 	$(docker) go test github.com/spiffe/spire/...
 
 race-test: ## Run race tests
+ifneq ($(COVERPROFILE),)
+	$(docker) go test -race -cover -covermode=atomic -coverprofile="$(COVERPROFILE)" github.com/spiffe/spire/...
+else
 	$(docker) go test -race github.com/spiffe/spire/...
+endif
+
 
 integration: ## Run integration tests
 	$(docker) script/e2e_test.sh
@@ -97,7 +102,7 @@ cmd: ## Opens a shell in docker container
 ##@ SPIRE images
 
 .PHONY: spire-images
-spire-images: spire-server-image spire-agent-image k8s-workload-registrar-image ## Builds SPIRE Server and Agent docker images
+spire-images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image ## Builds SPIRE docker images
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile.images ## Builds SPIRE Server docker image
@@ -120,6 +125,12 @@ k8s-workload-registrar-image: Dockerfile.images ## Builds SPIRE K8S Workload Reg
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
 	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
 
+.PHONY: oidc-discovery-provider-image
+oidc-discovery-provider-image: Dockerfile.images ## Builds SPIRE OIDC Discovery Provider docker image
+	docker build --build-arg goversion=$(goversion-required) --target oidc-discovery-provider -t oidc-discovery-provider -f Dockerfile.images .
+	# tag the image for local use (in systems tests, for example). "latest"
+	# isn't preferred since that can impact image pull policy (.e.g kubelet)
+	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
 
 
 ##@ Others

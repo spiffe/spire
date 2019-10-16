@@ -149,6 +149,13 @@ func (s *IIDAttestorSuite) TestErrorOnBadData() {
 func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 	s.configure()
 
+	// using our own keypair (since we don't have AWS private key)
+	originalAWSPublicKey := s.plugin.config.awsCaCertPublicKey
+	defer func() {
+		s.plugin.config.awsCaCertPublicKey = originalAWSPublicKey
+	}()
+	s.plugin.config.awsCaCertPublicKey = &s.rsaKey.PublicKey
+
 	data := &common.AttestationData{
 		Type: aws.PluginName,
 		Data: s.iidAttestationDataToBytes(*s.buildDefaultIIDAttestationData()),
@@ -201,7 +208,6 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 	zeroDeviceIndex := int64(0)
 	nonzeroDeviceIndex := int64(1)
 	instanceStoreType := ec2.DeviceTypeInstanceStore
-	ebsStoreType := ec2.DeviceTypeEbs
 
 	tests := []struct {
 		desc                string
@@ -223,6 +229,32 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			expectErr: "client error",
 		},
 		{
+			desc: "no reservation",
+			mockExpect: func(mock *mock_aws.MockEC2Client) {
+				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
+					InstanceIds: []*string{&testInstance},
+				}).Return(&ec2.DescribeInstancesOutput{
+					Reservations: []*ec2.Reservation{},
+				}, nil)
+			},
+			expectErr: "querying AWS via describe-instances: returned no reservations",
+		},
+		{
+			desc: "no instance",
+			mockExpect: func(mock *mock_aws.MockEC2Client) {
+				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
+					InstanceIds: []*string{&testInstance},
+				}).Return(&ec2.DescribeInstancesOutput{
+					Reservations: []*ec2.Reservation{
+						{
+							Instances: []*ec2.Instance{},
+						},
+					},
+				}, nil)
+			},
+			expectErr: "querying AWS via describe-instances: returned no instances",
+		},
+		{
 			desc: "non-zero device index",
 			mockExpect: func(mock *mock_aws.MockEC2Client) {
 				output := getDefaultDescribeInstancesOutput()
@@ -235,28 +267,12 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			expectErr: "verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0",
 		},
 		{
-			desc: "success, client, no block device, default template",
-			mockExpect: func(mock *mock_aws.MockEC2Client) {
-				output := getDefaultDescribeInstancesOutput()
-				output.Reservations[0].Instances[0].RootDeviceType = &ebsStoreType
-				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(&output, nil)
-			},
+			desc:         "success, client, no block device, default template",
 			skipBlockDev: true,
 			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
 		{
-			desc: "success, client, no block device, other allowed acct, default template",
-			mockExpect: func(mock *mock_aws.MockEC2Client) {
-				output := getDefaultDescribeInstancesOutput()
-				output.Reservations[0].Instances[0].RootDeviceType = &ebsStoreType
-				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(&output, nil)
-			},
+			desc:         "success, client, no block device, other allowed acct, default template",
 			skipBlockDev: true,
 			allowList:    []string{"someOtherAccount"},
 			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
@@ -301,6 +317,38 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			},
 			replacementTemplate: "{{ .PluginName}}/{{ .Region }}/{{ .AccountID }}/{{ .InstanceID }}",
 			expectID:            "spiffe://example.org/spire/agent/aws_iid/test-region/test-account/test-instance",
+		},
+		{
+			desc: "success, tags in template",
+			mockExpect: func(mock *mock_aws.MockEC2Client) {
+				output := getDefaultDescribeInstancesOutput()
+				output.Reservations[0].Instances[0].Tags = []*ec2.Tag{
+					{
+						Key:   func() *string { a := "Hostname"; return &a }(),
+						Value: func() *string { a := "host1"; return &a }(),
+					},
+				}
+				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
+				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
+				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
+					InstanceIds: []*string{&testInstance},
+				}).Return(&output, nil)
+			},
+			replacementTemplate: "{{ .PluginName}}/zone1/{{ .Tags.Hostname }}",
+			expectID:            "spiffe://example.org/spire/agent/aws_iid/zone1/host1",
+		},
+		{
+			desc: "missing tags do not panic",
+			mockExpect: func(mock *mock_aws.MockEC2Client) {
+				output := getDefaultDescribeInstancesOutput()
+				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
+				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
+				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
+					InstanceIds: []*string{&testInstance},
+				}).Return(&output, nil)
+			},
+			replacementTemplate: "{{ .PluginName}}/zone1/{{ .Tags.Hostname }}",
+			expectID:            "spiffe://example.org/spire/agent/aws_iid/zone1/%3Cno%20value%3E",
 		},
 	}
 
@@ -456,7 +504,7 @@ func (s *IIDAttestorSuite) TestGetPluginInfo() {
 
 func (s *IIDAttestorSuite) configure() {
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: ``,
+		Configuration: `skip_block_device=true`,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)

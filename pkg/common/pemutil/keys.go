@@ -9,6 +9,22 @@ import (
 	"fmt"
 )
 
+func ParsePublicKey(pemBytes []byte) (crypto.PublicKey, error) {
+	block, err := parseBlock(pemBytes, publicKeyType)
+	if err != nil {
+		return nil, err
+	}
+	return block.Object, nil
+}
+
+func LoadPublicKey(path string) (crypto.PublicKey, error) {
+	block, err := loadBlock(path, publicKeyType)
+	if err != nil {
+		return nil, err
+	}
+	return block.Object, nil
+}
+
 func ParsePrivateKey(pemBytes []byte) (crypto.PrivateKey, error) {
 	block, err := parseBlock(pemBytes, privateKeyType, rsaPrivateKeyType, ecPrivateKeyType)
 	if err != nil {

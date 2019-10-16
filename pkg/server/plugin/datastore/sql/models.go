@@ -26,14 +26,29 @@ type Bundle struct {
 type AttestedNode struct {
 	Model
 
+	SpiffeID        string `gorm:"unique_index"`
+	DataType        string
+	SerialNumber    string
+	ExpiresAt       time.Time
+	NewSerialNumber string
+	NewExpiresAt    *time.Time
+}
+
+// TableName gets table name of AttestedNode
+func (AttestedNode) TableName() string {
+	return "attested_node_entries"
+}
+
+type V3AttestedNode struct {
+	Model
+
 	SpiffeID     string `gorm:"unique_index"`
 	DataType     string
 	SerialNumber string
 	ExpiresAt    time.Time
 }
 
-// TableName gets table name of AttestedNode
-func (AttestedNode) TableName() string {
+func (V3AttestedNode) TableName() string {
 	return "attested_node_entries"
 }
 
@@ -99,10 +114,14 @@ func (DNSName) TableName() string {
 	return "dns_names"
 }
 
-// Migration holds version information
+// Migration holds database schema version number, and
+// the SPIRE Code version number
 type Migration struct {
 	Model
 
 	// Database version
 	Version int
+
+	// SPIRE Code versioning
+	CodeVersion string
 }

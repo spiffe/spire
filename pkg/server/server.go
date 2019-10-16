@@ -32,6 +32,7 @@ import (
 	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"google.golang.org/grpc"
 )
 
@@ -88,6 +89,10 @@ type Config struct {
 	// self-signed CA certificates, otherwise it is up to the upstream CA.
 	CATTL time.Duration
 
+	// JWTIssuer is used as the issuer claim in JWT-SVIDs minted by the server.
+	// If unset, the JWT-SVID will not have an issuer claim.
+	JWTIssuer string
+
 	// CASubject is the subject used in the CA certificate
 	CASubject pkix.Name
 
@@ -96,6 +101,9 @@ type Config struct {
 
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config
+
+	// CAKeyType is the key type used for the X509 and JWT signing keys
+	CAKeyType keymanager.KeyType
 }
 
 type ExperimentalConfig struct {
@@ -328,6 +336,7 @@ func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:     metrics,
 		X509SVIDTTL: s.config.SVIDTTL,
+		JWTIssuer:   s.config.JWTIssuer,
 		TrustDomain: s.config.TrustDomain,
 		CASubject:   s.config.CASubject,
 	})
@@ -344,6 +353,8 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CATTL:          s.config.CATTL,
 		CASubject:      s.config.CASubject,
 		Dir:            s.config.DataDir,
+		X509CAKeyType:  s.config.CAKeyType,
+		JWTKeyType:     s.config.CAKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err

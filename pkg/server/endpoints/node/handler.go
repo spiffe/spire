@@ -201,7 +201,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 	p, ok := peer.FromContext(ctx)
 	if ok {
-		log.WithField(telemetry.Address, p.Addr).Info("Node attestation request completed")
+		log.WithField(telemetry.Address, p.Addr.String()).Info("Node attestation request completed")
 	}
 
 	if err := stream.Send(response); err != nil {
@@ -253,6 +253,12 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return status.Error(codes.Internal, "failed to fetch agent registration entries")
 		}
 
+		bundles, err := h.getBundlesForEntries(ctx, regEntries)
+		if err != nil {
+			h.c.Log.Error(err)
+			return status.Error(codes.Internal, err.Error())
+		}
+
 		// Only one of 'CSRs', 'DEPRECATEDCSRs' must be populated
 		if csrsLen != 0 && csrsLenDeprecated != 0 {
 			return status.Error(codes.InvalidArgument, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
@@ -279,12 +285,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		} else {
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids = make(map[string]*node.X509SVID)
-		}
-
-		bundles, err := h.getBundlesForEntries(ctx, regEntries)
-		if err != nil {
-			h.c.Log.Error(err)
-			return status.Error(codes.Internal, err.Error())
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
