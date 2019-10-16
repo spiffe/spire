@@ -44,6 +44,15 @@ docker-up() {
     docker-compose up -d "$@" || fail-now "failed to bring up services."
 }
 
+docker-stop() {
+    if [ $# -eq 0 ]; then
+        log-debug "stopping services..."
+    else
+        log-debug "stopping $*..."
+    fi
+    docker-compose stop "$@"
+}
+
 docker-down() {
     log-debug "bringing down services..."
     docker-compose down
