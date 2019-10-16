@@ -204,7 +204,6 @@ func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, *nodeConn,
 
 func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 	return DialServer(ctx, DialServerConfig{
-		Log:         c.c.Log,
 		Address:     c.c.Addr,
 		TrustDomain: c.c.TrustDomain.Host,
 		GetBundle: func() []*x509.Certificate {

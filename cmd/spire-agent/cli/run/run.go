@@ -46,6 +46,7 @@ type config struct {
 type agentConfig struct {
 	DataDir           string `hcl:"data_dir"`
 	EnableSDS         bool   `hcl:"enable_sds"`
+	InsecureBootstrap bool   `hcl:"insecure_bootstrap"`
 	JoinToken         string `hcl:"join_token"`
 	LogFile           string `hcl:"log_file"`
 	LogFormat         string `hcl:"log_format"`
@@ -54,7 +55,6 @@ type agentConfig struct {
 	ServerPort        int    `hcl:"server_port"`
 	SocketPath        string `hcl:"socket_path"`
 	TrustBundlePath   string `hcl:"trust_bundle_path"`
-	InsecureBootstrap bool   `hcl:"insecure_bootstrap"`
 	TrustDomain       string `hcl:"trust_domain"`
 
 	ConfigPath string
@@ -177,7 +177,7 @@ func parseFlags(args []string) (*agentConfig, error) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
-	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps insecurely with the server")
+	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -226,6 +226,7 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 	ac.TrustDomain = *td
 
 	// Parse trust bundle
+	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 	if c.Agent.TrustBundlePath != "" {
 		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
 		if err != nil {
