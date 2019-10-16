@@ -24,8 +24,7 @@ const (
 	regexpWildcard         = "[^\\/]*"
 	regexpWildcardSubmatch = "([^\\/]*)"
 
-	// index for slice returned by FindSubmatch
-	// fullmatchIndex = 0
+	// index for slice returned by FindStringSubmatch
 	submatchIndex = 1
 )
 
@@ -81,7 +80,7 @@ type containerIDFinder struct {
 }
 
 func (f *containerIDFinder) FindContainerID(cgroup string) (string, bool) {
-	matches := f.re.FindSubmatch([]byte(cgroup))
+	matches := f.re.FindStringSubmatch(cgroup)
 	if len(matches) == 0 {
 		return "", false
 	}
