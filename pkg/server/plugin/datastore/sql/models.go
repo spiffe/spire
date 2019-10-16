@@ -26,14 +26,29 @@ type Bundle struct {
 type AttestedNode struct {
 	Model
 
+	SpiffeID        string `gorm:"unique_index"`
+	DataType        string
+	SerialNumber    string
+	ExpiresAt       time.Time
+	NewSerialNumber string
+	NewExpiresAt    *time.Time
+}
+
+// TableName gets table name of AttestedNode
+func (AttestedNode) TableName() string {
+	return "attested_node_entries"
+}
+
+type V3AttestedNode struct {
+	Model
+
 	SpiffeID     string `gorm:"unique_index"`
 	DataType     string
 	SerialNumber string
 	ExpiresAt    time.Time
 }
 
-// TableName gets table name of AttestedNode
-func (AttestedNode) TableName() string {
+func (V3AttestedNode) TableName() string {
 	return "attested_node_entries"
 }
 

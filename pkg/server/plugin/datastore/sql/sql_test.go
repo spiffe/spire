@@ -1310,12 +1310,26 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 		Ttl:      2,
 	})
 
+	// We have two registration entries
+	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
+	entriesResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 2)
+
 	// Make sure we deleted the right one
 	expectedCallCounter = ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
 	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Equal(entry1, delRes.Entry)
+
+	// Make sure we have now only one registration entry
+	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
+	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 1)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
@@ -1921,6 +1935,36 @@ func (s *PluginSuite) TestMigration() {
 			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
+		case 12:
+			// Ensure attested_nodes_entries gained two new columns
+			db, err := sqlite{}.connect(&configuration{
+				DatabaseType:     "sqlite3",
+				ConnectionString: fmt.Sprintf("file://%s", dbPath),
+			})
+			s.Require().NoError(err)
+			// Assert migration version is now 13
+			migration := Migration{}
+			db.First(&migration)
+			s.Require().Equal(13, migration.Version)
+
+			// Assert attested_node_entries tables gained the new columns
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
+
+			resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
+				SpiffeId: "spiffe://example.org/host",
+			})
+			s.Require().NoError(err)
+
+			// Assert current serial numbers and expiration time remains the same
+			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
+			s.Require().NoError(err)
+			s.Require().Equal(expectedTime.Unix(), resp.Node.CertNotAfter)
+			s.Require().Equal("111", resp.Node.CertSerialNumber)
+
+			// Assert the new fields are empty for pre-existing entries
+			s.Require().Empty(resp.Node.NewCertSerialNumber)
+			s.Require().Empty(resp.Node.NewCertNotAfter)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
