@@ -225,16 +225,3 @@ https://github.com/spiffe/spiffe.
 
 The SPIFFE and SPIRE governance policies are detailed in
 [GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
-
-# Roadmap
-
-In case you're wondering where this project is headed, here is the SPIRE major feature roadmap:
-
-![SPIRE 2019 Roadmap](doc/images/2019_roadmap.png)
-
-- **SDS Support:** SPIRE Agent can directly expose the Envoy SDS API allowing it to seamlessly install and rotate TLS certificates in Envoy instances.
-- **Low Friction K8s Deployment:** All of the documentation, YAML configuration, and helpers necessary to provide a robust, automated deployment of SPIRE in Kubernetes.
-- **Nested SPIRE:** SPIRE can use its UpstreamCA plugin to chain up to another SPIRE server in the same trust domain, allowing for topologies that provide strong availability and scalability characteristics.
-- **Federation API Support:** SPIRE Server fully supports SPIFFE federation, allowing it to track and distribute bundle updates in foreign trust domains, as well as publish its own bundle updates.
-- **HA as a First Class Citizen:** Strengthen support for HA configurations by adding functional test cases and providing templates for HA deployments e.g. via a Helm chart
-- **Secure Bootstrap:** Support for going from a single SPIRE Server to an HA deployment securely, allowing SPIRE Servers to attest each other in the process.
