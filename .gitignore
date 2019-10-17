@@ -9,24 +9,25 @@
 /test_results
 /artifacts
 /releases
+bundle.*.pem
+svid.*.key
+svid.*.pem
+
 
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
-
-plugin/agent/keymanager-memory/keymanager-memory
-plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken
-plugin/agent/nodeattestor-secretfile/nodeattestor-secretfile
-plugin/agent/workloadattestor-secretfile/workloadattestor-secretfile
-plugin/agent/workloadattestor-unix/workloadattestor-unix
-plugin/agent/workloadattestor-k8s/workloadattestor-k8s
-
-plugin/server/ca-memory/ca-memory
-plugin/server/datastore-sqlite/datastore-sqlite
-plugin/server/nodeattestor-jointoken/nodeattestor-jointoken
-plugin/server/noderesolver-noop/noop
-plugin/server/noderesolver-noop/noderesolver-noop
-plugin/server/upstreamca-memory/upstreamca-memory
+support/k8s/k8s-workload-registrar/k8s-workload-registrar
+support/oidc-discovery-provider/oidc-discovery-provider
 
 functional/tools/stresstest/stresstest
 functional/tools/tokengenerator/tokengenerator
 functional/tools/workload/workload
+
+tools/spire-plugingen/spire-plugingen
+
+# Travis CI encrypted files decryption paths
+.travis/spire-travis-ci.json
+
+# Editor specific configuration
+.idea
+.vscode

@@ -2,17 +2,15 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"os/exec"
 	"sync"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 type CreateUsers struct {
@@ -25,6 +23,8 @@ func (*CreateUsers) Help() string {
 
 //Run create users
 func (*CreateUsers) Run(args []string) int {
+	ctx := context.Background()
+
 	var users, ttl int
 	var token string
 	flags := flag.NewFlagSet("createusers", flag.ContinueOnError)
@@ -74,7 +74,7 @@ func (*CreateUsers) Run(args []string) int {
 			entry := &common.RegistrationEntry{
 				ParentId: parentID,
 				Selectors: []*common.Selector{
-					&common.Selector{
+					{
 						Type:  "unix",
 						Value: selectorValue,
 					},
@@ -82,7 +82,7 @@ func (*CreateUsers) Run(args []string) int {
 				SpiffeId: spiffeID,
 				Ttl:      int32(ttl),
 			}
-			entryID, err := c.CreateEntry(context.TODO(), entry)
+			entryID, err := c.CreateEntry(ctx, entry)
 			if err != nil {
 				panic(err)
 			}
@@ -101,11 +101,9 @@ func (*CreateUsers) Synopsis() string {
 }
 
 func newRegistrationClient(address string) (registration.RegistrationClient, error) {
-	// TODO: Pass a bundle in here
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
 	}
-
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	return registration.NewRegistrationClient(conn), err
 }

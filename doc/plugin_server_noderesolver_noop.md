@@ -1,3 +1,13 @@
-# Server plugin: noderesolver-noop
+# Server plugin: NodeResolver "noop"
 
-The `noderesolver-noop` is a dummy Node Resolver plugin. 
+SPIRE server requires at least one NodeResolver plugin.
+The `noop` is a dummy Node Resolver plugin for deployments which don't
+require a NodeResolver.
+
+A sample configuration:
+
+```
+    NodeResolver "noop" {
+        plugin_data {}
+    }
+```

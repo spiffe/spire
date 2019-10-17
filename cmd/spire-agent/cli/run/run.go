@@ -1,56 +1,68 @@
 package run
 
 import (
+	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
-	"syscall"
+	"strings"
 
-	"context"
 	"github.com/hashicorp/hcl"
+	"github.com/imdario/mergo"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 const (
 	defaultConfigPath = "conf/agent/agent.conf"
-
 	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
-	defaultDataDir   = "."
-	defaultLogLevel  = "INFO"
-	defaultPluginDir = "conf/agent/plugin"
-
-	defaultUmask = 0077
+	defaultDataDir  = "."
+	defaultLogLevel = "INFO"
 )
 
-// Struct representing available configurables for file and CLI
-// options
-type RunConfig struct {
-	ServerAddress   string
-	ServerPort      int
-	TrustDomain     string
-	TrustBundlePath string
-	JoinToken       string
+// config contains all available configurables, arranged by section
+type config struct {
+	Agent        *agentConfig                `hcl:"agent"`
+	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
+	HealthChecks health.Config               `hcl:"health_checks"`
+}
 
-	SocketPath string
-	DataDir    string
-	PluginDir  string
-	LogFile    string
-	LogLevel   string
+type agentConfig struct {
+	DataDir         string `hcl:"data_dir"`
+	EnableSDS       bool   `hcl:"enable_sds"`
+	JoinToken       string `hcl:"join_token"`
+	LogFile         string `hcl:"log_file"`
+	LogFormat       string `hcl:"log_format"`
+	LogLevel        string `hcl:"log_level"`
+	ServerAddress   string `hcl:"server_address"`
+	ServerPort      int    `hcl:"server_port"`
+	SocketPath      string `hcl:"socket_path"`
+	TrustBundlePath string `hcl:"trust_bundle_path"`
+	TrustDomain     string `hcl:"trust_domain"`
 
 	ConfigPath string
-	Umask      string
+
+	// Undocumented configurables
+	ProfilingEnabled bool     `hcl:"profiling_enabled"`
+	ProfilingPort    int      `hcl:"profiling_port"`
+	ProfilingFreq    int      `hcl:"profiling_freq"`
+	ProfilingNames   []string `hcl:"profiling_names"`
 }
 
 type RunCLI struct {
@@ -62,39 +74,56 @@ func (*RunCLI) Help() string {
 }
 
 func (*RunCLI) Run(args []string) int {
-	cliConfig, err := parseFlags(args)
+	cliInput, err := parseFlags(args)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	fileConfig, err := parseFile(cliConfig.ConfigPath)
+	fileInput, err := parseFile(cliInput.ConfigPath)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	c := newDefaultConfig()
-	err = mergeConfigs(c, fileConfig, cliConfig)
+	input, err := mergeInput(fileInput, cliInput)
 	if err != nil {
-		fmt.Println(err.Error)
+		fmt.Fprintln(os.Stderr, err)
+		return 1
 	}
 
-	err = validateConfig(c)
+	c, err := newAgentConfig(input)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
+		return 1
 	}
+
+	// Create uds dir and parents if not exists
+	dir := filepath.Dir(c.BindAddress.String())
+	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
+		c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+	}
+
+	// Set umask before starting up the agent
+	cli.SetUmask(c.Log)
+
+	a := agent.New(c)
+
 	ctx, cancel := context.WithCancel(context.Background())
-	signalListener(ctx, cancel)
+	defer cancel()
+	util.SignalListener(ctx, cancel)
 
-	agt := agent.New(ctx, c)
-
-	err = agt.Run()
+	err = a.Run(ctx)
 	if err != nil {
-		c.Log.Error(err.Error())
+		c.Log.WithError(err).Error("agent crashed")
 		return 1
 	}
 
+	c.Log.Info("Agent stopped gracefully")
 	return 0
 }
 
@@ -102,52 +131,51 @@ func (*RunCLI) Synopsis() string {
 	return "Runs the agent"
 }
 
-func parseFile(filePath string) (*RunConfig, error) {
-	c := &RunConfig{}
+func parseFile(path string) (*config, error) {
+	c := &config{}
+
+	if path == "" {
+		path = defaultConfigPath
+	}
 
 	// Return a friendly error if the file is missing
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		msg := "could not find config file %s: please use the -config flag"
-		p, err := filepath.Abs(filePath)
+	data, err := ioutil.ReadFile(path)
+	if os.IsNotExist(err) {
+		absPath, err := filepath.Abs(path)
 		if err != nil {
-			p = filePath
-			msg = "could not determine CWD; config file not found at %s: use -config"
+			msg := "could not determine CWD; config file not found at %s: use -config"
+			return nil, fmt.Errorf(msg, path)
 		}
-		return nil, fmt.Errorf(msg, p)
+
+		msg := "could not find config file %s: please use the -config flag"
+		return nil, fmt.Errorf(msg, absPath)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
 	}
 
-	data, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	hclTree, err := hcl.Parse(string(data))
-	if err != nil {
-		return nil, err
-	}
-	if err := hcl.DecodeObject(&c, hclTree); err != nil {
-		return nil, err
+	if err := hcl.Decode(&c, string(data)); err != nil {
+		return nil, fmt.Errorf("unable to decode configuration at %q: %v", path, err)
 	}
 
 	return c, nil
 }
 
-func parseFlags(args []string) (*RunConfig, error) {
+func parseFlags(args []string) (*agentConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	c := &RunConfig{}
-
-	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
-	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
-	flags.StringVar(&c.JoinToken, "joinToken", "", "An optional token which has been generated by the SPIRE server")
-	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
-	flags.StringVar(&c.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
-	flags.StringVar(&c.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
-	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
-	flags.StringVar(&c.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	c := &agentConfig{}
 
 	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
-	flags.StringVar(&c.Umask, "umask", "", "Umask value to use for new files")
+	flags.StringVar(&c.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
+	flags.StringVar(&c.JoinToken, "joinToken", "", "An optional token which has been generated by the SPIRE server")
+	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
+	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
+	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
+	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
+	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
+	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
+	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -157,169 +185,148 @@ func parseFlags(args []string) (*RunConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *agent.Config, fileConfig, cliConfig *RunConfig) error {
-	// CLI > File, merge fileConfig first
-	err := mergeConfig(c, fileConfig)
-	if err != nil {
-		return err
-	}
+func mergeInput(fileInput *config, cliInput *agentConfig) (*config, error) {
+	c := &config{Agent: &agentConfig{}}
 
-	return mergeConfig(c, cliConfig)
-}
-
-func mergeConfig(orig *agent.Config, cmd *RunConfig) error {
-	// Parse server address
-	if cmd.ServerAddress != "" {
-		ips, err := net.LookupIP(cmd.ServerAddress)
-		if err != nil {
-			return err
-		}
-
-		if len(ips) == 0 {
-			return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
-		}
-		serverAddress := ips[0]
-
-		orig.ServerAddress.IP = serverAddress
-	}
-
-	if cmd.ServerPort != 0 {
-		orig.ServerAddress.Port = cmd.ServerPort
-	}
-
-	if cmd.TrustDomain != "" {
-		trustDomain := url.URL{
-			Scheme: "spiffe",
-			Host:   cmd.TrustDomain,
-		}
-
-		orig.TrustDomain = trustDomain
-	}
-
-	// Parse trust bundle
-	if cmd.TrustBundlePath != "" {
-		bundle, err := parseTrustBundle(cmd.TrustBundlePath)
-		if err != nil {
-			return fmt.Errorf("Error parsing trust bundle: %s", err)
-		}
-
-		orig.TrustBundle = bundle
-	}
-
-	if cmd.JoinToken != "" {
-		orig.JoinToken = cmd.JoinToken
-	}
-
-	if cmd.SocketPath != "" {
-		orig.BindAddress.Name = cmd.SocketPath
-	}
-
-	if cmd.DataDir != "" {
-		orig.DataDir = cmd.DataDir
-	}
-
-	if cmd.PluginDir != "" {
-		orig.PluginDir = cmd.PluginDir
-	}
-
-	// Handle log file and level
-	if cmd.LogFile != "" || cmd.LogLevel != "" {
-		logLevel := defaultLogLevel
-		if cmd.LogLevel != "" {
-			logLevel = cmd.LogLevel
-		}
-
-		logger, err := log.NewLogger(logLevel, cmd.LogFile)
-		if err != nil {
-			return fmt.Errorf("Could not open log file %s: %s", cmd.LogFile, err)
-		}
-
-		orig.Log = logger
-	}
-
-	if cmd.Umask != "" {
-		umask, err := strconv.ParseInt(cmd.Umask, 0, 0)
-		if err != nil {
-			return fmt.Errorf("Could not parse umask %s: %s", cmd.Umask, err)
-		}
-		orig.Umask = int(umask)
-	}
-
-	return nil
-}
-
-func validateConfig(c *agent.Config) error {
-	if c.ServerAddress.IP == nil || c.ServerAddress.Port == 0 {
-		return errors.New("ServerAddress and ServerPort are required")
-	}
-
-	if c.TrustDomain.String() == "" {
-		return errors.New("TrustDomain is required")
-	}
-
-	if c.TrustBundle == nil {
-		return errors.New("TrustBundle is required")
-	}
-
-	return nil
-}
-
-func newDefaultConfig() *agent.Config {
-	bindAddr := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
-
-	certDN := &pkix.Name{
-		Country:      []string{"US"},
-		Organization: []string{"SPIRE"},
-	}
-	errCh := make(chan error)
-	// log.NewLogger() cannot return error when using STDOUT
-	logger, _ := log.NewLogger(defaultLogLevel, "")
-	serverAddress := &net.TCPAddr{}
-
-	return &agent.Config{
-		BindAddress:   bindAddr,
-		CertDN:        certDN,
-		DataDir:       defaultDataDir,
-		PluginDir:     defaultPluginDir,
-		ErrorCh:       errCh,
-		Log:           logger,
-		ServerAddress: serverAddress,
-		Umask:         defaultUmask,
-	}
-}
-
-func parseTrustBundle(path string) (*x509.CertPool, error) {
-	data, err := ioutil.ReadFile(path)
+	// Highest precedence first
+	err := mergo.Merge(c.Agent, cliInput)
 	if err != nil {
 		return nil, err
 	}
 
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(data); !ok {
-		return nil, fmt.Errorf("No valid certificates found at %s", path)
-	}
-	return certPool, nil
-}
-
-func stringDefault(option string, defaultValue string) string {
-	if option == "" {
-		return defaultValue
+	err = mergo.Merge(c, fileInput)
+	if err != nil {
+		return nil, err
 	}
 
-	return option
+	err = mergo.Merge(c, defaultConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
-func signalListener(ctx context.Context, cancel context.CancelFunc) {
+func newAgentConfig(c *config) (*agent.Config, error) {
+	ac := &agent.Config{}
 
-	go func() {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-		defer signal.Stop(signalCh)
-		select {
-		case <-ctx.Done():
-		case <-signalCh:
-			cancel()
+	if err := validateConfig(c); err != nil {
+		return nil, err
+	}
+
+	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
+	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
+
+	td, err := idutil.ParseSpiffeID("spiffe://"+c.Agent.TrustDomain, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Agent.TrustDomain, err)
+	}
+	ac.TrustDomain = *td
+
+	// Parse trust bundle
+	bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse trust bundle: %s", err)
+	}
+	ac.TrustBundle = bundle
+
+	ac.BindAddress = &net.UnixAddr{
+		Name: c.Agent.SocketPath,
+		Net:  "unix",
+	}
+
+	ac.JoinToken = c.Agent.JoinToken
+	ac.DataDir = c.Agent.DataDir
+	ac.EnableSDS = c.Agent.EnableSDS
+
+	ll := strings.ToUpper(c.Agent.LogLevel)
+	lf := strings.ToUpper(c.Agent.LogFormat)
+	logger, err := log.NewLogger(ll, lf, c.Agent.LogFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not start logger: %s", err)
+	}
+	ac.Log = logger
+
+	ac.ProfilingEnabled = c.Agent.ProfilingEnabled
+	ac.ProfilingPort = c.Agent.ProfilingPort
+	ac.ProfilingFreq = c.Agent.ProfilingFreq
+	ac.ProfilingNames = c.Agent.ProfilingNames
+
+	ac.PluginConfigs = *c.Plugins
+	ac.Telemetry = c.Telemetry
+	ac.HealthChecks = c.HealthChecks
+
+	return ac, nil
+}
+
+func validateConfig(c *config) error {
+	if c.Agent == nil {
+		return errors.New("agent section must be configured")
+	}
+
+	if c.Agent.ServerAddress == "" {
+		return errors.New("server_address must be configured")
+	}
+
+	if c.Agent.ServerPort == 0 {
+		return errors.New("server_port must be configured")
+	}
+
+	if c.Agent.TrustDomain == "" {
+		return errors.New("trust_domain must be configured")
+	}
+
+	if c.Agent.TrustBundlePath == "" {
+		return errors.New("trust_bundle_path must be configured")
+	}
+
+	if c.Plugins == nil {
+		return errors.New("plugins section must be configured")
+	}
+
+	return nil
+}
+
+func defaultConfig() *config {
+	return &config{
+		Agent: &agentConfig{
+			DataDir:    defaultDataDir,
+			LogLevel:   defaultLogLevel,
+			LogFormat:  log.DefaultFormat,
+			SocketPath: defaultSocketPath,
+		},
+	}
+}
+
+func parseTrustBundle(path string) ([]*x509.Certificate, error) {
+	pemData, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var data []byte
+	for len(pemData) > 1 {
+		var block *pem.Block
+		block, pemData = pem.Decode(pemData)
+		if block == nil && len(data) < 1 {
+			return nil, errors.New("no certificates found")
 		}
-	}()
-	return
+
+		if block == nil {
+			return nil, errors.New("encountered unknown data in trust bundle")
+		}
+
+		if block.Type != "CERTIFICATE" {
+			return nil, fmt.Errorf("non-certificate type %v found in trust bundle", block.Type)
+		}
+
+		data = append(data, block.Bytes...)
+	}
+
+	bundle, err := x509.ParseCertificates(data)
+	if err != nil {
+		return nil, fmt.Errorf("parse certificates from %v, %v", path, err)
+	}
+
+	return bundle, nil
 }

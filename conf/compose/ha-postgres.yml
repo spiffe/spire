@@ -1,0 +1,39 @@
+# used for setting up a local dev environment capable of HA
+#
+# docker-compose up -d
+# docker-compose exec spire-agent bash
+# docker-compose down
+
+version: '3'
+services:
+  datastore:
+    image: postgres
+    hostname: datastore
+    tty: true
+    environment:
+      - POSTGRESS_PASSWORD=password
+  spire-server:
+    image: spire-dev:latest
+    hostname: spire-server
+    tty: true
+    volumes:
+      - ../../:/root/spire
+    depends_on:
+      - datastore
+    entrypoint:
+      - /bin/bash
+      - -c
+      - "sleep 2 && ./cmd/spire-server/spire-server run -config ./conf/server/ha-postgres.conf"
+  spire-agent:
+    image: spire-dev:latest
+    hostname: spire-agent
+    tty: true
+    volumes:
+      - ../../:/root/spire
+    depends_on:
+      - spire-server
+    entrypoint:
+      - /bin/bash
+      - -c
+      - "sleep 4 && ./cmd/spire-agent/spire-agent run -config ./conf/agent/ha-postgres.conf -joinToken `./cmd/spire-server/spire-server token generate -serverAddr spire-server:8081 | awk '{print $$2}'`"
+

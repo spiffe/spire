@@ -6,8 +6,10 @@ import (
 	"fmt"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/pkg/common/idutil"
+	commonutil "github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
 
 	"golang.org/x/net/context"
 )
@@ -15,16 +17,19 @@ import (
 // ShowConfig is a configuration struct for the
 // `spire-server entry show` CLI command
 type ShowConfig struct {
-	// Address of SPIRE server
-	Addr string
+	// Socket path of registration API
+	RegistrationUDSPath string
 
 	// Type and value are delimited by a colon (:)
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
-	Selectors SelectorFlag
+	Selectors StringsFlag
 
 	EntryID  string
 	ParentID string
 	SpiffeID string
+
+	FederatesWith StringsFlag
+	Downstream    bool
 }
 
 // Validate ensures that the values in ShowConfig are valid
@@ -62,64 +67,80 @@ func (s ShowCLI) Help() string {
 // Run executes all logic associated with a single invocation of the
 // `spire-server entry show` CLI command
 func (s *ShowCLI) Run(args []string) int {
+	ctx := context.Background()
+
 	err := s.loadConfig(args)
 	if err != nil {
 		fmt.Printf("Error parsing config options: %s", err)
 		return 1
 	}
 
-	// If an Entry ID was specified, look it up directly then exit
-	if s.Config.EntryID != "" {
-		err = s.fetchByEntryID(s.Config.EntryID)
+	if s.Client == nil {
+		s.Client, err = util.NewRegistrationClient(s.Config.RegistrationUDSPath)
 		if err != nil {
-			fmt.Printf("Error fetching entry ID %s: %s\n", s.Config.EntryID, err)
+			fmt.Printf("Error creating new registration client: %v", err)
 			return 1
 		}
-
-		s.printEntries()
-		return 0
 	}
 
-	// If we didn't get any args, fetch everything then exit
-	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 {
-		err = s.fetchAllEntries()
-		if err != nil {
-			fmt.Printf("Error fetching entries: %s\n", err)
-			return 1
-		}
-
-		s.printEntries()
-		return 0
-	}
-
-	// Fetch all records matching each constraint, then find and
-	// print the intersection at the end.
-	err = s.fetchByParentID()
+	err = s.fetchEntries(ctx)
 	if err != nil {
-		fmt.Printf("Error fetching by parent ID: %s", err)
 		return 1
 	}
 
-	err = s.fetchBySpiffeID()
-	if err != nil {
-		fmt.Printf("Error fetching by SPIFFE ID: %s", err)
-		return 1
-	}
-
-	err = s.fetchBySelectors()
-	if err != nil {
-		fmt.Printf("Error fetching by selectors: %s", err)
-		return 1
-	}
-
+	commonutil.SortRegistrationEntries(s.Entries)
 	s.filterEntries()
 	s.printEntries()
 	return 0
 }
 
-func (s *ShowCLI) fetchAllEntries() error {
+func (s *ShowCLI) fetchEntries(ctx context.Context) error {
+	// If an Entry ID was specified, look it up directly
+	if s.Config.EntryID != "" {
+		err := s.fetchByEntryID(ctx, s.Config.EntryID)
+		if err != nil {
+			fmt.Printf("Error fetching entry ID %s: %s\n", s.Config.EntryID, err)
+			return err
+		}
+		return nil
+	}
+
+	// If we didn't get any args, fetch everything
+	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 {
+		err := s.fetchAllEntries(ctx)
+		if err != nil {
+			fmt.Printf("Error fetching entries: %s\n", err)
+			return err
+		}
+
+		return nil
+	}
+
+	// Otherwise, fetch all records matching each constraint
+	err := s.fetchByParentID(ctx)
+	if err != nil {
+		fmt.Printf("Error fetching by parent ID: %s", err)
+		return err
+	}
+
+	err = s.fetchBySpiffeID(ctx)
+	if err != nil {
+		fmt.Printf("Error fetching by SPIFFE ID: %s", err)
+		return err
+	}
+
+	err = s.fetchBySelectors(ctx)
+	if err != nil {
+		fmt.Printf("Error fetching by selectors: %s", err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *ShowCLI) fetchAllEntries(ctx context.Context) error {
 	var err error
-	entries, err := s.Client.FetchEntries(context.TODO(), &common.Empty{})
+	entries, err := s.Client.FetchEntries(ctx, &common.Empty{})
 	if err != nil {
 		return err
 	}
@@ -129,9 +150,9 @@ func (s *ShowCLI) fetchAllEntries() error {
 }
 
 // fetchByEntryID uses the configured EntryID to fetch the appropriate registration entry
-func (s *ShowCLI) fetchByEntryID(id string) error {
+func (s *ShowCLI) fetchByEntryID(ctx context.Context, id string) error {
 	regID := &registration.RegistrationEntryID{Id: id}
-	entry, err := s.Client.FetchEntry(context.TODO(), regID)
+	entry, err := s.Client.FetchEntry(ctx, regID)
 	if err != nil {
 		return err
 	}
@@ -142,10 +163,10 @@ func (s *ShowCLI) fetchByEntryID(id string) error {
 
 // fetchByParentID appends registration entries which match the configured
 // Parent ID to `entries`
-func (s *ShowCLI) fetchByParentID() error {
+func (s *ShowCLI) fetchByParentID(ctx context.Context) error {
 	if s.Config.ParentID != "" {
 		parentID := &registration.ParentID{Id: s.Config.ParentID}
-		entries, err := s.Client.ListByParentID(context.TODO(), parentID)
+		entries, err := s.Client.ListByParentID(ctx, parentID)
 		if err != nil {
 			return err
 		}
@@ -158,10 +179,10 @@ func (s *ShowCLI) fetchByParentID() error {
 
 // fetchBySpiffeID appends registration entries which match the configured
 // SPIFFE ID to `entries`
-func (s *ShowCLI) fetchBySpiffeID() error {
+func (s *ShowCLI) fetchBySpiffeID(ctx context.Context) error {
 	if s.Config.SpiffeID != "" {
 		spiffeID := &registration.SpiffeID{Id: s.Config.SpiffeID}
-		entries, err := s.Client.ListBySpiffeID(context.TODO(), spiffeID)
+		entries, err := s.Client.ListBySpiffeID(ctx, spiffeID)
 		if err != nil {
 			return err
 		}
@@ -174,14 +195,14 @@ func (s *ShowCLI) fetchBySpiffeID() error {
 
 // fetchBySelectors fetches all registration entries containing the full
 // set of configured selectors, appending them to `entries`
-func (s *ShowCLI) fetchBySelectors() error {
+func (s *ShowCLI) fetchBySelectors(ctx context.Context) error {
 	for _, sel := range s.Config.Selectors {
 		selector, err := parseSelector(sel)
 		if err != nil {
 			return err
 		}
 
-		entries, err := s.Client.ListBySelector(context.TODO(), selector)
+		entries, err := s.Client.ListBySelector(ctx, selector)
 		if err != nil {
 			return err
 		}
@@ -196,51 +217,55 @@ func (s *ShowCLI) fetchBySelectors() error {
 // do not match every selector specified by the user
 func (s *ShowCLI) filterEntries() {
 	newSlice := []*common.RegistrationEntry{}
+	// Map used to skip duplicated entries.
+	matchingEntries := map[string]*common.RegistrationEntry{}
+
+	var federatedIDs map[string]bool
+	if len(s.Config.FederatesWith) > 0 {
+		federatedIDs = make(map[string]bool)
+		for _, federatesWith := range s.Config.FederatesWith {
+			federatedIDs[federatesWith] = true
+		}
+	}
+
 	for _, e := range s.Entries {
 		match, _ := hasSelectors(e, s.Config.Selectors)
 		if !match {
 			continue
 		}
 
-		// If both parentID and spiffeID have been specified,
-		// only keep entries retaining both properties. If only
-		// one is set, no need for further filtering.
-		if s.Config.SpiffeID != "" && s.Config.ParentID != "" {
-			if e.SpiffeId != s.Config.SpiffeID || e.ParentId != s.Config.ParentID {
+		// If SpiffeID was specified, discard entries that don't match.
+		if s.Config.SpiffeID != "" && e.SpiffeId != s.Config.SpiffeID {
+			continue
+		}
+
+		// If ParentID was specified, discard entries that don't match.
+		if s.Config.ParentID != "" && e.ParentId != s.Config.ParentID {
+			continue
+		}
+
+		// If FederatesWith was specified, discard entries that don't match
+		if federatedIDs != nil {
+			found := false
+			for _, federatesWith := range e.FederatesWith {
+				if federatedIDs[federatesWith] {
+					found = true
+					break
+				}
+			}
+			if !found {
 				continue
 			}
 		}
 
-		newSlice = append(newSlice, e)
-	}
-
-	s.Entries = s.dedupEntries(newSlice)
-}
-
-// dedupEntries naively de-duplicates registration entries in the given slice, returning
-// a new slice. This is necessary because Registration Entry ID is not always returned,
-// making it difficult to tell entries apart from each other. This will become simpler
-// following a registration API refactor.
-func (ShowCLI) dedupEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
-	resp := []*common.RegistrationEntry{}
-	for i, e := range entries {
-		var found bool
-
-		for ii := i + 1; ii < len(entries); ii++ {
-			if entries[ii] == e {
-				found = true
-				break
-			}
-		}
-
-		if found {
-			continue
-		} else {
-			resp = append(resp, e)
+		// If this entry wasn't matched before, save it.
+		if _, ok := matchingEntries[e.EntryId]; !ok {
+			matchingEntries[e.EntryId] = e
+			newSlice = append(newSlice, e)
 		}
 	}
 
-	return resp
+	s.Entries = newSlice
 }
 
 func (s *ShowCLI) printEntries() {
@@ -249,7 +274,7 @@ func (s *ShowCLI) printEntries() {
 
 	fmt.Println(msg)
 	for _, e := range s.Entries {
-		printEntry(e, "")
+		printEntry(e)
 	}
 }
 
@@ -257,22 +282,33 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	f := flag.NewFlagSet("entry show", flag.ContinueOnError)
 	c := &ShowConfig{}
 
-	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.EntryID, "entryID", "", "The Entry ID of the records to show")
 	f.StringVar(&c.ParentID, "parentID", "", "The Parent ID of the records to show")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
+	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
-	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
+	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
+	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 
 	err := f.Parse(args)
 	if err != nil {
 		return err
 	}
-	s.Config = c
 
-	if s.Client == nil {
-		s.Client, err = util.NewRegistrationClient(c.Addr)
+	if c.ParentID != "" {
+		c.ParentID, err = idutil.NormalizeSpiffeID(c.ParentID, idutil.AllowAny())
+		if err != nil {
+			return err
+		}
+	}
+	if c.SpiffeID != "" {
+		c.SpiffeID, err = idutil.NormalizeSpiffeID(c.SpiffeID, idutil.AllowAny())
+		if err != nil {
+			return err
+		}
 	}
 
-	return err
+	s.Config = c
+	return nil
 }

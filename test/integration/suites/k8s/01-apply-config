@@ -1,0 +1,33 @@
+#!/bin/bash
+
+export KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
+
+wait-for-rollout() {
+    ns=$1
+    obj=$2
+    MAXROLLOUTCHECKS=12
+    ROLLOUTCHECKINTERVAL=15s
+    for ((i=0; i<${MAXROLLOUTCHECKS}; i++)); do
+        log-info "checking rollout status for ${ns} ${obj}..."
+        if ./bin/kubectl "-n${ns}" rollout status "$obj" --timeout="${ROLLOUTCHECKINTERVAL}"; then
+            return
+        fi
+        log-warn "describing ${ns} ${obj}..."
+        ./bin/kubectl "-n${ns}" describe "$obj"
+        log-warn "logs for ${ns} ${obj}..."
+        ./bin/kubectl "-n${ns}" logs --all-containers "$obj" || true
+    done
+    fail-now "Failed waiting for ${obj} to roll out."
+}
+
+./bin/kubectl create namespace spire
+./bin/kubectl apply -k ./conf/
+wait-for-rollout spire statefulset/spire-database
+wait-for-rollout spire deployment/spire-server
+wait-for-rollout spire daemonset/spire-agent
+
+# Apply this separately after all of the spire infrastructure has been rolled
+# out, otherwise the k8s-workload-registrar might miss its chance to create
+# an entry for it
+./bin/kubectl apply -f ./conf/workload.yaml
+wait-for-rollout spire deployment/example-workload

@@ -2,7 +2,9 @@ package log
 
 import (
 	"bytes"
+	"io"
 	"log"
+	"os"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/sirupsen/logrus"
@@ -57,6 +59,12 @@ func (a *HCLogAdapter) IsError() bool {
 	return a.shouldEmit(logrus.ErrorLevel)
 }
 
+func (a *HCLogAdapter) SetLevel(hclog.Level) {
+	// interface definition says it is ok for this to be a noop if
+	// implementations don't need/want to support dynamic level changing, which
+	// we don't currently.
+}
+
 func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
 	e := a.CreateEntry(args)
 	return &HCLogAdapter{Log: e}
@@ -79,7 +87,7 @@ func (a *HCLogAdapter) ResetNamed(name string) hclog.Logger {
 	return &HCLogAdapter{Log: e, Name: name}
 }
 
-// StandardLogger is meant to return a stldib Logger type which wraps around
+// StandardLogger is meant to return a stdlib Logger type which wraps around
 // hclog. It does this by providing an io.Writer and instantiating a new
 // Logger. It then tries to interpret the log level by parsing the message.
 //
@@ -92,6 +100,18 @@ func (a *HCLogAdapter) ResetNamed(name string) hclog.Logger {
 func (a *HCLogAdapter) StandardLogger(opts *hclog.StandardLoggerOptions) *log.Logger {
 	entry := a.Log.WithFields(logrus.Fields{})
 	return log.New(entry.WriterLevel(logrus.InfoLevel), "", 0)
+}
+
+func (a *HCLogAdapter) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writer {
+	var w io.Writer
+	logger, ok := a.Log.(*logrus.Logger)
+	if ok {
+		w = logger.Out
+	}
+	if w == nil {
+		w = os.Stderr
+	}
+	return w
 }
 
 func (a *HCLogAdapter) shouldEmit(level logrus.Level) bool {

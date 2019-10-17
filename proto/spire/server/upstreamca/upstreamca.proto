@@ -1,0 +1,47 @@
+/** Responsible for processing Certificate Signing Requests for
+intermediate signing certificates (or from Node Agents if the user does
+not want the Server to retain signing material).  This plugin
+will manage/own the Trust Bundles for the Server, and act as the
+interface for upstream CAs. */
+
+syntax = "proto3";
+package spire.server.upstreamca;
+option go_package = "github.com/spiffe/spire/proto/spire/server/upstreamca";
+
+import "spire/common/plugin/plugin.proto";
+
+message SignedCertificate {
+    // Contains ASN.1 encoded certificates representing the signed certificate
+    // along with any intermediates necessary to chain the certificate back to
+    // a certificate present in the upstream_trust_bundle.
+    bytes cert_chain = 1;
+
+    // The upstream trust bundle.
+    bytes bundle = 2;
+}
+
+message SubmitCSRRequest {
+    // Certificate signing request
+    bytes csr = 1;
+
+    // Preferred TTL is the TTL preferred by SPIRE server for signed CA. If
+    // zero, the plugin should determine its own TTL value.  Upstream CA
+    // plugins are free to ignore this and use their own policies around TTLs. 
+    int32 preferred_ttl = 2;
+}
+
+message SubmitCSRResponse {
+    reserved 1, 2;
+
+    // Signed certificate
+    SignedCertificate signed_certificate = 3;
+}
+
+service UpstreamCA {
+    // Responsible for configuration of the plugin.
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    // Returns the  version and related metadata of the installed plugin. */
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+    // Signs a certificate from the request
+    rpc SubmitCSR(SubmitCSRRequest) returns (SubmitCSRResponse);
+}

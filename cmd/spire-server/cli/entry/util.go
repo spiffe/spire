@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // hasSelectors takes a registration entry and a selector flag set. It returns
 // true if the registration entry possesses all selectors in the set. An error
 // is returned if we run into trouble parsing the selector flags.
-func hasSelectors(entry *common.RegistrationEntry, flags SelectorFlag) (bool, error) {
+func hasSelectors(entry *common.RegistrationEntry, flags StringsFlag) (bool, error) {
 	for _, f := range flags {
 		selector, err := parseSelector(f)
 		if err != nil {
@@ -31,7 +31,7 @@ func hasSelector(entry *common.RegistrationEntry, selector *common.Selector) boo
 	var found bool
 
 	for _, s := range entry.Selectors {
-		if *s == *selector {
+		if s.Type == selector.Type && s.Value == selector.Value {
 			found = true
 			break
 		}
@@ -56,30 +56,49 @@ func parseSelector(str string) (*common.Selector, error) {
 	return s, nil
 }
 
-func printEntry(e *common.RegistrationEntry, id string) {
-	if id != "" {
-		fmt.Printf("Entry ID:\t%s\n", id)
+func printEntry(e *common.RegistrationEntry) {
+	fmt.Printf("Entry ID      : %s\n", e.EntryId)
+	fmt.Printf("SPIFFE ID     : %s\n", e.SpiffeId)
+	fmt.Printf("Parent ID     : %s\n", e.ParentId)
+
+	if e.Downstream {
+		fmt.Printf("Downstream    : %t\n", e.Downstream)
 	}
-	fmt.Printf("SPIFFE ID:\t%s\n", e.SpiffeId)
-	fmt.Printf("Parent ID:\t%s\n", e.ParentId)
-	fmt.Printf("TTL:\t\t%v\n", e.Ttl)
+
+	if e.Ttl == 0 {
+		fmt.Printf("TTL           : default\n")
+	} else {
+		fmt.Printf("TTL           : %d\n", e.Ttl)
+	}
 
 	for _, s := range e.Selectors {
-		fmt.Printf("Selector:\t%s:%s\n", s.Type, s.Value)
+		fmt.Printf("Selector      : %s:%s\n", s.Type, s.Value)
+	}
+	for _, id := range e.FederatesWith {
+		fmt.Printf("FederatesWith : %s\n", id)
+	}
+	for _, dnsName := range e.DnsNames {
+		fmt.Printf("DNS name      : %s\n", dnsName)
+	}
+
+	// admin is rare, so only show admin if true to keep
+	// from muddying the output.
+	if e.Admin {
+		fmt.Printf("Admin         : %t\n", e.Admin)
 	}
 
 	fmt.Println()
 }
 
-// Define a custom type for selectors. Doing
-// this allows us to support repeatable flags
-type SelectorFlag []string
+// StringsFlag defines a custom type for string lists. Doing
+// this allows us to support repeatable string flags.
+type StringsFlag []string
 
-func (s *SelectorFlag) String() string {
+func (s *StringsFlag) String() string {
 	return fmt.Sprint(*s)
 }
 
-func (s *SelectorFlag) Set(val string) error {
+func (s *StringsFlag) Set(val string) error {
 	*s = append(*s, val)
 	return nil
 }

@@ -2,29 +2,49 @@ package selector
 
 import (
 	"bytes"
-	"sort"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
-type Set []*Selector
+type Set interface {
+	Raw() []*common.Selector
+	Array() []*Selector
+	Power() <-chan Set
+	Equal(otherSet Set) bool
+	Includes(selector *Selector) bool
+	IncludesSet(s2 Set) bool
+	Add(selector *Selector)
+	Remove(selector *Selector) *Selector
+	String() string
+	Size() int
+}
 
-func NewSet(c []*common.Selector) Set {
-	set := Set{}
+type set map[Selector]*Selector
+
+func NewSet(selectors ...*Selector) Set {
+	set := set{}
+	for _, cs := range selectors {
+		set.Add(cs)
+	}
+	return &set
+}
+
+func NewSetFromRaw(c []*common.Selector) Set {
+	set := set{}
 	for _, cs := range c {
 		s := &Selector{
 			Type:  cs.Type,
 			Value: cs.Value,
 		}
-		set = append(set, s)
+		set.Add(s)
 	}
 
-	return set
+	return &set
 }
 
-func (s Set) Raw() []*common.Selector {
+func (s *set) Raw() []*common.Selector {
 	c := []*common.Selector{}
-	for _, selector := range s {
+	for _, selector := range *s {
 		cs := &common.Selector{
 			Type:  selector.Type,
 			Value: selector.Value,
@@ -35,51 +55,67 @@ func (s Set) Raw() []*common.Selector {
 	return c
 }
 
-func (s Set) Power() <-chan Set {
+// Array returns an array with the elements of the set in any order.
+func (s *set) Array() []*Selector {
+	c := []*Selector{}
+	for _, selector := range *s {
+		c = append(c, selector)
+	}
+	return c
+}
+
+func (s *set) Power() <-chan Set {
 	return PowerSet(s)
 }
 
-func (s Set) Equal(otherSet Set) bool {
-	return EqualSet(s, otherSet)
+func (s *set) Equal(otherSet Set) bool {
+	return EqualSet(s, otherSet.(*set))
 }
 
-func (s Set) Includes(selector *Selector) bool {
+func (s *set) Includes(selector *Selector) bool {
 	return Includes(s, selector)
 }
 
-func (s Set) String() string {
+func (s *set) IncludesSet(s2 Set) bool {
+	return IncludesSet(s, s2.(*set))
+}
+
+func (s *set) Add(selector *Selector) {
+	(*s)[*selector] = selector
+}
+
+func (s *set) Remove(selector *Selector) *Selector {
+	key := *selector
+	if removed, ok := (*s)[key]; ok {
+		delete(*s, key)
+		return removed
+	}
+	return nil
+}
+
+func (s *set) Size() int {
+	return len(*s)
+}
+
+func (s *set) String() string {
 	var b bytes.Buffer
 
 	b.WriteString("[")
 
-	if len(s) > 0 {
-		// Preceding space starts after first element
-		b.WriteString(s[0].Type)
-		b.WriteString(":")
-		b.WriteString(s[0].Value)
-		for _, selector := range s[1:] {
-			b.WriteString(" ")
+	if len(*s) > 0 {
+
+		i := 0
+		for _, selector := range *s {
+			if i > 0 {
+				b.WriteString(" ")
+			}
 			b.WriteString(selector.Type)
 			b.WriteString(":")
 			b.WriteString(selector.Value)
+			i++
 		}
 	}
 
 	b.WriteString("]")
 	return b.String()
-}
-
-func (s Set) Sort() {
-	sort.Sort(s)
-}
-
-// Satisfy the sort interface
-func (s Set) Len() int      { return len(s) }
-func (s Set) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s Set) Less(i, j int) bool {
-	if s[i].Type != s[j].Type {
-		return s[i].Type < s[j].Type
-	} else {
-		return s[i].Value < s[j].Value
-	}
 }

@@ -1,229 +1,182 @@
 package catalog
 
 import (
-	"fmt"
-	"sync"
+	"context"
 
 	"github.com/sirupsen/logrus"
-
-	// Plugin interfaces
-	"github.com/spiffe/spire/proto/server/ca"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
-	"github.com/spiffe/spire/proto/server/upstreamca"
-
-	goplugin "github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/spire/pkg/common/catalog"
-)
-
-const (
-	CAType           = "ControlPlaneCA"
-	DataStoreType    = "DataStore"
-	NodeAttestorType = "NodeAttestor"
-	NodeResolverType = "NodeResolver"
-	UpstreamCAType   = "UpstreamCA"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
+	km_disk "github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
+	km_memory "github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
+	na_aws_iid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
+	na_azure_msi "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
+	na_gcp_iit "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
+	na_join_token "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
+	na_k8s_psat "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/psat"
+	na_k8s_sat "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/sat"
+	na_sshpop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
+	na_x509pop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
+	nr_aws_iid "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
+	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
+	nr_noop "github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
+	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
+	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
+	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
+	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
+	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/server/notifier"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
 type Catalog interface {
-	common.Catalog
-
-	CAs() []ca.ControlPlaneCa
-	DataStores() []datastore.DataStore
-	NodeAttestors() []nodeattestor.NodeAttestor
-	NodeResolvers() []noderesolver.NodeResolver
-	UpstreamCAs() []upstreamca.UpstreamCa
+	GetDataStore() datastore.DataStore
+	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
+	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
+	GetUpstreamCA() (upstreamca.UpstreamCA, bool)
+	GetKeyManager() keymanager.KeyManager
+	GetNotifiers() []Notifier
 }
 
-var (
-	supportedPlugins = map[string]goplugin.Plugin{
-		CAType:           &ca.ControlPlaneCaPlugin{},
-		DataStoreType:    &datastore.DataStorePlugin{},
-		NodeAttestorType: &nodeattestor.NodeAttestorPlugin{},
-		NodeResolverType: &noderesolver.NodeResolverPlugin{},
-		UpstreamCAType:   &upstreamca.UpstreamCaPlugin{},
+type CatalogCloser struct {
+	Catalog
+	catalog.Closer
+}
+
+type GlobalConfig = catalog.GlobalConfig
+type HCLPluginConfig = catalog.HCLPluginConfig
+type HCLPluginConfigMap = catalog.HCLPluginConfigMap
+
+func KnownPlugins() []catalog.PluginClient {
+	return []catalog.PluginClient{
+		datastore.PluginClient,
+		nodeattestor.PluginClient,
+		noderesolver.PluginClient,
+		upstreamca.PluginClient,
+		keymanager.PluginClient,
+		notifier.PluginClient,
 	}
-)
+}
+
+func KnownServices() []catalog.ServiceClient {
+	return []catalog.ServiceClient{}
+}
+
+func BuiltIns() []catalog.Plugin {
+	return []catalog.Plugin{
+		// DataStores
+		ds_sql.BuiltIn(),
+		// NodeAttestors
+		na_aws_iid.BuiltIn(),
+		na_gcp_iit.BuiltIn(),
+		na_x509pop.BuiltIn(),
+		na_sshpop.BuiltIn(),
+		na_azure_msi.BuiltIn(),
+		na_k8s_sat.BuiltIn(),
+		na_k8s_psat.BuiltIn(),
+		na_join_token.BuiltIn(),
+		// NodeResolvers
+		nr_noop.BuiltIn(),
+		nr_aws_iid.BuiltIn(),
+		nr_azure_msi.BuiltIn(),
+		// UpstreamCAs
+		up_disk.BuiltIn(),
+		up_aws_pca.BuiltIn(),
+		up_awssecret.BuiltIn(),
+		up_spire.BuiltIn(),
+		// KeyManagers
+		km_disk.BuiltIn(),
+		km_memory.BuiltIn(),
+		// Notifiers
+		no_k8sbundle.BuiltIn(),
+	}
+}
+
+type Notifier struct {
+	catalog.PluginInfo
+	notifier.Notifier
+}
+
+type Plugins struct {
+	DataStore     datastore.DataStore
+	NodeAttestors map[string]nodeattestor.NodeAttestor
+	NodeResolvers map[string]noderesolver.NodeResolver
+	UpstreamCA    *upstreamca.UpstreamCA
+	KeyManager    keymanager.KeyManager
+	Notifiers     []Notifier
+}
+
+var _ Catalog = (*Plugins)(nil)
+
+func (p *Plugins) GetDataStore() datastore.DataStore {
+	return p.DataStore
+}
+
+func (p *Plugins) GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool) {
+	n, ok := p.NodeAttestors[name]
+	return n, ok
+}
+
+func (p *Plugins) GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool) {
+	n, ok := p.NodeResolvers[name]
+	return n, ok
+}
+
+func (p *Plugins) GetUpstreamCA() (upstreamca.UpstreamCA, bool) {
+	if p.UpstreamCA != nil {
+		return *p.UpstreamCA, true
+	}
+	return nil, false
+}
+
+func (p *Plugins) GetKeyManager() keymanager.KeyManager {
+	return p.KeyManager
+}
+
+func (p *Plugins) GetNotifiers() []Notifier {
+	return p.Notifiers
+}
 
 type Config struct {
-	// Directory in which plugin config files
-	// reside
-	ConfigDir string
+	Log          logrus.FieldLogger
+	GlobalConfig GlobalConfig
+	PluginConfig HCLPluginConfigMap
 
-	Log logrus.FieldLogger
+	IdentityProvider hostservices.IdentityProvider
+	AgentStore       hostservices.AgentStore
+	MetricsService   common_services.MetricsService
 }
 
-type catalog struct {
-	com common.Catalog
-	m   *sync.RWMutex
-
-	caPlugins           []ca.ControlPlaneCa
-	dataStorePlugins    []datastore.DataStore
-	nodeAttestorPlugins []nodeattestor.NodeAttestor
-	nodeResolverPlugins []noderesolver.NodeResolver
-	upstreamCAPlugins   []upstreamca.UpstreamCa
-}
-
-func New(c *Config) Catalog {
-	commonConfig := &common.Config{
-		ConfigDir:        c.ConfigDir,
-		SupportedPlugins: supportedPlugins,
-		Log:              c.Log,
-	}
-
-	return &catalog{
-		com: common.New(commonConfig),
-		m:   new(sync.RWMutex),
-	}
-}
-
-func (c *catalog) Run() error {
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	err := c.com.Run()
+func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
+	pluginConfig, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return c.categorize()
-}
-
-func (c *catalog) Stop() {
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	c.com.Stop()
-	c.reset()
-
-	return
-}
-
-func (c *catalog) Reload() error {
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	err := c.com.Reload()
+	p := new(Plugins)
+	closer, err := catalog.Fill(ctx, catalog.Config{
+		Log:           config.Log,
+		GlobalConfig:  config.GlobalConfig,
+		PluginConfig:  pluginConfig,
+		KnownPlugins:  KnownPlugins(),
+		KnownServices: KnownServices(),
+		BuiltIns:      BuiltIns(),
+		HostServices: []catalog.HostServiceServer{
+			hostservices.IdentityProviderHostServiceServer(config.IdentityProvider),
+			hostservices.AgentStoreHostServiceServer(config.AgentStore),
+			common_services.MetricsServiceHostServiceServer(config.MetricsService),
+		},
+	}, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return c.categorize()
-}
-
-func (c *catalog) Plugins() []*common.ManagedPlugin {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.com.Plugins()
-}
-
-func (c *catalog) Find(plugin common.Plugin) *common.ManagedPlugin {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.com.Find(plugin)
-}
-
-func (c *catalog) CAs() []ca.ControlPlaneCa {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.caPlugins
-}
-
-func (c *catalog) DataStores() []datastore.DataStore {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.dataStorePlugins
-}
-
-func (c *catalog) NodeAttestors() []nodeattestor.NodeAttestor {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.nodeAttestorPlugins
-}
-
-func (c *catalog) NodeResolvers() []noderesolver.NodeResolver {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.nodeResolverPlugins
-}
-
-func (c *catalog) UpstreamCAs() []upstreamca.UpstreamCa {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.upstreamCAPlugins
-}
-
-// categorize iterates over all managed plugins and casts them into their
-// respective client types. This method is called during Run and Reload
-// to prevent the consumer from having to check for errors when fetching
-// a client from the catalog
-func (c *catalog) categorize() error {
-	c.reset()
-
-	for _, p := range c.com.Plugins() {
-		switch p.Config.PluginType {
-		case CAType:
-			pl, ok := p.Plugin.(ca.ControlPlaneCa)
-			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
-			}
-			c.caPlugins = append(c.caPlugins, pl)
-		case DataStoreType:
-			pl, ok := p.Plugin.(datastore.DataStore)
-			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to DataStore interface", p.Config.PluginName)
-			}
-			c.dataStorePlugins = append(c.dataStorePlugins, pl)
-		case NodeAttestorType:
-			pl, ok := p.Plugin.(nodeattestor.NodeAttestor)
-			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to NodeAttestor interface", p.Config.PluginName)
-			}
-			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, pl)
-		case NodeResolverType:
-			pl, ok := p.Plugin.(noderesolver.NodeResolver)
-			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to NodeResolver interface", p.Config.PluginName)
-			}
-			c.nodeResolverPlugins = append(c.nodeResolverPlugins, pl)
-		case UpstreamCAType:
-			pl, ok := p.Plugin.(upstreamca.UpstreamCa)
-			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to UpstreamCa interface", p.Config.PluginName)
-			}
-			c.upstreamCAPlugins = append(c.upstreamCAPlugins, pl)
-		default:
-			return fmt.Errorf("Unsupported plugin type %s", p.Config.PluginType)
-		}
-	}
-
-	// Guarantee we have at least one of each type
-	pluginCount := map[string]int{}
-	pluginCount[CAType] = len(c.caPlugins)
-	pluginCount[DataStoreType] = len(c.dataStorePlugins)
-	pluginCount[NodeAttestorType] = len(c.nodeAttestorPlugins)
-	pluginCount[NodeResolverType] = len(c.nodeResolverPlugins)
-	pluginCount[UpstreamCAType] = len(c.upstreamCAPlugins)
-	for t, c := range pluginCount {
-		if c < 1 {
-			return fmt.Errorf("At least one plugin of type %s is required", t)
-		}
-	}
-
-	return nil
-}
-
-func (c *catalog) reset() {
-	c.caPlugins = nil
-	c.dataStorePlugins = nil
-	c.nodeAttestorPlugins = nil
-	c.nodeResolverPlugins = nil
-	c.upstreamCAPlugins = nil
+	return &CatalogCloser{
+		Catalog: p,
+		Closer:  closer,
+	}, nil
 }

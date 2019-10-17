@@ -5,10 +5,11 @@ import (
 	"os"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/pkg/common/version"
 )
 
 const (
-	serverAddr           = "localhost:8081"
+	serverAddr           = "unix:///tmp/spire-registration.sock"
 	parentSpiffeIDPrefix = "spiffe://example.org/spire/agent/join_token/"
 	spiffeIDPrefix       = "spiffe://example.org/"
 	workloadPath         = "/go/src/github.com/spiffe/spire/functional/tools/workload/workload"
@@ -19,7 +20,7 @@ func main() {
 		panic("Do not run this tool outside the Docker container")
 	}
 
-	c := cli.NewCLI("stresstest", "0.0.1") //TODO expose version configuration
+	c := cli.NewCLI("stresstest", version.Version())
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
 		"run": func() (cli.Command, error) {

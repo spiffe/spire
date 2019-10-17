@@ -1,90 +1,16 @@
 package util
 
 import (
-	"crypto/ecdsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"path"
 	"runtime"
+	"testing"
+	"time"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
-
-var (
-	svidPath    = path.Join(ProjectRoot(), "test/fixture/certs/svid.pem")
-	svidKeyPath = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
-	caPath      = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
-	caKeyPath   = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
-)
-
-// LoadCAFixture reads, parses, and returns the pre-defined CA fixture and key
-func LoadCAFixture() (ca *x509.Certificate, key *ecdsa.PrivateKey, err error) {
-	return LoadCertAndKey(caPath, caKeyPath)
-}
-
-// LoadCAFixture reads, parses, and returns the pre-defined SVID fixture and key
-func LoadSVIDFixture() (svid *x509.Certificate, key *ecdsa.PrivateKey, err error) {
-	return LoadCertAndKey(svidPath, svidKeyPath)
-}
-
-// LoadCertAndKey reads and parses both a certificate and a private key at once
-func LoadCertAndKey(crtPath, keyPath string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	crt, err := LoadCert(crtPath)
-	if err != nil {
-		return crt, nil, err
-	}
-
-	key, err := LoadKey(keyPath)
-	return crt, key, err
-}
-
-// LoadCert reads and parses an X.509 certificate at the specified path
-func LoadCert(path string) (*x509.Certificate, error) {
-	block, err := LoadPEM(path)
-	if err != nil {
-		return nil, err
-	}
-
-	crt, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return crt, nil
-}
-
-// LoadKey reads and parses the ECDSA private key at the specified path
-func LoadKey(path string) (*ecdsa.PrivateKey, error) {
-	block, err := LoadPEM(path)
-	if err != nil {
-		return nil, err
-	}
-
-	key, err := x509.ParseECPrivateKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return key, nil
-}
-
-// LoadPEM reads and parses the PEM structure at the specified path
-func LoadPEM(path string) (*pem.Block, error) {
-	dat, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	blk, rest := pem.Decode(dat)
-	if len(rest) > 0 {
-		return nil, fmt.Errorf("error decoding certificate at %s", path)
-	}
-
-	return blk, nil
-}
 
 // ProjectRoot returns the absolute path to the SPIRE project root
 func ProjectRoot() string {
@@ -99,4 +25,54 @@ func GetRegistrationEntries(fileName string) []*common.RegistrationEntry {
 	dat, _ := ioutil.ReadFile(path)
 	json.Unmarshal(dat, &regEntries)
 	return regEntries.Entries
+}
+
+//GetRegistrationEntriesMap gets a map of registration entries from a fixture
+func GetRegistrationEntriesMap(fileName string) map[string][]*common.RegistrationEntry {
+	regEntriesMap := map[string]*common.RegistrationEntries{}
+	path := path.Join(ProjectRoot(), "test/fixture/registration/", fileName)
+	dat, _ := ioutil.ReadFile(path)
+	json.Unmarshal(dat, &regEntriesMap)
+	result := map[string][]*common.RegistrationEntry{}
+	for key, regEntries := range regEntriesMap {
+		result[key] = regEntries.Entries
+	}
+	return result
+}
+
+// RunWithTimeout runs code within the specified timeout, if execution
+// takes longer than that, an error is logged to t with information
+// about the caller of this function. Returns how much time it took to
+// run the function.
+func RunWithTimeout(t *testing.T, timeout time.Duration, code func()) time.Duration {
+	_, file, line, _ := runtime.Caller(1)
+
+	done := make(chan error, 1)
+	ti := time.NewTimer(timeout)
+	defer ti.Stop()
+
+	start := time.Now()
+	go func() {
+		// make sure the done channel is sent on in the face of panic's or
+		// other unwinding events (e.g. runtime.Goexit via t.Fatal)
+		defer func() {
+			if r := recover(); r != nil {
+				done <- fmt.Errorf("panic: %v", r)
+			} else {
+				done <- nil
+			}
+		}()
+		code()
+	}()
+
+	select {
+	case <-ti.C:
+		t.Errorf("%s:%d: code execution took more than %v", file, line, timeout)
+		return time.Since(start)
+	case err := <-done:
+		if err != nil {
+			t.Errorf("%s:%d: code panicked: %v", file, line, err)
+		}
+		return time.Since(start)
+	}
 }

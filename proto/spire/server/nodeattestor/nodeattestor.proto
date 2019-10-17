@@ -1,0 +1,43 @@
+/** Responsible for validating the Node Agent’s Attested Data. */
+
+syntax = "proto3";
+package spire.agent.nodeattestor;
+option go_package = "github.com/spiffe/spire/proto/spire/server/nodeattestor";
+
+import "spire/common/plugin/plugin.proto";
+import "spire/common/common.proto";
+
+/** Represents a request to attest a node. */
+message AttestRequest {
+    /** A type which contains attestation data for specific platform. */
+    spire.common.AttestationData attestation_data = 1;
+    /** Is true if the Base SPIFFE ID is present in the Attested Node table. */
+    bool DEPRECATED_attested_before = 2;
+    /** Challenge response */
+    bytes response = 3;
+}
+
+/** Represents a response when attesting a node.*/
+message AttestResponse {
+    /** True/False */
+    bool DEPRECATED_valid = 1;
+
+    /** SPIFFE ID of the attested node */
+    string agent_id = 2;
+
+    /** Challenge required for attestation */
+    bytes challenge = 3;
+
+    /** Optional list of selectors */
+    repeated spire.common.Selector selectors = 4;
+}
+
+service NodeAttestor {
+    /** Attesta a node. */
+    rpc Attest(stream AttestRequest) returns (stream AttestResponse);
+
+    /** Responsible for configuration of the plugin. */
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    /** Returns the  version and related metadata of the installed plugin. */
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}

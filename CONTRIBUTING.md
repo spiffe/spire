@@ -10,36 +10,36 @@ from the SPIFFE project.
 
 For basic development you will need:
 
-* **Go** (https://golang.org/dl/)
-* **Glide**, for managing third-party dependancies (https://github.com/Masterminds/glide)
+* **Go 1.11** or higher (https://golang.org/dl/)
 
 For development that requires changes to the gRPC interfaces you will need:
 
 * The protobuf compiler (https://github.com/google/protobuf)
 * The protobuf documentation generator (https://github.com/pseudomuto/protoc-gen-doc)
-* protoc-gen-go, protoc-gen-grpc-gateway and protoc-gen-swagger (`make utils`)
+* protoc-gen-go and protoc-gen-spireplugin (`make utils`)
 
 
 #  Building
 
-It is assumed that this repository lives in $GOPATH/src/github.com/spiffe/spire on your local disk,
-and that your GOPATH only contains one element.
+Since go modules are used, this repository can live in any folder on your local disk (it is not required to be in GOPATH).
 
-Because of the use of Glide and the unusual layout of this repository a Makefile is provide for
-common actions.
+A Makefile is provided for common actions.
 
-* `make all` - installs 3rd-party dependancies, build all binaries, and run all tests
+* `make all` - installs 3rd-party dependencies, build all binaries, and run all tests
 * `make` - builds all binaries
 * `make cmd/spire-agent` - builds one binary
 * `make test` - runs all tests
 
 **Other Makefile targets**
 
-* `vendor` - installs 3rd-party dependencies using glide
+* `vendor` - Make vendored copy of dependencies using go mod
 * `race-test` - run `go test -race`
-* `clean` - cleans `vendor` directory, glide cache
+* `clean` - cleans `vendor` directory
 * `distclean` - removes caches in addition to `make clean`
 * `utils` - installs gRPC related development utilities
+* `protobuf` - regenerates the gRPC pb.go and README_pb.md files
+* `protobuf_verify` - checks that the checked-in generated code is up-to-date
+* `help` - shows makefile targets and description
 
 ## Development in Docker
 
@@ -59,10 +59,7 @@ $ make container
 $ make cmd
 ```
 
-Because the docker container shares $GOPATH you will not have to re-install the go dependencies
-every time you run the container. NOTE: any binaries installed from within the container will be
-located in $GOPATH/bin/linux_amd64 to avoid conflicts with the host OS (Packages are automatically
-versioned by golang into `$GOPATH/pkg/<os>_<arch>`)
+Because the docker container shares `$GOPATH/pkg/mod` you will not have to re-install the go dependencies every time you run the container.
 
 ## CI
 
@@ -70,10 +67,9 @@ The script `build.sh` manages the CI build process, implementing several unique 
 checks. It is also used to bootstrap the Go environment in the Docker container.
 
 * `setup` - download and install necessary build tools into the directory `.build-<os>-<arch>`
-* `protobuf` - regenerate the gRPC pb.go and README.md files
-* `protobuf_verify` - check that the checked-in generated code is up-to-date
+* `protobuf` - calls `make protobuf` and regenerates the gRPC pb.go and README_pb.md files
+* `protobuf_verify` - calls `make protobuf_verify` and checks that the checked-in generated code is up-to-date
 * `distclean` - calls `make distclean` and removes the directory `.build-<os>-<arch>`
-* `vendor` - calls `make vendor` and checks that the `glide.lock` file is up-to-date
 * `artifact` - generate a `.tgz` containing all of the SPIFFE binaries
 * `test` - when called from within a Travis-CI build, runs coverage tests in addition to the
   regular tests
@@ -86,6 +82,10 @@ checks. It is also used to bootstrap the Go environment in the Docker container.
 In addition to the conventions covered in the SPIFFE project's
 [CONTRIBUTING](https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md), the following
 conventions apply to the SPIRE repository:
+
+## SQL Plugin Changes
+
+Datastore changes must be present in at least one full minor release cycle prior to introducing code changes that depend on them.
 
 ## Directory layout
 
@@ -101,11 +101,11 @@ The main logic of the agent and server processes and their support packages
 
 Common functionality for agent, server, and plugins
 
-`/plugin/{agent,server}/<name>/`
+`/pkg/{agent,server}/plugin/<name>/`
 
 The implementation of each plugin and their support packages
 
-`/proto/{agent,server,api,common}/<name>/`
+`/proto/spire/{agent,server,api,common}/<name>/`
 
 gRPC .proto files, their generated .pb.go, and README_pb.md.
 
@@ -120,6 +120,38 @@ interfaces
 Interfaces should be defined in their own file, named (in lowercase) after the name of the
 interface. eg. `foodata.go` implements `type FooData interface{}`
 
+## Metrics
+
+As much as possible, label names should be constants defined in the `telemetry` package. Additionally,
+specific metrics should be centrally defined in the `telemetry` package or its subpackages. Functions
+desiring metrics should delegate counter, gauge, timer, etc. creation to such packages.
+
+Labels added to metrics must be singular; that is, the value of a metrics label must not be an
+array or slice, and a label of some name must only be added once. Failure to follow this will
+make metrics less usable for non-tagging metrics libraries such as `statsd`.
+As counter examples, DO NOT do the following:
+```
+[]telemetry.Label{
+  {Name: "someName", "val1"},
+  {Name: "someName", "val2"},
+}
+```
+```
+var callCounter telemetry.CallCounter
+...
+callCounter.AddLabel("someName", "val1")
+...
+callCounter.AddLabel("someName", "val2")
+```
+
+## Logs and Errors
+
+Errors should start with lower case, and logged messages should follow standard casing.
+
+Log messages should make use of logging fields to convey additional information, rather than
+using string formatting which increases the cardinality of messages for log watchers to
+look for and hinders aggregation.
+
 ## Mocks
 
 Unit tests should avoid mock tests as much as possible. When necessary we should inject mocked
@@ -131,7 +163,7 @@ We have checked in a pre-commit hook which enforces `go fmt` styling. Please ins
 before sending a pull request. From the project root:
 
 ```
-ln -s ../../.githooks/pre-commit .git/hooks/pre-commit
+ln -s .githooks/pre-commit .git/hooks/pre-commit
 ```
 # Reporting security vulnerabilities
 If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at security@spiffe.io. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.  

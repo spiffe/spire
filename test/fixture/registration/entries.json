@@ -17,7 +17,8 @@
             ],
             "spiffe_id": "spiffe://id1",
             "parent_id": "spiffe://parent",
-            "ttl": 200
+            "ttl": 200,
+            "federates_with": "spiffe://otherdomain.org"
         },
         {
             "selectors": [

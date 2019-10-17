@@ -2,14 +2,15 @@ package util
 
 import (
 	"crypto/sha256"
-	"github.com/spiffe/spire/proto/common"
+	"encoding/hex"
 	"hash"
-	"sort"
+
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 func DeriveRegEntryhash(entry *common.RegistrationEntry) (key string) {
 	var concatSelectors string
-	sort.Slice(entry.Selectors, SelectorsSortFunction(entry.Selectors))
+	SortSelectors(entry.Selectors)
 
 	for _, selector := range entry.Selectors {
 		concatSelectors = concatSelectors + "::" + selector.Type + ":" + selector.Value
@@ -17,5 +18,5 @@ func DeriveRegEntryhash(entry *common.RegistrationEntry) (key string) {
 
 	hashValue := hash.Hash.Sum(sha256.New(), []byte(concatSelectors+entry.SpiffeId+entry.ParentId))
 
-	return string(hashValue)
+	return hex.EncodeToString(hashValue)
 }

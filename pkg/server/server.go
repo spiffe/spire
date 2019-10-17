@@ -1,248 +1,467 @@
 package server
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
+	"context"
 	"crypto/x509/pkix"
+	"fmt"
 	"net"
+	"net/http"
+	_ "net/http/pprof" // import registers routes on DefaultServeMux
 	"net/url"
-	"path"
-	"syscall"
+	"os"
+	"runtime"
+	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/uri"
+	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
+	"github.com/spiffe/spire/pkg/common/profiling"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
+	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/pkg/server/endpoint"
-	"github.com/spiffe/spire/proto/server/ca"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
+	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
+	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
+	"github.com/spiffe/spire/pkg/server/registration"
+	"github.com/spiffe/spire/pkg/server/svid"
+	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"google.golang.org/grpc"
+)
+
+const (
+	invalidTrustDomainAttestedNode = "An attested node with trust domain '%v' has been detected, " +
+		"which does not match the configured trust domain of '%v'. Agents may need to be reconfigured to use new trust domain"
+	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
+		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
+		"please delete all existing registration entries"
+	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
+	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID, from attested node"
+
+	pageSize = 1
 )
 
 type Config struct {
-	// TTL we will use when creating the Base SVID
-	BaseSVIDTtl int32
-
-	// TTL we will use when creating the Server SVID
-	ServerSVIDTtl int32
-
-	// Directory for plugin configs
-	PluginDir string
+	// Configurations for server plugins
+	PluginConfigs common.HCLPluginConfigMap
 
 	Log logrus.FieldLogger
 
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
 
-	// Address of the HTTP SPIRE server
-	BindHTTPAddress *net.TCPAddr
+	// Address of the UDS SPIRE server
+	BindUDSAddress *net.UnixAddr
 
-	// A channel for receiving errors from server goroutines
-	ErrorCh chan error
-
-	// A channel to trigger server shutdown
-	ShutdownCh chan struct{}
+	// Directory to store runtime data
+	DataDir string
 
 	// Trust domain
 	TrustDomain url.URL
 
-	// Umask value to use
-	Umask int
+	UpstreamBundle bool
+
+	Experimental ExperimentalConfig
+
+	// If true enables profiling.
+	ProfilingEnabled bool
+
+	// Port used by the pprof web server when ProfilingEnabled == true
+	ProfilingPort int
+
+	// Frequency in seconds by which each profile file will be generated.
+	ProfilingFreq int
+
+	// Array of profiles names that will be generated on each profiling tick.
+	ProfilingNames []string
+
+	// SVIDTTL is default time-to-live for SVIDs
+	SVIDTTL time.Duration
+
+	// CATTL is the time-to-live for the server CA. This only applies to
+	// self-signed CA certificates, otherwise it is up to the upstream CA.
+	CATTL time.Duration
+
+	// JWTIssuer is used as the issuer claim in JWT-SVIDs minted by the server.
+	// If unset, the JWT-SVID will not have an issuer claim.
+	JWTIssuer string
+
+	// CASubject is the subject used in the CA certificate
+	CASubject pkix.Name
+
+	// Telemetry provides the configuration for metrics exporting
+	Telemetry telemetry.FileConfig
+
+	// HealthChecks provides the configuration for health monitoring
+	HealthChecks health.Config
+
+	// CAKeyType is the key type used for the X509 and JWT signing keys
+	CAKeyType keymanager.KeyType
+}
+
+type ExperimentalConfig struct {
+	// Skip agent id validation in node attestation
+	AllowAgentlessNodeAttestors bool
+
+	// BundleEndpointEnabled, if true, enables the federation bundle endpoint
+	BundleEndpointEnabled bool
+
+	// BundleEndpointAddress is the address on which to serve the federation
+	// bundle endpoint.
+	BundleEndpointAddress *net.TCPAddr
+
+	// BundleEndpointACME is the ACME configuration for the bundle endpoint.
+	// If unset, the bundle endpoint will use SPIFFE auth.
+	BundleEndpointACME *bundle.ACMEConfig
+
+	// FederatesWith holds the federation configuration for trust domains this
+	// server federates with.
+	FederatesWith map[string]bundle_client.TrustDomainConfig
 }
 
 type Server struct {
-	Catalog    catalog.Catalog
-	Config     *Config
-	endpoints  endpoint.Endpoint
-	privateKey *ecdsa.PrivateKey
-	svid       *x509.Certificate
+	config Config
+}
+
+func New(config Config) *Server {
+	return &Server{
+		config: config,
+	}
 }
 
 // Run the server
 // This method initializes the server, including its plugins,
-// and then blocks on the main event loop.
-func (server *Server) Run() error {
-	server.prepareUmask()
-
-	err := server.initPlugins()
-	if err != nil {
+// and then blocks until it's shut down or an error is encountered.
+func (s *Server) Run(ctx context.Context) error {
+	if err := s.run(ctx); err != nil {
+		s.config.Log.WithError(err).Error("fatal run error")
 		return err
 	}
-
-	err = server.rotateSigningCert()
-	if err != nil {
-		return err
-	}
-
-	server.svid, server.privateKey, err = server.rotateSVID()
-	if err != nil {
-		return err
-	}
-
-	err = server.initEndpoints()
-	if err != nil {
-		return err
-	}
-
-	// Main event loop
-	server.Config.Log.Info("SPIRE Server is now running")
-
-	for {
-		select {
-		case err = <-server.Config.ErrorCh:
-			return err
-		case <-server.Config.ShutdownCh:
-			return server.Shutdown()
-		}
-	}
-}
-
-func (server *Server) Shutdown() error {
-	if server.endpoints != nil {
-		server.endpoints.Shutdown()
-	}
-
-	if server.Catalog != nil {
-		server.Catalog.Stop()
-	}
-
-	// Unblock closing endpoints
-	return <-server.Config.ErrorCh
-}
-
-func (server *Server) prepareUmask() {
-	server.Config.Log.Debug("Setting umask to ", server.Config.Umask)
-	syscall.Umask(server.Config.Umask)
-}
-
-func (server *Server) initPlugins() error {
-	config := &catalog.Config{
-		ConfigDir: server.Config.PluginDir,
-		Log:       server.Config.Log.WithField("subsystem_name", "catalog"),
-	}
-
-	server.Catalog = catalog.New(config)
-
-	err := server.Catalog.Run()
-	if err != nil {
-		return err
-	}
-
-	server.Config.Log.Info("Starting plugins done")
-
 	return nil
 }
 
-func (server *Server) initEndpoints() error {
-	ns := &nodeServer{
-		l:           server.Config.Log,
-		catalog:     server.Catalog,
-		trustDomain: server.Config.TrustDomain,
-		baseSVIDTtl: server.Config.BaseSVIDTtl,
+func (s *Server) run(ctx context.Context) (err error) {
+	// create the data directory if needed
+	s.config.Log.Infof("data directory: %q", s.config.DataDir)
+	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
+		return err
 	}
 
-	rs := &registrationServer{
-		l:       server.Config.Log,
-		catalog: server.Catalog,
+	if s.config.ProfilingEnabled {
+		stopProfiling := s.setupProfiling(ctx)
+		defer stopProfiling()
 	}
 
-	log := server.Config.Log.WithField("subsystem_name", "endpoint")
-	cert, err := server.signingCert()
+	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
+		FileConfig:  s.config.Telemetry,
+		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
+		ServiceName: telemetry.SpireServer,
+	})
+	if err != nil {
+		return err
+	}
+	metricsService := metricsservice.New(metricsservice.Config{
+		Metrics: metrics,
+	})
+
+	// Create the identity provider host service. It will not be functional
+	// until the call to SetDeps() below. There is some tricky initialization
+	// stuff going on since the identity provider host service requires plugins
+	// to do its job. RPC's from plugins to the identity provider before
+	// SetDeps() has been called will fail with a PreCondition status.
+	identityProvider := identityprovider.New(identityprovider.Config{
+		TrustDomainID: s.config.TrustDomain.String(),
+	})
+
+	// Create the agent store host service. It will not be functional
+	// until the call to SetDeps() below.
+	agentStore := agentstore.New()
+
+	cat, err := s.loadCatalog(ctx, identityProvider, agentStore, metricsService)
+	if err != nil {
+		return err
+	}
+	defer cat.Close()
+
+	healthChecks := health.NewChecker(
+		s.config.HealthChecks,
+		s.config.Log.WithField(telemetry.SubsystemName, "health"),
+	)
+
+	s.config.Log.Info("plugins started")
+
+	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
 		return err
 	}
 
-	c := &endpoint.Config{
-		NS:       ns,
-		RS:       rs,
-		GRPCAddr: server.Config.BindAddress,
-		HTTPAddr: server.Config.BindHTTPAddress,
-		SVID:     server.svid,
-		SVIDKey:  server.privateKey,
-		CACert:   cert,
-		Log:      log,
-	}
+	serverCA := s.newCA(metrics)
 
-	server.endpoints = endpoint.New(c)
-	go func() { server.Config.ErrorCh <- server.endpoints.ListenAndServe() }()
-	return nil
-}
-
-func (server *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	spiffeID := &url.URL{
-		Scheme: "spiffe",
-		Host:   server.Config.TrustDomain.Host,
-		Path:   path.Join("spiffe", "cp"),
-	}
-
-	l := server.Config.Log.WithField("SPIFFE_ID", spiffeID.String())
-	l.Info("Rotating SPIRE server SVID")
-
-	uriSAN, err := uri.MarshalUriSANs([]string{spiffeID.String()})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-	req := &x509.CertificateRequest{
-		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		ExtraExtensions: []pkix.Extension{{
-			Id:       uri.OidExtensionSubjectAltName,
-			Value:    uriSAN,
-			Critical: false,
-		}},
-	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, req, key)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	l.Debug("Sending CSR to the CA plugin")
-	serverCA := server.Catalog.CAs()[0]
-	res, err := serverCA.SignCsr(
-		&ca.SignCsrRequest{Csr: csr, Ttl: server.Config.ServerSVIDTtl})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	cert, err := x509.ParseCertificate(res.SignedCertificate)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	l.Debug("SPIRE server SVID rotation complete")
-	return cert, key, nil
-}
-
-func (server *Server) rotateSigningCert() error {
-	server.Config.Log.Info("Initiating rotation of signing certificate")
-
-	serverCA := server.Catalog.CAs()[0]
-	csrRes, err := serverCA.GenerateCsr(&ca.GenerateCsrRequest{})
-	if err != nil {
-		return err
-	}
-	upstreamCA := server.Catalog.UpstreamCAs()[0]
-	signRes, err := upstreamCA.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
+	// CA manager needs to be initialized before the rotator, otherwise the
+	// server CA plugin won't be able to sign CSRs
+	caManager, err := s.newCAManager(ctx, cat, metrics, serverCA)
 	if err != nil {
 		return err
 	}
 
-	req := &ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert}
-	_, err = serverCA.LoadCertificate(req)
+	svidRotator, err := s.newSVIDRotator(ctx, serverCA, metrics)
+	if err != nil {
+		return err
+	}
 
+	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics)
+
+	// Set the identity provider dependencies
+	if err := identityProvider.SetDeps(identityprovider.Deps{
+		DataStore: cat.GetDataStore(),
+		X509IdentityFetcher: identityprovider.X509IdentityFetcherFunc(func(context.Context) (*identityprovider.X509Identity, error) {
+			// Return the server identity itself
+			state := svidRotator.State()
+			return &identityprovider.X509Identity{
+				CertChain:  state.SVID,
+				PrivateKey: state.Key,
+			}, nil
+		}),
+	}); err != nil {
+		return fmt.Errorf("failed setting IdentityProvider deps: %v", err)
+	}
+
+	// Set the agent store dependencies
+	if err := agentStore.SetDeps(agentstore.Deps{
+		DataStore: cat.GetDataStore(),
+	}); err != nil {
+		return fmt.Errorf("failed setting AgentStore deps: %v", err)
+	}
+
+	bundleManager := s.newBundleManager(cat)
+
+	registrationManager := s.newRegistrationManager(cat, metrics)
+
+	if err := healthChecks.AddCheck("server", s, time.Minute); err != nil {
+		return fmt.Errorf("failed adding healthcheck: %v", err)
+	}
+
+	err = util.RunTasks(ctx,
+		caManager.Run,
+		svidRotator.Run,
+		endpointsServer.ListenAndServe,
+		metrics.ListenAndServe,
+		bundleManager.Run,
+		registrationManager.Run,
+		healthChecks.ListenAndServe,
+	)
+	if err == context.Canceled {
+		err = nil
+	}
 	return err
 }
 
-func (server *Server) signingCert() (*x509.Certificate, error) {
-	c := server.Catalog.CAs()[0]
-	res, err := c.FetchCertificate(&ca.FetchCertificateRequest{})
-	if err != nil {
-		return nil, err
+func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
+	ctx, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+
+	if runtime.MemProfileRate == 0 {
+		s.config.Log.Warn("Memory profiles are disabled")
+	}
+	if s.config.ProfilingPort > 0 {
+		grpc.EnableTracing = true
+
+		server := http.Server{
+			Addr:    fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
+			Handler: http.DefaultServeMux,
+		}
+
+		// kick off a goroutine to serve the pprof endpoints and one to
+		// gracefully shut down the server when profiling is being torn down
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := server.ListenAndServe(); err != nil {
+				s.config.Log.WithError(err).Warn("unable to serve profiling server")
+			}
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-ctx.Done()
+			server.Shutdown(ctx)
+		}()
+	}
+	if s.config.ProfilingFreq > 0 {
+		c := &profiling.Config{
+			Tag:                    "server",
+			Frequency:              s.config.ProfilingFreq,
+			DebugLevel:             0,
+			RunGCBeforeHeapProfile: true,
+			Profiles:               s.config.ProfilingNames,
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := profiling.Run(ctx, c); err != nil {
+				s.config.Log.WithError(err).Warn("Failed to run profiling")
+			}
+		}()
 	}
 
-	return x509.ParseCertificate(res.StoredIntermediateCert)
+	return func() {
+		cancel()
+		wg.Wait()
+	}
+}
+
+func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
+	metricsService common_services.MetricsService) (*catalog.CatalogCloser, error) {
+	return catalog.Load(ctx, catalog.Config{
+		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		GlobalConfig: catalog.GlobalConfig{
+			TrustDomain: s.config.TrustDomain.Host,
+		},
+		PluginConfig:     s.config.PluginConfigs,
+		IdentityProvider: identityProvider,
+		AgentStore:       agentStore,
+		MetricsService:   metricsService,
+	})
+}
+
+func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
+	return ca.NewCA(ca.CAConfig{
+		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
+		Metrics:     metrics,
+		X509SVIDTTL: s.config.SVIDTTL,
+		JWTIssuer:   s.config.JWTIssuer,
+		TrustDomain: s.config.TrustDomain,
+		CASubject:   s.config.CASubject,
+	})
+}
+
+func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA) (*ca.Manager, error) {
+	caManager := ca.NewManager(ca.ManagerConfig{
+		CA:             serverCA,
+		Catalog:        cat,
+		TrustDomain:    s.config.TrustDomain,
+		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:        metrics,
+		UpstreamBundle: s.config.UpstreamBundle,
+		CATTL:          s.config.CATTL,
+		CASubject:      s.config.CASubject,
+		Dir:            s.config.DataDir,
+		X509CAKeyType:  s.config.CAKeyType,
+		JWTKeyType:     s.config.CAKeyType,
+	})
+	if err := caManager.Initialize(ctx); err != nil {
+		return nil, err
+	}
+	return caManager, nil
+}
+
+func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.Metrics) *registration.Manager {
+	registrationManager := registration.NewManager(registration.ManagerConfig{
+		DataStore: cat.GetDataStore(),
+		Log:       s.config.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationManager),
+		Metrics:   metrics,
+	})
+	return registrationManager
+}
+
+func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
+	svidRotator := svid.NewRotator(&svid.RotatorConfig{
+		ServerCA:    serverCA,
+		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
+		Metrics:     metrics,
+		TrustDomain: s.config.TrustDomain,
+	})
+	if err := svidRotator.Initialize(ctx); err != nil {
+		return nil, err
+	}
+	return svidRotator, nil
+}
+
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
+	config := &endpoints.Config{
+		TCPAddr:                     s.config.BindAddress,
+		UDSAddr:                     s.config.BindUDSAddress,
+		SVIDObserver:                svidObserver,
+		TrustDomain:                 s.config.TrustDomain,
+		Catalog:                     catalog,
+		ServerCA:                    serverCA,
+		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Metrics:                     metrics,
+		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
+	}
+	if s.config.Experimental.BundleEndpointEnabled {
+		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
+		config.BundleEndpointACME = s.config.Experimental.BundleEndpointACME
+	}
+	return endpoints.New(config)
+}
+
+func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
+	return bundle_client.NewManager(bundle_client.ManagerConfig{
+		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
+		DataStore:    cat.GetDataStore(),
+		TrustDomains: s.config.Experimental.FederatesWith,
+	})
+}
+
+func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
+	trustDomain := s.config.TrustDomain.Host
+
+	// Get only first page with a single element
+	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: pageSize,
+		}})
+
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range fetchResponse.Entries {
+		id, err := url.Parse(entry.SpiffeId)
+		if err != nil {
+			return fmt.Errorf(invalidSpiffeIDRegistrationEntry, entry.EntryId, err)
+		}
+
+		if id.Host != trustDomain {
+			return fmt.Errorf(invalidTrustDomainRegistrationEntry, id.Host, trustDomain)
+		}
+	}
+
+	// Get only first page with a single element
+	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: pageSize,
+		}})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodesResponse.Nodes {
+		id, err := url.Parse(node.SpiffeId)
+		if err != nil {
+			s.config.Log.WithError(err).WithField(telemetry.SPIFFEID, node.SpiffeId).Warn(invalidSpiffeIDAttestedNode)
+			continue
+		}
+
+		if id.Host != trustDomain {
+			msg := fmt.Sprintf(invalidTrustDomainAttestedNode, id.Host, trustDomain)
+			s.config.Log.Warn(msg)
+		}
+	}
+	return nil
+}
+
+// Status is used as a top-level health check for the Server.
+func (s *Server) Status() (interface{}, error) {
+	return nil, nil
 }

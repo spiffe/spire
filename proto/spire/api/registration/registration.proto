@@ -1,0 +1,218 @@
+// The Registration API is used to register SPIFFE IDs, and the
+// attestation logic that should be performed on a workload before those
+// IDs can be issued.
+
+syntax = "proto3";
+package spire.api.registration;
+option go_package = "github.com/spiffe/spire/proto/spire/api/registration";
+
+import "spire/common/common.proto";
+
+// A type that represents the id of an entry.
+message RegistrationEntryID {
+     // RegistrationEntryID.
+    string id = 1;
+}
+
+// A type that represents a parent Id.
+message ParentID {
+     // ParentId.
+    string id = 1;
+}
+
+// A type that represents a SPIFFE Id.
+message SpiffeID {
+     // SpiffeId.
+    string id = 1;
+}
+
+// A type used to update registration entries
+message UpdateEntryRequest {
+    // Registration entry to update
+    spire.common.RegistrationEntry entry = 1;
+}
+
+// A CA bundle for a different Trust Domain than the one used and managed by the Server.
+message FederatedBundle {
+    // Common bundle format
+    spire.common.Bundle bundle = 3;
+}
+
+// A type that represents a federated bundle id.
+message FederatedBundleID {
+    // SPIFFE ID of the federated bundle
+    string id  = 1;
+}
+
+message DeleteFederatedBundleRequest {
+    // Mode controls the delete behavior if there are other records
+    // associated with the bundle (e.g. registration entries).
+    enum Mode {
+        // RESTRICT prevents the bundle from being deleted in the presence of associated entries
+        RESTRICT = 0;
+        // DELETE deletes the bundle and associated entries
+        DELETE = 1;
+        // DISSOCIATE deletes the bundle and dissociates associated entries
+        DISSOCIATE = 2;
+    }
+
+    string id = 1;
+    Mode mode = 2;
+}
+
+// JoinToken message is used for registering a new token
+message JoinToken {
+    // The join token. If not set, one will be generated
+    string token = 1;
+
+    // TTL in seconds
+    int32 ttl = 2;
+}
+
+// CA Bundle of the server
+message Bundle {
+    // Common bundle format
+    common.Bundle bundle = 2;
+}
+
+// Represents a ListAgents request
+message ListAgentsRequest {
+
+}
+
+// Represents a ListAgents response
+message ListAgentsResponse {
+    // List of all attested agents
+    repeated spire.common.AttestedNode nodes = 1;
+}
+
+// Represents an evict request
+message EvictAgentRequest {
+    // Agent identity of the node to be evicted.
+    // For example: "spiffe://example.org/spire/agent/join_token/feea6adc-3254-4052-9a18-5eeb74bf214f"
+    string spiffeID = 1;
+}
+
+// Represents an evict response
+message EvictAgentResponse {
+    // Node contains the evicted node
+    spire.common.AttestedNode node = 1;
+}
+
+message MintX509SVIDRequest {
+    // SPIFFE ID of the X509-SVID
+    string spiffe_id = 1;
+
+    // ASN.1 encoded CSR. The CSR is only used to convey the public key and
+    // prove possession of the private key. The rest of the CSR is ignored.
+    bytes csr = 2;
+
+    // TTL of the X509-SVID, in seconds. The server default will be used if
+    // unset. The TTL is advisory only. The actual lifetime of the X509-SVID
+    // may be lower depending on the remaining lifetime of the active SPIRE
+    // Server CA.
+    int32 ttl = 3;
+
+    // DNS names to include as DNS SANs in the X509-SVID. If set, the first
+    // in the list is also set as the X509-SVID common name.
+    repeated string dns_names = 4;
+}
+
+message MintX509SVIDResponse {
+    // X509-SVID chain. This includes the X509-SVID itself and any
+    // intermediates necessary to chain back to certificates in the root_cas.
+    repeated bytes svid_chain = 1;
+
+    // X.509 root certificates
+    repeated bytes root_cas = 2;
+}
+
+message MintJWTSVIDRequest {
+    // SPIFFE ID of the JWT-SVID
+    string spiffe_id = 1;
+
+    // TTL of the JWT-SVID, in seconds. The server default will be used if
+    // unset. The TTL is advisory only. The actual lifetime of the JWT-SVID may
+    // be lower depending on the remaining lifetime of the active SPIRE Server
+    // CA.
+    int32 ttl = 2;
+
+    // List of audience claims to include in the JWT-SVID. At least one must
+    // be set.
+    repeated string audience = 3;
+}
+
+message MintJWTSVIDResponse {
+    // JWT-SVID token
+    string token = 1;
+}
+
+message NodeSelectors {
+    // Node SPIFFE ID
+    string spiffe_id = 1;
+
+    // Node selectors
+    repeated spire.common.Selector selectors = 2;
+}
+
+// Represents a GetNodeSelectors request
+message GetNodeSelectorsRequest{
+    string spiffe_id = 1;
+}
+
+// Represents a GetNodeSelectors response
+message GetNodeSelectorsResponse {
+    NodeSelectors selectors = 1;
+}
+
+service Registration {
+    // Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
+    rpc CreateEntry(spire.common.RegistrationEntry) returns (RegistrationEntryID);
+    // Deletes an entry and returns the deleted entry.
+    rpc DeleteEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry);
+    // Retrieve a specific registered entry.
+    rpc FetchEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry);
+    // Retrieve all registered entries.
+    rpc FetchEntries(spire.common.Empty) returns (spire.common.RegistrationEntries);
+    // Updates a specific registered entry.
+    rpc UpdateEntry(UpdateEntryRequest) returns (spire.common.RegistrationEntry);
+    // Returns all the Entries associated with the ParentID value.
+    rpc ListByParentID(ParentID) returns (spire.common.RegistrationEntries);
+    // Returns all the entries associated with a selector value.
+    rpc ListBySelector(spire.common.Selector) returns (spire.common.RegistrationEntries);
+    // Returns all the entries matching the set of selectors
+    rpc ListBySelectors(spire.common.Selectors) returns (spire.common.RegistrationEntries);
+    // Return all registration entries for which SPIFFE ID matches.
+    rpc ListBySpiffeID(SpiffeID) returns (spire.common.RegistrationEntries);
+
+    // Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
+    rpc CreateFederatedBundle(FederatedBundle) returns (spire.common.Empty);
+    // Retrieves a single federated bundle
+    rpc FetchFederatedBundle(FederatedBundleID) returns (FederatedBundle);
+    // Retrieves Federated bundles for all the Federated SPIFFE IDs.
+    rpc ListFederatedBundles(spire.common.Empty) returns (stream FederatedBundle);
+    // Updates a particular Federated Bundle. Useful for rotation.
+    rpc UpdateFederatedBundle(FederatedBundle) returns (spire.common.Empty);
+    // Delete a particular Federated Bundle. Used to destroy inter-domain trust.
+    rpc DeleteFederatedBundle(DeleteFederatedBundleRequest) returns (spire.common.Empty);
+
+    // Create a new join token
+    rpc CreateJoinToken(JoinToken) returns (JoinToken);
+
+    // Retrieves the CA bundle.
+    rpc FetchBundle(spire.common.Empty) returns (Bundle);
+
+    // EvictAgent removes an attestation entry from the attested nodes store
+    rpc EvictAgent(EvictAgentRequest) returns (EvictAgentResponse);
+    // ListAgents will list all attested nodes
+    rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+
+    // MintX509SVID mints an X509-SVID directly with the SPIRE server CA.
+    rpc MintX509SVID(MintX509SVIDRequest) returns (MintX509SVIDResponse);
+
+    // MintJWTSVID mints a JWT-SVID directly with the SPIRE server CA.
+    rpc MintJWTSVID(MintJWTSVIDRequest) returns (MintJWTSVIDResponse);
+
+    // GetNodeSelectors gets node (agent) selectors
+    rpc GetNodeSelectors(GetNodeSelectorsRequest) returns (GetNodeSelectorsResponse);
+}

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+MAXCHECKSPERPORT=15
+CHECKINTERVAL=1
+
+for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
+    log-debug "Checking MTLS proxy ($i of $MAXCHECKSPERPORT max)..."
+    docker-compose exec downstream-socat-mtls /bin/sh -c "echo HELLO_MTLS | socat -u STDIN TCP:localhost:8001"
+    if docker-compose exec upstream-socat cat /tmp/howdy | grep -q HELLO_MTLS ; then
+        MTLS_OK=1
+        log-info "MTLS proxy OK"
+        break
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
+    log-debug "Checking TLS proxy ($i of $MAXCHECKSPERPORT max)..."
+    docker-compose exec downstream-socat-tls /bin/sh -c "echo HELLO_TLS | socat -u STDIN TCP:localhost:8002"
+    if docker-compose exec upstream-socat cat /tmp/howdy | grep -q HELLO_TLS ; then
+        TLS_OK=1
+        log-info "TLS proxy OK"
+        break
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+if [ -n "${MTLS_OK}" ] && [ -n "${TLS_OK}" ]; then
+    touch success
+else
+    log-err "Proxying failed"
+    docker-compose exec upstream-socat cat /tmp/howdy
+fi

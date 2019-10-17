@@ -1,26 +1,27 @@
 package util
 
 import (
-	"crypto/tls"
+	"net"
+	"time"
 
-	"github.com/spiffe/spire/proto/api/registration"
-
+	"github.com/spiffe/spire/proto/spire/api/registration"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
-	DefaultServerAddr = "localhost:8081"
+	DefaultSocketPath = "/tmp/spire-registration.sock"
 )
 
-func NewRegistrationClient(address string) (registration.RegistrationClient, error) {
-	// TODO: Pass a bundle in here
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer))
+	if err != nil {
+		return nil, err
 	}
-
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	return registration.NewRegistrationClient(conn), err
+}
+
+func dialer(addr string, timeout time.Duration) (net.Conn, error) {
+	return net.DialTimeout("unix", addr, timeout)
 }
 
 // Pluralizer concatenates `singular` to `msg` when `val` is one, and

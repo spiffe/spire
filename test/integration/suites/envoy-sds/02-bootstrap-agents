@@ -1,0 +1,9 @@
+#!/bin/bash
+
+log-debug "bootstrapping downstream agent..."
+docker-compose exec spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/downstream-agent/bootstrap.crt
+
+log-debug "bootstrapping upstream agent..."
+docker-compose exec spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/upstream-agent/bootstrap.crt

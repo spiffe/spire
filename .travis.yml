@@ -1,45 +1,116 @@
-sudo: true
-dist: trusty
+sudo: required
+
+services:
+  - docker
 
 language: go
 
 cache:
-    directories:
-        - .cache
+  directories:
+    - .cache
+    - $HOME/.build
+    # cache the Go module cache
+    - $HOME/go/pkg/mod
+    # cache `go install`-ed binaries across stages. build.sh unsets GOPATH
+    # so this is hitting the default go env of $HOME/go
+    - $HOME/go/bin
 
-script:
-    - ./build.sh setup
-    - ./build.sh vendor
-    - ./build.sh utils
-    - ./build.sh protobuf_verify
-    - ./build.sh test
-    - ./build.sh binaries
-    - ./build.sh artifact
-    - ./build.sh release
+stages:
+  - setup
+  - lint
+  - test
+  - build release
+  - publish images
+  - nightly integration tests
 
-deploy:
-    - provider: s3
-      access_key_id: $AWS_ACCESS_KEY_ID
-      secret_access_key: $AWS_SECRET_ACCESS_KEY
-      bucket: scytale-artifacts
-      local-dir: artifacts
-      upload-dir: spire
-      acl: public_read
-      skip_cleanup: true
-      region: us-east-2
-      on:
-          all_branches: true
-          condition: $AWS_SECRET_ACCESS_KEY != ""
-    - provider: releases
-      api_key: $GITHUB_TOKEN
-      file_glob: true
-      file: releases/*
-      skip_cleanup: true
-      on:
-          tags: true
-          condition: $GITHUB_TOKEN != ""
- 
+jobs:
+  include:
+    - stage: setup
+      script:
+        - ./build.sh setup
+        - ./build.sh utils
+      os: macos
+    - stage: setup
+      script:
+        - ./build.sh setup
+        - ./build.sh utils
+      os: linux
+      dist: xenial
+    - stage: lint
+      script:
+        - ./build.sh protobuf_verify
+        - shellcheck build.sh
+      # linting is OS agnostic but protobuf_verify needs utils to lets be explicit
+      # about its runtime environment
+      os: linux 
+      dist: xenial
+    - stage: test
+      script:
+        - ./build.sh race-test
+      os: macos
+    - stage: test
+      script:
+        - ./build.sh race-test
+      os: linux
+      dist: xenial
+    - stage: build release
+      script:
+        - ./build.sh binaries
+        - ./build.sh integration
+        - ./build.sh artifact
+        - ./build.sh release
+      os: linux
+      dist: xenial
+      deploy:
+        - provider: s3
+          access_key_id: $AWS_ACCESS_KEY_ID
+          secret_access_key: $AWS_SECRET_ACCESS_KEY
+          bucket: scytale-artifacts
+          local-dir: artifacts
+          upload-dir: spire
+          acl: public_read
+          skip_cleanup: true
+          region: us-east-2
+          on:
+            all_branches: true
+            condition: $AWS_SECRET_ACCESS_KEY != ""
+        - provider: releases
+          api_key: $GITHUB_TOKEN
+          file_glob: true
+          file: releases/*
+          skip_cleanup: true
+          on:
+            tags: true
+            condition: $GITHUB_TOKEN != ""
+
+    - stage: publish images
+      if: type = push AND (tag IS present OR branch = master)
+      os: linux
+      dist: xenial
+      before_script:
+        # Decrypt credentials needed to log into gcr registry
+        - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
+      script:
+        # Build spire images
+        - make spire-images
+        # Run integration tests
+        - test/integration/test-all.sh
+        # Publish images
+        - .travis/publish-images.sh
+
+    - stage: nightly integration tests
+      if: type = cron
+      os: linux
+      dist: xenial
+      script:
+        # Build spire images
+        - make spire-images
+        # Run integration tests
+        - test/integration/test-all.sh
+
 notifications:
-    slack:
-        secure: auV9VWkA50+tf4cKUUkMH/KqggKSJCBV9ruLSF1LVgqQYnK34rp/PPzx4gTiQYA07ltnu8Hi13XMoN5+OFsRfzVRCKP1tlGuTvVhpsoyMGiNxBY1Yw2OhZXRoSjCwJkuBsAkkaxAgsC58IEnxhKq+M83dDYx+WiybO+aQnQ6ExbGE4oUBhhBkYKrHy4Kt9/3yWLqicV/VXFtvwbXG5OG1zNNOYCUEud4Y8j6pcb0kyVqlHFjAjasLPsln0QSaTxOThLZCxMZD2zpbI1xxO5tBusqDe1QOMSgsyAbDaNk7wCb2kU+0hRKcfiuWShrswhECSJsYUImLq4c77WbdhrjRgscgY2779T/jaJHbG3Lx7GlDWYLSgFcM8VfZK+K5XPcm35F2qGPiEjtYEEAPS2qQM9PZyvTEVPxjNEc2PE3bINTjibcKbfATNa1ULQvJ6ixtSL9Ao8828iUfaR0mK4eaWnJckov5OaGvah+v6vh49JqZTEN3Or8XTUw0ra14euS6jR30XB2Y3S8/0NuvHY+ytJe36yQn9FdFM3asNpBuNP7F9v00WJr3+Lhg7KHMd0m19ulwtmXiWJYU25AVMk/oXp+aq+678AvhYkYZGaUzC3timsuTlAjH9DA9yxBW+8KE9y46Jq8vXHXhKTfdKDVVUyOFxKKGAjCA5QbeKx+5QU=
- 
+  email:
+    recipients:
+      - spire-dev@spiffe.io
+  slack:
+    secure: auV9VWkA50+tf4cKUUkMH/KqggKSJCBV9ruLSF1LVgqQYnK34rp/PPzx4gTiQYA07ltnu8Hi13XMoN5+OFsRfzVRCKP1tlGuTvVhpsoyMGiNxBY1Yw2OhZXRoSjCwJkuBsAkkaxAgsC58IEnxhKq+M83dDYx+WiybO+aQnQ6ExbGE4oUBhhBkYKrHy4Kt9/3yWLqicV/VXFtvwbXG5OG1zNNOYCUEud4Y8j6pcb0kyVqlHFjAjasLPsln0QSaTxOThLZCxMZD2zpbI1xxO5tBusqDe1QOMSgsyAbDaNk7wCb2kU+0hRKcfiuWShrswhECSJsYUImLq4c77WbdhrjRgscgY2779T/jaJHbG3Lx7GlDWYLSgFcM8VfZK+K5XPcm35F2qGPiEjtYEEAPS2qQM9PZyvTEVPxjNEc2PE3bINTjibcKbfATNa1ULQvJ6ixtSL9Ao8828iUfaR0mK4eaWnJckov5OaGvah+v6vh49JqZTEN3Or8XTUw0ra14euS6jR30XB2Y3S8/0NuvHY+ytJe36yQn9FdFM3asNpBuNP7F9v00WJr3+Lhg7KHMd0m19ulwtmXiWJYU25AVMk/oXp+aq+678AvhYkYZGaUzC3timsuTlAjH9DA9yxBW+8KE9y46Jq8vXHXhKTfdKDVVUyOFxKKGAjCA5QbeKx+5QU=

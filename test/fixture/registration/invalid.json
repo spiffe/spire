@@ -1,0 +1,15 @@
+{
+    "entries": [
+        {
+            "selectors": [
+                {
+                    "type": "unix",
+                    "value": "uid:1111"
+                }
+            ],
+            "spiffe_id": "http://example.org/Blog",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
+            "ttl": 200
+        }
+    ]
+}

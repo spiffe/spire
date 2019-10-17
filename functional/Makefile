@@ -13,7 +13,7 @@ all: clean build server agent test
 build:
 	docker-compose build runner
 	docker-compose up -d runner
-	docker-compose exec runner bash -c 'mkdir -p $(DOCKER_SPIRE) && cp -R /spire-orig/* $(DOCKER_SPIRE)'
+	docker-compose exec runner bash -c 'mkdir -p $(DOCKER_SPIRE)/.data && cp -R /spire-orig/* $(DOCKER_SPIRE)'
 	docker-compose exec runner bash -c 'cd $(DOCKER_SPIRE) && ./build.sh setup && ./build.sh binaries'
 
 server:
@@ -36,3 +36,4 @@ test:
 
 clean:
 	docker-compose down
+	-rm *.log

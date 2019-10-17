@@ -3,7 +3,7 @@ package entry
 import (
 	"testing"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,8 +35,8 @@ func TestHasSelectors(t *testing.T) {
 	a.False(hasSelectors(entry, selectorToFlag(selectors[2:4])))
 }
 
-func selectorToFlag(selectors []*common.Selector) SelectorFlag {
-	resp := SelectorFlag{}
+func selectorToFlag(selectors []*common.Selector) StringsFlag {
+	resp := StringsFlag{}
 	for _, s := range selectors {
 		str := s.Type + ":" + s.Value
 		resp.Set(str)

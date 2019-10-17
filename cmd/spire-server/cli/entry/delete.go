@@ -6,14 +6,14 @@ import (
 	"fmt"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 
 	"golang.org/x/net/context"
 )
 
 type DeleteConfig struct {
-	// Address of SPIRE server
-	Addr string
+	// Socket path of registration API
+	RegistrationUDSPath string
 
 	// ID of the record to delete
 	EntryID string
@@ -21,8 +21,8 @@ type DeleteConfig struct {
 
 // Perform basic validation
 func (dc *DeleteConfig) Validate() error {
-	if dc.Addr == "" {
-		return errors.New("a server address is required")
+	if dc.RegistrationUDSPath == "" {
+		return errors.New("a socket path for registration api is required")
 	}
 
 	if dc.EntryID == "" {
@@ -44,6 +44,8 @@ func (d DeleteCLI) Help() string {
 }
 
 func (d DeleteCLI) Run(args []string) int {
+	ctx := context.Background()
+
 	config, err := d.newConfig(args)
 	if err != nil {
 		return d.printErr(err)
@@ -53,7 +55,7 @@ func (d DeleteCLI) Run(args []string) int {
 		return d.printErr(err)
 	}
 
-	cl, err := util.NewRegistrationClient(config.Addr)
+	cl, err := util.NewRegistrationClient(config.RegistrationUDSPath)
 	if err != nil {
 		return d.printErr(err)
 	}
@@ -61,13 +63,13 @@ func (d DeleteCLI) Run(args []string) int {
 	req := &registration.RegistrationEntryID{
 		Id: config.EntryID,
 	}
-	e, err := cl.DeleteEntry(context.TODO(), req)
+	e, err := cl.DeleteEntry(ctx, req)
 	if err != nil {
 		return d.printErr(err)
 	}
 
 	fmt.Printf("Deleted the following entry:\n\n")
-	printEntry(e, config.EntryID)
+	printEntry(e)
 	return 0
 }
 
@@ -75,7 +77,7 @@ func (DeleteCLI) newConfig(args []string) (*DeleteConfig, error) {
 	f := flag.NewFlagSet("entry delete", flag.ContinueOnError)
 	c := &DeleteConfig{}
 
-	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.EntryID, "entryID", "", "The Registration Entry ID of the record to delete")
 
 	return c, f.Parse(args)

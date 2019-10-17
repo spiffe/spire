@@ -1,0 +1,19 @@
+syntax = "proto3";
+package spire.server.hostservices;
+option go_package = "github.com/spiffe/spire/proto/spire/server/hostservices";
+
+message AgentInfo {
+    string agent_id = 1;
+}
+
+message GetAgentInfoRequest {
+    string agent_id = 1;
+}
+
+message GetAgentInfoResponse {
+    AgentInfo info = 1; 
+}
+
+service AgentStore {
+    rpc GetAgentInfo(GetAgentInfoRequest) returns (GetAgentInfoResponse);
+}

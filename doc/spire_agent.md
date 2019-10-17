@@ -1,72 +1,299 @@
-# SPIRE Agent
+# SPIRE Agent Configuration Reference
 
-SPIRE Agent runs on every node and is responsible for requesting certificates from the spire server,
-attesting the validity of local workloads, and providing them SVIDs.
+This document is a configuration reference for SPIRE Agent. It includes information about plugin types, built-in plugins, the agent configuration file, plugin configuration, and command line options for `spire-agent` commands.
+
+## Plugin types
+
+| Type             | Description |
+| ---------------- | ----------- |
+| KeyManager       | Generates and stores the agent's private key. Useful for binding keys to hardware, etc. |
+| NodeAttestor     | Gathers information used to attest the agent's identity to the server. Generally paired with a server plugin of the same type. |
+| WorkloadAttestor | Introspects a workload to determine its properties, generating a set of selectors associated with it. |
+
+## Built-in plugins
+
+| Type             | Name | Description |
+| ---------------- | ---- | ----------- |
+| KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md) | A key manager which writes the private key to disk |
+| KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md) | An in-memory key manager which does not persist private keys (must re-attest after restarts) |
+| NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) | A node attestor which attests agent identity using an AWS Instance Identity Document |
+| NodeAttestor     | [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) | A node attestor which attests agent identity using an Azure MSI token |
+| NodeAttestor     | [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
+| NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
+| NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
+| NodeAttestor     | [k8s_psat](/doc/plugin_agent_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
+| NodeAttestor     | [sshpop](/doc/plugin_agent_nodeattestor_sshpop.md) | A node attestor which attests agent identity using an existing ssh certificate |
+| NodeAttestor     | [x509pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
+| WorkloadAttestor | [docker](/doc/plugin_agent_workloadattestor_docker.md) | A workload attestor which allows selectors based on docker constructs such `label` and `image_id`|
+| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
+| WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
 
 ## Agent configuration file
 
-The following details the configurations for the spire agent. The configurations can be set through
-.conf file or passed as command line args, the command line configurations takes precedence.
+The following table outlines the configuration options for SPIRE agent. These may be set in a top-level `agent { ... }` section of the configuration file. Most options have a corresponding CLI flag which, if set, takes precedence over values defined in the file.
 
-| Configuration     | Description                                                    | Default                |
-| ----------------- | -------------------------------------------------------------- | ---------------------- |
-| `bindAddress`     | IP address or DNS name of the SPIRE server                     |                        |
-| `bindPort`        | Port number of the SPIRE server                                |                        |
-| `dataDir`         | A directory the agent can use for its runtime data             | $PWD                   |
-| `logFile`         | File to write logs to                                          |                        |
-| `logLevel`        | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>            | INFO                   |
-| `pluginDir`       | Plugin conf.d configuration directory                          | $PWD/conf/agent/plugin |
-| `serverAddress`   | IP address or DNS name of the SPIRE server                     |                        |
-| `serverPort`      | Port number of the SPIRE server                                |                        |
-| `socketPath`      | Location to bind the workload API socket                       | $PWD/spire_api         |
-| `trustBundlePath` | Path to the SPIRE server CA bundle                             |                        |
-| `trustDomain`     | The trust domain that this agent belongs to                    |                        |
-| `joinToken`       | An optional token which has been generated by the SPIRE server |                        |
-| `umask`           | Umask value to use for new files                               | 0077                   |
+SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
-**Note:** Changing the umask may expose your signing authority to users other than the SPIRE
-agent/server
+| Configuration       | Description                                                    | Default              |
+| ------------------- | -------------------------------------------------------------- | -------------------- |
+| `data_dir`          | A directory the agent can use for its runtime data             | $PWD                 |
+| `log_file`          | File to write logs to                                          |                      |
+| `log_level`         | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>            | INFO                 |
+| `log_format`        | Format of logs, \<text\|json\>                                 | Text                 |
+| `server_address`    | DNS name or IP address of the SPIRE server                     |                      |
+| `server_port`       | Port number of the SPIRE server                                |                      |
+| `socket_path`       | Location to bind the workload API socket                       | $PWD/spire_api       |
+| `trust_bundle_path` | Path to the SPIRE server CA bundle                             |                      |
+| `trust_domain`      | The trust domain that this agent belongs to                    |                      |
+| `join_token`        | An optional token which has been generated by the SPIRE server |                      |
+| `enable_sds`        | Enables [Envoy SDS support](#envoy-sds-support)                | false                |
 
-## Plugin configuration files
+## Plugin configuration
 
-Each file in the directory `pluginDir` is expected to contain the configration for one plugin. The
-following copnfiguration options must be present in each file
+The agent configuration file also contains the configuration for the agent plugins.
+Plugin configurations are under the `plugins { ... }` section, which has the following format:
 
-| Configuration  | Description                             |
-| -------------- | --------------------------------------- |
-| pluginName     | A unique name that describes the plugin |
-| pluginChecksum | An optional sha256 of the plugin binary |
-| enabled        | Enable or disable the plugin            |
-| pluginType     | The plugin type (see below)             |
-| pluginData     | Plugin-specific data                    |
+```hcl
+plugins {
+    pluginType "pluginName" {
+        ...
+        plugin configuration options here
+        ...
+    }
+}
+```
+
+The following configuration options are available to configure a plugin:
+
+| Configuration   | Description                              |
+| --------------- | ---------------------------------------- |
+| plugin_cmd      | Path to the plugin implementation binary (optional, not needed for built-ins) |
+| plugin_checksum | An optional sha256 of the plugin binary  (optional, not needed for built-ins) |
+| enabled         | Enable or disable the plugin (enabled by default)            |
+| plugin_data     | Plugin-specific data                     |
+
+Please see the [built-in plugins](#built-in-plugins) section for information on plugins that are available out-of-the-box.
+
+## Telemetry configuration
+
+If telemetry is desired, it may be configured by using a dedicated `telemetry { ... }` section. The following metrics collectors are currently supported:
+- Prometheus
+- Statsd
+- DogStatsd
+- M3
+
+You may use all, some, or none. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
+
+- Statsd
+- DogStatsd
+- M3
+
+### Telemetry configuration syntax
+
+| Configuration          | Type          | Description  | Default |
+| ----------------       | ------------- | ------------ | ------- |
+| `Prometheus`           | `Prometheus`  | Prometheus configuration         | |
+| `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations | |
+| `Statsd`               | `[]Statsd`    | List of Statsd configurations    | |
+| `M3`                   | `[]M3`        | List of M3 configurations        | |
+
+#### `Prometheus`
+
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `host`           | `string`      | Prometheus server host |
+| `port`           | `int`         | Prometheus server port |
+
+#### `DogStatsd`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | DogStatsd address |
+
+#### `Statsd`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | Statsd address |
+
+#### `M3`
+| Configuration    | Type          | Description |
+| ---------------- | ------------- | ----------- |
+| `address`        | `string`      | M3 address |
+| `env`            | `string`      | M3 environment, e.g. `production`, `staging` |
+
+Here is a sample configuration:
+
+```hcl
+telemetry {
+        Prometheus {
+                port = 9988
+        }
+
+        DogStatsd = [
+            { address = "localhost:8125" },
+        ]
+
+        Statsd = [
+            { address = "localhost:1337" },
+            { address = "collector.example.org:8125" },
+        ]
+        
+        M3 = [
+            { address = "localhost:9000" env = "prod" },
+        ]
+}
+```
+
+## Health check configuration
+
+The agent can expose additional endpoint that can be used for health checking. It is enabled by setting `listener_enabled = true`. Currently it exposes 2 paths: one for liveness (is agent up) and one for readiness (is agent ready to serve requests). By default, health checking endpoint will listen on localhost:80, unless configured otherwise.
+
+```hcl
+health_checks {
+        listener_enabled = true
+        bind_address = "localhost"
+        bind_port = "80"
+        live_path = "/live"
+        ready_path = "/ready"
+}
+```
 
 ## Command line options
 
 ### `spire-agent run`
 
 All of the configuration file above options have identical command-line counterparts. In addition,
-the following flags are available.
+the following flags are available:
 
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |
-| `-config string` | Path to a SPIRE config file | conf/server/server.conf |
+| `-config` | Path to a SPIRE config file | conf/server/server.conf |
+| `-dataDir` | A directory the agent can use for its runtime data | |
+| `-joinToken` | An optional token which has been generated by the SPIRE server | |
+| `-logFile` | File to write logs to | |
+| `-logFormat` | Format of logs, \<text\|json\> | |
+| `-logLevel` | DEBUG, INFO, WARN or ERROR | |
+| `-serverAddress` | IP address or DNS name of the SPIRE server | |
+| `-serverPort` | Port number of the SPIRE server | |
+| `-socketPath` | Location to bind the workload API socket | |
+| `-trustBundle` | Path to the SPIRE server CA bundle | |
+| `-trustDomain` | The trust domain that this agent belongs to | |
 
-## Architechture
+### `spire-agent api fetch`
 
-The agent consists of a master process (spire-agent) and three plugins - the Node Attestor, the
-Workload Attestor and the Key Manager. The master process implements the Workload API and
-communicates with spire-server via the Node API.
+Calls the workload API to fetch an X509-SVID. This command is aliased to `spire-agent api fetch x509`.
 
-![spire agent architecture](images/SPIRE_agent.png)
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-silent` | Suppress stdout | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-timeout` | Time to wait for a response | 1s |
+| `-write` | Write SVID data to the specified path | |
 
-## Available plugins
+### `spire-agent api fetch jwt`
 
-| Type             | Name                                                                            | Description |
-| ---------------- | ------------------------------------------------------------------------------- | ----------- |
-| KeyManager       | [keymanager-memory](/doc/plugin_agent_keymanager_memory.md)                     |             |
-| NodeAttestor     | [nodeattestor-jointoken](/doc/plugin_agent_nodeattestor_jointoken.md)           |             |
-| WorkloadAttestor | [workloadattestor-secretfile](/doc/plugin_agent_workloadattestor_secretfile.md) |             |
-| WorkloadAttestor | [workloadattestor-unix](/doc/plugin_agent_workloadattestor_unix.md)             |             |
+Calls the workload API to fetch a JWT-SVID.
+
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-audience` | A comma separated list of audience values | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-spiffeID` | The SPIFFE ID of the JWT being requested (optional) | |
+| `-timeout` | Time to wait for a response | 1s |
+
+### `spire-agent api fetch x509`
+
+Calls the workload API to fetch a x.509-SVID.
+
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-silent` | Suppress stdout | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-timeout` | Time to wait for a response | 1s |
+| `-write` | Write SVID data to the specified path | |
+
+### `spire-agent api validate jwt`
+
+Calls the workload API to validate the supplied JWT-SVID.
+
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-audience` | A comma separated list of audience values | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-svid` | The JWT-SVID to be validated | |
+| `-timeout` | Time to wait for a response | 1s |
+
+### `spire-agent api watch`
+
+Attaches to the workload API and watches for X509-SVID updates, printing details when updates are received.
+
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+
+### `spire-agent healthcheck`
+
+Checks SPIRE agent's health.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-shallow` | Perform a less stringent health check | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-verbose` | Print verbose information | |
+
+## Sample configuration file
+
+This section includes a sample configuration file for formatting and syntax reference
+
+```hcl
+agent {
+    trust_domain = "example.org"
+    trust_bundle_path = "/opt/spire/conf/initial_bundle.crt"
+
+    data_dir = "/opt/spire/.data"
+    log_level = "DEBUG"
+    server_address = "spire-server"
+    server_port = "8081"
+    socket_path ="/tmp/agent.sock"
+}
+
+telemetry {
+    Prometheus {
+        port = 1234
+    }
+}
+
+plugins {
+    NodeAttestor "join_token" {
+        plugin_data {
+        }
+    }
+    KeyManager "disk" {
+        plugin_data {
+            directory = "/opt/spire/.data"
+        }
+    }
+    WorkloadAttestor "k8s" {
+        plugin_data {
+            kubelet_read_only_port = "10255"
+        }
+    }
+    WorkloadAttestor "unix" {
+        plugin_data {
+        }
+    }
+}
+```
+
+## Envoy SDS Support
+
+SPIRE agent has **beta** support for the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS).
+When enabled, SDS is served over the same Unix domain socket as the Workload API. Envoy processes connecting to SDS are attested as workloads.
+
+[`auth.TlsCertificate`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#envoy-api-msg-auth-tlscertificate)
+resources containing X.509-SVIDs can be fetched using the SPIFFE ID of the workload as the resource name (e.g. `spiffe://example.org/database`).
+
+[`auth.CertificateValidationContext`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#auth-certificatevalidationcontext)
+resources containing trusted CA certificates can be fetched using the SPIFFE ID of the desired trust domain as the resource name (e.g. `spiffe://example.org`).
 
 ## Further reading
 

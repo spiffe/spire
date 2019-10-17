@@ -1,0 +1,17 @@
+version: '3'
+services:
+  spire-server:
+    image: SPIRE-SERVER-IMAGE
+    hostname: spire-server
+    privileged: true
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  spire-agent:
+    image: SPIRE-AGENT-IMAGE
+    hostname: spire-agent
+    privileged: true
+    depends_on: ["spire-server"]
+    volumes:
+      - ./conf/agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]

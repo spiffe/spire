@@ -1,0 +1,40 @@
+/** Responsible for attesting the physical nodes identity.  The plugin
+will be responsible to retrieve an identity document or data associated
+with the physical node.  This data will be used when calling the NodeAPI
+on the Server */
+
+syntax = "proto3";
+package spire.agent.nodeattestor;
+option go_package = "github.com/spiffe/spire/proto/spire/agent/nodeattestor";
+
+import "spire/common/common.proto";
+import "spire/common/plugin/plugin.proto";
+
+/** Represents an empty request */
+message FetchAttestationDataRequest {
+    bytes challenge = 1;
+}
+
+/** Represents the attested data and base SPIFFE ID */
+message FetchAttestationDataResponse {
+    /** A type which contains attestation data for specific platform */
+    spire.common.AttestationData attestation_data = 1;
+
+    /** SPIFFE ID for the agent. This field is deprecated and should no longer
+        be set by implementers. The server-side plugin is now solely in charge
+        of determining the SPIFFE ID for the agent */
+    string DEPRECATED_spiffe_id = 2;
+
+    /** response to the challenge (if challenge was present) **/
+    bytes response = 3;
+}
+
+service NodeAttestor {
+    /** Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation */
+    rpc FetchAttestationData(stream FetchAttestationDataRequest) returns (stream FetchAttestationDataResponse);
+
+    /** Applies the plugin configuration and returns configuration errors */
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    /** Returns the version and related metadata of the plugin */
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}

@@ -7,10 +7,10 @@
 version: '2'
 services:
   spire-dev:
-    image: spiffe/spire-dev:latest
+    image: spire-dev:latest
     hostname: spire-dev
     container_name: spire-dev
     tty: true
     volumes:
-      - .:/root/go/src/github.com/spiffe/spire
+      - .:/root/spire
 

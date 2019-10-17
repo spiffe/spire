@@ -1,16 +1,8 @@
-# Agent plugin: nodeattestor-jointoken
+# Agent plugin: NodeAttestor "join_token"
 
-*Must be used in conjunction with the server-side jointoken plugin*
+*Must be used in conjunction with the server-side join_token plugin*
 
-The `nodeattestor-jointoken` is responsible for attesting the physical nodes identity using a
-one-time-use pre-shared key.
+The `join_token` is responsible for attesting the agent's identity using a one-time-use pre-shared key.
 
-The plugin accepts the following configuration options:
-
-| Configuration | Description                                   |
-| ------------- | --------------------------------------------- |
-| trustDomain  | The trust domain of the join token            |
-| joinToken    | The join token to use to attest to the server |
-
-The joinToken configuration option may also be passed to `spire-agent run` with the `-joinToken`
-command-line flag.
+As a special case for node attestors, the join token itself is configured by a CLI flag (`-jointoken`)
+or by configuring `join_token` in the agent's main config body.

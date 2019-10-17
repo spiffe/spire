@@ -1,22 +1,36 @@
+
 ![SPIRE Logo](https://github.com/spiffe/spire/blob/master/doc/images/spire_logo.png?raw=true)
 
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3303/badge)](https://bestpractices.coreinfrastructure.org/projects/3303)
 ![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)
+=======
+[![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)](https://travis-ci.org/spiffe/spire)
+
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master)](https://coveralls.io/github/spiffe/spire?branch=master)
+[![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
+
 
 SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a tool-chain for establishing trust between software systems across a wide variety of hosting platforms. Concretely, SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/spire/blob/master/proto/api/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them. This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token.
+=======
+![SPIRE Logo](/doc/images/spire_logo.png)
 
-- [Learn about SPIRE](#learn-about-spire)
+SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a tool-chain for establishing trust between software systems across a wide variety of hosting platforms. Concretely, SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/master/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them. This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token.
+
+
 - [Get SPIRE](#get-spire)
 - [Getting started](#getting-started)
-    - [Installing SPIRE Server and Agent](#installing-spire-server-and-agent)
-    - [Configure the Server](#configure-the-server)
-    - [Configure the Agent](#configure-the-agent)
-    - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
-    - [Workload Registration](#workload-registration)
-    - [Workload SVID Retrieval](#workload-attestation)
+  - [Installing SPIRE Server and Agent](#installing-spire-server-and-agent)
+  - [Configure the Server](#configure-the-spire-server)
+  - [Configure the Agent](#configure-the-spire-agent)
+  - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
+  - [Workload Registration](#workload-registration)
+  - [Workload SVID Retrieval](#workload-svid-retrieval)
+- [Using SPIRE with Envoy](#using-spire-with-envoy)
+- [Getting help](#getting-help)
 - [Community](#community)
+- [Roadmap](#roadmap)
 
-> Please note that the SPIRE project is pre-alpha. It is under heavy development, and is NOT suitable for production use. See the [open issues](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/) for more information.
+> The SPIRE project is under active development. If you encounter any problems, please [open an issue](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/).
 
 # Get SPIRE
 
@@ -26,7 +40,7 @@ Alternatively you can [build SPIRE from source](/CONTRIBUTING.md)
 
 # Getting started
 
-Before trying out SPIRE, we recommend becoming familiar with it's [architecture](https://spiffe.io/spire/) and design goals. 
+Before trying out SPIRE, we recommend becoming familiar with its [architecture](https://spiffe.io/spire/) and design goals.
 
 To provide a minimal example of how SPIRE can be used, we are going to set up an [SPIRE Server](/doc/spire_server.md) and [SPIRE Agent](/doc/spire_agent.md). We will use them to issue identities to a workload identified by being run under a specified unix user ID.
 
@@ -41,7 +55,7 @@ Get the latest tarball from [here](https://github.com/spiffe/spire/releases) and
 
     $ sudo tar zvxf {your_downloaded_tarball.tar.gz}
     $ sudo cp -r spire-0.2/. /opt/spire/
-    # the name spire-0.2 might change depending on the tarball version downloaded
+    # Replace "spire-0.2" with the version downloaded
     $ sudo chmod -R 777 /opt/spire/
 
 Add **spire-server** and **spire-agent** to our $PATH for convenience:
@@ -51,37 +65,34 @@ Add **spire-server** and **spire-agent** to our $PATH for convenience:
 
 ## Configure the SPIRE Server
 
-After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins. For more information on the SPIRE se
+After putting the agent and server binaries at the proper location, we have to configure them. The SPIRE Server relies on plugins for much of its functionality. Plugin configurations can be found under the `plugins { ... }` section in  **/opt/spire/conf/server/server.conf**.
 
-Edit **/opt/spire/conf/server/server.conf** so it looks for plugins at the right path:
+For plugins which are *not* built in (see the [reference guide](/doc/spire_server.md) for a list of built-ins), ensure that the corresponding configuration includes the path to the appropriate plugin binary:
 
-    PluginDir = "/opt/spire/conf/server/plugin"
+    plugin_cmd = "/path/to/plugin_binary"
 
-Individual plugins can be configured at **/opt/spire/conf/agent/plugin** and **/opt/spire/conf/server/plugin**. Each plugin configuration must be set up so the SPIRE server can find the appropriate plugin binaries.
+Every SVID issued by a SPIRE installation is issued from a common trust root. SPIRE provides a pluggable mechanism for how this trust root can be retrieved. By default, it will use a key distributed on disk. The release includes a dummy CA key that we can use for testing purposes, but the plugin must be configured to find it.
 
-    pluginCmd = "/opt/spire/plugin/server/{plugin_binary}"
-
-Every SVID issued by a SPIRE installation is issued from a common trust root. SPIRE provides a pluggable mechanism for how this trust root can be retrieved, by default it will use a key distributed on disk. The release includes a dummy CA key that we can use for testing purposes, but the default plugin (the `upstream_ca_memory` plugin) must be configured to find it.
-
-For **upstream_ca_memory.conf** we have to modify key_file_path and cert_file_path:
+In **server.conf**, identify the `UpstreamCA "disk" { .. }` plugin configuration section, and modify `key_file_path` and `cert_file_path` appropriately:
 
     key_file_path = "/opt/spire/conf/server/dummy_upstream_ca.key"
     cert_file_path = "/opt/spire/conf/server/dummy_upstream_ca.crt"
+
+Prebuilt binaries may not have a default .data directory. You will need to create it.
+
+    $ mkdir -p /opt/spire/.data
 
 The [SPIRE Server](/doc/spire_server.md) reference guide covers in more detail the specific configuration options and plugins available.
 
 ## Configure the SPIRE Agent
 
-The SPIRE Agent also relies on plugins, and must be configured to find them. When connecting back to the SPIRE Server, the SPIRE agent uses an X.509 certificate to verify the connection. SPIRE releases come with a "dummy" certificate in the client and server. For a production implementation, a separate key would be generated for the server and certificate to be bundled with the agent.
+When connecting to the SPIRE Server for the first time, the agent uses a configured X.509 CA certificate to verify the connection. SPIRE releases come with a "dummy" certificate in the client and server. For a production implementation, a separate key would be generated for the server and certificate to be bundled with the agent.
 
-Edit **/opt/spire/conf/agent/agent.conf** so it looks for plugins and the trust bundle at the right path:
+Edit **/opt/spire/conf/agent/agent.conf** so it looks for the trust bundle at the right path:
 
-    PluginDir = "/opt/spire/conf/agent/plugin"
-    TrustBundlePath = "/opt/spire/conf/agent/dummy_root_ca.crt"
+    trust_bundle_path = "/opt/spire/conf/agent/dummy_root_ca.crt"
 
-As with the server, individual plugins can be configured at **/opt/spire/conf/agent/plugin**. Ensure each plugin configuration file is configured with the path to the appropriate plugin binary:
-
-    pluginCmd = "/opt/spire/plugin/agent/{plugin_binary}"
+As with the server, SPIRE agent relies on plugins which can be configured at **/opt/spire/conf/agent/agent.conf**.
 
 The [SPIRE Agent](/doc/spire_agent.md) reference guide covers in more detail the specific configuration options and plugins available.
 
@@ -94,7 +105,7 @@ Start your server.
     $ spire-server run \
         -config /opt/spire/conf/server/server.conf
 
-In a different terminal generate a one time Join Token via **spire-server token generate** sub commmand. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID.
+In a different terminal generate a one time Join Token via **spire-server token generate** sub command. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID.
 
     $ spire-server token generate \
         -spiffeID spiffe://example.org/host
@@ -123,9 +134,9 @@ Get the id so we can use it in the next step.
 
     $ id -u workload
 
-Call the registration API with *spire-server register* providing the workload user id.
+Create a new registration entry with *spire-server entry create* providing the workload user id.
 
-    $ spire-server register \
+    $ spire-server entry create \
         -parentID spiffe://example.org/host \
         -spiffeID spiffe://example.org/host/workload \
         -selector unix:uid:{workload user id from previous step}
@@ -138,7 +149,7 @@ We will simulate the workload API interaction and retrieve the workload [SVID](h
 
 > **Note**: If you are running on Vagrant you will need to run `sudo -i` first.
 
-    $ su -c "spire-agent api fetch" workload
+    $ su -c "spire-agent api fetch x509" workload
     # SPIFFE ID:         spiffe://example.org/host/workload
     # SVID Valid After:  yyyy-MM-dd hh:mm:ss +0000 UTC
     # SVID Valid Until:  yyyy-MM-dd hh:mm:ss +0000 UTC
@@ -147,7 +158,7 @@ We will simulate the workload API interaction and retrieve the workload [SVID](h
 
 Optionally, you may write the SVID and key to disk with `-write` in order to examine them in detail with openssl.
 
-    $ su -c "spire-agent api fetch -write /opt/spire/" workload
+    $ su -c "spire-agent api fetch x509 -write /opt/spire/" workload
     $ openssl x509 -in /opt/spire/svid.0.pem -text -noout
     # Certificate:
     #     Data:
@@ -200,6 +211,21 @@ Optionally, you may write the SVID and key to disk with `-write` in order to exa
     #          16:87:b2:97:2f:98:ed:80:2a:5e:62:f4:7f:87:82:ff:67:96:
     #          e6:2e:fa:a1
 
+# Using SPIRE with Envoy
+
+SPIRE provides a **beta** implementation of the [Envoy](https://envoyproxy.io)
+[Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/secret)
+(SDS). SDS can be used to transparently install and rotate TLS certificates and
+trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
+
+# Examples
+
+There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) repository.
+
+# Getting Help
+
+If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIFFE Slack Organization](https://slack.spiffe.io/). Most of the maintainers monitor the #spire channel there, and can help direct you to other channels if need be. Please feel free to drop by any time!
+
 # Community
 
 The SPIFFE community, and [Scytale](https://scytale.io) in particular, maintain the SPIRE project.
@@ -208,3 +234,16 @@ https://github.com/spiffe/spiffe.
 
 The SPIFFE and SPIRE governance policies are detailed in
 [GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
+
+# Roadmap
+
+In case you're wondering where this project is headed, here is the SPIRE major feature roadmap:
+
+![SPIRE 2019 Roadmap](doc/images/2019_roadmap.png)
+
+- **SDS Support:** SPIRE Agent can directly expose the Envoy SDS API allowing it to seamlessly install and rotate TLS certificates in Envoy instances.
+- **Low Friction K8s Deployment:** All of the documentation, YAML configuration, and helpers necessary to provide a robust, automated deployment of SPIRE in Kubernetes.
+- **Nested SPIRE:** SPIRE can use its UpstreamCA plugin to chain up to another SPIRE server in the same trust domain, allowing for topologies that provide strong availability and scalability characteristics.
+- **Federation API Support:** SPIRE Server fully supports SPIFFE federation, allowing it to track and distribute bundle updates in foreign trust domains, as well as publish its own bundle updates.
+- **HA as a First Class Citizen:** Strengthen support for HA configurations by adding functional test cases and providing templates for HA deployments e.g. via a Helm chart
+- **Secure Bootstrap:** Support for going from a single SPIRE Server to an HA deployment securely, allowing SPIRE Servers to attest each other in the process.

@@ -2,20 +2,20 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 
-	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
-	serverAddr = "localhost:8081"
+	sockPath = "unix:///tmp/spire-registration.sock"
 )
 
 func main() {
-	c, err := newRegistrationClient(serverAddr)
+	ctx := context.Background()
+
+	c, err := newRegistrationClient(sockPath)
 	if err != nil {
 		panic(err)
 	}
@@ -23,7 +23,7 @@ func main() {
 	req := &registration.JoinToken{
 		Ttl: int32(^uint32(0) >> 1), // Max Int32
 	}
-	req, err = c.CreateJoinToken(context.TODO(), req)
+	req, err = c.CreateJoinToken(ctx, req)
 	if err != nil {
 		panic(err)
 	}
@@ -32,11 +32,9 @@ func main() {
 }
 
 func newRegistrationClient(address string) (registration.RegistrationClient, error) {
-	// TODO: Pass a bundle in here
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
 	}
-
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	return registration.NewRegistrationClient(conn), err
 }
