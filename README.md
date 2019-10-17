@@ -1,10 +1,12 @@
+![SPIRE Logo](/doc/images/spire_logo.png)
+
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3303/badge)](https://bestpractices.coreinfrastructure.org/projects/3303)
 [![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)](https://travis-ci.org/spiffe/spire)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master)](https://coveralls.io/github/spiffe/spire?branch=master)
 [![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
 
-![SPIRE Logo](/doc/images/spire_logo.png)
-
 SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a tool-chain for establishing trust between software systems across a wide variety of hosting platforms. Concretely, SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/master/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them. This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token.
+
 
 - [Get SPIRE](#get-spire)
 - [Getting started](#getting-started)
@@ -17,7 +19,6 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Using SPIRE with Envoy](#using-spire-with-envoy)
 - [Getting help](#getting-help)
 - [Community](#community)
-- [Roadmap](#roadmap)
 
 > The SPIRE project is under active development. If you encounter any problems, please [open an issue](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/).
 
@@ -222,17 +223,4 @@ Information on the various SIGs and relevant standards can be found in
 https://github.com/spiffe/spiffe.
 
 The SPIFFE and SPIRE governance policies are detailed in
-[GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
-
-# Roadmap
-
-In case you're wondering where this project is headed, here is the SPIRE major feature roadmap:
-
-![SPIRE 2019 Roadmap](doc/images/2019_roadmap.png)
-
-- **SDS Support:** SPIRE Agent can directly expose the Envoy SDS API allowing it to seamlessly install and rotate TLS certificates in Envoy instances.
-- **Low Friction K8s Deployment:** All of the documentation, YAML configuration, and helpers necessary to provide a robust, automated deployment of SPIRE in Kubernetes.
-- **Nested SPIRE:** SPIRE can use its UpstreamCA plugin to chain up to another SPIRE server in the same trust domain, allowing for topologies that provide strong availability and scalability characteristics.
-- **Federation API Support:** SPIRE Server fully supports SPIFFE federation, allowing it to track and distribute bundle updates in foreign trust domains, as well as publish its own bundle updates.
-- **HA as a First Class Citizen:** Strengthen support for HA configurations by adding functional test cases and providing templates for HA deployments e.g. via a Helm chart
-- **Secure Bootstrap:** Support for going from a single SPIRE Server to an HA deployment securely, allowing SPIRE Servers to attest each other in the process.
+[GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md).
