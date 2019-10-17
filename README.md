@@ -224,4 +224,4 @@ Information on the various SIGs and relevant standards can be found in
 https://github.com/spiffe/spiffe.
 
 The SPIFFE and SPIRE governance policies are detailed in
-[GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
+[GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md).
