@@ -19,7 +19,6 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Using SPIRE with Envoy](#using-spire-with-envoy)
 - [Getting help](#getting-help)
 - [Community](#community)
-- [Roadmap](#roadmap)
 
 > The SPIRE project is under active development. If you encounter any problems, please [open an issue](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/).
 
