@@ -1,7 +1,7 @@
 ![SPIRE Logo](/doc/images/spire_logo.png)
 
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3303/badge)](https://bestpractices.coreinfrastructure.org/projects/3303)
-![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)
+[![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)](https://travis-ci.org/spiffe/spire)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master)](https://coveralls.io/github/spiffe/spire?branch=master)
 [![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
 
