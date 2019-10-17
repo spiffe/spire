@@ -1,4 +1,4 @@
-![SPIRE Logo](https://github.com/anvega/spire/blob/master/doc/images/spire_logo.png?raw=true)
+![SPIRE Logo](/doc/images/spire_logo.png)
 
 ![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master)](https://coveralls.io/github/spiffe/spire?branch=master)
