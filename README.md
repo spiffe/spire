@@ -205,7 +205,7 @@ Optionally, you may write the SVID and key to disk with `-write` in order to exa
 # Using SPIRE with Envoy
 
 SPIRE provides a **beta** implementation of the [Envoy](https://envoyproxy.io)
-[Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/secret)
+[Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret)
 (SDS). SDS can be used to transparently install and rotate TLS certificates and
 trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
 
