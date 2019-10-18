@@ -90,9 +90,7 @@ func TestDockerSelectors(t *testing.T) {
 			mockDocker := NewMockDockerClient(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-			p := newTestPlugin(t)
-			p.docker = mockDocker
-			p.fs = mockFS
+			p := newTestPlugin(t, withMockDockerClient(mockDocker), withMockFS(mockFS))
 
 			cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 			defer cleanup()
@@ -115,38 +113,64 @@ func TestDockerSelectors(t *testing.T) {
 	}
 }
 
-func newTestFile(t *testing.T, data string) (filename string, cleanup func()) {
-	f, err := ioutil.TempFile("", "docker-test")
-	require.NoError(t, err)
-	_, err = f.Write([]byte(data))
-	require.NoError(t, err)
-	return f.Name(), func() { os.Remove(f.Name()) }
-}
-
-func TestDockerMatchers(t *testing.T) {
+func TestContainerExtraction(t *testing.T) {
 	tests := []struct {
 		desc      string
-		matchers  []string
+		cfg       string
 		cgroups   string
 		hasMatch  bool
 		expectErr string
 	}{
 		{
-			desc:     "no match",
-			cgroups:  testCgroupEntries,
-			matchers: []string{"/docker/*/<id>"},
+			desc:    "no match",
+			cgroups: testCgroupEntries,
+			cfg: `container_id_cgroup_matchers = [
+  "/docker/*/<id>",
+]
+`,
 		},
 		{
-			desc:     "one miss one match",
-			cgroups:  testCgroupEntries,
-			matchers: []string{"/docker/*/<id>", "/docker/<id>"},
+			desc:    "one miss one match",
+			cgroups: testCgroupEntries,
+			cfg: `container_id_cgroup_matchers = [
+  "/docker/*/<id>",
+  "/docker/<id>"
+]`,
 			hasMatch: true,
 		},
 		{
-			desc:      "no container id",
-			cgroups:   "10:cpu:/docker/",
-			matchers:  []string{"/docker/<id>"},
+			desc:    "no container id",
+			cgroups: "10:cpu:/docker/",
+			cfg: `container_id_cgroup_matchers = [
+  "/docker/<id>"
+]`,
 			expectErr: "a pattern matched, but no container id was found",
+		},
+		{
+			desc:    "legacy match",
+			cgroups: testCgroupEntries,
+			cfg: `cgroup_prefix = "/docker"
+cgroup_container_index = 1`,
+			hasMatch: true,
+		},
+		{
+			desc:    "legacy no prefix",
+			cgroups: testCgroupEntries,
+			cfg: `cgroup_prefix = "/docker2"
+cgroup_container_index = 1`,
+		},
+		{
+			desc:    "legacy match no container",
+			cgroups: "10:cpu:/docker/",
+			cfg: `cgroup_prefix = "/docker"
+cgroup_container_index = 1`,
+			expectErr: "a pattern matched, but no container id was found",
+		},
+		{
+			desc:    "legacy match not enough parts",
+			cgroups: testCgroupEntries,
+			cfg: `cgroup_prefix = "/docker"
+cgroup_container_index = 2`,
 		},
 	}
 
@@ -157,14 +181,12 @@ func TestDockerMatchers(t *testing.T) {
 			mockDocker := NewMockDockerClient(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-			p := newTestPlugin(t)
-			p.docker = mockDocker
-			p.fs = mockFS
-
-			finder, err := cgroup.NewContainerIDFinder(tt.matchers)
-			require.NoError(t, err)
-
-			p.containerIDFinder = finder
+			p := newTestPlugin(
+				t,
+				withConfig(t, tt.cfg), // this must be the first option
+				withMockDockerClient(mockDocker),
+				withMockFS(mockFS),
+			)
 
 			cgroupFile, cleanup := newTestFile(t, tt.cgroups)
 			defer cleanup()
@@ -203,8 +225,7 @@ func TestCgroupFileNotFound(t *testing.T) {
 	defer mockCtrl.Finish()
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-	p := newTestPlugin(t)
-	p.fs = mockFS
+	p := newTestPlugin(t, withMockFS(mockFS))
 
 	mockFS.EXPECT().Open("/proc/123/cgroup").Return(nil, errors.New("no proc exists"))
 
@@ -220,10 +241,12 @@ func TestDockerError(t *testing.T) {
 	mockDocker := NewMockDockerClient(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-	p := newTestPlugin(t)
-	p.docker = mockDocker
-	p.fs = mockFS
-	p.retryer = disabledRetryer
+	p := newTestPlugin(
+		t,
+		withMockDockerClient(mockDocker),
+		withMockFS(mockFS),
+		withDisabledRetryer(),
+	)
 
 	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 	defer cleanup()
@@ -245,10 +268,12 @@ func TestDockerErrorRetries(t *testing.T) {
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
-	p := newTestPlugin(t)
-	p.docker = mockDocker
-	p.fs = mockFS
-	p.retryer.clock = mockClock
+	p := newTestPlugin(
+		t,
+		withMockClock(mockClock),
+		withMockDockerClient(mockDocker),
+		withMockFS(mockFS),
+	)
 
 	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 	defer cleanup()
@@ -280,10 +305,12 @@ func TestDockerErrorContextCancel(t *testing.T) {
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
-	p := newTestPlugin(t)
-	p.fs = mockFS
-	p.docker = mockDocker
-	p.retryer.clock = mockClock
+	p := newTestPlugin(
+		t,
+		withMockClock(mockClock),
+		withMockDockerClient(mockDocker),
+		withMockFS(mockFS),
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -307,27 +334,36 @@ func TestDockerErrorContextCancel(t *testing.T) {
 }
 
 func TestDockerConfig(t *testing.T) {
-	p := New()
-	cfg := &spi.ConfigureRequest{
-		Configuration: `
+	t.Run("good matchers; custom docker options", func(t *testing.T) {
+		expectFinder, err := cgroup.NewContainerIDFinder([]string{"/docker/<id>"})
+		require.NoError(t, err)
+
+		p := newTestPlugin(t, withConfig(t, `
 docker_socket_path = "unix:///socket_path"
 docker_version = "1.20"
 container_id_cgroup_matchers = [
   "/docker/<id>",
 ]
+`))
+		require.NotNil(t, p.docker)
+		require.Equal(t, "unix:///socket_path", p.docker.(*dockerclient.Client).DaemonHost())
+		require.Equal(t, "1.20", p.docker.(*dockerclient.Client).ClientVersion())
+		require.Equal(t, expectFinder, p.containerIDFinder)
+	})
+	t.Run("good legacy config", func(t *testing.T) {
+		p := New()
+		cfg := &spi.ConfigureRequest{
+			Configuration: `
+cgroup_prefix = "/docker2"
+cgroup_container_index = 2
 `,
-	}
-	expectFinder, err := cgroup.NewContainerIDFinder([]string{"/docker/<id>"})
-	require.NoError(t, err)
+		}
 
-	res, err := doConfigure(t, p, cfg)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.NotNil(t, p.docker)
-	require.Equal(t, "unix:///socket_path", p.docker.(*dockerclient.Client).DaemonHost())
-	require.Equal(t, "1.20", p.docker.(*dockerclient.Client).ClientVersion())
-	require.Equal(t, expectFinder, p.containerIDFinder)
-
+		_, err := doConfigure(t, p, cfg)
+		require.NoError(t, err)
+		require.Equal(t, "/docker2", p.cgroupPrefix)
+		require.Equal(t, 3, p.cgroupContainerIndex)
+	})
 	t.Run("bad matcher", func(t *testing.T) {
 		p := New()
 		cfg := &spi.ConfigureRequest{
@@ -341,7 +377,18 @@ container_id_cgroup_matchers = [
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `must contain the container id token "<id>" exactly once`)
 	})
+	t.Run("bad legacy config", func(t *testing.T) {
+		p := New()
+		cfg := &spi.ConfigureRequest{
+			Configuration: `
+cgroup_prefix = "/docker2"
+`,
+		}
 
+		_, err := doConfigure(t, p, cfg)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cgroup_prefix and cgroup_container_index must be specified together")
+	})
 	t.Run("bad hcl", func(t *testing.T) {
 		p := New()
 		cfg := &spi.ConfigureRequest{
@@ -360,11 +407,8 @@ func TestDockerConfigDefault(t *testing.T) {
 	defaultFinder, err := cgroup.NewContainerIDFinder(defaultContainerIDMatchers)
 	require.NoError(t, err)
 
-	p := New()
-	cfg := &spi.ConfigureRequest{}
-	res, err := doConfigure(t, p, cfg)
-	require.NoError(t, err)
-	require.NotNil(t, res)
+	p := newTestPlugin(t)
+
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
 	require.Equal(t, "1.41", p.docker.(*dockerclient.Client).ClientVersion())
@@ -389,12 +433,60 @@ func doConfigure(t *testing.T, p *DockerPlugin, req *spi.ConfigureRequest) (*spi
 	return wp.Configure(context.Background(), req)
 }
 
-func newTestPlugin(t *testing.T) *DockerPlugin {
-	finder, err := cgroup.NewContainerIDFinder(defaultContainerIDMatchers)
-	require.NoError(t, err)
+type testPluginOpt func(*DockerPlugin)
 
+func withMockDockerClient(m *MockDockerClient) testPluginOpt {
+	return func(p *DockerPlugin) {
+		p.docker = m
+	}
+}
+
+func withMockFS(m *filesystem_mock.MockFileSystem) testPluginOpt {
+	return func(p *DockerPlugin) {
+		p.fs = m
+	}
+}
+
+func withMockClock(c *clock.Mock) testPluginOpt {
+	return func(p *DockerPlugin) {
+		p.retryer.clock = c
+	}
+}
+
+func withDisabledRetryer() testPluginOpt {
+	return func(p *DockerPlugin) {
+		p.retryer = disabledRetryer
+	}
+}
+
+// this must be the first plugin opt
+func withConfig(t *testing.T, cfg string) testPluginOpt {
+	return func(p *DockerPlugin) {
+		cfgReq := &spi.ConfigureRequest{
+			Configuration: cfg,
+		}
+		resp, err := doConfigure(t, p, cfgReq)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+	}
+}
+
+func newTestPlugin(t *testing.T, opts ...testPluginOpt) *DockerPlugin {
 	p := New()
-	p.containerIDFinder = finder
+	resp, err := doConfigure(t, p, &spi.ConfigureRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
 
+	for _, o := range opts {
+		o(p)
+	}
 	return p
+}
+
+func newTestFile(t *testing.T, data string) (filename string, cleanup func()) {
+	f, err := ioutil.TempFile("", "docker-test")
+	require.NoError(t, err)
+	_, err = f.Write([]byte(data))
+	require.NoError(t, err)
+	return f.Name(), func() { os.Remove(f.Name()) }
 }
