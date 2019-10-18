@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.8.3] - 2019-10-18
+- Upgrade to Go 1.12.12 in response to CVE-2019-17596 (#1204)
+
 ## [0.8.2] - 2019-10-10
 - Connection pool details in SQL DataStore plugin are now configurable (#1028)
 - SQL DataStore plugin now emits telemetry (#998)
