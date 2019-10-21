@@ -131,8 +131,8 @@ func (f *containerIDFinders) FindContainerID(cgroup string) (string, bool) {
 // This assertions follows from the path focused grammar and the fact that the regex
 // wildcards (regexpWildcard and regexpContainerID) cannot match "/".
 // 2. If the number of path components in two patterns are the same, we test "component
-// equivalence". wildcardToken and containerIDToken are equivalent to anything other
-// string, else string equivalence is required.
+// equivalence" at each index. wildcardToken and containerIDToken are equivalent to
+// any other, otherwise, the two components at an index are directly compared.
 // From this and the fact the regex wildcards cannot match "/" follows that a single
 // non-equivalent path component means the two patterns cannot match the same inputs.
 func findAmbiguousPatterns(patterns []string) []string {
