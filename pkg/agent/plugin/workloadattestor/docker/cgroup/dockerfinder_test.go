@@ -116,6 +116,10 @@ func TestContainerIDFinders(t *testing.T) {
 			},
 			expectErr: "dockerfinder: patterns must not be ambiguous:",
 		},
+		{
+			msg:       "no patterns",
+			expectErr: "dockerfinder: at least 1 pattern must be supplied",
+		},
 	}
 
 	for _, tt := range tests {

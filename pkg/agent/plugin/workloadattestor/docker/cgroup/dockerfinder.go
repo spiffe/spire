@@ -1,6 +1,7 @@
 package cgroup
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -71,6 +72,10 @@ func newContainerIDFinder(pattern string) (ContainerIDFinder, error) {
 // Note: The pattern provided is *not* a regular expression. It is a simplified matching
 // language that enforces a forward slash-delimited schema.
 func NewContainerIDFinder(patterns []string) (ContainerIDFinder, error) {
+	if len(patterns) < 1 {
+		return nil, errors.New("dockerfinder: at least 1 pattern must be supplied")
+	}
+
 	if ambiguousPatterns := findAmbiguousPatterns(patterns); len(ambiguousPatterns) != 0 {
 		return nil, fmt.Errorf("dockerfinder: patterns must not be ambiguous: %q", ambiguousPatterns)
 	}
