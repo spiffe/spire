@@ -3,7 +3,6 @@ package run
 import (
 	"context"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 )
@@ -299,33 +299,13 @@ func defaultConfig() *config {
 }
 
 func parseTrustBundle(path string) ([]*x509.Certificate, error) {
-	pemData, err := ioutil.ReadFile(path)
+	bundle, err := pemutil.LoadCertificates(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var data []byte
-	for len(pemData) > 1 {
-		var block *pem.Block
-		block, pemData = pem.Decode(pemData)
-		if block == nil && len(data) < 1 {
-			return nil, errors.New("no certificates found")
-		}
-
-		if block == nil {
-			return nil, errors.New("encountered unknown data in trust bundle")
-		}
-
-		if block.Type != "CERTIFICATE" {
-			return nil, fmt.Errorf("non-certificate type %v found in trust bundle", block.Type)
-		}
-
-		data = append(data, block.Bytes...)
-	}
-
-	bundle, err := x509.ParseCertificates(data)
-	if err != nil {
-		return nil, fmt.Errorf("parse certificates from %v, %v", path, err)
+	if len(bundle) == 0 {
+		return nil, errors.New("no certificates found in trust bundle")
 	}
 
 	return bundle, nil
