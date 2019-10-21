@@ -185,6 +185,7 @@ func (p *DockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest)
 		if config.CgroupPrefix == "" || config.CgroupContainerIndex == nil {
 			return nil, errors.New("cgroup_prefix and cgroup_container_index must be specified together")
 		}
+		p.log.Warn("cgroup_prefix and cgroup_container_index are deprecated and will be removed in a future release")
 
 		p.cgroupPrefix = config.CgroupPrefix
 		// index 0 will always be "" as the prefix must start with /.
