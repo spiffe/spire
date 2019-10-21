@@ -90,6 +90,32 @@ func TestContainerIDFinders(t *testing.T) {
 			},
 			expectErr: `pattern "/<id>/<id>" must contain the container id token "<id>" exactly once`,
 		},
+		{
+			msg: "ambiguous patterns",
+			matchers: []string{
+				"/docker/<id>",
+				"/*/<id>",
+			},
+			expectErr: "dockerfinder: patterns must not be ambiguous:",
+		},
+		{
+			msg: "identical patterns",
+			matchers: []string{
+				"/docker/<id>",
+				"/docker/<id>",
+			},
+			expectErr: "dockerfinder: patterns must not be ambiguous:",
+		},
+		{
+			msg: "many ambiguous patterns",
+			matchers: []string{
+				"/docker/<id>",
+				"/*/<id>",
+				"/a/b/*/d/<id>",
+				"/<id>/*/*/*/*",
+			},
+			expectErr: "dockerfinder: patterns must not be ambiguous:",
+		},
 	}
 
 	for _, tt := range tests {
