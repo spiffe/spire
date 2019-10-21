@@ -36,7 +36,7 @@ func TestDockerSelectors(t *testing.T) {
 				require.Len(t, res.Selectors, 2)
 				require.Equal(t, "docker", res.Selectors[0].Type)
 				require.Equal(t, "label:this:that", res.Selectors[0].Value)
-				require.Equal(t, "docker", res.Selectors[0].Type)
+				require.Equal(t, "docker", res.Selectors[1].Type)
 				require.Equal(t, "env:VAR=val", res.Selectors[1].Value)
 			},
 		},
@@ -46,16 +46,16 @@ func TestDockerSelectors(t *testing.T) {
 			mockEnv:             []string{"VAR=val", "VAR2=val"},
 			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
 				require.Len(t, res.Selectors, 5)
-				expectedSelectors := []string{
-					"label:this:that",
-					"label:here:there",
-					"label:up:down",
-					"env:VAR=val",
-					"env:VAR2=val",
+				expectedSelectors := map[string]struct{}{
+					"label:this:that":  struct{}{},
+					"label:here:there": struct{}{},
+					"label:up:down":    struct{}{},
+					"env:VAR=val":      struct{}{},
+					"env:VAR2=val":     struct{}{},
 				}
-				for i, selector := range res.Selectors {
+				for _, selector := range res.Selectors {
 					require.Equal(t, "docker", selector.Type)
-					require.Equal(t, expectedSelectors[i], selector.Value)
+					require.Contains(t, expectedSelectors, selector.Value)
 				}
 			},
 		},
