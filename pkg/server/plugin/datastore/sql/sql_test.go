@@ -1270,9 +1270,9 @@ func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
 	})
 	s.Require().NoError(err)
 
-	// This is gross. Since the bug that left selectors around have been fixed,
-	// I'm not sure how else to test this other than just sneaking in there
-	// and removing the registered_entries row.
+	// This is gross. Since the bug that left selectors around has been fixed
+	// (#1191), I'm not sure how else to test this other than just sneaking in
+	// there and removing the registered_entries row.
 	res, err := s.sqlPlugin.db.raw.Exec("DELETE FROM registered_entries")
 	s.Require().NoError(err)
 	rowsAffected, err := res.RowsAffected()

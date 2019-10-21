@@ -1397,18 +1397,19 @@ func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB,
 		// reallocations
 		entries = make([]*common.RegistrationEntry, 0, 64)
 	}
-	var lastEID uint64
 
 	pushEntry := func(entry *common.RegistrationEntry) {
-		// Due to previous bugs, there can be cruft rows related to a deleted
-		// registration entries that are fetched with the list query. To avoid
-		// hydrating partial entries, append only entries that have data from
-		// the registered_entries table (i.e. those with an entry id).
+		// Due to previous bugs (i.e. #1191), there can be cruft rows related
+		// to a deleted registration entries that are fetched with the list
+		// query. To avoid hydrating partial entries, append only entries that
+		// have data from the registered_entries table (i.e. those with an
+		// entry id).
 		if entry != nil && entry.EntryId != "" {
 			entries = append(entries, entry)
 		}
 	}
 
+	var lastEID uint64
 	var entry *common.RegistrationEntry
 	for rows.Next() {
 		var r entryRow
