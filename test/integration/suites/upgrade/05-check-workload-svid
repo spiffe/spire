@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -o pipefail
-
 NUMCHECKS=15
 CHECKINTERVAL=3
 

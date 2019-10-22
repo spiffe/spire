@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -o pipefail
-
 log-info "checking X509-SVID on old agent..."
     docker-compose exec old-spire-agent \
         /opt/spire/bin/spire-agent api fetch x509 \

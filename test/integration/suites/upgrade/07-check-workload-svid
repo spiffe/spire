@@ -1,22 +1,15 @@
 #!/bin/bash
 
-set -o pipefail
+log-info "checking X509-SVID after agent upgrade ($i of $NUMCHECKS)..."
+docker-compose exec new-spire-agent \
+    /opt/spire/bin/spire-agent api fetch x509 \
+    -write /opt/test/after-agent-upgrade || fail-now "SVID check failed"
 
-NUMCHECKS=15
-CHECKINTERVAL=3
+# SVIDs are cached in agent memory only. As the agent was restarted, there
+# is no reason to believe that the SVID should compare the same. We'll do
+# the comparison anyway as a sanity check.
+if cmp --silent svids/after-server-upgrade/svid.0.pem svids/after-agent-upgrade/svid.0.pem; then
+    fail-now "SVID comparison failed unexpectedly after agent restart"
+fi
 
-# Keep dumping the SVID until we've detected a rotation
-for ((i=1;i<=NUMCHECKS;i++)); do
-    log-info "checking X509-SVID after agent upgrade ($i of $NUMCHECKS)..."
-    docker-compose exec new-spire-agent \
-        /opt/spire/bin/spire-agent api fetch x509 \
-        -write /opt/test/after-agent-upgrade || fail-now "SVID check failed"
-    if ! cmp --silent svids/after-server-upgrade/svid.0.pem svids/after-agent-upgrade/svid.0.pem; then
-        # SVID has rotated
-        touch success
-        exit 0
-    fi
-    sleep "${CHECKINTERVAL}"
-done
-
-log-err "Timed out waiting for the SVID to rotate after upgrading the agent"
+touch success
