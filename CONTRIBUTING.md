@@ -165,3 +165,5 @@ before sending a pull request. From the project root:
 ```
 ln -s .githooks/pre-commit .git/hooks/pre-commit
 ```
+# Reporting security vulnerabilities
+If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at security@spiffe.io. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.  
