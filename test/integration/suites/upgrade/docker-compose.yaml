@@ -3,7 +3,6 @@ services:
   old-spire-server:
     image: gcr.io/spiffe-io/spire-server:0.8.3
     hostname: spire-server
-    privileged: true
     networks:
       our-network:
         aliases:
@@ -15,7 +14,6 @@ services:
   new-spire-server:
     image: spire-server:latest-local
     hostname: spire-server
-    privileged: true
     networks:
       our-network:
         aliases:
@@ -27,7 +25,6 @@ services:
   old-spire-agent:
     image: gcr.io/spiffe-io/spire-agent:0.8.3
     hostname: spire-agent
-    privileged: true
     # The old SPIRE server does not have the tuned up rotation check intervals
     # and can therefore not rotate the server SVID when the interval is small,
     # causing the agent to fail the TLS handshake during bootstrapping and
@@ -44,7 +41,6 @@ services:
   new-spire-agent:
     image: spire-agent:latest-local
     hostname: spire-agent
-    privileged: true
     networks:
       - our-network
     volumes:
