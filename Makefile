@@ -21,7 +21,7 @@ gopath := $(shell go env GOPATH)
 goversion := $(shell go version | cut -f3 -d' ')
 goversion-required := $(shell cat .go-version)
 gittag := $(shell git tag --points-at HEAD)
-githash := $(shell git rev-parse HEAD)
+githash := $(shell git rev-parse --short=7 HEAD)
 gitdirty := $(shell git status -s)
 # don't provide the git tag if the git status is dirty.
 ifneq ($(gitdirty),)
