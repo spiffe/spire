@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakepluginmetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,6 +36,11 @@ import (
 
 var (
 	ctx = context.Background()
+
+	// The following are set by the linker during integration tests to
+	// run these unit tests against various SQL backends.
+	TestDialect    string
+	TestConnString string
 )
 
 const (
@@ -119,30 +125,62 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	s.LoadPlugin(builtin(p), &ds,
 		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
 
-	s.nextID++
-	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
-	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-			database_type = "sqlite3"
-			log_sql = true
-			connection_string = "%s"
-			`, dbPath),
-	})
-	s.Require().NoError(err)
+	// When the test suite is executed normally, we test against sqlite3 since
+	// it requires no external dependencies. The integration test framework
+	// builds the test harness for a specific dialect and connection string
+	switch TestDialect {
+	case "":
+		s.nextID++
+		dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
+		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`
+				database_type = "sqlite3"
+				log_sql = true
+				connection_string = "%s"
+				`, dbPath),
+		})
+		s.Require().NoError(err)
 
-	// assert that WAL journal mode is enabled
-	jm := struct {
-		JournalMode string
-	}{}
-	p.db.Raw("PRAGMA journal_mode").Scan(&jm)
-	s.Require().Equal(jm.JournalMode, "wal")
+		// assert that WAL journal mode is enabled
+		jm := struct {
+			JournalMode string
+		}{}
+		p.db.Raw("PRAGMA journal_mode").Scan(&jm)
+		s.Require().Equal(jm.JournalMode, "wal")
 
-	// assert that foreign_key support is enabled
-	fk := struct {
-		ForeignKeys string
-	}{}
-	p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
-	s.Require().Equal(fk.ForeignKeys, "1")
+		// assert that foreign_key support is enabled
+		fk := struct {
+			ForeignKeys string
+		}{}
+		p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
+		s.Require().Equal(fk.ForeignKeys, "1")
+	case "mysql":
+		s.T().Logf("CONN STRING: %q", TestConnString)
+		s.Require().NotEmpty(TestConnString, "connection string must be set")
+		wipeMySQL(s.T(), TestConnString)
+		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`
+				database_type = "mysql"
+				log_sql = true
+				connection_string = "%s"
+				`, TestConnString),
+		})
+		s.Require().NoError(err)
+	case "postgres":
+		s.T().Logf("CONN STRING: %q", TestConnString)
+		s.Require().NotEmpty(TestConnString, "connection string must be set")
+		wipePostgres(s.T(), TestConnString)
+		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`
+				database_type = "postgres"
+				log_sql = true
+				connection_string = "%s"
+				`, TestConnString),
+		})
+		s.Require().NoError(err)
+	default:
+		s.Require().FailNowf("Unsupported external test dialect %q", TestDialect)
+	}
 
 	return ds
 }
@@ -262,9 +300,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
-	s.Equal(2, len(lresp.Bundles))
-	s.AssertProtoEqual(bundle2, lresp.Bundles[0])
-	s.AssertProtoEqual(bundle3, lresp.Bundles[1])
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
 	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
@@ -4790,4 +4826,71 @@ ORDER BY e_id, selector_id, dns_name_id
 			require.Equal(t, testCase.query, query)
 		})
 	}
+}
+
+// assertBundlesEqual asserts that the two bundle lists are equal independent
+// of ordering.
+func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
+	if !assert.Equal(t, len(expected), len(actual)) {
+		return
+	}
+
+	es := map[string]*common.Bundle{}
+	as := map[string]*common.Bundle{}
+
+	for _, e := range expected {
+		es[e.TrustDomainId] = e
+	}
+
+	for _, a := range actual {
+		as[a.TrustDomainId] = a
+	}
+
+	for id, a := range as {
+		e, ok := es[id]
+		if assert.True(t, ok, "bundle %q was unexpected", id) {
+			spiretest.AssertProtoEqual(t, e, a)
+			delete(es, id)
+		}
+	}
+
+	for id := range es {
+		assert.Failf(t, "bundle %q was expected but not found", id)
+	}
+
+}
+
+func wipePostgres(t *testing.T, connString string) {
+	db, err := sql.Open("postgres", connString)
+	require.NoError(t, err)
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public';`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	dropTablesInRows(t, db, rows)
+}
+
+func wipeMySQL(t *testing.T, connString string) {
+	db, err := sql.Open("mysql", connString)
+	require.NoError(t, err)
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'spire';`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	dropTablesInRows(t, db, rows)
+}
+
+func dropTablesInRows(t *testing.T, db *sql.DB, rows *sql.Rows) {
+	for rows.Next() {
+		var q string
+		err := rows.Scan(&q)
+		require.NoError(t, err)
+		_, err = db.Exec("DROP TABLE IF EXISTS " + q + " CASCADE")
+		require.NoError(t, err)
+	}
+	require.NoError(t, rows.Err())
 }
