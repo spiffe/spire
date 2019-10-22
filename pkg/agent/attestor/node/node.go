@@ -146,6 +146,9 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 	bundle, err := manager.ReadBundle(a.c.BundleCachePath)
 	if err == manager.ErrNotCached {
 		if a.c.InsecureBootstrap {
+			if len(a.c.TrustBundle) > 0 {
+				a.c.Log.Warn("Trust bundle will be ignored; performing insecure bootstrap")
+			}
 			return nil, nil
 		}
 		bundle = a.c.TrustBundle

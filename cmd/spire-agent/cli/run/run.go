@@ -281,12 +281,7 @@ func validateConfig(c *config) error {
 		return errors.New("trust_domain must be configured")
 	}
 
-	switch {
-	case c.Agent.InsecureBootstrap:
-		if c.Agent.TrustBundlePath != "" {
-			return errors.New("trust_bundle_path must be not be configured when insecure_bootstrap is set")
-		}
-	case c.Agent.TrustBundlePath == "":
+	if c.Agent.TrustBundlePath == "" && !c.Agent.InsecureBootstrap {
 		return errors.New("trust_bundle_path must be configured unless insecure_bootstrap is set")
 	}
 
