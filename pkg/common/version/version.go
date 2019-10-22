@@ -18,7 +18,7 @@ func Version() string {
 		// For our purposes, the first 7 chars of the SHA should be enough.
 		var githashShort string
 		if githash == "" {
-			githashShort = ""
+			githashShort = "unk"
 		} else {
 			githashShort = githash[:7]
 		}
