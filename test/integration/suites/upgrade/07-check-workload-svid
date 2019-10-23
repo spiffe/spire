@@ -1,6 +1,6 @@
 #!/bin/bash
 
-log-info "checking X509-SVID after agent upgrade ($i of $NUMCHECKS)..."
+log-info "checking X509-SVID after agent upgrade..."
 docker-compose exec new-spire-agent \
     /opt/spire/bin/spire-agent api fetch x509 \
     -write /opt/test/after-agent-upgrade || fail-now "SVID check failed"
