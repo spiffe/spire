@@ -153,6 +153,16 @@ func TestMergeInput(t *testing.T) {
 		//	},
 		//},
 		{
+			msg: "insecure_bootstrap should be configurable by file",
+			fileInput: func(c *config) {
+				c.Agent.InsecureBootstrap = true
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.True(t, c.Agent.InsecureBootstrap)
+			},
+		},
+		{
 			msg: "join_token should be configurable by file",
 			fileInput: func(c *config) {
 				c.Agent.JoinToken = "foo"
@@ -543,6 +553,24 @@ func TestNewAgentConfig(t *testing.T) {
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, "foo", c.BindAddress.Name)
 				require.Equal(t, "unix", c.BindAddress.Net)
+			},
+		},
+		{
+			msg: "insecure_bootsrap should be correctly set to false",
+			input: func(c *config) {
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.False(t, c.InsecureBootstrap)
+			},
+		},
+		{
+			msg: "insecure_bootsrap should be correctly set to true",
+			input: func(c *config) {
+				c.Agent.InsecureBootstrap = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.True(t, c.InsecureBootstrap)
 			},
 		},
 		{
