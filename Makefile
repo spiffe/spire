@@ -13,7 +13,7 @@ endif
 export GO111MODULE=on
 
 # Makefile variables
-binary_dirs := $(shell find cmd/* functional/tools/* support/k8s/* support/oidc-discovery-provider -maxdepth 0 -type d)
+binary_dirs := $(shell find cmd/* support/k8s/* support/oidc-discovery-provider -maxdepth 0 -type d)
 docker_volume_gopath := $(shell echo $${GOPATH}/pkg/mod):/root/go/pkg/mod
 docker_volume_spire := $(shell echo $${PWD}):/root/spire
 docker_image = spire-dev:latest
@@ -44,7 +44,7 @@ bold  := $(shell which tput > /dev/null && tput bold || echo "")
 target_max_char=25
 
 # Makefile options
-.PHONY: all utils container-push cmd go-check build test race-test clean functional vendor help
+.PHONY: all utils container-push cmd go-check build test race-test clean vendor help
 
 # Makes sure the go version matches the expected version
 go-check:
@@ -74,10 +74,6 @@ endif
 
 integration: ## Run integration tests
 	$(docker) script/e2e_test.sh
-
-functional: ## Run functional tests
-	$(MAKE) -C functional/ all
-
 
 ##@ Cleaning
 clean: ## Go-clean object files

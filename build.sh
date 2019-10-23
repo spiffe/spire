@@ -43,7 +43,7 @@ _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
 
 _artifact_dirs() {
-	find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null
+	find cmd/* -maxdepth 0 -type d 2>/dev/null
 }
 
 _release_dirs() {
