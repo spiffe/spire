@@ -63,6 +63,7 @@ func TestAttestor(t *testing.T) {
 		deprecatedAgentID           string
 		challengeResponses          []string
 		bootstrapBundle             *x509.Certificate
+		insecureBootstrap           bool
 		cachedBundle                []byte
 		cachedSVID                  []byte
 		joinToken                   string
@@ -74,8 +75,8 @@ func TestAttestor(t *testing.T) {
 		failAttestCall              bool
 	}{
 		{
-			name: "no bundle available",
-			err:  "load bundle: no bundle available",
+			name:              "insecure bootstrap",
+			insecureBootstrap: true,
 		},
 		{
 			name:         "cached bundle empty",
@@ -192,11 +193,18 @@ func TestAttestor(t *testing.T) {
 			challengeResponses: []string{"FOO", "BAR", "BAZ"},
 		},
 		{
-			name:            "success with cached svid and private key",
-			bootstrapBundle: caCert,
-			cachedSVID:      agentCert.Raw,
-			storeKey:        testKey,
-			failAttestCall:  true,
+			name:              "cached svid and private key but missing bundle",
+			insecureBootstrap: true,
+			cachedSVID:        agentCert.Raw,
+			storeKey:          testKey,
+			err:               "SVID loaded but no bundle in cache",
+		},
+		{
+			name:           "success with cached svid, private key, and bundle",
+			cachedBundle:   caCert.Raw,
+			cachedSVID:     agentCert.Raw,
+			storeKey:       testKey,
+			failAttestCall: true,
 		},
 		{
 			name:            "malformed cached svid ignored",
@@ -275,8 +283,9 @@ func TestAttestor(t *testing.T) {
 					Scheme: "spiffe",
 					Host:   "domain.test",
 				},
-				TrustBundle:   makeTrustBundle(testCase.bootstrapBundle),
-				ServerAddress: serverAddr,
+				TrustBundle:       makeTrustBundle(testCase.bootstrapBundle),
+				InsecureBootstrap: testCase.insecureBootstrap,
+				ServerAddress:     serverAddr,
 			})
 
 			// perform attestation
