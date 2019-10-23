@@ -753,8 +753,13 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 }
 
 func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
+	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
 	model := new(Bundle)
-	if err := tx.Find(model, "trust_domain = ?", req.TrustDomainId).Error; err != nil {
+	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -803,8 +808,13 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
+	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
 	model := new(Bundle)
-	err := tx.Find(model, "trust_domain = ?", req.TrustDomainId).Error
+	err = tx.Find(model, "trust_domain = ?", trustDomainID).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
 		return &datastore.FetchBundleResponse{}, nil
