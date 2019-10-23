@@ -207,6 +207,13 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle, fresp.Bundle)
 
+	// fetch (with denormalized id)
+	expectedCallCounter = ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
+	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://fOO"})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, fresp.Bundle)
+
 	// list
 	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
@@ -281,6 +288,21 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
+
+	// delete (with denormalized id)
+	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
+	dresp, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
+		TrustDomainId: "spiffe://bAR",
+	})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle3, dresp.Bundle)
+
+	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Empty(lresp.Bundles)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
