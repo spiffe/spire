@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -e
+
+log-debug "bootstrapping agent..."
+docker-compose exec spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+
+log-info "generating join token..."
+TOKEN=$(docker-compose exec spire-server \
+    /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node | awk '{print $2}' | tr -d '\r')
+
+# Inserts the join token into the agent configuration
+log-debug "using join token ${TOKEN}..."
+sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent/agent.conf
+
+# Duplicate the configuration for the "bad" agent. It will try to attest with
+# the same join token later.
+cp -R conf/agent conf/bad-agent

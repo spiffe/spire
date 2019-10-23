@@ -1,0 +1,16 @@
+#!/bin/bash
+
+docker-up bad-spire-agent
+
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    docker-compose logs bad-spire-agent | tee bad-agent-logs
+    if grep -sq "failed to attest: join token has already been used" bad-agent-logs; then
+        touch success
+        exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+fail-now "timed out waiting for the bad spire agent to fail attestation"
