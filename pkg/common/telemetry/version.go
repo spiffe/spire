@@ -5,7 +5,7 @@ import (
 )
 
 func EmitVersion(m Metrics) {
-	m.SetGaugeWithLabels([]string{"version"}, 1, []Label{
+	m.SetGaugeWithLabels([]string{"started"}, 1, []Label{
 		{Name: "version", Value: version.Version()},
 	})
 }
