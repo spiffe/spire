@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+mkdir -p shared/server-data
+mkdir -p shared/agent-data
+mkdir -p test/before-server-upgrade
+mkdir -p test/after-server-upgrade
+mkdir -p test/after-agent-upgrade
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+log-info "upgrading server..."
+docker-stop old-spire-server
+docker-up new-spire-server
