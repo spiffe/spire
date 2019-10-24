@@ -1,0 +1,11 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+PKGDIR="${REPODIR}/pkg/server/plugin/datastore/sql"
+
+log-debug "building postgres test harness..."
+(cd ${PKGDIR}; go test -c -o "${DIR}"/postgres.test -ldflags "-X github.com/spiffe/spire/pkg/server/plugin/datastore/sql.TestDialect=postgres -X github.com/spiffe/spire/pkg/server/plugin/datastore/sql.TestConnString=postgres://postgres:password@localhost:9999/postgres?sslmode=disable")
+
+log-debug "copying over test data..."
+cp -r "${PKGDIR}"/testdata .

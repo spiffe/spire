@@ -1,5 +1,6 @@
 #!/bin/bash
 
+REPODIR=$(git rev-parse --show-toplevel)
 ROOTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TESTDIR="$(realpath "$1")"
 TESTNAME="$(basename "${TESTDIR}")"

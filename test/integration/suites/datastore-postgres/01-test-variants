@@ -1,0 +1,34 @@
+#!/bin/bash
+
+test-postgres() {
+    SERVICE=$1
+
+    docker-up "${SERVICE}"
+
+    # Wait for postgres to be available
+    NUMCHECKS=15
+    CHECKINTERVAL=3
+    READY=
+    for ((i=1;i<=NUMCHECKS;i++)); do
+        log-info "waiting for ${SERVICE} ($i of $NUMCHECKS)..."
+        if docker-compose exec "${SERVICE}" pg_isready -U postgres >/dev/null; then
+            READY=1
+            break
+        fi
+    done
+
+    if [ -z ${READY} ]; then
+        fail-now "timed out waiting for ${SERVICE} to be ready"
+    fi
+
+    log-info "running tests against ${SERVICE}..."
+    ./postgres.test || fail-now "tests failed"
+    docker-stop "${SERVICE}"
+}
+
+test-postgres postgres-9 || exit 1
+test-postgres postgres-10 || exit 1
+test-postgres postgres-11 || exit 1
+test-postgres postgres-12 || exit 1
+
+touch success
