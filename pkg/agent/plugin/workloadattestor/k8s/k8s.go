@@ -33,8 +33,8 @@ import (
 
 const (
 	pluginName               = "k8s"
-	defaultMaxPollAttempts   = 5
-	defaultPollRetryInterval = time.Millisecond * 300
+	defaultMaxPollAttempts   = 60
+	defaultPollRetryInterval = time.Millisecond * 500
 	defaultSecureKubeletPort = 10250
 	defaultKubeletCAPath     = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token"
