@@ -21,6 +21,9 @@ type Config struct {
 	// If true, enables an Envoy SecretDiscoveryService server
 	EnableSDS bool
 
+	// If true, the agent will bootstrap insecurely with the server
+	InsecureBootstrap bool
+
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config
 

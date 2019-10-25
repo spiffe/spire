@@ -1,0 +1,53 @@
+version: '3'
+services:
+  old-spire-server:
+    image: gcr.io/spiffe-io/spire-server:0.8.3
+    hostname: spire-server
+    networks:
+      our-network:
+        aliases:
+          - spire-server
+    volumes:
+      - ./shared/server-data:/opt/spire/data
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  new-spire-server:
+    image: spire-server:latest-local
+    hostname: spire-server
+    networks:
+      our-network:
+        aliases:
+          - spire-server
+    volumes:
+      - ./shared/server-data:/opt/spire/data
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  old-spire-agent:
+    image: gcr.io/spiffe-io/spire-agent:0.8.3
+    hostname: spire-agent
+    # The old SPIRE server does not have the tuned up rotation check intervals
+    # and can therefore not rotate the server SVID when the interval is small,
+    # causing the agent to fail the TLS handshake during bootstrapping and
+    # needs to be allowed to restart on failure. Once the "old" version has the
+    # tuned up rotation check interval, we can remove this restart policy.
+    restart: on-failure
+    networks:
+      - our-network
+    volumes:
+      - ./shared/agent-data:/opt/spire/data
+      - ./conf/agent:/opt/spire/conf/agent
+      - ./test:/opt/test
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  new-spire-agent:
+    image: spire-agent:latest-local
+    hostname: spire-agent
+    networks:
+      - our-network
+    volumes:
+      - ./shared/agent-data:/opt/spire/data
+      - ./conf/agent:/opt/spire/conf/agent
+      - ./test:/opt/test
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+
+networks:
+  our-network: {}

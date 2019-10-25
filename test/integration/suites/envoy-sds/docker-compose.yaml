@@ -1,7 +1,7 @@
 version: '3'
 services:
   spire-server:
-    image: SPIRE-SERVER-IMAGE
+    image: spire-server:latest-local
     hostname: spire-server
     volumes:
       - ./conf/server:/opt/spire/conf/server

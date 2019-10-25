@@ -1,12 +1,9 @@
 #!/bin/bash
 
+REPODIR=$(git rev-parse --show-toplevel)
 ROOTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TESTDIR="$(realpath "$1")"
 TESTNAME="$(basename "${TESTDIR}")"
-
-SPIRE_SERVER_IMAGE=${SPIRE_SERVER_IMAGE:-spire-server:latest-local}
-SPIRE_AGENT_IMAGE=${SPIRE_AGENT_IMAGE:-spire-agent:latest-local}
-K8S_WORKLOAD_REGISTRAR_IMAGE=${K8S_WORKLOAD_REGISTRAR_IMAGE:-k8s-workload-registrar:latest-local}
 
 COMMON="${ROOTDIR}/common"
 source "${COMMON}"
@@ -54,10 +51,6 @@ trap cleanup EXIT
 #################################################
 log-info "preparing \"${TESTNAME}\"..."
 cp -R "${TESTDIR}"/* "${RUNDIR}/"
-find "${RUNDIR}" -type f | xargs -n1 sed -i.bak "s#SPIRE-SERVER-IMAGE#${SPIRE_SERVER_IMAGE}#g"
-find "${RUNDIR}" -type f | xargs -n1 sed -i.bak "s#SPIRE-AGENT-IMAGE#${SPIRE_AGENT_IMAGE}#g"
-find "${RUNDIR}" -type f | xargs -n1 sed -i.bak "s#K8S-WORKLOAD-REGISTRAR-IMAGE#${K8S_WORKLOAD_REGISTRAR_IMAGE}#g"
-find "${RUNDIR}" -type f -name "*.bak" | xargs rm
 
 SETUP="${RUNDIR}/00-setup"
 TEARDOWN="${RUNDIR}/99-teardown"

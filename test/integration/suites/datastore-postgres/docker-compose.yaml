@@ -1,0 +1,26 @@
+version: '3'
+services:
+  postgres-9:
+    image: postgres:9
+    environment:
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "9999:5432"
+  postgres-10:
+    image: postgres:10
+    environment:
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "9999:5432"
+  postgres-11:
+    image: postgres:11
+    environment:
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "9999:5432"
+  postgres-12:
+    image: postgres:12
+    environment:
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "9999:5432"
