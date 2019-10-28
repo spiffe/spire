@@ -2,13 +2,16 @@
 
 REPODIR=$(git rev-parse --show-toplevel)
 ROOTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-TESTDIR="$(realpath "$1")"
+TESTDIR="$( cd "$1" && pwd )"
 TESTNAME="$(basename "${TESTDIR}")"
 
 COMMON="${ROOTDIR}/common"
 source "${COMMON}"
 if [ -z "${TESTDIR}" ]; then
-    log-fail "missing test directory"
+    fail-now "missing test directory"
+fi
+if [ -z "${TESTNAME}" ]; then
+    fail-now "unable to determine test name"
 fi
 
 # Create a temporary directory to hold the configuration for the test run. On
@@ -37,11 +40,13 @@ exec-script-opt() {
 cleanup() {
     exec-script-opt "${RUNDIR}/99-teardown"
     if [ -f "${RUNDIR}/success" ]; then
+        rm -rf "${RUNDIR}"
         log-success "\"${TESTNAME}\" test succeeded."
     else
+        rm -rf "${RUNDIR}"
         log-err "\"${TESTNAME}\" test failed."
+        exit 1
     fi
-    rm -rf "${RUNDIR}"
 }
 
 trap cleanup EXIT
@@ -54,8 +59,8 @@ cp -R "${TESTDIR}"/* "${RUNDIR}/"
 
 SETUP="${RUNDIR}/00-setup"
 TEARDOWN="${RUNDIR}/99-teardown"
-[ -x "${SETUP}" ] || log-fail "missing required 00-setup script"
-[ -x "${TEARDOWN}" ] || log-fail "missing required 99-teardown script"
+[ -x "${SETUP}" ] || fail-now "missing required 00-setup script"
+[ -x "${TEARDOWN}" ] || fail-now "missing required 99-teardown script"
 
 #################################################
 # Execute the test
