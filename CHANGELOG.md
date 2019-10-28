@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.4] - 2019-10-28
+- Fixed spurious agent synchronization failures during agent SVID rotation (#1084)
+- Added support for [Kind](https://kind.sigs.k8s.io) to the Kubernetes Workload Attestor (#1133)
+- Added support for ACME v2 to the bundle endpoint (#1187)
+- Fixed a bug that could result in agent crashes after upgrading to 0.8.2 or newer (#1194)
+
 ## [0.8.3] - 2019-10-18
 - Upgrade to Go 1.12.12 in response to CVE-2019-17596 (#1204)
 
