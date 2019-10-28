@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -38,9 +39,29 @@ func TestFetchUpdates(t *testing.T) {
 	nodeFsc.EXPECT().Recv().Return(res, nil)
 	nodeFsc.EXPECT().Recv().Return(nil, io.EOF)
 
-	update, err := client.FetchUpdates(context.Background(), req)
-	require.Nil(t, err)
+	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+	client.c.RotMtx.Lock()
 
+	// Do the request in a different go routine
+	var wg sync.WaitGroup
+	var update *Update
+	err := errors.New("a not nil error")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		update, err = client.FetchUpdates(context.Background(), req, false)
+	}()
+
+	// The request should wait until the SVID rotation finishes
+	require.Contains(t, "a not nil error", err.Error())
+	require.Nil(t, update)
+
+	// Simulate the end of the SVID rotation
+	client.c.RotMtx.Unlock()
+	wg.Wait()
+
+	// Assert results
+	require.Nil(t, err)
 	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
 	assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
 	for _, entry := range res.SvidUpdate.RegistrationEntries {
@@ -104,7 +125,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 	nodeFsc.EXPECT().Recv().Return(res, nil)
 	nodeFsc.EXPECT().Recv().Return(nil, io.EOF)
 
-	update, err := client.FetchUpdates(context.Background(), req)
+	update, err := client.FetchUpdates(context.Background(), req, false)
 	require.Nil(t, err)
 
 	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
@@ -154,7 +175,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetchX509SVID(t *testing.T) {
 	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nil, errors.New("an error"))
 	client := createClient(t, nodeClient)
 
-	update, err := client.FetchUpdates(context.Background(), &node.FetchX509SVIDRequest{})
+	update, err := client.FetchUpdates(context.Background(), &node.FetchX509SVIDRequest{}, false)
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertNodeConnIsNil(t, client)
@@ -171,7 +192,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToSendRequest(t *testing.T) {
 	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
 	client := createClient(t, nodeClient)
 
-	update, err := client.FetchUpdates(context.Background(), req)
+	update, err := client.FetchUpdates(context.Background(), req, false)
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertNodeConnIsNil(t, client)
@@ -189,7 +210,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
 	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
 	client := createClient(t, nodeClient)
 
-	update, err := client.FetchUpdates(context.Background(), req)
+	update, err := client.FetchUpdates(context.Background(), req, false)
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertNodeConnIsNil(t, client)
@@ -200,6 +221,7 @@ func createClient(t *testing.T, nodeClient *mock_node.MockNodeClient) *client {
 	client := New(&Config{
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
+		RotMtx:        new(sync.RWMutex),
 	})
 	client.createNewNodeClient = func(conn *grpc.ClientConn) node.NodeClient {
 		return nodeClient

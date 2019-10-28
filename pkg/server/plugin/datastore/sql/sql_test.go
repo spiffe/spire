@@ -1254,6 +1254,36 @@ func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
 	s.RequireProtoListEqual([]*common.RegistrationEntry{entry}, resp.Entries)
 }
 
+func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
+	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: &common.RegistrationEntry{
+			Selectors: []*common.Selector{
+				{Type: "TYPE", Value: "VALUE"},
+			},
+			SpiffeId: "SpiffeId",
+			ParentId: "ParentId",
+			DnsNames: []string{
+				"abcd.efg",
+				"somehost",
+			},
+		},
+	})
+	s.Require().NoError(err)
+
+	// This is gross. Since the bug that left selectors around has been fixed
+	// (#1191), I'm not sure how else to test this other than just sneaking in
+	// there and removing the registered_entries row.
+	res, err := s.sqlPlugin.db.raw.Exec("DELETE FROM registered_entries")
+	s.Require().NoError(err)
+	rowsAffected, err := res.RowsAffected()
+	s.Require().Equal(int64(1), rowsAffected)
+
+	// Assert that no rows are returned.
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Empty(resp.Entries)
+}
+
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -1328,12 +1358,26 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 		Ttl:      2,
 	})
 
+	// We have two registration entries
+	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
+	entriesResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 2)
+
 	// Make sure we deleted the right one
 	expectedCallCounter = ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
 	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Equal(entry1, delRes.Entry)
+
+	// Make sure we have now only one registration entry
+	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
+	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 1)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
