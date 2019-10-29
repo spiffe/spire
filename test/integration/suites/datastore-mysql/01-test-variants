@@ -6,11 +6,11 @@ test-mysql() {
     docker-up "${SERVICE}"
 
     # Wait for mysql to be available
-    NUMCHECKS=15
+    MAXCHECKS=15
     CHECKINTERVAL=3
     READY=
-    for ((i=1;i<=NUMCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} ($i of $NUMCHECKS)..."
+    for ((i=1;i<=MAXCHECKS;i++)); do
+        log-info "waiting for ${SERVICE} ($i of $MAXCHECKS max)..."
         if docker-compose exec "${SERVICE}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
             READY=1
             break
@@ -30,5 +30,3 @@ test-mysql mysql-5-5 || exit 1
 test-mysql mysql-5-6 || exit 1
 test-mysql mysql-5-7 || exit 1
 test-mysql mysql-8-0 || exit 1
-
-touch success

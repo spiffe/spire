@@ -25,9 +25,10 @@ for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
     sleep "${CHECKINTERVAL}"
 done
 
-if [ -n "${MTLS_OK}" ] && [ -n "${TLS_OK}" ]; then
-    touch success
-else
-    log-err "Proxying failed"
-    docker-compose exec upstream-socat cat /tmp/howdy
+if [ -z "${MTLS_OK}" ]; then
+    fail-now "MTLS Proxying failed"
+fi
+
+if [ -z "${TLS_OK}" ]; then
+    fail-now "TLS Proxying failed"
 fi
