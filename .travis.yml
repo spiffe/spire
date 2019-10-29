@@ -56,7 +56,6 @@ jobs:
     - stage: build release
       script:
         - ./build.sh binaries
-        - ./build.sh integration
         - ./build.sh artifact
         - ./build.sh release
       os: linux
@@ -94,7 +93,7 @@ jobs:
         # Build spire images
         - make spire-images
         # Run integration tests
-        - test/integration/test-all.sh
+        - ./build.sh integration
         # Publish images
         - .travis/publish-images.sh
 
@@ -106,7 +105,7 @@ jobs:
         # Build spire images
         - make spire-images
         # Run integration tests
-        - test/integration/test-all.sh
+        - ./build.sh integration
 
 notifications:
   email:
