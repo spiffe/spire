@@ -73,7 +73,7 @@ endif
 
 
 integration: ## Run integration tests
-	$(docker) script/e2e_test.sh
+	test/integration/test-all.sh
 
 ##@ Cleaning
 clean: ## Go-clean object files
