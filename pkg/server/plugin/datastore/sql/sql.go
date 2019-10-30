@@ -753,8 +753,13 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 }
 
 func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
+	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
 	model := new(Bundle)
-	if err := tx.Find(model, "trust_domain = ?", req.TrustDomainId).Error; err != nil {
+	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -803,8 +808,13 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
+	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
 	model := new(Bundle)
-	err := tx.Find(model, "trust_domain = ?", req.TrustDomainId).Error
+	err = tx.Find(model, "trust_domain = ?", trustDomainID).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
 		return &datastore.FetchBundleResponse{}, nil
@@ -874,7 +884,7 @@ func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logge
 }
 
 func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
-	model := AttestedNode{
+	model := V3AttestedNode{
 		SpiffeID:     req.Node.SpiffeId,
 		DataType:     req.Node.AttestationDataType,
 		SerialNumber: req.Node.CertSerialNumber,
@@ -891,7 +901,7 @@ func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (
 }
 
 func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
@@ -918,7 +928,7 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
 	}
 
-	var models []AttestedNode
+	var models []V3AttestedNode
 	if err := tx.Find(&models).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -943,12 +953,12 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 }
 
 func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	updates := AttestedNode{
+	updates := V3AttestedNode{
 		SerialNumber: req.CertSerialNumber,
 		ExpiresAt:    time.Unix(req.CertNotAfter, 0),
 	}
@@ -963,7 +973,7 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 }
 
 func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
-	var model AttestedNode
+	var model V3AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1366,27 +1376,37 @@ func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB,
 		// reallocations
 		entries = make([]*common.RegistrationEntry, 0, 64)
 	}
-	var lastEID uint64
 
+	pushEntry := func(entry *common.RegistrationEntry) {
+		// Due to previous bugs (i.e. #1191), there can be cruft rows related
+		// to a deleted registration entries that are fetched with the list
+		// query. To avoid hydrating partial entries, append only entries that
+		// have data from the registered_entries table (i.e. those with an
+		// entry id).
+		if entry != nil && entry.EntryId != "" {
+			entries = append(entries, entry)
+		}
+	}
+
+	var lastEID uint64
+	var entry *common.RegistrationEntry
 	for rows.Next() {
 		var r entryRow
 		if err := scanEntryRow(rows, &r); err != nil {
 			return nil, err
 		}
 
-		var entry *common.RegistrationEntry
-		if len(entries) == 0 || lastEID != r.EId {
+		if entry == nil || lastEID != r.EId {
 			lastEID = r.EId
+			pushEntry(entry)
 			entry = new(common.RegistrationEntry)
-			entries = append(entries, entry)
-		} else {
-			entry = entries[len(entries)-1]
 		}
 
 		if err := fillEntryFromRow(entry, &r); err != nil {
 			return nil, err
 		}
 	}
+	pushEntry(entry)
 
 	if err := rows.Err(); err != nil {
 		return nil, sqlError.Wrap(err)
@@ -2047,6 +2067,11 @@ func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
 		return sqlError.Wrap(err)
 	}
 
+	// Delete existing selectors
+	if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -2248,7 +2273,7 @@ func newRegistrationEntryID() (string, error) {
 	return u.String(), nil
 }
 
-func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
+func modelToAttestedNode(model V3AttestedNode) *common.AttestedNode {
 	return &common.AttestedNode{
 		SpiffeId:            model.SpiffeID,
 		AttestationDataType: model.DataType,

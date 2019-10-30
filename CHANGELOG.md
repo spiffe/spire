@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.2] - 2019-10-10
+- Connection pool details in SQL DataStore plugin are now configurable (#1028)
+- SQL DataStore plugin now emits telemetry (#998)
+- The SPIFFE bundle endpoint now supports serving Web PKI via ACME (#1029)
+- Fix Workload API socket permissions when enclosing directory is automatically created (#1048)
+- The Kubernetes PSAT node attestor now emits node and pod label selectors (#1042)
+- SVIDs can now be created directly against SPIRE server using the new `mint` feature (#1036)
+- SPIRE agent behavior improved to more efficiently balance load across SPIRE servers (#1061)
+- Significant SQL DataStore performance improvements (#1069, #1079)
+- Kubernetes workload registrar now supports assigning SPIFFE IDs based on an annotation (#1047)
+- Registration entries with an expiry set are now automatically pruned from the datastore (#1056)
+- Fix bug that resulted in authorized workloads being denied SVIDs (#1103)
+
 ## [0.8.1] - 2019-07-19
 - Failure to obtain peer information from a Workload API connection no longer brings down the agent (#946)
 - Agent now detects expired cached SVID when it starts and will attempt to re-attest instead of failing (#1000)

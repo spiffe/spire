@@ -165,15 +165,16 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 
 func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*attestor.AttestationResult, error) {
 	config := attestor.Config{
-		Catalog:         cat,
-		Metrics:         metrics,
-		JoinToken:       a.c.JoinToken,
-		TrustDomain:     a.c.TrustDomain,
-		TrustBundle:     a.c.TrustBundle,
-		BundleCachePath: a.bundleCachePath(),
-		SVIDCachePath:   a.agentSVIDPath(),
-		Log:             a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
-		ServerAddress:   a.c.ServerAddress,
+		Catalog:           cat,
+		Metrics:           metrics,
+		JoinToken:         a.c.JoinToken,
+		TrustDomain:       a.c.TrustDomain,
+		TrustBundle:       a.c.TrustBundle,
+		InsecureBootstrap: a.c.InsecureBootstrap,
+		BundleCachePath:   a.bundleCachePath(),
+		SVIDCachePath:     a.agentSVIDPath(),
+		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
+		ServerAddress:     a.c.ServerAddress,
 	}
 	return attestor.New(&config).Attest(ctx)
 }

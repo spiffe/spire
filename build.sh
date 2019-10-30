@@ -32,7 +32,7 @@ declare -r BUILD_CACHE=${BUILD_CACHE:-${BUILD_ROOT}/.cache}
 
 # versioned binaries that we need for builds
 export GO111MODULE=on
-declare -r GO_VERSION=${GO_VERSION:-1.13.1}
+declare -r GO_VERSION=${GO_VERSION:-1.13.3}
 declare -r GO_URL="https://storage.googleapis.com/golang"
 declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
@@ -43,7 +43,7 @@ _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
 
 _artifact_dirs() {
-	find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null
+	find cmd/* -maxdepth 0 -type d 2>/dev/null
 }
 
 _release_dirs() {
@@ -188,6 +188,8 @@ build_race_test() {
 }
 
 build_integration() {
+	eval "$(build_env)"
+
 	make integration
 }
 

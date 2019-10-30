@@ -42,9 +42,6 @@ log-info "starting cluster..."
 ./bin/kind create cluster --name k8stest --config ./conf/kind-config.yaml || fail-now "unable to create cluster"
 
 log-info "loading container images..."
-./bin/kind load docker-image --name k8stest SPIRE-SERVER-IMAGE
-./bin/kind load docker-image --name k8stest SPIRE-AGENT-IMAGE
-./bin/kind load docker-image --name k8stest K8S-WORKLOAD-REGISTRAR-IMAGE
-
-
-
+./bin/kind load docker-image --name k8stest spire-server:latest-local
+./bin/kind load docker-image --name k8stest spire-agent:latest-local
+./bin/kind load docker-image --name k8stest k8s-workload-registrar:latest-local
