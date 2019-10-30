@@ -5,8 +5,9 @@ test-mysql() {
 
     docker-up "${SERVICE}"
 
-    # Wait for mysql to be available
-    MAXCHECKS=15
+    # Wait up to two minutes for mysql to be available. It should come up
+    # pretty quick on developer machines but Travis is slow.
+    MAXCHECKS=40
     CHECKINTERVAL=3
     READY=
     for ((i=1;i<=MAXCHECKS;i++)); do
