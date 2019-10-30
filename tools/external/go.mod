@@ -16,5 +16,3 @@ require (
 	github.com/pseudomuto/protokit v0.1.0 // indirect
 	golang.org/x/tools v0.0.0-20190312151545-0bb0c0a6e846 // indirect
 )
-
-go 1.13
