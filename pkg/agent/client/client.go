@@ -22,7 +22,7 @@ var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
 
-const rpcTimeout = 5 * time.Second
+const rpcTimeout = 30 * time.Second
 
 type JWTSVID struct {
 	Token     string
