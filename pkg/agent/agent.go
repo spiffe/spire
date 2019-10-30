@@ -59,6 +59,8 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
+	telemetry.EmitVersion(metrics)
+
 	cat, err := catalog.Load(ctx, catalog.Config{
 		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
