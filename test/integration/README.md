@@ -1,7 +1,7 @@
 # Integration Test Framework
 
 This directory contains the Integration Test framework for SPIRE. Integration
-tests are run nightly after there has been a merge into the master branch.
+tests are run nightly or after there has been a merge into the master branch.
 
 ## Executing Test Suites
 
@@ -10,15 +10,18 @@ When the framework executes a test suite, it performs the following:
 1. Creates a temporary directory.
 1. Copies the contents of the test suite into the temporary directory.
 1. Executes scripts that match the `??-*` pattern, ordered lexographically,
-   where `??` is a "step number" (i.e. `00-setup`, `01-do-a-thing`)
+   where `??` is a "step number" (i.e. `00-setup`, `01-do-a-thing`).
 1. The `teardown` script is executed. Note that the `teardown` script is
    **ALWAYS** executed when the test suite is torn down, independent of test
    suite success/failure. The `teardown` script **MUST** exist or the test will
    not be executed.
 1. Temporary directory is removed.
 
-In order for the test to pass, each step script must return a non-zero exit
-code.
+In order for the test to pass, each step script must return a zero status code.
+
+If a step script fails by exiting with a non-zero status code, the test suite
+fails and execution moves immediately to the `teardown` script. Subsequent step
+scripts are **NOT** executed.
 
 ## Adding a Test Suite
 
@@ -39,7 +42,8 @@ are available for use within the step script.
 The working directory of the step script is the temporary directory prepared
 for the test suite.
 
-The step script should exit with a non-zero exit status if the step fails.
+The step script should exit with a non-zero status code if the step fails in
+order to trigger test suite failure.
 
 The following environment variables are available to the step scripts:
 
