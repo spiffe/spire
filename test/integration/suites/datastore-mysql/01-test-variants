@@ -1,0 +1,35 @@
+#!/bin/bash
+
+test-mysql() {
+    SERVICE=$1
+
+    docker-up "${SERVICE}"
+
+    # Wait up to two minutes for mysql to be available. It should come up
+    # pretty quick on developer machines but Travis is slow.
+    NUMCHECKS=40
+    CHECKINTERVAL=3
+    READY=
+    for ((i=1;i<=NUMCHECKS;i++)); do
+        log-info "waiting for ${SERVICE} ($i of $NUMCHECKS)..."
+        if docker-compose exec "${SERVICE}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
+            READY=1
+            break
+        fi
+    done
+
+    if [ -z ${READY} ]; then
+        fail-now "timed out waiting for ${SERVICE} to be ready"
+    fi
+
+    log-info "running tests against ${SERVICE}..."
+    ./mysql.test || fail-now "tests failed"
+    docker-stop "${SERVICE}"
+}
+
+test-mysql mysql-5-5 || exit 1
+test-mysql mysql-5-6 || exit 1
+test-mysql mysql-5-7 || exit 1
+test-mysql mysql-8-0 || exit 1
+
+touch success

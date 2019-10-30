@@ -1,0 +1,17 @@
+version: '3'
+services:
+  spire-server:
+    image: spire-server:latest-local
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  spire-agent:
+    image: spire-agent:latest-local
+    volumes:
+      - ./conf/agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  bad-spire-agent:
+    image: spire-agent:latest-local
+    volumes:
+      - ./conf/bad-agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]

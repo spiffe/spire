@@ -1,0 +1,9 @@
+#!/bin/bash
+
+docker-up old-spire-server
+
+log-debug "bootstrapping old agent..."
+docker-compose exec old-spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+
+docker-up old-spire-agent

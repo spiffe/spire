@@ -55,6 +55,9 @@ var (
 )
 
 func TestInitializationFailure(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
@@ -62,13 +65,15 @@ func TestInitializationFailure(t *testing.T) {
 	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
 
 	c := &Config{
-		SVID:        baseSVID,
-		SVIDKey:     baseSVIDKey,
-		Log:         testLogger,
-		Metrics:     &telemetry.Blackhole{},
-		TrustDomain: trustDomainID,
-		Clk:         clk,
-		Catalog:     cat,
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		Metrics:         &telemetry.Blackhole{},
+		TrustDomain:     trustDomainID,
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Clk:             clk,
+		Catalog:         cat,
 	}
 	m, err := New(c)
 	if err != nil {

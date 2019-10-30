@@ -26,20 +26,17 @@ stages:
 jobs:
   include:
     - stage: setup
-      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh setup
         - ./build.sh utils
       os: macos
     - stage: setup
-      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh setup
         - ./build.sh utils
       os: linux
       dist: xenial
     - stage: lint
-      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh protobuf_verify
         - shellcheck build.sh
@@ -48,21 +45,17 @@ jobs:
       os: linux 
       dist: xenial
     - stage: test
-      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh race-test
       os: macos
     - stage: test
-      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh race-test
       os: linux
       dist: xenial
     - stage: build release
-      if: env(TRAVIS_EVENT_TYPE) != cron
       script:
         - ./build.sh binaries
-        - ./build.sh integration
         - ./build.sh artifact
         - ./build.sh release
       os: linux
@@ -90,7 +83,7 @@ jobs:
             condition: $GITHUB_TOKEN != ""
 
     - stage: publish images
-      if: env(TRAVIS_EVENT_TYPE) != cron AND type = push AND (tag IS present OR branch = master)
+      if: type = push AND (tag IS present OR branch = master)
       os: linux
       dist: xenial
       before_script:
@@ -100,16 +93,23 @@ jobs:
         # Build spire images
         - make spire-images
         # Run integration tests
-        - test/integration/test-all.sh
+        - ./build.sh integration
         # Publish images
         - .travis/publish-images.sh
+
     - stage: nightly integration tests
-      if: env(TRAVIS_EVENT_TYPE) == cron
+      if: type = cron
       os: linux
       dist: xenial
       script:
-        - test/integration/test-nightly.sh
+        # Build spire images
+        - make spire-images
+        # Run integration tests
+        - ./build.sh integration
 
 notifications:
-    slack:
-        secure: auV9VWkA50+tf4cKUUkMH/KqggKSJCBV9ruLSF1LVgqQYnK34rp/PPzx4gTiQYA07ltnu8Hi13XMoN5+OFsRfzVRCKP1tlGuTvVhpsoyMGiNxBY1Yw2OhZXRoSjCwJkuBsAkkaxAgsC58IEnxhKq+M83dDYx+WiybO+aQnQ6ExbGE4oUBhhBkYKrHy4Kt9/3yWLqicV/VXFtvwbXG5OG1zNNOYCUEud4Y8j6pcb0kyVqlHFjAjasLPsln0QSaTxOThLZCxMZD2zpbI1xxO5tBusqDe1QOMSgsyAbDaNk7wCb2kU+0hRKcfiuWShrswhECSJsYUImLq4c77WbdhrjRgscgY2779T/jaJHbG3Lx7GlDWYLSgFcM8VfZK+K5XPcm35F2qGPiEjtYEEAPS2qQM9PZyvTEVPxjNEc2PE3bINTjibcKbfATNa1ULQvJ6ixtSL9Ao8828iUfaR0mK4eaWnJckov5OaGvah+v6vh49JqZTEN3Or8XTUw0ra14euS6jR30XB2Y3S8/0NuvHY+ytJe36yQn9FdFM3asNpBuNP7F9v00WJr3+Lhg7KHMd0m19ulwtmXiWJYU25AVMk/oXp+aq+678AvhYkYZGaUzC3timsuTlAjH9DA9yxBW+8KE9y46Jq8vXHXhKTfdKDVVUyOFxKKGAjCA5QbeKx+5QU=
+  email:
+    recipients:
+      - spire-dev@spiffe.io
+  slack:
+    secure: auV9VWkA50+tf4cKUUkMH/KqggKSJCBV9ruLSF1LVgqQYnK34rp/PPzx4gTiQYA07ltnu8Hi13XMoN5+OFsRfzVRCKP1tlGuTvVhpsoyMGiNxBY1Yw2OhZXRoSjCwJkuBsAkkaxAgsC58IEnxhKq+M83dDYx+WiybO+aQnQ6ExbGE4oUBhhBkYKrHy4Kt9/3yWLqicV/VXFtvwbXG5OG1zNNOYCUEud4Y8j6pcb0kyVqlHFjAjasLPsln0QSaTxOThLZCxMZD2zpbI1xxO5tBusqDe1QOMSgsyAbDaNk7wCb2kU+0hRKcfiuWShrswhECSJsYUImLq4c77WbdhrjRgscgY2779T/jaJHbG3Lx7GlDWYLSgFcM8VfZK+K5XPcm35F2qGPiEjtYEEAPS2qQM9PZyvTEVPxjNEc2PE3bINTjibcKbfATNa1ULQvJ6ixtSL9Ao8828iUfaR0mK4eaWnJckov5OaGvah+v6vh49JqZTEN3Or8XTUw0ra14euS6jR30XB2Y3S8/0NuvHY+ytJe36yQn9FdFM3asNpBuNP7F9v00WJr3+Lhg7KHMd0m19ulwtmXiWJYU25AVMk/oXp+aq+678AvhYkYZGaUzC3timsuTlAjH9DA9yxBW+8KE9y46Jq8vXHXhKTfdKDVVUyOFxKKGAjCA5QbeKx+5QU=

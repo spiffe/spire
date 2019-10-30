@@ -20,6 +20,7 @@ import (
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	nr_noop "github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
+	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
@@ -85,6 +86,7 @@ func BuiltIns() []catalog.Plugin {
 		nr_azure_msi.BuiltIn(),
 		// UpstreamCAs
 		up_disk.BuiltIn(),
+		up_aws_pca.BuiltIn(),
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		// KeyManagers

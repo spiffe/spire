@@ -1,0 +1,6 @@
+#!/bin/bash
+
+log-info "checking X509-SVID on old agent..."
+    docker-compose exec old-spire-agent \
+        /opt/spire/bin/spire-agent api fetch x509 \
+        -write /opt/test/before-server-upgrade || fail-now "SVID check failed"

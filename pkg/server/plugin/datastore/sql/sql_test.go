@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakepluginmetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,6 +36,11 @@ import (
 
 var (
 	ctx = context.Background()
+
+	// The following are set by the linker during integration tests to
+	// run these unit tests against various SQL backends.
+	TestDialect    string
+	TestConnString string
 )
 
 const (
@@ -119,30 +125,62 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	s.LoadPlugin(builtin(p), &ds,
 		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
 
-	s.nextID++
-	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
-	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-			database_type = "sqlite3"
-			log_sql = true
-			connection_string = "%s"
-			`, dbPath),
-	})
-	s.Require().NoError(err)
+	// When the test suite is executed normally, we test against sqlite3 since
+	// it requires no external dependencies. The integration test framework
+	// builds the test harness for a specific dialect and connection string
+	switch TestDialect {
+	case "":
+		s.nextID++
+		dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
+		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`
+				database_type = "sqlite3"
+				log_sql = true
+				connection_string = "%s"
+				`, dbPath),
+		})
+		s.Require().NoError(err)
 
-	// assert that WAL journal mode is enabled
-	jm := struct {
-		JournalMode string
-	}{}
-	p.db.Raw("PRAGMA journal_mode").Scan(&jm)
-	s.Require().Equal(jm.JournalMode, "wal")
+		// assert that WAL journal mode is enabled
+		jm := struct {
+			JournalMode string
+		}{}
+		p.db.Raw("PRAGMA journal_mode").Scan(&jm)
+		s.Require().Equal(jm.JournalMode, "wal")
 
-	// assert that foreign_key support is enabled
-	fk := struct {
-		ForeignKeys string
-	}{}
-	p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
-	s.Require().Equal(fk.ForeignKeys, "1")
+		// assert that foreign_key support is enabled
+		fk := struct {
+			ForeignKeys string
+		}{}
+		p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
+		s.Require().Equal(fk.ForeignKeys, "1")
+	case "mysql":
+		s.T().Logf("CONN STRING: %q", TestConnString)
+		s.Require().NotEmpty(TestConnString, "connection string must be set")
+		wipeMySQL(s.T(), TestConnString)
+		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`
+				database_type = "mysql"
+				log_sql = true
+				connection_string = "%s"
+				`, TestConnString),
+		})
+		s.Require().NoError(err)
+	case "postgres":
+		s.T().Logf("CONN STRING: %q", TestConnString)
+		s.Require().NotEmpty(TestConnString, "connection string must be set")
+		wipePostgres(s.T(), TestConnString)
+		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`
+				database_type = "postgres"
+				log_sql = true
+				connection_string = "%s"
+				`, TestConnString),
+		})
+		s.Require().NoError(err)
+	default:
+		s.Require().FailNowf("Unsupported external test dialect %q", TestDialect)
+	}
 
 	return ds
 }
@@ -207,6 +245,13 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle, fresp.Bundle)
 
+	// fetch (with denormalized id)
+	expectedCallCounter = ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
+	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://fOO"})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, fresp.Bundle)
+
 	// list
 	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
@@ -262,9 +307,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
-	s.Equal(2, len(lresp.Bundles))
-	s.AssertProtoEqual(bundle2, lresp.Bundles[0])
-	s.AssertProtoEqual(bundle3, lresp.Bundles[1])
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
 	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
@@ -281,6 +324,21 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
+
+	// delete (with denormalized id)
+	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
+	dresp, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
+		TrustDomainId: "spiffe://bAR",
+	})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle3, dresp.Bundle)
+
+	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Empty(lresp.Bundles)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
@@ -1236,6 +1294,36 @@ func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
 	s.RequireProtoListEqual([]*common.RegistrationEntry{entry}, resp.Entries)
 }
 
+func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
+	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: &common.RegistrationEntry{
+			Selectors: []*common.Selector{
+				{Type: "TYPE", Value: "VALUE"},
+			},
+			SpiffeId: "SpiffeId",
+			ParentId: "ParentId",
+			DnsNames: []string{
+				"abcd.efg",
+				"somehost",
+			},
+		},
+	})
+	s.Require().NoError(err)
+
+	// This is gross. Since the bug that left selectors around has been fixed
+	// (#1191), I'm not sure how else to test this other than just sneaking in
+	// there and removing the registered_entries row.
+	res, err := s.sqlPlugin.db.raw.Exec("DELETE FROM registered_entries")
+	s.Require().NoError(err)
+	rowsAffected, err := res.RowsAffected()
+	s.Require().Equal(int64(1), rowsAffected)
+
+	// Assert that no rows are returned.
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Empty(resp.Entries)
+}
+
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -1310,12 +1398,26 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 		Ttl:      2,
 	})
 
+	// We have two registration entries
+	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
+	entriesResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 2)
+
 	// Make sure we deleted the right one
 	expectedCallCounter = ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
 	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Equal(entry1, delRes.Entry)
+
+	// Make sure we have now only one registration entry
+	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
+	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 1)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
@@ -1921,6 +2023,36 @@ func (s *PluginSuite) TestMigration() {
 			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
+		case 12:
+			// Ensure attested_nodes_entries gained two new columns
+			db, err := sqlite{}.connect(&configuration{
+				DatabaseType:     "sqlite3",
+				ConnectionString: fmt.Sprintf("file://%s", dbPath),
+			})
+			s.Require().NoError(err)
+			// Assert migration version is now 13
+			migration := Migration{}
+			db.First(&migration)
+			s.Require().Equal(13, migration.Version)
+
+			// Assert attested_node_entries tables gained the new columns
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
+			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
+
+			resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
+				SpiffeId: "spiffe://example.org/host",
+			})
+			s.Require().NoError(err)
+
+			// Assert current serial numbers and expiration time remains the same
+			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
+			s.Require().NoError(err)
+			s.Require().Equal(expectedTime.Unix(), resp.Node.CertNotAfter)
+			s.Require().Equal("111", resp.Node.CertSerialNumber)
+
+			// Assert the new fields are empty for pre-existing entries
+			s.Require().Empty(resp.Node.NewCertSerialNumber)
+			s.Require().Empty(resp.Node.NewCertNotAfter)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -4716,4 +4848,71 @@ ORDER BY e_id, selector_id, dns_name_id
 			require.Equal(t, testCase.query, query)
 		})
 	}
+}
+
+// assertBundlesEqual asserts that the two bundle lists are equal independent
+// of ordering.
+func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
+	if !assert.Equal(t, len(expected), len(actual)) {
+		return
+	}
+
+	es := map[string]*common.Bundle{}
+	as := map[string]*common.Bundle{}
+
+	for _, e := range expected {
+		es[e.TrustDomainId] = e
+	}
+
+	for _, a := range actual {
+		as[a.TrustDomainId] = a
+	}
+
+	for id, a := range as {
+		e, ok := es[id]
+		if assert.True(t, ok, "bundle %q was unexpected", id) {
+			spiretest.AssertProtoEqual(t, e, a)
+			delete(es, id)
+		}
+	}
+
+	for id := range es {
+		assert.Failf(t, "bundle %q was expected but not found", id)
+	}
+
+}
+
+func wipePostgres(t *testing.T, connString string) {
+	db, err := sql.Open("postgres", connString)
+	require.NoError(t, err)
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public';`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	dropTablesInRows(t, db, rows)
+}
+
+func wipeMySQL(t *testing.T, connString string) {
+	db, err := sql.Open("mysql", connString)
+	require.NoError(t, err)
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'spire';`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	dropTablesInRows(t, db, rows)
+}
+
+func dropTablesInRows(t *testing.T, db *sql.DB, rows *sql.Rows) {
+	for rows.Next() {
+		var q string
+		err := rows.Scan(&q)
+		require.NoError(t, err)
+		_, err = db.Exec("DROP TABLE IF EXISTS " + q + " CASCADE")
+		require.NoError(t, err)
+	}
+	require.NoError(t, rows.Err())
 }
