@@ -64,7 +64,10 @@ func TestFetchUpdates(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
 	assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
-	for _, entry := range res.SvidUpdate.RegistrationEntries {
+	// Only the first registration entry should be returned since the rest are
+	// invalid for one reason or another
+	if assert.Len(t, update.Entries, 1) {
+		entry := res.SvidUpdate.RegistrationEntries[0]
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
 	assertNodeConnIsNotNil(t, client)
@@ -80,9 +83,34 @@ func newTestFetchX509SVIDRequest() *node.FetchX509SVIDRequest {
 func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 	return &node.FetchX509SVIDResponse{
 		SvidUpdate: &node.X509SVIDUpdate{
-			RegistrationEntries: []*common.RegistrationEntry{{
-				EntryId: "1",
-			}},
+			RegistrationEntries: []*common.RegistrationEntry{
+				{
+					EntryId:  "ENTRYID1",
+					SpiffeId: "SPIFFEID1",
+					Selectors: []*common.Selector{
+						{Type: "S", Value: "1"},
+					},
+				},
+				// This entry should be ignored since it is missing an entry ID
+				{
+					SpiffeId: "SPIFFEID2",
+					Selectors: []*common.Selector{
+						{Type: "S", Value: "2"},
+					},
+				},
+				// This entry should be ignored since it is missing a SPIFFE ID
+				{
+					EntryId: "ENTRYID3",
+					Selectors: []*common.Selector{
+						{Type: "S", Value: "3"},
+					},
+				},
+				// This entry should be ignored since it is missing selectors
+				{
+					EntryId:  "ENTRYID4",
+					SpiffeId: "SPIFFEID4",
+				},
+			},
 			Svids: map[string]*node.X509SVID{
 				"someSpiffeId": {
 					CertChain: []byte{11, 22, 33},
@@ -130,7 +158,10 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 
 	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
 	assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
-	for _, entry := range res.SvidUpdate.RegistrationEntries {
+	// Only the first registration entry should be returned since the rest are
+	// invalid for one reason or another
+	if assert.Len(t, update.Entries, 1) {
+		entry := res.SvidUpdate.RegistrationEntries[0]
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
 	<-waitForRelease
