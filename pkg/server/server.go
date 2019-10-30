@@ -171,6 +171,8 @@ func (s *Server) run(ctx context.Context) (err error) {
 		Metrics: metrics,
 	})
 
+	telemetry.EmitVersion(metrics)
+
 	// Create the identity provider host service. It will not be functional
 	// until the call to SetDeps() below. There is some tricky initialization
 	// stuff going on since the identity provider host service requires plugins
