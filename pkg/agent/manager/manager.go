@@ -178,19 +178,16 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
-	t := m.clk.Ticker(m.c.SyncInterval)
-	defer t.Stop()
-
 	for {
 		select {
-		case <-t.C:
-			err := m.synchronize(ctx)
-			if err != nil {
-				// Just log the error to keep waiting for next sinchronization...
-				m.c.Log.WithError(err).Error("synchronize failed")
-			}
+		case <-m.clk.After(m.c.SyncInterval):
 		case <-ctx.Done():
 			return nil
+		}
+		err := m.synchronize(ctx)
+		if err != nil {
+			// Just log the error and wait for next synchronization
+			m.c.Log.WithError(err).Error("synchronize failed")
 		}
 	}
 }

@@ -5,13 +5,14 @@ test-postgres() {
 
     docker-up "${SERVICE}"
 
-    # Wait for postgres to be available
-    NUMCHECKS=15
+    # Wait up to two minutes for postgres to be available. It should come up
+    # pretty quick on developer machines but Travis is slow.
+    NUMCHECKS=40
     CHECKINTERVAL=3
     READY=
     for ((i=1;i<=NUMCHECKS;i++)); do
         log-info "waiting for ${SERVICE} ($i of $NUMCHECKS)..."
-        if docker-compose exec "${SERVICE}" pg_isready -U postgres >/dev/null; then
+        if docker-compose exec "${SERVICE}" pg_isready -h localhost -U postgres >/dev/null; then
             READY=1
             break
         fi
