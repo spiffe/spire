@@ -16,6 +16,7 @@ test-postgres() {
             READY=1
             break
         fi
+        sleep "${CHECKINTERVAL}"
     done
 
     if [ -z ${READY} ]; then
