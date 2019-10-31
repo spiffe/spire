@@ -1150,7 +1150,7 @@ func buildFetchRegistrationEntryQuery(dbType string, req *datastore.FetchRegistr
 func buildFetchRegistrationEntryQuerySQLite3(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
 	const query = `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE entry_id = ?
+	SELECT id FROM registered_entries WHERE entry_id = ? AND (expiry = 0 OR expiry >= strftime('%s','now'))
 )
 SELECT
 	id as e_id,
@@ -1208,7 +1208,7 @@ ORDER BY selector_id, dns_name_id
 func buildFetchRegistrationEntryQueryPostgreSQL(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
 	const query = `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE entry_id = $1
+	SELECT id FROM registered_entries WHERE entry_id = $1 AND (expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
 )
 SELECT
 	id as e_id,
@@ -1290,7 +1290,7 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.entry_id = ?
+WHERE E.entry_id = ? AND (E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
 ORDER BY selector_id, dns_name_id
 ;`
 	return query, []interface{}{req.EntryId}, nil
@@ -1470,9 +1470,11 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
 `)
 	if filtered {
-		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+		builder.WriteString("AND id IN (SELECT id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -1547,9 +1549,11 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
 `)
 	if filtered {
-		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+		builder.WriteString("AND id IN (SELECT id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -1636,9 +1640,11 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
 `)
 
-	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
+	filtered, args, err := appendListRegistrationEntriesFilterQuery("AND E.id IN (\n", builder, MySQL, req)
 	if err != nil {
 		return "", nil, err
 	}

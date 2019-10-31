@@ -883,7 +883,7 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntry() {
-	registeredEntry := &common.RegistrationEntry{
+	nonExpirableRegisteredEntry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -899,7 +899,7 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	}
 
 	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: nonExpirableRegisteredEntry})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
@@ -909,8 +909,68 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
 	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
+	s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
 	s.RequireProtoEqual(createdEntry, fetchRegistrationEntryResponse.Entry)
+
+	now := time.Now().Unix()
+	unexpiredRegisteredEntry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId:    "SpiffeId",
+		ParentId:    "ParentId",
+		Ttl:         1,
+		EntryExpiry: now + 10,
+		DnsNames: []string{
+			"abcd.efg",
+			"somehost",
+		},
+	}
+
+	expectedCallCounter = ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
+	createRegistrationEntryResponse, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: unexpiredRegisteredEntry})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().NotNil(createRegistrationEntryResponse)
+	createdEntry = createRegistrationEntryResponse.Entry
+
+	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
+	s.RequireProtoEqual(createdEntry, fetchRegistrationEntryResponse.Entry)
+
+	expiredRegisteredEntry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId:    "SpiffeId",
+		ParentId:    "ParentId",
+		Ttl:         1,
+		EntryExpiry: now - 10,
+		DnsNames: []string{
+			"abcd.efg",
+			"somehost",
+		},
+	}
+
+	expectedCallCounter = ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
+	createRegistrationEntryResponse, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: expiredRegisteredEntry})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().NotNil(createRegistrationEntryResponse)
+	createdEntry = createRegistrationEntryResponse.Entry
+
+	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
+	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.Require().Nil(fetchRegistrationEntryResponse.Entry)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
@@ -994,7 +1054,7 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
-	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+	nonExpirableRegisteredEntry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1006,16 +1066,32 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 		Admin:    true,
 	})
 
-	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+	now := time.Now().Unix()
+	unexpiredRegisteredEntry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type3", Value: "Value3"},
 			{Type: "Type4", Value: "Value4"},
 			{Type: "Type5", Value: "Value5"},
 		},
-		SpiffeId:   "spiffe://example.org/baz",
-		ParentId:   "spiffe://example.org/bat",
-		Ttl:        2,
-		Downstream: true,
+		SpiffeId:    "spiffe://example.org/baz",
+		ParentId:    "spiffe://example.org/bat",
+		Ttl:         2,
+		EntryExpiry: now + 10,
+		Downstream:  true,
+	})
+
+	// Create an expired registration entry
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type5", Value: "Value5"},
+			{Type: "Type6", Value: "Value6"},
+			{Type: "Type7", Value: "Value7"},
+		},
+		SpiffeId:    "spiffe://example.org/ping",
+		ParentId:    "spiffe://example.org/pong",
+		Ttl:         3,
+		EntryExpiry: now - 10,
+		Downstream:  true,
 	})
 
 	expectedCallCounter := ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
@@ -1025,7 +1101,7 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	s.Require().NotNil(resp)
 
 	expectedResponse := &datastore.ListRegistrationEntriesResponse{
-		Entries: []*common.RegistrationEntry{entry2, entry1},
+		Entries: []*common.RegistrationEntry{unexpiredRegisteredEntry, nonExpirableRegisteredEntry},
 	}
 	util.SortRegistrationEntries(expectedResponse.Entries)
 	util.SortRegistrationEntries(resp.Entries)
@@ -2278,6 +2354,8 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
 
 UNION
 
@@ -2331,7 +2409,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2389,7 +2469,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2447,7 +2529,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2505,7 +2589,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2567,7 +2653,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2625,7 +2713,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2687,7 +2777,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2749,7 +2841,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2815,7 +2909,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2878,7 +2974,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -2942,7 +3040,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3000,7 +3100,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3058,7 +3160,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3117,7 +3221,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3180,7 +3286,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= strftime('%s', 'now'))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3234,6 +3342,8 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
 
 UNION
 
@@ -3287,7 +3397,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3345,7 +3457,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3403,7 +3517,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3461,7 +3577,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3523,7 +3641,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3581,7 +3701,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3643,7 +3765,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3705,7 +3829,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3771,7 +3897,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3834,7 +3962,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3898,7 +4028,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -3956,7 +4088,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -4014,7 +4148,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -4073,7 +4209,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -4136,7 +4274,9 @@ SELECT
 	NULL AS dns_name
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE
+	(expiry = 0 OR expiry >= EXTRACT(EPOCH FROM NOW()))
+AND id IN (SELECT id FROM listing)
 
 UNION
 
@@ -4198,6 +4338,8 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4231,7 +4373,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM registered_entries WHERE parent_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -4266,7 +4410,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM registered_entries WHERE spiffe_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -4301,7 +4447,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -4336,7 +4484,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -4371,7 +4521,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM (
 		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 		UNION
@@ -4410,7 +4562,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -4445,7 +4599,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT DISTINCT id FROM (
 		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_0
 		INNER JOIN
@@ -4485,7 +4641,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT DISTINCT id FROM (
 		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
@@ -4525,7 +4683,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT DISTINCT id FROM (
 		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
@@ -4570,7 +4730,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT DISTINCT id FROM (
 		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
@@ -4610,7 +4772,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT DISTINCT id FROM (
 		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
@@ -4653,7 +4817,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM (
 		SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
@@ -4690,7 +4856,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
@@ -4728,7 +4896,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM (
 		SELECT id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
@@ -4766,7 +4936,9 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.id IN (
+WHERE
+	(E.expiry = 0 OR E.expiry >= UNIX_TIMESTAMP())
+AND E.id IN (
 	SELECT id FROM (
 		SELECT DISTINCT id FROM (
 			(SELECT id FROM registered_entries WHERE spiffe_id = ?) c_0
