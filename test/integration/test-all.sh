@@ -9,7 +9,8 @@ cd "${DIR}" || fail-now "Unable to change to script directory"
 failed=()
 for suite in suites/*; do
     if ! ./test-one.sh "${suite}"; then
-        failed+=( "$(basename ${suite})" )
+        echo "STATUS=$?"
+        failed+=( "$(basename "${suite}")" )
     fi
 done
 

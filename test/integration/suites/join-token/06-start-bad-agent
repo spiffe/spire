@@ -7,7 +7,6 @@ CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
     docker-compose logs bad-spire-agent | tee bad-agent-logs
     if grep -sq "failed to attest: join token has already been used" bad-agent-logs; then
-        touch success
         exit 0
     fi
     sleep "${CHECKINTERVAL}"

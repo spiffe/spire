@@ -1,79 +1,87 @@
 #!/bin/bash
 
-REPODIR=$(git rev-parse --show-toplevel)
 ROOTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+COMMON="${ROOTDIR}/common"
+
+# shellcheck source=./common
+source "${COMMON}"
+
+[ -n "$1" ] || fail-now "must pass the test suite directory as the first argument"
+[ -d "$1" ] || fail-now "$1 does not exist or is not a directory"
+
 TESTDIR="$( cd "$1" && pwd )"
 TESTNAME="$(basename "${TESTDIR}")"
 
-COMMON="${ROOTDIR}/common"
-source "${COMMON}"
-if [ -z "${TESTDIR}" ]; then
-    fail-now "missing test directory"
-fi
-if [ -z "${TESTNAME}" ]; then
-    fail-now "unable to determine test name"
-fi
+# Capture the top level directory of the repository
+REPODIR=$(git rev-parse --show-toplevel)
+
+log-info "running \"${TESTNAME}\" test suite..."
+
+[ -x "${TESTDIR}"/teardown ] || fail-now "missing required teardown script or it is not executable"
+[ -f "${TESTDIR}"/README.md ] || fail-now "missing required README.md file"
+
+# The following variables are intended to be usable to step scripts
+export ROOTDIR
+export REPODIR
+
+export SUCCESS=
 
 # Create a temporary directory to hold the configuration for the test run. On
 # darwin, don't use the user temp dir since it is not mountable by default with
 # Docker for MacOS (but /tmp is). We need a directory we can mount into the
 # running containers for various tests (e.g. to provide webhook configuration
 # to the kind node).
-RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR= TMPDIR= mktemp -d /tmp/spire-integration-XXXXXX)
+RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR='' TMPDIR='' mktemp -d /tmp/spire-integration-XXXXXX)
 
-exec-script() {
+# Ensure we always clean up after ourselves.
+cleanup() {
+    # Execute the teardown script and clean up the "run" directory
+    log-debug "executing teardown..."
+
+    # shellcheck source=./common
+    if ! (source "${COMMON}" && source "${RUNDIR}/teardown"); then
+        rm -rf "${RUNDIR}"
+        fail-now "\"${TESTNAME}\" failed to tear down."
+    fi
+
+    rm -rf "${RUNDIR}"
+    if [ -n "$SUCCESS" ]; then
+        log-success "\"${TESTNAME}\" test suite succeeded."
+    else
+        fail-now "\"${TESTNAME}\" test suite failed."
+    fi
+}
+trap cleanup EXIT
+
+#################################################
+# Prepare the run directory
+#################################################
+cp -R "${TESTDIR}"/* "${RUNDIR}/"
+
+#################################################
+# Execute the test suite
+#################################################
+run-step() {
     local script="$1"
     if [ ! -x "$script" ]; then
         log-warn "skipping \"$script\"; not executable"
         return
     fi
     log-debug "executing $(basename "$script")..."
-    (source "${COMMON}" && source "$script")
+    # shellcheck source=./common
+    (source "${COMMON}" && set -e -o pipefail && source "$script")
 }
-
-exec-script-opt() {
-    if [ -f "$1" ]; then
-        exec-script "$1"
-    fi
-}
-
-cleanup() {
-    exec-script-opt "${RUNDIR}/99-teardown"
-    if [ -f "${RUNDIR}/success" ]; then
-        rm -rf "${RUNDIR}"
-        log-success "\"${TESTNAME}\" test succeeded."
-    else
-        rm -rf "${RUNDIR}"
-        log-err "\"${TESTNAME}\" test failed."
-        exit 1
-    fi
-}
-
-trap cleanup EXIT
-
-#################################################
-# Prepare the run directory
-#################################################
-log-info "preparing \"${TESTNAME}\"..."
-cp -R "${TESTDIR}"/* "${RUNDIR}/"
-
-SETUP="${RUNDIR}/00-setup"
-TEARDOWN="${RUNDIR}/99-teardown"
-[ -x "${SETUP}" ] || fail-now "missing required 00-setup script"
-[ -x "${TEARDOWN}" ] || fail-now "missing required 99-teardown script"
-
-#################################################
-# Execute the test
-#################################################
-log-info "running \"${TESTNAME}\"..."
 
 cd "${RUNDIR}" || fail-now "cannot change to run directory"
-for step in "${RUNDIR}"/??-*; do
-    # The teardown script is invoked explicitly during cleanup
-    [ "${step}" != "${TEARDOWN}" ] || continue
-
-    if ! exec-script "$step"; then 
-        log-err "step $(basename "$step") failed"
-        break
+shopt -s nullglob
+steps=( ??-* )
+if [ ${#steps[@]} -eq 0 ]; then
+    fail-now "test suite has no steps"
+fi
+for step in "${steps[@]}"; do
+    if ! run-step "$step"; then 
+        fail-now "step $(basename "$step") failed"
     fi
 done
+
+export SUCCESS=1

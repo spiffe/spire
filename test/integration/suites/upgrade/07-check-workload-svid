@@ -11,5 +11,3 @@ docker-compose exec new-spire-agent \
 if cmp --silent svids/after-server-upgrade/svid.0.pem svids/after-agent-upgrade/svid.0.pem; then
     fail-now "SVID comparison failed unexpectedly after agent restart"
 fi
-
-touch success
