@@ -188,6 +188,8 @@ build_race_test() {
 }
 
 build_integration() {
+	eval "$(build_env)"
+
 	make integration
 }
 

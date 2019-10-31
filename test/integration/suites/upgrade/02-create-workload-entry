@@ -13,7 +13,7 @@ docker-compose exec old-spire-server \
 MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "checking for synced workload entry ($i of $MAXCHECKS)..."
+    log-info "checking for synced workload entry ($i of $MAXCHECKS max)..."
     docker-compose logs old-spire-agent
     if docker-compose logs old-spire-agent | grep "spiffe://domain.test/workload"; then
         exit 0

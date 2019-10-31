@@ -22,6 +22,8 @@ var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
 
+const rpcTimeout = 30 * time.Second
+
 type JWTSVID struct {
 	Token     string
 	IssuedAt  time.Time
@@ -66,6 +68,9 @@ func New(c *Config) *client {
 }
 
 func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest, forRotation bool) (*Update, error) {
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
 	if !forRotation {
 		c.c.RotMtx.RLock()
 		defer c.c.RotMtx.RUnlock()
@@ -132,6 +137,9 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 }
 
 func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error) {
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-export KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
+KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
+export KUBECONFIG
 
 wait-for-rollout() {
     ns=$1
@@ -13,7 +14,7 @@ wait-for-rollout() {
             return
         fi
         log-warn "describing ${ns} ${obj}..."
-        ./bin/kubectl "-n${ns}" describe "$obj"
+        ./bin/kubectl "-n${ns}" describe "$obj" || true
         log-warn "logs for ${ns} ${obj}..."
         ./bin/kubectl "-n${ns}" logs --all-containers "$obj" || true
     done

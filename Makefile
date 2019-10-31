@@ -21,12 +21,14 @@ gopath := $(shell go env GOPATH)
 goversion := $(shell go version | cut -f3 -d' ')
 goversion-required := $(shell cat .go-version)
 gittag := $(shell git tag --points-at HEAD)
+githash := $(shell git rev-parse --short=7 HEAD)
 gitdirty := $(shell git status -s)
 # don't provide the git tag if the git status is dirty.
 ifneq ($(gitdirty),)
 	gittag :=
+	githash :=
 endif
-ldflags := '-s -w -X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
+ldflags := '-s -w -X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag) -X github.com/spiffe/spire/pkg/common/version.githash=$(githash)'
 
 utils = github.com/spiffe/spire/tools/spire-plugingen
 
@@ -73,7 +75,7 @@ endif
 
 
 integration: ## Run integration tests
-	$(docker) script/e2e_test.sh
+	test/integration/test-all.sh
 
 ##@ Cleaning
 clean: ## Go-clean object files

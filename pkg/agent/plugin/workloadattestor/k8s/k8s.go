@@ -33,8 +33,8 @@ import (
 
 const (
 	pluginName               = "k8s"
-	defaultMaxPollAttempts   = 5
-	defaultPollRetryInterval = time.Millisecond * 300
+	defaultMaxPollAttempts   = 60
+	defaultPollRetryInterval = time.Millisecond * 500
 	defaultSecureKubeletPort = 10250
 	defaultKubeletCAPath     = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token"
@@ -48,7 +48,6 @@ type containerLookup int
 const (
 	containerInPod = iota
 	containerNotInPod
-	containerMaybeInPod
 )
 
 var k8sErr = errs.Class("k8s")
@@ -175,8 +174,7 @@ func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	log := p.log.With(telemetry.ContainerID, containerID)
 
 	// Poll pod information and search for the pod with the container. If
-	// the pod is not found, and there are pods with containers that aren't
-	// fully initialized, delay for a little bit and try again.
+	// the pod is not found then delay for a little bit and try again.
 	for attempt := 1; ; attempt++ {
 		log = log.With(telemetry.Attempt, attempt)
 
@@ -185,7 +183,6 @@ func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 			return nil, err
 		}
 
-		notAllContainersReady := false
 		for _, item := range list.Items {
 			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
@@ -193,15 +190,12 @@ func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 				return &workloadattestor.AttestResponse{
 					Selectors: getSelectorsFromPodInfo(&item, status),
 				}, nil
-			case containerMaybeInPod:
-				notAllContainersReady = true
 			case containerNotInPod:
 			}
 		}
 
-		// if the container was not located and there were no pods with
-		// uninitialized containers, then the search is over.
-		if !notAllContainersReady || attempt >= config.MaxPollAttempts {
+		// if the container was not located after the maximum number of attempts then the search is over.
+		if attempt >= config.MaxPollAttempts {
 			log.Warn("container id not found; giving up")
 			return nil, k8sErr.New("no selectors found")
 		}
@@ -561,12 +555,10 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 }
 
 func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.ContainerStatus, containerLookup) {
-	notReady := false
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
 		// container id sufficient to know the container is not ready?
 		if status.ContainerID == "" {
-			notReady = true
 			continue
 		}
 
@@ -585,7 +577,6 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 		// TODO: should we be keying off of the status or is the lack of a
 		// container id sufficient to know the container is not ready?
 		if status.ContainerID == "" {
-			notReady = true
 			continue
 		}
 
@@ -598,10 +589,6 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 		if containerID == containerURL.Host {
 			return &status, containerInPod
 		}
-	}
-
-	if notReady {
-		return nil, containerMaybeInPod
 	}
 
 	return nil, containerNotInPod

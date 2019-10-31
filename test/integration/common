@@ -14,10 +14,6 @@ log-info() {
     echo "${bold}$(timestamp) $*${norm}"
 }
 
-log-err() {
-    echo "${red}$(timestamp) $*${norm}"
-}
-
 log-warn() {
     echo "${yellow}$(timestamp) $*${norm}"
 }
@@ -31,7 +27,7 @@ log-debug() {
 }
 
 fail-now() {
-    log-err "$*"
+    echo "${red}$(timestamp) $*${norm}"
     exit 1
 }
 

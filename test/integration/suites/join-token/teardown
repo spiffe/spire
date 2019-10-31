@@ -1,1 +1,6 @@
-[ ! -f docker-compose.yaml ] || docker-down
+#!/bin/bash
+
+if [ -z "$SUCCESS" ]; then
+    docker-compose logs
+fi
+docker-down

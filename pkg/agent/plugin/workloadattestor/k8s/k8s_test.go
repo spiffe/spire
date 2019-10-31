@@ -191,9 +191,9 @@ func (s *K8sAttestorSuite) TestAttestWithPidInPodAfterRetry() {
 	resultCh := s.goAttest()
 
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(defaultPollRetryInterval)
+	s.clock.Add(time.Second)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(defaultPollRetryInterval)
+	s.clock.Add(time.Second)
 
 	select {
 	case result := <-resultCh:
@@ -234,13 +234,13 @@ func (s *K8sAttestorSuite) TestAttestWithPidNotInPodAfterRetry() {
 	resultCh := s.goAttest()
 
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(defaultPollRetryInterval)
+	s.clock.Add(time.Second)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(defaultPollRetryInterval)
+	s.clock.Add(time.Second)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(defaultPollRetryInterval)
+	s.clock.Add(time.Second)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(defaultPollRetryInterval)
+	s.clock.Add(time.Second)
 
 	select {
 	case result := <-resultCh:
@@ -660,6 +660,8 @@ func (s *K8sAttestorSuite) configure(configuration string) {
 func (s *K8sAttestorSuite) configureInsecure() {
 	s.configure(fmt.Sprintf(`
 		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
 `, s.kubeletPort()))
 }
 
