@@ -14,5 +14,4 @@ for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
     sleep "${CHECKINTERVAL}"
 done
 
-log-err "Proxying failed"
-docker-compose exec upstream-workload cat /tmp/howdy
+fail-now "Proxy failed"

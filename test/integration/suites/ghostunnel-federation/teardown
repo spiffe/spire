@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ ! -f success ]; then
+if [ -z "${SUCCESS}" ]; then
     docker-compose logs
 fi
 docker-down
