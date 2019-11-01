@@ -42,6 +42,7 @@ A sample configuration:
                 "DD14E835-679A-4703-B4DE-8F00A20C732E" = {
                     resource_id = "http://example.org/app/"
                 }
+            }
         }
     }
 ```
