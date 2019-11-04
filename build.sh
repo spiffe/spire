@@ -42,14 +42,6 @@ declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
 _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
 
-_artifact_dirs() {
-	find cmd/* -maxdepth 0 -type d 2>/dev/null
-}
-
-_release_dirs() {
-	find cmd/* -maxdepth 0 -type d 2>/dev/null
-}
-
 _fetch_url() {
 	mkdir -p "${BUILD_CACHE}"
 	if [[ ! -r ${BUILD_CACHE}/${2} ]]; then
@@ -198,22 +190,14 @@ build_release() {
 	_tag="$(git describe --abbrev=0 2>/dev/null || true)"
 	_always="$(git describe --always || true)"
 	if [[ "$_tag" == "$_always" ]]; then
-		build_artifact "$_tag" "$(_release_dirs)"
+		build_artifact "$_tag"
 	fi
 }
 
 ## Create a distributable tar.gz of all the binaries
 build_artifact() {
-	local _version="$1" _dirs="$2"
+	local _version="$1"
 	local _libc _tgz _sum _binaries _n _tmp _tar_opts=()
-
-	[[ -z "$_dirs" ]] && _dirs="$(_artifact_dirs)"
-	_dirs_array=()
-	for _dir in $_dirs; do
-		_dirs_array+=( "$_dir" )
-	done
-	_binaries="$(find "${_dirs_array[@]}" -perm -u=x -a -type f)"
-
 
 	# handle the case that we're building for alpine
 	if [[ $OS1 == linux ]]; then
@@ -242,26 +226,16 @@ build_artifact() {
 	rm -rf "$(dirname "$_tmp")"
 	mkdir -p "$_tmp"
 
-	# ensure empty .data dir is available
-	mkdir "$_tmp/.data"
+	# Copy in the contents under release/
+	cp -r release/* "$_tmp"
 
-	# we munge the file structure a bit here
-	for _n in $_binaries; do
-		if [[ $_n == *cmd/* ]]; then
-			cp "$_n" $_tmp
-		else
-			mkdir -p "${_tmp}/$(dirname "$(dirname "$_n")")"
-			cp -r "$_n" "${_tmp}/$(dirname "$_n")"
-		fi
-	done
-	for _n in $RELEASE_FILES; do
-		cp -r "$_n" "$_tmp"
-	done
+	# Copy in the LICENSE
+	cp LICENSE "$_tmp"
 
-	# anchor relative paths in configuration files to /opt/spire. the backup
-	# extension supplied to sed is only for easy cross-platform in-place
-	# replacement because of differences between macOS and linux sed.
-	find "$_tmp/conf" -type f -name "*.conf" -print0 | xargs -0 -I % -n1 sh -c "sed -i.bak -e 's#= \"./#= \"/opt/spire/#g' %; rm %.bak"
+	# Copy in the SPIRE binaries
+	mkdir -p "$_tmp"/bin
+	cp bin/spire-server "$_tmp"/bin
+	cp bin/spire-agent "$_tmp"/bin
 
 	tar -cvzf "$_tgz" --directory .tmp "${_tar_opts[@]}" "$(basename "$_tmp")"
 	echo "$(shasum -a 256 "$_tgz" | cut -d' ' -f1) $(basename "$_tgz")" > "$_sum"
