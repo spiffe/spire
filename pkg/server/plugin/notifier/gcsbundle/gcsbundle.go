@@ -1,4 +1,4 @@
-package gcpbundle
+package gcsbundle
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtIn(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin("gcpbundle",
+	return catalog.MakePlugin("gcs_bundle",
 		notifier.PluginServer(p),
 	)
 }
@@ -58,7 +58,7 @@ type Plugin struct {
 
 func New() *Plugin {
 	p := &Plugin{}
-	p.hooks.newBucketClient = newGCPBucketClient
+	p.hooks.newBucketClient = newGCSBucketClient
 	return p
 }
 
@@ -157,29 +157,29 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 	defer client.Close()
 
 	for {
-		// Get the config map so we can use the version to resolve conflicts racing
-		// on updates from other servers.
+		// Get the bundle object generation that we can use to resolve
+		// conflicts racing on updates from other servers.
 		generation, err := client.GetObjectGeneration(ctx, c.Bucket, c.ObjectPath)
 		if err != nil {
-			return status.Errorf(codes.Unknown, "unable to get bundle object %s/%s generation: %v", c.Bucket, c.ObjectPath, err)
+			return status.Errorf(codes.Unknown, "unable to get bundle object %s/%s: %v", c.Bucket, c.ObjectPath, err)
 		}
-		p.log.Debug("Bundle object generation retrieved", telemetry.Generation, generation)
+		p.log.Debug("Bundle object retrieved", telemetry.Generation, generation)
 
 		// Load bundle data from the the identity provider. The bundle has to
-		// be loaded after fetching the config map so we can properly detect
+		// be loaded after fetching the generation so we can properly detect
 		// and correct a race updating the bundle (i.e. read-modify-write
 		// semantics).
 		resp, err := p.identityProvider.FetchX509Identity(ctx, &hostservices.FetchX509IdentityRequest{})
 		if err != nil {
 			st := status.Convert(err)
-			return status.Errorf(st.Code(), "unable to fetch bundle from identity provider: %v", st.Message())
+			return status.Errorf(st.Code(), "unable to fetch bundle from SPIRE server: %v", st.Message())
 		}
 
 		// Upload the bundle, handling version conflicts
 		if err := client.PutObject(ctx, c.Bucket, c.ObjectPath, bundleData(resp.Bundle), generation); err != nil {
 			// If there is a conflict then some other server won the race updating
 			// the object. We need to retrieve the latest bundle and try again.
-			if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusPreconditionFailed {
+			if isConditionNotMetError(err) {
 				p.log.Debug("Conflict detected setting bundle object", telemetry.Generation, generation)
 				continue
 			}
@@ -190,11 +190,11 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 	}
 }
 
-type gcpBucketClient struct {
+type gcsBucketClient struct {
 	client *storage.Client
 }
 
-func newGCPBucketClient(ctx context.Context, serviceAccountFile string) (bucketClient, error) {
+func newGCSBucketClient(ctx context.Context, serviceAccountFile string) (bucketClient, error) {
 	var opts []option.ClientOption
 	if serviceAccountFile != "" {
 		opts = append(opts, option.WithCredentialsFile(serviceAccountFile))
@@ -204,12 +204,12 @@ func newGCPBucketClient(ctx context.Context, serviceAccountFile string) (bucketC
 		return nil, errs.Wrap(err)
 	}
 
-	return &gcpBucketClient{
+	return &gcsBucketClient{
 		client: client,
 	}, nil
 }
 
-func (c *gcpBucketClient) GetObjectGeneration(ctx context.Context, bucket, object string) (int64, error) {
+func (c *gcsBucketClient) GetObjectGeneration(ctx context.Context, bucket, object string) (int64, error) {
 	attrs, err := c.client.Bucket(bucket).Object(object).Attrs(ctx)
 	if err != nil {
 		if err == storage.ErrObjectNotExist {
@@ -220,7 +220,7 @@ func (c *gcpBucketClient) GetObjectGeneration(ctx context.Context, bucket, objec
 	return attrs.Generation, nil
 }
 
-func (c *gcpBucketClient) PutObject(ctx context.Context, bucket, object string, data []byte, generation int64) error {
+func (c *gcsBucketClient) PutObject(ctx context.Context, bucket, object string, data []byte, generation int64) error {
 	// If for whatever reason we don't make it to w.Close(), canceling the
 	// context will cleanly release resources held by the writer.
 	ctx, cancel := context.WithCancel(ctx)
@@ -241,11 +241,11 @@ func (c *gcpBucketClient) PutObject(ctx context.Context, bucket, object string, 
 	return nil
 }
 
-func (c *gcpBucketClient) Close() error {
+func (c *gcsBucketClient) Close() error {
 	return c.client.Close()
 }
 
-// bundleData formats the bundle data for inclusion in the config map
+// bundleData formats the bundle data for storage in GCS
 func bundleData(bundle *common.Bundle) []byte {
 	bundleData := new(bytes.Buffer)
 	for _, rootCA := range bundle.RootCas {
@@ -255,4 +255,15 @@ func bundleData(bundle *common.Bundle) []byte {
 		})
 	}
 	return bundleData.Bytes()
+}
+
+func isConditionNotMetError(err error) bool {
+	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusPreconditionFailed {
+		for _, errorItem := range e.Errors {
+			if errorItem.Reason == "conditionNotMet" {
+				return true
+			}
+		}
+	}
+	return false
 }

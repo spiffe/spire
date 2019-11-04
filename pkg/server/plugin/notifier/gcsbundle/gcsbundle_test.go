@@ -1,4 +1,4 @@
-package gcpbundle
+package gcsbundle
 
 import (
 	"context"
@@ -160,12 +160,12 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) er
 				return nil
 			},
 			code: codes.Unknown,
-			desc: "unable to get bundle object the-bucket/bundle.pem generation: OHNO!",
+			desc: "unable to get bundle object the-bucket/bundle.pem: OHNO!",
 		},
 		{
 			name: "failed to fetch bundle from identity provider",
 			code: codes.Unknown,
-			desc: "unable to fetch bundle from identity provider: no bundle",
+			desc: "unable to fetch bundle from SPIRE server: no bundle",
 		},
 		{
 			name:    "failed to put object",
@@ -189,11 +189,27 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) er
 			configureBucketClient: func(client *fakeBucketClient) error {
 				client.AppendPutObjectError(&googleapi.Error{
 					Code: http.StatusPreconditionFailed,
+					Errors: []googleapi.ErrorItem{
+						{Reason: "conditionNotMet"},
+					},
 				})
 				return nil
 			},
 			code:           codes.OK,
 			expectedBundle: bundle2,
+		},
+		{
+			name:    "failed with unrelated precondition failed error",
+			bundles: []*common.Bundle{bundle1, bundle2},
+			configureBucketClient: func(client *fakeBucketClient) error {
+				client.AppendPutObjectError(&googleapi.Error{
+					Code: http.StatusPreconditionFailed,
+					Body: "OHNO!",
+				})
+				return nil
+			},
+			code: codes.Unknown,
+			desc: "unable to update bundle object the-bucket/bundle.pem: googleapi: got HTTP response code 412 with body: OHNO!",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
