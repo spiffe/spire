@@ -185,7 +185,7 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 			}
 			return status.Errorf(codes.Unknown, "unable to update bundle object %s/%s: %v", c.Bucket, c.ObjectPath, err)
 		}
-
+		p.log.Debug("Bundle object updated", telemetry.Generation, generation)
 		return nil
 	}
 }
