@@ -1,12 +1,13 @@
 #!/bin/sh
 
-export KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
+KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
+export KUBECONFIG
 
 MAXFETCHCHECKS=60
 FETCHCHECKINTERVAL=1
-for ((i=0; i<${MAXFETCHCHECKS}; i++)); do
+for ((i=1; i<=${MAXFETCHCHECKS}; i++)); do
     EXAMPLEPOD=$(./bin/kubectl -nspire get pod -l app=example-workload -o jsonpath="{.items[0].metadata.name}")
-    log-info "checking for workload SPIFFE ID..."
+    log-info "checking for workload SPIFFE ID ($i of $MAXFETCHCHECKS max)..."
     if ./bin/kubectl -nspire exec -t "${EXAMPLEPOD}" -- \
         /opt/spire/bin/spire-agent api fetch \
             -socketPath /run/spire/sockets/agent.sock \
@@ -16,9 +17,9 @@ for ((i=0; i<${MAXFETCHCHECKS}; i++)); do
     fi
     sleep "${FETCHCHECKINTERVAL}" 
 done
+
 if [ "${DONE}" -eq 1 ]; then
     log-info "SPIFFE ID found."
-    touch success
 else
     fail-now "timed out waiting for workload to obtain credentials."
 fi

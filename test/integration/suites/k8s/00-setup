@@ -1,9 +1,7 @@
 #!/bin/bash
 
-KUBECTLPATH=$(command -v kubectl)
-KINDPATH=$(command -v kind)
-
-set -e
+KUBECTLPATH=$(command -v kubectl || echo)
+KINDPATH=$(command -v kind || echo)
 
 UNAME=$(uname | awk '{print tolower($0)}')
 
