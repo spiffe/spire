@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -126,9 +125,9 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 				c.c.Log.WithFields(logrus.Fields{
 					telemetry.RegistrationID: re.EntryId,
 					telemetry.SPIFFEID:       re.SpiffeId,
-					telemetry.Selectors:      strconv.Itoa(len(re.Selectors)),
+					telemetry.Selectors:      re.Selectors,
 					telemetry.Error:          err.Error(),
-				}).Warn("Entry failed validation")
+				}).Warn("Received malformed entry from SPIRE server")
 				continue
 			}
 			regEntries[re.EntryId] = re
