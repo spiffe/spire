@@ -5,16 +5,41 @@ test-mysql() {
 
     docker-up "${SERVICE}"
 
-    # Wait for mysql to be available
-    NUMCHECKS=15
-    CHECKINTERVAL=3
+    # The MySQL containers start up the MySQL instance to initialize the 
+    # database. It is then brought down and started again. If we do a
+    # connectivity check during the initialization step, we might
+    # assume the database is ready to go prematurely. To prevent this, we
+    # will check for the log message indicating that initialization is complete.
+    INITMSG="MySQL init process done. Ready for start up."
+    MAXINITCHECKS=40
+    INITCHECKINTERVAL=3
+    INIT=
+    for ((i=1;i<=MAXINITCHECKS;i++)); do
+        log-info "waiting for ${SERVICE} database initialization ($i of $MAXINITCHECKS max)..."
+        if docker-compose logs "${SERVICE}" | grep "$INITMSG"; then
+            INIT=1
+            break
+        fi
+        sleep "${INITCHECKINTERVAL}"
+    done
+
+    if [ -z ${INIT} ]; then
+        fail-now "timed out waiting for ${SERVICE} database to be initialized"
+    fi
+
+
+    # Wait up to two minutes for mysql to be available. It should come up
+    # pretty quick on developer machines but Travis is slow.
+    MAXREADYCHECKS=40
+    READYCHECKINTERVAL=3
     READY=
-    for ((i=1;i<=NUMCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} ($i of $NUMCHECKS)..."
+    for ((i=1;i<=MAXREADYCHECKS;i++)); do
+        log-info "waiting for ${SERVICE} to be ready ($i of $MAXREADYCHECKS max)..."
         if docker-compose exec "${SERVICE}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
             READY=1
             break
         fi
+        sleep "${READYCHECKINTERVAL}"
     done
 
     if [ -z ${READY} ]; then
@@ -30,5 +55,3 @@ test-mysql mysql-5-5 || exit 1
 test-mysql mysql-5-6 || exit 1
 test-mysql mysql-5-7 || exit 1
 test-mysql mysql-8-0 || exit 1
-
-touch success

@@ -11,6 +11,3 @@ for ((i=1;i<=NUMCHECKS;i++)); do
         /opt/spire/bin/spire-agent api fetch x509 || fail-now "SVID check failed"
     sleep "${CHECKINTERVAL}"
 done
-
-# rotation appears successful. touch the "success" file to pass the test.
-touch success

@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 mkdir -p shared/server-data
 mkdir -p shared/agent-data
 mkdir -p test/before-server-upgrade
