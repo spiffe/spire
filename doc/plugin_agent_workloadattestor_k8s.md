@@ -41,6 +41,8 @@ that can impact permission revocation.
 | `private_key_path` | The path on disk to client key used for kubelet authentication |
 | `node_name_env` | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`. |
 | `node_name` | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`. |
+| `poll_retry_interval` | The time to wait between retries when attesting a workload. Defaults to `300ms`. |
+| `max_poll_attempts` | The number of attempts to attest a workload before giving up. Defaults to `5`. |
 
 | Selector | Value |
 | -------- | ----- |
