@@ -9,8 +9,6 @@ if [[ -n $TRAVIS ]] ; then
 	BUILD_ROOT=$HOME/.build
 fi
 
-declare -r RELEASE_FILES="LICENSE README.md conf"
-
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
 			declare -r OS2="osx"
@@ -197,7 +195,7 @@ build_release() {
 ## Create a distributable tar.gz of all the binaries
 build_artifact() {
 	local _version="$1"
-	local _libc _tgz _sum _binaries _n _tmp _tar_opts=()
+	local _libc _tgz _sum _n _tmp _tar_opts=()
 
 	# handle the case that we're building for alpine
 	if [[ $OS1 == linux ]]; then
