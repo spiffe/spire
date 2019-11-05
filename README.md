@@ -43,6 +43,10 @@ SPIRE provides an implementation of the [Envoy](https://envoyproxy.io)
 (SDS). SDS can be used to transparently install and rotate TLS certificates and
 trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
 
+# Upgrading SPIRE
+
+SPIRE server supports zero-downtime upgrades when there's more than one SPIRE server in the cluster. Please seee the [Managing Upgrades/Downgrades](doc/upgrading.md) guide for more information on SPIRE versioning and supported upgrade paths.
+
 # Getting Help
 
 If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIFFE Slack Organization](https://slack.spiffe.io/). Most of the maintainers monitor the #spire channel there, and can help direct you to other channels if need be. Please feel free to drop by any time!
