@@ -189,7 +189,6 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		SpiffeId: spiffeID,
 		Claims:   s,
 	}, nil
-
 }
 
 // FetchX509SVID processes request for an x509 SVID
@@ -209,7 +208,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		select {
 		case update := <-subscriber.Updates():
 			start := time.Now()
-			err := h.sendX509SVIDResponse(update, stream, metrics, selectors)
+			err := h.sendX509SVIDResponse(update, stream, metrics)
 			if err != nil {
 				return err
 			}
@@ -230,7 +229,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 }
 
-func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) (err error) {
+func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics) (err error) {
 	counter := telemetry_workload.StartFetchX509SVIDCall(metrics)
 	defer counter.Done(&err)
 

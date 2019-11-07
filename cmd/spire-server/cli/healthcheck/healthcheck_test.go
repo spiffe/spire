@@ -126,10 +126,14 @@ func (s *HealthCheckSuite) serveRegistrationAPI(r registration.RegistrationServe
 
 	server := grpc.NewServer()
 	registration.RegisterRegistrationServer(server, r)
-	go server.Serve(listener)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
 	return socketPath, func() {
 		server.Stop()
 		os.RemoveAll(dir)
+		s.Require().NoError(<-errCh)
 	}
 }
 

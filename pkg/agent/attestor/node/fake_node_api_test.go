@@ -25,8 +25,14 @@ func startNodeServer(t *testing.T, tlsConfig *tls.Config, apiConfig fakeNodeAPIC
 	require.NoError(t, err)
 	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 	node.RegisterNodeServer(server, newFakeNodeAPI(apiConfig))
-	go server.Serve(listener)
-	return listener.Addr().String(), server.Stop
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
+	return listener.Addr().String(), func() {
+		server.Stop()
+		require.NoError(t, <-errCh)
+	}
 }
 
 type fakeNodeAPIConfig struct {

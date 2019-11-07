@@ -86,12 +86,16 @@ func TestWarnOnFutureDisable(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go ir.run(ctx)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- ir.run(ctx)
+	}()
 
 	// Send signal, wait for signal handling + logging
 	util.RunWithTimeout(t, time.Minute, func() {
 		for {
-			syscall.Kill(os.Getpid(), metrics.DefaultSignal)
+			require.NoError(t, syscall.Kill(os.Getpid(), metrics.DefaultSignal))
 
 			require.NoError(t, ctx.Err())
 
@@ -104,6 +108,9 @@ func TestWarnOnFutureDisable(t *testing.T) {
 			}
 		}
 	})
+
+	cancel()
+	require.NoError(t, <-errCh)
 }
 
 func TestInmemSinks(t *testing.T) {

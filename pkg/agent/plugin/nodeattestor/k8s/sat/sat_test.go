@@ -129,8 +129,8 @@ func (s *AttestorSuite) configure(config AttestorConfig) {
 			token_path = %q`, config.TokenPath),
 	})
 	s.Require().NoError(err)
-
 }
+
 func (s *AttestorSuite) joinPath(path string) string {
 	return filepath.Join(s.dir, path)
 }

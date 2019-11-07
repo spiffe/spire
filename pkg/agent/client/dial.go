@@ -32,7 +32,7 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 	tlsConfig := &tls.Config{
 		// Disable standard verification. The VerifyPeerCertificate callback
 		// will implement SPIFFE authentication.
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: true, //nolint: gosec
 
 		// Perform SPIFFE authentication against the latest bundle for the
 		// trust domain. The peer certificate must present the server SPIFFE
@@ -66,7 +66,7 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 	}
 
 	return grpc.DialContext(ctx, config.Address,
-		grpc.WithBalancerName(roundrobin.Name),
+		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)

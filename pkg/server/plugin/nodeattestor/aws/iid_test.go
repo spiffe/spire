@@ -91,7 +91,9 @@ func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
 	// the stream should open but the plugin should immediately return an error
 	stream, err := s.p.Attest(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	// Send() will either succeed or return EOF if the gRPC stream has already
 	// been torn down due to the plugin-side failure.
@@ -353,6 +355,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
 			mockCtl := gomock.NewController(s.T())
 			defer mockCtl.Finish()
@@ -533,7 +536,9 @@ func getDefaultDescribeInstancesOutput() ec2.DescribeInstancesOutput {
 func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 	err = stream.Send(req)
 	s.Require().NoError(err)
 	return stream.Recv()

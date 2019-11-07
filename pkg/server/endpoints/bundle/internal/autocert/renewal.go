@@ -64,6 +64,7 @@ func (dr *domainRenewal) start(exp time.Time) {
 
 // stop stops the cert renewal timer.
 // If the timer is already stopped, calling stop is a noop.
+//nolint:unused
 func (dr *domainRenewal) stop() {
 	dr.timerMu.Lock()
 	defer dr.timerMu.Unlock()

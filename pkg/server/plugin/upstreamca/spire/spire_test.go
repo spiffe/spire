@@ -89,7 +89,7 @@ func (w *whandler) startWAPITestServer(t *testing.T) {
 	l, err := net.Listen("unix", w.socketPath)
 	require.NoError(t, err)
 
-	go func() { w.server.Serve(l) }()
+	go func() { _ = w.server.Serve(l) }()
 }
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
@@ -116,6 +116,9 @@ func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWork
 	block, rest := pem.Decode(certPEM)
 	if block == nil {
 		return errors.New("error : invalid cert format")
+	}
+	if len(rest) > 0 {
+		return errors.New("error : invalid key format - too many certs")
 	}
 
 	svid := &w_pb.X509SVID{
@@ -160,7 +163,7 @@ func (h *handler) startNodeAPITestServer(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	h.addr = l.Addr().String()
-	go func() { h.server.Serve(l) }()
+	go func() { _ = h.server.Serve(l) }()
 }
 
 func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {

@@ -32,6 +32,8 @@
 // - Verifies signatures on incoming requests to ensure requests are signed
 //   appropriately by the SPIRE KeyManager signers.
 // - Fails new-reg requests if the terms-of-service has not been accepted
+
+//nolint
 package acmetest
 
 import (
@@ -82,7 +84,7 @@ type CAServer struct {
 	domainAddr     map[string]string         // domain name to addr:port resolution
 	authorizations map[string]*authorization // keyed by domain name
 	orders         []*order                  // index is used as order ID
-	errors         []error                   // encountered client errors
+	errors         []error                   //nolint:structcheck,unused
 
 	accountKeysMu sync.Mutex
 	accountKeys   map[string]interface{}

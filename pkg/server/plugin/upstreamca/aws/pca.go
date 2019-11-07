@@ -83,7 +83,7 @@ func (m *PCAPlugin) SetLogger(log hclog.Logger) {
 
 // Configure sets up the plugin for use as an upstream CA
 func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config, err := m.validateConfig(ctx, req)
+	config, err := m.validateConfig(req)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func (m *PCAPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSR
 }
 
 // validateConfig returns an error if any configuration provided does not meet acceptable criteria
-func (m *PCAPlugin) validateConfig(ctx context.Context, req *spi.ConfigureRequest) (*PCAPluginConfiguration, error) {
+func (m *PCAPlugin) validateConfig(req *spi.ConfigureRequest) (*PCAPluginConfiguration, error) {
 	config := new(PCAPluginConfiguration)
 
 	if err := hcl.Decode(&config, req.Configuration); err != nil {

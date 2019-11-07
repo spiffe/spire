@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // import registers routes on DefaultServeMux
+	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"net/url"
 	"os"
 	"runtime"
@@ -203,7 +203,9 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			<-ctx.Done()
-			server.Shutdown(ctx)
+			if err := server.Shutdown(ctx); err != nil {
+				s.config.Log.WithError(err).Warn("unable to shutdown the server cleanly")
+			}
 		}()
 	}
 	if s.config.ProfilingFreq > 0 {
@@ -230,7 +232,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
-	metricsService common_services.MetricsService) (*catalog.CatalogCloser, error) {
+	metricsService common_services.MetricsService) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
@@ -244,7 +246,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 }
 
 func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
-	return ca.NewCA(ca.CAConfig{
+	return ca.NewCA(ca.Config{
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:     metrics,
 		X509SVIDTTL: s.config.SVIDTTL,

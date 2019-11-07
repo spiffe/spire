@@ -15,7 +15,7 @@ const (
 	// AccessKeyIDVarName env var name for AWS access key ID
 	AccessKeyIDVarName = "AWS_ACCESS_KEY_ID"
 	// SecretAccessKeyVarName env car name for AWS secret access key
-	SecretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY"
+	SecretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
 )
 
 // SessionConfig is a common config for AWS session config.

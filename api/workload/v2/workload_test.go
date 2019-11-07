@@ -208,7 +208,7 @@ func (s *stubbedAPI) StartServer() {
 		sendX509Response: make(chan string),
 	}
 	workload.RegisterSpiffeWorkloadAPIServer(server, handler)
-	go func() { server.Serve(l) }()
+	go func() { _ = server.Serve(l) }()
 
 	s.Server = server
 	s.Handler = handler
@@ -251,11 +251,12 @@ func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 	for {
 		select {
 		case name := <-m.sendX509Response:
-			stream.Send(m.resp(name))
+			if err := stream.Send(m.resp(name)); err != nil {
+				return err
+			}
 			m.fetchX509Waiter <- struct{}{}
 		case <-m.done:
 			return nil
-
 		}
 	}
 }

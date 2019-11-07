@@ -37,7 +37,7 @@ const (
 	defaultPollRetryInterval = time.Millisecond * 500
 	defaultSecureKubeletPort = 10250
 	defaultKubeletCAPath     = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token"
+	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 	defaultNodeNameEnv       = "MY_NODE_NAME"
 	defaultReloadInterval    = time.Minute
 	kubePodsPrefix           = "/kubepods"
@@ -56,12 +56,12 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *K8SPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
 }
 
-// k8sHCLConfig holds the configuration parsed from HCL
-type k8sHCLConfig struct {
+// HCLConfig holds the configuration parsed from HCL
+type HCLConfig struct {
 	// KubeletReadOnlyPort defines the read only port for the kubelet
 	// (typically 10255). This option is mutally exclusive with
 	// KubeletSecurePort.
@@ -133,7 +133,7 @@ type k8sConfig struct {
 	LastReload time.Time
 }
 
-type K8SPlugin struct {
+type Plugin struct {
 	log    hclog.Logger
 	fs     cgroups.FileSystem
 	clock  clock.Clock
@@ -143,19 +143,19 @@ type K8SPlugin struct {
 	config *k8sConfig
 }
 
-func New() *K8SPlugin {
-	return &K8SPlugin{
+func New() *Plugin {
+	return &Plugin{
 		fs:     cgroups.OSFileSystem{},
 		clock:  clock.New(),
 		getenv: os.Getenv,
 	}
 }
 
-func (p *K8SPlugin) SetLogger(log hclog.Logger) {
+func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -211,9 +211,9 @@ func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	}
 }
 
-func (p *K8SPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
+func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
 	// Parse HCL config payload into config struct
-	config := new(k8sHCLConfig)
+	config := new(HCLConfig)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, k8sErr.New("unable to decode configuration: %v", err)
 	}
@@ -292,17 +292,17 @@ func (p *K8SPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*K8SPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *K8SPlugin) setConfig(config *k8sConfig) {
+func (p *Plugin) setConfig(config *k8sConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
 }
 
-func (p *K8SPlugin) getConfig() (*k8sConfig, error) {
+func (p *Plugin) getConfig() (*k8sConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -310,12 +310,12 @@ func (p *K8SPlugin) getConfig() (*k8sConfig, error) {
 		return nil, k8sErr.New("not configured")
 	}
 	if err := p.reloadKubeletClient(p.config); err != nil {
-		// TODO: log error
+		p.log.Warn("Unable to load kubelet client", "err", err)
 	}
 	return p.config, nil
 }
 
-func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
+func (p *Plugin) getContainerIDFromCGroups(pid int32) (string, error) {
 	cgroups, err := cgroups.GetCgroups(pid, p.fs)
 	if err != nil {
 		return "", k8sErr.Wrap(err)
@@ -348,7 +348,7 @@ func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 	return "", nil
 }
 
-func (p *K8SPlugin) reloadKubeletClient(config *k8sConfig) (err error) {
+func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
 	// The insecure client only needs to be loaded once.
 	if !config.Secure {
 		if config.Client == nil {
@@ -368,7 +368,7 @@ func (p *K8SPlugin) reloadKubeletClient(config *k8sConfig) (err error) {
 	}
 
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: config.SkipKubeletVerification,
+		InsecureSkipVerify: config.SkipKubeletVerification, //nolint: gosec // intentionally configurable
 	}
 
 	var rootCAs *x509.CertPool
@@ -451,7 +451,7 @@ func (p *K8SPlugin) reloadKubeletClient(config *k8sConfig) (err error) {
 	return nil
 }
 
-func (p *K8SPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
+func (p *Plugin) loadKubeletCA(path string) (*x509.CertPool, error) {
 	if path == "" {
 		path = defaultKubeletCAPath
 	}
@@ -467,7 +467,7 @@ func (p *K8SPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
 	return newCertPool(certs), nil
 }
 
-func (p *K8SPlugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
+func (p *Plugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
 	certPEM, err := p.readFile(cert)
 	if err != nil {
 		return nil, k8sErr.New("unable to load certificate: %v", err)
@@ -483,7 +483,7 @@ func (p *K8SPlugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) 
 	return &kp, nil
 }
 
-func (p *K8SPlugin) loadToken(path string) (string, error) {
+func (p *Plugin) loadToken(path string) (string, error) {
 	if path == "" {
 		path = defaultTokenPath
 	}
@@ -495,7 +495,7 @@ func (p *K8SPlugin) loadToken(path string) (string, error) {
 }
 
 // readFile reads the contents of a file through the filesystem interface
-func (p *K8SPlugin) readFile(path string) ([]byte, error) {
+func (p *Plugin) readFile(path string) ([]byte, error) {
 	f, err := p.fs.Open(path)
 	if err != nil {
 		return nil, err
@@ -504,7 +504,7 @@ func (p *K8SPlugin) readFile(path string) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
-func (p *K8SPlugin) getNodeName(name string, env string) string {
+func (p *Plugin) getNodeName(name string, env string) string {
 	switch {
 	case name != "":
 		return name

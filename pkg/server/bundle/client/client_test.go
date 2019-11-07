@@ -54,12 +54,13 @@ func TestClient(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			serverCert, serverKey := createServerCertificate(t)
 
 			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				w.WriteHeader(testCase.status)
-				w.Write([]byte(testCase.body))
+				_, _ = w.Write([]byte(testCase.body))
 			}))
 			server.TLS = &tls.Config{
 				Certificates: []tls.Certificate{

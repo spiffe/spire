@@ -22,7 +22,7 @@ func TestEnsureNotAttested(t *testing.T) {
 	assert.NoError(err)
 
 	err = EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")
-	assert.EqualError(err, "unable to get agent info: OHNO!")
+	assert.EqualError(err, "unable to get agent info: ohno")
 }
 
 func TestIsAttested(t *testing.T) {
@@ -38,7 +38,7 @@ func TestIsAttested(t *testing.T) {
 	assert.False(attested)
 
 	attested, err = IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")
-	assert.EqualError(err, "unable to get agent info: OHNO!")
+	assert.EqualError(err, "unable to get agent info: ohno")
 	assert.False(attested)
 }
 
@@ -53,7 +53,7 @@ func (fakeAgentStore) GetAgentInfo(ctx context.Context, in *hostservices.GetAgen
 			},
 		}, nil
 	case "spiffe://domain.test/spire/agent/test/bad":
-		return nil, errors.New("OHNO!")
+		return nil, errors.New("ohno")
 	default:
 		return nil, status.Error(codes.NotFound, "agent not found")
 	}

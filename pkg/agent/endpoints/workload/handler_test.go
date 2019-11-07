@@ -164,7 +164,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.Metrics, []*common.Selector{})
+	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.Metrics)
 	s.Assert().Error(err)
 
 	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
@@ -186,7 +186,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.Metrics, []*common.Selector{})
+	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.Metrics)
 	s.Assert().NoError(err)
 }
 
@@ -361,7 +361,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsCount int, statusLabel telemetry.Label) {
-	attestorLabels := []telemetry.Label{{telemetry.Attestor, "fake"}, statusLabel}
+	attestorLabels := []telemetry.Label{{Name: telemetry.Attestor, Value: "fake"}, statusLabel}
 
 	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, float32(1), attestorLabels)
 	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.ElapsedTime}, gomock.Any(), attestorLabels)
@@ -648,6 +648,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			if testCase.workloadUpdate != nil {
 				// Setup a bunch of expectations around metrics if the test

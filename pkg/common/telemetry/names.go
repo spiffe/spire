@@ -106,8 +106,8 @@ const (
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
 
-	// CsrSpiffeId represents the SPIFFE ID in a Certificate Signing Request.
-	CsrSpiffeId = "csr_spiffe_id"
+	// CsrSpiffeID represents the SPIFFE ID in a Certificate Signing Request.
+	CsrSpiffeID = "csr_spiffe_id"
 
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"

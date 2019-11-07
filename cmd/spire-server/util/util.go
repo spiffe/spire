@@ -13,7 +13,7 @@ const (
 )
 
 func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer))
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer)) //nolint: staticcheck
 	if err != nil {
 		return nil, err
 	}

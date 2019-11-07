@@ -85,7 +85,6 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	p.sshserver = sshserver
 	p.mu.Unlock()
 	return &plugin.ConfigureResponse{}, nil
-
 }
 
 func (*Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {

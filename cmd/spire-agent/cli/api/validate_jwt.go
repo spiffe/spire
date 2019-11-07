@@ -53,13 +53,19 @@ func (c *validateJWTCommand) run(ctx context.Context, env *common_cli.Env, clien
 		return err
 	}
 
-	env.Println("SVID is valid.")
-	env.Println("SPIFFE ID :", resp.SpiffeId)
+	if err := env.Println("SVID is valid."); err != nil {
+		return err
+	}
+	if err := env.Println("SPIFFE ID :", resp.SpiffeId); err != nil {
+		return err
+	}
 	claims, err := (&jsonpb.Marshaler{}).MarshalToString(resp.Claims)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal claims: %v", err)
 	}
-	env.Println("Claims    :", claims)
+	if err := env.Println("Claims    :", claims); err != nil {
+		return err
+	}
 
 	return nil
 }

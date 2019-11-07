@@ -249,7 +249,8 @@ func (c *gcsBucketClient) Close() error {
 func bundleData(bundle *common.Bundle) []byte {
 	bundleData := new(bytes.Buffer)
 	for _, rootCA := range bundle.RootCas {
-		pem.Encode(bundleData, &pem.Block{
+		// no need to check the error since we're encoding into a memory buffer
+		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: rootCA.DerBytes,
 		})

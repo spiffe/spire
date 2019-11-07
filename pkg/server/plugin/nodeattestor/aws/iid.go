@@ -35,7 +35,6 @@ import (
 var _awsTimeout = 5 * time.Second
 
 const (
-	pluginName                               = "aws_iid"
 	maxSecondsBetweenDeviceAttachments int64 = 60
 )
 

@@ -40,6 +40,7 @@ jobs:
       script:
         - ./build.sh protobuf_verify
         - shellcheck build.sh
+        - make lint
       # linting is OS agnostic but protobuf_verify needs utils to lets be explicit
       # about its runtime environment
       os: linux 

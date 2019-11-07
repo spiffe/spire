@@ -103,7 +103,6 @@ func (s *set) String() string {
 	b.WriteString("[")
 
 	if len(*s) > 0 {
-
 		i := 0
 		for _, selector := range *s {
 			if i > 0 {

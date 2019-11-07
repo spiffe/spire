@@ -60,11 +60,11 @@ func (s *Suite) SetupTest() {
 		case defaultIdentityDocumentPath:
 			// write doc resp
 			w.WriteHeader(s.status)
-			w.Write([]byte(s.docBody))
+			_, _ = w.Write([]byte(s.docBody))
 		case defaultIdentitySignaturePath:
 			// write sig resp
 			w.WriteHeader(s.status)
-			w.Write([]byte(s.sigBody))
+			_, _ = w.Write([]byte(s.sigBody))
 		default:
 			// unexpected path
 			w.WriteHeader(http.StatusForbidden)
@@ -94,7 +94,10 @@ func (s *Suite) TearDownTest() {
 func (s *Suite) TestErrorWhenNotConfigured() {
 	p := s.newPlugin()
 	stream, err := p.FetchAttestationData(context.Background())
-	defer stream.CloseSend()
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 	resp, err := stream.Recv()
 	s.RequireErrorContains(err, "not configured")
 	s.Require().Nil(resp)

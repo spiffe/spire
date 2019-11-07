@@ -2,10 +2,11 @@ package fakeregistrationclient
 
 import (
 	"context"
-	"github.com/sirupsen/logrus/hooks/test"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -64,7 +65,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 
 	c.RegistrationClient = registration.NewRegistrationClient(conn)
 
-	go c.server.Serve(listener)
+	go func() { _ = c.server.Serve(listener) }()
 
 	return c
 }

@@ -36,7 +36,7 @@ type mintCommand struct {
 }
 
 func (c *mintCommand) Help() string {
-	c.parseFlags([]string{"-h"})
+	_ = c.parseFlags([]string{"-h"})
 	return ""
 }
 
@@ -48,7 +48,7 @@ func (c *mintCommand) Run(args []string) int {
 	if err := c.parseFlags(args); err != nil {
 		return 1
 	}
-	if err := c.run(args); err != nil {
+	if err := c.run(); err != nil {
 		c.env.ErrPrintf("error: %v\n", err)
 		return 1
 	}
@@ -66,7 +66,7 @@ func (c *mintCommand) parseFlags(args []string) error {
 	return fs.Parse(args)
 }
 
-func (c *mintCommand) run(args []string) error {
+func (c *mintCommand) run() error {
 	if c.spiffeID == "" {
 		return errors.New("spiffeID must be specified")
 	}
@@ -94,7 +94,7 @@ func (c *mintCommand) run(args []string) error {
 
 	if eol, err := getJWTSVIDEndOfLife(resp.Token); err != nil {
 		c.env.ErrPrintf("Unable to determine JWT-SVID lifetime: %v\n", err)
-	} else if eol.Sub(time.Now()) < c.ttl {
+	} else if time.Until(eol) < c.ttl {
 		c.env.ErrPrintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", eol.UTC().Format(time.RFC3339))
 	}
 

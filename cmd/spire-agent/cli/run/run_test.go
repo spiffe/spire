@@ -496,6 +496,8 @@ func TestMergeInput(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		fileInput := &config{Agent: &agentConfig{}}
 		cliInput := &agentConfig{}
 
@@ -653,6 +655,8 @@ func TestNewAgentConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		input := defaultValidConfig()
 
 		testCase.input(input)
@@ -741,6 +745,8 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		c, err := parseFile(testCase.testFilePath)
 		require.NoError(t, err)
 

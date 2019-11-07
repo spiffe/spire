@@ -12,7 +12,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/spiretest"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 )
 
@@ -24,8 +23,6 @@ type Suite struct {
 	spiretest.Suite
 
 	p         nodeattestor.Plugin
-	cert      *ssh.Certificate
-	signer    ssh.Signer
 	sshclient *sshpop.Client
 	sshserver *sshpop.Server
 }
@@ -159,7 +156,9 @@ func (s *Suite) TestAttestFailure() {
 	// not configured yet
 	stream, err := s.newPlugin().Attest(context.Background())
 	require.NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		require.NoError(stream.CloseSend())
+	}()
 	resp, err := stream.Recv()
 	s.RequireGRPCStatus(err, codes.Unknown, "sshpop: not configured")
 	require.Nil(resp)

@@ -70,15 +70,15 @@ type agentConfig struct {
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
-type RunCLI struct {
+type Command struct {
 }
 
-func (*RunCLI) Help() string {
+func (*Command) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
-func (*RunCLI) Run(args []string) int {
+func (*Command) Run(args []string) int {
 	cliInput, err := parseFlags(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -132,7 +132,7 @@ func (*RunCLI) Run(args []string) int {
 	return 0
 }
 
-func (*RunCLI) Synopsis() string {
+func (*Command) Synopsis() string {
 	return "Runs the agent"
 }
 

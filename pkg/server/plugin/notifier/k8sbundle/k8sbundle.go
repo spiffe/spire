@@ -194,6 +194,9 @@ func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig) (er
 				c.ConfigMapKey: bundleData(resp.Bundle),
 			},
 		})
+		if err != nil {
+			return k8sErr.New("unable to marshal patch: %v", err)
+		}
 
 		// Patch the bundle, handling version conflicts
 		if err := client.PatchConfigMap(ctx, c.Namespace, c.ConfigMap, patchBytes); err != nil {
@@ -252,7 +255,7 @@ func (c kubeClientset) PatchConfigMap(ctx context.Context, namespace, configMap 
 func bundleData(bundle *common.Bundle) string {
 	bundleData := new(bytes.Buffer)
 	for _, rootCA := range bundle.RootCas {
-		pem.Encode(bundleData, &pem.Block{
+		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: rootCA.DerBytes,
 		})

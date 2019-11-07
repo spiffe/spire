@@ -5,6 +5,7 @@ import (
 
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHasSelectors(t *testing.T) {
@@ -21,9 +22,9 @@ func TestHasSelectors(t *testing.T) {
 	}
 
 	a := assert.New(t)
-	a.True(hasSelectors(entry, selectorToFlag(selectors[0:1])))
-	a.True(hasSelectors(entry, selectorToFlag(selectors[2:3])))
-	a.True(hasSelectors(entry, selectorToFlag(selectors[1:3])))
+	a.True(hasSelectors(entry, selectorToFlag(t, selectors[0:1])))
+	a.True(hasSelectors(entry, selectorToFlag(t, selectors[2:3])))
+	a.True(hasSelectors(entry, selectorToFlag(t, selectors[1:3])))
 
 	newSelectors := []*common.Selector{
 		{Type: "bar", Value: "foo"},
@@ -31,15 +32,15 @@ func TestHasSelectors(t *testing.T) {
 	}
 	selectors = append(selectors, newSelectors...)
 
-	a.False(hasSelectors(entry, selectorToFlag(selectors[3:4])))
-	a.False(hasSelectors(entry, selectorToFlag(selectors[2:4])))
+	a.False(hasSelectors(entry, selectorToFlag(t, selectors[3:4])))
+	a.False(hasSelectors(entry, selectorToFlag(t, selectors[2:4])))
 }
 
-func selectorToFlag(selectors []*common.Selector) StringsFlag {
+func selectorToFlag(t *testing.T, selectors []*common.Selector) StringsFlag {
 	resp := StringsFlag{}
 	for _, s := range selectors {
 		str := s.Type + ":" + s.Value
-		resp.Set(str)
+		require.NoError(t, resp.Set(str))
 	}
 
 	return resp

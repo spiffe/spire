@@ -61,7 +61,7 @@ func (p *prometheusRunner) isConfigured() bool {
 }
 
 func (p *prometheusRunner) sinks() []Sink {
-	if p.isConfigured() != true {
+	if !p.isConfigured() {
 		return []Sink{}
 	}
 
@@ -69,7 +69,7 @@ func (p *prometheusRunner) sinks() []Sink {
 }
 
 func (p *prometheusRunner) run(ctx context.Context) error {
-	if p.isConfigured() != true {
+	if !p.isConfigured() {
 		return nil
 	}
 

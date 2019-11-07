@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -99,6 +98,7 @@ func TestHandler(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			u := url.URL{
 				Scheme: "http",
@@ -109,17 +109,17 @@ func TestHandler(t *testing.T) {
 			req.Header = testCase.reqHeader
 			require.NoError(t, err)
 
-			respBody := new(bytes.Buffer)
 			w := httptest.NewRecorder()
-			w.Body = respBody
 			handler.ServeHTTP(w, req)
 
 			resp := w.Result()
+			defer resp.Body.Close()
+
 			assert.Equal(t, testCase.status, resp.StatusCode)
 			if testCase.respHeader != nil {
 				assert.Equal(t, testCase.respHeader, resp.Header)
 			}
-			assert.Equal(t, testCase.respBody, respBody.String())
+			assert.Equal(t, testCase.respBody, w.Body.String())
 		})
 	}
 }
@@ -132,7 +132,7 @@ func newFakeController() *fakeController {
 
 func (*fakeController) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
 	if req.UID == "FAILME" {
-		return nil, errors.New("OHNO!")
+		return nil, errors.New("ohno")
 	}
 	return &admv1beta1.AdmissionResponse{
 		UID:     req.UID,

@@ -31,6 +31,8 @@ const (
 	validAssumeRoleARN           = "arn:aws:iam::123456789012:role/spire-server-role"
 	// The header and footer type for a PEM-encoded certificate
 	certificateType = "CERTIFICATE"
+
+	testTTL = 300
 )
 
 var (
@@ -169,9 +171,8 @@ func (as *PCAPluginSuite) Test_SubmitCSR() {
 	expectedCert, encodedCert := as.SVIDFixture()
 
 	// Should send an issue request
-	csr, expectedEncodedCsr := as.generateCSR("spiffe://example.com/foo")
-	ttl := int32(300)
-	as.verifyIssueCertificate(expectedEncodedCsr, ttl, nil)
+	csr, expectedEncodedCsr := as.generateCSR()
+	as.verifyIssueCertificate(expectedEncodedCsr, nil)
 
 	// Should wait for the certificate to reach the issued state
 	as.verifyWaitUntilCertificateIssued(nil)
@@ -188,7 +189,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR() {
 	// values from ACM.
 	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
 		Csr:          csr,
-		PreferredTtl: ttl,
+		PreferredTtl: testTTL,
 	})
 	as.Require().NoError(err)
 	as.Require().NotNil(response)
@@ -201,14 +202,13 @@ func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceError() {
 	as.configurePlugin()
 
 	// Issuance returns an error
-	csr, expectedEncodedCsr := as.generateCSR("spiffe://example.com/foo")
-	ttl := int32(300)
-	as.verifyIssueCertificate(expectedEncodedCsr, ttl, errors.New("issuance error"))
+	csr, expectedEncodedCsr := as.generateCSR()
+	as.verifyIssueCertificate(expectedEncodedCsr, errors.New("issuance error"))
 
-	// The resulting respone should return an error
+	// The resulting response should return an error
 	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
 		Csr:          csr,
-		PreferredTtl: ttl,
+		PreferredTtl: testTTL,
 	})
 	as.Require().Nil(response)
 	as.Require().Error(err)
@@ -219,9 +219,8 @@ func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceWaitError() {
 	as.configurePlugin()
 
 	// Should send an issue request
-	csr, expectedEncodedCsr := as.generateCSR("spiffe://example.com/foo")
-	ttl := int32(300)
-	as.verifyIssueCertificate(expectedEncodedCsr, ttl, nil)
+	csr, expectedEncodedCsr := as.generateCSR()
+	as.verifyIssueCertificate(expectedEncodedCsr, nil)
 
 	// But the wait call returns an error
 	as.verifyWaitUntilCertificateIssued(errors.New("issuance waiting error"))
@@ -229,7 +228,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceWaitError() {
 	// The resulting response should error
 	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
 		Csr:          csr,
-		PreferredTtl: ttl,
+		PreferredTtl: testTTL,
 	})
 	as.Require().Nil(response)
 	as.Require().Error(err)
@@ -239,11 +238,10 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificateError() {
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
-	csr, expectedEncodedCsr := as.generateCSR("spiffe://example.com/foo")
+	csr, expectedEncodedCsr := as.generateCSR()
 
 	// Should send an issue request
-	ttl := int32(300)
-	as.verifyIssueCertificate(expectedEncodedCsr, ttl, nil)
+	as.verifyIssueCertificate(expectedEncodedCsr, nil)
 
 	// Should wait for the certificate to reach the issued state
 	as.verifyWaitUntilCertificateIssued(nil)
@@ -254,7 +252,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificateError() {
 	// The resulting response should error
 	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
 		Csr:          csr,
-		PreferredTtl: ttl,
+		PreferredTtl: testTTL,
 	})
 	as.Require().Nil(response)
 	as.Require().Error(err)
@@ -264,11 +262,10 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateParseError() 
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
-	csr, expectedEncodedCsr := as.generateCSR("spiffe://example.com/foo")
+	csr, expectedEncodedCsr := as.generateCSR()
 
 	// Should send an issue request
-	ttl := int32(300)
-	as.verifyIssueCertificate(expectedEncodedCsr, ttl, nil)
+	as.verifyIssueCertificate(expectedEncodedCsr, nil)
 
 	// Should wait for the certificate to reach the issued state
 	as.verifyWaitUntilCertificateIssued(nil)
@@ -280,7 +277,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateParseError() 
 	// The resulting response should error
 	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
 		Csr:          csr,
-		PreferredTtl: ttl,
+		PreferredTtl: testTTL,
 	})
 	as.Require().Nil(response)
 	as.Require().Error(err)
@@ -290,11 +287,10 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateChainParseErr
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
-	csr, expectedEncodedCsr := as.generateCSR("spiffe://example.com/foo")
+	csr, expectedEncodedCsr := as.generateCSR()
 
 	// Should send an issue request
-	ttl := int32(300)
-	as.verifyIssueCertificate(expectedEncodedCsr, ttl, nil)
+	as.verifyIssueCertificate(expectedEncodedCsr, nil)
 
 	// Should wait for the certificate to reach the issued state
 	as.verifyWaitUntilCertificateIssued(nil)
@@ -306,7 +302,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateChainParseErr
 	// The resulting response should error
 	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
 		Csr:          csr,
-		PreferredTtl: ttl,
+		PreferredTtl: testTTL,
 	})
 	as.Require().Nil(response)
 	as.Require().Error(err)
@@ -335,7 +331,7 @@ func (as *PCAPluginSuite) verifyDescribeCertificateAuthority(status string, mock
 		Return(response, mockError)
 }
 
-func (as *PCAPluginSuite) verifyIssueCertificate(csr *bytes.Buffer, ttl int32, mockError error) {
+func (as *PCAPluginSuite) verifyIssueCertificate(csr *bytes.Buffer, mockError error) {
 	var response *acmpca.IssueCertificateOutput
 	if mockError != nil {
 		response = nil
@@ -353,7 +349,7 @@ func (as *PCAPluginSuite) verifyIssueCertificate(csr *bytes.Buffer, ttl int32, m
 			TemplateArn:             aws.String(validCASigningTemplateARN),
 			Validity: &acmpca.Validity{
 				Type:  aws.String(acmpca.ValidityPeriodTypeAbsolute),
-				Value: aws.Int64(as.clock.Now().Add(time.Second * time.Duration(ttl)).Unix()),
+				Value: aws.Int64(as.clock.Now().Add(time.Second * testTTL).Unix()),
 			},
 		}).
 		Return(response, mockError)
@@ -393,16 +389,6 @@ func (as *PCAPluginSuite) configurePlugin() {
 	as.Require().NoError(err)
 }
 
-func (as *PCAPluginSuite) defaultConfiguration() *PCAPluginConfiguration {
-	return &PCAPluginConfiguration{
-		Region:                  validRegion,
-		CertificateAuthorityARN: validCertificateAuthorityARN,
-		CASigningTemplateARN:    validCASigningTemplateARN,
-		SigningAlgorithm:        validSigningAlgorithm,
-		AssumeRoleARN:           validAssumeRoleARN,
-	}
-}
-
 func (as *PCAPluginSuite) defaultSerializedConfiguration() string {
 	config := as.serializedConfiguration(validRegion, validCertificateAuthorityARN, validCASigningTemplateARN, validSigningAlgorithm, validAssumeRoleARN)
 	fmt.Println("Config: ", config)
@@ -422,7 +408,6 @@ func (as *PCAPluginSuite) serializedConfiguration(region, certificateAuthorityAR
 		caSigningTemplateARN,
 		signingAlgorithm,
 		assumeRoleARN)
-
 }
 
 func (as *PCAPluginSuite) defaultConfigureRequest() *spi.ConfigureRequest {
@@ -476,8 +461,8 @@ func (as *PCAPluginSuite) SVIDFixture() (*x509.Certificate, *bytes.Buffer) {
 	return cert, encodedCert
 }
 
-func (as *PCAPluginSuite) generateCSR(spiffeID string) ([]byte, *bytes.Buffer) {
-	csr, _, err := util.NewCSRTemplate(spiffeID)
+func (as *PCAPluginSuite) generateCSR() ([]byte, *bytes.Buffer) {
+	csr, _, err := util.NewCSRTemplate("spiffe://example.com/foo")
 	as.Require().NoError(err)
 	encodedCsr := new(bytes.Buffer)
 	err = pem.Encode(encodedCsr, &pem.Block{

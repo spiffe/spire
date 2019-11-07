@@ -22,7 +22,6 @@ const (
 
 var (
 	defaultAudience = []string{"spire-server"}
-	defaultIssuer   = "api"
 	psatError       = errs.Class("k8s-psat")
 )
 

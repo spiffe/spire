@@ -110,17 +110,17 @@ type federatesWithConfig struct {
 	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
-// Run CLI struct
-type RunCLI struct{}
+// Run Command struct
+type Command struct{}
 
 //Help prints the server cmd usage
-func (*RunCLI) Help() string {
+func (*Command) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
 // Run the SPIFFE Server
-func (*RunCLI) Run(args []string) int {
+func (*Command) Run(args []string) int {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(args)
@@ -169,7 +169,7 @@ func (*RunCLI) Run(args []string) int {
 }
 
 //Synopsis of the command
-func (*RunCLI) Synopsis() string {
+func (*Command) Synopsis() string {
 	return "Runs the server"
 }
 

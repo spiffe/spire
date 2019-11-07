@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -44,22 +43,19 @@ type Server interface {
 	ListenAndServe(ctx context.Context) error
 }
 
-type endpoints struct {
+type Endpoints struct {
 	c            *Config
 	mtx          *sync.RWMutex
 	unixListener *peertracker.ListenerFactory
-
-	svid    []*x509.Certificate
-	svidKey *ecdsa.PrivateKey
 }
 
 // ListenAndServe starts all maintenance routines and endpoints, then blocks
 // until the context is cancelled or there is an error encountered listening
 // on one of the servers.
-func (e *endpoints) ListenAndServe(ctx context.Context) error {
+func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.c.Log.Debug("Initializing API endpoints")
 	tcpServer := e.createTCPServer(ctx)
-	udsServer := e.createUDSServer(ctx)
+	udsServer := e.createUDSServer()
 
 	e.registerNodeAPI(tcpServer)
 	e.registerRegistrationAPI(tcpServer, udsServer)
@@ -84,7 +80,7 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	return err
 }
 
-func (e *endpoints) createTCPServer(ctx context.Context) *grpc.Server {
+func (e *Endpoints) createTCPServer(ctx context.Context) *grpc.Server {
 	tlsConfig := &tls.Config{
 		GetConfigForClient: e.getTLSConfig(ctx),
 	}
@@ -99,14 +95,14 @@ func (e *endpoints) createTCPServer(ctx context.Context) *grpc.Server {
 	)
 }
 
-func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
+func (e *Endpoints) createUDSServer() *grpc.Server {
 	return grpc.NewServer(
 		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
 		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
 		grpc.Creds(peertracker.NewCredentials()))
 }
 
-func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
+func (e *Endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 	if e.c.BundleEndpointAddress == nil {
 		return nil, false
 	}
@@ -126,7 +122,7 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 	return bundle.NewServer(bundle.ServerConfig{
 		Log:     e.c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
 		Address: e.c.BundleEndpointAddress.String(),
-		BundleGetter: bundle.BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
+		Getter: bundle.GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
 			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 				TrustDomainId: e.c.TrustDomain.String(),
 			})
@@ -144,7 +140,7 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 
 // registerNodeAPI creates a Node API handler and registers it against
 // the provided gRPC server.
-func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
+func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 	n := node.NewHandler(node.HandlerConfig{
 		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
 		Metrics:     e.c.Metrics,
@@ -159,7 +155,7 @@ func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 
 // registerRegistrationAPI creates a Registration API handler and registers
 // it against the provided gRPC.
-func (e *endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
+func (e *Endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
 	r := &registration.Handler{
 		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
 		Metrics:     e.c.Metrics,
@@ -173,7 +169,7 @@ func (e *endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
 }
 
 // runTCPServer will start the server and block until it exits or we are dying.
-func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error {
+func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error {
 	l, err := net.Listen(e.c.TCPAddr.Network(), e.c.TCPAddr.String())
 	if err != nil {
 		return err
@@ -205,7 +201,7 @@ func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 }
 
 // runUDSServer  will start the server and block until it exits or we are dying.
-func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
+func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.c.UDSAddr.String())
 	l, err := e.unixListener.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
 	if err != nil {
@@ -237,7 +233,7 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 }
 
 // getTLSConfig returns a TLS Config hook for the gRPC server
-func (e *endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 		certs, roots, err := e.getCerts(ctx)
 		if err != nil {
@@ -261,7 +257,7 @@ func (e *endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
-func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
+func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
 	ds := e.c.Catalog.GetDataStore()
 
 	resp, err := ds.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{

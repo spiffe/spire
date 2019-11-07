@@ -1,0 +1,24 @@
+run:
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  deadline: 5m
+
+  skip-dirs:
+    - testdata$
+    - test/mock
+
+  skip-files:
+    - ".*\\.pb\\.go"
+
+linters:
+  enable:
+    - bodyclose
+    - depguard
+    - goimports
+    - golint
+    - gosec
+    - misspell
+    - nakedret
+    - scopelint
+    - unconvert
+    - unparam
+    - whitespace

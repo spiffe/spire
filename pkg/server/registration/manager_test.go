@@ -28,8 +28,6 @@ type ManagerSuite struct {
 	ds      *fakedatastore.DataStore
 	metrics *fakemetrics.FakeMetrics
 
-	runCtx context.Context
-
 	m *Manager
 }
 
@@ -38,15 +36,11 @@ func (s *ManagerSuite) SetupTest() {
 	s.log, s.logHook = test.NewNullLogger()
 	s.ds = fakedatastore.New()
 	s.metrics = fakemetrics.New()
-	s.runCtx = context.Background()
-}
-
-func (s *ManagerSuite) TearDownTest() {
-	s.runCtx.Done()
 }
 
 func (s *ManagerSuite) TestPruning() {
-	s.setupAndRunManager()
+	done := s.setupAndRunManager()
+	defer done()
 
 	expiry := s.clock.Now().Add(_pruningCandence)
 
@@ -111,34 +105,34 @@ func (s *ManagerSuite) TestPruning() {
 	s.NoError(err)
 
 	// no pruning yet
-	s.m.prune(context.Background())
+	s.NoError(s.m.prune(context.Background()))
 	listResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
 	s.Equal([]*common.RegistrationEntry{createResp1.Entry, createResp2.Entry, createResp3.Entry}, listResp.Entries)
 
 	// prune first entry
 	s.clock.Add(_pruningCandence + time.Second)
-	s.m.prune(context.Background())
+	s.NoError(s.m.prune(context.Background()))
 	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
 	s.Equal([]*common.RegistrationEntry{createResp2.Entry, createResp3.Entry}, listResp.Entries)
 
 	// prune second entry
 	s.clock.Add(time.Minute)
-	s.m.prune(context.Background())
+	s.NoError(s.m.prune(context.Background()))
 	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
 	s.Equal([]*common.RegistrationEntry{createResp3.Entry}, listResp.Entries)
 
 	// prune third entry
 	s.clock.Add(time.Minute)
-	s.m.prune(context.Background())
+	s.NoError(s.m.prune(context.Background()))
 	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
 	s.Empty(listResp.Entries)
 }
 
-func (s *ManagerSuite) setupAndRunManager() {
+func (s *ManagerSuite) setupAndRunManager() func() {
 	s.m = NewManager(ManagerConfig{
 		Clock:     s.clock,
 		DataStore: s.ds,
@@ -146,5 +140,13 @@ func (s *ManagerSuite) setupAndRunManager() {
 		Metrics:   s.metrics,
 	})
 
-	go s.m.Run(s.runCtx)
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.m.Run(ctx)
+	}()
+	return func() {
+		cancel()
+		s.Require().NoError(<-errCh)
+	}
 }

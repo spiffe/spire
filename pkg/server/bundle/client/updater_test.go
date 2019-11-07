@@ -64,13 +64,14 @@ func TestBundleUpdater(t *testing.T) {
 			endpointBundle: nil,
 			storedBundle:   bundle1,
 			client: fakeClient{
-				err: errors.New("OHNO!"),
+				err: errors.New("ohno"),
 			},
-			err: "OHNO!",
+			err: "ohno",
 		},
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			ds := fakedatastore.New()
 
