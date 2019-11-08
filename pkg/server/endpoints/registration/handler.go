@@ -561,7 +561,7 @@ func (h *Handler) FetchBundle(
 func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
 	spiffeID := evictRequest.GetSpiffeID()
 	log := h.Log.WithFields(logrus.Fields{
-		telemetry.Method: telemetry.EvictAgent,
+		telemetry.Method:   telemetry.EvictAgent,
 		telemetry.SPIFFEID: spiffeID,
 	})
 
@@ -903,9 +903,7 @@ func getCallerID(ctx context.Context) string {
 }
 
 func addCallerIDLabel(ctx context.Context, counter *telemetry.CallCounter) {
-	if callerID := getCallerID(ctx); callerID != "" {
-		telemetry_common.AddCallerID(counter, callerID)
-	}
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 }
 
 func validateDNS(dns string) error {
