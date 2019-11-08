@@ -22,6 +22,10 @@ type inmemRunner struct {
 func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &inmemRunner{}
 
+	if c.FileConfig.DisableInMem {
+		return runner, nil
+	}
+
 	if entry, ok := c.Logger.(*logrus.Entry); ok {
 		runner.log = entry
 	} else {

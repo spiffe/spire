@@ -14,6 +14,13 @@ func TestNewInmemRunner(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestDisabledNewInmemRunner(t *testing.T) {
+	config := testDisabledInmemConfig()
+	runner, err := newInmemRunner(config)
+	assert.Nil(t, err)
+	assert.False(t, runner.isConfigured())
+}
+
 func TestInmemSinks(t *testing.T) {
 	ir, err := newInmemRunner(testUnknownInmemConfig())
 	require.Nil(t, err)
@@ -44,6 +51,22 @@ func testInmemConfig() *MetricsConfig {
 	return &MetricsConfig{
 		Logger:      entry,
 		ServiceName: "foo",
+	}
+}
+
+func testDisabledInmemConfig() *MetricsConfig {
+	l, hook := test.NewNullLogger()
+
+	// Get a real logrus.Entry
+	l.Debug("boo")
+	entry := hook.LastEntry()
+
+	return &MetricsConfig{
+		Logger:      entry,
+		ServiceName: "foo",
+		FileConfig: FileConfig{
+			DisableInMem: true,
+		},
 	}
 }
 

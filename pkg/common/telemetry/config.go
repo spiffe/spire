@@ -12,10 +12,11 @@ type MetricsConfig struct {
 }
 
 type FileConfig struct {
-	Prometheus *PrometheusConfig `hcl:"Prometheus"`
-	DogStatsd  []DogStatsdConfig `hcl:"DogStatsd"`
-	Statsd     []StatsdConfig    `hcl:"Statsd"`
-	M3         []M3Config        `hcl:"M3"`
+	Prometheus   *PrometheusConfig `hcl:"Prometheus"`
+	DogStatsd    []DogStatsdConfig `hcl:"DogStatsd"`
+	Statsd       []StatsdConfig    `hcl:"Statsd"`
+	M3           []M3Config        `hcl:"M3"`
+	DisableInMem bool              `hcl:"DisableInMem"`
 }
 
 type DogStatsdConfig struct {
