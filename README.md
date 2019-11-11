@@ -13,6 +13,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Getting started](#getting-started)
 - [Examples](#examples)
 - [Using SPIRE with Envoy](#using-spire-with-envoy)
+- [Upgrading SPIRE](#upgrading-spire)
 - [Getting help](#getting-help)
 - [Community](#community)
 
@@ -45,7 +46,7 @@ trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/sp
 
 # Upgrading SPIRE
 
-SPIRE server supports zero-downtime upgrades when there's more than one SPIRE server in the cluster. Please seee the [Managing Upgrades/Downgrades](doc/upgrading.md) guide for more information on SPIRE versioning and supported upgrade paths.
+SPIRE Server supports zero-downtime upgrades when there's more than one SPIRE Server in the cluster. Please see the [Managing Upgrades/Downgrades](doc/upgrading.md) guide for more information on SPIRE version compatibility and supported upgrade paths.
 
 # Getting Help
 
