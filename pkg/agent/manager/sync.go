@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	svid_util "github.com/spiffe/spire/pkg/agent/common/svid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -48,7 +49,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 				telemetry.RegistrationID: entry.EntryId,
 				telemetry.SPIFFEID:       entry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
-		case isSVIDStale(m.c.Clk.Now(), svid.Chain[0]):
+		case svid_util.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
 			// SVID has expired
 			expiresAt = svid.Chain[0].NotAfter
 			expiring++
@@ -165,10 +166,4 @@ func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, 
 		out[bundle.TrustDomainID()] = bundle
 	}
 	return out, nil
-}
-
-func isSVIDStale(now time.Time, svid *x509.Certificate) bool {
-	ttl := svid.NotAfter.Sub(now)
-	lifetime := svid.NotAfter.Sub(svid.NotBefore)
-	return ttl < lifetime/2
 }

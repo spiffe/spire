@@ -11,6 +11,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
+	svid_util "github.com/spiffe/spire/pkg/agent/common/svid"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
@@ -61,7 +62,8 @@ func (r *rotator) Run(ctx context.Context) error {
 			r.client.Release()
 			return nil
 		case <-t.C:
-			if r.shouldRotate() {
+			s := r.state.Value().(State)
+			if svid_util.ShouldRotateX509(r.clk.Now(), s.SVID[0]) {
 				if err := r.rotateSVID(ctx); err != nil {
 					r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 				}
@@ -88,16 +90,6 @@ func (r *rotator) GetRotationMtx() *sync.RWMutex {
 
 func (r *rotator) SetRotationFinishedHook(f func()) {
 	r.rotationFinishedHook = f
-}
-
-// shouldRotate returns a boolean informing the caller of whether or not the
-// SVID should be rotated.
-func (r *rotator) shouldRotate() bool {
-	s := r.state.Value().(State)
-
-	ttl := s.SVID[0].NotAfter.Sub(r.clk.Now())
-	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
-	return ttl <= watermark
 }
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.
