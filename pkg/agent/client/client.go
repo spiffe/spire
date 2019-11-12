@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 
@@ -109,17 +110,26 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 			break
 		}
 		if err != nil {
-			logrus.Errorf("failed to consume entire SVID update stream: %v", err)
+			c.c.Log.Errorf("failed to consume entire SVID update stream: %v", err)
 			c.release(nodeConn)
 			return nil, err
 		}
 
 		if resp.SvidUpdate == nil {
-			logrus.Warn("empty update in SVID update stream")
+			c.c.Log.Warn("empty update in SVID update stream")
 			continue
 		}
 
 		for _, re := range resp.SvidUpdate.RegistrationEntries {
+			if err := validateRegistrationEntry(re); err != nil {
+				c.c.Log.WithFields(logrus.Fields{
+					telemetry.RegistrationID: re.EntryId,
+					telemetry.SPIFFEID:       re.SpiffeId,
+					telemetry.Selectors:      re.Selectors,
+					telemetry.Error:          err.Error(),
+				}).Warn("Received malformed entry from SPIRE server")
+				continue
+			}
 			regEntries[re.EntryId] = re
 		}
 		for entryID, svid := range resp.SvidUpdate.Svids {
@@ -229,4 +239,22 @@ func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 			return agentCert
 		},
 	})
+}
+
+// validateRegistrationEntry validates required fields on registration entries.
+// In order for a registration entry to be meaningful to the agent, it must
+// have the following:
+// - an entry id
+// - a spiffe id
+// - one or more selectors
+func validateRegistrationEntry(entry *common.RegistrationEntry) error {
+	switch {
+	case entry.EntryId == "":
+		return errors.New("missing entry ID")
+	case entry.SpiffeId == "":
+		return errors.New("missing SPIFFE ID")
+	case len(entry.Selectors) == 0:
+		return errors.New("no selectors")
+	}
+	return nil
 }
