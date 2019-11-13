@@ -82,8 +82,8 @@ type Config struct {
 	// Array of profiles names that will be generated on each profiling tick.
 	ProfilingNames []string
 
-	// SVIDTTL is default time-to-live for SVIDs
-	SVIDTTL time.Duration
+	// DefaultSVIDTTL is default time-to-live for SVIDs
+	DefaultSVIDTTL time.Duration
 
 	// CATTL is the time-to-live for the server CA. This only applies to
 	// self-signed CA certificates, otherwise it is up to the upstream CA.
@@ -335,12 +335,12 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 
 func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 	return ca.NewCA(ca.CAConfig{
-		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
-		Metrics:     metrics,
-		X509SVIDTTL: s.config.SVIDTTL,
-		JWTIssuer:   s.config.JWTIssuer,
-		TrustDomain: s.config.TrustDomain,
-		CASubject:   s.config.CASubject,
+		Log:                s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
+		Metrics:            metrics,
+		DefaultX509SVIDTTL: s.config.DefaultSVIDTTL,
+		JWTIssuer:          s.config.JWTIssuer,
+		TrustDomain:        s.config.TrustDomain,
+		CASubject:          s.config.CASubject,
 	})
 }
 

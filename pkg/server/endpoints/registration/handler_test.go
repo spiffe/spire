@@ -965,7 +965,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 			// assert the certificate lifetime
 			now := s.serverCA.Clock().Now().UTC().Truncate(time.Second)
 			if req.Ttl == 0 {
-				require.Equal(t, now.Add(s.serverCA.X509SVIDTTL()), svid.NotAfter)
+				require.Equal(t, now.Add(s.serverCA.DefaultX509SVIDTTL()), svid.NotAfter)
 			} else {
 				require.Equal(t, now.Add(time.Duration(req.Ttl)*time.Second), svid.NotAfter)
 			}
@@ -1060,7 +1060,7 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 			expiry := time.Unix(int64(*claims.Expiry), 0).UTC()
 			now := s.serverCA.Clock().Now().UTC().Truncate(time.Second)
 			if req.Ttl == 0 {
-				require.Equal(t, now.Add(s.serverCA.JWTSVIDTTL()), expiry)
+				require.Equal(t, now.Add(s.serverCA.DefaultJWTSVIDTTL()), expiry)
 			} else {
 				require.Equal(t, now.Add(time.Duration(req.Ttl)*time.Second), expiry)
 			}

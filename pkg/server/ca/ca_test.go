@@ -64,8 +64,8 @@ func (s *CATestSuite) SetupTest() {
 			Scheme: "spiffe",
 			Host:   "example.org",
 		},
-		X509SVIDTTL: time.Minute,
-		Clock:       s.clock,
+		DefaultX509SVIDTTL: time.Minute,
+		Clock:              s.clock,
 		CASubject: pkix.Name{
 			CommonName: "TESTCA",
 		},
