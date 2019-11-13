@@ -64,7 +64,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 
 7.  Try running help for entry sub command. The **spire-server** and **spire-agent** executables have `-—help`  option that give details of respective cli options.
 
-	    ./cmd/spire-server/spire-server entry --help
+	    ./bin/spire-server entry --help
 
 8.  View the SPIRE Server configuration file.
 
@@ -122,11 +122,11 @@ Note: If you don't already have Docker installed, please follow these [installat
 
 9.  Start the SPIRE Server as a background process by running the following command.
 
-        ./cmd/spire-server/spire-server run &
+        ./bin/spire-server run &
 
 10. Generate a one time Join Token via **spire-server token generate** sub command. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID. Save the generated join token in your copy buffer.
 
-	    ./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/host
+	    ./bin/spire-server token generate -spiffeID spiffe://example.org/host
 
 	 The Join Token will be used as a form of node attestation and the associated SPIFFE ID will be assigned to the node.
 
@@ -176,11 +176,11 @@ Note: If you don't already have Docker installed, please follow these [installat
 
 12. Start the SPIRE Agent as a background process. Replace <generated-join-token> with the saved value from step #10 in the following command.
 
-        ./cmd/spire-agent/spire-agent run -joinToken <generated-join-token> &
+        ./bin/spire-agent run -joinToken <generated-join-token> &
 
 13. The next step is to register a SPIFFE ID with a set of selectors. For the example we will use unix kernel selectors that will be mapped to a target SPIFFE ID.
 
-        ./cmd/spire-server/spire-server entry create \
+        ./bin/spire-server entry create \
             -parentID spiffe://example.org/host \
             -spiffeID spiffe://example.org/workload \
             -selector unix:uid:1000
@@ -188,9 +188,9 @@ Note: If you don't already have Docker installed, please follow these [installat
 
 14. Simulate the workload API interaction and retrieve the workload SVID bundle by running the `api` subcommand in the agent. Run the command as user **_workload_** created in step #4 with uid 1000
 
-        su -c "./cmd/spire-agent/spire-agent api fetch x509 " workload
+        su -c "./bin/spire-agent api fetch x509 " workload
 
 15. Examine the output. Optionally, you may write the SVID and key to disk with `-write` in order to examine them in detail.
 
-        su -c "./cmd/spire-agent/spire-agent api fetch x509 -write ./" workload
+        su -c "./bin/spire-agent api fetch x509 -write ./" workload
         openssl x509 -in ./svid.0.pem -text -noout
