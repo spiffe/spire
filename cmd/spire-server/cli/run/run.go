@@ -319,7 +319,8 @@ func newServerConfig(c *config) (*server.Config, error) {
 		if c.Server.DefaultSVIDTTL != "" {
 			sc.Log.Warn("Both `svid_ttl` and `default_svid_ttl` are set. `svid_ttl` will be ignored")
 		} else {
-			sc.Log.Warn("The `svid_ttl` configurable has been renamed in to `default_svid_ttl`; please update your configuration.")
+			// TODO: remove in 0.10.0
+			sc.Log.Warn("The `svid_ttl` configurable has been renamed to `default_svid_ttl`; please update your configuration.")
 			ttl, err := time.ParseDuration(c.Server.DeprecatedSVIDTTL)
 			if err != nil {
 				return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DeprecatedSVIDTTL, err)
