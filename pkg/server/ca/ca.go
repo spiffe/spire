@@ -137,14 +137,14 @@ type JWTKey struct {
 }
 
 type CAConfig struct {
-	Log                logrus.FieldLogger
-	Metrics            telemetry.Metrics
-	TrustDomain        url.URL
-	DefaultX509SVIDTTL time.Duration
-	DefaultJWTSVIDTTL  time.Duration
-	JWTIssuer          string
-	Clock              clock.Clock
-	CASubject          pkix.Name
+	Log         logrus.FieldLogger
+	Metrics     telemetry.Metrics
+	TrustDomain url.URL
+	X509SVIDTTL time.Duration
+	JWTSVIDTTL  time.Duration
+	JWTIssuer   string
+	Clock       clock.Clock
+	CASubject   pkix.Name
 }
 
 type CA struct {
@@ -159,11 +159,11 @@ type CA struct {
 }
 
 func NewCA(config CAConfig) *CA {
-	if config.DefaultX509SVIDTTL <= 0 {
-		config.DefaultX509SVIDTTL = DefaultX509SVIDTTL
+	if config.X509SVIDTTL <= 0 {
+		config.X509SVIDTTL = DefaultX509SVIDTTL
 	}
-	if config.DefaultJWTSVIDTTL <= 0 {
-		config.DefaultJWTSVIDTTL = DefaultJWTSVIDTTL
+	if config.JWTSVIDTTL <= 0 {
+		config.JWTSVIDTTL = DefaultJWTSVIDTTL
 	}
 	if config.Clock == nil {
 		config.Clock = clock.New()
@@ -234,7 +234,7 @@ func (ca *CA) signX509SVID(ctx context.Context, params X509SVIDParams, x509CA *X
 	}
 
 	if params.TTL <= 0 {
-		params.TTL = ca.c.DefaultX509SVIDTTL
+		params.TTL = ca.c.X509SVIDTTL
 	}
 
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
@@ -282,7 +282,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 	}
 
 	if params.TTL <= 0 {
-		params.TTL = ca.c.DefaultX509SVIDTTL
+		params.TTL = ca.c.X509SVIDTTL
 	}
 
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
@@ -335,7 +335,7 @@ func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, er
 
 	ttl := params.TTL
 	if ttl <= 0 {
-		ttl = ca.c.DefaultJWTSVIDTTL
+		ttl = ca.c.JWTSVIDTTL
 	}
 	_, expiresAt := ca.capLifetime(ttl, jwtKey.NotAfter)
 

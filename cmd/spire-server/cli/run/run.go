@@ -324,7 +324,7 @@ func newServerConfig(c *config) (*server.Config, error) {
 			if err != nil {
 				return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DeprecatedSVIDTTL, err)
 			}
-			sc.DefaultSVIDTTL = ttl
+			sc.SVIDTTL = ttl
 		}
 	}
 
@@ -333,7 +333,7 @@ func newServerConfig(c *config) (*server.Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DefaultSVIDTTL, err)
 		}
-		sc.DefaultSVIDTTL = ttl
+		sc.SVIDTTL = ttl
 	}
 
 	if c.Server.CATTL != "" {

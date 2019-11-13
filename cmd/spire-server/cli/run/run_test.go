@@ -398,6 +398,16 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "deprecated svid_ttl should be configurable by file",
+			fileInput: func(c *config) {
+				c.Server.DeprecatedSVIDTTL = "1h"
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.Equal(t, "1h", c.Server.DeprecatedSVIDTTL)
+			},
+		},
+		{
 			msg: "default_svid_ttl should be configurable by file",
 			fileInput: func(c *config) {
 				c.Server.DefaultSVIDTTL = "1h"
@@ -672,7 +682,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.DeprecatedSVIDTTL = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, time.Minute, c.DefaultSVIDTTL)
+				require.Equal(t, time.Minute, c.SVIDTTL)
 			},
 		},
 		{
@@ -691,7 +701,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.DefaultSVIDTTL = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, time.Minute, c.DefaultSVIDTTL)
+				require.Equal(t, time.Minute, c.SVIDTTL)
 			},
 		},
 		{
@@ -711,7 +721,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.DefaultSVIDTTL = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, time.Minute, c.DefaultSVIDTTL)
+				require.Equal(t, time.Minute, c.SVIDTTL)
 			},
 		},
 		{

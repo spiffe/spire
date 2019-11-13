@@ -81,7 +81,7 @@ Note: If you don't already have Docker installed, please follow these [installat
         data_dir = "./.data"
         log_level = "DEBUG"
         upstream_bundle = true
-        svid_ttl = "1h"
+        default_svid_ttl = "1h"
         ca_subject = {
             country = ["US"],
             organization = ["SPIFFE"],

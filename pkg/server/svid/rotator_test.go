@@ -44,8 +44,8 @@ func (s *RotatorTestSuite) SetupTest() {
 
 	s.clock = clock.NewMock(s.T())
 	s.serverCA = fakeserverca.New(s.T(), "example.org", &fakeserverca.Options{
-		Clock:              s.clock,
-		DefaultX509SVIDTTL: testTTL,
+		Clock:       s.clock,
+		X509SVIDTTL: testTTL,
 	})
 	s.r = NewRotator(&RotatorConfig{
 		ServerCA:    s.serverCA,

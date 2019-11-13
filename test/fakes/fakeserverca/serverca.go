@@ -29,11 +29,11 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 )
 
 type Options struct {
-	Clock              clock.Clock
-	DefaultX509SVIDTTL time.Duration
-	DefaultJWTSVIDTTL  time.Duration
-	UpstreamCA         upstreamca.UpstreamCA
-	UpstreamBundle     bool
+	Clock          clock.Clock
+	X509SVIDTTL    time.Duration
+	JWTSVIDTTL     time.Duration
+	UpstreamCA     upstreamca.UpstreamCA
+	UpstreamBundle bool
 }
 
 type CA struct {
@@ -49,11 +49,11 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	if options.Clock == nil {
 		options.Clock = clock.NewMock(t)
 	}
-	if options.DefaultX509SVIDTTL == 0 {
-		options.DefaultX509SVIDTTL = time.Minute
+	if options.X509SVIDTTL == 0 {
+		options.X509SVIDTTL = time.Minute
 	}
-	if options.DefaultJWTSVIDTTL == 0 {
-		options.DefaultJWTSVIDTTL = time.Minute
+	if options.JWTSVIDTTL == 0 {
+		options.JWTSVIDTTL = time.Minute
 	}
 
 	log, _ := test.NewNullLogger()
@@ -72,12 +72,12 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	require.NoError(t, err)
 
 	serverCA := ca.NewCA(ca.CAConfig{
-		Log:                log,
-		Metrics:            telemetry.Blackhole{},
-		TrustDomain:        url.URL{Scheme: "spiffe", Host: trustDomain},
-		DefaultX509SVIDTTL: options.DefaultX509SVIDTTL,
-		DefaultJWTSVIDTTL:  options.DefaultJWTSVIDTTL,
-		Clock:              options.Clock,
+		Log:         log,
+		Metrics:     telemetry.Blackhole{},
+		TrustDomain: url.URL{Scheme: "spiffe", Host: trustDomain},
+		X509SVIDTTL: options.X509SVIDTTL,
+		JWTSVIDTTL:  options.JWTSVIDTTL,
+		Clock:       options.Clock,
 	})
 	serverCA.SetX509CA(x509CA)
 	serverCA.SetJWTKey(&ca.JWTKey{
@@ -101,10 +101,10 @@ func (c *CA) Clock() clock.Clock {
 	return c.options.Clock
 }
 
-func (c *CA) DefaultX509SVIDTTL() time.Duration {
-	return c.options.DefaultX509SVIDTTL
+func (c *CA) X509SVIDTTL() time.Duration {
+	return c.options.X509SVIDTTL
 }
 
-func (c *CA) DefaultJWTSVIDTTL() time.Duration {
-	return c.options.DefaultJWTSVIDTTL
+func (c *CA) JWTSVIDTTL() time.Duration {
+	return c.options.JWTSVIDTTL
 }
