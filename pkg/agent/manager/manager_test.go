@@ -406,9 +406,6 @@ func TestSVIDRotation(t *testing.T) {
 		rotHookStatus.called = true
 	})
 
-	mockClk.WaitForTicker(time.Second, "svid rotater didn't create tickers after 1 second")
-	mockClk.WaitForAfter(time.Second, "svid syncer didn't wait after 1 second")
-
 	// Get RLock to simulate an ongoing request (Rotator should wait until mtx is unlocked)
 	m.GetRotationMtx().RLock()
 
@@ -421,27 +418,20 @@ func TestSVIDRotation(t *testing.T) {
 		svid = s.SVID
 		require.True(t, svidsEqual(svid, baseSVID))
 		require.False(t, wasRotHookCalled())
-		time.Sleep(100 * time.Millisecond)
+		mockClk.Add(100 * time.Millisecond)
 	}
 
 	// RUnlock simulates the end of the request (Rotator should rotate SVIDs now)
 	m.GetRotationMtx().RUnlock()
 
-	// Loop until we detect an SVID rotation
-	util.RunWithTimeout(t, time.Second, func() {
-		for {
-			// If manager's current SVID is not equals to the first one we generated
-			// it means it rotated, so we must exit the loop.
-			s := m.GetCurrentCredentials()
-			svid = s.SVID
-			key = s.Key
-			if !svidsEqual(svid, baseSVID) {
-				require.True(t, wasRotHookCalled())
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	})
+	// If manager's current SVID is not equals to the first one we generated
+	// it means it rotated
+	mockClk.Add(time.Second)
+	s := m.GetCurrentCredentials()
+	svid = s.SVID
+	key = s.Key
+	require.False(t, svidsEqual(svid, baseSVID))
+	require.True(t, wasRotHookCalled())
 
 	if key == baseSVIDKey {
 		t.Fatal("PrivateKey did not rotate")
