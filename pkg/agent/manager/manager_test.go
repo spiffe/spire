@@ -424,14 +424,20 @@ func TestSVIDRotation(t *testing.T) {
 	// RUnlock simulates the end of the request (Rotator should rotate SVIDs now)
 	m.GetRotationMtx().RUnlock()
 
-	// If manager's current SVID is not equals to the first one we generated
-	// it means it rotated
 	mockClk.Add(time.Second)
+	// Loop until we detect an SVID rotation was called in separate process
+	util.RunWithTimeout(t, time.Second, func() {
+		for {
+			if wasRotHookCalled() {
+				break
+			}
+		}
+	})
+
 	s := m.GetCurrentCredentials()
 	svid = s.SVID
 	key = s.Key
 	require.False(t, svidsEqual(svid, baseSVID))
-	require.True(t, wasRotHookCalled())
 
 	if key == baseSVIDKey {
 		t.Fatal("PrivateKey did not rotate")
