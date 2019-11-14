@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.9.0] - 2019-11-14
+- Users can now opt-out of workload executable hashing when enabling the workload path as a selector (#1078)
+- Added M3 support to telemetry and other telemetry and logging improvements (#1059, #1085, #1086, #1094, #1102, #1122,#1138,#1160,#1186,#1208)
+- SQL auto-migration can be disabled (#1089)
+- SQL schema compatability checks are aligned with upgrade compatability guarantees (#1089)
+- Agent CLI can provide information on attested nodes (#1098)
+- SPIRE can tolerate small SVID expiration periods (#1115)
+- Reduced Docker image sizes by roughly 25% (#1140)
+- The `upstream_bundle` configurable is deprecated (#1147)
+- Agents can be configured to bootstrap insecurely with SPIRE Servers for ease of evaluation (#1148)
+- The issuer claim in JWT-SVIDs can be customized (#1164)
+- SPIRE Server supports a wider variety of signing key types (#1169)
+- New OIDC discovery provider that serves a compatible JWKS document with signing keys from the trust domain (#1170,#1175)
+- New Upstream CA plugin that signs SPIRE Server CA CSRs using a Private Ceriticate Authority in AWS Certificate Manager (#1172)
+- Agents respond more predictably when making requests to an overloaded SPIRE Server (#1182)
+- Docker Workload Attestor supports a wider variety of cgroup drivers (#1188)
+- Docker Workload Attestor supports selection based on container environment variables (#1205)
+- Fixed an issue in which Kubernetes workload attestation occasionally fails to identify the caller (#1216)
+
+## [0.8.4] - 2019-10-28
+- Fixed spurious agent synchronization failures during agent SVID rotation (#1084)
+- Added support for [Kind](https://kind.sigs.k8s.io) to the Kubernetes Workload Attestor (#1133)
+- Added support for ACME v2 to the bundle endpoint (#1187)
+- Fixed a bug that could result in agent crashes after upgrading to 0.8.2 or newer (#1194)
+
+## [0.8.3] - 2019-10-18
+- Upgrade to Go 1.12.12 in response to CVE-2019-17596 (#1204)
+
 ## [0.8.2] - 2019-10-10
 - Connection pool details in SQL DataStore plugin are now configurable (#1028)
 - SQL DataStore plugin now emits telemetry (#998)
