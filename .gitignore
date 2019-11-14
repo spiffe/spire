@@ -9,20 +9,21 @@
 /test_results
 /artifacts
 /releases
+/bin
 bundle.*.pem
 svid.*.key
 svid.*.pem
 
-
-cmd/spire-agent/spire-agent
+# Ignore binaries built using go build either from the root of the repo or
+# within the respective main packages.
+/spire-server
+/spire-agent
+/k8s-workload-registrar
+/oidc-discovery-provider
 cmd/spire-server/spire-server
+cmd/spire-agent/spire-agent
 support/k8s/k8s-workload-registrar/k8s-workload-registrar
 support/oidc-discovery-provider/oidc-discovery-provider
-
-functional/tools/stresstest/stresstest
-functional/tools/tokengenerator/tokengenerator
-functional/tools/workload/workload
-
 tools/spire-plugingen/spire-plugingen
 
 # Travis CI encrypted files decryption paths
