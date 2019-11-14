@@ -51,14 +51,12 @@ You may use all, some, or none of the collectors. The following collectors suppo
 #### `In-Mem`
 | Configuration    | Type          | Description | Default |
 | ---------------- | ------------- | ----------- | ------- |
-| `disabled`       | `bool`        | M3 address  | `false` |
+| `disabled`       | `bool`        | Disable this collector | `false` |
 
 Here is a sample configuration:
 
 ```hcl
 telemetry {
-        DisableInMem = true
-
         Prometheus {
                 port = 9988
         }
@@ -75,5 +73,9 @@ telemetry {
         M3 = [
             { address = "localhost:9000" env = "prod" },
         ]
+
+        InMem {
+            disabled = true
+        }
 }
 ```
