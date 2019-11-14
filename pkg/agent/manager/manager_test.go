@@ -426,7 +426,7 @@ func TestSVIDRotation(t *testing.T) {
 
 	mockClk.Add(time.Second)
 	// Loop until we detect an SVID rotation was called in separate process
-	util.RunWithTimeout(t, time.Second, func() {
+	util.RunWithTimeout(t, time.Minute, func() {
 		for {
 			if wasRotHookCalled() {
 				break
