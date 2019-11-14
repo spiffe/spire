@@ -58,14 +58,13 @@ var (
 		700 * time.Millisecond,
 		800 * time.Millisecond,
 		900 * time.Millisecond,
-		1000 * time.Millisecond,
+		time.Second,
 		1500 * time.Millisecond,
-		2000 * time.Millisecond,
-		2500 * time.Millisecond,
-		3000 * time.Millisecond,
-		4000 * time.Millisecond,
-		5000 * time.Millisecond,
-		10000 * time.Millisecond,
+		2 * time.Second,
+		3 * time.Second,
+		4 * time.Second,
+		5 * time.Second,
+		10 * time.Second,
 	}
 
 	// buckets for orders of magnitude of values, up to 1M
