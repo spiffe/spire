@@ -67,9 +67,9 @@ var (
 		10 * time.Second,
 	}
 
-	// buckets for orders of magnitude of values, up to 1M
+	// buckets for orders of magnitude of values, up to 1 million
 	// given nature of SPIRE, we do not expect negative values
-	valueBuckets = append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 10, 6)...)
+	exponentialValueBuckets = append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 10, 6)...)
 )
 
 type m3Sink struct {
@@ -200,7 +200,7 @@ func (m *m3Sink) addDurationSample(flattenedKey string, val float32, scope tally
 }
 
 func addValueSample(flattenedKey string, val float32, scope tally.Scope) {
-	histogram := scope.Histogram(flattenedKey, valueBuckets)
+	histogram := scope.Histogram(flattenedKey, exponentialValueBuckets)
 	val64 := float64(val)
 	histogram.RecordValue(val64)
 }
