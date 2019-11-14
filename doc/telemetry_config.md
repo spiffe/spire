@@ -5,20 +5,22 @@ If telemetry is desired, it may be configured by using a dedicated `telemetry { 
 - Statsd
 - DogStatsd
 - M3
+- In-Memory
 
 You may use all, some, or none. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
 
 - Statsd
 - DogStatsd
 - M3
+- InMem*
 
-Additionally, an in-memory telemetry sink will also be running. To disable this, set the `DisableInMem` flag to `true`.
+*In-memory telemetry sink will always be running, unless explicitly disabled through configuration. See [In-Mem](#`in-mem`).
 
 ### Telemetry configuration syntax
 
 | Configuration          | Type          | Description  | Default |
 | ----------------       | ------------- | ------------ | ------- |
-| `DisableInMem`         | `bool`        | True to disable in-memory metrics. | `false` |
+| `InMem`                | `InMem`       | In-memory configuration            | |
 | `Prometheus`           | `Prometheus`  | Prometheus configuration           | |
 | `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations   | |
 | `Statsd`               | `[]Statsd`    | List of Statsd configurations      | |
@@ -46,6 +48,11 @@ Additionally, an in-memory telemetry sink will also be running. To disable this,
 | ---------------- | ------------- | ----------- |
 | `address`        | `string`      | M3 address |
 | `env`            | `string`      | M3 environment, e.g. `production`, `staging` |
+
+#### `In-Mem`
+| Configuration    | Type          | Description | Default |
+| ---------------- | ------------- | ----------- | ------- |
+| `disabled`       | `bool`        | M3 address  | `false` |
 
 Here is a sample configuration:
 

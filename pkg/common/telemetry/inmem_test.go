@@ -18,7 +18,9 @@ func TestDisabledNewInmemRunner(t *testing.T) {
 	config := &MetricsConfig{
 		ServiceName: "foo",
 		FileConfig: FileConfig{
-			DisableInMem: true,
+			InMem: &InMem{
+				Disabled: true,
+			},
 		},
 	}
 	runner, err := newInmemRunner(config)
