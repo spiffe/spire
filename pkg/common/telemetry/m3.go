@@ -11,6 +11,68 @@ import (
 	"github.com/uber-go/tally/m3"
 )
 
+var (
+	// buckets with decreasing granularity as latency increases
+	// given these values, it is much easier to read in this format
+	// than to use the iterative `MakeBuckets` functionality from tally
+	durationBuckets = tally.DurationBuckets{
+		0,
+		time.Millisecond,
+		2 * time.Millisecond,
+		3 * time.Millisecond,
+		4 * time.Millisecond,
+		5 * time.Millisecond,
+		6 * time.Millisecond,
+		7 * time.Millisecond,
+		8 * time.Millisecond,
+		9 * time.Millisecond,
+		10 * time.Millisecond,
+		12 * time.Millisecond,
+		14 * time.Millisecond,
+		16 * time.Millisecond,
+		18 * time.Millisecond,
+		20 * time.Millisecond,
+		25 * time.Millisecond,
+		30 * time.Millisecond,
+		35 * time.Millisecond,
+		40 * time.Millisecond,
+		45 * time.Millisecond,
+		50 * time.Millisecond,
+		60 * time.Millisecond,
+		70 * time.Millisecond,
+		80 * time.Millisecond,
+		90 * time.Millisecond,
+		100 * time.Millisecond,
+		120 * time.Millisecond,
+		140 * time.Millisecond,
+		160 * time.Millisecond,
+		180 * time.Millisecond,
+		200 * time.Millisecond,
+		250 * time.Millisecond,
+		300 * time.Millisecond,
+		350 * time.Millisecond,
+		400 * time.Millisecond,
+		450 * time.Millisecond,
+		500 * time.Millisecond,
+		600 * time.Millisecond,
+		700 * time.Millisecond,
+		800 * time.Millisecond,
+		900 * time.Millisecond,
+		1000 * time.Millisecond,
+		1500 * time.Millisecond,
+		2000 * time.Millisecond,
+		2500 * time.Millisecond,
+		3000 * time.Millisecond,
+		4000 * time.Millisecond,
+		5000 * time.Millisecond,
+		10000 * time.Millisecond,
+	}
+
+	// buckets for orders of magnitude of values, up to 1M
+	// given nature of SPIRE, we do not expect negative values
+	valueBuckets = append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 10, 6)...)
+)
+
 type m3Sink struct {
 	closer io.Closer
 	scope  tally.Scope
@@ -133,13 +195,13 @@ func (m *m3Sink) addSample(key []string, val float32, scope tally.Scope) {
 }
 
 func (m *m3Sink) addDurationSample(flattenedKey string, val float32, scope tally.Scope) {
-	histogram := scope.Histogram(flattenedKey, tally.DurationBuckets{})
+	histogram := scope.Histogram(flattenedKey, durationBuckets)
 	dur := time.Duration(int64(val)) * timerGranularity
 	histogram.RecordDuration(dur)
 }
 
 func addValueSample(flattenedKey string, val float32, scope tally.Scope) {
-	histogram := scope.Histogram(flattenedKey, tally.ValueBuckets{})
+	histogram := scope.Histogram(flattenedKey, valueBuckets)
 	val64 := float64(val)
 	histogram.RecordValue(val64)
 }
