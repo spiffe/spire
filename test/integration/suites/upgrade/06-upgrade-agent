@@ -1,5 +1,0 @@
-#!/bin/bash
-
-log-info "upgrading agent..."
-docker-stop old-spire-agent
-docker-up new-spire-agent
