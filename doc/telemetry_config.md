@@ -5,16 +5,15 @@ If telemetry is desired, it may be configured by using a dedicated `telemetry { 
 - Statsd
 - DogStatsd
 - M3
-- In-Memory
+- In-Memory (see note)
+
+Note: In-memory telemetry sink will always be running, unless explicitly disabled through configuration. See [In-Mem](#`in-mem`).
 
 You may use all, some, or none. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
 
 - Statsd
 - DogStatsd
 - M3
-- InMem (see note)
-
-Note: In-memory telemetry sink will always be running, unless explicitly disabled through configuration. See [In-Mem](#`in-mem`).
 
 ### Telemetry configuration syntax
 
