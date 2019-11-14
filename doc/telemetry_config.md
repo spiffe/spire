@@ -12,9 +12,9 @@ You may use all, some, or none. The following collectors support multiple declar
 - Statsd
 - DogStatsd
 - M3
-- InMem*
+- InMem (see note)
 
-*In-memory telemetry sink will always be running, unless explicitly disabled through configuration. See [In-Mem](#`in-mem`).
+Note: In-memory telemetry sink will always be running, unless explicitly disabled through configuration. See [In-Mem](#`in-mem`).
 
 ### Telemetry configuration syntax
 
