@@ -9,7 +9,7 @@ If telemetry is desired, it may be configured by using a dedicated `telemetry { 
 
 Note: In-memory telemetry sink will always be running, unless explicitly disabled through configuration. See [In-Mem](#`in-mem`).
 
-You may use all, some, or none. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
+You may use all, some, or none of the collectors. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
 
 - Statsd
 - DogStatsd
@@ -19,7 +19,7 @@ You may use all, some, or none. The following collectors support multiple declar
 
 | Configuration          | Type          | Description  | Default |
 | ----------------       | ------------- | ------------ | ------- |
-| `InMem`                | `InMem`       | In-memory configuration            | |
+| `InMem`                | `InMem`       | In-memory configuration            | running |
 | `Prometheus`           | `Prometheus`  | Prometheus configuration           | |
 | `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations   | |
 | `Statsd`               | `[]Statsd`    | List of Statsd configurations      | |
