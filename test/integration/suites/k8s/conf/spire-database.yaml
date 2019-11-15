@@ -56,20 +56,6 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 60
             timeoutSeconds: 3
-          volumeMounts:
-            - name: postgres-data
-              mountPath: /var/lib/postgresql/data
-              readOnly: false
-  volumeClaimTemplates:
-    - metadata:
-        name: postgres-data
-        namespace: spire
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 64Mi
 
 ---
 

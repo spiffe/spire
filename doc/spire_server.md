@@ -56,7 +56,7 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                        | INFO                          |
 | `log_format`                | Format of logs, \<text\|json\>                                             | text                          |
 | `registration_uds_path`     | Location to bind the registration API socket                               | /tmp/spire-registration.sock  |
-| `svid_ttl`                  | The default SVID TTL                                                       | 1h                            |
+| `default_svid_ttl`          | The default SVID TTL                                                       | 1h                            |
 | `trust_domain`              | The trust domain that this server belongs to                               |                               |
 | `upstream_bundle`           | Include upstream CA certificates in the trust bundle                       | false                         |
 
@@ -380,7 +380,7 @@ server {
     log_level = "INFO"
     data_dir = "/opt/spire/.data/"
     registration_uds_path = "/opt/spire/registration.sock"
-    svid_ttl = "6h"
+    default_svid_ttl = "6h"
     ca_ttl = "72h"
     ca_subject = {
         country = ["US"],

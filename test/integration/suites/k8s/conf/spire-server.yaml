@@ -106,7 +106,7 @@ data:
       data_dir = "/run/spire/data"
       registration_uds_path = "/run/spire/sockets/registration.sock"
       log_level = "DEBUG"
-      svid_ttl = "1h"
+      default_svid_ttl = "1h"
       ca_ttl = "12h"
       upstream_bundle = true
       ca_subject = {

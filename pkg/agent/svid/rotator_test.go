@@ -137,8 +137,9 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 		return s.r.Run(ctx)
 	})
 
-	s.mockClock.WaitForTicker(time.Second, "timed out waiting for rotator to create a ticker")
 	s.mockClock.Add(s.r.c.Interval)
+	err = s.r.rotateSVID(context.Background())
+	s.Require().NoError(err)
 
 	select {
 	case <-time.After(time.Second):
@@ -154,18 +155,32 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {
-	cert, _, err := util.LoadSVIDFixture()
+	// Cert that's valid for 1hr
+	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
+	s.Require().NoError(err)
+	goodCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
 
+	// Cert that's expiring
+	temp.NotBefore = s.mockClock.Now().Add(-1 * time.Hour)
+	temp.NotAfter = s.mockClock.Now()
+	badCert, _, err := util.SelfSign(temp)
+	s.Require().NoError(err)
+
+	state := State{
+		SVID: []*x509.Certificate{badCert},
+	}
+	s.r.state = observer.NewProperty(state)
+
 	stream := s.r.Subscribe()
-	s.expectSVIDRotation(cert)
+	s.expectSVIDRotation(goodCert)
 	err = s.r.rotateSVID(context.Background())
 	s.Assert().NoError(err)
 	s.Require().True(stream.HasNext())
 
-	state := stream.Next().(State)
+	state = stream.Next().(State)
 	s.Require().Len(state.SVID, 1)
-	s.Assert().True(cert.Equal(state.SVID[0]))
+	s.Assert().True(goodCert.Equal(state.SVID[0]))
 }
 
 // expectSVIDRotation sets the appropriate expectations for an SVID rotation, and returns

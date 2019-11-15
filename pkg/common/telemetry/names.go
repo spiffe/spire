@@ -276,6 +276,9 @@ const (
 	// TrustDomainID tags some trust domain ID
 	TrustDomainID = "trust_domain_id"
 
+	// Unknown tags some unknown caller, entity, or status
+	Unknown = "unknown"
+
 	// Updated tags some entity as updated; should be used
 	// with other tags to add clarity
 	Updated = "updated"
