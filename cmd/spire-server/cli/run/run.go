@@ -58,7 +58,8 @@ type serverConfig struct {
 	LogLevel            string             `hcl:"log_level"`
 	LogFormat           string             `hcl:"log_format"`
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
-	SVIDTTL             string             `hcl:"svid_ttl"`
+	DeprecatedSVIDTTL   string             `hcl:"svid_ttl"`
+	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
 	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
 
@@ -314,10 +315,24 @@ func newServerConfig(c *config) (*server.Config, error) {
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
 
-	if c.Server.SVIDTTL != "" {
-		ttl, err := time.ParseDuration(c.Server.SVIDTTL)
+	if c.Server.DeprecatedSVIDTTL != "" {
+		if c.Server.DefaultSVIDTTL != "" {
+			sc.Log.Warn("Both `svid_ttl` and `default_svid_ttl` are set. `svid_ttl` will be ignored")
+		} else {
+			// TODO: remove in 0.10.0
+			sc.Log.Warn("The `svid_ttl` configurable has been renamed to `default_svid_ttl`; please update your configuration.")
+			ttl, err := time.ParseDuration(c.Server.DeprecatedSVIDTTL)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DeprecatedSVIDTTL, err)
+			}
+			sc.SVIDTTL = ttl
+		}
+	}
+
+	if c.Server.DefaultSVIDTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.SVIDTTL, err)
+			return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DefaultSVIDTTL, err)
 		}
 		sc.SVIDTTL = ttl
 	}

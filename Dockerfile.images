@@ -7,10 +7,7 @@ ADD proto/spire/go.mod /spire/proto/spire/go.mod
 RUN cd /spire && go mod download
 ADD . /spire
 WORKDIR /spire
-RUN make cmd/spire-server
-RUN make cmd/spire-agent
-RUN make support/k8s/k8s-workload-registrar
-RUN make support/oidc-discovery-provider
+RUN make build
 
 # Common base
 FROM alpine AS spire-base
@@ -20,28 +17,28 @@ RUN mkdir -p /opt/spire/bin
 
 # SPIRE Server
 FROM spire-base AS spire-server
-COPY --from=builder /spire/cmd/spire-server/spire-server /opt/spire/bin/spire-server
+COPY --from=builder /spire/bin/spire-server /opt/spire/bin/spire-server
 WORKDIR /opt/spire
 ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-server", "run"]
 CMD []
 
 # SPIRE Agent
 FROM spire-base AS spire-agent
-COPY --from=builder /spire/cmd/spire-agent/spire-agent /opt/spire/bin/spire-agent
+COPY --from=builder /spire/bin/spire-agent /opt/spire/bin/spire-agent
 WORKDIR /opt/spire
 ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "run"]
 CMD []
 
 # K8S Workload Registrar
 FROM spire-base AS k8s-workload-registrar
-COPY --from=builder /spire/support/k8s/k8s-workload-registrar/k8s-workload-registrar /opt/spire/bin/k8s-workload-registrar
+COPY --from=builder /spire/bin/k8s-workload-registrar /opt/spire/bin/k8s-workload-registrar
 WORKDIR /opt/spire
 ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/k8s-workload-registrar"]
 CMD []
 
 # OIDC Discovery Provider
 FROM spire-base AS oidc-discovery-provider
-COPY --from=builder /spire/support/oidc-discovery-provider/oidc-discovery-provider /opt/spire/bin/oidc-discovery-provider
+COPY --from=builder /spire/bin/oidc-discovery-provider /opt/spire/bin/oidc-discovery-provider
 WORKDIR /opt/spire
 ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/oidc-discovery-provider"]
 CMD []
