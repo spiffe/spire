@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/cenkalti/backoff/v3"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
+	spire_backoff "github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -83,6 +85,10 @@ type manager struct {
 	svidCachePath   string
 	bundleCachePath string
 
+	// backoff calculator for fetch interval, backing off if error is returned on
+	// fetch attempt
+	backoff backoff.BackOff
+
 	client client.Client
 
 	clk clock.Clock
@@ -96,6 +102,8 @@ func (m *manager) Initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to store private key: %v", err)
 	}
+
+	m.backoff = spire_backoff.NewBackoff(m.clk, m.c.SyncInterval)
 
 	return m.synchronize(ctx)
 }
@@ -180,7 +188,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 func (m *manager) runSynchronizer(ctx context.Context) error {
 	for {
 		select {
-		case <-m.clk.After(m.c.SyncInterval):
+		case <-m.clk.After(m.backoff.NextBackOff()):
 		case <-ctx.Done():
 			return nil
 		}
@@ -188,6 +196,8 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		if err != nil {
 			// Just log the error and wait for next synchronization
 			m.c.Log.WithError(err).Error("synchronize failed")
+		} else {
+			m.backoff.Reset()
 		}
 	}
 }

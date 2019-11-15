@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/telemetry"
-
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/client"
+	spire_backoff "github.com/spiffe/spire/pkg/agent/common/backoff"
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 const DefaultRotatorInterval = 5 * time.Second
@@ -75,11 +75,12 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 	client := client.New(cfg)
 
 	return &rotator{
-		c:      c,
-		client: client,
-		state:  state,
-		clk:    c.Clk,
-		bsm:    bsm,
-		rotMtx: rotMtx,
+		c:       c,
+		client:  client,
+		state:   state,
+		clk:     c.Clk,
+		backoff: spire_backoff.NewBackoff(c.Clk, c.Interval),
+		bsm:     bsm,
+		rotMtx:  rotMtx,
 	}, client
 }
