@@ -17,9 +17,9 @@ The plugin accepts the following configuration options:
 | Configuration   | Description                                          |
 | ----------------| ---------------------------------------------------- |
 | ttl             | The TTL for issued certificates (deprecated)         |
-| cert_file_path  | Path to the "upstream" CA certificate                |
-| key_file_path   | Path to the "upstream" CA key file                   |
-| bundle_file_path| Path to the trust bundle that signed the upstream CA |
+| cert_file_path  | Path to the "upstream" CA certificate that corresponds to the signing key. |
+| key_file_path   | Path to the "upstream" CA key file. Key files must contain a single PEM encoded key. The supported key types are EC (ASN.1 or PKCS8 encoded) or RSA (PKCS1 or PKCS8 encoded).|
+| bundle_file_path| If the certificate specified above is not a root certificate, but has been signed by a different root authority, then it is also necessary to specify the certificate bundle so that the full trust chain can be verified. The certificate bundle file should contain a chain of certificates, in PEM format, up to the trusted root. If the certificate specified above is a root (that is, self-signed) certificate, then this does not need to be configured. |
 
 The `ttl` configurable is deprecated. When unset, the plugin will use the
 preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
