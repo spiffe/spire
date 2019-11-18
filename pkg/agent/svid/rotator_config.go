@@ -45,6 +45,10 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 		c.Interval = DefaultRotatorInterval
 	}
 
+	if c.Clk == nil {
+		c.Clk = clock.New()
+	}
+
 	state := observer.NewProperty(State{
 		SVID: c.SVID,
 		Key:  c.SVIDKey,
