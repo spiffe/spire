@@ -171,10 +171,5 @@ func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labe
 
 // TODO: [rturner3] Remove this if/when go-metrics is fixed to not modify its input "key" slice
 func copyKey(key []string) []string {
-	var newKey []string
-	for _, e := range key {
-		newKey = append(newKey, e)
-	}
-
-	return newKey
+	return append([]string(nil), key...)
 }
