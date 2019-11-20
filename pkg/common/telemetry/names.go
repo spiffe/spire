@@ -289,9 +289,6 @@ const (
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"
 
-	// WorkloadAttestationDuration tags duration of workload attestation
-	WorkloadAttestationDuration = "workload_attestation_duration"
-
 	// WorkloadAttestor tags call of a workload attestor
 	WorkloadAttestor = "workload_attestor"
 
