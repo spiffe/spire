@@ -3,7 +3,6 @@ package attestor
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
@@ -38,7 +37,6 @@ type Config struct {
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
-	defer telemetry_workload.MeasureAttestDuration(wla.c.Metrics, time.Now())
 	log := wla.c.Log.WithField(telemetry.PID, pid)
 
 	plugins := wla.c.Catalog.GetWorkloadAttestors()
@@ -77,7 +75,7 @@ func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttes
 		Pid: pid,
 	}
 
-	counter := telemetry_workload.StartAttestorLatencyCall(wla.c.Metrics, a.Name())
+	counter := telemetry_workload.StartAttestorCall(wla.c.Metrics, a.Name())
 	defer counter.Done(&err)
 
 	resp, err := a.Attest(ctx, req)

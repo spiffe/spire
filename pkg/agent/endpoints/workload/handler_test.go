@@ -363,8 +363,8 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsCount int, statusLabel telemetry.Label) {
 	attestorLabels := []telemetry.Label{{telemetry.Attestor, "fake"}, statusLabel}
 
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, float32(1), attestorLabels)
-	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.ElapsedTime}, gomock.Any(), attestorLabels)
+	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor}, float32(1), attestorLabels)
+	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor, telemetry.ElapsedTime}, gomock.Any(), attestorLabels)
 	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(selectorsCount))
 	metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, gomock.Any())
 

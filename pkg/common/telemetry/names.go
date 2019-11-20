@@ -292,8 +292,8 @@ const (
 	// WorkloadAttestationDuration tags duration of workload attestation
 	WorkloadAttestationDuration = "workload_attestation_duration"
 
-	// WorkloadAttestorLatency tags latency of a workload attestor
-	WorkloadAttestorLatency = "workload_attestor_latency"
+	// WorkloadAttestor tags call of a workload attestor
+	WorkloadAttestor = "workload_attestor"
 
 	// X509 declared X509 SVID type, clarifying metrics
 	X509 = "x509"

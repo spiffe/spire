@@ -9,10 +9,10 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
-// StartAttestorLatencyCall return metric
-// for agent's Workload API Attestor latency for a specific attestor
-func StartAttestorLatencyCall(m telemetry.Metrics, aType string) *telemetry.CallCounter {
-	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency)
+// StartAttestorCall return metric
+// for agent's Workload API Attestor for a specific attestor
+func StartAttestorCall(m telemetry.Metrics, aType string) *telemetry.CallCounter {
+	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.WorkloadAttestor)
 	cc.AddLabel(telemetry.Attestor, aType)
 	return cc
 }
@@ -112,12 +112,6 @@ func SetFetchX509SVIDTTLGauge(m telemetry.Metrics, id string, val float32) {
 // End Gauge
 
 // Measure Since (metric on time passed since some given time)
-
-// MeasureAttestDuration emit metric on agent Workload API Attestor latency
-// for no specific attestor (the entire attest process)
-func MeasureAttestDuration(m telemetry.Metrics, t time.Time) {
-	m.MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, t)
-}
 
 // MeasureSendJWTBundleLatency emit metric on agent Workload API,
 // latency of sending JWT Bundle to workload
