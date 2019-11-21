@@ -32,6 +32,10 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+var (
+	joinTokenType = "join_token"
+)
+
 type AttestationResult struct {
 	SVID   []*x509.Certificate
 	Key    *ecdsa.PrivateKey
@@ -221,24 +225,25 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
+	attestorName := new(string)
+	defer func() { telemetry_common.AddAttestorType(counter, *attestorName) }()
 
 	// make sure all of the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	attestorName := "join_token"
+	attestorName = &joinTokenType
 	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
 	if a.c.JoinToken == "" {
 		attestor := a.c.Catalog.GetNodeAttestor()
-		attestorName = attestor.Name()
+		aName := attestor.Name()
+		attestorName = &aName
 		var err error
 		fetchStream, err = attestor.FetchAttestationData(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("opening stream for fetching attestation: %v", err)
 		}
 	}
-
-	telemetry_common.AddAttestorType(counter, attestorName)
 
 	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {

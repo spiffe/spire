@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/spiffe/spire/pkg/common/errorutil"
 	"io"
 	"net"
 	"net/url"
@@ -16,6 +15,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -67,6 +67,8 @@ func NewHandler(config HandlerConfig) *Handler {
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
+	attestorName := new(string)
+	defer func() { telemetry_common.AddAttestorType(counter, *attestorName) }()
 
 	log := h.c.Log.WithField(telemetry.Method, telemetry.NodeAPI)
 
@@ -95,7 +97,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		log.Error("Request missing attestation data type")
 		return status.Error(codes.InvalidArgument, "request missing attestation data type")
 	}
-	telemetry_common.AddAttestorType(counter, request.AttestationData.Type)
+	attestorName = &request.AttestationData.Type
 	log = log.WithField(telemetry.Attestor, request.AttestationData.Type)
 
 	if len(request.Csr) == 0 {
@@ -417,7 +419,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	log = log.WithFields(logrus.Fields{
-		telemetry.AgentID: agentID,
+		telemetry.AgentID:  agentID,
 		telemetry.SPIFFEID: req.Jsr.SpiffeId,
 	})
 
@@ -1040,7 +1042,7 @@ func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.
 	})
 	if err != nil {
 		h.c.Log.WithError(err).Error("Failed to fetch bundle")
-		return nil, errorutil.WrapError(err,"failed to fetch bundle")
+		return nil, errorutil.WrapError(err, "failed to fetch bundle")
 	}
 	if resp.Bundle == nil {
 		return nil, errors.New("bundle not found")

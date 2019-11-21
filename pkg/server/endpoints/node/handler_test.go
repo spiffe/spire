@@ -1225,6 +1225,8 @@ func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, expectedSPI
 	expectedCounter := telemetry_server.StartNodeAPIAttestCall(s.expectedMetrics)
 	if req.AttestationData != nil && req.AttestationData.Type != "" {
 		telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
+	} else {
+		telemetry_common.AddAttestorType(expectedCounter, "")
 	}
 	expectErr := status.Error(errorCode, "")
 	defer expectedCounter.Done(&expectErr)
