@@ -5,10 +5,11 @@ import "github.com/spiffe/spire/pkg/common/telemetry"
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
-// StartNodeAttestCall return metric for
-// an agent's call for Node Attestation
-func StartNodeAttestCall(m telemetry.Metrics) *telemetry.CallCounter {
-	return telemetry.StartCall(m, telemetry.Node, telemetry.Attest)
+// StartNodeInitSVIDCall return metric for
+// an agent's call for to try to initialize with a
+// SVID
+func StartNodeInitSVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Node, telemetry.Init, telemetry.SVID)
 }
 
 // StartNodeAttestorNewSVIDCall return metric

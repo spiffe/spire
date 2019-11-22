@@ -64,7 +64,7 @@ func New(config *Config) Attestor {
 }
 
 func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
-	counter := telemetry_agent.StartNodeAttestCall(a.c.Metrics)
+	counter := telemetry_agent.StartNodeInitSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
 
 	bundle, err := a.loadBundle()

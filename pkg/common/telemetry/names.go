@@ -34,6 +34,10 @@ const (
 	// to add clarity
 	Fetch = "fetch"
 
+	// Init functionality related to initializing some entity or process; should used with other
+	// tags to add clarity
+	Init = "init"
+
 	// List functionality related to listing some objects; should be used
 	// with other tags to add clarity
 	List = "list"
