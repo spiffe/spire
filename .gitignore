@@ -32,3 +32,6 @@ tools/spire-plugingen/spire-plugingen
 # Editor specific configuration
 .idea
 .vscode
+
+# Ignore the vendored Google protobuf definitions
+proto/google

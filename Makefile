@@ -22,6 +22,7 @@ goversion-required := $(shell cat .go-version)
 gittag := $(shell git tag --points-at HEAD)
 githash := $(shell git rev-parse --short=7 HEAD)
 gitdirty := $(shell git status -s)
+google_proto_version := 3.10.1
 
 # Determine the ldflags passed to the go linker. The git tag and hash will be
 # provided to the linker unless the git status is dirty.
@@ -43,7 +44,8 @@ external_utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/jteeuwen/go-bindata/go-bindata \
 		github.com/golang/mock/mockgen \
 		github.com/AlekSi/gocoverutil \
-		github.com/mattn/goveralls
+		github.com/mattn/goveralls \
+		github.com/alrs/protogetter
 
 # Help message settings
 cyan := $(shell which tput > /dev/null && tput setaf 6 || echo "")
@@ -103,6 +105,9 @@ distclean: clean ## Remove object files, vendor and .cache folders
 	rm -rf .cache
 	rm -rf vendor
 
+.PHONY: protoclean
+protoclean:
+	rm -rf proto/google
 
 ##@ Container
 container: Dockerfile ## Build Docker container for compilation
@@ -171,6 +176,9 @@ protobuf: utils ## Regenerate the gRPC pb.go and README_pb.md files
 
 protobuf_verify: utils ## Check that the checked-in generated code is up-to-date
 	$(docker) ./build.sh protobuf_verify
+
+proto/google:
+	protogetter -version $(google_proto_version) -destination proto
 
 noop:
 

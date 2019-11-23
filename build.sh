@@ -85,13 +85,15 @@ build_utils() {
 
 ## Rebuild all .proto files and associated README's
 build_protobuf() {
+	# only download the Google proto files if they aren't available
+	make proto/google
 	local _proto_file _all_proto_files _proto_dir _proto_dirs _outdir _srcdir _out="$1"
 	eval "$(build_env)"
 
-	# Generate protobufs in the proto/ and pkg/ subdirectories. README markdown
+	# Generate protobufs in the proto/spire and pkg/ subdirectories. README markdown
 	# will also be generated for protobufs in proto/. Unless an "_out" argument
 	# has been set the output will sit alongside the proto files.
-	_all_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
+	_all_proto_files="$(find proto/spire pkg -name '*.proto' 2>/dev/null)"
 	for _proto_file in ${_all_proto_files}; do
 		_srcdir="$(dirname "${_proto_file}")"
 		_outdir="${_srcdir}"
@@ -105,7 +107,7 @@ build_protobuf() {
 			--go_out=paths=source_relative,plugins=grpc:"${_outdir}" "${_proto_file}"
 	done
 
-	_proto_dirs="$(find proto -type d 2>/dev/null)"
+	_proto_dirs="$(find proto/spire -type d 2>/dev/null)"
 	for _proto_dir in ${_proto_dirs}; do
 		_outdir="${_proto_dir}"
 		if [[ -n ${_out} ]]; then

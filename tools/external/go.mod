@@ -5,6 +5,7 @@ require (
 	github.com/Masterminds/goutils v1.1.0 // indirect
 	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/Masterminds/sprig v2.18.0+incompatible // indirect
+	github.com/alrs/protogetter v0.0.0-20191122225617-e84febc27577 // indirect
 	github.com/golang/mock v1.2.0 // indirect
 	github.com/golang/protobuf v1.3.0
 	github.com/huandu/xstrings v1.2.0 // indirect
