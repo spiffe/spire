@@ -1,0 +1,24 @@
+version: '3'
+services:
+  upstream-spire-server:
+    image: spire-server:latest-local
+    volumes:
+      - ./conf/upstream/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  downstream-spire-server:
+    image: spire-server:latest-local
+    volumes:
+      - ./conf/downstream/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  upstream-workload:
+    image: socat-ghostunnel-agent-mashup
+    volumes:
+      - ./conf/upstream/supervisord:/opt/supervisord
+      - ./conf/upstream/ghostunnel:/opt/ghostunnel
+      - ./conf/upstream/agent:/opt/spire/conf/agent
+  downstream-workload:
+    image: socat-ghostunnel-agent-mashup
+    volumes:
+      - ./conf/downstream/supervisord:/opt/supervisord
+      - ./conf/downstream/ghostunnel:/opt/ghostunnel
+      - ./conf/downstream/agent:/opt/spire/conf/agent
