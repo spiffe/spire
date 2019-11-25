@@ -417,7 +417,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	log = log.WithFields(logrus.Fields{
-		telemetry.AgentID: agentID,
+		telemetry.AgentID:  agentID,
 		telemetry.SPIFFEID: req.Jsr.SpiffeId,
 	})
 
@@ -1040,7 +1040,7 @@ func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.
 	})
 	if err != nil {
 		h.c.Log.WithError(err).Error("Failed to fetch bundle")
-		return nil, errorutil.WrapError(err,"failed to fetch bundle")
+		return nil, errorutil.WrapError(err, "failed to fetch bundle")
 	}
 	if resp.Bundle == nil {
 		return nil, errors.New("bundle not found")

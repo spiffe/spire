@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -e
+
+log-debug "starting downstream agent"
+docker-compose exec downstream-workload supervisorctl --configuration /opt/supervisord/supervisord.conf start spire-agent
+
+log-debug "starting upstream agent"
+docker-compose exec upstream-workload supervisorctl --configuration /opt/supervisord/supervisord.conf start spire-agent

@@ -143,6 +143,9 @@ const (
 	// FederatedRemoved labels some count of federated bundles that have been removed from an entity
 	FederatedRemoved = "fed_rem"
 
+	// Generation represents an objection generation (i.e. version)
+	Generation = "generation"
+
 	// IDType tags some type of ID (eg. registration ID, SPIFFE ID...)
 	IDType = "id_type"
 
