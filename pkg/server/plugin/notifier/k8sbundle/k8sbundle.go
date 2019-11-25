@@ -200,7 +200,7 @@ func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig) (er
 			// If there is a conflict then some other server won the race updating
 			// the ConfigMap. We need to retrieve the latest bundle and try again.
 			if s, ok := err.(k8serrors.APIStatus); ok && s.Status().Code == http.StatusConflict {
-				p.log.Debug("Conflict detected patching configmap", telemetry.VersionInfo, configMap.ResourceVersion)
+				p.log.Debug("Conflict detected patching configmap; will retry", telemetry.VersionInfo, configMap.ResourceVersion)
 				continue
 			}
 			return k8sErr.New("unable to update config map %s/%s: %v", c.Namespace, c.ConfigMap, err)
