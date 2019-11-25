@@ -50,7 +50,7 @@ func (h *Handler) CreateEntry(
 
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	log := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntry)
 
 	request, err = h.prepareRegistrationEntry(request, false)
@@ -90,7 +90,7 @@ func (h *Handler) DeleteEntry(
 	response *common.RegistrationEntry, err error) {
 
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.DeleteRegistrationEntry)
 
@@ -113,7 +113,7 @@ func (h *Handler) FetchEntry(
 	response *common.RegistrationEntry, err error) {
 
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntry)
 
@@ -138,7 +138,7 @@ func (h *Handler) FetchEntries(
 	response *common.RegistrationEntries, err error) {
 
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntries)
 
@@ -159,7 +159,7 @@ func (h *Handler) UpdateEntry(
 	response *common.RegistrationEntry, err error) {
 
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.UpdateRegistrationEntry)
 
@@ -198,7 +198,7 @@ func (h *Handler) ListByParentID(
 	response *common.RegistrationEntries, err error) {
 
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsByParentID)
 
@@ -231,7 +231,7 @@ func (h *Handler) ListBySelector(
 	response *common.RegistrationEntries, err error) {
 
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySelector)
 
@@ -258,7 +258,7 @@ func (h *Handler) ListBySelectors(
 	response *common.RegistrationEntries, err error) {
 
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySelectors)
 
@@ -285,7 +285,7 @@ func (h *Handler) ListBySpiffeID(
 	response *common.RegistrationEntries, err error) {
 
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySPIFFEID)
 
@@ -317,7 +317,7 @@ func (h *Handler) CreateFederatedBundle(
 	response *common.Empty, err error) {
 
 	counter := telemetry_registrationapi.StartCreateFedBundleCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.CreateFederatedBundle)
 
@@ -353,7 +353,7 @@ func (h *Handler) FetchFederatedBundle(
 	response *registration.FederatedBundle, err error) {
 
 	counter := telemetry_registrationapi.StartFetchFedBundleCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchFederatedBundle)
 
@@ -388,7 +388,7 @@ func (h *Handler) FetchFederatedBundle(
 
 func (h *Handler) ListFederatedBundles(request *common.Empty, stream registration.Registration_ListFederatedBundlesServer) (err error) {
 	counter := telemetry_registrationapi.StartListFedBundlesCall(h.Metrics)
-	addCallerIDLabel(stream.Context(), counter)
+	telemetry_common.AddCallerID(counter, getCallerID(stream.Context()))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.ListFederatedBundles)
 
@@ -419,7 +419,7 @@ func (h *Handler) UpdateFederatedBundle(
 	response *common.Empty, err error) {
 
 	counter := telemetry_registrationapi.StartUpdateFedBundleCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.UpdateFederatedBundle)
 
@@ -455,7 +455,7 @@ func (h *Handler) DeleteFederatedBundle(
 	response *common.Empty, err error) {
 
 	counter := telemetry_registrationapi.StartDeleteFedBundleCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.DeleteFederatedBundle)
 
@@ -493,7 +493,7 @@ func (h *Handler) CreateJoinToken(
 	token *registration.JoinToken, err error) {
 
 	counter := telemetry_registrationapi.StartCreateJoinTokenCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.CreateJoinToken)
 
@@ -535,7 +535,7 @@ func (h *Handler) FetchBundle(
 	response *registration.Bundle, err error) {
 
 	counter := telemetry_registrationapi.StartFetchBundleCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchBundle)
 
@@ -561,7 +561,7 @@ func (h *Handler) FetchBundle(
 func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
 	spiffeID := evictRequest.GetSpiffeID()
 	log := h.Log.WithFields(logrus.Fields{
-		telemetry.Method: telemetry.EvictAgent,
+		telemetry.Method:   telemetry.EvictAgent,
 		telemetry.SPIFFEID: spiffeID,
 	})
 
@@ -592,7 +592,7 @@ func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgen
 
 func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SVIDRequest) (_ *registration.MintX509SVIDResponse, err error) {
 	counter := telemetry_registrationapi.StartMintX509SVIDCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.MintX509SVID)
 
@@ -665,7 +665,7 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 
 func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVIDRequest) (_ *registration.MintJWTSVIDResponse, err error) {
 	counter := telemetry_registrationapi.StartMintJWTSVIDCall(h.Metrics)
-	addCallerIDLabel(ctx, counter)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.MintJWTSVID)
 
@@ -900,12 +900,6 @@ func withCallerID(ctx context.Context, callerID string) context.Context {
 func getCallerID(ctx context.Context) string {
 	callerID, _ := ctx.Value(callerIDKey{}).(string)
 	return callerID
-}
-
-func addCallerIDLabel(ctx context.Context, counter *telemetry.CallCounter) {
-	if callerID := getCallerID(ctx); callerID != "" {
-		telemetry_common.AddCallerID(counter, callerID)
-	}
 }
 
 func validateDNS(dns string) error {
