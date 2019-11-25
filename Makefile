@@ -22,6 +22,26 @@ goversion-required := $(shell cat .go-version)
 gittag := $(shell git tag --points-at HEAD)
 githash := $(shell git rev-parse --short=7 HEAD)
 gitdirty := $(shell git status -s)
+# if uname doesn't find Linux or Darwin, set arch as 'UNSUPPORTED'
+os = UNSUPPORTED
+ifeq ($(shell uname -a | grep Linux > /dev/null && echo $$?), 0)
+	os = linux
+endif
+ifeq ($(shell uname -a | grep Darwin > /dev/null && echo $$?), 0)
+	os = darwin
+endif
+
+build_dir := .build-$(os)-x86_64
+ifeq ($(TRAVIS), true)
+	build_dir = ~/.build
+endif
+
+google_protobuf_version := 3.3.0
+google_protobuf_include := $(os)/include/google/protobuf
+google_protobuf_url_dir :=  https://github.com/protocolbuffers/protobuf/releases/download/v$(google_protobuf_version)
+google_protobuf_filename := protoc-$(google_protobuf_version)-$(os)-x86_64.zip
+google_protobuf_url := $(google_protobuf_url_dir)/$(google_protobuf_filename)
+google_protobuf_cache := .cache/$(google_protobuf_filename)
 
 # Determine the ldflags passed to the go linker. The git tag and hash will be
 # provided to the linker unless the git status is dirty.
@@ -158,19 +178,33 @@ $(utils): noop
 $(external_utils): noop
 	$(docker) /bin/sh -c "cd tools/external; go install $@"
 
+.PHONY: protoc
+protoc: $(build_dir)/include/google ## Ensure that protoc and protobuf includes are available
+
 
 # Vendor is not needed for building. It is just kept for compatibility with IDEs that does not support modules yet.
+
+.cache: ## create .cache directory for third-party downloads
+	mkdir -p .cache
+
 vendor: ## Make vendored copy of dependencies.
 	$(docker) go mod vendor
 
 artifact: ## Build SPIRE artifacts
 	$(docker) ./build.sh artifact
 
-protobuf: utils ## Regenerate the gRPC pb.go and README_pb.md files
+protobuf: utils $(build_dir)/include/google ## Regenerate the gRPC pb.go and README_pb.md files
 	$(docker) ./build.sh protobuf
 
 protobuf_verify: utils ## Check that the checked-in generated code is up-to-date
 	$(docker) ./build.sh protobuf_verify
+
+$(build_dir)/include/google: $(google_protobuf_cache) ## drop Google .proto files in expected location
+	unzip -od $(build_dir) $(google_protobuf_cache)
+
+$(google_protobuf_cache): .cache ## download the Google .proto files
+	curl --location --output .cache/$(google_protobuf_filename) \
+	$(google_protobuf_url)
 
 noop:
 

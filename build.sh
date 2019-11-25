@@ -11,10 +11,8 @@ fi
 
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
-			declare -r OS2="osx"
 			;;
 	Linux)	declare -r OS1="linux"
-			declare -r OS2="linux"
 			;;
 esac
 
@@ -33,9 +31,6 @@ export GO111MODULE=on
 declare -r GO_VERSION=${GO_VERSION:-1.13.4}
 declare -r GO_URL="https://storage.googleapis.com/golang"
 declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
-declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
-declare -r PROTOBUF_URL="https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}"
-declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
 
 _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
@@ -59,7 +54,7 @@ build_env() {
 	_gr="${GOROOT:-$BUILD_DIR}"
 	echo "export GOPATH=${_gp}"
 	echo "export GOROOT=${_gr}"
-	echo "export PATH=$(test -d "${BUILD_DIR}/bin" && echo "${BUILD_DIR}/bin:")${_gr}/bin:${_gp}/bin:${PATH}"
+	echo "export PATH=$(test -d "${BUILD_DIR}/bin" && echo "${BUILD_DIR}/bin:")${_gr}/bin:${_gp}/bin:${PATH}:${BUILD_ROOT}/bin"
 }
 
 ## fetch first-party versions of binaries we can not 'go get'
@@ -69,11 +64,11 @@ build_setup() {
 	rm -rf "${BUILD_DIR}"
 	mkdir -p "${BUILD_DIR}"
 
+	make protoc
+
 	_fetch_url "${GO_URL}" "${GO_TGZ}"
 	tar --directory "${BUILD_DIR}" --strip 1 -xf "${BUILD_CACHE}/${GO_TGZ}"
 
-	_fetch_url "${PROTOBUF_URL}" "${PROTOBUF_TGZ}"
-	unzip -qod "${BUILD_DIR}" "${BUILD_CACHE}/${PROTOBUF_TGZ}"
 }
 
 ## go-get extra utils needed for CI builds
