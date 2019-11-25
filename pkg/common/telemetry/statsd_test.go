@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,8 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	defaultStatsdTestListenerPort = 8125
+	statsdProtocol                = "udp"
+)
+
 func TestStatsdIsConfigured(t *testing.T) {
-	config := testStatsdConfig()
+	config := testStatsdConfig(defaultStatsdTestListenerPort)
 	dr, err := newStatsdRunner(config)
 	require.Nil(t, err)
 	assert.True(t, dr.isConfigured())
@@ -23,7 +29,7 @@ func TestStatsdIsConfigured(t *testing.T) {
 }
 
 func TestStatsdSinks(t *testing.T) {
-	config := testStatsdConfig()
+	config := testStatsdConfig(defaultStatsdTestListenerPort)
 	sink2 := StatsdConfig{
 		Address: "localhost:8126",
 	}
@@ -35,7 +41,7 @@ func TestStatsdSinks(t *testing.T) {
 }
 
 func TestStatsdRun(t *testing.T) {
-	config := testStatsdConfig()
+	config := testStatsdConfig(defaultStatsdTestListenerPort)
 	dr, err := newStatsdRunner(config)
 	require.Nil(t, err)
 
@@ -52,7 +58,7 @@ func TestStatsdRun(t *testing.T) {
 	}
 }
 
-func testStatsdConfig() *MetricsConfig {
+func testStatsdConfig(port int) *MetricsConfig {
 	l, _ := test.NewNullLogger()
 
 	return &MetricsConfig{
@@ -61,7 +67,7 @@ func testStatsdConfig() *MetricsConfig {
 		FileConfig: FileConfig{
 			Statsd: []StatsdConfig{
 				{
-					Address: "localhost:8125",
+					Address: fmt.Sprintf("localhost:%d", port),
 				},
 			},
 		},

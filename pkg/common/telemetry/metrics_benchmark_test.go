@@ -1,8 +1,11 @@
 package telemetry
 
 import (
+	"net"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -46,7 +49,15 @@ func BenchmarkPrometheus(b *testing.B) {
 }
 
 func BenchmarkStatsd(b *testing.B) {
-	m := getStatsdMetricImpl(b)
+	listener, err := net.ListenPacket(statsdProtocol, "localhost:")
+	if err != nil {
+		require.NoError(b, err)
+	}
+	defer listener.Close()
+
+	port := listener.LocalAddr().(*net.UDPAddr).Port
+
+	m := getStatsdMetricImpl(b, port)
 
 	benchmarkMetricImpl(b, m)
 }
@@ -110,8 +121,7 @@ func benchmarkMetricImpl(b *testing.B, m Metrics) {
 func getDogStatsdMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testDogStatsdConfig())
 	if err != nil {
-		b.Log(err)
-		b.FailNow()
+		require.NoError(b, err)
 	}
 	return m
 }
@@ -119,8 +129,7 @@ func getDogStatsdMetricImpl(b *testing.B) Metrics {
 func getInMemMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testInmemConfig())
 	if err != nil {
-		b.Log(err)
-		b.FailNow()
+		require.NoError(b, err)
 	}
 	return m
 }
@@ -128,8 +137,7 @@ func getInMemMetricImpl(b *testing.B) Metrics {
 func getM3MetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testM3Config())
 	if err != nil {
-		b.Log(err)
-		b.FailNow()
+		require.NoError(b, err)
 	}
 	return m
 }
@@ -137,17 +145,15 @@ func getM3MetricImpl(b *testing.B) Metrics {
 func getPrometheusMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testPrometheusConfig())
 	if err != nil {
-		b.Log(err)
-		b.FailNow()
+		require.NoError(b, err)
 	}
 	return m
 }
 
-func getStatsdMetricImpl(b *testing.B) Metrics {
-	m, err := NewMetrics(testStatsdConfig())
+func getStatsdMetricImpl(b *testing.B, port int) Metrics {
+	m, err := NewMetrics(testStatsdConfig(port))
 	if err != nil {
-		b.Log(err)
-		b.FailNow()
+		require.NoError(b, err)
 	}
 	return m
 }
