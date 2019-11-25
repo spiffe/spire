@@ -17,7 +17,7 @@ const (
 )
 
 func TestStatsdIsConfigured(t *testing.T) {
-	config := testStatsdConfig(defaultStatsdTestListenerPort)
+	config := testStatsdConfig()
 	dr, err := newStatsdRunner(config)
 	require.Nil(t, err)
 	assert.True(t, dr.isConfigured())
@@ -29,7 +29,7 @@ func TestStatsdIsConfigured(t *testing.T) {
 }
 
 func TestStatsdSinks(t *testing.T) {
-	config := testStatsdConfig(defaultStatsdTestListenerPort)
+	config := testStatsdConfig()
 	sink2 := StatsdConfig{
 		Address: "localhost:8126",
 	}
@@ -41,7 +41,7 @@ func TestStatsdSinks(t *testing.T) {
 }
 
 func TestStatsdRun(t *testing.T) {
-	config := testStatsdConfig(defaultStatsdTestListenerPort)
+	config := testStatsdConfig()
 	dr, err := newStatsdRunner(config)
 	require.Nil(t, err)
 
@@ -58,7 +58,7 @@ func TestStatsdRun(t *testing.T) {
 	}
 }
 
-func testStatsdConfig(port int) *MetricsConfig {
+func testStatsdConfigWithPort(port int) *MetricsConfig {
 	l, _ := test.NewNullLogger()
 
 	return &MetricsConfig{
@@ -72,4 +72,8 @@ func testStatsdConfig(port int) *MetricsConfig {
 			},
 		},
 	}
+}
+
+func testStatsdConfig() *MetricsConfig {
+	return testStatsdConfigWithPort(defaultStatsdTestListenerPort)
 }

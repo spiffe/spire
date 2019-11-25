@@ -50,9 +50,8 @@ func BenchmarkPrometheus(b *testing.B) {
 
 func BenchmarkStatsd(b *testing.B) {
 	listener, err := net.ListenPacket(statsdProtocol, "localhost:")
-	if err != nil {
-		require.NoError(b, err)
-	}
+	require.NoError(b, err)
+
 	defer listener.Close()
 
 	port := listener.LocalAddr().(*net.UDPAddr).Port
@@ -120,40 +119,30 @@ func benchmarkMetricImpl(b *testing.B, m Metrics) {
 
 func getDogStatsdMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testDogStatsdConfig())
-	if err != nil {
-		require.NoError(b, err)
-	}
+	require.NoError(b, err)
 	return m
 }
 
 func getInMemMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testInmemConfig())
-	if err != nil {
-		require.NoError(b, err)
-	}
+	require.NoError(b, err)
 	return m
 }
 
 func getM3MetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testM3Config())
-	if err != nil {
-		require.NoError(b, err)
-	}
+	require.NoError(b, err)
 	return m
 }
 
 func getPrometheusMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testPrometheusConfig())
-	if err != nil {
-		require.NoError(b, err)
-	}
+	require.NoError(b, err)
 	return m
 }
 
 func getStatsdMetricImpl(b *testing.B, port int) Metrics {
-	m, err := NewMetrics(testStatsdConfig(port))
-	if err != nil {
-		require.NoError(b, err)
-	}
+	m, err := NewMetrics(testStatsdConfigWithPort(port))
+	require.NoError(b, err)
 	return m
 }
