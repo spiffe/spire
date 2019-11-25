@@ -686,7 +686,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 					Kind: &structpb.Value_ListValue{
 						ListValue: &structpb.ListValue{
 							Values: []*structpb.Value{
-								&structpb.Value{
+								{
 									Kind: &structpb.Value_StringValue{
 										StringValue: "audience",
 									},
