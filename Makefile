@@ -13,7 +13,6 @@ endif
 export GO111MODULE=on
 
 # Makefile variables
-binary_dirs := $(shell find cmd/* support/k8s/* support/oidc-discovery-provider -maxdepth 0 -type d)
 docker_volume_gopath := $(shell echo $${GOPATH}/pkg/mod):/root/go/pkg/mod
 docker_volume_spire := $(shell echo $${PWD}):/root/spire
 docker_image = spire-dev:latest
@@ -23,12 +22,19 @@ goversion-required := $(shell cat .go-version)
 gittag := $(shell git tag --points-at HEAD)
 githash := $(shell git rev-parse --short=7 HEAD)
 gitdirty := $(shell git status -s)
-# don't provide the git tag if the git status is dirty.
-ifneq ($(gitdirty),)
-	gittag :=
-	githash :=
+
+# Determine the ldflags passed to the go linker. The git tag and hash will be
+# provided to the linker unless the git status is dirty.
+go_ldflags := -s -w
+ifeq ($(gitdirty),)
+  ifneq ($(gittag),)
+    go_ldflags += -X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)
+  endif
+  ifneq ($(githash),)
+    go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(githash)
+  endif
 endif
-ldflags := '-s -w -X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag) -X github.com/spiffe/spire/pkg/common/version.githash=$(githash)'
+go_ldflags := '${go_ldflags}'
 
 utils = github.com/spiffe/spire/tools/spire-plugingen
 
@@ -54,10 +60,22 @@ go-check:
 
 # Make targets
 ##@ Building
-build: $(binary_dirs) ## Build SPIRE binaries
 
-$(binary_dirs): go-check
-	$(docker) /bin/sh -c "cd $@; go build -ldflags $(ldflags)"
+build: bin/spire-server bin/spire-agent bin/k8s-workload-registrar bin/oidc-discovery-provider ## Build SPIRE binaries
+
+define binary_rule
+.PHONY: $1
+$1:
+	$$(docker) /bin/sh -c "go build -ldflags $$(go_ldflags) -o $1 $2"
+endef
+
+$(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
+$(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
+$(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
+$(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
+
+bin:
+	mkdir -p bin
 
 all: $(container) build test ## Build and run tests
 

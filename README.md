@@ -13,6 +13,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Getting started](#getting-started)
 - [Examples](#examples)
 - [Using SPIRE with Envoy](#using-spire-with-envoy)
+- [Upgrading SPIRE](#upgrading-spire)
 - [Getting help](#getting-help)
 - [Community](#community)
 
@@ -42,6 +43,10 @@ SPIRE provides an implementation of the [Envoy](https://envoyproxy.io)
 [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret)
 (SDS). SDS can be used to transparently install and rotate TLS certificates and
 trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
+
+# Upgrading SPIRE
+
+SPIRE Server supports zero-downtime upgrades when there's more than one SPIRE Server in the cluster. Please see the [Managing Upgrades/Downgrades](doc/upgrading.md) guide for more information on SPIRE version compatibility and supported upgrade paths.
 
 # Getting Help
 
