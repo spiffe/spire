@@ -110,7 +110,8 @@ func benchmarkMetricImpl(b *testing.B, m Metrics) {
 func getDogStatsdMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testDogStatsdConfig())
 	if err != nil {
-		b.Error(err)
+		b.Log(err)
+		b.FailNow()
 	}
 	return m
 }
@@ -118,7 +119,8 @@ func getDogStatsdMetricImpl(b *testing.B) Metrics {
 func getInMemMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testInmemConfig())
 	if err != nil {
-		b.Error(err)
+		b.Log(err)
+		b.FailNow()
 	}
 	return m
 }
@@ -126,7 +128,8 @@ func getInMemMetricImpl(b *testing.B) Metrics {
 func getM3MetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testM3Config())
 	if err != nil {
-		b.Error(err)
+		b.Log(err)
+		b.FailNow()
 	}
 	return m
 }
@@ -134,7 +137,8 @@ func getM3MetricImpl(b *testing.B) Metrics {
 func getPrometheusMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testPrometheusConfig())
 	if err != nil {
-		b.Error(err)
+		b.Log(err)
+		b.FailNow()
 	}
 	return m
 }
@@ -142,7 +146,8 @@ func getPrometheusMetricImpl(b *testing.B) Metrics {
 func getStatsdMetricImpl(b *testing.B) Metrics {
 	m, err := NewMetrics(testStatsdConfig())
 	if err != nil {
-		b.Error(err)
+		b.Log(err)
+		b.FailNow()
 	}
 	return m
 }
