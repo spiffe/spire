@@ -17,7 +17,7 @@ The plugin accepts the following configuration options:
 ## Authenticating with Google Cloud Storage
 
 The plugin authenticates with Google Cloud Storage using the mechanisms
-described [here](https://cloud.google.com/docs/authentication/production).
+described in [Authentication Setup Docs](https://cloud.google.com/docs/authentication/production).
 Specifically, service account credentials are obtained using a file path
 configured via `service_account_file`, or the plugin uses Application Default
 Credentials available in the environment the SPIRE server is running in.

@@ -102,7 +102,7 @@ username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valu
 connection_string="username:password@tcp(localhost:3306)/dbname?parseTime=true"
 ```
 
-Read MySQL driver for more `connection_string` options [here](https://github.com/go-sql-driver/mysql#usage).
+Read MySQL driver for more `connection_string` options in the [driver's GitHub](https://github.com/go-sql-driver/mysql#usage).
 
 #### Configuration Options
 * dbname - The name of the database to connect to
