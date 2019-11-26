@@ -14,12 +14,46 @@ func TestNewInmemRunner(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestDefaultEnabledNewInmemRunner(t *testing.T) {
+	t.Run("enabled when block undeclared", func(t *testing.T) {
+		runner, err := newInmemRunner(testInmemConfig())
+		assert.Nil(t, err)
+		assert.True(t, runner.isConfigured())
+	})
+
+	t.Run("enabled flag undeclared", func(t *testing.T) {
+		config := testInmemConfig()
+		config.FileConfig = FileConfig{
+			InMem: &InMem{},
+		}
+		runner, err := newInmemRunner(config)
+		assert.Nil(t, err)
+		assert.True(t, runner.isConfigured())
+	})
+
+	t.Run("enabled flag declared", func(t *testing.T) {
+		enabledFlag := true
+
+		config := testInmemConfig()
+		config.FileConfig = FileConfig{
+			InMem: &InMem{
+				Enabled: &enabledFlag,
+			},
+		}
+		runner, err := newInmemRunner(config)
+		assert.Nil(t, err)
+		assert.True(t, runner.isConfigured())
+	})
+}
+
 func TestDisabledNewInmemRunner(t *testing.T) {
+	enabledFlag := false
+
 	config := &MetricsConfig{
 		ServiceName: "foo",
 		FileConfig: FileConfig{
 			InMem: &InMem{
-				Disabled: true,
+				Enabled: &enabledFlag,
 			},
 		},
 	}

@@ -22,7 +22,7 @@ type inmemRunner struct {
 func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &inmemRunner{}
 
-	if c.FileConfig.InMem != nil && c.FileConfig.InMem.Disabled {
+	if c.FileConfig.InMem != nil && c.FileConfig.InMem.Enabled != nil && !*c.FileConfig.InMem.Enabled {
 		return runner, nil
 	}
 

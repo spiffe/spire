@@ -5,9 +5,7 @@ If telemetry is desired, it may be configured by using a dedicated `telemetry { 
 - Statsd
 - DogStatsd
 - M3
-- In-Memory (see note)
-
-Note: In-memory telemetry sink will always be running, unless explicitly disabled through configuration. See [In-Mem](#`in-mem`).
+- In-Memory
 
 You may use all, some, or none of the collectors. The following collectors support multiple declarations in the event that you want to send metrics to more than one collector:
 
@@ -51,7 +49,7 @@ You may use all, some, or none of the collectors. The following collectors suppo
 #### `In-Mem`
 | Configuration    | Type          | Description | Default |
 | ---------------- | ------------- | ----------- | ------- |
-| `disabled`       | `bool`        | Disable this collector | `false` |
+| `enabled`        | `bool`        | Enable this collector | `true` |
 
 Here is a sample configuration:
 
@@ -75,7 +73,7 @@ telemetry {
         ]
 
         InMem {
-            disabled = true
+            enabled = false
         }
 }
 ```

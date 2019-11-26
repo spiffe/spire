@@ -93,7 +93,7 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 ## Telemetry configuration
 
-See [here](./telemetry_config.md)
+Please see the [Telemetry Configuration](./telemetry_config.md) guide for more information about configuring SPIRE Server to emit telemetry.
 
 ## Health check configuration
 

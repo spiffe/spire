@@ -79,7 +79,7 @@ Please see the [built-in plugins](#built-in-plugins) section for information on 
 
 ## Telemetry configuration
 
-See [here](./telemetry_config.md)
+Please see the [Telemetry Configuration](./telemetry_config.md) guide for more information about configuring SPIRE Agent to emit telemetry.
 
 ## Health check configuration
 

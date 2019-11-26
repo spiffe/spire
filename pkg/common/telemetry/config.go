@@ -38,5 +38,5 @@ type M3Config struct {
 }
 
 type InMem struct {
-	Disabled bool `hcl:"disabled"`
+	Enabled *bool `hcl:"enabled"`
 }
