@@ -5,7 +5,6 @@ kind: Kustomization
 # list of Resource Config to be Applied
 resources:
   - k8s-workload-registrar-secret.yaml
-  - spire-database.yaml
   - spire-server.yaml
   - spire-agent.yaml
 
