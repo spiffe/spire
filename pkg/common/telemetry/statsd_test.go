@@ -67,7 +67,7 @@ func testStatsdConfigWithPort(port int) *MetricsConfig {
 		FileConfig: FileConfig{
 			Statsd: []StatsdConfig{
 				{
-					Address: fmt.Sprintf("localhost:%d", port),
+					Address: fmt.Sprintf("127.0.0.1:%d", port),
 				},
 			},
 		},

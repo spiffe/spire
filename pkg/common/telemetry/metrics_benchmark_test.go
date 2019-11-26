@@ -49,7 +49,7 @@ func BenchmarkPrometheus(b *testing.B) {
 }
 
 func BenchmarkStatsd(b *testing.B) {
-	listener, err := net.ListenPacket(statsdProtocol, "localhost:")
+	listener, err := net.ListenPacket(statsdProtocol, "127.0.0.1:")
 	require.NoError(b, err)
 
 	defer listener.Close()
