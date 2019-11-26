@@ -113,10 +113,9 @@ func TestAddSampleForValueHistogram(t *testing.T) {
 	histogram1, ok := histograms1[valueM3Name]
 	assert.True(t, ok)
 
-	// with default bucketing, values are expressed as durations
-	durations1 := histogram1.Durations()
-	assert.NotEmpty(t, durations1)
-	assert.Empty(t, histogram1.Values())
+	values1 := histogram1.Values()
+	assert.NotEmpty(t, values1)
+	assert.Empty(t, histogram1.Durations())
 }
 
 func testM3Config() *MetricsConfig {

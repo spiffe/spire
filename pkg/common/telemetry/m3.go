@@ -11,6 +11,12 @@ import (
 	"github.com/uber-go/tally/m3"
 )
 
+var (
+	// buckets for orders of magnitude of values, up to 100,000
+	// given nature of SPIRE, we do not expect negative values
+	exponentialValueBuckets = append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 10, 5)...)
+)
+
 type m3Sink struct {
 	closer io.Closer
 	scope  tally.Scope
@@ -139,7 +145,7 @@ func (m *m3Sink) addDurationSample(flattenedKey string, val float32, scope tally
 }
 
 func (m *m3Sink) addValueSample(flattenedKey string, val float32, scope tally.Scope) {
-	histogram := scope.Histogram(flattenedKey, tally.DefaultBuckets)
+	histogram := scope.Histogram(flattenedKey, exponentialValueBuckets)
 	val64 := float64(val)
 	histogram.RecordValue(val64)
 }
