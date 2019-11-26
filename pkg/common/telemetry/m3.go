@@ -128,7 +128,7 @@ func (m *m3Sink) addSample(key []string, val float32, scope tally.Scope) {
 	if key[1] == "timer" {
 		m.addDurationSample(flattenedKey, val, scope)
 	} else {
-		addValueSample(flattenedKey, val, scope)
+		m.addValueSample(flattenedKey, val, scope)
 	}
 }
 
@@ -138,7 +138,7 @@ func (m *m3Sink) addDurationSample(flattenedKey string, val float32, scope tally
 	histogram.RecordDuration(dur)
 }
 
-func addValueSample(flattenedKey string, val float32, scope tally.Scope) {
+func (m *m3Sink) addValueSample(flattenedKey string, val float32, scope tally.Scope) {
 	histogram := scope.Histogram(flattenedKey, tally.DefaultBuckets)
 	val64 := float64(val)
 	histogram.RecordValue(val64)
