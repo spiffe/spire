@@ -51,20 +51,15 @@ type State struct {
 // Run runs the rotator. It monitors the server SVID for expiration and rotates
 // as necessary. It also watches for changes to the trust bundle.
 func (r *rotator) Run(ctx context.Context) error {
-	t := r.clk.Ticker(r.c.Interval)
-	defer t.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
 			r.c.Log.Debug("Stopping SVID rotator")
 			r.client.Release()
 			return nil
-		case <-t.C:
-			if r.shouldRotate() {
-				if err := r.rotateSVID(ctx); err != nil {
-					r.c.Log.WithError(err).Error("Could not rotate agent SVID")
-				}
+		case <-r.clk.After(r.c.Interval):
+			if err := r.rotateSVID(ctx); err != nil {
+				r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 			}
 		case <-r.c.BundleStream.Changes():
 			r.bsm.Lock()
@@ -102,6 +97,10 @@ func (r *rotator) shouldRotate() bool {
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
+	if !r.shouldRotate() {
+		return nil
+	}
+
 	counter := telemetry_agent.StartRotateAgentSVIDCall(r.c.Metrics)
 	defer counter.Done(&err)
 

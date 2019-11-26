@@ -3,7 +3,7 @@ package version
 import "fmt"
 
 const (
-	Base = "0.9.0"
+	Base = "0.9.1"
 )
 
 var (

@@ -6,10 +6,6 @@ ConfigMap.
 
 The certificates in the ConfigMap can be used to bootstrap SPIRE agents.
 
-In HA, multiple SPIRE servers will be pushing bundle contents to the ConfigMap.
-The plugin handles conflict resolution by implementing a read-modify-write
-cycle to ensure the ConfigMap contains the latest bundle contents.
-
 The plugin accepts the following configuration options:
 
 | Configuration         | Description                                 | Default         |

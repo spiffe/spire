@@ -8,6 +8,9 @@ of the `use_token_review_api_validation` flag:
 + If this value is set to `false` (default behavior), the attestor validates the token locally using the key provided in `service_account_key_file`.
 + If this value is set to `true`, the validation is performed using the Kubernetes [Token Review API](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10/#tokenreview-v1-authentication-k8s-io).
 
+*Note: If your cluster supports [Service Account Token Volume Projection](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-token-volume-projection)
+you should instead consider using the `k8s_psat` attestor due to the [security considerations](#security-considerations) below.*
+
 The server uses a one-time UUID provided by the agent to generate a SPIFFE ID with the form:
 
 ```

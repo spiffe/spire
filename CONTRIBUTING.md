@@ -126,9 +126,10 @@ As much as possible, label names should be constants defined in the `telemetry` 
 specific metrics should be centrally defined in the `telemetry` package or its subpackages. Functions
 desiring metrics should delegate counter, gauge, timer, etc. creation to such packages.
 
-Labels added to metrics must be singular; that is, the value of a metrics label must not be an
-array or slice, and a label of some name must only be added once. Failure to follow this will
-make metrics less usable for non-tagging metrics libraries such as `statsd`.
+Labels added to metrics must be singular only; that is:
+
+- the value of a metrics label must not be an array or slice, and a label of some name must only be added
+once. Failure to follow this will make metrics less usable for non-tagging metrics libraries such as `statsd`.
 As counter examples, DO NOT do the following:
 ```
 []telemetry.Label{
@@ -142,6 +143,39 @@ var callCounter telemetry.CallCounter
 callCounter.AddLabel("someName", "val1")
 ...
 callCounter.AddLabel("someName", "val2")
+```
+
+- the existence of a metrics label is constant for all instances of a given metric. For some given metric A with
+label X, label X must appear in every instance of metric A rather than conditionally. Failure to follow this will
+make metrics less usable for non-tagging metrics libraries such as `statsd`, and potentially break aggregation for
+tagging metrics libraries.
+As a counter example, DO NOT do the following:
+```
+var callCounter telemetry.CallCounter
+...
+if caller != "" {
+  callCounter.AddLabel("caller_id", caller)
+}
+...
+if x > 5000 {
+  callCounter.AddLabel("big_load", "true")
+}
+```
+Instead, the following would be more acceptable:
+```
+var callCounter telemetry.CallCounter
+...
+if caller != "" {
+  callCounter.AddLabel("caller_id", caller)
+} else {
+  callCounter.AddLabel("caller_id", "someDefault")
+}
+...
+if x > 5000 {
+  callCounter.AddLabel("big_load", "true")
+} else {
+  callCounter.AddLabel("big_load", "false")
+}
 ```
 
 ## Logs and Errors
@@ -166,4 +200,4 @@ before sending a pull request. From the project root:
 ln -s .githooks/pre-commit .git/hooks/pre-commit
 ```
 # Reporting security vulnerabilities
-If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at security@spiffe.io. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.  
+If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at security@spiffe.io. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.
