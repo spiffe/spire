@@ -23,7 +23,6 @@ wait-for-rollout() {
 
 ./bin/kubectl create namespace spire
 ./bin/kubectl apply -k ./conf/
-wait-for-rollout spire statefulset/spire-database
 wait-for-rollout spire deployment/spire-server
 wait-for-rollout spire daemonset/spire-agent
 
