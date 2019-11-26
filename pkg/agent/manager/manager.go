@@ -11,10 +11,10 @@ import (
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
-	svid_util "github.com/spiffe/spire/pkg/agent/common/svid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
@@ -154,7 +154,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
-	if ok && !svid_util.JWTSVIDExpiresSoon(cachedSVID, now) {
+	if ok && !rotationutil.JWTSVIDExpiresSoon(cachedSVID, now) {
 		return cachedSVID, nil
 	}
 
@@ -166,7 +166,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	case err == nil:
 	case cachedSVID == nil:
 		return nil, err
-	case svid_util.JWTSVIDExpired(cachedSVID, now):
+	case rotationutil.JWTSVIDExpired(cachedSVID, now):
 		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
 	default:
 		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("unable to renew JWT; returning cached copy")

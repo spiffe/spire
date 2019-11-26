@@ -11,7 +11,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
-	svid_util "github.com/spiffe/spire/pkg/agent/common/svid"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
@@ -88,7 +88,7 @@ func (r *rotator) SetRotationFinishedHook(f func()) {
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	if !svid_util.ShouldRotateX509(r.clk.Now(), r.state.Value().(State).SVID[0]) {
+	if !rotationutil.ShouldRotateX509(r.clk.Now(), r.state.Value().(State).SVID[0]) {
 		return nil
 	}
 

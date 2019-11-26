@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	svid_util "github.com/spiffe/spire/pkg/agent/common/svid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -49,7 +49,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 				telemetry.RegistrationID: entry.EntryId,
 				telemetry.SPIFFEID:       entry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
-		case svid_util.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
+		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
 			// SVID has expired
 			expiresAt = svid.Chain[0].NotAfter
 			expiring++

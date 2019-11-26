@@ -1,4 +1,4 @@
-package svid
+package rotationutil
 
 import (
 	"testing"
