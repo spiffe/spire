@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"fmt"
 	"path"
 	"testing"
 
@@ -682,4 +683,65 @@ func defaultValidConfig() *config {
 	c.Plugins = &catalog.HCLPluginConfigMap{}
 
 	return c
+}
+
+func TestValidateConfigDetectUnknownConfigOpts(t *testing.T) {
+	testFileDir := "../../../../test/fixture/config"
+	cases := []struct {
+		msg            string
+		testFilePath   string
+		expectedErrMsg string
+	}{
+		{
+			msg:            "in root block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_root_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in root block: unknwon_option1, unknwon_option2",
+		},
+		{
+			msg:            "in agent block",
+			testFilePath:   fmt.Sprintf("%v/agent_bad_agent_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in agent block: unknwon_option1, unknwon_option2",
+		},
+		{
+			msg:            "in telemetry block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in telemetry block: unknwon_option1, unknwon_option2",
+		},
+		{
+			msg:            "in nested Prometheus block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in nested Prometheus block: unknwon_option1, unknwon_option2",
+		},
+		{
+			msg:            "in nested DogStatsd block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_DogStatsd_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in nested DogStatsd 0 block: unknwon_option1, unknwon_option2",
+		},
+		{
+			msg:            "in nested Statsd block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Statsd_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in nested Statsd 0 block: unknwon_option1, unknwon_option2",
+		},
+		{
+			msg:            "in nested M3 block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_M3_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in nested M3 0 block: unknwon_option1, unknwon_option2",
+		},
+		{
+			msg:            "in nested health_checks block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_health_checks_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in nested health_checks block: unknwon_option1, unknwon_option2",
+		},
+	}
+
+	for _, testCase := range cases {
+		c, err := parseFile(testCase.testFilePath)
+		require.NoError(t, err)
+
+		t.Run(testCase.msg, func(t *testing.T) {
+			err := validateConfig(c)
+			require.Error(t, err)
+			require.Equal(t, testCase.expectedErrMsg, err.Error())
+		})
+	}
 }
