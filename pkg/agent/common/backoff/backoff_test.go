@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	v3backoff "github.com/cenkalti/backoff/v3"
 	"github.com/spiffe/spire/test/clock"
 )
 
@@ -31,7 +30,7 @@ func TestBackOff(t *testing.T) {
 	inRange(t, expectedResults[0], b)
 }
 
-func inRange(t *testing.T, expected time.Duration, b v3backoff.BackOff) {
+func inRange(t *testing.T, expected time.Duration, b BackOff) {
 	var minInterval = expected - time.Duration(_jitter*float64(expected))
 	var maxInterval = expected + time.Duration(_jitter*float64(expected))
 	var actualInterval = b.NextBackOff()

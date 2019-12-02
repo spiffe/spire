@@ -4,16 +4,16 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	v3backoff "github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v3"
 )
 
 // BackOff type alias of "github.com/cenkalti/backoff/v3" BackOff, for
 // better readability in importing
-type BackOff v3backoff.BackOff
+type BackOff = backoff.BackOff
 
 const (
 	_jitter              = 0.10
-	_backoffMultiplier   = v3backoff.DefaultMultiplier
+	_backoffMultiplier   = backoff.DefaultMultiplier
 	_maxIntervalMultiple = 24
 	_noMaxElapsedTime    = 0
 )
@@ -22,7 +22,7 @@ const (
 // to have the same behaviorial pattern, though with different bounds based on given
 // interval.
 func NewBackoff(clk clock.Clock, interval time.Duration) BackOff {
-	b := &v3backoff.ExponentialBackOff{
+	b := &backoff.ExponentialBackOff{
 		Clock:               clk,
 		InitialInterval:     interval,
 		RandomizationFactor: _jitter,
