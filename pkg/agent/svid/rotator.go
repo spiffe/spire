@@ -9,9 +9,9 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/cenkalti/backoff/v3"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"

@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/cenkalti/backoff/v3"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
-	spire_backoff "github.com/spiffe/spire/pkg/agent/common/backoff"
+	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -103,7 +102,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 		return fmt.Errorf("fail to store private key: %v", err)
 	}
 
-	m.backoff = spire_backoff.NewBackoff(m.clk, m.c.SyncInterval)
+	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
 
 	return m.synchronize(ctx)
 }
