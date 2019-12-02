@@ -1,7 +1,7 @@
 #!/bin/bash
 
 log-debug "creating registration entry..."
-docker-compose exec spire-server \
+docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/node" \
     -spiffeID "spiffe://domain.test/workload" \
