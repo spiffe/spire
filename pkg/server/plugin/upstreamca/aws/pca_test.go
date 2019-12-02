@@ -460,6 +460,7 @@ func (as *PCAPluginSuite) certificateAuthorityFixture() (*x509.Certificate, *byt
 		Type:  certificateType,
 		Bytes: ca.Raw,
 	})
+	as.Require().NoError(err)
 	return ca, encodedCA
 }
 
@@ -471,6 +472,7 @@ func (as *PCAPluginSuite) SVIDFixture() (*x509.Certificate, *bytes.Buffer) {
 		Type:  certificateType,
 		Bytes: cert.Raw,
 	})
+	as.Require().NoError(err)
 	return cert, encodedCert
 }
 
