@@ -85,13 +85,11 @@ func (i *inmemRunner) startConfigWarning(ctx context.Context, wg *sync.WaitGroup
 		for {
 			select {
 			case <-sigChannel:
-				fmt.Println("signal")
 				i.log.Warn("The in-memory telemetry sink will be disabled by default in a future release." +
 					" If you wish to continue using it, please enable it in the telemetry configuration.")
 			case <-ctx.Done():
-				fmt.Println("context done")
 				signal.Stop(sigChannel)
-				break
+				return
 			}
 		}
 	}()

@@ -1,9 +1,16 @@
 package telemetry
 
 import (
+	"context"
+	"os"
+	"syscall"
 	"testing"
+	"time"
 
+	"github.com/armon/go-metrics"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,6 +67,44 @@ func TestDisabledNewInmemRunner(t *testing.T) {
 	runner, err := newInmemRunner(config)
 	assert.Nil(t, err)
 	assert.False(t, runner.isConfigured())
+}
+
+func TestWarnOnFutureDisable(t *testing.T) {
+	logger, hook := test.NewNullLogger()
+
+	// Get a real logrus.Entry
+	logger.SetLevel(logrus.DebugLevel)
+	logger.Debug("boo")
+	c := &MetricsConfig{
+		Logger:      hook.LastEntry(),
+		ServiceName: "foo",
+	}
+
+	ir, err := newInmemRunner(c)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(ir.sinks()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go ir.run(ctx)
+
+	// Wait for run to complete set up
+	time.Sleep(100 * time.Millisecond)
+
+	syscall.Kill(os.Getpid(), metrics.DefaultSignal)
+
+	// Wait for signal + logging
+	util.RunWithTimeout(t, time.Second, func() {
+		for {
+			hookEntry := hook.LastEntry()
+			assert.NotNil(t, hookEntry)
+			if hookEntry.Message != "boo" {
+				assert.Equal(t, "The in-memory telemetry sink will be disabled by default in a future release."+
+					" If you wish to continue using it, please enable it in the telemetry configuration.", hookEntry.Message)
+				return
+			}
+		}
+	})
 }
 
 func TestInmemSinks(t *testing.T) {
