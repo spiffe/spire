@@ -2,6 +2,9 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"os/signal"
 	"sync"
 	"time"
 
@@ -17,13 +20,19 @@ const (
 type inmemRunner struct {
 	log        *logrus.Entry
 	loadedSink *metrics.InmemSink
+
+	inMemBlockSet bool
 }
 
 func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &inmemRunner{}
 
-	if c.FileConfig.InMem != nil && c.FileConfig.InMem.Enabled != nil && !*c.FileConfig.InMem.Enabled {
-		return runner, nil
+	if c.FileConfig.InMem != nil && c.FileConfig.InMem.Enabled != nil {
+		runner.inMemBlockSet = true
+
+		if !*c.FileConfig.InMem.Enabled {
+			return runner, nil
+		}
 	}
 
 	if entry, ok := c.Logger.(*logrus.Entry); ok {
@@ -55,6 +64,40 @@ func (i *inmemRunner) run(ctx context.Context) error {
 	}
 
 	var wg sync.WaitGroup
+
+	i.startInMemMetrics(ctx, &wg)
+
+	if !i.inMemBlockSet {
+		i.startConfigWarning(ctx, &wg)
+	}
+
+	wg.Wait()
+	return nil
+}
+
+func (i *inmemRunner) startConfigWarning(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	sigChannel := make(chan os.Signal, 1)
+	signal.Notify(sigChannel, metrics.DefaultSignal)
+	fmt.Println("setting up")
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-sigChannel:
+				fmt.Println("signal")
+				i.log.Warn("The in-memory telemetry sink will be disabled by default in a future release." +
+					" If you wish to continue using it, please enable it in the telemetry configuration.")
+			case <-ctx.Done():
+				fmt.Println("context done")
+				signal.Stop(sigChannel)
+				break
+			}
+		}
+	}()
+}
+
+func (i *inmemRunner) startInMemMetrics(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
 	signalHandler := metrics.NewInmemSignal(i.loadedSink, metrics.DefaultSignal, i.log.Writer())
 	go func() {
@@ -62,9 +105,6 @@ func (i *inmemRunner) run(ctx context.Context) error {
 		<-ctx.Done()
 		signalHandler.Stop()
 	}()
-
-	wg.Wait()
-	return nil
 }
 
 func (i *inmemRunner) requiresTypePrefix() bool {
