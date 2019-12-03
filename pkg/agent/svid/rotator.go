@@ -12,6 +12,7 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
@@ -92,19 +93,9 @@ func (r *rotator) SetRotationFinishedHook(f func()) {
 	r.rotationFinishedHook = f
 }
 
-// shouldRotate returns a boolean informing the caller of whether or not the
-// SVID should be rotated.
-func (r *rotator) shouldRotate() bool {
-	s := r.state.Value().(State)
-
-	ttl := s.SVID[0].NotAfter.Sub(r.clk.Now())
-	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
-	return ttl <= watermark
-}
-
 // rotateSVID asks SPIRE's server for a new agent's SVID.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	if !r.shouldRotate() {
+	if !rotationutil.ShouldRotateX509(r.clk.Now(), r.state.Value().(State).SVID[0]) {
 		return nil
 	}
 
