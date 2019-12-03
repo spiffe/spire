@@ -53,11 +53,11 @@ func TestDockerSelectors(t *testing.T) {
 			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
 				require.Len(t, res.Selectors, 5)
 				expectedSelectors := map[string]struct{}{
-					"label:this:that":  struct{}{},
-					"label:here:there": struct{}{},
-					"label:up:down":    struct{}{},
-					"env:VAR=val":      struct{}{},
-					"env:VAR2=val":     struct{}{},
+					"label:this:that":  {},
+					"label:here:there": {},
+					"label:up:down":    {},
+					"env:VAR=val":      {},
+					"env:VAR2=val":     {},
 				}
 				for _, selector := range res.Selectors {
 					require.Equal(t, "docker", selector.Type)
