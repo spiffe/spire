@@ -91,7 +91,7 @@ func TestWarnOnFutureDisable(t *testing.T) {
 	// Wait for run to complete set up
 	util.RunWithTimeout(t, 5*time.Second, func() {
 		for {
-			require.NotEqual(t, context.Canceled, ctx.Err())
+			require.NoError(t, ctx.Err())
 
 			hookEntry := hook.LastEntry()
 			assert.NotNil(t, hookEntry)
@@ -107,7 +107,7 @@ func TestWarnOnFutureDisable(t *testing.T) {
 		syscall.Kill(os.Getpid(), metrics.DefaultSignal)
 
 		for {
-			require.NotEqual(t, context.Canceled, ctx.Err())
+			require.NoError(t, ctx.Err())
 
 			hookEntry := hook.LastEntry()
 			assert.NotNil(t, hookEntry)
