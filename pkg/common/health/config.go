@@ -14,6 +14,8 @@ type Config struct {
 	// Paths for /ready and /live
 	ReadyPath string `hcl:"ready_path"`
 	LivePath  string `hcl:"live_path"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 // getReadyPath returns the configured value or a default

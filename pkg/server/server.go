@@ -2,9 +2,7 @@ package server
 
 import (
 	"context"
-	"crypto/x509/pkix"
 	"fmt"
-	"net"
 	"net/http"
 	_ "net/http/pprof" // import registers routes on DefaultServeMux
 	"net/url"
@@ -13,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
@@ -24,7 +20,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
-	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/registration"
@@ -32,7 +27,6 @@ import (
 	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"google.golang.org/grpc"
 )
 
@@ -48,92 +42,8 @@ const (
 	pageSize = 1
 )
 
-type Config struct {
-	// Configurations for server plugins
-	PluginConfigs common.HCLPluginConfigMap
-
-	Log logrus.FieldLogger
-
-	// Address of SPIRE server
-	BindAddress *net.TCPAddr
-
-	// Address of the UDS SPIRE server
-	BindUDSAddress *net.UnixAddr
-
-	// Directory to store runtime data
-	DataDir string
-
-	// Trust domain
-	TrustDomain url.URL
-
-	UpstreamBundle bool
-
-	Experimental ExperimentalConfig
-
-	// If true enables profiling.
-	ProfilingEnabled bool
-
-	// Port used by the pprof web server when ProfilingEnabled == true
-	ProfilingPort int
-
-	// Frequency in seconds by which each profile file will be generated.
-	ProfilingFreq int
-
-	// Array of profiles names that will be generated on each profiling tick.
-	ProfilingNames []string
-
-	// SVIDTTL is default time-to-live for SVIDs
-	SVIDTTL time.Duration
-
-	// CATTL is the time-to-live for the server CA. This only applies to
-	// self-signed CA certificates, otherwise it is up to the upstream CA.
-	CATTL time.Duration
-
-	// JWTIssuer is used as the issuer claim in JWT-SVIDs minted by the server.
-	// If unset, the JWT-SVID will not have an issuer claim.
-	JWTIssuer string
-
-	// CASubject is the subject used in the CA certificate
-	CASubject pkix.Name
-
-	// Telemetry provides the configuration for metrics exporting
-	Telemetry telemetry.FileConfig
-
-	// HealthChecks provides the configuration for health monitoring
-	HealthChecks health.Config
-
-	// CAKeyType is the key type used for the X509 and JWT signing keys
-	CAKeyType keymanager.KeyType
-}
-
-type ExperimentalConfig struct {
-	// Skip agent id validation in node attestation
-	AllowAgentlessNodeAttestors bool
-
-	// BundleEndpointEnabled, if true, enables the federation bundle endpoint
-	BundleEndpointEnabled bool
-
-	// BundleEndpointAddress is the address on which to serve the federation
-	// bundle endpoint.
-	BundleEndpointAddress *net.TCPAddr
-
-	// BundleEndpointACME is the ACME configuration for the bundle endpoint.
-	// If unset, the bundle endpoint will use SPIFFE auth.
-	BundleEndpointACME *bundle.ACMEConfig
-
-	// FederatesWith holds the federation configuration for trust domains this
-	// server federates with.
-	FederatesWith map[string]bundle_client.TrustDomainConfig
-}
-
 type Server struct {
 	config Config
-}
-
-func New(config Config) *Server {
-	return &Server{
-		config: config,
-	}
 }
 
 // Run the server
