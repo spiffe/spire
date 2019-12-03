@@ -88,30 +88,16 @@ func TestWarnOnFutureDisable(t *testing.T) {
 	defer cancel()
 	go ir.run(ctx)
 
-	// Wait for run to complete set up
+	// Send signal, wait for signal handling + logging
 	util.RunWithTimeout(t, time.Minute, func() {
 		for {
+			syscall.Kill(os.Getpid(), metrics.DefaultSignal)
+
 			require.NoError(t, ctx.Err())
 
 			hookEntry := hook.LastEntry()
 			assert.NotNil(t, hookEntry)
 			if hookEntry.Message != "setup log" {
-				assert.Equal(t, "The in-memory telemetry sink is running.", hookEntry.Message)
-				return
-			}
-		}
-	})
-
-	// Send signal, wait for signal handling + logging
-	util.RunWithTimeout(t, time.Minute, func() {
-		syscall.Kill(os.Getpid(), metrics.DefaultSignal)
-
-		for {
-			require.NoError(t, ctx.Err())
-
-			hookEntry := hook.LastEntry()
-			assert.NotNil(t, hookEntry)
-			if hookEntry.Message != "The in-memory telemetry sink is running." {
 				assert.Equal(t, "The in-memory telemetry sink will be disabled by default in a future release."+
 					" If you wish to continue using it, please enable it in the telemetry configuration.", hookEntry.Message)
 				return

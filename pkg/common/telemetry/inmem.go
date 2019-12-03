@@ -70,7 +70,6 @@ func (i *inmemRunner) run(ctx context.Context) error {
 		i.startConfigWarning(ctx, &wg)
 	}
 
-	i.log.Debug("The in-memory telemetry sink is running.")
 	wg.Wait()
 	return nil
 }
