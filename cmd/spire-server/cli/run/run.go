@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
@@ -353,6 +354,10 @@ func newServerConfig(c *config) (*server.Config, error) {
 		sc.CATTL = ttl
 	}
 
+	if !hasExpectedTTLs(sc.CATTL, sc.SVIDTTL) {
+		sc.Log.Warn("ca_ttl is less than default_svid_ttl * 6. SPIRE Server prepares a new CA certificate when 1/2 of the CA lifetime has elapsed in order to give ample time for the new trust bundle to propagate. However, it does not start using it until 5/6th of the CA lifetime. So its normal for an SVID TTL to be capped to 1/6th of the CA TTL. In order to get the expected lifetime on SVID TTLs, the CA TTL should be 6x.")
+	}
+
 	if c.Server.CAKeyType != "" {
 		sc.CAKeyType, err = caKeyTypeFromString(c.Server.CAKeyType)
 		if err != nil {
@@ -551,3 +556,19 @@ func (b *maybeBoolValue) String() string {
 }
 
 func (b maybeBoolValue) IsBoolFlag() bool { return true }
+
+// hasExpectedTTLs is a function that checks if ca_ttl is less than default_svid_ttl * 6. SPIRE Server prepares a new CA certificate when 1/2 of the CA lifetime has elapsed in order to give ample time for the new trust bundle to propagate. However, it does not start using it until 5/6th of the CA lifetime. So its normal for an SVID TTL to be capped to 1/6th of the CA TTL. In order to get the expected lifetime on SVID TTLs, the CA TTL should be 6x.
+func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {
+	if caTTL == 0 {
+		caTTL = ca.DefaultCATTL
+	}
+	if svidTTL == 0 {
+		svidTTL = ca.DefaultX509SVIDTTL
+	}
+
+	if caTTL < svidTTL*6 {
+		return false
+	}
+
+	return true
+}

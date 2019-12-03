@@ -918,3 +918,63 @@ func TestValidateConfigDetectUnknownConfigOpts(t *testing.T) {
 		})
 	}
 }
+
+func TestHasExpectedTTLs(t *testing.T) {
+	cases := []struct {
+		msg             string
+		caTTL           time.Duration
+		svidTTL         time.Duration
+		hasExpectedTTLs bool
+	}{
+		// ca_ttl isn't less than default_svid_ttl * 6
+		{
+			msg:             "Both values are default values",
+			caTTL:           0,
+			svidTTL:         0,
+			hasExpectedTTLs: true,
+		},
+		{
+			msg:             "ca_ttl is 7h and default_svid_ttl is default value 1h",
+			caTTL:           time.Hour * 7,
+			svidTTL:         0,
+			hasExpectedTTLs: true,
+		},
+		{
+			msg:             "ca_ttl is default value 24h and default_svid_ttl is 3h",
+			caTTL:           0,
+			svidTTL:         time.Hour * 3,
+			hasExpectedTTLs: true,
+		},
+		{
+			msg:             "ca_ttl is 70h and default_svid_ttl is 10h",
+			caTTL:           time.Hour * 70,
+			svidTTL:         time.Hour * 10,
+			hasExpectedTTLs: true,
+		},
+		// ca_ttl is less than default_svid_ttl * 6
+		{
+			msg:             "ca_ttl is 5h and default_svid_ttl is default value 1h",
+			caTTL:           time.Hour * 5,
+			svidTTL:         0,
+			hasExpectedTTLs: false,
+		},
+		{
+			msg:             "ca_ttl is default value 24h and default_svid_ttl is 5h",
+			caTTL:           0,
+			svidTTL:         time.Hour * 5,
+			hasExpectedTTLs: false,
+		},
+		{
+			msg:             "ca_ttl is 50h and default_svid_ttl is 10h",
+			caTTL:           time.Hour * 50,
+			svidTTL:         time.Hour * 10,
+			hasExpectedTTLs: false,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.msg, func(t *testing.T) {
+			require.Equal(t, testCase.hasExpectedTTLs, hasExpectedTTLs(testCase.caTTL, testCase.svidTTL))
+		})
+	}
+}
