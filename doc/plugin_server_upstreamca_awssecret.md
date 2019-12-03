@@ -28,8 +28,8 @@ Only the region, cert_file_arn, and key_file_arn must be configured. You optiona
 | --------------------------------- | ------------------------------------------ |
 | by providing an access key id and secret access key | `access_key_id`, `secret_access_key` |
 | by using temporary credentials for an IAM account (*NOTE:* It is the server user's responsibility to provide a new valid token whenever the server is started) | `access_key_id`, `secret_access_key`, `secret_token` |
-| via an EC2 unit that has an attached role with read access to the ARNs | none |
-| By configuring the UpstreamCA plugin to assume another IAM role that has access to the secrets (*NOTE:* The IAM user for which the access key id and secret access key must have permissions to assume the other IAM role, or the role attached to the EC2 instance must have this capability. | `access_key_id`, `secret_access_key`, `secret_token`, `assume_role_arn` |
+| via an EC2 instance that has an attached role with read access to the ARNs | none |
+| by configuring the UpstreamCA plugin to assume another IAM role that has access to the secrets (*NOTE:* The IAM user for which the access key id and secret access key must have permissions to assume the other IAM role, or the role attached to the EC2 instance must have this capability. | `access_key_id`, `secret_access_key`, `secret_token`, `assume_role_arn` |
 
 Because the plugin fetches the secrets from the AWS secrets manager only at startup, automatic rotation of secrets is not advised.
 
