@@ -17,24 +17,29 @@ type FileConfig struct {
 	Statsd     []StatsdConfig    `hcl:"Statsd"`
 	M3         []M3Config        `hcl:"M3"`
 	InMem      *InMem            `hcl:"InMem"`
+	UnusedKeys []string          `hcl:",unusedKeys"`
 }
 
 type DogStatsdConfig struct {
-	Address string `hcl:"address"`
+	Address    string   `hcl:"address"`
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type PrometheusConfig struct {
-	Host string `hcl:"host"`
-	Port int    `hcl:"port"`
+	Host       string   `hcl:"host"`
+	Port       int      `hcl:"port"`
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type StatsdConfig struct {
-	Address string `hcl:"address"`
+	Address    string   `hcl:"address"`
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type M3Config struct {
-	Address string `hcl:"address"`
-	Env     string `hcl:"env"`
+	Address    string   `hcl:"address"`
+	Env        string   `hcl:"env"`
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type InMem struct {

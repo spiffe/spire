@@ -43,6 +43,7 @@ type config struct {
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
+	UnusedKeys   []string                    `hcl:",unusedKeys"`
 }
 
 type serverConfig struct {
@@ -58,7 +59,8 @@ type serverConfig struct {
 	LogLevel            string             `hcl:"log_level"`
 	LogFormat           string             `hcl:"log_format"`
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
-	SVIDTTL             string             `hcl:"svid_ttl"`
+	DeprecatedSVIDTTL   string             `hcl:"svid_ttl"`
+	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
 	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
 
@@ -69,6 +71,8 @@ type serverConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type experimentalConfig struct {
@@ -79,25 +83,30 @@ type experimentalConfig struct {
 	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
 	BundleEndpointACME    *bundleEndpointACMEConfig      `hcl:"bundle_endpoint_acme"`
 	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type caSubjectConfig struct {
 	Country      []string `hcl:"country"`
 	Organization []string `hcl:"organization"`
 	CommonName   string   `hcl:"common_name"`
+	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
 type bundleEndpointACMEConfig struct {
-	DirectoryURL string `hcl:"directory_url"`
-	DomainName   string `hcl:"domain_name"`
-	Email        string `hcl:"email"`
-	ToSAccepted  bool   `hcl:"tos_accepted"`
+	DirectoryURL string   `hcl:"directory_url"`
+	DomainName   string   `hcl:"domain_name"`
+	Email        string   `hcl:"email"`
+	ToSAccepted  bool     `hcl:"tos_accepted"`
+	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
 type federatesWithConfig struct {
-	BundleEndpointAddress  string `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort     int    `hcl:"bundle_endpoint_port"`
-	BundleEndpointSpiffeID string `hcl:"bundle_endpoint_spiffe_id"`
+	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
+	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
+	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
+	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
 // Run CLI struct
@@ -314,10 +323,24 @@ func newServerConfig(c *config) (*server.Config, error) {
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
 
-	if c.Server.SVIDTTL != "" {
-		ttl, err := time.ParseDuration(c.Server.SVIDTTL)
+	if c.Server.DeprecatedSVIDTTL != "" {
+		if c.Server.DefaultSVIDTTL != "" {
+			sc.Log.Warn("Both `svid_ttl` and `default_svid_ttl` are set. `svid_ttl` will be ignored")
+		} else {
+			// TODO: remove in 0.10.0
+			sc.Log.Warn("The `svid_ttl` configurable has been renamed to `default_svid_ttl`; please update your configuration.")
+			ttl, err := time.ParseDuration(c.Server.DeprecatedSVIDTTL)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DeprecatedSVIDTTL, err)
+			}
+			sc.SVIDTTL = ttl
+		}
+	}
+
+	if c.Server.DefaultSVIDTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.SVIDTTL, err)
+			return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DefaultSVIDTTL, err)
 		}
 		sc.SVIDTTL = ttl
 	}
@@ -364,6 +387,66 @@ func newServerConfig(c *config) (*server.Config, error) {
 }
 
 func validateConfig(c *config) error {
+	// Validations to detect unknown configuration options
+	if len(c.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in root block: %v", strings.Join(c.UnusedKeys, ", "))
+	}
+
+	if c.Server != nil {
+		if len(c.Server.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in server block: %v", strings.Join(c.Server.UnusedKeys, ", "))
+		}
+
+		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested ca_subject block: %v", strings.Join(cs.UnusedKeys, ", "))
+		}
+
+		if len(c.Server.Experimental.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested experimental block: %v", strings.Join(c.Server.Experimental.UnusedKeys, ", "))
+		}
+
+		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested bundle_endpoint_acme block: %v", strings.Join(bea.UnusedKeys, ", "))
+		}
+
+		for k, v := range c.Server.Experimental.FederatesWith {
+			if len(v.UnusedKeys) != 0 {
+				return fmt.Errorf("unknown configuration options in nested federates_with '%v' block: %v", k, strings.Join(v.UnusedKeys, ", "))
+			}
+		}
+	}
+
+	if len(c.Telemetry.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in telemetry block: %v", strings.Join(c.Telemetry.UnusedKeys, ", "))
+	}
+
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in nested Prometheus block: %v", strings.Join(p.UnusedKeys, ", "))
+	}
+
+	for i, v := range c.Telemetry.DogStatsd {
+		if len(v.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested DogStatsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	for i, v := range c.Telemetry.Statsd {
+		if len(v.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested Statsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	for i, v := range c.Telemetry.M3 {
+		if len(v.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested M3 %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	if len(c.HealthChecks.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in nested health_checks block: %v", strings.Join(c.HealthChecks.UnusedKeys, ", "))
+	}
+
+	// Validations to detect configuration options that must be configured
 	if c.Server == nil {
 		return errors.New("server section must be configured")
 	}

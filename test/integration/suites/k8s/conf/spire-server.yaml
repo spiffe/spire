@@ -106,7 +106,7 @@ data:
       data_dir = "/run/spire/data"
       registration_uds_path = "/run/spire/sockets/registration.sock"
       log_level = "DEBUG"
-      svid_ttl = "1h"
+      default_svid_ttl = "1h"
       ca_ttl = "12h"
       upstream_bundle = true
       ca_subject = {
@@ -119,8 +119,8 @@ data:
     plugins {
       DataStore "sql" {
         plugin_data {
-          database_type = "postgres"
-          connection_string = "dbname=spire user=spire password=MYSECRET host=spire-database sslmode=disable"
+          database_type = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
         }
       }
 
@@ -228,13 +228,6 @@ spec:
     spec:
       serviceAccountName: spire-server
       shareProcessNamespace: true
-      initContainers:
-        - name: init
-          # This is a small image with wait-for-it, choose whatever image
-          # you prefer that waits for a service to be up. This image is built
-          # from https://github.com/lqhl/wait-for-it
-          image: gcr.io/spiffe-io/wait-for-it
-          args: ["-t", "30", "spire-database:5432"]
       containers:
         - name: spire-server
           image: spire-server:latest-local

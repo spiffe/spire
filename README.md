@@ -13,8 +13,11 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Getting started](#getting-started)
 - [Examples](#examples)
 - [Using SPIRE with Envoy](#using-spire-with-envoy)
+- [Upgrading SPIRE](#upgrading-spire)
 - [Getting help](#getting-help)
 - [Community](#community)
+
+SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF) as a sandbox level project. If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF. For details read the CNCF [announcement](https://www.cncf.io/blog/2018/03/29/cncf-to-host-the-spiffe-project/).
 
 # Get SPIRE
 
@@ -26,9 +29,9 @@ Alternatively you can [build SPIRE from source](/CONTRIBUTING.md).
 
 Before trying out SPIRE, we recommend becoming familiar with its [architecture](https://spiffe.io/spire/) and design goals.
 
-[Getting Started Guide for Kubernetes](https://spiffe.io/spire/getting-started-k8s)
+[Getting Started Guide for Kubernetes](https://spiffe.io/spire/try/getting-started-k8s)
 
-[Getting Started Guide for Linux](https://spiffe.io/spire/getting-started-linux/)
+[Getting Started Guide for Linux](https://spiffe.io/spire/try/getting-started-linux/)
 
 The [SPIRE Server](https://github.com/spiffe/spire/blob/master/doc/spire_server.md) and [SPIRE Agent](https://github.com/spiffe/spire/blob/master/doc/spire_agent.md) reference guides covers in more detail the specific configuration options and plugins available.
 
@@ -42,6 +45,10 @@ SPIRE provides an implementation of the [Envoy](https://envoyproxy.io)
 [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret)
 (SDS). SDS can be used to transparently install and rotate TLS certificates and
 trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
+
+# Upgrading SPIRE
+
+SPIRE Server supports zero-downtime upgrades when there's more than one SPIRE Server in the cluster. Please see the [Managing Upgrades/Downgrades](doc/upgrading.md) guide for more information on SPIRE version compatibility and supported upgrade paths.
 
 # Getting Help
 
