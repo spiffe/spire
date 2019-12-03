@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
@@ -15,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
@@ -154,7 +154,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
-	if ok && !jwtSVIDExpiresSoon(cachedSVID, now) {
+	if ok && !rotationutil.JWTSVIDExpiresSoon(cachedSVID, now) {
 		return cachedSVID, nil
 	}
 
@@ -166,7 +166,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	case err == nil:
 	case cachedSVID == nil:
 		return nil, err
-	case jwtSVIDExpired(cachedSVID, now):
+	case rotationutil.JWTSVIDExpired(cachedSVID, now):
 		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
 	default:
 		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("unable to renew JWT; returning cached copy")
@@ -261,22 +261,4 @@ func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) er
 	}
 
 	return nil
-}
-
-func jwtSVIDExpiresSoon(svid *client.JWTSVID, now time.Time) bool {
-	if jwtSVIDExpired(svid, now) {
-		return true
-	}
-
-	// if the SVID has less than half of its lifetime left, consider it
-	// as expiring soon
-	if !now.Before(svid.IssuedAt.Add(svid.ExpiresAt.Sub(svid.IssuedAt) / 2)) {
-		return true
-	}
-
-	return false
-}
-
-func jwtSVIDExpired(svid *client.JWTSVID, now time.Time) bool {
-	return !now.Before(svid.ExpiresAt)
 }
