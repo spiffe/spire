@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -79,7 +78,6 @@ func (i *inmemRunner) startConfigWarning(ctx context.Context, wg *sync.WaitGroup
 	wg.Add(1)
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, metrics.DefaultSignal)
-	fmt.Println("setting up")
 	go func() {
 		defer wg.Done()
 		for {

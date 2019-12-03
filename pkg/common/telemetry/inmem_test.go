@@ -82,7 +82,7 @@ func TestWarnOnFutureDisable(t *testing.T) {
 
 	ir, err := newInmemRunner(c)
 	require.Nil(t, err)
-	assert.Equal(t, 1, len(ir.sinks()))
+	require.Equal(t, 1, len(ir.sinks()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
