@@ -728,6 +728,11 @@ func TestValidateConfigDetectUnknownConfigOpts(t *testing.T) {
 			expectedErrMsg: "unknown configuration options in nested M3 0 block: unknown_option1, unknown_option2",
 		},
 		{
+			msg:            "in nested InMem block",
+			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_InMem_block.conf", testFileDir),
+			expectedErrMsg: "unknown configuration options in nested InMem block: unknown_option1, unknown_option2",
+		},
+		{
 			msg:            "in nested health_checks block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_health_checks_block.conf", testFileDir),
 			expectedErrMsg: "unknown configuration options in nested health_checks block: unknown_option1, unknown_option2",

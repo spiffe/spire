@@ -442,6 +442,10 @@ func validateConfig(c *config) error {
 		}
 	}
 
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in nested InMem block: %v", strings.Join(p.UnusedKeys, ", "))
+	}
+
 	if len(c.HealthChecks.UnusedKeys) != 0 {
 		return fmt.Errorf("unknown configuration options in nested health_checks block: %v", strings.Join(c.HealthChecks.UnusedKeys, ", "))
 	}
