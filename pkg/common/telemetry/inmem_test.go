@@ -74,7 +74,7 @@ func TestWarnOnFutureDisable(t *testing.T) {
 
 	// Get a real logrus.Entry
 	logger.SetLevel(logrus.DebugLevel)
-	logger.Debug("boo")
+	logger.Debug("setup log")
 	c := &MetricsConfig{
 		Logger:      hook.LastEntry(),
 		ServiceName: "foo",
@@ -89,16 +89,25 @@ func TestWarnOnFutureDisable(t *testing.T) {
 	go ir.run(ctx)
 
 	// Wait for run to complete set up
-	time.Sleep(100 * time.Millisecond)
-
-	syscall.Kill(os.Getpid(), metrics.DefaultSignal)
-
-	// Wait for signal + logging
-	util.RunWithTimeout(t, time.Second, func() {
+	util.RunWithTimeout(t, 5*time.Second, func() {
 		for {
 			hookEntry := hook.LastEntry()
 			assert.NotNil(t, hookEntry)
-			if hookEntry.Message != "boo" {
+			if hookEntry.Message != "setup log" {
+				assert.Equal(t, "The in-memory telemetry sink is running.", hookEntry.Message)
+				return
+			}
+		}
+	})
+
+	// Send signal, wait for signal handling + logging
+	util.RunWithTimeout(t, 5*time.Second, func() {
+		syscall.Kill(os.Getpid(), metrics.DefaultSignal)
+
+		for {
+			hookEntry := hook.LastEntry()
+			assert.NotNil(t, hookEntry)
+			if hookEntry.Message != "The in-memory telemetry sink is running." {
 				assert.Equal(t, "The in-memory telemetry sink will be disabled by default in a future release."+
 					" If you wish to continue using it, please enable it in the telemetry configuration.", hookEntry.Message)
 				return
