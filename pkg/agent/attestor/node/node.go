@@ -32,6 +32,10 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const (
+	joinTokenType = "join_token"
+)
+
 type AttestationResult struct {
 	SVID   []*x509.Certificate
 	Key    *ecdsa.PrivateKey
@@ -220,13 +224,17 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
-	defer counter.Done(&err)
+	attestorName := ""
+	defer func() {
+		telemetry_common.AddAttestorType(counter, attestorName)
+		counter.Done(&err)
+	}()
 
 	// make sure all of the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	attestorName := "join_token"
+	attestorName = joinTokenType
 	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
 	if a.c.JoinToken == "" {
 		attestor := a.c.Catalog.GetNodeAttestor()
@@ -237,8 +245,6 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			return nil, nil, fmt.Errorf("opening stream for fetching attestation: %v", err)
 		}
 	}
-
-	telemetry_common.AddAttestorType(counter, attestorName)
 
 	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {
