@@ -32,7 +32,7 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-var (
+const (
 	joinTokenType = "join_token"
 )
 
