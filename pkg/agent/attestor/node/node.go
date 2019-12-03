@@ -235,12 +235,10 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	defer cancel()
 
 	attestorName = joinTokenType
-
 	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
 	if a.c.JoinToken == "" {
 		attestor := a.c.Catalog.GetNodeAttestor()
-		aName := attestor.Name()
-		attestorName = aName
+		attestorName = attestor.Name()
 		var err error
 		fetchStream, err = attestor.FetchAttestationData(ctx)
 		if err != nil {
