@@ -17,7 +17,8 @@ type FileConfig struct {
 	Statsd     []StatsdConfig    `hcl:"Statsd"`
 	M3         []M3Config        `hcl:"M3"`
 	InMem      *InMem            `hcl:"InMem"`
-	UnusedKeys []string          `hcl:",unusedKeys"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type DogStatsdConfig struct {
