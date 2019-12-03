@@ -89,7 +89,7 @@ func TestWarnOnFutureDisable(t *testing.T) {
 	go ir.run(ctx)
 
 	// Wait for run to complete set up
-	util.RunWithTimeout(t, 5*time.Second, func() {
+	util.RunWithTimeout(t, time.Minute, func() {
 		for {
 			require.NoError(t, ctx.Err())
 
@@ -103,7 +103,7 @@ func TestWarnOnFutureDisable(t *testing.T) {
 	})
 
 	// Send signal, wait for signal handling + logging
-	util.RunWithTimeout(t, 5*time.Second, func() {
+	util.RunWithTimeout(t, time.Minute, func() {
 		syscall.Kill(os.Getpid(), metrics.DefaultSignal)
 
 		for {
