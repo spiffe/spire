@@ -224,20 +224,23 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
-	defer counter.Done(&err)
-	attestorName := new(string)
-	defer func() { telemetry_common.AddAttestorType(counter, *attestorName) }()
+	attestorName := ""
+	defer func() {
+		telemetry_common.AddAttestorType(counter, attestorName)
+		counter.Done(&err)
+	}()
 
 	// make sure all of the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	attestorName = &joinTokenType
+	attestorName = joinTokenType
+
 	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
 	if a.c.JoinToken == "" {
 		attestor := a.c.Catalog.GetNodeAttestor()
 		aName := attestor.Name()
-		attestorName = &aName
+		attestorName = aName
 		var err error
 		fetchStream, err = attestor.FetchAttestationData(ctx)
 		if err != nil {

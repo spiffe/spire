@@ -66,9 +66,11 @@ func NewHandler(config HandlerConfig) *Handler {
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
-	defer counter.Done(&err)
-	attestorName := new(string)
-	defer func() { telemetry_common.AddAttestorType(counter, *attestorName) }()
+	attestorName := ""
+	defer func() {
+		telemetry_common.AddAttestorType(counter, attestorName)
+		counter.Done(&err)
+	}()
 
 	log := h.c.Log.WithField(telemetry.Method, telemetry.NodeAPI)
 
@@ -97,7 +99,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		log.Error("Request missing attestation data type")
 		return status.Error(codes.InvalidArgument, "request missing attestation data type")
 	}
-	attestorName = &request.AttestationData.Type
+	attestorName = request.AttestationData.Type
 	log = log.WithField(telemetry.Attestor, request.AttestationData.Type)
 
 	if len(request.Csr) == 0 {
