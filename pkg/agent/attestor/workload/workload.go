@@ -37,6 +37,9 @@ type Config struct {
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
+	counter := telemetry_workload.StartAttestationCall(wla.c.Metrics)
+	defer counter.Done(nil)
+
 	log := wla.c.Log.WithField(telemetry.PID, pid)
 
 	plugins := wla.c.Catalog.GetWorkloadAttestors()

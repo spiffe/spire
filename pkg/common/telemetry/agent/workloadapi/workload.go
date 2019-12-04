@@ -9,6 +9,13 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
+// StartAttestationCall return metric
+// for agent's Workload API Attestor for overall attestation
+func StartAttestationCall(m telemetry.Metrics) *telemetry.CallCounter {
+	cc := telemetry.StartCall(m, telemetry.WorkloadAPI, telemetry.WorkloadAttestation)
+	return cc
+}
+
 // StartAttestorCall return metric
 // for agent's Workload API Attestor for a specific attestor
 func StartAttestorCall(m telemetry.Metrics, aType string) *telemetry.CallCounter {

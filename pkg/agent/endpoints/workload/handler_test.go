@@ -361,12 +361,14 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsCount int, statusLabel telemetry.Label) {
-	attestorLabels := []telemetry.Label{{telemetry.Attestor, "fake"}, statusLabel}
+	attestationLabels := []telemetry.Label{telemetry.Label{telemetry.Status, "OK"}}
+	attestorLabels := []telemetry.Label{telemetry.Label{telemetry.Attestor, "fake"}, statusLabel}
 
 	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor}, float32(1), attestorLabels)
 	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor, telemetry.ElapsedTime}, gomock.Any(), attestorLabels)
 	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(selectorsCount))
-
+	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestation}, float32(1), attestationLabels)
+	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestation, telemetry.ElapsedTime}, gomock.Any(), attestationLabels)
 	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connection}, float32(1))
 	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(1))
 	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(0))
