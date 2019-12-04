@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -383,74 +384,17 @@ func newServerConfig(c *config) (*server.Config, error) {
 		sc.Log.Warn("The `upstream_bundle` configurable is not set, and you are using an UpstreamCA. The default value will be changed from `false` to `true` in a future release.  Please see issue #1095 and the configuration documentation for more information.")
 	}
 
+	// Warn if we detect unknown config options. We need a logger to do this. In
+	// the future, we can move from warning to bailing out (once folks have had
+	// ample time to detect any pre-existing errors)
+	//
+	// TODO: Move this check into validateConfig for 0.11.0
+	warnOnUnknownConfig(c, sc.Log)
+
 	return sc, nil
 }
 
 func validateConfig(c *config) error {
-	// Validations to detect unknown configuration options
-	if len(c.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in root block: %v", strings.Join(c.UnusedKeys, ", "))
-	}
-
-	if c.Server != nil {
-		if len(c.Server.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in server block: %v", strings.Join(c.Server.UnusedKeys, ", "))
-		}
-
-		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested ca_subject block: %v", strings.Join(cs.UnusedKeys, ", "))
-		}
-
-		if len(c.Server.Experimental.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested experimental block: %v", strings.Join(c.Server.Experimental.UnusedKeys, ", "))
-		}
-
-		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested bundle_endpoint_acme block: %v", strings.Join(bea.UnusedKeys, ", "))
-		}
-
-		for k, v := range c.Server.Experimental.FederatesWith {
-			if len(v.UnusedKeys) != 0 {
-				return fmt.Errorf("unknown configuration options in nested federates_with '%v' block: %v", k, strings.Join(v.UnusedKeys, ", "))
-			}
-		}
-	}
-
-	if len(c.Telemetry.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in telemetry block: %v", strings.Join(c.Telemetry.UnusedKeys, ", "))
-	}
-
-	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in nested Prometheus block: %v", strings.Join(p.UnusedKeys, ", "))
-	}
-
-	for i, v := range c.Telemetry.DogStatsd {
-		if len(v.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested DogStatsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
-		}
-	}
-
-	for i, v := range c.Telemetry.Statsd {
-		if len(v.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested Statsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
-		}
-	}
-
-	for i, v := range c.Telemetry.M3 {
-		if len(v.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested M3 %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
-		}
-	}
-
-	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in nested InMem block: %v", strings.Join(p.UnusedKeys, ", "))
-	}
-
-	if len(c.HealthChecks.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in nested health_checks block: %v", strings.Join(c.HealthChecks.UnusedKeys, ", "))
-	}
-
-	// Validations to detect configuration options that must be configured
 	if c.Server == nil {
 		return errors.New("server section must be configured")
 	}
@@ -492,6 +436,70 @@ func validateConfig(c *config) error {
 	}
 
 	return nil
+}
+
+func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
+	if len(c.UnusedKeys) != 0 {
+		l.Warnf("unknown configuration options in root block: %v", strings.Join(c.UnusedKeys, ", "))
+	}
+
+	if c.Server != nil {
+		if len(c.Server.UnusedKeys) != 0 {
+			l.Warnf("unknown configuration options in server block: %v", strings.Join(c.Server.UnusedKeys, ", "))
+		}
+
+		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeys) != 0 {
+			l.Warnf("unknown configuration options in nested ca_subject block: %v", strings.Join(cs.UnusedKeys, ", "))
+		}
+
+		if len(c.Server.Experimental.UnusedKeys) != 0 {
+			l.Warnf("unknown configuration options in nested experimental block: %v", strings.Join(c.Server.Experimental.UnusedKeys, ", "))
+		}
+
+		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
+			l.Warnf("unknown configuration options in nested bundle_endpoint_acme block: %v", strings.Join(bea.UnusedKeys, ", "))
+		}
+
+		for k, v := range c.Server.Experimental.FederatesWith {
+			if len(v.UnusedKeys) != 0 {
+				l.Warnf("unknown configuration options in nested federates_with '%v' block: %v", k, strings.Join(v.UnusedKeys, ", "))
+			}
+		}
+	}
+
+	if len(c.Telemetry.UnusedKeys) != 0 {
+		l.Warnf("unknown configuration options in telemetry block: %v", strings.Join(c.Telemetry.UnusedKeys, ", "))
+	}
+
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("unknown configuration options in nested Prometheus block: %v", strings.Join(p.UnusedKeys, ", "))
+	}
+
+	for i, v := range c.Telemetry.DogStatsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("unknown configuration options in nested DogStatsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	for i, v := range c.Telemetry.Statsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("unknown configuration options in nested Statsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	for i, v := range c.Telemetry.M3 {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("unknown configuration options in nested M3 %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("unknown configuration options in nested InMem block: %v", strings.Join(p.UnusedKeys, ", "))
+	}
+
+	if len(c.HealthChecks.UnusedKeys) != 0 {
+		l.Warnf("unknown configuration options in nested health_checks block: %v", strings.Join(c.HealthChecks.UnusedKeys, ", "))
+	}
 }
 
 func defaultConfig() *config {
