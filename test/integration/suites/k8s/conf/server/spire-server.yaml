@@ -110,17 +110,17 @@ data:
       ca_ttl = "12h"
       upstream_bundle = true
       ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIFFE"],
-        CommonName = "",
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
       }
     }
 
     plugins {
       DataStore "sql" {
         plugin_data {
-          database_type = "postgres"
-          connection_string = "dbname=spire user=spire password=MYSECRET host=spire-database sslmode=disable"
+          database_type = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
         }
       }
 
@@ -228,13 +228,6 @@ spec:
     spec:
       serviceAccountName: spire-server
       shareProcessNamespace: true
-      initContainers:
-        - name: init
-          # This is a small image with wait-for-it, choose whatever image
-          # you prefer that waits for a service to be up. This image is built
-          # from https://github.com/lqhl/wait-for-it
-          image: gcr.io/spiffe-io/wait-for-it
-          args: ["-t", "30", "spire-database:5432"]
       containers:
         - name: spire-server
           image: spire-server:latest-local
@@ -330,27 +323,4 @@ spec:
     - port: 443
       targetPort: registrar-port
 
----
 
-# Validating Webhook Configuration for the K8S Workload Registrar
-#
-apiVersion: admissionregistration.k8s.io/v1beta1
-kind: ValidatingWebhookConfiguration
-metadata:
-  name: k8s-workload-registrar-webhook
-webhooks:
-  - name: k8s-workload-registrar.spire.svc
-    clientConfig:
-      service:
-        name: k8s-workload-registrar
-        namespace: spire
-        path: "/validate"
-      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJnVENDQVNpZ0F3SUJBZ0lJVkx4YkhiUXNaUU13Q2dZSUtvWkl6ajBFQXdJd0pERWlNQ0FHQTFVRUF4TVoKU3poVElGZFBVa3RNVDBGRUlGSkZSMGxUVkZKQlVpQkRRVEFnRncweE9UQTFNVE14T1RFME1qTmFHQTg1T1RrNQpNVEl6TVRJek5UazFPVm93SkRFaU1DQUdBMVVFQXhNWlN6aFRJRmRQVWt0TVQwRkVJRkpGUjBsVFZGSkJVaUJEClFUQlpNQk1HQnlxR1NNNDlBZ0VHQ0NxR1NNNDlBd0VIQTBJQUJKTnE3SUw3N1hXaVdib2hCT3NtckNLTWorZzMKei8rVTBjNUhtWFJqN2xiU3Bqb2ZTMFkxUmtUSE1FSlN2QW9NSHpzc0NlNS9NRE1IWDVYbm40ci9MU0dqUWpCQQpNQTRHQTFVZER3RUIvd1FFQXdJQmhqQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01CMEdBMVVkRGdRV0JCU2JyRkpQCi9ZRkxoZStGU3E2eUhZRXN2UzlFd2pBS0JnZ3Foa2pPUFFRREFnTkhBREJFQWlCYXVuOXoxV0dDU2tqeDRQK3gKbWhaa2l1MUhzT2lmVDlTR1F4M2luNDhPU2dJZ0ptMDJsdm51dUtjTy9ZVDJDR0hxWjdRakdBbkpRWTZ1TGdFUQo3Q1hMdmNJPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
-    admissionReviewVersions:
-    - v1beta1
-    rules:
-    - apiGroups: [""]
-      apiVersions: ["v1"]
-      operations: ["CREATE", "DELETE"]
-      resources: ["pods"]
-      scope: "Namespaced"

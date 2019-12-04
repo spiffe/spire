@@ -41,6 +41,7 @@ type config struct {
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
+	UnusedKeys   []string                    `hcl:",unusedKeys"`
 }
 
 type agentConfig struct {
@@ -64,6 +65,8 @@ type agentConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type RunCLI struct {
@@ -265,6 +268,50 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 }
 
 func validateConfig(c *config) error {
+	// Validations to detect unknown configuration options
+	if len(c.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in root block: %v", strings.Join(c.UnusedKeys, ", "))
+	}
+
+	if a := c.Agent; a != nil && len(a.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in agent block: %v", strings.Join(a.UnusedKeys, ", "))
+	}
+
+	if len(c.Telemetry.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in telemetry block: %v", strings.Join(c.Telemetry.UnusedKeys, ", "))
+	}
+
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in nested Prometheus block: %v", strings.Join(p.UnusedKeys, ", "))
+	}
+
+	for i, v := range c.Telemetry.DogStatsd {
+		if len(v.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested DogStatsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	for i, v := range c.Telemetry.Statsd {
+		if len(v.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested Statsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	for i, v := range c.Telemetry.M3 {
+		if len(v.UnusedKeys) != 0 {
+			return fmt.Errorf("unknown configuration options in nested M3 %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+		}
+	}
+
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in nested InMem block: %v", strings.Join(p.UnusedKeys, ", "))
+	}
+
+	if len(c.HealthChecks.UnusedKeys) != 0 {
+		return fmt.Errorf("unknown configuration options in nested health_checks block: %v", strings.Join(c.HealthChecks.UnusedKeys, ", "))
+	}
+
+	// Validations to detect configuration options that must be configured
 	if c.Agent == nil {
 		return errors.New("agent section must be configured")
 	}
