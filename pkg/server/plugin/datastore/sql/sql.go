@@ -988,8 +988,25 @@ func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (
 }
 
 func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
-	if err := tx.Delete(NodeSelector{}, "spiffe_id = ?", req.Selectors.SpiffeId).Error; err != nil {
+	// Previously the deletion of the previous set of node selectors was
+	// implemented via query like DELETE FROM node_resolver_map_entries WHERE
+	// spiffe_id = ?, but unfortunately this triggered some pessimistic gap
+	// locks on the index even when there were no rows matching the WHERE
+	// clause (i.e. rows for that spiffe_id). The gap locks caused MySQL
+	// deadlocks when SetNodeSelectors was being called concurrently. Changing
+	// the transaction isolation level fixed the deadlocks but only when there
+	// were no existing rows; the deadlocks still occured when existing rows
+	// existed (i.e. reattestation). Instead, gather all of the IDs to be
+	// deleted and delete them from separate queries, which does not trigger
+	// gap locks on the index.
+	var ids []int64
+	if err := tx.Model(&NodeSelector{}).Where("spiffe_id = ?", req.Selectors.SpiffeId).Pluck("id", &ids).Error; err != nil {
 		return nil, sqlError.Wrap(err)
+	}
+	if len(ids) > 0 {
+		if err := tx.Where("id IN (?)", ids).Delete(&NodeSelector{}).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
 	}
 
 	for _, selector := range req.Selectors.Selectors {

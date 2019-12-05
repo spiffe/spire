@@ -846,6 +846,39 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
+func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
+	selectors := []*common.Selector{
+		{Type: "TYPE", Value: "VALUE"},
+	}
+
+	const numWorkers = 20
+
+	resultCh := make(chan error, numWorkers)
+	nextID := int32(0)
+
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			id := fmt.Sprintf("ID%d", atomic.AddInt32(&nextID, 1))
+			for j := 0; j < 10; j++ {
+				_, err := s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+					Selectors: &datastore.NodeSelectors{
+						SpiffeId:  id,
+						Selectors: selectors,
+					},
+				})
+				if err != nil {
+					resultCh <- err
+				}
+			}
+			resultCh <- nil
+		}()
+	}
+
+	for i := 0; i < numWorkers; i++ {
+		s.Require().NoError(<-resultCh)
+	}
+}
+
 func (s *PluginSuite) TestCreateRegistrationEntry() {
 	var validRegistrationEntries []*common.RegistrationEntry
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
