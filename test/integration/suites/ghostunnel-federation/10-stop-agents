@@ -3,7 +3,7 @@
 set -e
 
 log-debug "stopping downstream agent"
-docker-compose exec downstream-workload supervisorctl --configuration /opt/supervisord/supervisord.conf stop spire-agent
+docker-compose exec -T downstream-workload supervisorctl --configuration /opt/supervisord/supervisord.conf stop spire-agent
 
 log-debug "stopping upstream agent"
-docker-compose exec upstream-workload supervisorctl --configuration /opt/supervisord/supervisord.conf stop spire-agent
+docker-compose exec -T upstream-workload supervisorctl --configuration /opt/supervisord/supervisord.conf stop spire-agent
