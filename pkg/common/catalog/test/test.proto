@@ -12,18 +12,18 @@ message Response {
     string out = 1;
 }
 
-// TestPlugin is a toy plugin interface for testing
-service TestPlugin {
+// Plugin is a toy plugin interface for testing
+service Plugin {
     rpc CallPlugin(Request) returns (Response);
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
 }
 
-// BarService is a toy plugin interface for testing
-service TestService {
+// Service is a toy plugin interface for testing
+service Service {
     rpc CallService(Request) returns (Response);
 }
 
-// BazHostService is a toy host service interface for testing
-service TestHostService {
+// HostService is a toy host service interface for testing
+service HostService {
     rpc CallHostService(Request) returns (Response);
 }

@@ -1,4 +1,4 @@
-package catalog
+package catalog_test
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/catalog/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/stretchr/testify/require"
@@ -21,8 +22,8 @@ import (
 )
 
 type testCatalog struct {
-	TestPlugin  test.TestPlugin
-	TestService *test.TestService
+	Plugin  test.Plugin
+	Service *test.Service
 }
 
 type testLogEntry struct {
@@ -52,11 +53,11 @@ type CatalogSuite struct {
 	logHook *logtest.Hook
 
 	// config
-	pluginConfig  []PluginConfig
-	knownPlugins  []PluginClient
-	knownServices []ServiceClient
-	builtins      []Plugin
-	hostServices  []HostServiceServer
+	pluginConfig  []catalog.PluginConfig
+	knownPlugins  []catalog.PluginClient
+	knownServices []catalog.ServiceClient
+	builtins      []catalog.Plugin
+	hostServices  []catalog.HostServiceServer
 }
 
 // SetupSuite builds the test plugin binary
@@ -98,14 +99,14 @@ func (s *CatalogSuite) TearDownSuite() {
 func (s *CatalogSuite) SetupTest() {
 	// reset the logger and configuration for each test
 	s.log, s.logHook = logtest.NewNullLogger()
-	s.knownPlugins = []PluginClient{
-		test.TestPluginPluginClient,
+	s.knownPlugins = []catalog.PluginClient{
+		test.PluginPluginClient,
 	}
-	s.knownServices = []ServiceClient{
-		test.TestServiceServiceClient,
+	s.knownServices = []catalog.ServiceClient{
+		test.ServiceServiceClient,
 	}
-	s.hostServices = []HostServiceServer{
-		test.TestHostServiceHostServiceServer(test.NewTestHostService()),
+	s.hostServices = []catalog.HostServiceServer{
+		test.HostServiceHostServiceServer(test.NewHostService()),
 	}
 	s.builtins = nil
 	s.pluginConfig = nil
@@ -133,17 +134,17 @@ func (s *CatalogSuite) TestOldPlugin() {
 	checksum, err := calculateChecksum(path)
 	require.NoError(err, "unable to calculate old plugin checksum")
 
-	plugin, err := LoadExternalPlugin(context.Background(), ExternalPlugin{
+	plugin, err := catalog.LoadExternalPlugin(context.Background(), catalog.ExternalPlugin{
 		Log:      s.log,
 		Name:     "oldpluginbin",
 		Path:     path,
 		Checksum: checksum,
-		Plugin:   test.TestPluginPluginClient,
+		Plugin:   test.PluginPluginClient,
 	})
 	require.NoError(err, "unable to load old plugin")
 	defer plugin.Close()
 
-	var v test.TestPlugin
+	var v test.Plugin
 	err = plugin.Fill(&v)
 	require.NoError(err, "unable to get old plugin client")
 
@@ -158,7 +159,7 @@ func (s *CatalogSuite) TestNoKnownPlugin() {
 	s.knownPlugins = nil
 	s.pluginConfig = s.extPluginConfig()
 
-	s.assertFillCatalogFails(`unknown plugin type "TestPlugin"`)
+	s.assertFillCatalogFails(`unknown plugin type "Plugin"`)
 }
 
 func (s *CatalogSuite) TestNoKnownService() {
@@ -175,7 +176,7 @@ func (s *CatalogSuite) TestNoKnownService() {
 		Level:   logrus.WarnLevel,
 		Message: "Unknown service type.",
 		Data: logrus.Fields{
-			telemetry.PluginService: "TestService",
+			telemetry.PluginService: "Service",
 		},
 	})
 }
@@ -196,7 +197,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 			Message: "Host service not available.",
 			Data: logrus.Fields{
 				"@module":        "pluginimpl",
-				"hostservice":    "TestHostService",
+				"hostservice":    "HostService",
 				"subsystem_name": "external_plugin.testext.pluginbin",
 			},
 		},
@@ -205,7 +206,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 			Message: "Host service not available.",
 			Data: logrus.Fields{
 				"@module":        "serviceimpl",
-				"hostservice":    "TestHostService",
+				"hostservice":    "HostService",
 				"subsystem_name": "external_plugin.testext.pluginbin",
 			},
 		},
@@ -225,13 +226,13 @@ func (s *CatalogSuite) TestDisabledPlugin() {
 	s.pluginConfig = s.extPluginConfig()
 	s.pluginConfig[0].Disabled = true
 
-	s.assertFillCatalogFails(`unable to set catalog field "TestPlugin": requires at least 1 TestPlugin(s); got 0`)
+	s.assertFillCatalogFails(`unable to set catalog field "Plugin": requires at least 1 Plugin(s); got 0`)
 }
 
 func (s *CatalogSuite) TestUnknownBuiltIn() {
 	s.pluginConfig = s.builtinConfig()
 
-	s.assertFillCatalogFails(`no such TestPlugin builtin "testbuiltin"`)
+	s.assertFillCatalogFails(`no such Plugin builtin "testbuiltin"`)
 }
 
 func (s *CatalogSuite) TestConfigureFailure() {
@@ -242,33 +243,33 @@ func (s *CatalogSuite) TestConfigureFailure() {
 }
 
 func (s *CatalogSuite) TestDuplicateKnownPlugins() {
-	s.knownPlugins = []PluginClient{
-		test.TestPluginPluginClient,
-		test.TestPluginPluginClient,
+	s.knownPlugins = []catalog.PluginClient{
+		test.PluginPluginClient,
+		test.PluginPluginClient,
 	}
-	s.assertFillCatalogFails(`duplicate plugin type "TestPlugin"`)
+	s.assertFillCatalogFails(`duplicate plugin type "Plugin"`)
 }
 
 func (s *CatalogSuite) TestDuplicateKnownServices() {
 	s.pluginConfig = s.extPluginConfig()
-	s.knownServices = []ServiceClient{
-		test.TestServiceServiceClient,
-		test.TestServiceServiceClient,
+	s.knownServices = []catalog.ServiceClient{
+		test.ServiceServiceClient,
+		test.ServiceServiceClient,
 	}
-	s.assertFillCatalogFails(`duplicate service type "TestService"`)
+	s.assertFillCatalogFails(`duplicate service type "Service"`)
 }
 
 func (s *CatalogSuite) TestDuplicateBuiltIns() {
-	s.builtins = []Plugin{
+	s.builtins = []catalog.Plugin{
 		testBuiltIn(),
 		testBuiltIn(),
 	}
-	s.assertFillCatalogFails(`duplicate TestPlugin builtin "testbuiltin"`)
+	s.assertFillCatalogFails(`duplicate Plugin builtin "testbuiltin"`)
 }
 
 func (s *CatalogSuite) TestPluginsFill() {
 	// use a builtin w/o a service
-	s.builtins = []Plugin{testBuiltInNoService()}
+	s.builtins = []catalog.Plugin{testBuiltInNoService()}
 	// ask for the external and built in service
 	s.pluginConfig = append(s.extPluginConfig(), s.builtinConfig()...)
 	ps := s.loadCatalog()
@@ -294,7 +295,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"unexported field",
 			func(r *require.Assertions) {
 				r.NoError(ps.Fill(&struct {
-					plugins []test.TestPlugin
+					plugins []test.Plugin
 				}{}))
 			},
 		},
@@ -302,23 +303,23 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"single plugin constraint failure",
 			func(r *require.Assertions) {
 				r.EqualError(ps.Fill(&struct {
-					Plugin test.TestPlugin
-				}{}), `unable to set catalog field "Plugin": requires at most 1 TestPlugin(s); got 2`)
+					Plugin test.Plugin
+				}{}), `unable to set catalog field "Plugin": requires at most 1 Plugin(s); got 2`)
 			},
 		},
 		{
 			"optional plugin constraint failure",
 			func(r *require.Assertions) {
 				r.EqualError(ps.Fill(&struct {
-					Plugin *test.TestPlugin
-				}{}), `unable to set catalog field "Plugin": requires at most 1 TestPlugin(s); got 2`)
+					Plugin *test.Plugin
+				}{}), `unable to set catalog field "Plugin": requires at most 1 Plugin(s); got 2`)
 			},
 		},
 		{
 			"slice of plugins",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin
+					Plugins []test.Plugin
 				}{}
 				r.NoError(ps.Fill(c))
 				r.Len(c.Plugins, 2)
@@ -330,7 +331,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"ignores other struct tags",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `json:"plugins"`
+					Plugins []test.Plugin `json:"plugins"`
 				}{}
 				r.NoError(ps.Fill(c))
 			},
@@ -339,7 +340,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"bad struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"BAD"`
+					Plugins []test.Plugin `catalog:"BAD"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "BAD"`)
 			},
@@ -348,7 +349,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"invalid min struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"min=BAD"`
+					Plugins []test.Plugin `catalog:"min=BAD"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": invalid catalog tag min value "BAD"`)
 			},
@@ -357,7 +358,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"negative min struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"min=-1"`
+					Plugins []test.Plugin `catalog:"min=-1"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": catalog tag min value must be >= 0`)
 			},
@@ -366,7 +367,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"invalid max struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"max=BAD"`
+					Plugins []test.Plugin `catalog:"max=BAD"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": invalid catalog tag max value "BAD"`)
 			},
@@ -375,7 +376,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"negative max struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"max=-1"`
+					Plugins []test.Plugin `catalog:"max=-1"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": catalog tag max value must be > 0`)
 			},
@@ -384,7 +385,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"max struct tag lower than min",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"min=2,max=1"`
+					Plugins []test.Plugin `catalog:"min=2,max=1"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": catalog tag max value must be >= min`)
 			},
@@ -393,7 +394,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"slice of plugins with min constraint met",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"min=2"`
+					Plugins []test.Plugin `catalog:"min=2"`
 				}{}
 				r.NoError(ps.Fill(c))
 			},
@@ -402,16 +403,16 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"slice of plugins with min constraint failure",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"min=3"`
+					Plugins []test.Plugin `catalog:"min=3"`
 				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": requires at least 3 TestPlugin(s); got 2`)
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": requires at least 3 Plugin(s); got 2`)
 			},
 		},
 		{
 			"slice of plugins with max constraint met",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"max=2"`
+					Plugins []test.Plugin `catalog:"max=2"`
 				}{}
 				r.NoError(ps.Fill(c))
 			},
@@ -420,16 +421,16 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"slice of plugins with max constraint failure",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin `catalog:"max=1"`
+					Plugins []test.Plugin `catalog:"max=1"`
 				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": requires at most 1 TestPlugin(s); got 2`)
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": requires at most 1 Plugin(s); got 2`)
 			},
 		},
 		{
 			"single service",
 			func(r *require.Assertions) {
 				c := &struct {
-					Service test.TestService
+					Service test.Service
 				}{}
 				r.NoError(ps.Fill(c))
 				r.NotNil(c.Service)
@@ -439,7 +440,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"optional service",
 			func(r *require.Assertions) {
 				c := &struct {
-					Service *test.TestService
+					Service *test.Service
 				}{}
 				r.NoError(ps.Fill(c))
 				r.NotNil(c.Service)
@@ -450,7 +451,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"slice of services",
 			func(r *require.Assertions) {
 				c := &struct {
-					Services []test.TestService
+					Services []test.Service
 				}{}
 				r.NoError(ps.Fill(c))
 				r.Len(c.Services, 1)
@@ -461,7 +462,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"map of string to plugin",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins map[string]test.TestPlugin
+					Plugins map[string]test.Plugin
 				}{}
 				r.NoError(ps.Fill(c))
 				r.Len(c.Plugins, 2)
@@ -474,33 +475,33 @@ func (s *CatalogSuite) TestPluginsFill() {
 			func(r *require.Assertions) {
 				c := &struct {
 					Things []struct {
-						test.TestPlugin
-						test.TestService
+						test.Plugin
+						test.Service
 					}
 				}{}
 				r.NoError(ps.Fill(c))
 				// an aggregated struct is only filled if a plugin implements
 				// all interfaces inside the struct. since our "builtin"
-				// doesn't implement TestService for this test, we only expect
+				// doesn't implement test.Service for this test, we only expect
 				// a single "thing".
 				r.Len(c.Things, 1)
 				r.NotNil(c.Things[0])
-				r.NotNil(c.Things[0].TestPlugin)
-				r.NotNil(c.Things[0].TestService)
+				r.NotNil(c.Things[0].Plugin)
+				r.NotNil(c.Things[0].Service)
 			},
 		},
 		{
 			"single plugin interface constraint fails",
 			func(r *require.Assertions) {
-				var plugin test.TestPlugin
+				var plugin test.Plugin
 				r.EqualError(ps.Fill(&plugin),
-					`requires at most 1 TestPlugin(s); got 2`)
+					`requires at most 1 Plugin(s); got 2`)
 			},
 		},
 		{
 			"single service interface ok",
 			func(r *require.Assertions) {
-				var service test.TestService
+				var service test.Service
 				r.NoError(ps.Fill(&service))
 				r.NotNil(service)
 			},
@@ -509,11 +510,11 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"embedded struct ok",
 			func(r *require.Assertions) {
 				type Embedded struct {
-					Service test.TestService
+					Service test.Service
 				}
 
 				c := &struct {
-					Plugins []test.TestPlugin
+					Plugins []test.Plugin
 					Embedded
 				}{}
 
@@ -526,13 +527,13 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"embedded interface ok",
 			func(r *require.Assertions) {
 				c := &struct {
-					Plugins []test.TestPlugin
-					test.TestService
+					Plugins []test.Plugin
+					test.Service
 				}{}
 
 				r.NoError(ps.Fill(c))
 				r.Len(c.Plugins, 2)
-				r.NotNil(c.TestService)
+				r.NotNil(c.Service)
 			},
 		},
 		{
@@ -540,10 +541,10 @@ func (s *CatalogSuite) TestPluginsFill() {
 			func(r *require.Assertions) {
 				type I int
 				c := &struct {
-					Plugins []test.TestPlugin
+					Plugins []test.Plugin
 					I
 				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "I": unsupported embedded field type "catalog.I"`)
+				r.EqualError(ps.Fill(c), `unable to set catalog field "I": unsupported embedded field type "catalog_test.I"`)
 			},
 		},
 		{
@@ -597,7 +598,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"invalid field map key",
 			func(r *require.Assertions) {
 				c := &struct {
-					Field map[int]test.TestPlugin
+					Field map[int]test.Plugin
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Field": map key type must be a string`)
 			},
@@ -615,16 +616,16 @@ func (s *CatalogSuite) TestPluginsFill() {
 			"can get plugin info",
 			func(r *require.Assertions) {
 				c := &struct {
-					JustPluginInfos     []PluginInfo
+					JustPluginInfos     []catalog.PluginInfo
 					PluginInfosInStruct []struct {
-						PluginInfo
-						test.TestPlugin
+						catalog.PluginInfo
+						test.Plugin
 					}
 				}{}
 				r.NoError(ps.Fill(c))
 				// an aggregated struct is only filled if a plugin implements
 				// all interfaces inside the struct. since our "builtin"
-				// doesn't implement TestService for this test, we only expect
+				// doesn't implement test.Service for this test, we only expect
 				// a single "thing".
 				r.Len(c.JustPluginInfos, 2)
 				r.Equal("testext", c.JustPluginInfos[0].Name())
@@ -662,14 +663,14 @@ func (s *CatalogSuite) assertExternalPluginCalls(pluginOut, serviceOut string) {
 	require.NoError(err)
 	defer closer.Close()
 
-	resp, err := c.TestPlugin.CallPlugin(context.Background(), &test.Request{
+	resp, err := c.Plugin.CallPlugin(context.Background(), &test.Request{
 		In: "hello-to-plugin",
 	})
 	require.NoError(err)
 	assert.Equal(pluginOut, resp.Out)
 
-	if c.TestService != nil {
-		resp, err = (*c.TestService).CallService(context.Background(), &test.Request{
+	if c.Service != nil {
+		resp, err = (*c.Service).CallService(context.Background(), &test.Request{
 			In: "hello-to-service",
 		})
 		require.NoError(err)
@@ -679,10 +680,10 @@ func (s *CatalogSuite) assertExternalPluginCalls(pluginOut, serviceOut string) {
 	}
 }
 
-func (s *CatalogSuite) fillCatalog(c interface{}) (Closer, error) {
-	return Fill(context.Background(), Config{
+func (s *CatalogSuite) fillCatalog(c interface{}) (catalog.Closer, error) {
+	return catalog.Fill(context.Background(), catalog.Config{
 		Log: s.log,
-		GlobalConfig: GlobalConfig{
+		GlobalConfig: catalog.GlobalConfig{
 			TrustDomain: "domain.test",
 		},
 		PluginConfig:  s.pluginConfig,
@@ -693,10 +694,10 @@ func (s *CatalogSuite) fillCatalog(c interface{}) (Closer, error) {
 	}, c)
 }
 
-func (s *CatalogSuite) loadCatalog() Catalog {
-	cat, err := Load(context.Background(), Config{
+func (s *CatalogSuite) loadCatalog() catalog.Catalog {
+	cat, err := catalog.Load(context.Background(), catalog.Config{
 		Log: s.log,
-		GlobalConfig: GlobalConfig{
+		GlobalConfig: catalog.GlobalConfig{
 			TrustDomain: "domain.test",
 		},
 		PluginConfig:  s.pluginConfig,
@@ -709,11 +710,11 @@ func (s *CatalogSuite) loadCatalog() Catalog {
 	return cat
 }
 
-func (s *CatalogSuite) extPluginConfig() []PluginConfig {
-	return []PluginConfig{
+func (s *CatalogSuite) extPluginConfig() []catalog.PluginConfig {
+	return []catalog.PluginConfig{
 		{
 			Name:     "testext",
-			Type:     test.TestPluginType,
+			Type:     test.PluginType,
 			Path:     s.path,
 			Checksum: s.checksum,
 			Data:     "CONFIG",
@@ -721,11 +722,11 @@ func (s *CatalogSuite) extPluginConfig() []PluginConfig {
 	}
 }
 
-func (s *CatalogSuite) builtinConfig() []PluginConfig {
-	return []PluginConfig{
+func (s *CatalogSuite) builtinConfig() []catalog.PluginConfig {
+	return []catalog.PluginConfig{
 		{
 			Name: "testbuiltin",
-			Type: test.TestPluginType,
+			Type: test.PluginType,
 			Data: "CONFIG",
 		},
 	}
@@ -760,21 +761,21 @@ func testLogEntryFromEntry(entry *logrus.Entry) testLogEntry {
 	}
 }
 
-func testBuiltIns() []Plugin {
-	return []Plugin{
+func testBuiltIns() []catalog.Plugin {
+	return []catalog.Plugin{
 		testBuiltIn(),
 	}
 }
 
-func testBuiltIn() Plugin {
+func testBuiltIn() catalog.Plugin {
 	builtin := testBuiltInNoService()
-	builtin.Services = append(builtin.Services, test.TestServiceServiceServer(test.NewTestService()))
+	builtin.Services = append(builtin.Services, test.ServiceServiceServer(test.NewService()))
 	return builtin
 }
 
-func testBuiltInNoService() Plugin {
-	return MakePlugin("testbuiltin",
-		test.TestPluginPluginServer(test.NewTestPlugin()),
+func testBuiltInNoService() catalog.Plugin {
+	return catalog.MakePlugin("testbuiltin",
+		test.PluginPluginServer(test.NewPlugin()),
 	)
 }
 
@@ -809,8 +810,8 @@ func extInitLogs(module string) []testLogEntry {
 			Data: logrus.Fields{
 				telemetry.PluginBuiltIn:  false,
 				telemetry.PluginName:     "testext",
-				telemetry.PluginServices: []string{"TestService"},
-				telemetry.PluginType:     "TestPlugin",
+				telemetry.PluginServices: []string{"Service"},
+				telemetry.PluginType:     "Plugin",
 			},
 		},
 	}
