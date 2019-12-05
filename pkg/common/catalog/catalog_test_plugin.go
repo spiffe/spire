@@ -11,7 +11,7 @@ import (
 
 func main() {
 	catalog.PluginMain(catalog.MakePlugin("test",
-		test.TestPluginPluginServer(test.NewTestPlugin()),
-		test.TestServiceServiceServer(test.NewTestService()),
+		test.PluginPluginServer(test.NewPlugin()),
+		test.ServiceServiceServer(test.NewService()),
 	))
 }

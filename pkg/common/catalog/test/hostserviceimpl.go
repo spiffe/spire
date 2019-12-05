@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spiffe/spire/pkg/common/catalog/internal"
+	"github.com/spiffe/spire/pkg/common/catalog"
 )
 
-func NewTestHostService() TestHostService {
+func NewHostService() HostService {
 	return &testHostService{}
 }
 
 type testHostService struct{}
 
 func (*testHostService) CallHostService(ctx context.Context, req *Request) (*Response, error) {
-	pluginName, ok := internal.PluginNameFromHostServiceContext(ctx)
+	pluginName, ok := catalog.PluginNameFromHostServiceContext(ctx)
 	if !ok {
 		pluginName = "<unknown>"
 	}

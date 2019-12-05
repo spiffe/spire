@@ -5,29 +5,29 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/common/catalog/internal"
+	"github.com/spiffe/spire/pkg/common/catalog"
 )
 
-func NewTestService() TestService {
+func NewService() Service {
 	return &testService{}
 }
 
 type testService struct {
 	log hclog.Logger
-	hs  TestHostService
+	hs  HostService
 }
 
 func (s *testService) SetLogger(log hclog.Logger) {
 	s.log = log.Named("serviceimpl")
 }
 
-func (s *testService) BrokerHostServices(broker internal.HostServiceBroker) error {
-	has, err := broker.GetHostService(TestHostServiceHostServiceClient(&s.hs))
+func (s *testService) BrokerHostServices(broker catalog.HostServiceBroker) error {
+	has, err := broker.GetHostService(HostServiceHostServiceClient(&s.hs))
 	if err != nil {
 		return err
 	}
 	if !has {
-		s.log.Warn("Host service not available.", "hostservice", "TestHostService")
+		s.log.Warn("Host service not available.", "hostservice", "HostService")
 	}
 	return nil
 }
