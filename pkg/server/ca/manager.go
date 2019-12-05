@@ -137,7 +137,9 @@ func (m *Manager) rotateEvery(ctx context.Context, interval time.Duration) error
 		select {
 		case <-ticker.C:
 			// rotate() errors are logged by rotate() and shouldn't cause the
-			// manager run task to bail so ignore them here.
+			// manager run task to bail so ignore them here. The error returned
+			// by rotate is used by the unit tests, so we need to keep it for
+			// now.
 			_ = m.rotate(ctx)
 		case <-ctx.Done():
 			return nil

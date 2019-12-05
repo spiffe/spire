@@ -75,7 +75,7 @@ func TestInitializationFailure(t *testing.T) {
 		Clk:             clk,
 		Catalog:         cat,
 	}
-	m := newManager(t, c)
+	m := makeManager(t, c)
 	require.Error(t, m.Initialize(context.Background()))
 }
 
@@ -102,7 +102,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	util.RunWithTimeout(t, time.Second, func() {
 		sub := m.SubscribeToBundleChanges()
@@ -153,7 +153,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	err = m.Initialize(context.Background())
 	if err == nil {
@@ -206,7 +206,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 		t.Fatalf("No key expected but got: %v", kresp.PrivateKey)
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 	require.Error(t, m.Initialize(context.Background()))
 
 	// Although init failed, the SVID key should have been saved, because it should be
@@ -465,7 +465,7 @@ func TestSynchronization(t *testing.T) {
 		Catalog:          cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
@@ -600,7 +600,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	if err := m.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
@@ -662,7 +662,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	if err := m.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
@@ -725,7 +725,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		Catalog:          cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 
@@ -789,7 +789,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		Catalog:          cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
@@ -848,7 +848,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Clk:             mockClk,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	spiffeID := "spiffe://example.org"
 	audience := []string{"foo"}
@@ -1333,16 +1333,14 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cake
 	return []*x509.Certificate{svid}
 }
 
-func newManager(t *testing.T, c *Config) *manager {
-	m, err := New(c)
+func makeManager(t *testing.T, c *Config) *manager {
+	m, err := newManager(c)
 	require.NoError(t, err)
-	mv, ok := m.(*manager)
-	require.True(t, ok)
-	return mv
+	return m
 }
 
 func initializeAndRunNewManager(t *testing.T, c *Config) (m *manager, closer func()) {
-	m = newManager(t, c)
+	m = makeManager(t, c)
 	return m, initializeAndRunManager(t, m)
 }
 

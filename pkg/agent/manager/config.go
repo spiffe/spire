@@ -38,6 +38,10 @@ type Config struct {
 
 // New creates a cache manager based on c's configuration
 func New(c *Config) (Manager, error) {
+	return newManager(c)
+}
+
+func newManager(c *Config) (*manager, error) {
 	spiffeID, err := getSpiffeIDFromSVID(c.SVID[0])
 	if err != nil {
 		return nil, fmt.Errorf("cannot get spiffe id from SVID: %v", err)

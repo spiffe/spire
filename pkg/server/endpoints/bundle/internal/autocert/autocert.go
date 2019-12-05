@@ -41,7 +41,7 @@
 //   key match when the key a crypto.Signer and not a concrete RSA/ECDSA private
 //   key type.
 
-//nolint
+//nolint // forked code
 package autocert
 
 import (
@@ -999,7 +999,6 @@ func (m *Manager) renew(ck certKey, key crypto.Signer, exp time.Time) {
 
 // stopRenew stops all currently running cert renewal timers.
 // The timers are not restarted during the lifetime of the Manager.
-//nolint:unused
 func (m *Manager) stopRenew() {
 	m.renewalMu.Lock()
 	defer m.renewalMu.Unlock()

@@ -5,6 +5,9 @@ services:
 
 language: go
 
+go:
+  - 1.13.4
+
 cache:
   directories:
     - .cache

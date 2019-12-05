@@ -27,8 +27,14 @@ func TestUnknownServiceHandler(t *testing.T) {
 	log, hook := test.NewNullLogger()
 
 	server := grpc.NewServer(grpc.UnknownServiceHandler(UnknownServiceHandler(log)))
-	go func() { _ = server.Serve(listener) }()
-	defer server.Stop()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
+	defer func() {
+		server.Stop()
+		require.NoError(<-errCh)
+	}()
 
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
 	require.NoError(err)
