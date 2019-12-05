@@ -7,7 +7,7 @@ NUMCHECKS=15
 CHECKINTERVAL=3
 for ((i=1;i<=NUMCHECKS;i++)); do
     log-info "checking X509-SVID ($i of $NUMCHECKS)..."
-    docker-compose exec spire-agent \
+    docker-compose exec -T spire-agent \
         /opt/spire/bin/spire-agent api fetch x509 || fail-now "SVID check failed"
     sleep "${CHECKINTERVAL}"
 done
