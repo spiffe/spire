@@ -10,7 +10,7 @@ The plugin accepts the following configuration options:
 | Configuration           | Description                                  |
 | ----------------------- | -------------------------------------------- |
 | ttl                     | The TTL for issued certificates (deprecated) |
-| region                  | AWS Region to use                            |
+| region                  | AWS Region that the AWS Secrets Manager is running in |
 | cert_file_arn           | ARN of the "upstream" CA certificate         |
 | key_file_arn            | ARN of the "upstream" CA key file            |
 | access_key_id           | AWS access key ID                            |
@@ -21,6 +21,21 @@ The plugin accepts the following configuration options:
 +The `ttl` configurable is deprecated. When unset, the plugin will use the
 +preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
 +configurable.
+
+Only the region, cert_file_arn, and key_file_arn must be configured. You optionally configure the remaining fields depending on how you choose to give SPIRE Server access to the ARNs.
+
+| If SPIRE Server Accesses the ARNs	| then these additional fields are mandatory |
+| --------------------------------- | ------------------------------------------ |
+| by providing an access key id and secret access key | `access_key_id`, `secret_access_key` |
+| by using temporary credentials for an IAM account (*NOTE:* It is the server user's responsibility to provide a new valid token whenever the server is started) | `access_key_id`, `secret_access_key`, `secret_token` |
+| via an EC2 instance that has an attached role with read access to the ARNs | none |
+| by configuring the UpstreamCA plugin to assume another IAM role that has access to the secrets (*NOTE:* The IAM user for which the access key id and secret access key must have permissions to assume the other IAM role, or the role attached to the EC2 instance must have this capability. | `access_key_id`, `secret_access_key`, `secret_token`, `assume_role_arn` |
+
+Because the plugin fetches the secrets from the AWS secrets manager only at startup, automatic rotation of secrets is not advised.
+
+SPIRE Server requires that you employ a distinct Amazon Resource Name (ARN) for the CA certificate and the CA key. 
+
+For more information on the AWS Secrets Manager, see the [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html) documentation. 
 
 A sample configuration:
 
