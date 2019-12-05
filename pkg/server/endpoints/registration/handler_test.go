@@ -112,7 +112,7 @@ func (s *HandlerSuite) SetupTest() {
 }
 
 func (s *HandlerSuite) TearDownTest() {
-	s.server.Stop()
+	s.server.GracefulStop()
 	s.NoError(<-s.serverErrCh)
 }
 
