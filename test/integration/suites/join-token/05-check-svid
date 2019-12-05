@@ -1,5 +1,5 @@
 #!/bin/bash
 
 log-info "checking X509-SVID..."
-docker-compose exec spire-agent \
+docker-compose exec -T spire-agent \
     /opt/spire/bin/spire-agent api fetch x509 || fail-now "SVID check failed"

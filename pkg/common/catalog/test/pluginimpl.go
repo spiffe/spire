@@ -5,33 +5,33 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/common/catalog/internal"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func NewTestPlugin() TestPluginPlugin {
+func NewPlugin() PluginPlugin {
 	return &testPlugin{}
 }
 
 type testPlugin struct {
 	log hclog.Logger
-	hs  TestHostService
+	hs  HostService
 }
 
 func (s *testPlugin) SetLogger(log hclog.Logger) {
 	s.log = log.ResetNamed("pluginimpl")
 }
 
-func (s *testPlugin) BrokerHostServices(broker internal.HostServiceBroker) error {
-	has, err := broker.GetHostService(TestHostServiceHostServiceClient(&s.hs))
+func (s *testPlugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
+	has, err := broker.GetHostService(HostServiceHostServiceClient(&s.hs))
 	if err != nil {
 		return err
 	}
 	if !has && s.log != nil {
 		// s.log will only be nil if this is not used within the new plugin framework (i.e. old plugin test)
-		s.log.Warn("Host service not available.", "hostservice", "TestHostService")
+		s.log.Warn("Host service not available.", "hostservice", "HostService")
 	}
 	return nil
 }

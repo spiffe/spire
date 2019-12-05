@@ -2,12 +2,13 @@ package telemetry
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"testing"
-	"time"
 )
 
 func TestNewM3Runner(t *testing.T) {
@@ -108,8 +109,8 @@ func TestAddSampleForValueHistogram(t *testing.T) {
 	histograms1 := snapshot1.Histograms()
 	assert.Len(t, histograms1, 1)
 
-	durationM3Name := metricName + "+"
-	histogram1, ok := histograms1[durationM3Name]
+	valueM3Name := metricName + "+"
+	histogram1, ok := histograms1[valueM3Name]
 	assert.True(t, ok)
 
 	values1 := histogram1.Values()

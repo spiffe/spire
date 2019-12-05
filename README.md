@@ -29,9 +29,9 @@ Alternatively you can [build SPIRE from source](/CONTRIBUTING.md).
 
 Before trying out SPIRE, we recommend becoming familiar with its [architecture](https://spiffe.io/spire/) and design goals.
 
-[Getting Started Guide for Kubernetes](https://spiffe.io/spire/getting-started-k8s)
+[Getting Started Guide for Kubernetes](https://spiffe.io/spire/try/getting-started-k8s)
 
-[Getting Started Guide for Linux](https://spiffe.io/spire/getting-started-linux/)
+[Getting Started Guide for Linux](https://spiffe.io/spire/try/getting-started-linux/)
 
 The [SPIRE Server](https://github.com/spiffe/spire/blob/master/doc/spire_server.md) and [SPIRE Agent](https://github.com/spiffe/spire/blob/master/doc/spire_agent.md) reference guides covers in more detail the specific configuration options and plugins available.
 

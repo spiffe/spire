@@ -1,11 +1,11 @@
 #!/bin/bash
 
 log-debug "bootstrapping agent..."
-docker-compose exec spire-server \
+docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
 
 log-info "generating join token..."
-TOKEN=$(docker-compose exec spire-server \
+TOKEN=$(docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node | awk '{print $2}' | tr -d '\r')
 
 # Inserts the join token into the agent configuration
