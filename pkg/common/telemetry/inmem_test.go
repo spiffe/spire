@@ -74,9 +74,8 @@ func TestWarnOnFutureDisable(t *testing.T) {
 
 	// Get a real logrus.Entry
 	logger.SetLevel(logrus.DebugLevel)
-	logger.Debug("setup log")
 	c := &MetricsConfig{
-		Logger:      hook.LastEntry(),
+		Logger:      logger,
 		ServiceName: "foo",
 	}
 
@@ -99,11 +98,9 @@ func TestWarnOnFutureDisable(t *testing.T) {
 
 			require.NoError(t, ctx.Err())
 
-			hookEntry := hook.LastEntry()
-			assert.NotNil(t, hookEntry)
-			if hookEntry.Message != "setup log" {
+			if entry := hook.LastEntry(); entry != nil {
 				assert.Equal(t, "The in-memory telemetry sink will be disabled by default in a future release."+
-					" If you wish to continue using it, please enable it in the telemetry configuration.", hookEntry.Message)
+					" If you wish to continue using it, please enable it in the telemetry configuration.", entry.Message)
 				return
 			}
 		}
@@ -134,14 +131,9 @@ func TestInmemIsConfigured(t *testing.T) {
 }
 
 func testInmemConfig() *MetricsConfig {
-	l, hook := test.NewNullLogger()
-
-	// Get a real logrus.Entry
-	l.Debug("boo")
-	entry := hook.LastEntry()
-
+	l, _ := test.NewNullLogger()
 	return &MetricsConfig{
-		Logger:      entry,
+		Logger:      l,
 		ServiceName: "foo",
 	}
 }
@@ -149,8 +141,16 @@ func testInmemConfig() *MetricsConfig {
 func testUnknownInmemConfig() *MetricsConfig {
 	l, _ := test.NewNullLogger()
 
+	// unknownLogger only provides logrus.FieldLogger interface and does not give
+	// access to the underlying writer via the Writer() method.
+	unknownLogger := struct {
+		logrus.FieldLogger
+	}{
+		FieldLogger: l,
+	}
+
 	return &MetricsConfig{
-		Logger:      l,
+		Logger:      unknownLogger,
 		ServiceName: "foo",
 	}
 }

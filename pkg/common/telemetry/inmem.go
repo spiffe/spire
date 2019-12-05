@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
@@ -17,14 +18,17 @@ const (
 )
 
 type inmemRunner struct {
-	log        *logrus.Entry
+	log        logrus.FieldLogger
+	w          io.Writer
 	loadedSink *metrics.InmemSink
 
 	inMemBlockSet bool
 }
 
 func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
-	runner := &inmemRunner{}
+	runner := &inmemRunner{
+		log: c.Logger,
+	}
 
 	if c.FileConfig.InMem != nil && c.FileConfig.InMem.Enabled != nil {
 		runner.inMemBlockSet = true
@@ -34,8 +38,8 @@ func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
 		}
 	}
 
-	if entry, ok := c.Logger.(*logrus.Entry); ok {
-		runner.log = entry
+	if logger, ok := c.Logger.(interface{ Writer() *io.PipeWriter }); ok {
+		runner.w = logger.Writer()
 	} else {
 		c.Logger.Warn("Unknown logging subsystem; disabling telemetry signaling.")
 		return runner, nil
@@ -95,7 +99,7 @@ func (i *inmemRunner) startConfigWarning(ctx context.Context, wg *sync.WaitGroup
 
 func (i *inmemRunner) startInMemMetrics(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
-	signalHandler := metrics.NewInmemSignal(i.loadedSink, metrics.DefaultSignal, i.log.Writer())
+	signalHandler := metrics.NewInmemSignal(i.loadedSink, metrics.DefaultSignal, i.w)
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()

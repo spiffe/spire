@@ -292,11 +292,11 @@ const (
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"
 
-	// WorkloadAttestationDuration tags duration of workload attestation
-	WorkloadAttestationDuration = "workload_attestation_duration"
+	// WorkloadAttestation tags call of overall workload attestation
+	WorkloadAttestation = "workload_attestation"
 
-	// WorkloadAttestorLatency tags latency of a workload attestor
-	WorkloadAttestorLatency = "workload_attestor_latency"
+	// WorkloadAttestor tags call of a workload attestor
+	WorkloadAttestor = "workload_attestor"
 
 	// X509 declared X509 SVID type, clarifying metrics
 	X509 = "x509"
