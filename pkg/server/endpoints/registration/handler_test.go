@@ -68,7 +68,8 @@ func TestHandler(t *testing.T) {
 type HandlerSuite struct {
 	suite.Suite
 
-	server *grpc.Server
+	server      *grpc.Server
+	serverErrCh chan error
 
 	ds       *fakedatastore.DataStore
 	serverCA *fakeserverca.CA
@@ -105,12 +106,14 @@ func (s *HandlerSuite) SetupTest() {
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
 	s.Require().NoError(err)
 
-	go func() { _ = s.server.Serve(listener) }()
+	s.serverErrCh = make(chan error, 1)
+	go func() { s.serverErrCh <- s.server.Serve(listener) }()
 	s.handler = registration.NewRegistrationClient(conn)
 }
 
 func (s *HandlerSuite) TearDownTest() {
 	s.server.Stop()
+	s.NoError(<-s.serverErrCh)
 }
 
 func (s *HandlerSuite) TestCreateFederatedBundle() {
