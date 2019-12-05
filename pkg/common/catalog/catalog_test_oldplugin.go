@@ -17,8 +17,8 @@ func main() {
 	goplugin.Serve(&goplugin.ServeConfig{
 		HandshakeConfig: goplugin.HandshakeConfig{
 			ProtocolVersion:  1,
-			MagicCookieKey:   "TestPlugin",
-			MagicCookieValue: "TestPlugin",
+			MagicCookieKey:   "Plugin",
+			MagicCookieValue: "Plugin",
 		},
 		Plugins: map[string]goplugin.Plugin{
 			"oldplugin": grpcPlugin{},
@@ -32,7 +32,7 @@ type grpcPlugin struct {
 }
 
 func (grpcPlugin) GRPCServer(b *goplugin.GRPCBroker, s *grpc.Server) error {
-	test.RegisterTestPluginServer(s, test.NewTestPlugin())
+	test.RegisterPluginServer(s, test.NewPlugin())
 	return nil
 }
 
