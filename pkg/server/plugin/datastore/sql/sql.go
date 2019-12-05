@@ -1979,15 +1979,6 @@ func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error
 	return entryTx, nil
 }
 
-// update pagination token based in last result in returned list
-func updatePaginationToken(p *datastore.Pagination, entries []RegisteredEntry) {
-	if len(entries) == 0 {
-		return
-	}
-	lastEntry := (entries)[len(entries)-1]
-	p.Token = fmt.Sprint(lastEntry.ID)
-}
-
 func updateRegistrationEntry(tx *gorm.DB,
 	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 	// Get the existing entry
@@ -2210,25 +2201,6 @@ func bundleToModel(pb *common.Bundle) (*Bundle, error) {
 		TrustDomain: id,
 		Data:        data,
 	}, nil
-}
-
-func modelsToEntries(tx *gorm.DB, fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
-	entries, err := modelsToUnsortedEntries(tx, fetchedRegisteredEntries)
-	if err != nil {
-		return nil, err
-	}
-	return entries, nil
-}
-
-func modelsToUnsortedEntries(tx *gorm.DB, fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
-	for _, regEntry := range fetchedRegisteredEntries {
-		responseEntry, err := modelToEntry(tx, regEntry)
-		if err != nil {
-			return nil, err
-		}
-		responseEntries = append(responseEntries, responseEntry)
-	}
-	return responseEntries, nil
 }
 
 func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry, error) {
