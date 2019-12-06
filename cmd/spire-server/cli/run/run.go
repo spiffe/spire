@@ -440,65 +440,65 @@ func validateConfig(c *config) error {
 
 func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 	if len(c.UnusedKeys) != 0 {
-		l.Warnf("unknown configuration options in root block: %v", strings.Join(c.UnusedKeys, ", "))
+		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
 	}
 
 	if c.Server != nil {
 		if len(c.Server.UnusedKeys) != 0 {
-			l.Warnf("unknown configuration options in server block: %v", strings.Join(c.Server.UnusedKeys, ", "))
+			l.Warnf("Detected unknown server config options: %q; this will be fatal in a future release.", c.Server.UnusedKeys)
 		}
 
 		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeys) != 0 {
-			l.Warnf("unknown configuration options in nested ca_subject block: %v", strings.Join(cs.UnusedKeys, ", "))
+			l.Warnf("Detected unknown CA Subject config options: %q; this will be fatal in a future release.", cs.UnusedKeys)
 		}
 
 		if len(c.Server.Experimental.UnusedKeys) != 0 {
-			l.Warnf("unknown configuration options in nested experimental block: %v", strings.Join(c.Server.Experimental.UnusedKeys, ", "))
+			l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
 		}
 
 		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
-			l.Warnf("unknown configuration options in nested bundle_endpoint_acme block: %v", strings.Join(bea.UnusedKeys, ", "))
+			l.Warnf("Detected unknown ACME config options: %q; this will be fatal in a future release.", bea.UnusedKeys)
 		}
 
 		for k, v := range c.Server.Experimental.FederatesWith {
 			if len(v.UnusedKeys) != 0 {
-				l.Warnf("unknown configuration options in nested federates_with '%v' block: %v", k, strings.Join(v.UnusedKeys, ", "))
+				l.Warnf("Detected unknown federation config options for %q: %q; this will be fatal in a future release.", k, v.UnusedKeys)
 			}
 		}
 	}
 
 	if len(c.Telemetry.UnusedKeys) != 0 {
-		l.Warnf("unknown configuration options in telemetry block: %v", strings.Join(c.Telemetry.UnusedKeys, ", "))
+		l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
 	}
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
-		l.Warnf("unknown configuration options in nested Prometheus block: %v", strings.Join(p.UnusedKeys, ", "))
+		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
 	}
 
-	for i, v := range c.Telemetry.DogStatsd {
+	for _, v := range c.Telemetry.DogStatsd {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("unknown configuration options in nested DogStatsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+			l.Warnf("Detected unknown DogStatsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
 		}
 	}
 
-	for i, v := range c.Telemetry.Statsd {
+	for _, v := range c.Telemetry.Statsd {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("unknown configuration options in nested Statsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+			l.Warnf("Detected unknown Statsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
 		}
 	}
 
-	for i, v := range c.Telemetry.M3 {
+	for _, v := range c.Telemetry.M3 {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("unknown configuration options in nested M3 %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
+			l.Warnf("Detected unknown M3 config options: %q; this will be fatal in a future release.", v.UnusedKeys)
 		}
 	}
 
 	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
-		l.Warnf("unknown configuration options in nested InMem block: %v", strings.Join(p.UnusedKeys, ", "))
+		l.Warnf("Detected unknown InMem config options: %q; this will be fatal in a future release.", p.UnusedKeys)
 	}
 
 	if len(c.HealthChecks.UnusedKeys) != 0 {
-		l.Warnf("unknown configuration options in nested health_checks block: %v", strings.Join(c.HealthChecks.UnusedKeys, ", "))
+		l.Warnf("Detected unknown health check config options: %q; this will be fatal in a future release.", c.HealthChecks.UnusedKeys)
 	}
 }
 

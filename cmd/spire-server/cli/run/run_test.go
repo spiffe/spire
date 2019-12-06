@@ -849,67 +849,67 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		{
 			msg:            "in root block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_root_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in root block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown top-level config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in server block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_server_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in server block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown server config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested ca_subject block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_ca_subject_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested ca_subject block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown CA Subject config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested experimental block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested experimental block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested bundle_endpoint_acme block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_acme_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested bundle_endpoint_acme block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown ACME config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested federates_with block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_federates_with_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested experimental block: federates_with, test1, test2",
+			expectedLogMsg: "Detected unknown experimental config options: [\"federates_with\" \"test1\" \"test2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in telemetry block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in telemetry block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested Prometheus block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested Prometheus block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown Prometheus config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested DogStatsd block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_DogStatsd_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested DogStatsd 0 block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown DogStatsd config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested Statsd block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Statsd_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested Statsd 0 block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown Statsd config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested M3 block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_M3_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested M3 0 block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown M3 config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested InMem block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_InMem_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested InMem block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown InMem config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
 			msg:            "in nested health_checks block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_health_checks_block.conf", testFileDir),
-			expectedLogMsg: "unknown configuration options in nested health_checks block: unknown_option1, unknown_option2",
+			expectedLogMsg: "Detected unknown health check config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 	}
 
