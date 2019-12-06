@@ -142,9 +142,10 @@ func (s *HandlerSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.handler = sds_v2.NewSecretDiscoveryServiceClient(conn)
 
-	s.server = grpc.NewServer(grpc.Creds(FakeCreds{}))
-	sds_v2.RegisterSecretDiscoveryServiceServer(s.server, handler)
-	go func() { _ = s.server.Serve(listener) }()
+	server := grpc.NewServer(grpc.Creds(FakeCreds{}))
+	sds_v2.RegisterSecretDiscoveryServiceServer(server, handler)
+	go func() { _ = server.Serve(listener) }()
+	s.server = server
 
 	s.setWorkloadUpdate(workloadCert1)
 }
