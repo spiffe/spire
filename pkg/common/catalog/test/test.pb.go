@@ -109,24 +109,23 @@ func init() {
 func init() { proto.RegisterFile("test.proto", fileDescriptor_c161fcfdc0c3ff1e) }
 
 var fileDescriptor_c161fcfdc0c3ff1e = []byte{
-	// 258 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0xb1, 0x4e, 0xc3, 0x30,
-	0x10, 0x86, 0x95, 0x82, 0x80, 0x5e, 0x45, 0x8b, 0x3c, 0x41, 0xc5, 0x50, 0x55, 0x02, 0x21, 0x81,
-	0x6c, 0x08, 0x23, 0x1b, 0x59, 0x18, 0x51, 0x60, 0xea, 0x96, 0x46, 0x17, 0x63, 0x91, 0xfa, 0x4c,
-	0x6c, 0xf3, 0x26, 0xbc, 0x2f, 0x72, 0x62, 0x03, 0x53, 0x98, 0x7c, 0xe7, 0xbb, 0xfb, 0xf4, 0x49,
-	0x3f, 0x80, 0x43, 0xeb, 0xb8, 0xe9, 0xc8, 0x11, 0xdb, 0x0f, 0xf5, 0x72, 0x65, 0x8d, 0xea, 0x50,
-	0xd4, 0xb4, 0xdb, 0x91, 0x16, 0xa6, 0xf5, 0x52, 0xa5, 0x67, 0xd8, 0x5b, 0x9f, 0xc1, 0x61, 0x89,
-	0x1f, 0x1e, 0xad, 0x63, 0x73, 0x98, 0x28, 0x7d, 0x9a, 0xad, 0xb2, 0xab, 0x69, 0x39, 0x51, 0x7a,
-	0x7d, 0x0e, 0x47, 0x25, 0x5a, 0x43, 0xda, 0x22, 0x3b, 0x81, 0x3d, 0xf2, 0x2e, 0x0e, 0x43, 0x99,
-	0x7f, 0x65, 0x00, 0xaf, 0x68, 0xdd, 0x73, 0x4f, 0x63, 0xd7, 0x00, 0x45, 0xd5, 0xb6, 0xb1, 0x3b,
-	0xe6, 0xbd, 0x4a, 0x24, 0x2f, 0xe7, 0xa9, 0x8d, 0xb4, 0x0d, 0x4c, 0x0b, 0xd2, 0x8d, 0x92, 0xbe,
-	0x43, 0x76, 0xc1, 0x7b, 0x49, 0x3e, 0x48, 0xf2, 0x68, 0xf7, 0x33, 0x4f, 0x8c, 0xcb, 0xff, 0xd6,
-	0x06, 0x76, 0xfe, 0x00, 0xb3, 0xa0, 0xf5, 0x82, 0xdd, 0xa7, 0xaa, 0x91, 0xdd, 0xc0, 0x2c, 0x78,
-	0xa5, 0x76, 0x5c, 0x2c, 0x2f, 0x60, 0x11, 0x8e, 0x9f, 0xe8, 0x17, 0x70, 0x0b, 0x8b, 0x00, 0xf8,
-	0xfb, 0x35, 0x0e, 0x79, 0xbc, 0xdb, 0x08, 0xa9, 0xdc, 0x9b, 0xdf, 0x06, 0x57, 0x61, 0x8d, 0x6a,
-	0x1a, 0x14, 0x43, 0x10, 0xe6, 0x5d, 0xa6, 0x30, 0xea, 0xca, 0x55, 0x2d, 0x49, 0x11, 0x6e, 0xb7,
-	0x07, 0x7d, 0x18, 0xf7, 0xdf, 0x01, 0x00, 0x00, 0xff, 0xff, 0x6a, 0xf4, 0x26, 0x1a, 0xc2, 0x01,
-	0x00, 0x00,
+	// 255 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0xc1, 0x4a, 0x03, 0x31,
+	0x10, 0x86, 0xd9, 0x2a, 0xad, 0x9d, 0x62, 0x95, 0x9c, 0xb4, 0x78, 0x28, 0x05, 0x45, 0x50, 0x12,
+	0x5d, 0x0f, 0x1e, 0x05, 0x7b, 0xf1, 0x28, 0xeb, 0xad, 0xb7, 0xed, 0x32, 0x1b, 0x83, 0xdb, 0x4c,
+	0xdc, 0x24, 0xbe, 0x87, 0x6f, 0x2c, 0xd9, 0x24, 0xe2, 0xa9, 0x9e, 0x76, 0x66, 0xe7, 0x9f, 0x8f,
+	0x8f, 0x0c, 0x80, 0x43, 0xeb, 0xb8, 0xe9, 0xc9, 0x11, 0x3b, 0x0c, 0xf5, 0x62, 0x69, 0x8d, 0xea,
+	0x51, 0x34, 0xb4, 0xdb, 0x91, 0x16, 0xa6, 0xf3, 0x52, 0xe5, 0x4f, 0xcc, 0xad, 0xce, 0x61, 0x52,
+	0xe1, 0xa7, 0x47, 0xeb, 0xd8, 0x1c, 0x46, 0x4a, 0x9f, 0x15, 0xcb, 0xe2, 0x7a, 0x5a, 0x8d, 0x94,
+	0x5e, 0x5d, 0xc0, 0x51, 0x85, 0xd6, 0x90, 0xb6, 0xc8, 0x4e, 0xe1, 0x80, 0xbc, 0x4b, 0xc3, 0x50,
+	0x96, 0xdf, 0x05, 0x8c, 0x5f, 0x07, 0x12, 0xbb, 0x01, 0x58, 0xd7, 0x5d, 0x97, 0xba, 0x63, 0x3e,
+	0x68, 0x24, 0xea, 0x62, 0x9e, 0xdb, 0x44, 0xda, 0xc0, 0x74, 0x4d, 0xba, 0x55, 0xd2, 0xf7, 0xc8,
+	0x2e, 0xf9, 0x20, 0xc8, 0xa3, 0x20, 0x4f, 0x66, 0xbf, 0xf3, 0xcc, 0xb8, 0xfa, 0x2f, 0x16, 0xd9,
+	0xe5, 0x23, 0x4c, 0xde, 0xb0, 0xff, 0x52, 0x0d, 0xb2, 0x5b, 0x98, 0x05, 0xa7, 0xdc, 0xee, 0x97,
+	0x2a, 0x9f, 0x60, 0xf6, 0x42, 0xd6, 0xe5, 0xf4, 0x1d, 0x9c, 0x84, 0xe5, 0xbf, 0xbf, 0xf6, 0x03,
+	0x9e, 0xef, 0x37, 0x42, 0x2a, 0xf7, 0xee, 0xb7, 0xc1, 0x51, 0x58, 0xa3, 0xda, 0x16, 0x45, 0x7c,
+	0x7c, 0xf3, 0x21, 0xf3, 0x01, 0x9a, 0xda, 0xd5, 0x1d, 0x49, 0x11, 0x76, 0xb7, 0xe3, 0xe1, 0x00,
+	0x0f, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xe8, 0xe7, 0x78, 0x06, 0xb6, 0x01, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -137,225 +136,225 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// TestPluginClient is the client API for TestPlugin service.
+// PluginClient is the client API for Plugin service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type TestPluginClient interface {
+type PluginClient interface {
 	CallPlugin(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
 }
 
-type testPluginClient struct {
+type pluginClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewTestPluginClient(cc *grpc.ClientConn) TestPluginClient {
-	return &testPluginClient{cc}
+func NewPluginClient(cc *grpc.ClientConn) PluginClient {
+	return &pluginClient{cc}
 }
 
-func (c *testPluginClient) CallPlugin(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
+func (c *pluginClient) CallPlugin(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
-	err := c.cc.Invoke(ctx, "/test.TestPlugin/CallPlugin", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/test.Plugin/CallPlugin", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *testPluginClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
+func (c *pluginClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := c.cc.Invoke(ctx, "/test.TestPlugin/Configure", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/test.Plugin/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// TestPluginServer is the server API for TestPlugin service.
-type TestPluginServer interface {
+// PluginServer is the server API for Plugin service.
+type PluginServer interface {
 	CallPlugin(context.Context, *Request) (*Response, error)
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 }
 
-func RegisterTestPluginServer(s *grpc.Server, srv TestPluginServer) {
-	s.RegisterService(&_TestPlugin_serviceDesc, srv)
+func RegisterPluginServer(s *grpc.Server, srv PluginServer) {
+	s.RegisterService(&_Plugin_serviceDesc, srv)
 }
 
-func _TestPlugin_CallPlugin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Plugin_CallPlugin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Request)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TestPluginServer).CallPlugin(ctx, in)
+		return srv.(PluginServer).CallPlugin(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/test.TestPlugin/CallPlugin",
+		FullMethod: "/test.Plugin/CallPlugin",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TestPluginServer).CallPlugin(ctx, req.(*Request))
+		return srv.(PluginServer).CallPlugin(ctx, req.(*Request))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TestPlugin_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Plugin_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(plugin.ConfigureRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TestPluginServer).Configure(ctx, in)
+		return srv.(PluginServer).Configure(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/test.TestPlugin/Configure",
+		FullMethod: "/test.Plugin/Configure",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TestPluginServer).Configure(ctx, req.(*plugin.ConfigureRequest))
+		return srv.(PluginServer).Configure(ctx, req.(*plugin.ConfigureRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-var _TestPlugin_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "test.TestPlugin",
-	HandlerType: (*TestPluginServer)(nil),
+var _Plugin_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "test.Plugin",
+	HandlerType: (*PluginServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "CallPlugin",
-			Handler:    _TestPlugin_CallPlugin_Handler,
+			Handler:    _Plugin_CallPlugin_Handler,
 		},
 		{
 			MethodName: "Configure",
-			Handler:    _TestPlugin_Configure_Handler,
+			Handler:    _Plugin_Configure_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "test.proto",
 }
 
-// TestServiceClient is the client API for TestService service.
+// ServiceClient is the client API for Service service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type TestServiceClient interface {
+type ServiceClient interface {
 	CallService(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 }
 
-type testServiceClient struct {
+type serviceClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewTestServiceClient(cc *grpc.ClientConn) TestServiceClient {
-	return &testServiceClient{cc}
+func NewServiceClient(cc *grpc.ClientConn) ServiceClient {
+	return &serviceClient{cc}
 }
 
-func (c *testServiceClient) CallService(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
+func (c *serviceClient) CallService(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
-	err := c.cc.Invoke(ctx, "/test.TestService/CallService", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/test.Service/CallService", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// TestServiceServer is the server API for TestService service.
-type TestServiceServer interface {
+// ServiceServer is the server API for Service service.
+type ServiceServer interface {
 	CallService(context.Context, *Request) (*Response, error)
 }
 
-func RegisterTestServiceServer(s *grpc.Server, srv TestServiceServer) {
-	s.RegisterService(&_TestService_serviceDesc, srv)
+func RegisterServiceServer(s *grpc.Server, srv ServiceServer) {
+	s.RegisterService(&_Service_serviceDesc, srv)
 }
 
-func _TestService_CallService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Service_CallService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Request)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TestServiceServer).CallService(ctx, in)
+		return srv.(ServiceServer).CallService(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/test.TestService/CallService",
+		FullMethod: "/test.Service/CallService",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TestServiceServer).CallService(ctx, req.(*Request))
+		return srv.(ServiceServer).CallService(ctx, req.(*Request))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-var _TestService_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "test.TestService",
-	HandlerType: (*TestServiceServer)(nil),
+var _Service_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "test.Service",
+	HandlerType: (*ServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "CallService",
-			Handler:    _TestService_CallService_Handler,
+			Handler:    _Service_CallService_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "test.proto",
 }
 
-// TestHostServiceClient is the client API for TestHostService service.
+// HostServiceClient is the client API for HostService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type TestHostServiceClient interface {
+type HostServiceClient interface {
 	CallHostService(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 }
 
-type testHostServiceClient struct {
+type hostServiceClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewTestHostServiceClient(cc *grpc.ClientConn) TestHostServiceClient {
-	return &testHostServiceClient{cc}
+func NewHostServiceClient(cc *grpc.ClientConn) HostServiceClient {
+	return &hostServiceClient{cc}
 }
 
-func (c *testHostServiceClient) CallHostService(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
+func (c *hostServiceClient) CallHostService(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
-	err := c.cc.Invoke(ctx, "/test.TestHostService/CallHostService", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/test.HostService/CallHostService", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// TestHostServiceServer is the server API for TestHostService service.
-type TestHostServiceServer interface {
+// HostServiceServer is the server API for HostService service.
+type HostServiceServer interface {
 	CallHostService(context.Context, *Request) (*Response, error)
 }
 
-func RegisterTestHostServiceServer(s *grpc.Server, srv TestHostServiceServer) {
-	s.RegisterService(&_TestHostService_serviceDesc, srv)
+func RegisterHostServiceServer(s *grpc.Server, srv HostServiceServer) {
+	s.RegisterService(&_HostService_serviceDesc, srv)
 }
 
-func _TestHostService_CallHostService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _HostService_CallHostService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Request)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TestHostServiceServer).CallHostService(ctx, in)
+		return srv.(HostServiceServer).CallHostService(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/test.TestHostService/CallHostService",
+		FullMethod: "/test.HostService/CallHostService",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TestHostServiceServer).CallHostService(ctx, req.(*Request))
+		return srv.(HostServiceServer).CallHostService(ctx, req.(*Request))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-var _TestHostService_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "test.TestHostService",
-	HandlerType: (*TestHostServiceServer)(nil),
+var _HostService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "test.HostService",
+	HandlerType: (*HostServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "CallHostService",
-			Handler:    _TestHostService_CallHostService_Handler,
+			Handler:    _HostService_CallHostService_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

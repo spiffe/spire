@@ -5,17 +5,8 @@ import (
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	"github.com/spiffe/spire/pkg/common/catalog/internal"
 	"google.golang.org/grpc"
 )
-
-func PluginNameFromHostServiceContext(ctx context.Context) (string, bool) {
-	return internal.PluginNameFromHostServiceContext(ctx)
-}
-
-func WithPluginName(ctx context.Context, name string) context.Context {
-	return internal.WithPluginName(ctx, name)
-}
 
 func NewHostServer(pluginName string, opts []grpc.ServerOption, hostServices []HostServiceServer) *grpc.Server {
 	s := grpc.NewServer(append(opts,
