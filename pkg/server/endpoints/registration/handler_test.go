@@ -68,8 +68,7 @@ func TestHandler(t *testing.T) {
 type HandlerSuite struct {
 	suite.Suite
 
-	server      *grpc.Server
-	serverErrCh chan error
+	server *grpc.Server
 
 	ds       *fakedatastore.DataStore
 	serverCA *fakeserverca.CA
@@ -96,8 +95,8 @@ func (s *HandlerSuite) SetupTest() {
 	// we need to test a streaming API. without doing the same codegen we
 	// did with plugins, implementing the server or client side interfaces
 	// is a pain. start up a localhost server and test over that.
-	s.server = grpc.NewServer()
-	registration.RegisterRegistrationServer(s.server, handler)
+	server := grpc.NewServer()
+	registration.RegisterRegistrationServer(server, handler)
 
 	// start up a server over localhost
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -106,14 +105,13 @@ func (s *HandlerSuite) SetupTest() {
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
 	s.Require().NoError(err)
 
-	s.serverErrCh = make(chan error, 1)
-	go func() { s.serverErrCh <- s.server.Serve(listener) }()
+	go func() { _ = server.Serve(listener) }()
+	s.server = server
 	s.handler = registration.NewRegistrationClient(conn)
 }
 
 func (s *HandlerSuite) TearDownTest() {
-	s.server.GracefulStop()
-	s.NoError(<-s.serverErrCh)
+	s.server.Stop()
 }
 
 func (s *HandlerSuite) TestCreateFederatedBundle() {
