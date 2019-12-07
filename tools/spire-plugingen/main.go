@@ -313,7 +313,7 @@ func (g *generator) getTypeFromObj(obj types.Object) (goImport, string) {
 
 func loadPackage(path string, ignoreErrors bool) (*types.Package, error) {
 	pkgs, err := packages.Load(&packages.Config{
-		Mode: packages.NeedTypes,
+		Mode: packages.NeedTypes | packages.NeedImports,
 	}, path)
 	if err != nil {
 		return nil, errs.New("unable to load package %q: %v", path, err)
