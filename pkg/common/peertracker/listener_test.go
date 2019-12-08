@@ -79,10 +79,10 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	clientDone := make(chan struct{})
+	errCh := make(chan error, 1)
 	peer := newFakeUDSPeer(p.T())
 
-	peer.connect(p.unixAddr, clientDone)
+	peer.connect(p.unixAddr, errCh)
 
 	type acceptResult struct {
 		conn net.Conn
@@ -136,6 +136,14 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 		p.Require().Nil(acceptRes.conn)
 	case <-time.After(time.Second):
 		p.Require().Fail("waited too long for listener to close")
+	}
+
+	// Check for client errors
+	select {
+	case err := <-errCh:
+		p.Require().Nil(err)
+	case <-time.After(time.Second):
+		p.Require().Fail("waited too long for client to finish")
 	}
 }
 

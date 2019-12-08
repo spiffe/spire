@@ -1,6 +1,8 @@
 package peertracker
 
 import (
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -70,17 +73,41 @@ func (p *PeerTrackerTestSuite) TestTrackerClose() {
 }
 
 func (p *PeerTrackerTestSuite) TestUDSListener() {
-	doneCh := make(chan struct{})
 	peer := newFakeUDSPeer(p.T())
 
-	peer.connect(p.unixAddr, doneCh)
+	sErrCh := make(chan error, 1)
+	connCh := make(chan net.Conn)
+	go func() {
+		defer close(connCh)
+		rawConn, err := p.ul.Accept()
+		if err != nil {
+			sErrCh <- err
+			return
+		}
+		connCh <- rawConn
+	}()
 
-	rawConn, err := p.ul.Accept()
-	p.Require().NoError(err)
+	cErrCh := make(chan error, 1)
+	peer.connect(p.unixAddr, cErrCh)
 
-	// Unblock connect goroutine
-	<-doneCh
+	// Ensure server had no errors
+	select {
+	case err := <-sErrCh:
+		p.Require().NoError(err)
+	case <-time.After(time.Duration(time.Second)):
+		p.Error(errors.New("connection timed out"))
+	}
 
+	// Ensure client had no errors
+	select {
+	case err := <-cErrCh:
+		p.Require().NoError(err)
+	case <-time.After(time.Duration(time.Second)):
+		p.Error(errors.New("connection timed out"))
+	}
+
+	// get result from server
+	rawConn := <-connCh
 	conn, ok := rawConn.(*Conn)
 	p.Require().True(ok)
 
@@ -91,23 +118,45 @@ func (p *PeerTrackerTestSuite) TestUDSListener() {
 	p.NotNil(conn.Info.Watcher)
 	p.Equal(int32(os.Getpid()), conn.Info.Watcher.PID())
 
-	peer.disconnect()
 	conn.Close()
 }
 
 func (p *PeerTrackerTestSuite) TestExitDetection() {
-	// First, just test against ourselves
-	doneCh := make(chan struct{})
 	peer := newFakeUDSPeer(p.T())
 
-	peer.connect(p.unixAddr, doneCh)
+	sErrCh := make(chan error, 1)
+	connCh := make(chan net.Conn)
+	go func() {
+		defer close(connCh)
+		rawConn, err := p.ul.Accept()
+		if err != nil {
+			sErrCh <- err
+			return
+		}
+		connCh <- rawConn
+	}()
 
-	rawConn, err := p.ul.Accept()
-	p.Require().NoError(err)
+	cErrCh := make(chan error, 1)
+	peer.connect(p.unixAddr, cErrCh)
 
-	// Unblock connect goroutine
-	<-doneCh
+	// Ensure server had no errors
+	select {
+	case err := <-sErrCh:
+		p.Require().NoError(err)
+	case <-time.After(time.Duration(time.Second)):
+		p.Error(errors.New("connection timed out"))
+	}
 
+	// Ensure client had no errors
+	select {
+	case err := <-cErrCh:
+		p.Require().NoError(err)
+	case <-time.After(time.Duration(time.Second)):
+		p.Error(errors.New("connection timed out"))
+	}
+
+	// get result from server
+	rawConn := <-connCh
 	conn, ok := rawConn.(*Conn)
 	p.Require().True(ok)
 
@@ -115,14 +164,14 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	p.NoError(conn.Info.Watcher.IsAlive())
 
 	// Should return an error once we're no longer tracking
-	peer.disconnect()
 	conn.Close()
 	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 
 	// Start a forking child and allow it to exit while the grandchild holds the socket
+	doneCh := make(chan struct{})
 	peer.connectFromForkingChild(p.unixAddr, p.childPath, doneCh)
 
-	rawConn, err = p.ul.Accept()
+	rawConn, err := p.ul.Accept()
 
 	// Unblock child connect goroutine
 	<-doneCh
@@ -176,30 +225,22 @@ func newFakeUDSPeer(t *testing.T) *fakeUDSPeer {
 }
 
 // connect to the uds listener
-func (f *fakeUDSPeer) connect(addr *net.UnixAddr, doneCh chan struct{}) {
+func (f *fakeUDSPeer) connect(addr *net.UnixAddr, errCh chan error) {
+	defer close(errCh)
 	if f.conn != nil {
-		f.t.Fatal("fake peer already connected")
+		errCh <- errors.New("fake peer already connected")
+		return
 	}
 
 	go func() {
 		conn, err := net.DialUnix("unix", nil, addr)
 		if err != nil {
-			f.t.Fatalf("could not dial unix address: %v", err)
+			errCh <- fmt.Errorf("could not dial unix address: %v", err)
+			return
 		}
 
 		f.conn = conn
-		doneCh <- struct{}{}
 	}()
-}
-
-// close a connection we opened previously
-func (f *fakeUDSPeer) disconnect() {
-	if f.conn == nil {
-		f.t.Fatal("fake peer not connected")
-	}
-
-	f.conn.Close()
-	f.conn = nil
 }
 
 // run child to connect and fork. allows us to test stale PID data
