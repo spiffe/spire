@@ -277,14 +277,14 @@ bin/:
 
 .PHONY: test race-test integration
 
-test:
+test: | go-check
 ifneq ($(COVERPROFILE),)
 	@$(go) test $(go_flags) -coverprofile="$(COVERPROFILE)" ./...
 else
 	@$(go) test $(go_flags) ./...
 endif
 
-race-test:
+race-test: | go-check
 ifneq ($(COVERPROFILE),)
 	@$(go) test $(go_flags) -coverprofile="$(COVERPROFILE)" ./...
 else
@@ -340,8 +340,8 @@ tidy: | go-check
 
 lint: lint-code
 
-lint-code: $(golangci_lint_bin)
-	@$(golangci_lint_bin) run ./...
+lint-code: $(golangci_lint_bin) | go-check
+	@PATH=$(go_bin_dir):$(PATH) $(golangci_lint_bin) run ./...
 
 
 #############################################################################

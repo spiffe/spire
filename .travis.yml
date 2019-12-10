@@ -26,7 +26,7 @@ jobs:
     - stage: lint and test
       name: lint
       script:
-        - ./build.sh protobuf_verify
+        - make generate-check
         - shellcheck script/*.sh
         - shellcheck .travis/*.sh
       # linting is OS agnostic but protobuf_verify needs utils to lets be explicit
@@ -46,7 +46,7 @@ jobs:
       dist: xenial
     - stage: build release
       script:
-        - ./build.sh artifact
+        - make artifact
         - .travis/build-release.sh
       os: linux
       dist: xenial

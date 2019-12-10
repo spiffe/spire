@@ -34,7 +34,7 @@ A Makefile is provided for common actions.
 
 See `make help` for other targets
 
-The Makefile takes care of installation the required toolchain as needed. The
+The Makefile takes care of installing the required toolchain as needed. The
 toolchain and other build related files are cached under the `.build` folder
 (ignored by git).
 
@@ -43,13 +43,13 @@ toolchain and other build related files are cached under the `.build` folder
 You can either build SPIRE on your host or in a Ubuntu docker container. In
 both cases you will use the same Makefile commands.
 
-To build in a container, first build the development image:
+To build SPIRE within a container, first build the development image:
 
 ```
 $ make dev-image
 ```
 
-Then launch a shell inside of a container:
+Then launch a shell inside of development container:
 
 ```
 $ make dev-shell
