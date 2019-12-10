@@ -1,5 +1,11 @@
 DIR := ${CURDIR}
 
+# There is no reason GOROOT should be set anymore. Unset it so it doesn't mess
+# with our go toolchain detection/usage.
+ifneq ($(GOROOT),)
+	export GOROOT=
+endif
+
 cyan := $(shell which tput > /dev/null && tput setaf 6 2>/dev/null || echo "")
 reset := $(shell which tput > /dev/null && tput sgr0 2>/dev/null || echo "")
 bold  := $(shell which tput > /dev/null && tput bold 2>/dev/null || echo "")
@@ -44,6 +50,7 @@ help:
 	@echo "  $(cyan)plugingen$(reset)                     - generates plugin interface code"
 	@echo "  $(cyan)plugingen-check$(reset)               - ensures generated plugin interface code is up to date"
 	@echo "  $(cyan)mockgen$(reset)                       - generates test mocks"
+
 
 ############################################################################
 # OS/ARCH detection
