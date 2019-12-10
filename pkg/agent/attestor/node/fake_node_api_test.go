@@ -31,8 +31,15 @@ func startNodeServer(t *testing.T, tlsConfig *tls.Config, apiConfig fakeNodeAPIC
 	}()
 	return listener.Addr().String(), func() {
 		server.Stop()
-		require.NoError(t, <-errCh)
+		require.NoError(t, ignoreServerClosed(<-errCh))
 	}
+}
+
+func ignoreServerClosed(err error) error {
+	if err == grpc.ErrServerStopped {
+		return nil
+	}
+	return err
 }
 
 type fakeNodeAPIConfig struct {
