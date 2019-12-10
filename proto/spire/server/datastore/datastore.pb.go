@@ -11,6 +11,8 @@ import (
 	common "github.com/spiffe/spire/proto/spire/common"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -2840,6 +2842,92 @@ type DataStoreServer interface {
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	// Returns the version and related metadata of the installed plugin
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+}
+
+// UnimplementedDataStoreServer can be embedded to have forward compatible implementations.
+type UnimplementedDataStoreServer struct {
+}
+
+func (*UnimplementedDataStoreServer) CreateBundle(ctx context.Context, req *CreateBundleRequest) (*CreateBundleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateBundle not implemented")
+}
+func (*UnimplementedDataStoreServer) FetchBundle(ctx context.Context, req *FetchBundleRequest) (*FetchBundleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchBundle not implemented")
+}
+func (*UnimplementedDataStoreServer) ListBundles(ctx context.Context, req *ListBundlesRequest) (*ListBundlesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBundles not implemented")
+}
+func (*UnimplementedDataStoreServer) UpdateBundle(ctx context.Context, req *UpdateBundleRequest) (*UpdateBundleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateBundle not implemented")
+}
+func (*UnimplementedDataStoreServer) SetBundle(ctx context.Context, req *SetBundleRequest) (*SetBundleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetBundle not implemented")
+}
+func (*UnimplementedDataStoreServer) AppendBundle(ctx context.Context, req *AppendBundleRequest) (*AppendBundleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AppendBundle not implemented")
+}
+func (*UnimplementedDataStoreServer) DeleteBundle(ctx context.Context, req *DeleteBundleRequest) (*DeleteBundleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteBundle not implemented")
+}
+func (*UnimplementedDataStoreServer) PruneBundle(ctx context.Context, req *PruneBundleRequest) (*PruneBundleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PruneBundle not implemented")
+}
+func (*UnimplementedDataStoreServer) CreateAttestedNode(ctx context.Context, req *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAttestedNode not implemented")
+}
+func (*UnimplementedDataStoreServer) FetchAttestedNode(ctx context.Context, req *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchAttestedNode not implemented")
+}
+func (*UnimplementedDataStoreServer) ListAttestedNodes(ctx context.Context, req *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAttestedNodes not implemented")
+}
+func (*UnimplementedDataStoreServer) UpdateAttestedNode(ctx context.Context, req *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAttestedNode not implemented")
+}
+func (*UnimplementedDataStoreServer) DeleteAttestedNode(ctx context.Context, req *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAttestedNode not implemented")
+}
+func (*UnimplementedDataStoreServer) SetNodeSelectors(ctx context.Context, req *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetNodeSelectors not implemented")
+}
+func (*UnimplementedDataStoreServer) GetNodeSelectors(ctx context.Context, req *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeSelectors not implemented")
+}
+func (*UnimplementedDataStoreServer) CreateRegistrationEntry(ctx context.Context, req *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateRegistrationEntry not implemented")
+}
+func (*UnimplementedDataStoreServer) FetchRegistrationEntry(ctx context.Context, req *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchRegistrationEntry not implemented")
+}
+func (*UnimplementedDataStoreServer) ListRegistrationEntries(ctx context.Context, req *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRegistrationEntries not implemented")
+}
+func (*UnimplementedDataStoreServer) UpdateRegistrationEntry(ctx context.Context, req *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateRegistrationEntry not implemented")
+}
+func (*UnimplementedDataStoreServer) DeleteRegistrationEntry(ctx context.Context, req *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteRegistrationEntry not implemented")
+}
+func (*UnimplementedDataStoreServer) PruneRegistrationEntries(ctx context.Context, req *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PruneRegistrationEntries not implemented")
+}
+func (*UnimplementedDataStoreServer) CreateJoinToken(ctx context.Context, req *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateJoinToken not implemented")
+}
+func (*UnimplementedDataStoreServer) FetchJoinToken(ctx context.Context, req *FetchJoinTokenRequest) (*FetchJoinTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchJoinToken not implemented")
+}
+func (*UnimplementedDataStoreServer) DeleteJoinToken(ctx context.Context, req *DeleteJoinTokenRequest) (*DeleteJoinTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteJoinToken not implemented")
+}
+func (*UnimplementedDataStoreServer) PruneJoinTokens(ctx context.Context, req *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PruneJoinTokens not implemented")
+}
+func (*UnimplementedDataStoreServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+func (*UnimplementedDataStoreServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
 }
 
 func RegisterDataStoreServer(s *grpc.Server, srv DataStoreServer) {

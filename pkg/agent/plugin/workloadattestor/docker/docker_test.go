@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
+	mock_docker "github.com/spiffe/spire/test/mock/agent/plugin/workloadattestor/docker"
 	filesystem_mock "github.com/spiffe/spire/test/mock/common/filesystem"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -87,7 +88,7 @@ func TestDockerSelectors(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
-			mockDocker := NewMockDockerClient(mockCtrl)
+			mockDocker := mock_docker.NewMockDockerClient(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 			p := newTestPlugin(t, withMockDockerClient(mockDocker), withMockFS(mockFS))
@@ -178,7 +179,7 @@ cgroup_container_index = 2`,
 		t.Run(tt.desc, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
-			mockDocker := NewMockDockerClient(mockCtrl)
+			mockDocker := mock_docker.NewMockDockerClient(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 			p := newTestPlugin(
@@ -238,7 +239,7 @@ func TestCgroupFileNotFound(t *testing.T) {
 func TestDockerError(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockDocker := NewMockDockerClient(mockCtrl)
+	mockDocker := mock_docker.NewMockDockerClient(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 	p := newTestPlugin(
@@ -264,7 +265,7 @@ func TestDockerError(t *testing.T) {
 func TestDockerErrorRetries(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockDocker := NewMockDockerClient(mockCtrl)
+	mockDocker := mock_docker.NewMockDockerClient(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
@@ -301,7 +302,7 @@ func TestDockerErrorRetries(t *testing.T) {
 func TestDockerErrorContextCancel(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockDocker := NewMockDockerClient(mockCtrl)
+	mockDocker := mock_docker.NewMockDockerClient(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
@@ -435,7 +436,7 @@ func doConfigure(t *testing.T, p *DockerPlugin, req *spi.ConfigureRequest) (*spi
 
 type testPluginOpt func(*DockerPlugin)
 
-func withMockDockerClient(m *MockDockerClient) testPluginOpt {
+func withMockDockerClient(m *mock_docker.MockDockerClient) testPluginOpt {
 	return func(p *DockerPlugin) {
 		p.docker = m
 	}

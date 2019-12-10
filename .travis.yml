@@ -16,48 +16,38 @@ cache:
     - $HOME/go/bin
 
 stages:
-  - setup
-  - lint
-  - test
+  - lint and test
   - build release
   - publish images
   - nightly integration tests
 
 jobs:
   include:
-    - stage: setup
-      script:
-        - ./build.sh setup
-        - ./build.sh utils
-      os: macos
-    - stage: setup
-      script:
-        - ./build.sh setup
-        - ./build.sh utils
-      os: linux
-      dist: xenial
-    - stage: lint
+    - stage: lint and test
+      name: lint
       script:
         - ./build.sh protobuf_verify
-        - shellcheck build.sh
+        - shellcheck script/*.sh
+        - shellcheck .travis/*.sh
       # linting is OS agnostic but protobuf_verify needs utils to lets be explicit
       # about its runtime environment
       os: linux 
       dist: xenial
-    - stage: test
+    - stage: lint and test
+      name: linux tests
       script:
-        - ./build.sh race-test
+        - .travis/run-unit-tests.sh
       os: macos
-    - stage: test
+    - stage: lint and test
+      name: macos tests
       script:
-        - ./build.sh race-test
+        - .travis/run-unit-tests.sh
       os: linux
       dist: xenial
     - stage: build release
       script:
-        - ./build.sh binaries
         - ./build.sh artifact
-        - ./build.sh release
+        - .travis/build-release.sh
       os: linux
       dist: xenial
       deploy:
@@ -90,11 +80,8 @@ jobs:
         # Decrypt credentials needed to log into gcr registry
         - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
       script:
-        # Build spire images
-        - make spire-images
-        # Run integration tests
-        - ./build.sh integration
-        # Publish images
+        - make images
+        - make integration
         - .travis/publish-images.sh
 
     - stage: nightly integration tests
@@ -102,10 +89,8 @@ jobs:
       os: linux
       dist: xenial
       script:
-        # Build spire images
-        - make spire-images
-        # Run integration tests
-        - ./build.sh integration
+        - make images
+        - make integration
 
 notifications:
   email:

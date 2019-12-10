@@ -10,6 +10,8 @@ import (
 	common "github.com/spiffe/spire/proto/spire/common"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -203,6 +205,20 @@ type NodeResolverServer interface {
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	//* Returns the  version and related metadata of the installed plugin.
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+}
+
+// UnimplementedNodeResolverServer can be embedded to have forward compatible implementations.
+type UnimplementedNodeResolverServer struct {
+}
+
+func (*UnimplementedNodeResolverServer) Resolve(ctx context.Context, req *ResolveRequest) (*ResolveResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Resolve not implemented")
+}
+func (*UnimplementedNodeResolverServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+func (*UnimplementedNodeResolverServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
 }
 
 func RegisterNodeResolverServer(s *grpc.Server, srv NodeResolverServer) {
