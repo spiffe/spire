@@ -35,7 +35,7 @@ test-mysql() {
     READY=
     for ((i=1;i<=MAXREADYCHECKS;i++)); do
         log-info "waiting for ${SERVICE} to be ready ($i of $MAXREADYCHECKS max)..."
-        if docker-compose exec "${SERVICE}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
+        if docker-compose exec -T "${SERVICE}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
             READY=1
             break
         fi

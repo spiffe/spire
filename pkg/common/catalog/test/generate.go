@@ -1,5 +1,4 @@
-//go:generate $GOPATH/bin/spire-plugingen -shared -mode plugin . TestPlugin
-//go:generate $GOPATH/bin/spire-plugingen -shared -mode service . TestService
-//go:generate $GOPATH/bin/spire-plugingen -shared -mode hostservice . TestHostService
-//go:generate ./fiximports.sh
+//go:generate $GOPATH/bin/spire-plugingen -shared -mode plugin . Plugin
+//go:generate $GOPATH/bin/spire-plugingen -shared -mode service . Service
+//go:generate $GOPATH/bin/spire-plugingen -shared -mode hostservice . HostService
 package test

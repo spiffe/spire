@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -43,6 +44,7 @@ type config struct {
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
+	UnusedKeys   []string                    `hcl:",unusedKeys"`
 }
 
 type serverConfig struct {
@@ -70,6 +72,8 @@ type serverConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type experimentalConfig struct {
@@ -80,25 +84,30 @@ type experimentalConfig struct {
 	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
 	BundleEndpointACME    *bundleEndpointACMEConfig      `hcl:"bundle_endpoint_acme"`
 	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type caSubjectConfig struct {
 	Country      []string `hcl:"country"`
 	Organization []string `hcl:"organization"`
 	CommonName   string   `hcl:"common_name"`
+	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
 type bundleEndpointACMEConfig struct {
-	DirectoryURL string `hcl:"directory_url"`
-	DomainName   string `hcl:"domain_name"`
-	Email        string `hcl:"email"`
-	ToSAccepted  bool   `hcl:"tos_accepted"`
+	DirectoryURL string   `hcl:"directory_url"`
+	DomainName   string   `hcl:"domain_name"`
+	Email        string   `hcl:"email"`
+	ToSAccepted  bool     `hcl:"tos_accepted"`
+	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
 type federatesWithConfig struct {
-	BundleEndpointAddress  string `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort     int    `hcl:"bundle_endpoint_port"`
-	BundleEndpointSpiffeID string `hcl:"bundle_endpoint_spiffe_id"`
+	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
+	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
+	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
+	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
 // Run CLI struct
@@ -375,6 +384,13 @@ func newServerConfig(c *config) (*server.Config, error) {
 		sc.Log.Warn("The `upstream_bundle` configurable is not set, and you are using an UpstreamCA. The default value will be changed from `false` to `true` in a future release.  Please see issue #1095 and the configuration documentation for more information.")
 	}
 
+	// Warn if we detect unknown config options. We need a logger to do this. In
+	// the future, we can move from warning to bailing out (once folks have had
+	// ample time to detect any pre-existing errors)
+	//
+	// TODO: Move this check into validateConfig for 0.11.0
+	warnOnUnknownConfig(c, sc.Log)
+
 	return sc, nil
 }
 
@@ -420,6 +436,70 @@ func validateConfig(c *config) error {
 	}
 
 	return nil
+}
+
+func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
+	if len(c.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
+	}
+
+	if c.Server != nil {
+		if len(c.Server.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown server config options: %q; this will be fatal in a future release.", c.Server.UnusedKeys)
+		}
+
+		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown CA Subject config options: %q; this will be fatal in a future release.", cs.UnusedKeys)
+		}
+
+		if len(c.Server.Experimental.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
+		}
+
+		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown ACME config options: %q; this will be fatal in a future release.", bea.UnusedKeys)
+		}
+
+		for k, v := range c.Server.Experimental.FederatesWith {
+			if len(v.UnusedKeys) != 0 {
+				l.Warnf("Detected unknown federation config options for %q: %q; this will be fatal in a future release.", k, v.UnusedKeys)
+			}
+		}
+	}
+
+	if len(c.Telemetry.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	}
+
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+	}
+
+	for _, v := range c.Telemetry.DogStatsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown DogStatsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	for _, v := range c.Telemetry.Statsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown Statsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	for _, v := range c.Telemetry.M3 {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown M3 config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown InMem config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+	}
+
+	if len(c.HealthChecks.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown health check config options: %q; this will be fatal in a future release.", c.HealthChecks.UnusedKeys)
+	}
 }
 
 func defaultConfig() *config {
