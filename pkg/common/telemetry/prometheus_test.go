@@ -13,7 +13,7 @@ import (
 )
 
 func TestNewPrometheusRunner(t *testing.T) {
-	config := testConfig()
+	config := testPrometheusConfig()
 	pr, err := newTestPrometheusRunner(config)
 	assert.Nil(t, err)
 	assert.NotNil(t, pr)
@@ -26,7 +26,7 @@ func TestNewPrometheusRunner(t *testing.T) {
 }
 
 func TestIsConfigured(t *testing.T) {
-	config := testConfig()
+	config := testPrometheusConfig()
 
 	pr, err := newTestPrometheusRunner(config)
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func TestIsConfigured(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	config := testConfig()
+	config := testPrometheusConfig()
 
 	pr, err := newTestPrometheusRunner(config)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func testConfig() *MetricsConfig {
+func testPrometheusConfig() *MetricsConfig {
 	l, _ := test.NewNullLogger()
 
 	return &MetricsConfig{

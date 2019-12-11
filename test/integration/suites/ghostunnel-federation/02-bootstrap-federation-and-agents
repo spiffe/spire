@@ -3,21 +3,21 @@
 set -e
 
 log-debug "bootstrapping downstream agent..."
-docker-compose exec downstream-spire-server \
+docker-compose exec -T downstream-spire-server \
     /opt/spire/bin/spire-server bundle show > conf/downstream/agent/bootstrap.crt
 
 log-debug "bootstrapping upstream agent..."
-docker-compose exec upstream-spire-server \
+docker-compose exec -T upstream-spire-server \
     /opt/spire/bin/spire-server bundle show > conf/upstream/agent/bootstrap.crt
 
 log-debug "bootstrapping bundle from downstream to upstream server..."
-docker-compose exec downstream-spire-server \
+docker-compose exec -T downstream-spire-server \
     /opt/spire/bin/spire-server experimental bundle show > conf/upstream/server/downstream-domain.test.bundle
-docker-compose exec upstream-spire-server \
+docker-compose exec -T upstream-spire-server \
     /opt/spire/bin/spire-server experimental bundle set -id spiffe://downstream-domain.test -path /opt/spire/conf/server/downstream-domain.test.bundle
 
 log-debug "bootstrapping bundle from upstream to downstream server..."
-docker-compose exec upstream-spire-server \
+docker-compose exec -T upstream-spire-server \
     /opt/spire/bin/spire-server experimental bundle show > conf/downstream/server/upstream-domain.test.bundle
-docker-compose exec downstream-spire-server \
+docker-compose exec -T downstream-spire-server \
     /opt/spire/bin/spire-server experimental bundle set -id spiffe://upstream-domain.test -path /opt/spire/conf/server/upstream-domain.test.bundle
