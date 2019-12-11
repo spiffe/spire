@@ -10,10 +10,12 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -28,6 +30,11 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	datastore_pb "github.com/spiffe/spire/proto/spire/server/datastore"
 )
+
+// This is the maximum amount of time an agent connection may exist before
+// the server sends a hangup request. This enables agents to more dynamically
+// route to the server in the case of a change in DNS membership.
+const defaultMaxConnectionAge = 3 * time.Minute
 
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
@@ -85,7 +92,11 @@ func (e *endpoints) createTCPServer(ctx context.Context) *grpc.Server {
 	return grpc.NewServer(
 		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
 		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
-		grpc.Creds(credentials.NewTLS(tlsConfig)))
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionAge: defaultMaxConnectionAge,
+		}),
+	)
 }
 
 func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {

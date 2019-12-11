@@ -17,6 +17,7 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/notifier"
+	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +54,7 @@ func Test(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	r *fakeIdentityProvider
+	r *fakeidentityprovider.IdentityProvider
 	k *fakeKubeClient
 
 	raw *Plugin
@@ -61,7 +62,7 @@ type Suite struct {
 }
 
 func (s *Suite) SetupTest() {
-	s.r = newFakeIdentityProvider()
+	s.r = fakeidentityprovider.New()
 	s.k = newFakeKubeClient()
 
 	s.raw = New()
@@ -137,7 +138,7 @@ func (s *Suite) TestBundleLoadedConfigMapPatchFailure() {
 	}()
 	s.k.setConfigMap(newConfigMap())
 	s.k.setPatchErr(errors.New("some error"))
-	s.r.appendBundle(testBundle)
+	s.r.AppendBundle(testBundle)
 
 	s.configure("")
 
@@ -162,8 +163,8 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 	})
 
 	// return a different bundle when fetched the second time
-	s.r.appendBundle(testBundle)
-	s.r.appendBundle(testBundle2)
+	s.r.AppendBundle(testBundle)
+	s.r.AppendBundle(testBundle2)
 
 	s.configure("")
 
@@ -187,7 +188,7 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
 	s.configure("")
 	s.k.setConfigMap(newConfigMap())
-	s.r.appendBundle(testBundle)
+	s.r.AppendBundle(testBundle)
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -221,7 +222,7 @@ func (s *Suite) TestBundleLoadedWithConfigurationOverrides() {
 			ResourceVersion: "2",
 		},
 	})
-	s.r.appendBundle(testBundle)
+	s.r.AppendBundle(testBundle)
 
 	s.configure(`
 namespace = "NAMESPACE"
@@ -290,7 +291,7 @@ func (s *Suite) TestBundleUpdatedConfigMapPatchFailure() {
 	}()
 	s.k.setConfigMap(newConfigMap())
 	s.k.setPatchErr(errors.New("some error"))
-	s.r.appendBundle(testBundle)
+	s.r.AppendBundle(testBundle)
 
 	s.configure("")
 
@@ -315,8 +316,8 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 	})
 
 	// return a different bundle when fetched the second time
-	s.r.appendBundle(testBundle)
-	s.r.appendBundle(testBundle2)
+	s.r.AppendBundle(testBundle)
+	s.r.AppendBundle(testBundle2)
 
 	s.configure("")
 
@@ -340,7 +341,7 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
 	s.configure("")
 	s.k.setConfigMap(newConfigMap())
-	s.r.appendBundle(testBundle)
+	s.r.AppendBundle(testBundle)
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -374,7 +375,7 @@ func (s *Suite) TestBundleUpdatedWithConfigurationOverrides() {
 			ResourceVersion: "2",
 		},
 	})
-	s.r.appendBundle(testBundle)
+	s.r.AppendBundle(testBundle)
 
 	s.configure(`
 namespace = "NAMESPACE"
@@ -442,37 +443,6 @@ func (s *Suite) configure(configuration string) {
 		Configuration: configuration,
 	})
 	s.Require().NoError(err)
-}
-
-type fakeIdentityProvider struct {
-	mu      sync.Mutex
-	bundles []*common.Bundle
-}
-
-func newFakeIdentityProvider() *fakeIdentityProvider {
-	return &fakeIdentityProvider{}
-}
-
-func (c *fakeIdentityProvider) FetchX509Identity(ctx context.Context, req *hostservices.FetchX509IdentityRequest) (*hostservices.FetchX509IdentityResponse, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if len(c.bundles) == 0 {
-		return nil, errors.New("no bundle")
-	}
-	bundle := c.bundles[0]
-	c.bundles = c.bundles[1:]
-	// Send back the bundle. Leave the Identity field empty, since it is
-	// unused by the notifier.
-	return &hostservices.FetchX509IdentityResponse{
-		Bundle: bundle,
-	}, nil
-}
-
-func (c *fakeIdentityProvider) appendBundle(bundle *common.Bundle) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.bundles = append(c.bundles, bundle)
 }
 
 type fakeKubeClient struct {

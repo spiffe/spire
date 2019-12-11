@@ -1,0 +1,4 @@
+#!/bin/bash
+
+docker-up upstream-spire-server
+docker-up downstream-spire-server

@@ -15,6 +15,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
@@ -41,6 +42,7 @@ type config struct {
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
+	UnusedKeys   []string                    `hcl:",unusedKeys"`
 }
 
 type agentConfig struct {
@@ -64,6 +66,8 @@ type agentConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type RunCLI struct {
@@ -261,6 +265,13 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 	ac.Telemetry = c.Telemetry
 	ac.HealthChecks = c.HealthChecks
 
+	// Warn if we detect unknown config options. We need a logger to do this. In
+	// the future, we can move from warning to bailing out (once folks have had
+	// ample time to detect any pre-existing errors)
+	//
+	// TODO: Move this check into validateConfig for 0.11.0
+	warnOnUnknownConfig(c, ac.Log)
+
 	return ac, nil
 }
 
@@ -290,6 +301,53 @@ func validateConfig(c *config) error {
 	}
 
 	return nil
+}
+
+func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
+	if len(c.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
+	}
+
+	if a := c.Agent; a != nil && len(a.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown agent config options: %q; this will be fatal in a future release.", a.UnusedKeys)
+	}
+
+	// TODO: Re-enable unused key detection for telemetry. See
+	// https://github.com/spiffe/spire/issues/1101 for more information
+	//
+	//if len(c.Telemetry.UnusedKeys) != 0 {
+	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//}
+
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+	}
+
+	for _, v := range c.Telemetry.DogStatsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown DogStatsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	for _, v := range c.Telemetry.Statsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown Statsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	for _, v := range c.Telemetry.M3 {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown M3 config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown InMem config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+	}
+
+	if len(c.HealthChecks.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown health check config options: %q; this will be fatal in a future release.", c.HealthChecks.UnusedKeys)
+	}
 }
 
 func defaultConfig() *config {

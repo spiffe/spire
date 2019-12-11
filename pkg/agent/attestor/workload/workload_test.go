@@ -111,10 +111,11 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 
 	// Create expected metrics
 	expected := fakemetrics.New()
-	counter2 := telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
-	counter2.Done(nil)
+	attestorCounter := telemetry_workload.StartAttestorCall(expected, "fake1")
+	attestorCounter.Done(nil)
 	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(len(selectors)))
-	telemetry_workload.MeasureAttestDuration(expected, time.Now())
+	attestationCounter := telemetry_workload.StartAttestationCall(expected)
+	attestationCounter.Done(nil)
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 
@@ -129,10 +130,11 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	// Create expected metrics with error key
 	expected = fakemetrics.New()
 	err := errors.New("some error")
-	counter2 = telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
-	counter2.Done(&err)
+	attestorCounter = telemetry_workload.StartAttestorCall(expected, "fake1")
+	attestorCounter.Done(&err)
 	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(0))
-	telemetry_workload.MeasureAttestDuration(expected, time.Now())
+	attestationCounter = telemetry_workload.StartAttestationCall(expected)
+	attestationCounter.Done(nil)
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 }

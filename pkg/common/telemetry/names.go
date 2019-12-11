@@ -147,6 +147,9 @@ const (
 	// FederatedRemoved labels some count of federated bundles that have been removed from an entity
 	FederatedRemoved = "fed_rem"
 
+	// Generation represents an objection generation (i.e. version)
+	Generation = "generation"
+
 	// IDType tags some type of ID (eg. registration ID, SPIFFE ID...)
 	IDType = "id_type"
 
@@ -293,11 +296,11 @@ const (
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"
 
-	// WorkloadAttestationDuration tags duration of workload attestation
-	WorkloadAttestationDuration = "workload_attestation_duration"
+	// WorkloadAttestation tags call of overall workload attestation
+	WorkloadAttestation = "workload_attestation"
 
-	// WorkloadAttestorLatency tags latency of a workload attestor
-	WorkloadAttestorLatency = "workload_attestor_latency"
+	// WorkloadAttestor tags call of a workload attestor
+	WorkloadAttestor = "workload_attestor"
 
 	// X509 declared X509 SVID type, clarifying metrics
 	X509 = "x509"

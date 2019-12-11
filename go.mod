@@ -5,6 +5,7 @@ go 1.13
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
 require (
+	cloud.google.com/go v0.38.0
 	github.com/Azure/azure-sdk-for-go v30.1.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.9.0
 	github.com/Azure/go-autorest/autorest/azure/auth v0.1.0
@@ -23,6 +24,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b // indirect
+	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/containerd/containerd v1.3.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/distribution v2.7.1+incompatible // indirect
@@ -45,7 +47,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
 	github.com/hashicorp/go-hclog v0.9.2
 	github.com/hashicorp/go-plugin v1.0.1
-	github.com/hashicorp/hcl v1.0.0
+	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
 	github.com/imdario/mergo v0.3.7
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.9
