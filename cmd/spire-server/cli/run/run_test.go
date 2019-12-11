@@ -927,11 +927,22 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 
 		t.Run(testCase.msg, func(t *testing.T) {
 			warnOnUnknownConfig(c, log)
-			require.NotNil(t, hook.LastEntry())
-			require.Equal(t, testCase.expectedLogMsg, hook.AllEntries()[0].Message)
+			requireLogLine(t, hook, testCase.expectedLogMsg)
 
 			hook.Reset()
 			require.Nil(t, hook.LastEntry())
 		})
 	}
+}
+
+func requireLogLine(t *testing.T, h *test.Hook, expectedMsg string) {
+	var currMsg string
+	for _, e := range h.AllEntries() {
+		currMsg = e.Message
+		if currMsg == expectedMsg {
+			break
+		}
+	}
+
+	require.Equal(t, expectedMsg, currMsg)
 }
