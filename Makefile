@@ -188,7 +188,6 @@ plugingen_hostservices = \
 # entry is as follows:
 # mock-destination-pkg,src-go-pkg,interface[,additional interfaces]
 mockgen_mocks = \
-	test/mock/plugin/server/upstreamca,github.com/spiffe/spire/pkg/server/plugin/upstreamca,UpstreamCA,UpstreamCAServer \
 	test/mock/plugin/agent/nodeattestor,github.com/spiffe/spire/pkg/agent/plugin/nodeattestor,NodeAttestor,NodeAttestorServer,NodeAttestor_FetchAttestationDataClient \
 	test/mock/plugin/agent/workloadattestor,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor,WorkloadAttestor,WorkloadAttestorServer \
 	test/mock/plugin/agent/keymanager,github.com/spiffe/spire/pkg/agent/plugin/keymanager,KeyManager,KeyManagerServer \
