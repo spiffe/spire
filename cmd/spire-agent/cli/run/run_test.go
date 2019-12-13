@@ -707,11 +707,14 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			testFilePath:   fmt.Sprintf("%v/agent_bad_agent_block.conf", testFileDir),
 			expectedLogMsg: "Detected unknown agent config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
-		{
-			msg:            "in telemetry block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
-		},
+		// TODO: Re-enable unused key detection for telemetry. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//{
+		//	msg:            "in telemetry block",
+		//	testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
 		{
 			msg:            "in nested Prometheus block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),

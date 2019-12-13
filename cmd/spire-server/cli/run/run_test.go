@@ -865,11 +865,14 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_ca_subject_block.conf", testFileDir),
 			expectedLogMsg: "Detected unknown CA Subject config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
-		{
-			msg:            "in nested experimental block",
-			testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
-		},
+		// TODO: Re-enable unused key detection for experimental config. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//{
+		//	msg:            "in nested experimental block",
+		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
 		{
 			msg:            "in nested bundle_endpoint_acme block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_acme_block.conf", testFileDir),
@@ -878,13 +881,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		{
 			msg:            "in nested federates_with block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_federates_with_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown experimental config options: [\"federates_with\" \"test1\" \"test2\"]; this will be fatal in a future release.",
+			expectedLogMsg: "Detected unknown federation config options for \"test1\": [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
-		{
-			msg:            "in telemetry block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
-		},
+		// TODO: Re-enable unused key detection for telemetry. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//{
+		//	msg:            "in telemetry block",
+		//	testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
 		{
 			msg:            "in nested Prometheus block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),
@@ -927,11 +933,22 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 
 		t.Run(testCase.msg, func(t *testing.T) {
 			warnOnUnknownConfig(c, log)
-			require.NotNil(t, hook.LastEntry())
-			require.Equal(t, testCase.expectedLogMsg, hook.AllEntries()[0].Message)
+			requireLogLine(t, hook, testCase.expectedLogMsg)
 
 			hook.Reset()
 			require.Nil(t, hook.LastEntry())
 		})
 	}
+}
+
+func requireLogLine(t *testing.T, h *test.Hook, expectedMsg string) {
+	var currMsg string
+	for _, e := range h.AllEntries() {
+		currMsg = e.Message
+		if currMsg == expectedMsg {
+			break
+		}
+	}
+
+	require.Equal(t, expectedMsg, currMsg)
 }

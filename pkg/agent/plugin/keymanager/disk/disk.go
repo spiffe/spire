@@ -125,6 +125,10 @@ func (d *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	if config.Directory == "" {
+		return nil, errors.New("directory is required")
+	}
+
 	// Create directory in which to store the private key if not exists
 	if err := os.MkdirAll(config.Directory, 0755); err != nil {
 		return nil, err

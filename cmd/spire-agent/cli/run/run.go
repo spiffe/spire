@@ -312,9 +312,12 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 		l.Warnf("Detected unknown agent config options: %q; this will be fatal in a future release.", a.UnusedKeys)
 	}
 
-	if len(c.Telemetry.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
-	}
+	// TODO: Re-enable unused key detection for telemetry. See
+	// https://github.com/spiffe/spire/issues/1101 for more information
+	//
+	//if len(c.Telemetry.UnusedKeys) != 0 {
+	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//}
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
