@@ -393,7 +393,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 func (h *Handler) peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	watcher, ok := peertracker.WatcherFromContext(ctx)
 	if !ok {
-		return nil, errors.New("Unable to fetch watcher from context")
+		return nil, errors.New("unable to fetch watcher from context")
 	}
 
 	return watcher, nil

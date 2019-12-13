@@ -233,7 +233,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	resp, err = s.h.FetchJWTSVID(makeContext(0), &workload.JWTSVIDRequest{
 		Audience: audience,
 	})
-	s.requireErrorContains(err, "Unable to fetch watcher from context")
+	s.requireErrorContains(err, "unable to fetch watcher from context")
 	s.Require().Nil(resp)
 
 	// no identity issued
@@ -385,7 +385,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	// missing peer info
 	stream.EXPECT().Context().Return(makeContext(0))
 	err = s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream)
-	s.requireErrorContains(err, "Unable to fetch watcher from context")
+	s.requireErrorContains(err, "unable to fetch watcher from context")
 
 	// success
 	ctx, cancel := context.WithCancel(makeContext(1))
@@ -581,7 +581,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 				Svid:     "svid",
 			},
 			code: codes.Internal,
-			msg:  "Is this a supported system? Please report this bug: Unable to fetch watcher from context",
+			msg:  "Is this a supported system? Please report this bug: unable to fetch watcher from context",
 		},
 		{
 			name: "malformed token",

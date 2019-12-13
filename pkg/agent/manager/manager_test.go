@@ -1002,8 +1002,7 @@ func fetchX509SVIDForRegistrationEntryUpdateTest(h *mockNodeAPIHandler, req *nod
 }
 
 func fetchX509SVIDForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
-	switch h.getCountRequest() {
-	case 2:
+	if h.getCountRequest() == 2 {
 		ca, _ := createCA(h.c.t, h.clk, h.c.trustDomain)
 		h.bundle.AppendRootCA(ca)
 	}

@@ -117,7 +117,7 @@ func (ds *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 		return err
 	}
 	if !has {
-		return errors.New("Metrics host service is required")
+		return errors.New("required Metrics host service is not available")
 	}
 	return nil
 }
@@ -2299,9 +2299,7 @@ func bindVars(db *gorm.DB, query string) string {
 		return query
 	}
 
-	return bindVarsFn(func(n int) string {
-		return dialect.BindVar(n)
-	}, query)
+	return bindVarsFn(dialect.BindVar, query)
 }
 
 func bindVarsFn(fn func(int) string, query string) string {
@@ -2326,8 +2324,7 @@ func (cfg *configuration) Validate() error {
 		return errors.New("connection_string must be set")
 	}
 
-	switch cfg.DatabaseType {
-	case MySQL:
+	if cfg.DatabaseType == MySQL {
 		if err := validateMySQLConfig(cfg); err != nil {
 			return err
 		}

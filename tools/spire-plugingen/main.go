@@ -143,11 +143,10 @@ func (g *generator) generate() (err error) {
 			pkg = outPkg
 		}
 		g.outPkg = outPkg
-	} else {
-		if g.Package == "" {
-			g.Package = filepath.Base(g.Out)
-		}
+	} else if g.Package == "" {
+		g.Package = filepath.Base(g.Out)
 	}
+
 	if pkg == nil {
 		pkg, err = loadPackage(g.PackagePath, true)
 		if err != nil {
@@ -332,8 +331,7 @@ func loadPackage(path string, ignoreErrors bool) (*types.Package, error) {
 }
 
 func pkgAs(path string) string {
-	switch path {
-	case "github.com/spiffe/spire/proto/spire/common/plugin":
+	if path == "github.com/spiffe/spire/proto/spire/common/plugin" {
 		return "spi"
 	}
 	return ""

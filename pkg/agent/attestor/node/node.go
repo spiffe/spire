@@ -351,9 +351,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 		return client.DialServer(ctx, client.DialServerConfig{
 			Address:     a.c.ServerAddress,
 			TrustDomain: a.c.TrustDomain.Host,
-			GetBundle: func() []*x509.Certificate {
-				return bundle.RootCAs()
-			},
+			GetBundle:   bundle.RootCAs,
 		})
 	}
 

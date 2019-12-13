@@ -39,7 +39,7 @@ type IIDAttestationData struct {
 
 // AttestationStepError error with attestation
 func AttestationStepError(step string, cause error) error {
-	return fmt.Errorf("Attempted AWS IID attestation but an error occurred %s: %s", step, cause)
+	return fmt.Errorf("attempted AWS IID attestation but an error occurred %s: %s", step, cause)
 }
 
 // NewAWSSession create an AWS Session from the config and given region

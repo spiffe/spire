@@ -58,9 +58,9 @@ func New(config Config) *IdentityProvider {
 func (s *IdentityProvider) SetDeps(deps Deps) error {
 	switch {
 	case deps.DataStore == nil:
-		return errors.New("DataStore is required")
+		return errors.New("missing required DataStore dependency")
 	case deps.X509IdentityFetcher == nil:
-		return errors.New("X509IdentityFetcher is required")
+		return errors.New("missing required X509IdentityFetcher dependency")
 	}
 	s.mu.Lock()
 	s.deps = &deps

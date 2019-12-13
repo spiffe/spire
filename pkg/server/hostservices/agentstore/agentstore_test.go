@@ -43,7 +43,7 @@ func TestAgentStore(t *testing.T) {
 		{
 			name:    "deps missing datastore",
 			deps:    &Deps{},
-			depsErr: "DataStore is required",
+			depsErr: "required DataStore dependency is missing",
 		},
 		{
 			name:    "no such agent",

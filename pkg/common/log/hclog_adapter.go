@@ -123,7 +123,7 @@ func (a *HCLogAdapter) CreateEntry(args []interface{}) *logrus.Entry {
 	}
 
 	fields := make(logrus.Fields)
-	for i := 0; i < len(args); i = i + 2 {
+	for i := 0; i < len(args); i += 2 {
 		k, ok := args[i].(string)
 		if !ok {
 			continue

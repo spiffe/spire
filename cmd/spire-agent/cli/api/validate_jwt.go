@@ -81,7 +81,7 @@ func (c *validateJWTCommand) validateJWTSVID(ctx context.Context, client *worklo
 		if s := status.Convert(err); s.Code() == codes.InvalidArgument {
 			return nil, fmt.Errorf("SVID is not valid: %v", s.Message())
 		}
-		return nil, fmt.Errorf("Unable to validate JWT SVID: %v", err)
+		return nil, fmt.Errorf("unable to validate JWT SVID: %v", err)
 	}
 	return resp, nil
 }

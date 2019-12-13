@@ -22,3 +22,9 @@ linters:
     - unconvert
     - unparam
     - whitespace
+    - gocritic
+
+linters-settings:
+  golint:
+    # minimal confidence for issues, default is 0.8
+    min-confidence: 0.0

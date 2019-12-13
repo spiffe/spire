@@ -92,8 +92,7 @@ func (p *Plugin) Notify(ctx context.Context, req *notifier.NotifyRequest) (*noti
 		return nil, err
 	}
 
-	switch req.Event.(type) {
-	case *notifier.NotifyRequest_BundleUpdated:
+	if _, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
 		if err := p.updateBundleConfigMap(ctx, config); err != nil {
 			return nil, err
@@ -108,8 +107,7 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdv
 		return nil, err
 	}
 
-	switch req.Event.(type) {
-	case *notifier.NotifyAndAdviseRequest_BundleLoaded:
+	if _, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
 		if err := p.updateBundleConfigMap(ctx, config); err != nil {
 			return nil, err
@@ -120,7 +118,7 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdv
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
 	if p.identityProvider == nil {
-		return nil, errors.New("IdentityProvider host service is required but not brokered")
+		return nil, errors.New("required IdentityProvider host service not available")
 	}
 
 	config := new(pluginConfig)

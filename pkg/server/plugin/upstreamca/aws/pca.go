@@ -218,7 +218,7 @@ func (m *PCAPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSR
 	// All else comprises the chain (including the issued certificate)
 	chain := cert.Raw
 	for _, caCert := range certChain[:len(certChain)-1] {
-		chain = append(chain[:], caCert.Raw[:]...)
+		chain = append(chain, caCert.Raw...)
 	}
 
 	return &upstreamca.SubmitCSRResponse{

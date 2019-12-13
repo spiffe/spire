@@ -379,17 +379,17 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				configStr = fmt.Sprintf(`agent_path_template = "%s"`, tt.replacementTemplate)
 			}
 			if len(tt.allowList) > 0 {
-				configStr = configStr + "\naccount_ids_for_local_validation = [\n"
+				configStr += "\naccount_ids_for_local_validation = [\n"
 				for _, id := range tt.allowList {
 					configStr = `  ` + configStr + `"` + id + `",`
 				}
-				configStr = configStr + "\n]"
+				configStr += "\n]"
 			}
 			if tt.skipBlockDev {
-				configStr = configStr + "\nskip_block_device = true"
+				configStr += "\nskip_block_device = true"
 			}
 			if tt.skipEC2Block {
-				configStr = configStr + "\nskip_ec2_attest_calling = true"
+				configStr += "\nskip_ec2_attest_calling = true"
 			}
 
 			_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{

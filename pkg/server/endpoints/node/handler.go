@@ -289,7 +289,8 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		// Select how to sign the SVIDs based on the agent version
 		var svids map[string]*node.X509SVID
 
-		if csrsLen != 0 {
+		switch {
+		case csrsLen != 0:
 			// Current agent, use regular signCSRs (it returns svids keyed by entryID)
 			// drop spiffe IDs
 			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
@@ -297,14 +298,14 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 				log.WithError(err).Error("Failed to sign CSRs")
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
-		} else if csrsLenDeprecated != 0 {
+		case csrsLenDeprecated != 0:
 			// Legacy agent, use legacy SignCSRs (it returns svids keyed by spiffeID)
 			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
 			if err != nil {
 				log.WithError(err).Error("Failed to sign CSRs for legacy agent")
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
-		} else {
+		default:
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids = make(map[string]*node.X509SVID)
 		}
@@ -1055,7 +1056,7 @@ func (h *Handler) parseX509CACSR(csrBytes []byte) (*CSR, error) {
 		return nil, err
 	}
 	if csr.SpiffeID == "" {
-		return nil, errors.New("X509 CA CSR is missing the SPIFFE ID")
+		return nil, errors.New("X509 CA CSR is missing the SPIFFE ID") //nolint: golint // leading cap on error is ok
 	}
 	return csr, nil
 }
