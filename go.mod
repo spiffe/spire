@@ -15,7 +15,7 @@ require (
 	// version 1.14
 	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190405210948-c70a36b8193f
 	github.com/InVisionApp/go-health v2.1.0+incompatible
-	github.com/InVisionApp/go-logger v1.0.1 // indirect
+	github.com/InVisionApp/go-logger v1.0.1
 	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129

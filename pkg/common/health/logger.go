@@ -2,6 +2,7 @@ package health
 
 import (
 	"github.com/InVisionApp/go-health"
+	"github.com/InVisionApp/go-logger"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,4 +30,16 @@ func (sl *statusListener) HealthCheckRecovered(entry *health.State, recordedFail
 		WithField("failures", recordedFailures).
 		WithField("duration", failureDurationSeconds).
 		Info("Health check recovered")
+}
+
+// logadapter adapts types between InVisionApp/go-logger and logrus
+type logadapter struct {
+	logrus.FieldLogger
+}
+
+// WithFields wraps logrus.Fieldlogger to implement the Logger interface in InVisionApp/go-logger
+func (l *logadapter) WithFields(fields log.Fields) log.Logger {
+	return &logadapter{
+		FieldLogger: l.FieldLogger.WithFields(logrus.Fields(fields)),
+	}
 }

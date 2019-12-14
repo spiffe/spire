@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/telemetry"
+
 	"github.com/InVisionApp/go-health"
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/sirupsen/logrus"
@@ -47,6 +49,7 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 	}
 
 	hc.StatusListener = &statusListener{}
+	hc.Logger = &logadapter{FieldLogger: log.WithField(telemetry.SubsystemName, "health")}
 
 	return &Checker{config: config, server: server, hc: hc, log: log}
 }

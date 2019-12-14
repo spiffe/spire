@@ -102,10 +102,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 	defer cat.Close()
 
-	healthChecks := health.NewChecker(
-		s.config.HealthChecks,
-		s.config.Log.WithField(telemetry.SubsystemName, "health"),
-	)
+	healthChecks := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
 	s.config.Log.Info("plugins started")
 

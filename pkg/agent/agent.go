@@ -76,10 +76,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	defer cat.Close()
 
-	healthChecks := health.NewChecker(
-		a.c.HealthChecks,
-		a.c.Log.WithField("subsystem_name", "health"),
-	)
+	healthChecks := health.NewChecker(a.c.HealthChecks, a.c.Log)
 
 	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
