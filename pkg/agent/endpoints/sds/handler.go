@@ -12,9 +12,10 @@ import (
 
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	core_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -52,6 +53,10 @@ type Handler struct {
 		// test hook used to synchronize receipt of a stream request
 		received chan struct{}
 	}
+}
+
+func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsServer) error {
+	return errors.New("not implemented")
 }
 
 func NewHandler(config HandlerConfig) *Handler {
@@ -290,7 +295,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		if err != nil {
 			return nil, err
 		}
-		resp.Resources = append(resp.Resources, *validationContext)
+		resp.Resources = append(resp.Resources, validationContext)
 	}
 
 	for _, federatedBundle := range upd.FederatedBundles {
@@ -299,7 +304,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 			if err != nil {
 				return nil, err
 			}
-			resp.Resources = append(resp.Resources, *validationContext)
+			resp.Resources = append(resp.Resources, validationContext)
 		}
 	}
 
@@ -309,7 +314,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 			if err != nil {
 				return nil, err
 			}
-			resp.Resources = append(resp.Resources, *tlsCertificate)
+			resp.Resources = append(resp.Resources, tlsCertificate)
 		}
 	}
 
@@ -335,7 +340,7 @@ func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	return watcher, nil
 }
 
-func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
+func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
 	keyPEM, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -343,17 +348,17 @@ func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
 
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
-	return types.MarshalAny(&auth_v2.Secret{
+	return ptypes.MarshalAny(&auth_v2.Secret{
 		Name: identity.Entry.SpiffeId,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
-				CertificateChain: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				CertificateChain: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: certsPEM,
 					},
 				},
-				PrivateKey: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				PrivateKey: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: keyPEM,
 					},
 				},
@@ -362,14 +367,14 @@ func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle) (*types.Any, error) {
+func buildValidationContext(bundle *bundleutil.Bundle) (*any.Any, error) {
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
-	return types.MarshalAny(&auth_v2.Secret{
+	return ptypes.MarshalAny(&auth_v2.Secret{
 		Name: bundle.TrustDomainID(),
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{
-				TrustedCa: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				TrustedCa: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: caBytes,
 					},
 				},

@@ -31,7 +31,7 @@ require (
 	github.com/docker/docker v1.4.2-0.20191008235115-448db5a783a0
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/envoyproxy/go-control-plane v0.8.0
+	github.com/envoyproxy/go-control-plane v0.9.0
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.4.1
@@ -75,6 +75,7 @@ require (
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/tools v0.0.0-20190618163018-fdf1049a943a
 	google.golang.org/api v0.6.0
+	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
 	google.golang.org/grpc v1.23.1
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
