@@ -268,7 +268,6 @@ func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster
 func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with FOO signed token (local validation)
 	token := s.signToken(s.fooSigner, "NS1", "SA1")
-	createTokenStatus("NS1", "SA1", true)
 	resp, err := s.doAttest(makeAttestRequest("FOO", token))
 
 	s.Require().NoError(err)
