@@ -14,7 +14,7 @@ import (
 	"github.com/zeebo/errs"
 )
 
-type ClientConfig struct {
+type ClientConfig struct { //nolint: golint // name stutter is intentional
 	// TrustDomain is the federated trust domain (i.e. domain.test)
 	TrustDomain string
 

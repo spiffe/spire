@@ -136,7 +136,7 @@ type JWTKey struct {
 	NotAfter time.Time
 }
 
-type CAConfig struct {
+type Config struct {
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
 	TrustDomain url.URL
@@ -148,8 +148,7 @@ type CAConfig struct {
 }
 
 type CA struct {
-	c      CAConfig
-	x509sn int64
+	c Config
 
 	mu     sync.RWMutex
 	x509CA *X509CA
@@ -158,7 +157,7 @@ type CA struct {
 	jwtSigner *jwtsvid.Signer
 }
 
-func NewCA(config CAConfig) *CA {
+func NewCA(config Config) *CA {
 	if config.X509SVIDTTL <= 0 {
 		config.X509SVIDTTL = DefaultX509SVIDTTL
 	}
@@ -203,13 +202,13 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 }
 
 func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error) {
-	return ca.signX509SVID(ctx, params, ca.X509CA())
+	return ca.signX509SVID(params, ca.X509CA())
 }
 
 func (ca *CA) SignServerX509SVID(ctx context.Context, params ServerX509SVIDParams) ([]*x509.Certificate, error) {
 	x509CA := ca.X509CA()
 
-	certs, err := ca.signX509SVID(ctx, X509SVIDParams{
+	certs, err := ca.signX509SVID(X509SVIDParams{
 		SpiffeID:  idutil.ServerID(ca.c.TrustDomain.Host),
 		PublicKey: params.PublicKey,
 	}, x509CA)
@@ -228,7 +227,7 @@ func (ca *CA) SignServerX509SVID(ctx context.Context, params ServerX509SVIDParam
 	return certs, nil
 }
 
-func (ca *CA) signX509SVID(ctx context.Context, params X509SVIDParams, x509CA *X509CA) ([]*x509.Certificate, error) {
+func (ca *CA) signX509SVID(params X509SVIDParams, x509CA *X509CA) ([]*x509.Certificate, error) {
 	if x509CA == nil {
 		return nil, errs.New("X509 CA is not available for signing")
 	}

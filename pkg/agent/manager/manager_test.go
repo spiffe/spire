@@ -75,15 +75,8 @@ func TestInitializationFailure(t *testing.T) {
 		Clk:             clk,
 		Catalog:         cat,
 	}
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = m.Initialize(context.Background())
-	if err == nil {
-		t.Fatal("wanted error")
-	}
+	m := makeManager(t, c)
+	require.Error(t, m.Initialize(context.Background()))
 }
 
 func TestStoreBundleOnStartup(t *testing.T) {
@@ -108,10 +101,8 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		Clk:             clk,
 		Catalog:         cat,
 	}
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+
+	m := makeManager(t, c)
 
 	util.RunWithTimeout(t, time.Second, func() {
 		sub := m.SubscribeToBundleChanges()
@@ -121,12 +112,9 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		require.Equal(t, bundle.RootCAs(), []*x509.Certificate{ca})
 	})
 
-	err = m.Initialize(context.Background())
-	if err == nil {
-		t.Fatal("manager was expected to fail during initialization")
-	}
+	require.Error(t, m.Initialize(context.Background()))
 
-	// Although start failed, the Bundle should have been saved, because it should be
+	// Although init failed, the bundle should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
 	bundle, err := ReadBundle(c.BundleCachePath)
 	if err != nil {
@@ -165,10 +153,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := makeManager(t, c)
 
 	err = m.Initialize(context.Background())
 	if err == nil {
@@ -196,7 +181,8 @@ func TestStoreKeyOnStartup(t *testing.T) {
 
 	cat := fakeagentcatalog.New()
 	diskPlugin := disk.New()
-	diskPlugin.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: fmt.Sprintf("directory = \"%s\"", dir)})
+	_, err := diskPlugin.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: fmt.Sprintf("directory = \"%s\"", dir)})
+	require.NoError(t, err)
 	cat.SetKeyManager(fakeagentcatalog.KeyManager(diskPlugin))
 
 	c := &Config{
@@ -220,17 +206,10 @@ func TestStoreKeyOnStartup(t *testing.T) {
 		t.Fatalf("No key expected but got: %v", kresp.PrivateKey)
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := makeManager(t, c)
+	require.Error(t, m.Initialize(context.Background()))
 
-	err = m.Initialize(context.Background())
-	if err == nil {
-		t.Fatal("manager was expected to fail during initialization")
-	}
-
-	// Although start failed, the SVID key should have been saved, because it should be
+	// Although init failed, the SVID key should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
 	kresp, err = km.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
 	if err != nil {
@@ -486,7 +465,7 @@ func TestSynchronization(t *testing.T) {
 		Catalog:          cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
@@ -621,7 +600,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	if err := m.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
@@ -683,7 +662,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	if err := m.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
@@ -746,7 +725,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		Catalog:          cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 
@@ -810,7 +789,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		Catalog:          cat,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
@@ -869,7 +848,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Clk:             mockClk,
 	}
 
-	m := newManager(t, c)
+	m := makeManager(t, c)
 
 	spiffeID := "spiffe://example.org"
 	audience := []string{"foo"}
@@ -955,10 +934,7 @@ func fetchX509SVIDForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, 
 			return fmt.Errorf("server expected 3 CRS, got: %d. reqCount: %d", len(req.Csrs), h.getCountRequest())
 		}
 
-		svids, err := h.makeSvids(req.Csrs)
-		if err != nil {
-			return err
-		}
+		svids := h.makeSvids(req.Csrs)
 
 		return stream.Send(newFetchX509SVIDResponse(
 			[]string{"resp1", "resp2"},
@@ -990,19 +966,13 @@ func fetchX509SVID(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream
 		resps = append(resps, "resp0")
 	}
 
-	svids, err := h.makeSvids(req.Csrs)
-	if err != nil {
-		return err
-	}
+	svids := h.makeSvids(req.Csrs)
 
 	return stream.Send(newFetchX509SVIDResponse(resps, svids, h.bundle))
 }
 
 func fetchX509SVIDForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
-	svids, err := h.makeSvids(req.Csrs)
-	if err != nil {
-		return err
-	}
+	svids := h.makeSvids(req.Csrs)
 
 	switch h.getCountRequest() {
 	case 1:
@@ -1018,10 +988,7 @@ func fetchX509SVIDForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SV
 }
 
 func fetchX509SVIDForRegistrationEntryUpdateTest(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
-	svids, err := h.makeSvids(req.Csrs)
-	if err != nil {
-		return err
-	}
+	svids := h.makeSvids(req.Csrs)
 
 	switch h.getCountRequest() {
 	case 1:
@@ -1035,8 +1002,7 @@ func fetchX509SVIDForRegistrationEntryUpdateTest(h *mockNodeAPIHandler, req *nod
 }
 
 func fetchX509SVIDForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
-	switch h.getCountRequest() {
-	case 2:
+	if h.getCountRequest() == 2 {
 		ca, _ := createCA(h.c.t, h.clk, h.c.trustDomain)
 		h.bundle.AppendRootCA(ca)
 	}
@@ -1180,7 +1146,7 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig, clk clock.Clock) *m
 	return h
 }
 
-func (h *mockNodeAPIHandler) makeSvids(csrs map[string][]byte) (svidMap, error) {
+func (h *mockNodeAPIHandler) makeSvids(csrs map[string][]byte) svidMap {
 	svids := make(svidMap)
 	for entryID, csr := range csrs {
 		svid := h.newSVIDFromCSR(csr)
@@ -1189,7 +1155,7 @@ func (h *mockNodeAPIHandler) makeSvids(csrs map[string][]byte) (svidMap, error) 
 			ExpiresAt: svid[0].NotAfter.Unix(),
 		}
 	}
-	return svids, nil
+	return svids
 }
 
 func (h *mockNodeAPIHandler) getCountRequest() int {
@@ -1366,19 +1332,14 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cake
 	return []*x509.Certificate{svid}
 }
 
-func newManager(t *testing.T, c *Config) *manager {
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+func makeManager(t *testing.T, c *Config) *manager {
+	m, err := newManager(c)
+	require.NoError(t, err)
 	return m
 }
 
 func initializeAndRunNewManager(t *testing.T, c *Config) (m *manager, closer func()) {
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	m = makeManager(t, c)
 	return m, initializeAndRunManager(t, m)
 }
 

@@ -110,7 +110,7 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
-			return c.createPodEntryByLabel(ctx, pod, c.c.PodLabel, labelValue)
+			return c.createPodEntryByLabel(ctx, pod, labelValue)
 		}
 		return nil
 	}
@@ -120,7 +120,7 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		// has that annotation, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if annotationValue, ok := pod.Annotations[c.c.PodAnnotation]; ok {
-			return c.createPodEntryByAnnotation(ctx, pod, c.c.PodAnnotation, annotationValue)
+			return c.createPodEntryByAnnotation(ctx, pod, annotationValue)
 		}
 		return nil
 	}
@@ -130,7 +130,7 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 	return c.createPodEntryByServiceAccount(ctx, pod)
 }
 
-func (c *Controller) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod, labelKey, labelValue string) error {
+func (c *Controller) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod, labelValue string) error {
 	return c.createEntry(ctx, &common.RegistrationEntry{
 		ParentId: c.nodeID(),
 		SpiffeId: c.makeID("%s", labelValue),
@@ -141,7 +141,7 @@ func (c *Controller) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod,
 	})
 }
 
-func (c *Controller) createPodEntryByAnnotation(ctx context.Context, pod *corev1.Pod, annotationKey, annotationValue string) error {
+func (c *Controller) createPodEntryByAnnotation(ctx context.Context, pod *corev1.Pod, annotationValue string) error {
 	return c.createEntry(ctx, &common.RegistrationEntry{
 		ParentId: c.nodeID(),
 		SpiffeId: c.makeID("%s", annotationValue),

@@ -30,7 +30,7 @@ func TestFetchWorkloadUpdate(t *testing.T) {
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
 	bar.FederatesWith = makeFederatesWith(otherBundleV1)
-	update := &CacheUpdate{
+	update := &Update{
 		Bundles:             makeBundles(bundleV1, otherBundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),
 	}
@@ -59,7 +59,7 @@ func TestMatchingIdentities(t *testing.T) {
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
-	update := &CacheUpdate{
+	update := &Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),
 	}
@@ -86,7 +86,7 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
-	update := &CacheUpdate{
+	update := &Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),
 	}
@@ -117,7 +117,7 @@ func TestBundleChanges(t *testing.T) {
 	bundleStream := cache.SubscribeToBundleChanges()
 	assert.Equal(t, makeBundles(bundleV1), bundleStream.Value())
 
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles: makeBundles(bundleV1, otherBundleV1),
 	}, nil)
 	if assert.True(t, bundleStream.HasNext(), "has new bundle value after adding bundle") {
@@ -125,7 +125,7 @@ func TestBundleChanges(t *testing.T) {
 		assert.Equal(t, makeBundles(bundleV1, otherBundleV1), bundleStream.Value())
 	}
 
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles: makeBundles(bundleV1),
 	}, nil)
 
@@ -148,7 +148,7 @@ func TestAllSubscribersNotifiedOnBundleChange(t *testing.T) {
 	assertWorkloadUpdateEqual(t, subB, &WorkloadUpdate{Bundle: bundleV1})
 
 	// update the bundle and assert all subscribers gets the updated bundle
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles: makeBundles(bundleV2),
 	}, nil)
 	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{Bundle: bundleV2})
@@ -161,7 +161,7 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 	// initialize the cache with an entry FOO that has a valid SVID and
 	// selector "A"
 	foo := makeRegistrationEntry("FOO", "A")
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           makeX509SVIDs(foo),
@@ -178,7 +178,7 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 
 	// add the federated bundle with no registration entries federating with
 	// it and make sure nobody is notified.
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1, otherBundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
@@ -189,7 +189,7 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 	// notified but not subB.
 	foo = makeRegistrationEntry("FOO", "A")
 	foo.FederatesWith = makeFederatesWith(otherBundleV1)
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1, otherBundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
@@ -202,7 +202,7 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 
 	// now change the federated bundle and make sure subA gets notified, but
 	// again, not subB.
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1, otherBundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
@@ -216,7 +216,7 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 	// now drop the federation and make sure subA is again notified and no
 	// longer has the federated bundle.
 	foo = makeRegistrationEntry("FOO", "A")
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1, otherBundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
@@ -251,7 +251,7 @@ func TestSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
 	bar := makeRegistrationEntry("BAR", "A", "C")
 
 	// update the cache with foo and bar
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),
 		X509SVIDs:           makeX509SVIDs(foo, bar),
@@ -278,7 +278,7 @@ func TestSubscriberIsNotNotifiedIfNothingChanges(t *testing.T) {
 	cache := newTestCache()
 
 	foo := makeRegistrationEntry("FOO", "A")
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           makeX509SVIDs(foo),
@@ -290,7 +290,7 @@ func TestSubscriberIsNotNotifiedIfNothingChanges(t *testing.T) {
 
 	// Second update is the same (other than X509SVIDs, which, when set,
 	// always constitute a "change" for the impacted registration entries.
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
@@ -303,7 +303,7 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 
 	// initialize the cache with a FOO entry with selector A and an SVID
 	foo := makeRegistrationEntry("FOO", "A")
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           makeX509SVIDs(foo),
@@ -320,7 +320,7 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 	// update FOO to have selectors (A,B) and make sure the subscriber loses
 	// FOO, since (A,B) is not a subset of the subscriber set (A).
 	foo = makeRegistrationEntry("FOO", "A", "B")
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           makeX509SVIDs(foo),
@@ -331,7 +331,7 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 
 	// update FOO to drop B and make sure the subscriber regains FOO
 	foo = makeRegistrationEntry("FOO", "A")
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           makeX509SVIDs(foo),
@@ -361,7 +361,7 @@ func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {
 	assertAnyWorkloadUpdate(t, subB)
 
 	foo := makeRegistrationEntry("FOO", "A")
-	update := &CacheUpdate{
+	update := &Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           makeX509SVIDs(foo),
@@ -388,7 +388,7 @@ func TestSubcriberOnlyGetsEntriesWithSVID(t *testing.T) {
 	cache := newTestCache()
 
 	foo := makeRegistrationEntry("FOO", "A")
-	update := &CacheUpdate{
+	update := &Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}
@@ -417,11 +417,11 @@ func TestSubscribersDoNotBlockNotifications(t *testing.T) {
 	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
 	defer sub.Finish()
 
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles: makeBundles(bundleV2),
 	}, nil)
 
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles: makeBundles(bundleV3),
 	}, nil)
 
@@ -434,7 +434,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 	cache := newTestCache()
 
 	// no calls because there are no registration entries
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles: makeBundles(bundleV2),
 	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
 		assert.Fail(t, "should not be called if there are no registration entries")
@@ -444,7 +444,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 
 	// called once for FOO with no SVID
 	callCount := 0
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
@@ -457,7 +457,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 	// called once for FOO with new SVID
 	callCount = 0
 	svids := makeX509SVIDs(foo)
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           svids,
@@ -472,7 +472,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 
 	// called once for FOO with existing SVID
 	callCount = 0
-	cache.Update(&CacheUpdate{
+	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
@@ -496,7 +496,7 @@ func BenchmarkCacheGlobalNotification(b *testing.B) {
 	// build a set of 1000 registration entries with distinct selectors
 	bundlesV1 := makeBundles(bundleV1)
 	bundlesV2 := makeBundles(bundleV2)
-	update := &CacheUpdate{
+	update := &Update{
 		Bundles:             bundlesV1,
 		RegistrationEntries: make(map[string]*common.RegistrationEntry, numEntries),
 		X509SVIDs:           make(map[string]*X509SVID, numEntries),

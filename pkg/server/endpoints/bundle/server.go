@@ -12,13 +12,13 @@ import (
 	"github.com/zeebo/errs"
 )
 
-type BundleGetter interface {
+type Getter interface {
 	GetBundle(ctx context.Context) (*bundleutil.Bundle, error)
 }
 
-type BundleGetterFunc func(ctx context.Context) (*bundleutil.Bundle, error)
+type GetterFunc func(ctx context.Context) (*bundleutil.Bundle, error)
 
-func (fn BundleGetterFunc) GetBundle(ctx context.Context) (*bundleutil.Bundle, error) {
+func (fn GetterFunc) GetBundle(ctx context.Context) (*bundleutil.Bundle, error) {
 	return fn(ctx)
 }
 
@@ -27,10 +27,10 @@ type ServerAuth interface {
 }
 
 type ServerConfig struct {
-	Log          logrus.FieldLogger
-	Address      string
-	BundleGetter BundleGetter
-	ServerAuth   ServerAuth
+	Log        logrus.FieldLogger
+	Address    string
+	Getter     Getter
+	ServerAuth ServerAuth
 
 	// test hooks
 	listen func(network, address string) (net.Listener, error)
@@ -86,7 +86,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	b, err := s.c.BundleGetter.GetBundle(req.Context())
+	b, err := s.c.Getter.GetBundle(req.Context())
 	if err != nil {
 		s.c.Log.WithError(err).Error("unable to retrieve local bundle")
 		http.Error(w, "500 unable to retrieve local bundle", http.StatusInternalServerError)
@@ -108,7 +108,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonBytes)
+	_, _ = w.Write(jsonBytes)
 }
 
 func chainDER(chain []*x509.Certificate) [][]byte {

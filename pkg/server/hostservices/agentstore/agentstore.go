@@ -27,7 +27,7 @@ func New() *AgentStore {
 
 func (s *AgentStore) SetDeps(deps Deps) error {
 	if deps.DataStore == nil {
-		return errors.New("DataStore is required")
+		return errors.New("required DataStore dependency is missing")
 	}
 	s.mu.Lock()
 	s.deps = &deps

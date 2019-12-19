@@ -249,6 +249,7 @@ func TestValidateSpiffeID(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // alias loop variable as it is used in the closure
 		t.Run(test.name, func(t *testing.T) {
 			err := ValidateSpiffeID(test.spiffeID, test.mode)
 			if test.expectedError == "" {
@@ -271,6 +272,7 @@ func TestNormalizeSpiffeID(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // alias loop variable as it is used in the closure
 		t.Run(test.name, func(t *testing.T) {
 			out, err := NormalizeSpiffeID(test.in, AllowAny())
 			assert.NoError(t, err)

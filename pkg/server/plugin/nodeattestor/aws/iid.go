@@ -35,7 +35,6 @@ import (
 var _awsTimeout = 5 * time.Second
 
 const (
-	pluginName                               = "aws_iid"
 	maxSecondsBetweenDeviceAttachments int64 = 60
 )
 
@@ -191,12 +190,12 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	config := &IIDAttestorConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
-		err := fmt.Errorf("Error parsing AWS IID Attestor configuration: %s", err)
+		err := fmt.Errorf("error parsing AWS IID Attestor configuration: %s", err)
 		return resp, err
 	}
 	err = hcl.DecodeObject(&config, hclTree)
 	if err != nil {
-		err := fmt.Errorf("Error decoding AWS IID Attestor configuration: %v", err)
+		err := fmt.Errorf("error decoding AWS IID Attestor configuration: %v", err)
 		return resp, err
 	}
 
@@ -204,13 +203,13 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	awsCaCert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		err := fmt.Errorf("Error reading the AWS CA Certificate in the AWS IID Attestor: %v", err)
+		err := fmt.Errorf("error reading the AWS CA Certificate in the AWS IID Attestor: %v", err)
 		return resp, err
 	}
 
 	awsCaCertPublicKey, ok := awsCaCert.PublicKey.(*rsa.PublicKey)
 	if !ok {
-		err := fmt.Errorf("Error extracting the AWS CA Certificate's public key in the AWS IID Attestor: %v", err)
+		err := fmt.Errorf("error extracting the AWS CA Certificate's public key in the AWS IID Attestor: %v", err)
 		return resp, err
 	}
 	config.awsCaCertPublicKey = awsCaCertPublicKey
@@ -271,7 +270,7 @@ func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 	ifaceZeroDeviceIndex := *instance.NetworkInterfaces[0].Attachment.DeviceIndex
 
 	if ifaceZeroDeviceIndex != 0 {
-		innerErr := fmt.Errorf("DeviceIndex is %d", ifaceZeroDeviceIndex)
+		innerErr := fmt.Errorf("the DeviceIndex is %d", ifaceZeroDeviceIndex)
 		return caws.AttestationStepError("verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0", innerErr)
 	}
 

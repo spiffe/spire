@@ -31,8 +31,8 @@ import (
 
 const (
 	DefaultCATTL    = 24 * time.Hour
-	backdate        = time.Second * 10
-	rotateInterval  = time.Second * 10
+	backdate        = 10 * time.Second
+	rotateInterval  = 10 * time.Second
 	pruneInterval   = 6 * time.Hour
 	safetyThreshold = 24 * time.Hour
 
@@ -43,13 +43,13 @@ const (
 	activationThresholdCap = sevenDays
 )
 
-type CASetter interface {
+type ManagedCA interface {
 	SetX509CA(*X509CA)
 	SetJWTKey(*JWTKey)
 }
 
 type ManagerConfig struct {
-	CA             CASetter
+	CA             ManagedCA
 	Catalog        catalog.Catalog
 	TrustDomain    url.URL
 	UpstreamBundle bool
@@ -65,7 +65,6 @@ type ManagerConfig struct {
 
 type Manager struct {
 	c               ManagerConfig
-	ca              ServerCA
 	bundleUpdatedCh chan struct{}
 
 	currentX509CA *x509CASlot
@@ -117,7 +116,12 @@ func (m *Manager) Run(ctx context.Context) error {
 		func(ctx context.Context) error {
 			return m.pruneBundleEvery(ctx, pruneInterval)
 		},
-		m.notifyOnBundleUpdate,
+		func(ctx context.Context) error {
+			// notifyOnBundleUpdate does not fail but rather logs any errors
+			// encountered while notifying
+			m.notifyOnBundleUpdate(ctx)
+			return nil
+		},
 	)
 	if err == context.Canceled {
 		err = nil
@@ -132,7 +136,11 @@ func (m *Manager) rotateEvery(ctx context.Context, interval time.Duration) error
 	for {
 		select {
 		case <-ticker.C:
-			m.rotate(ctx)
+			// rotate() errors are logged by rotate() and shouldn't cause the
+			// manager run task to bail so ignore them here. The error returned
+			// by rotate is used by the unit tests, so we need to keep it for
+			// now.
+			_ = m.rotate(ctx)
 		case <-ctx.Done():
 			return nil
 		}
@@ -536,7 +544,7 @@ func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntr
 		upstreamChain = append(upstreamChain, cert)
 	}
 
-	signer, err := m.makeSigner(ctx, x509CAKmKeyId(entry.SlotId))
+	signer, err := m.makeSigner(ctx, x509CAKmKeyID(entry.SlotId))
 	if err != nil {
 		return nil, "", err
 	}
@@ -586,7 +594,7 @@ func (m *Manager) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntr
 		return nil, "", errs.Wrap(err)
 	}
 
-	signer, err := m.makeSigner(ctx, jwtKeyKmKeyId(entry.SlotId))
+	signer, err := m.makeSigner(ctx, jwtKeyKmKeyID(entry.SlotId))
 	if err != nil {
 		return nil, "", err
 	}
@@ -644,7 +652,7 @@ func (m *Manager) dropBundleUpdated() {
 	}
 }
 
-func (m *Manager) notifyOnBundleUpdate(ctx context.Context) error {
+func (m *Manager) notifyOnBundleUpdate(ctx context.Context) {
 	for {
 		select {
 		case <-m.bundleUpdatedCh:
@@ -652,7 +660,7 @@ func (m *Manager) notifyOnBundleUpdate(ctx context.Context) error {
 				m.c.Log.WithError(err).Warn("failed to notify on bundle update")
 			}
 		case <-ctx.Done():
-			return nil
+			return
 		}
 	}
 }
@@ -773,11 +781,11 @@ func (m *Manager) fetchOptionalBundle(ctx context.Context) (*common.Bundle, erro
 	return resp.Bundle, nil
 }
 
-func x509CAKmKeyId(id string) string {
+func x509CAKmKeyID(id string) string {
 	return fmt.Sprintf("x509-CA-%s", id)
 }
 
-func jwtKeyKmKeyId(id string) string {
+func jwtKeyKmKeyID(id string) string {
 	return fmt.Sprintf("JWT-Signer-%s", id)
 }
 
@@ -794,7 +802,7 @@ func newX509CASlot(id string) *x509CASlot {
 }
 
 func (s *x509CASlot) KmKeyID() string {
-	return x509CAKmKeyId(s.id)
+	return x509CAKmKeyID(s.id)
 }
 
 func (s *x509CASlot) IsEmpty() bool {
@@ -826,7 +834,7 @@ func newJWTKeySlot(id string) *jwtKeySlot {
 }
 
 func (s *jwtKeySlot) KmKeyID() string {
-	return jwtKeyKmKeyId(s.id)
+	return jwtKeyKmKeyID(s.id)
 }
 
 func (s *jwtKeySlot) IsEmpty() bool {

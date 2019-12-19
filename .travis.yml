@@ -5,6 +5,9 @@ services:
 
 language: go
 
+go:
+  - 1.13.4
+
 cache:
   directories:
     - .cache
@@ -26,6 +29,7 @@ jobs:
     - stage: lint and test
       name: lint
       script:
+        - make lint
         - make generate-check
         - shellcheck script/*.sh
         - shellcheck .travis/*.sh

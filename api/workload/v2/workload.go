@@ -63,8 +63,8 @@ type X509SVID struct {
 	TrustBundlePool *x509.CertPool
 }
 
-// WorkloadX509SVIDWatcher is implemented by consumers who wish to be updated on SVID changes.
-type WorkloadX509SVIDWatcher interface {
+// X509SVIDWatcher is implemented by consumers who wish to be updated on SVID changes.
+type X509SVIDWatcher interface {
 	// UpdateX509SVIDs indicates to the Watcher that the SVID has been updated
 	UpdateX509SVIDs(*X509SVIDs)
 
@@ -74,7 +74,7 @@ type WorkloadX509SVIDWatcher interface {
 
 // X509SVIDClient interacts with the SPIFFE Workload API.
 type X509SVIDClient struct {
-	watcher      WorkloadX509SVIDWatcher
+	watcher      X509SVIDWatcher
 	addr         string
 	wg           sync.WaitGroup
 	ctx          context.Context
@@ -94,7 +94,7 @@ func WithAddr(addr string) Option {
 }
 
 // NewX509SVIDClient returns a new Workload API client for X.509 SVIDs.
-func NewX509SVIDClient(watcher WorkloadX509SVIDWatcher, opts ...Option) (*X509SVIDClient, error) {
+func NewX509SVIDClient(watcher X509SVIDWatcher, opts ...Option) (*X509SVIDClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &X509SVIDClient{
 		addr:         GetAgentAddress(),

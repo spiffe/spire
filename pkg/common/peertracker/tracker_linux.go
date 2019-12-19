@@ -23,7 +23,6 @@ func (linuxTracker) NewWatcher(info CallerInfo) (Watcher, error) {
 }
 
 func (linuxTracker) Close() {
-	return
 }
 
 type linuxWatcher struct {

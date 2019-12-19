@@ -13,6 +13,7 @@ require (
 	// version 1.14
 	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190405210948-c70a36b8193f
 	github.com/InVisionApp/go-health v2.1.0+incompatible
+	github.com/InVisionApp/go-logger v1.0.1
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129

@@ -57,7 +57,7 @@ func (s *CATestSuite) SetupTest() {
 	log, logHook := test.NewNullLogger()
 	s.logHook = logHook
 
-	s.ca = NewCA(CAConfig{
+	s.ca = NewCA(Config{
 		Log:     log,
 		Metrics: telemetry.Blackhole{},
 		TrustDomain: url.URL{
@@ -350,12 +350,6 @@ func (s *CATestSuite) createServerX509SVIDParams() ServerX509SVIDParams {
 	}
 }
 
-func (s *CATestSuite) createCSR(csr *x509.CertificateRequest) []byte {
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, testSigner)
-	s.Require().NoError(err)
-	return csrBytes
-}
-
 func (s *CATestSuite) createJWTSVIDParams(trustDomain string, ttl time.Duration) JWTSVIDParams {
 	return JWTSVIDParams{
 		SpiffeID: makeWorkloadID(trustDomain),
@@ -365,7 +359,7 @@ func (s *CATestSuite) createJWTSVIDParams(trustDomain string, ttl time.Duration)
 }
 
 func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *x509.Certificate {
-	keyID, err := x509util.GetSubjectKeyId(testSigner.Public())
+	keyID, err := x509util.GetSubjectKeyID(testSigner.Public())
 	s.Require().NoError(err)
 
 	template := &x509.Certificate{

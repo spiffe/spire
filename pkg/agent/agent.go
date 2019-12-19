@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // import registers routes on DefaultServeMux
+	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"os"
 	"path"
 	"runtime"
@@ -22,7 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
-	_ "golang.org/x/net/trace"
+	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
 )
 
@@ -76,10 +76,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	defer cat.Close()
 
-	healthChecks := health.NewChecker(
-		a.c.HealthChecks,
-		a.c.Log.WithField("subsystem_name", "health"),
-	)
+	healthChecks := health.NewChecker(a.c.HealthChecks, a.c.Log)
 
 	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
@@ -91,7 +88,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	endpoints := a.newEndpoints(ctx, cat, metrics, manager)
+	endpoints := a.newEndpoints(cat, metrics, manager)
 
 	if err := healthChecks.AddCheck("agent", a, time.Minute); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
@@ -137,7 +134,9 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			<-ctx.Done()
-			server.Shutdown(ctx)
+			if err := server.Shutdown(ctx); err != nil {
+				a.c.Log.WithError(err).Warn("Unable to shut down cleanly")
+			}
 		}()
 	}
 	if a.c.ProfilingFreq > 0 {
@@ -205,7 +204,7 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 	return mgr, nil
 }
 
-func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
+func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
 	config := &endpoints.Config{
 		BindAddr:  a.c.BindAddress,
 		Catalog:   cat,

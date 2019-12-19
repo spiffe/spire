@@ -14,18 +14,16 @@ type fakeSecretsManagerClient struct {
 }
 
 func (sm *fakeSecretsManagerClient) GetSecretValueWithContext(ctx aws.Context, input *secretsmanager.GetSecretValueInput, opt ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
-
 	if value, ok := sm.storage[*input.SecretId]; ok {
 		return &secretsmanager.GetSecretValueOutput{
 			ARN:          input.SecretId,
 			SecretString: &value,
 		}, nil
-	} else {
-		return nil, fmt.Errorf("secret not found")
 	}
+	return nil, fmt.Errorf("secret not found")
 }
 
-func newFakeSecretsManagerClient(config *AWSSecretConfiguration, region string) (secretsManagerClient, error) {
+func newFakeSecretsManagerClient(config *Config, region string) (secretsManagerClient, error) {
 	sm := new(fakeSecretsManagerClient)
 
 	cert, err := ioutil.ReadFile("_test_data/keys/EC/cert.pem")

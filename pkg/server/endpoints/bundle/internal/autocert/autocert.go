@@ -40,6 +40,8 @@
 // - validCert() was patched to function properly when asserting the cert and
 //   key match when the key a crypto.Signer and not a concrete RSA/ECDSA private
 //   key type.
+
+//nolint // forked code
 package autocert
 
 import (

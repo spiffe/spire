@@ -312,18 +312,6 @@ func (s *MSIResolverSuite) doResolve(spiffeID string) (*noderesolver.ResolveResp
 	})
 }
 
-func (s *MSIResolverSuite) addVirtualMachine() {
-	s.setVirtualMachine(&compute.VirtualMachine{
-		VirtualMachineProperties: &compute.VirtualMachineProperties{
-			NetworkProfile: &compute.NetworkProfile{
-				NetworkInterfaces: &[]compute.NetworkInterfaceReference{
-					{ID: &niResourceID},
-				},
-			},
-		},
-	})
-}
-
 func (s *MSIResolverSuite) setVirtualMachine(vm *compute.VirtualMachine) {
 	s.api.SetVirtualMachineResourceID("PRINCIPAL", vmResourceID)
 	s.api.SetVirtualMachine("RESOURCEGROUP", "VIRTUALMACHINE", vm)

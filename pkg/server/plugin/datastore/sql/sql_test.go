@@ -44,7 +44,7 @@ var (
 )
 
 const (
-	_ttl                   = time.Duration(time.Hour)
+	_ttl                   = time.Hour
 	_expiredNotAfterString = "2018-01-10T01:34:00+00:00"
 	_validNotAfterString   = "2018-01-10T01:36:00+00:00"
 	_middleTimeString      = "2018-01-10T01:35:00+00:00"
@@ -64,7 +64,7 @@ type PluginSuite struct {
 	dir       string
 	nextID    int
 	ds        datastore.Plugin
-	sqlPlugin *SQLPlugin
+	sqlPlugin *Plugin
 
 	m               *fakemetrics.FakeMetrics
 	expectedMetrics *fakepluginmetrics.FakePluginMetrics
@@ -680,6 +680,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 				ByExpiresBefore: test.byExpiresBefore,
@@ -1231,6 +1232,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			var bySelectors *datastore.BySelectors
 			if test.selectors != nil {
@@ -1349,6 +1351,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
 	res, err := s.sqlPlugin.db.raw.Exec("DELETE FROM registered_entries")
 	s.Require().NoError(err)
 	rowsAffected, err := res.RowsAffected()
+	s.Require().NoError(err)
 	s.Require().Equal(int64(1), rowsAffected)
 
 	// Assert that no rows are returned.
@@ -1479,6 +1482,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
@@ -1528,6 +1532,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
@@ -1582,6 +1587,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
@@ -2239,6 +2245,7 @@ func (s *PluginSuite) TestConfigure() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
 			p := New()
 
@@ -4815,6 +4822,7 @@ ORDER BY e_id, selector_id, dns_name_id
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		name := testCase.dialect + "-list-"
 		if len(testCase.by) == 0 {
 			name += "all"
@@ -4912,7 +4920,6 @@ func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
 	for id := range es {
 		assert.Failf(t, "bundle %q was expected but not found", id)
 	}
-
 }
 
 func wipePostgres(t *testing.T, connString string) {

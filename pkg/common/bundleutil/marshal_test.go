@@ -100,12 +100,13 @@ func TestMarshal(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			bundle := New("spiffe://domain.test")
 			bundle.SetRefreshHint(time.Minute)
 			if !testCase.empty {
 				bundle.AppendRootCA(rootCA)
-				bundle.AppendJWTSigningKey("FOO", testKey.Public())
+				require.NoError(t, bundle.AppendJWTSigningKey("FOO", testKey.Public()))
 			}
 			bundleBytes, err := Marshal(bundle, testCase.opts...)
 			require.NoError(t, err)

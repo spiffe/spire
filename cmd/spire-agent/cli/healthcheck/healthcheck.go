@@ -35,7 +35,8 @@ type healthCheckCommand struct {
 }
 
 func (c *healthCheckCommand) Help() string {
-	c.parseFlags([]string{"-h"})
+	// ignoring parsing errors since "-h" is always supported by the flags package
+	_ = c.parseFlags([]string{"-h"})
 	return ""
 }
 
@@ -47,8 +48,10 @@ func (c *healthCheckCommand) Run(args []string) int {
 	if err := c.parseFlags(args); err != nil {
 		return 1
 	}
-	if err := c.run(args); err != nil {
-		c.env.ErrPrintln(err)
+	if err := c.run(); err != nil {
+		// Ignore error since a failure to write to stderr cannot very well
+		// be reported
+		_ = c.env.ErrPrintln(err)
 		return 1
 	}
 	return 0
@@ -63,7 +66,7 @@ func (c *healthCheckCommand) parseFlags(args []string) error {
 	return fs.Parse(args)
 }
 
-func (c *healthCheckCommand) run(args []string) error {
+func (c *healthCheckCommand) run() error {
 	addr := &net.UnixAddr{
 		Name: c.socketPath,
 		Net:  "unix",
@@ -90,14 +93,18 @@ func (c *healthCheckCommand) run(args []string) error {
 			c.env.Printf("Workload API returned %s\n", err)
 		}
 		if status.Code(err) == codes.Unavailable {
-			return errors.New("Agent is unavailable.")
+			return errors.New("Agent is unavailable.") //nolint: golint // error is (ab)used for CLI output
 		}
 	case <-client.UpdateChan():
 		if c.verbose {
-			c.env.Println("SVID received over Workload API.")
+			if err := c.env.Println("SVID received over Workload API."); err != nil {
+				return err
+			}
 		}
 	}
 
-	c.env.Println("Agent is healthy.")
+	if err := c.env.Println("Agent is healthy."); err != nil {
+		return err
+	}
 	return nil
 }

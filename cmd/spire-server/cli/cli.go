@@ -62,7 +62,7 @@ func Run(args []string) int {
 			return &entry.ShowCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return &run.RunCLI{}, nil
+			return &run.Command{}, nil
 		},
 		"token generate": func() (cli.Command, error) {
 			return &token.GenerateCLI{}, nil

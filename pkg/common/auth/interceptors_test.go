@@ -9,6 +9,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+type testKey struct{}
+
 func TestUnaryAuthorizeCall(t *testing.T) {
 	// server does not implement the Authorizer interface
 	resp, err := UnaryAuthorizeCall(context.Background(), nil, &grpc.UnaryServerInfo{
@@ -32,10 +34,10 @@ func TestUnaryAuthorizeCall(t *testing.T) {
 	// success
 	server = AuthorizerFunc(func(ctx context.Context, fullMethod string) (context.Context, error) {
 		require.Equal(t, "FOO", fullMethod)
-		return context.WithValue(ctx, "key", "value"), nil
+		return context.WithValue(ctx, testKey{}, "value"), nil
 	})
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		require.Equal(t, "value", ctx.Value("key"))
+		require.Equal(t, "value", ctx.Value(testKey{}))
 		require.Equal(t, "req", req)
 		return "resp", errors.New("error")
 	}
@@ -65,11 +67,11 @@ func TestStreamAuthorizeCall(t *testing.T) {
 	// success
 	server = AuthorizerFunc(func(ctx context.Context, fullMethod string) (context.Context, error) {
 		require.Equal(t, "FOO", fullMethod)
-		return context.WithValue(ctx, "key", "value"), nil
+		return context.WithValue(ctx, testKey{}, "value"), nil
 	})
 	handler := func(server interface{}, stream grpc.ServerStream) error {
 		require.NotNil(t, server)
-		require.Equal(t, "value", stream.Context().Value("key"))
+		require.Equal(t, "value", stream.Context().Value(testKey{}))
 		return errors.New("error")
 	}
 	err = StreamAuthorizeCall(server, stream, info, handler)

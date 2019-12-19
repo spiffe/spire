@@ -51,7 +51,7 @@ type mintCommand struct {
 }
 
 func (c *mintCommand) Help() string {
-	c.parseFlags([]string{"-h"})
+	_ = c.parseFlags([]string{"-h"})
 	return ""
 }
 
@@ -119,7 +119,7 @@ func (c *mintCommand) run() error {
 
 	if eol, err := getX509SVIDEndOfLife(resp.SvidChain[0]); err != nil {
 		c.env.ErrPrintf("Unable to determine X509-SVID lifetime: %v\n", err)
-	} else if eol.Sub(time.Now()) < c.ttl {
+	} else if time.Until(eol) < c.ttl {
 		c.env.ErrPrintf("X509-SVID lifetime was capped shorter than specified ttl; expires %q\n", eol.UTC().Format(time.RFC3339))
 	}
 
@@ -130,21 +130,21 @@ func (c *mintCommand) run() error {
 
 	svidPEM := new(bytes.Buffer)
 	for _, certDER := range resp.SvidChain {
-		pem.Encode(svidPEM, &pem.Block{
+		_ = pem.Encode(svidPEM, &pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: certDER,
 		})
 	}
 
 	keyPEM := new(bytes.Buffer)
-	pem.Encode(keyPEM, &pem.Block{
+	_ = pem.Encode(keyPEM, &pem.Block{
 		Type:  "PRIVATE KEY",
 		Bytes: keyBytes,
 	})
 
 	bundlePEM := new(bytes.Buffer)
 	for _, rootCA := range resp.RootCas {
-		pem.Encode(bundlePEM, &pem.Block{
+		_ = pem.Encode(bundlePEM, &pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: rootCA,
 		})

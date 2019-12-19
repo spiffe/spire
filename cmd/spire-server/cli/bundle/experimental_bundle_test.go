@@ -337,11 +337,3 @@ func (s *ExperimentalBundleSuite) createBundle(bundle *common.Bundle) {
 	})
 	s.Require().NoError(err)
 }
-
-func (s *ExperimentalBundleSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
-	s.Require().NoError(err)
-	return resp.Entry
-}

@@ -201,7 +201,7 @@ mockgen_mocks = \
 	test/mock/common/plugin/k8s/clientset/authenticationv1/tokenreview,k8s.io/client-go/kubernetes/typed/authentication/v1,TokenReviewInterface \
 	test/mock/common/filesystem,github.com/spiffe/spire/pkg/agent/common/cgroups,FileSystem \
 	test/mock/common/telemetry,github.com/spiffe/spire/pkg/common/telemetry,Metrics \
-	test/mock/agent/plugin/workloadattestor/docker,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker,DockerClient \
+	test/mock/agent/plugin/workloadattestor/docker,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker,Docker \
 
 # The following vars are used in rule construction
 comma := ,
