@@ -156,13 +156,13 @@ func (p *profiler) prepareDumpers() {
 func (p *profiler) dumpProfiles() {
 	now := time.Now().Format("2006-01-02_150405")
 	for name, dumper := range p.dumpers {
-		dumper.Dump(now, name)
+		_ = dumper.Dump(now, name)
 	}
 }
 
 func (p *profiler) releaseDumpers() {
 	for _, dumper := range p.dumpers {
-		dumper.Release()
+		_ = dumper.Release()
 	}
 }
 

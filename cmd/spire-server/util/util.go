@@ -13,7 +13,7 @@ const (
 )
 
 func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer))
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer)) //nolint: staticcheck
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +30,9 @@ func dialer(addr string, timeout time.Duration) (net.Conn, error) {
 func Pluralizer(msg string, singular string, plural string, val int) string {
 	result := msg
 	if val == 1 {
-		result = result + singular
+		result += singular
 	} else {
-		result = result + plural
+		result += plural
 	}
 
 	return result

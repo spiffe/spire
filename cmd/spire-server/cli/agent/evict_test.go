@@ -60,7 +60,7 @@ func (s *EvictTestSuite) TestRunExitsWithNonZeroCodeOnError() {
 		SpiffeID: spiffeIDToRemove,
 	}
 
-	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(nil, errors.New("Some error"))
+	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(nil, errors.New("some error"))
 	s.Require().Equal(1, s.cli.Run(args))
 }
 

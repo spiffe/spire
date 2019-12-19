@@ -173,7 +173,7 @@ func (m *Base) getPrivateKey(id string) crypto.PrivateKey {
 	return nil
 }
 
-func (m *Base) generateKeyEntry(keyId string, keyType keymanager.KeyType) (e *KeyEntry, err error) {
+func (m *Base) generateKeyEntry(keyID string, keyType keymanager.KeyType) (e *KeyEntry, err error) {
 	var privateKey crypto.PrivateKey
 	var publicKey crypto.PublicKey
 	switch keyType {
@@ -194,7 +194,7 @@ func (m *Base) generateKeyEntry(keyId string, keyType keymanager.KeyType) (e *Ke
 		return nil, err
 	}
 
-	entry, err := makeKeyEntry(keyId, keyType, privateKey, publicKey)
+	entry, err := makeKeyEntry(keyID, keyType, privateKey, publicKey)
 	if err != nil {
 		return nil, m.newError("unable to make key entry: %v", err)
 	}
@@ -206,7 +206,7 @@ func (m *Base) newError(format string, args ...interface{}) error {
 	return m.impl.ErrorFn(format, args...)
 }
 
-func makeKeyEntry(keyId string, keyType keymanager.KeyType, privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (*KeyEntry, error) {
+func makeKeyEntry(keyID string, keyType keymanager.KeyType, privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (*KeyEntry, error) {
 	pkixData, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func makeKeyEntry(keyId string, keyType keymanager.KeyType, privateKey crypto.Pr
 	return &KeyEntry{
 		PrivateKey: privateKey,
 		PublicKey: &keymanager.PublicKey{
-			Id:       keyId,
+			Id:       keyID,
 			Type:     keyType,
 			PkixData: pkixData,
 		},

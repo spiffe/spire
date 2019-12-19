@@ -27,7 +27,7 @@ func Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn, error) {
 
 	// Workload API is unauthenticated
 	d := dialer(addr.Network())
-	return grpc.DialContext(ctx, addr.String(), grpc.WithInsecure(), grpc.WithDialer(d))
+	return grpc.DialContext(ctx, addr.String(), grpc.WithInsecure(), grpc.WithDialer(d)) //nolint: staticcheck
 }
 
 func addrFromEnv() (net.Addr, error) {

@@ -163,7 +163,7 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 			continue
 		}
 
-		var plugin *CatalogPlugin
+		var plugin *LoadedPlugin
 		if c.Path == "" {
 			builtin, ok := builtinsMap.Lookup(c.Name, c.Type)
 			if !ok {
@@ -211,7 +211,7 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 }
 
 type catalog struct {
-	plugins []*CatalogPlugin
+	plugins []*LoadedPlugin
 }
 
 func (c *catalog) Fill(x interface{}) (err error) {

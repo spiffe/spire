@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/zeebo/errs"
 
 	"google.golang.org/grpc"
 )
@@ -61,7 +62,11 @@ type client struct {
 }
 
 // New creates a new client struct with the configuration provided
-func New(c *Config) *client {
+func New(c *Config) Client {
+	return newClient(c)
+}
+
+func newClient(c *Config) *client {
 	return &client{
 		c:                   c,
 		createNewNodeClient: node.NewNodeClient,
@@ -92,12 +97,14 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	}
 
 	// Send the request to the server using the stream.
-	err = stream.Send(req)
-	// Close the stream whether there was an error or not
-	stream.CloseSend()
-	if err != nil {
+	if err := stream.Send(req); err != nil {
 		c.release(nodeConn)
-		return nil, err
+		return nil, errs.Wrap(err)
+	}
+
+	if err := stream.CloseSend(); err != nil {
+		c.release(nodeConn)
+		return nil, errs.Wrap(err)
 	}
 
 	regEntries := map[string]*common.RegistrationEntry{}

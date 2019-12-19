@@ -59,7 +59,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	require.NoError(t, err)
 
-	hs.SetDeps(Deps{
+	err = hs.SetDeps(Deps{
 		DataStore: ds,
 		X509IdentityFetcher: X509IdentityFetcherFunc(func(context.Context) (*X509Identity, error) {
 			return &X509Identity{
@@ -68,6 +68,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 			}, nil
 		}),
 	})
+	require.NoError(t, err)
 
 	resp, err := hs.FetchX509Identity(context.Background(), &hostservices.FetchX509IdentityRequest{})
 	require.NoError(t, err)

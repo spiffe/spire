@@ -84,13 +84,14 @@ func TestDockerSelectors(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
-			mockDocker := NewMockDockerClient(mockCtrl)
+			mockDocker := NewMockDocker(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-			p := newTestPlugin(t, withMockDockerClient(mockDocker), withMockFS(mockFS))
+			p := newTestPlugin(t, withMockDocker(mockDocker), withMockFS(mockFS))
 
 			cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
 			defer cleanup()
@@ -175,16 +176,17 @@ cgroup_container_index = 2`,
 	}
 
 	for _, tt := range tests {
+		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
-			mockDocker := NewMockDockerClient(mockCtrl)
+			mockDocker := NewMockDocker(mockCtrl)
 			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 			p := newTestPlugin(
 				t,
 				withConfig(t, tt.cfg), // this must be the first option
-				withMockDockerClient(mockDocker),
+				withMockDocker(mockDocker),
 				withMockFS(mockFS),
 			)
 
@@ -238,12 +240,12 @@ func TestCgroupFileNotFound(t *testing.T) {
 func TestDockerError(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockDocker := NewMockDockerClient(mockCtrl)
+	mockDocker := NewMockDocker(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 	p := newTestPlugin(
 		t,
-		withMockDockerClient(mockDocker),
+		withMockDocker(mockDocker),
 		withMockFS(mockFS),
 		withDisabledRetryer(),
 	)
@@ -264,14 +266,14 @@ func TestDockerError(t *testing.T) {
 func TestDockerErrorRetries(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockDocker := NewMockDockerClient(mockCtrl)
+	mockDocker := NewMockDocker(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
 	p := newTestPlugin(
 		t,
 		withMockClock(mockClock),
-		withMockDockerClient(mockDocker),
+		withMockDocker(mockDocker),
 		withMockFS(mockFS),
 	)
 
@@ -301,14 +303,14 @@ func TestDockerErrorRetries(t *testing.T) {
 func TestDockerErrorContextCancel(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockDocker := NewMockDockerClient(mockCtrl)
+	mockDocker := NewMockDocker(mockCtrl)
 	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
 
 	p := newTestPlugin(
 		t,
 		withMockClock(mockClock),
-		withMockDockerClient(mockDocker),
+		withMockDocker(mockDocker),
 		withMockFS(mockFS),
 	)
 
@@ -327,7 +329,7 @@ func TestDockerErrorContextCancel(t *testing.T) {
 		cancel()
 	}()
 
-	res, err := doAttestWithContext(t, ctx, p, &workloadattestor.AttestRequest{Pid: 123})
+	res, err := doAttestWithContext(ctx, t, p, &workloadattestor.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context canceled")
 	require.Nil(t, res)
@@ -415,53 +417,53 @@ func TestDockerConfigDefault(t *testing.T) {
 	require.Equal(t, defaultFinder, p.containerIDFinder)
 }
 
-func doAttest(t *testing.T, p *DockerPlugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
-	return doAttestWithContext(t, context.Background(), p, req)
+func doAttest(t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+	return doAttestWithContext(context.Background(), t, p, req)
 }
 
-func doAttestWithContext(t *testing.T, ctx context.Context, p *DockerPlugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	var wp workloadattestor.Plugin
 	done := spiretest.LoadPlugin(t, builtin(p), &wp)
 	defer done()
 	return wp.Attest(ctx, req)
 }
 
-func doConfigure(t *testing.T, p *DockerPlugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func doConfigure(t *testing.T, p *Plugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	var wp workloadattestor.Plugin
 	done := spiretest.LoadPlugin(t, builtin(p), &wp)
 	defer done()
 	return wp.Configure(context.Background(), req)
 }
 
-type testPluginOpt func(*DockerPlugin)
+type testPluginOpt func(*Plugin)
 
-func withMockDockerClient(m *MockDockerClient) testPluginOpt {
-	return func(p *DockerPlugin) {
+func withMockDocker(m *MockDocker) testPluginOpt {
+	return func(p *Plugin) {
 		p.docker = m
 	}
 }
 
 func withMockFS(m *filesystem_mock.MockFileSystem) testPluginOpt {
-	return func(p *DockerPlugin) {
+	return func(p *Plugin) {
 		p.fs = m
 	}
 }
 
 func withMockClock(c *clock.Mock) testPluginOpt {
-	return func(p *DockerPlugin) {
+	return func(p *Plugin) {
 		p.retryer.clock = c
 	}
 }
 
 func withDisabledRetryer() testPluginOpt {
-	return func(p *DockerPlugin) {
+	return func(p *Plugin) {
 		p.retryer = disabledRetryer
 	}
 }
 
 // this must be the first plugin opt
 func withConfig(t *testing.T, cfg string) testPluginOpt {
-	return func(p *DockerPlugin) {
+	return func(p *Plugin) {
 		cfgReq := &spi.ConfigureRequest{
 			Configuration: cfg,
 		}
@@ -471,7 +473,7 @@ func withConfig(t *testing.T, cfg string) testPluginOpt {
 	}
 }
 
-func newTestPlugin(t *testing.T, opts ...testPluginOpt) *DockerPlugin {
+func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
 	resp, err := doConfigure(t, p, &spi.ConfigureRequest{})
 	require.NoError(t, err)

@@ -19,6 +19,8 @@ docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)
 goversion := $(shell go version | cut -f3 -d' ')
 goversion-required := $(shell cat .go-version)
+golangci_lint_version := v1.21.0
+golangci_lint_dir := .build/golangci-lint/$(golangci_lint_version)
 gittag := $(shell git tag --points-at HEAD)
 githash := $(shell git rev-parse --short=7 HEAD)
 gitdirty := $(shell git status -s)
@@ -171,6 +173,16 @@ protobuf: utils ## Regenerate the gRPC pb.go and README_pb.md files
 
 protobuf_verify: utils ## Check that the checked-in generated code is up-to-date
 	$(docker) ./build.sh protobuf_verify
+
+lint: $(golangci_lint_dir)/golangci-lint ## Lints the code
+	@$(golangci_lint_dir)/golangci-lint run ./...
+
+$(golangci_lint_dir)/golangci-lint:
+	# remove any existing golangci-lint installation to keep things clean
+	@rm -rf $(dirname $(golangci_lint_dir))
+	# download and install golangci-lint
+	@mkdir -p $(golangci_lint_dir)
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
 
 noop:
 

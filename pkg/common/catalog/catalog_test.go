@@ -77,7 +77,7 @@ func (s *CatalogSuite) SetupSuite() {
 	require.NoError(err)
 
 	s.path = filepath.Join(s.dir, "pluginbin")
-	buildOutput, err := exec.Command("go", "build", "-o", s.path, "catalog_test_plugin.go").CombinedOutput()
+	buildOutput, err := exec.Command("go", "build", "-o", s.path, "catalog_test_plugin.go").CombinedOutput() //nolint: gosec // false positive
 	if err != nil {
 		s.T().Logf("build output:\n%s\n", string(buildOutput))
 		s.FailNow("failed to build test plugin")
@@ -638,6 +638,7 @@ func (s *CatalogSuite) TestPluginsFill() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		s.T().Run(testCase.name, func(t *testing.T) {
 			testCase.fn(require.New(t))
 		})
@@ -732,23 +733,19 @@ func (s *CatalogSuite) builtinConfig() []catalog.PluginConfig {
 	}
 }
 
-func (s *CatalogSuite) assertHasLogEntries(entries []testLogEntry) bool {
-	ok := true
+func (s *CatalogSuite) assertHasLogEntries(entries []testLogEntry) {
 	for _, e := range entries {
-		if !s.assertHasLogEntry(e) {
-			ok = false
-		}
+		s.assertHasLogEntry(e)
 	}
-	return ok
 }
 
-func (s *CatalogSuite) assertHasLogEntry(e testLogEntry) bool {
+func (s *CatalogSuite) assertHasLogEntry(e testLogEntry) {
 	for _, a := range s.logHook.AllEntries() {
 		if reflect.DeepEqual(testLogEntryFromEntry(a), e) {
-			return true
+			return
 		}
 	}
-	return s.Failf("no such log entry", "level=%q message=%q data=%q", e.Level, e.Message, e.Data)
+	s.Failf("no such log entry", "level=%q message=%q data=%q", e.Level, e.Message, e.Data)
 }
 
 func testLogEntryFromEntry(entry *logrus.Entry) testLogEntry {
@@ -758,12 +755,6 @@ func testLogEntryFromEntry(entry *logrus.Entry) testLogEntry {
 		Level:   entry.Level,
 		Message: entry.Message,
 		Data:    entry.Data,
-	}
-}
-
-func testBuiltIns() []catalog.Plugin {
-	return []catalog.Plugin{
-		testBuiltIn(),
 	}
 }
 

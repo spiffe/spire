@@ -40,9 +40,7 @@ type bundleUpdater struct {
 
 func NewBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
 	if config.newClient == nil {
-		config.newClient = func(config ClientConfig) Client {
-			return NewClient(config)
-		}
+		config.newClient = NewClient
 	}
 
 	return &bundleUpdater{

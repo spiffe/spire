@@ -78,6 +78,7 @@ func TestConfigure(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			idp := fakeidentityprovider.New()
 
@@ -148,19 +149,19 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) er
 		{
 			name: "failed to create bucket client",
 			configureBucketClient: func(*fakeBucketClient) error {
-				return errors.New("OHNO!")
+				return errors.New("ohno")
 			},
 			code: codes.Unknown,
-			desc: "unable to instantiate bucket client: OHNO!",
+			desc: "unable to instantiate bucket client: ohno",
 		},
 		{
 			name: "failed to get object generation",
 			configureBucketClient: func(client *fakeBucketClient) error {
-				client.SetGetObjectGenerationError(errors.New("OHNO!"))
+				client.SetGetObjectGenerationError(errors.New("ohno"))
 				return nil
 			},
 			code: codes.Unknown,
-			desc: "unable to get bundle object the-bucket/bundle.pem: OHNO!",
+			desc: "unable to get bundle object the-bucket/bundle.pem: ohno",
 		},
 		{
 			name: "failed to fetch bundle from identity provider",
@@ -171,11 +172,11 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) er
 			name:    "failed to put object",
 			bundles: []*common.Bundle{bundle1},
 			configureBucketClient: func(client *fakeBucketClient) error {
-				client.AppendPutObjectError(errors.New("OHNO!"))
+				client.AppendPutObjectError(errors.New("ohno"))
 				return nil
 			},
 			code: codes.Unknown,
-			desc: "unable to update bundle object the-bucket/bundle.pem: OHNO!",
+			desc: "unable to update bundle object the-bucket/bundle.pem: ohno",
 		},
 		{
 			name:           "success",
@@ -204,14 +205,15 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) er
 			configureBucketClient: func(client *fakeBucketClient) error {
 				client.AppendPutObjectError(&googleapi.Error{
 					Code: http.StatusPreconditionFailed,
-					Body: "OHNO!",
+					Body: "ohno",
 				})
 				return nil
 			},
 			code: codes.Unknown,
-			desc: "unable to update bundle object the-bucket/bundle.pem: googleapi: got HTTP response code 412 with body: OHNO!",
+			desc: "unable to update bundle object the-bucket/bundle.pem: googleapi: got HTTP response code 412 with body: ohno",
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a raw instance so we can hook the bucket client creation,
 			// possibly overriding with a test specific hook.

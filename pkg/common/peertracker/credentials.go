@@ -10,7 +10,7 @@ import (
 
 type grpcCredentials struct{}
 
-func NewCredentials() *grpcCredentials {
+func NewCredentials() credentials.TransportCredentials {
 	return &grpcCredentials{}
 }
 

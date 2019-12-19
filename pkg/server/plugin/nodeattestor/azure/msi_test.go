@@ -38,6 +38,8 @@ bpR/VgtruOOSiOvJJ9xOAKCSsyeVpZdHrWlY7fkCKg==
 )
 
 const (
+	testKeyID = "KEYID"
+
 	resourceID = "https://example.org/app/"
 )
 
@@ -126,7 +128,7 @@ func (s *MSIAttestorSuite) TestAttestFailsIfTokenKeyIDNotFound() {
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithBadSignature() {
-	s.addKey("KEYID")
+	s.addKey()
 
 	// sign a token and replace the signature
 	token := s.signToken("KEYID", "", "", "")
@@ -140,7 +142,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWithBadSignature() {
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
-	s.addKey("KEYID")
+	s.addKey()
 
 	// sign a token with a different key algorithm than that of the key in
 	// the key set.
@@ -152,6 +154,8 @@ func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
 			"kid": "KEYID",
 		},
 	})
+	s.Require().NoError(err)
+
 	token, err := jwt.Signed(signer).CompactSerialize()
 	s.Require().NoError(err)
 
@@ -160,7 +164,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsClaimValidation() {
-	s.addKey("KEYID")
+	s.addKey()
 
 	// missing tenant id claim
 	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "", "PRINCIPALID"),
@@ -184,7 +188,7 @@ func (s *MSIAttestorSuite) TestAttestFailsClaimValidation() {
 }
 
 func (s *MSIAttestorSuite) TestAttestTokenExpiration() {
-	s.addKey("KEYID")
+	s.addKey()
 	token := s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID")
 
 	// within 5m leeway (token expires at 1m + 5m leeway = 6m)
@@ -198,7 +202,7 @@ func (s *MSIAttestorSuite) TestAttestTokenExpiration() {
 }
 
 func (s *MSIAttestorSuite) TestAttestSuccess() {
-	s.addKey("KEYID")
+	s.addKey()
 
 	// Success against TENANTID, which uses the custom resource ID
 	resp, err := s.doAttest(s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID"))
@@ -216,7 +220,7 @@ func (s *MSIAttestorSuite) TestAttestSuccess() {
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
-	s.addKey("KEYID")
+	s.addKey()
 
 	agentID := "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID"
 	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
@@ -308,10 +312,10 @@ func (s *MSIAttestorSuite) signAttestRequest(keyID, audience, tenantID, principa
 	return makeAttestRequest(s.signToken(keyID, audience, tenantID, principalID))
 }
 
-func (s *MSIAttestorSuite) addKey(keyID string) {
+func (s *MSIAttestorSuite) addKey() {
 	s.jwks.Keys = append(s.jwks.Keys, jose.JSONWebKey{
 		Key:   s.key.Public(),
-		KeyID: keyID,
+		KeyID: testKeyID,
 	})
 }
 

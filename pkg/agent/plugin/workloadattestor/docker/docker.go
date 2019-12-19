@@ -22,11 +22,10 @@ import (
 )
 
 const (
-	pluginName          = "docker"
-	subselectorLabel    = "label"
-	subselectorImageID  = "image_id"
-	subselectorEnv      = "env"
-	defaultCgroupPrefix = "/docker"
+	pluginName         = "docker"
+	subselectorLabel   = "label"
+	subselectorImageID = "image_id"
+	subselectorEnv     = "env"
 )
 
 var defaultContainerIDMatchers = []string{
@@ -37,18 +36,18 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *DockerPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
 }
 
-// DockerClient is a subset of the docker client functionality, useful for mocking.
-type DockerClient interface {
+// Docker is a subset of the docker client functionality, useful for mocking.
+type Docker interface {
 	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
 }
 
-type DockerPlugin struct {
+type Plugin struct {
 	log               hclog.Logger
-	docker            DockerClient
+	docker            Docker
 	fs                cgroups.FileSystem
 	mtx               *sync.RWMutex
 	retryer           *retryer
@@ -60,8 +59,8 @@ type DockerPlugin struct {
 	cgroupContainerIndex int
 }
 
-func New() *DockerPlugin {
-	return &DockerPlugin{
+func New() *Plugin {
+	return &Plugin{
 		mtx:     &sync.RWMutex{},
 		fs:      cgroups.OSFileSystem{},
 		retryer: newRetryer(),
@@ -82,11 +81,11 @@ type dockerPluginConfig struct {
 	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers"`
 }
 
-func (p *DockerPlugin) SetLogger(log hclog.Logger) {
+func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -107,7 +106,6 @@ func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestR
 		hasDockerEntries = true
 		containerID = id
 		break
-
 	}
 
 	// Not a docker workload. Since it is expected that non-docker workloads will call the
@@ -120,7 +118,7 @@ func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestR
 	}
 
 	var container types.ContainerJSON
-	p.retryer.Retry(ctx, func() error {
+	err = p.retryer.Retry(ctx, func() error {
 		container, err = p.docker.ContainerInspect(ctx, containerID)
 		if err != nil {
 			return err
@@ -159,7 +157,7 @@ func getSelectorsFromConfig(cfg *container.Config) []*common.Selector {
 	return selectors
 }
 
-func (p *DockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -212,11 +210,11 @@ func (p *DockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest)
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*DockerPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *DockerPlugin) legacyExtractID(cgroupPath string) (string, bool) {
+func (p *Plugin) legacyExtractID(cgroupPath string) (string, bool) {
 	if !strings.HasPrefix(cgroupPath, p.cgroupPrefix) {
 		return "", false
 	}

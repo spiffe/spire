@@ -18,19 +18,19 @@ func CertificateMatchesPrivateKey(certificate *x509.Certificate, privateKey cryp
 	return cryptoutil.KeyMatches(privateKey, certificate.PublicKey)
 }
 
-func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, parent *x509.Certificate, parentKeyId string, publicKey crypto.PublicKey) (*x509.Certificate, error) {
+func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, parent *x509.Certificate, parentKeyID string, publicKey crypto.PublicKey) (*x509.Certificate, error) {
 	parentPublicKey := parent.PublicKey
 	if parentPublicKey == nil {
 		// Pull the public key from the key manager. In the self-signing case, the
 		// parent certificate PublicKey field is not likely to be set.
 		var err error
-		parentPublicKey, err = cryptoutil.GetPublicKey(ctx, km, parentKeyId)
+		parentPublicKey, err = cryptoutil.GetPublicKey(ctx, km, parentKeyID)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	signer := cryptoutil.NewKeyManagerSigner(km, parentKeyId, parentPublicKey)
+	signer := cryptoutil.NewKeyManagerSigner(km, parentKeyID, parentPublicKey)
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, signer)
 	if err != nil {
 		return nil, err

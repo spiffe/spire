@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+func TestShowTestSuite(t *testing.T) {
+	suite.Run(t, new(ShowTestSuite))
+}
+
 type ShowTestSuite struct {
 	suite.Suite
 
@@ -18,22 +22,18 @@ type ShowTestSuite struct {
 	mockClient *mock_registration.MockRegistrationClient
 }
 
-func (suite *ShowTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(suite.T())
+func (s *ShowTestSuite) SetupTest() {
+	mockCtrl := gomock.NewController(s.T())
 	defer mockCtrl.Finish()
 
-	suite.mockClient = mock_registration.NewMockRegistrationClient(mockCtrl)
+	s.mockClient = mock_registration.NewMockRegistrationClient(mockCtrl)
 
 	cli := &ShowCLI{
 		Config:  new(ShowConfig),
-		Client:  suite.mockClient,
+		Client:  s.mockClient,
 		Entries: []*common.RegistrationEntry{},
 	}
-	suite.cli = cli
-}
-
-func TestShowTestSuite(t *testing.T) {
-	suite.Run(t, new(ShowTestSuite))
+	s.cli = cli
 }
 
 func (s *ShowTestSuite) TestRunWithEntryID() {

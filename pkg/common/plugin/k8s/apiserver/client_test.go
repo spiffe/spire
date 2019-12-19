@@ -114,6 +114,10 @@ oIrPuyjOmscrC627wX3LGUHwPKtNArBT8lKFfda1B1BqAk0q1/ui/A==
 -----END RSA PRIVATE KEY-----`)
 )
 
+const (
+	testToken = "TEST-TOKEN"
+)
+
 func TestAPIServerClient(t *testing.T) {
 	spiretest.Run(t, new(ClientSuite))
 }
@@ -175,7 +179,7 @@ func (s *ClientSuite) TestGetPodFailsIfGetsErrorFromAPIServer() {
 	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
 	s.mockPods.EXPECT().Get("PODNAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
 
-	client := s.createClient("")
+	client := s.createClient()
 	pod, err := client.GetPod("NAMESPACE", "PODNAME")
 	s.AssertErrorContains(err, "unable to query pods API")
 	s.Nil(pod)
@@ -186,7 +190,7 @@ func (s *ClientSuite) TestGetPodFailsIfGetsNilPod() {
 	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
 	s.mockPods.EXPECT().Get("PODNAME", metav1.GetOptions{}).Return(nil, nil)
 
-	client := s.createClient("")
+	client := s.createClient()
 	pod, err := client.GetPod("NAMESPACE", "PODNAME")
 	s.AssertErrorContains(err, "got nil pod for pod name: PODNAME")
 	s.Nil(pod)
@@ -198,7 +202,7 @@ func (s *ClientSuite) TestGetPodSucceeds() {
 	expectedPod := createPod("PODNAME")
 	s.mockPods.EXPECT().Get("PODNAME", metav1.GetOptions{}).Return(expectedPod, nil)
 
-	client := s.createClient("")
+	client := s.createClient()
 	pod, err := client.GetPod("NAMESPACE", "PODNAME")
 	s.NoError(err)
 	s.Equal(expectedPod, pod)
@@ -223,7 +227,7 @@ func (s *ClientSuite) TestGetNodeFailsIfGetsErrorFromAPIServer() {
 	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
 	s.mockNodes.EXPECT().Get("NODENAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
 
-	client := s.createClient("")
+	client := s.createClient()
 	node, err := client.GetNode("NODENAME")
 	s.AssertErrorContains(err, "unable to query nodes API")
 	s.Nil(node)
@@ -234,7 +238,7 @@ func (s *ClientSuite) TestGetNodeFailsIfGetsNilNode() {
 	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
 	s.mockNodes.EXPECT().Get("NODENAME", metav1.GetOptions{}).Return(nil, nil)
 
-	client := s.createClient("")
+	client := s.createClient()
 	node, err := client.GetNode("NODENAME")
 	s.AssertErrorContains(err, "got nil node for node name: NODENAME")
 	s.Nil(node)
@@ -246,7 +250,7 @@ func (s *ClientSuite) TestGetNodeSucceeds() {
 	expectedNode := createNode("NODENAME")
 	s.mockNodes.EXPECT().Get("NODENAME", metav1.GetOptions{}).Return(expectedNode, nil)
 
-	client := s.createClient("")
+	client := s.createClient()
 	node, err := client.GetNode("NODENAME")
 	s.NoError(err)
 	s.Equal(expectedNode, node)
@@ -254,7 +258,7 @@ func (s *ClientSuite) TestGetNodeSucceeds() {
 
 func (s *ClientSuite) TestValidateTokenFailsToLoadClient() {
 	client := s.createDefectiveClient("")
-	status, err := client.ValidateToken("token", []string{"aud1", "aud2"})
+	status, err := client.ValidateToken(testToken, []string{"aud1", "aud2"})
 	s.AssertErrorContains(err, "unable to get clientset")
 	s.Nil(status)
 }
@@ -262,11 +266,11 @@ func (s *ClientSuite) TestValidateTokenFailsToLoadClient() {
 func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
 	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
 	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
-	req := createTokenReview("the token", []string{"aud1"})
+	req := createTokenReview([]string{"aud1"})
 	s.mockTokenReviews.EXPECT().Create(req).Return(nil, errors.New("an error"))
 
-	client := s.createClient("")
-	status, err := client.ValidateToken("the token", []string{"aud1"})
+	client := s.createClient()
+	status, err := client.ValidateToken(testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "unable to query token review API")
 	s.Nil(status)
 }
@@ -274,11 +278,11 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
 func (s *ClientSuite) TestValidateTokenFailsIfGetsNilResponse() {
 	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
 	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
-	req := createTokenReview("the token", []string{"aud1"})
+	req := createTokenReview([]string{"aud1"})
 	s.mockTokenReviews.EXPECT().Create(req).Return(nil, nil)
 
-	client := s.createClient("")
-	status, err := client.ValidateToken("the token", []string{"aud1"})
+	client := s.createClient()
+	status, err := client.ValidateToken(testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response is nil")
 	s.Nil(status)
 }
@@ -287,13 +291,13 @@ func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
 	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
 	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
 
-	req := createTokenReview("the token", []string{"aud1"})
+	req := createTokenReview([]string{"aud1"})
 	resp := *req
 	resp.Status.Error = "an error"
 	s.mockTokenReviews.EXPECT().Create(req).Return(&resp, nil)
 
-	client := s.createClient("")
-	status, err := client.ValidateToken("the token", []string{"aud1"})
+	client := s.createClient()
+	status, err := client.ValidateToken(testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response contains an error")
 	s.Nil(status)
 }
@@ -302,13 +306,13 @@ func (s *ClientSuite) TestValidateTokenSucceeds() {
 	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
 	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
 
-	req := createTokenReview("the token", []string{"aud1"})
+	req := createTokenReview([]string{"aud1"})
 	resp := *req
 	resp.Status.Authenticated = true
 	s.mockTokenReviews.EXPECT().Create(req).Return(&resp, nil)
 
-	client := s.createClient("")
-	status, err := client.ValidateToken("the token", []string{"aud1"})
+	client := s.createClient()
+	status, err := client.ValidateToken(testToken, []string{"aud1"})
 	s.NoError(err)
 	s.NotNil(status)
 	s.True(status.Authenticated)
@@ -329,13 +333,12 @@ func (s *ClientSuite) TestLoadClientSucceds() {
 	s.NotNil(clientset)
 }
 
-func (s *ClientSuite) createClient(kubeConfigFilePath string) Client {
+func (s *ClientSuite) createClient() Client {
 	fakeLoadClient := func(kubeConfigFilePath string) (kubernetes.Interface, error) {
 		return s.mockClientset, nil
 	}
 	return &client{
-		kubeConfigFilePath: kubeConfigFilePath,
-		loadClientHook:     fakeLoadClient,
+		loadClientHook: fakeLoadClient,
 	}
 }
 
@@ -361,10 +364,10 @@ func createNode(nodeName string) *v1.Node {
 	return n
 }
 
-func createTokenReview(token string, audience []string) *authv1.TokenReview {
+func createTokenReview(audience []string) *authv1.TokenReview {
 	return &authv1.TokenReview{
 		Spec: authv1.TokenReviewSpec{
-			Token:     token,
+			Token:     testToken,
 			Audiences: audience,
 		},
 	}

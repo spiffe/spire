@@ -29,11 +29,6 @@ type Catalog interface {
 	GetWorkloadAttestors() []WorkloadAttestor
 }
 
-type CatalogCloser struct {
-	Catalog
-	catalog.Closer
-}
-
 type GlobalConfig = catalog.GlobalConfig
 type HCLPluginConfig = catalog.HCLPluginConfig
 type HCLPluginConfigMap = catalog.HCLPluginConfigMap
@@ -109,7 +104,12 @@ type Config struct {
 	HostServices []catalog.HostServiceServer
 }
 
-func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
+type Repository struct {
+	Catalog
+	catalog.Closer
+}
+
+func Load(ctx context.Context, config Config) (*Repository, error) {
 	pluginConfig, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
@@ -129,7 +129,7 @@ func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
 		return nil, err
 	}
 
-	return &CatalogCloser{
+	return &Repository{
 		Catalog: p,
 		Closer:  closer,
 	}, nil

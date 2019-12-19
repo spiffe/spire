@@ -214,8 +214,10 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 		return nil, errors.New("invalid response nonce size")
 	}
 	h := sha256.New()
-	h.Write(challenge)
-	h.Write(response)
+	// write the challenge and response and ignore errors since it will not
+	// fail writing to the digest
+	_, _ = h.Write(challenge)
+	_, _ = h.Write(response)
 	return h.Sum(nil), nil
 }
 

@@ -91,7 +91,7 @@ func New(t *testing.T, results ...Result) *WorkloadAPI {
 
 	w.server = grpc.NewServer()
 	workload.RegisterSpiffeWorkloadAPIServer(w.server, w)
-	go w.server.Serve(listener)
+	go func() { _ = w.server.Serve(listener) }()
 	return w
 }
 

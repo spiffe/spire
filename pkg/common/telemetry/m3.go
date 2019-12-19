@@ -48,7 +48,7 @@ func newM3Sink(serviceName, address, env string) (*m3Sink, error) {
 	return sink, nil
 }
 
-func newM3TestSink(scope tally.Scope, enableTypePrefix bool) *m3Sink {
+func newM3TestSink(scope tally.Scope) *m3Sink {
 	return &m3Sink{
 		scope: scope,
 	}

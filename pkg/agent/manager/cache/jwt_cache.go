@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"io"
 	"sort"
@@ -39,15 +39,15 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID string, audience []string, svid *clie
 }
 
 func jwtSVIDKey(spiffeID string, audience []string) string {
-	h := sha1.New()
+	h := sha256.New()
 
 	// duplicate and sort the audience slice
 	audience = append([]string(nil), audience...)
 	sort.Strings(audience)
 
-	io.WriteString(h, spiffeID)
+	_, _ = io.WriteString(h, spiffeID)
 	for _, a := range audience {
-		io.WriteString(h, a)
+		_, _ = io.WriteString(h, a)
 	}
 
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))

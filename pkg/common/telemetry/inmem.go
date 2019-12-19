@@ -54,7 +54,7 @@ func (i *inmemRunner) isConfigured() bool {
 }
 
 func (i *inmemRunner) sinks() []Sink {
-	if i.isConfigured() != true {
+	if !i.isConfigured() {
 		return []Sink{}
 	}
 
@@ -62,7 +62,7 @@ func (i *inmemRunner) sinks() []Sink {
 }
 
 func (i *inmemRunner) run(ctx context.Context) error {
-	if i.isConfigured() != true {
+	if !i.isConfigured() {
 		return nil
 	}
 

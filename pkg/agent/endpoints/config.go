@@ -27,8 +27,8 @@ type Config struct {
 	EnableSDS bool
 }
 
-func New(c *Config) *endpoints {
-	return &endpoints{
+func New(c *Config) *Endpoints {
+	return &Endpoints{
 		c: c,
 		unixListener: &peertracker.ListenerFactory{
 			Log: c.Log,

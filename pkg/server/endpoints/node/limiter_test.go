@@ -65,6 +65,7 @@ func TestLimiterFor(t *testing.T) {
 	// Invalid message type returns an error
 	li, err = l.limiterFor(100, "evan")
 	assert.Error(t, err)
+	assert.Nil(t, li)
 }
 
 func TestCallerID(t *testing.T) {
@@ -81,10 +82,12 @@ func TestCallerID(t *testing.T) {
 	}
 	id, err = l.callerID(peer.NewContext(context.Background(), p))
 	assert.Error(t, err)
+	assert.Empty(t, id)
 
 	// Fails when context is not a gRPC peer
 	id, err = l.callerID(context.Background())
 	assert.Error(t, err)
+	assert.Empty(t, id)
 }
 
 func TestNotify(t *testing.T) {
@@ -112,5 +115,5 @@ func newTestPeer() *peer.Peer {
 
 func newTestLimiter() (*limiter, *test.Hook) {
 	log, hook := test.NewNullLogger()
-	return NewLimiter(log), hook
+	return newLimiter(log), hook
 }

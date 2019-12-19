@@ -153,6 +153,7 @@ func TestServer(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			log, _ := logtest.NewNullLogger()
 
@@ -185,7 +186,11 @@ func TestServer(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			go server.Run(ctx)
+
+			errCh := make(chan error, 1)
+			go func() {
+				errCh <- server.Run(ctx)
+			}()
 
 			// do the request
 			client := http.Client{
@@ -199,8 +204,12 @@ func TestServer(t *testing.T) {
 
 			// assert the response which shows the handler was wired up
 			buf := new(bytes.Buffer)
-			buf.ReadFrom(resp.Body)
+			_, err = buf.ReadFrom(resp.Body)
+			require.NoError(t, err)
 			require.Equal(t, "Hello", buf.String())
+
+			cancel()
+			require.NoError(t, <-errCh)
 		})
 	}
 }
@@ -248,13 +257,12 @@ func checkErr(t *testing.T, err error, expected string) bool {
 	if expected == "" {
 		require.NoError(t, err)
 		return true
-	} else {
-		require.Error(t, err)
-		require.Contains(t, err.Error(), expected)
-		return false
 	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), expected)
+	return false
 }
 
 func echoHandler(w http.ResponseWriter, req *http.Request) {
-	io.Copy(w, req.Body)
+	_, _ = io.Copy(w, req.Body)
 }

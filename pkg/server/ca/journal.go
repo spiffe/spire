@@ -172,7 +172,7 @@ func migrateJSONFile(from, to string) (bool, error) {
 	}
 
 	parseX509CA := func(slotID string) (*X509CAEntry, error) {
-		certsBytes := data.CAs[x509CAKmKeyId(slotID)]
+		certsBytes := data.CAs[x509CAKmKeyID(slotID)]
 		if len(certsBytes) == 0 {
 			return nil, nil
 		}
@@ -207,7 +207,7 @@ func migrateJSONFile(from, to string) (bool, error) {
 	}
 
 	parseJWTKey := func(slotID string) (*JWTKeyEntry, error) {
-		entryData := data.PublicKeys[jwtKeyKmKeyId(slotID)]
+		entryData := data.PublicKeys[jwtKeyKmKeyID(slotID)]
 		if len(entryData) == 0 {
 			return nil, nil
 		}

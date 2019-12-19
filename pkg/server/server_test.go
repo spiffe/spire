@@ -49,8 +49,8 @@ func (suite *ServerTestSuite) SetupTest() {
 	})
 }
 
-func (s *ServerTestSuite) TearDownTest() {
-	s.mockCtrl.Finish()
+func (suite *ServerTestSuite) TearDownTest() {
+	suite.mockCtrl.Finish()
 }
 
 func TestServerTestSuite(t *testing.T) {
@@ -68,7 +68,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// Create new trust domain
 	newTrustDomain := "spiffe://new_test.com"
-	newUri, err := url.Parse(newTrustDomain)
+	newURI, err := url.Parse(newTrustDomain)
 	suite.NoError(err)
 
 	// Set trust domain to server
@@ -80,7 +80,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.NoError(err)
 
 	// create attested node with current trust domain
-	ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+	_, err = ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
 			SpiffeId:            "spiffe://test.com/host",
 			AttestationDataType: "fake_nodeattestor_1",
@@ -88,13 +88,14 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 			CertSerialNumber:    "18392437442709699290",
 		},
 	})
+	suite.NoError(err)
 
 	// Attested now with same trust domain created, no error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
 	suite.NoError(err)
 
 	// Update server trust domain to force errors
-	suite.server.config.TrustDomain = *newUri
+	suite.server.config.TrustDomain = *newURI
 
 	// Update server's trust domain, error expected because invalid trust domain
 	err = suite.server.validateTrustDomain(ctx, ds)
@@ -106,19 +107,20 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.server.config.TrustDomain = *uri
 
 	// Create a registration entry with original trust domain
-	ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+	_, err = ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &common.RegistrationEntry{
 			SpiffeId:  "spiffe://test.com/foo",
 			Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
 		},
 	})
+	suite.NoError(err)
 
 	// Attested node and registration entry have the same trust domain as server, no error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
 	suite.NoError(err)
 
 	// Update server's trust domain, error expected because invalid trust domain
-	suite.server.config.TrustDomain = *newUri
+	suite.server.config.TrustDomain = *newURI
 	err = suite.server.validateTrustDomain(ctx, ds)
 	suite.EqualError(err, fmt.Sprintf(invalidTrustDomainRegistrationEntry, "test.com", "new_test.com"))
 
@@ -136,9 +138,10 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.Contains(err.Error(), expectedError)
 
 	// remove entry to solve error
-	ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
+	_, err = ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
 		EntryId: resp.Entry.EntryId,
 	})
+	suite.NoError(err)
 
 	// create attested node with current trust domain
 	// drop resp

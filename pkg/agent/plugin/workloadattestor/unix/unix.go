@@ -31,7 +31,7 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *UnixPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
 }
 
@@ -46,27 +46,27 @@ type Configuration struct {
 	WorkloadSizeLimit    int64 `hcl:"workload_size_limit"`
 }
 
-type UnixPlugin struct {
+type Plugin struct {
 	mu     sync.Mutex
 	config *Configuration
 
 	// hooks for tests
 	hooks struct {
 		newProcess      func(pid int32) (processInfo, error)
-		lookupUserById  func(id string) (*user.User, error)
-		lookupGroupById func(id string) (*user.Group, error)
+		lookupUserByID  func(id string) (*user.User, error)
+		lookupGroupByID func(id string) (*user.Group, error)
 	}
 }
 
-func New() *UnixPlugin {
-	p := &UnixPlugin{}
+func New() *Plugin {
+	p := &Plugin{}
 	p.hooks.newProcess = func(pid int32) (processInfo, error) { return process.NewProcess(pid) }
-	p.hooks.lookupUserById = user.LookupId
-	p.hooks.lookupGroupById = user.LookupGroupId
+	p.hooks.lookupUserByID = user.LookupId
+	p.hooks.lookupGroupByID = user.LookupGroupId
 	return p
 }
 
-func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 
 	var selectors []*common.Selector
 
-	uid, err := p.getUid(proc)
+	uid, err := p.getUID(proc)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 		selectors = append(selectors, makeSelector("user", user))
 	}
 
-	gid, err := p.getGid(proc)
+	gid, err := p.getGID(proc)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 	}, nil
 }
 
-func (p *UnixPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := new(Configuration)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, unixErr.Wrap(err)
@@ -133,11 +133,11 @@ func (p *UnixPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p *UnixPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (p *Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *UnixPlugin) getConfig() (*Configuration, error) {
+func (p *Plugin) getConfig() (*Configuration, error) {
 	p.mu.Lock()
 	config := p.config
 	p.mu.Unlock()
@@ -147,13 +147,13 @@ func (p *UnixPlugin) getConfig() (*Configuration, error) {
 	return config, nil
 }
 
-func (p *UnixPlugin) setConfig(config *Configuration) {
+func (p *Plugin) setConfig(config *Configuration) {
 	p.mu.Lock()
 	p.config = config
 	p.mu.Unlock()
 }
 
-func (p *UnixPlugin) getUid(proc processInfo) (string, error) {
+func (p *Plugin) getUID(proc processInfo) (string, error) {
 	uids, err := proc.Uids()
 	if err != nil {
 		return "", unixErr.New("UIDs lookup: %v", err)
@@ -169,15 +169,15 @@ func (p *UnixPlugin) getUid(proc processInfo) (string, error) {
 	}
 }
 
-func (p *UnixPlugin) getUserName(uid string) (string, bool) {
-	u, err := p.hooks.lookupUserById(uid)
+func (p *Plugin) getUserName(uid string) (string, bool) {
+	u, err := p.hooks.lookupUserByID(uid)
 	if err != nil {
 		return "", false
 	}
 	return u.Username, true
 }
 
-func (p *UnixPlugin) getGid(proc processInfo) (string, error) {
+func (p *Plugin) getGID(proc processInfo) (string, error) {
 	gids, err := proc.Gids()
 	if err != nil {
 		return "", unixErr.New("GIDs lookup: %v", err)
@@ -193,15 +193,15 @@ func (p *UnixPlugin) getGid(proc processInfo) (string, error) {
 	}
 }
 
-func (p *UnixPlugin) getGroupName(gid string) (string, bool) {
-	g, err := p.hooks.lookupGroupById(gid)
+func (p *Plugin) getGroupName(gid string) (string, bool) {
+	g, err := p.hooks.lookupGroupByID(gid)
 	if err != nil {
 		return "", false
 	}
 	return g.Name, true
 }
 
-func (p *UnixPlugin) getPath(proc processInfo) (string, error) {
+func (p *Plugin) getPath(proc processInfo) (string, error) {
 	path, err := proc.Exe()
 	if err != nil {
 		return "", unixErr.New("path lookup: %v", err)

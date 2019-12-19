@@ -39,7 +39,10 @@ func main() {
 	outFlag := fs.String("out", "", "package to output, defaults to current package if blank")
 	modeFlag := fs.String("mode", "plugin", `generation mode (one of "plugin", "service", "hostservice")`)
 	sharedFlag := fs.Bool("shared", false, `output package is a shared package (forces prefix on generated code)`)
-	fs.Parse(os.Args[1:])
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		fs.Usage()
+		os.Exit(1)
+	}
 
 	args := fs.Args()
 	if len(args) < 2 {
@@ -140,11 +143,10 @@ func (g *generator) generate() (err error) {
 			pkg = outPkg
 		}
 		g.outPkg = outPkg
-	} else {
-		if g.Package == "" {
-			g.Package = filepath.Base(g.Out)
-		}
+	} else if g.Package == "" {
+		g.Package = filepath.Base(g.Out)
 	}
+
 	if pkg == nil {
 		pkg, err = loadPackage(g.PackagePath, true)
 		if err != nil {
@@ -303,15 +305,14 @@ func (g *generator) getTypeFromObj(obj types.Object) (goImport, string) {
 		}
 		if imp.As != "" {
 			return imp, fmt.Sprintf("%s.%s", imp.As, obj.Name())
-		} else {
-			return imp, fmt.Sprintf("%s.%s", obj.Pkg().Name(), obj.Name())
 		}
+		return imp, fmt.Sprintf("%s.%s", obj.Pkg().Name(), obj.Name())
 	}
 }
 
 func loadPackage(path string, ignoreErrors bool) (*types.Package, error) {
 	pkgs, err := packages.Load(&packages.Config{
-		Mode: packages.LoadTypes,
+		Mode: packages.NeedTypes | packages.NeedImports,
 	}, path)
 	if err != nil {
 		return nil, errs.New("unable to load package %q: %v", path, err)
@@ -330,8 +331,7 @@ func loadPackage(path string, ignoreErrors bool) (*types.Package, error) {
 }
 
 func pkgAs(path string) string {
-	switch path {
-	case "github.com/spiffe/spire/proto/spire/common/plugin":
+	if path == "github.com/spiffe/spire/proto/spire/common/plugin" {
 		return "spi"
 	}
 	return ""

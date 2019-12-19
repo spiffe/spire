@@ -37,7 +37,7 @@ func TestCreateVanityRecord(t *testing.T) {
 	c := mock_registration.NewMockRegistrationClient(ctrl)
 	token := "foobar"
 	spiffeID := "spiffe://example.org/VanityID"
-	tokenID := "spiffe://example.org/spire/agent/join_token/foobar"
+	tokenID := "spiffe://example.org/spire/agent/join_token/foobar" //nolint: gosec // false positive
 
 	req := &common.RegistrationEntry{
 		ParentId: tokenID,

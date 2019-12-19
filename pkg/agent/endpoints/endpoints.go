@@ -26,12 +26,12 @@ type Server interface {
 	ListenAndServe(ctx context.Context) error
 }
 
-type endpoints struct {
+type Endpoints struct {
 	c            *Config
 	unixListener *peertracker.ListenerFactory
 }
 
-func (e *endpoints) ListenAndServe(ctx context.Context) error {
+func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	server := grpc.NewServer(
 		grpc.Creds(peertracker.NewCredentials()),
 		grpc.UnknownServiceHandler(UnknownServiceHandler(e.c.Log)),
@@ -70,7 +70,7 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	}
 }
 
-func (e *endpoints) registerWorkloadAPI(server *grpc.Server) {
+func (e *Endpoints) registerWorkloadAPI(server *grpc.Server) {
 	w := &workload.Handler{
 		Manager: e.c.Manager,
 		Catalog: e.c.Catalog,
@@ -81,7 +81,7 @@ func (e *endpoints) registerWorkloadAPI(server *grpc.Server) {
 	workload_pb.RegisterSpiffeWorkloadAPIServer(server, w)
 }
 
-func (e *endpoints) registerSecretDiscoveryService(server *grpc.Server) {
+func (e *Endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 	attestor := attestor.New(&attestor.Config{
 		Catalog: e.c.Catalog,
 		Log:     e.c.Log,
@@ -97,7 +97,7 @@ func (e *endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 	sds_v2.RegisterSecretDiscoveryServiceServer(server, h)
 }
 
-func (e *endpoints) createUDSListener() (net.Listener, error) {
+func (e *Endpoints) createUDSListener() (net.Listener, error) {
 	// Remove uds if already exists
 	os.Remove(e.c.BindAddr.String())
 
@@ -106,7 +106,9 @@ func (e *endpoints) createUDSListener() (net.Listener, error) {
 		return nil, fmt.Errorf("create UDS listener: %s", err)
 	}
 
-	os.Chmod(e.c.BindAddr.String(), os.ModePerm)
+	if err := os.Chmod(e.c.BindAddr.String(), os.ModePerm); err != nil {
+		return nil, fmt.Errorf("unable to change UDS permissions: %v", err)
+	}
 	return l, nil
 }
 

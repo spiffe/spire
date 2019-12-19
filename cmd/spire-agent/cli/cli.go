@@ -30,7 +30,7 @@ func Run(args []string) int {
 			return &api.WatchCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return &run.RunCLI{}, nil
+			return &run.Command{}, nil
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil

@@ -508,6 +508,8 @@ func TestMergeInput(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		fileInput := &config{Server: &serverConfig{}}
 		cliInput := &serverConfig{}
 
@@ -809,6 +811,8 @@ func TestNewServerConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		input := defaultValidConfig()
 
 		testCase.input(input)
@@ -920,6 +924,8 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		c, err := parseFile(testCase.testFilePath)
 		require.NoError(t, err)
 

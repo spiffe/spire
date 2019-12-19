@@ -15,10 +15,6 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-const (
-	keyIDHeader = "kid"
-)
-
 type SignerConfig struct {
 	Clock clock.Clock
 

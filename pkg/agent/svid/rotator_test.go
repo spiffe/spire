@@ -69,7 +69,7 @@ func (s *RotatorTestSuite) SetupTest() {
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 		Clk:          s.mockClock,
 	}
-	s.r, _ = NewRotator(c)
+	s.r, _ = newRotator(c)
 	s.r.client = s.client
 }
 

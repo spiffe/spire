@@ -177,9 +177,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		if err != nil {
 			return satError.New("fail to parse username from token review status: %v", err)
 		}
-
 	} else {
-
 		token, err := jwt.ParseSigned(attestationData.Token)
 		if err != nil {
 			return satError.New("unable to parse token: %v", err)
@@ -247,7 +245,6 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 	for name, cluster := range hclConfig.Clusters {
-
 		var serviceAccountKeys []crypto.PublicKey
 		var apiserverClient apiserver.Client
 		var err error
