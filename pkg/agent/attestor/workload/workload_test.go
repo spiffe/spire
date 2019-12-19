@@ -84,7 +84,6 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
-
 	// Add only one attestor
 	catalog := fakeagentcatalog.New()
 	catalog.SetWorkloadAttestors(

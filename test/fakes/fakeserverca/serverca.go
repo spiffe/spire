@@ -71,7 +71,7 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	}
 	require.NoError(t, err)
 
-	serverCA := ca.NewCA(ca.CAConfig{
+	serverCA := ca.NewCA(ca.Config{
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
 		TrustDomain: url.URL{Scheme: "spiffe", Host: trustDomain},

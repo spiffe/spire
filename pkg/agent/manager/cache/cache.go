@@ -30,8 +30,8 @@ type WorkloadUpdate struct {
 	FederatedBundles map[string]*bundleutil.Bundle
 }
 
-// CacheUpdate holds information for an update to the cache.
-type CacheUpdate struct {
+// Update holds information for an update to the cache.
+type Update struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by
 	// trust domain id.
 	Bundles map[string]*bundleutil.Bundle
@@ -175,7 +175,7 @@ func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscri
 	return sub
 }
 
-func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationEntry, *X509SVID)) {
+func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry, *X509SVID)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

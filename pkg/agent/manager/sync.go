@@ -80,7 +80,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.CacheUpdate, err error) {
+func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.Update, err error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
@@ -137,7 +137,7 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		}
 	}
 
-	return &cache.CacheUpdate{
+	return &cache.Update{
 		Bundles:             bundles,
 		RegistrationEntries: update.Entries,
 		X509SVIDs:           byEntryID,

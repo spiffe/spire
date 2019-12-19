@@ -19,7 +19,7 @@ func (p *Base) BrokerHostServices(broker catalog.HostServiceBroker) error {
 		return err
 	}
 	if !has {
-		return errors.New("AgentStore host service is required")
+		return errors.New("required AgentStore host service not available")
 	}
 	return nil
 }

@@ -142,9 +142,10 @@ func (s *HandlerSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.handler = sds_v2.NewSecretDiscoveryServiceClient(conn)
 
-	s.server = grpc.NewServer(grpc.Creds(FakeCreds{}))
-	sds_v2.RegisterSecretDiscoveryServiceServer(s.server, handler)
-	go s.server.Serve(listener)
+	server := grpc.NewServer(grpc.Creds(FakeCreds{}))
+	sds_v2.RegisterSecretDiscoveryServiceServer(server, handler)
+	go func() { _ = server.Serve(listener) }()
+	s.server = server
 
 	s.setWorkloadUpdate(workloadCert1)
 }
@@ -154,10 +155,11 @@ func (s *HandlerSuite) TearDownTest() {
 }
 
 func (s *HandlerSuite) TestStreamSecretsStreamAllSecrets() {
-
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{})
 
@@ -169,7 +171,9 @@ func (s *HandlerSuite) TestStreamSecretsStreamAllSecrets() {
 func (s *HandlerSuite) TestStreamSecretsStreamTrustDomainBundleOnly() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test"},
@@ -182,7 +186,9 @@ func (s *HandlerSuite) TestStreamSecretsStreamTrustDomainBundleOnly() {
 func (s *HandlerSuite) TestStreamSecretsStreamFederatedTrustDomainBundleOnly() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://otherdomain.test"},
@@ -195,7 +201,9 @@ func (s *HandlerSuite) TestStreamSecretsStreamFederatedTrustDomainBundleOnly() {
 func (s *HandlerSuite) TestStreamSecretsStreamTLSCertificateOnly() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/workload"},
@@ -208,7 +216,9 @@ func (s *HandlerSuite) TestStreamSecretsStreamTLSCertificateOnly() {
 func (s *HandlerSuite) TestStreamSecretsUnknownResource() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/WHATEVER"},
@@ -221,7 +231,9 @@ func (s *HandlerSuite) TestStreamSecretsUnknownResource() {
 func (s *HandlerSuite) TestStreamSecretsStreaming() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/workload"},
@@ -242,7 +254,9 @@ func (s *HandlerSuite) TestStreamSecretsStreaming() {
 func (s *HandlerSuite) TestStreamSecretsApplicationDoesNotSpin() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	// Subscribe to some updates
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
@@ -273,7 +287,9 @@ func (s *HandlerSuite) TestStreamSecretsRequestReceivedBeforeWorkloadUpdate() {
 
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/workload"},
@@ -289,7 +305,9 @@ func (s *HandlerSuite) TestStreamSecretsRequestReceivedBeforeWorkloadUpdate() {
 func (s *HandlerSuite) TestStreamSecretsSubChanged() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/workload"},
@@ -321,7 +339,9 @@ func (s *HandlerSuite) TestStreamSecretsSubChanged() {
 func (s *HandlerSuite) TestStreamSecretsBadNonce() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	// The first request should be good
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
@@ -442,7 +462,7 @@ func (s *HandlerSuite) requireSecrets(resp *api_v2.DiscoveryResponse, expectedSe
 	var actualSecrets []*auth_v2.Secret
 	for _, resource := range resp.Resources {
 		secret := new(auth_v2.Secret)
-		s.Require().NoError(types.UnmarshalAny(&resource, secret))
+		s.Require().NoError(types.UnmarshalAny(&resource, secret)) //nolint: scopelint // pointer to resource isn't held
 		actualSecrets = append(actualSecrets, secret)
 	}
 

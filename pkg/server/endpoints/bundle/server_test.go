@@ -117,9 +117,10 @@ func TestServer(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			addr, done := newTestServer(t,
-				testBundleGetter(testCase.bundle),
+				testGetter(testCase.bundle),
 				testSPIFFEAuth(testCase.serverCert, serverKey),
 			)
 			defer done()
@@ -173,7 +174,7 @@ func TestACMEAuth(t *testing.T) {
 	// configurable to be set in order to funcion.
 	t.Run("new-account-tos-not-accepted", func(t *testing.T) {
 		log, hook := test.NewNullLogger()
-		addr, done := newTestServer(t, testBundleGetter(bundle),
+		addr, done := newTestServer(t, testGetter(bundle),
 			ACMEAuth(log, km, ACMEConfig{
 				DirectoryURL: ca.URL,
 				DomainName:   "domain.test",
@@ -188,7 +189,7 @@ func TestACMEAuth(t *testing.T) {
 
 		// Request should fail since the challenge to obtain a certificate
 		// will not proceed if the TOS has not been accepted.
-		_, err := client.Get(fmt.Sprintf("https://%s", addr))
+		_, err := client.Get(fmt.Sprintf("https://%s", addr)) //nolint: bodyclose // request should fail so no body to close
 		require.Error(t, err)
 
 		if entry := hook.LastEntry(); assert.NotNil(t, entry) {
@@ -205,7 +206,7 @@ func TestACMEAuth(t *testing.T) {
 	// Perform the initial challenge to obtain a new certificate.
 	t.Run("initial", func(t *testing.T) {
 		log, hook := test.NewNullLogger()
-		addr, done := newTestServer(t, testBundleGetter(bundle),
+		addr, done := newTestServer(t, testGetter(bundle),
 			ACMEAuth(log, km, ACMEConfig{
 				DirectoryURL: ca.URL,
 				DomainName:   "domain.test",
@@ -248,7 +249,7 @@ func TestACMEAuth(t *testing.T) {
 	// as a way of telling that the challenge was not attempted
 	t.Run("cached", func(t *testing.T) {
 		log, _ := test.NewNullLogger()
-		addr, done := newTestServer(t, testBundleGetter(bundle),
+		addr, done := newTestServer(t, testGetter(bundle),
 			ACMEAuth(log, km, ACMEConfig{
 				DirectoryURL: ca.URL,
 				DomainName:   "domain.test",
@@ -267,7 +268,7 @@ func TestACMEAuth(t *testing.T) {
 	})
 }
 
-func newTestServer(t *testing.T, bundleGetter BundleGetter, serverAuth ServerAuth) (net.Addr, func()) {
+func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth) (net.Addr, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	addrCh := make(chan net.Addr, 1)
@@ -282,11 +283,11 @@ func newTestServer(t *testing.T, bundleGetter BundleGetter, serverAuth ServerAut
 
 	log, _ := test.NewNullLogger()
 	server := NewServer(ServerConfig{
-		Log:          log,
-		Address:      "localhost:0",
-		BundleGetter: bundleGetter,
-		ServerAuth:   serverAuth,
-		listen:       listen,
+		Log:        log,
+		Address:    "localhost:0",
+		Getter:     getter,
+		ServerAuth: serverAuth,
+		listen:     listen,
 	})
 
 	errCh := make(chan error, 1)
@@ -309,8 +310,8 @@ func newTestServer(t *testing.T, bundleGetter BundleGetter, serverAuth ServerAut
 	return addr, cancel
 }
 
-func testBundleGetter(bundle *bundleutil.Bundle) BundleGetter {
-	return BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
+func testGetter(bundle *bundleutil.Bundle) Getter {
+	return GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
 		if bundle == nil {
 			return nil, errors.New("no bundle configured")
 		}

@@ -67,6 +67,9 @@ func NewManager(config ManagerConfig) *Manager {
 func (m *Manager) Run(ctx context.Context) error {
 	var tasks []func(context.Context) error
 	for trustDomain, updater := range m.updaters {
+		// alias the loop variables that are used by the closure
+		trustDomain := trustDomain
+		updater := updater
 		tasks = append(tasks, func(ctx context.Context) error {
 			return m.runUpdater(ctx, trustDomain, updater)
 		})

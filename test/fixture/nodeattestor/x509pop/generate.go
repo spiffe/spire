@@ -69,7 +69,7 @@ func createCertificate(key *rsa.PrivateKey, tmpl *x509.Certificate, parentKey *r
 }
 
 func generateRSAKey() *rsa.PrivateKey {
-	key, err := rsa.GenerateKey(rand.Reader, 768)
+	key, err := rsa.GenerateKey(rand.Reader, 768) //nolint: gosec // small key is to keep test fast... not a security feature
 	panice(err)
 	return key
 }

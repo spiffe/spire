@@ -147,7 +147,9 @@ func (s *Suite) TestFetchAttestationDataFailure() {
 	// not configured
 	stream, err := s.newPlugin().FetchAttestationData(context.Background())
 	require.NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		require.NoError(stream.CloseSend())
+	}()
 	resp, err := stream.Recv()
 	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: not configured")
 	require.Nil(resp)

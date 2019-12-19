@@ -123,28 +123,28 @@ func (b *Bundle) AppendJWTSigningKey(kid string, key crypto.PublicKey) error {
 	return nil
 }
 
-func BundleProtoFromRootCADER(trustDomainId string, derBytes []byte) *common.Bundle {
+func BundleProtoFromRootCADER(trustDomainID string, derBytes []byte) *common.Bundle {
 	return &common.Bundle{
-		TrustDomainId: trustDomainId,
+		TrustDomainId: trustDomainID,
 		RootCas:       []*common.Certificate{{DerBytes: derBytes}},
 	}
 }
 
-func BundleProtoFromRootCAsDER(trustDomainId string, derBytes []byte) (*common.Bundle, error) {
+func BundleProtoFromRootCAsDER(trustDomainID string, derBytes []byte) (*common.Bundle, error) {
 	rootCAs, err := x509.ParseCertificates(derBytes)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	return BundleProtoFromRootCAs(trustDomainId, rootCAs), nil
+	return BundleProtoFromRootCAs(trustDomainID, rootCAs), nil
 }
 
-func BundleProtoFromRootCA(trustDomainId string, rootCA *x509.Certificate) *common.Bundle {
-	return BundleProtoFromRootCAs(trustDomainId, []*x509.Certificate{rootCA})
+func BundleProtoFromRootCA(trustDomainID string, rootCA *x509.Certificate) *common.Bundle {
+	return BundleProtoFromRootCAs(trustDomainID, []*x509.Certificate{rootCA})
 }
 
-func BundleProtoFromRootCAs(trustDomainId string, rootCAs []*x509.Certificate) *common.Bundle {
+func BundleProtoFromRootCAs(trustDomainID string, rootCAs []*x509.Certificate) *common.Bundle {
 	b := &common.Bundle{
-		TrustDomainId: trustDomainId,
+		TrustDomainId: trustDomainID,
 	}
 	for _, rootCA := range rootCAs {
 		b.RootCas = append(b.RootCas, &common.Certificate{

@@ -28,9 +28,7 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	runTask := func(task func(context.Context) error) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				errch <- fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack()))
-			} else {
-				errch <- err
+				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack())) //nolint: golint // newlines are intentional
 			}
 			wg.Done()
 		}()
@@ -39,7 +37,10 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 
 	wg.Add(len(tasks))
 	for _, task := range tasks {
-		go runTask(task)
+		task := task
+		go func() {
+			errch <- runTask(task)
+		}()
 	}
 
 	for complete := 0; complete < len(tasks); {

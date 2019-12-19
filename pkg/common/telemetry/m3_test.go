@@ -76,7 +76,7 @@ func TestRunM3(t *testing.T) {
 
 func TestAddSampleForDurationHistogram(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
-	sink := newM3TestSink(scope, true)
+	sink := newM3TestSink(scope)
 	metricName := "foobar_duration_metric"
 	metricKey := []string{"service_name", "timer", metricName}
 	metricVal := float32(123.456)
@@ -98,7 +98,7 @@ func TestAddSampleForDurationHistogram(t *testing.T) {
 
 func TestAddSampleForValueHistogram(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
-	sink := newM3TestSink(scope, true)
+	sink := newM3TestSink(scope)
 	metricName := "foobar_value_metric"
 	metricKey := []string{"service_name", "sample", metricName}
 	metricVal := float32(789.0123)

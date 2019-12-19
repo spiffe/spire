@@ -74,6 +74,7 @@ func (s *Suite) TestAttestSuccess() {
 	}
 
 	for _, tt := range tests {
+		tt := tt // alias loop variable as it is used in the closure
 		s.T().Run(tt.desc, func(t *testing.T) {
 			s.configure(tt.giveConfig)
 
@@ -259,7 +260,6 @@ func (s *Suite) TestConfigure() {
 	})
 	s.errorContains(err, "x509pop: unable to load trust bundle")
 	require.Nil(resp)
-
 }
 
 func (s *Suite) TestGetPluginInfo() {

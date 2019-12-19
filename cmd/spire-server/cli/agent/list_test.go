@@ -56,7 +56,7 @@ func (s *ListTestSuite) TestRunWithNoAgentsInDatastore() {
 
 func (s *ListTestSuite) TestRunExitsWithNonZeroCodeOnFailure() {
 	req := &registration.ListAgentsRequest{}
-	s.mockClient.EXPECT().ListAgents(gomock.Any(), req).Return(nil, errors.New("Some error"))
+	s.mockClient.EXPECT().ListAgents(gomock.Any(), req).Return(nil, errors.New("some error"))
 	s.Require().Equal(1, s.cli.Run([]string{}))
 	s.Assert().Nil(s.cli.nodeList)
 }

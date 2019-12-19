@@ -18,7 +18,7 @@ import (
 const (
 	pluginName = "k8s_sat"
 
-	defaultTokenPath = "/run/secrets/kubernetes.io/serviceaccount/token"
+	defaultTokenPath = "/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 )
 
 var (

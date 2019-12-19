@@ -20,11 +20,6 @@ import (
 const (
 	// the latest schema version of the database in the code
 	latestSchemaVersion = 13
-
-	// version in which new DB migration / compatibility design
-	// was introduced; it is the minimum SPIRE Code version in the DB
-	// to be able to disable auto-migration
-	minimumCodeVersionToDisableMigrate = "0.9.0"
 )
 
 var (
@@ -195,7 +190,7 @@ func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	if err := addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx); err != nil {
+	if err := addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx); err != nil {
 		return err
 	}
 
@@ -284,7 +279,8 @@ func migrateToV1(tx *gorm.DB) error {
 	// easily because that operation is not supported by all dialects (thanks,
 	// sqlite3).
 	for _, table := range v0tables {
-		if err := tx.Exec(fmt.Sprintf("DELETE FROM %s WHERE deleted_at IS NOT NULL;", table)).Error; err != nil {
+		stmt := fmt.Sprintf("DELETE FROM %s WHERE deleted_at IS NOT NULL;", table) //nolint: gosec // table source is controlled
+		if err := tx.Exec(stmt).Error; err != nil {
 			return sqlError.Wrap(err)
 		}
 	}
@@ -456,7 +452,7 @@ func migrateToV10(tx *gorm.DB) error {
 }
 
 func migrateToV11(tx *gorm.DB) error {
-	if err := addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx); err != nil {
+	if err := addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx); err != nil {
 		return err
 	}
 	return nil
@@ -476,13 +472,13 @@ func migrateToV13(tx *gorm.DB) error {
 	return nil
 }
 
-func addFederatedRegistrationEntriesRegisteredEntryIdIndex(tx *gorm.DB) error {
+func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
 	// GORM creates the federated_registration_entries implicitly with a primary
 	// key tuple (bundle_id, registered_entry_id). Unfortunately, MySQL5 does
 	// not use the primary key index efficiently when joining by registered_entry_id
 	// during registration entry list operations. We can't use gorm AutoMigrate
 	// to introduce the index since there is no explicit struct to add tags to
-	// so we ahve to manually create it.
+	// so we have to manually create it.
 	if err := tx.Table("federated_registration_entries").AddIndex("idx_federated_registration_entries_registered_entry_id", "registered_entry_id").Error; err != nil {
 		return sqlError.Wrap(err)
 	}

@@ -23,7 +23,7 @@ import (
 
 const (
 	pluginName                  = "gcp_iit"
-	tokenAudience               = "spire-gcp-node-attestor"
+	tokenAudience               = "spire-gcp-node-attestor" //nolint: gosec // false positive
 	googleCertURL               = "https://www.googleapis.com/oauth2/v1/certs"
 	defaultMaxMetadataValueSize = 128
 )

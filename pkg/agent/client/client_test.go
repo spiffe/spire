@@ -28,7 +28,7 @@ func TestFetchUpdates(t *testing.T) {
 	defer ctrl.Finish()
 	nodeClient := mock_node.NewMockNodeClient(ctrl)
 	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
-	client := createClient(t, nodeClient)
+	client := createClient(nodeClient)
 
 	req := newTestFetchX509SVIDRequest()
 	res := newTestFetchX509SVIDResponse()
@@ -133,7 +133,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 	defer ctrl.Finish()
 	nodeClient := mock_node.NewMockNodeClient(ctrl)
 	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
-	client := createClient(t, nodeClient)
+	client := createClient(nodeClient)
 
 	req := newTestFetchX509SVIDRequest()
 	res := newTestFetchX509SVIDResponse()
@@ -169,7 +169,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 }
 
 func TestNewNodeClientRelease(t *testing.T) {
-	client := createClient(t, nil)
+	client := createClient(nil)
 
 	for i := 0; i < 3; i++ {
 		_, r, err := client.newNodeClient(context.Background())
@@ -186,7 +186,7 @@ func TestNewNodeClientRelease(t *testing.T) {
 }
 
 func TestNewNodeInternalClientRelease(t *testing.T) {
-	client := createClient(t, nil)
+	client := createClient(nil)
 
 	for i := 0; i < 3; i++ {
 		_, nodeConn, err := client.newNodeClient(context.Background())
@@ -204,7 +204,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetchX509SVID(t *testing.T) {
 	defer ctrl.Finish()
 	nodeClient := mock_node.NewMockNodeClient(ctrl)
 	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nil, errors.New("an error"))
-	client := createClient(t, nodeClient)
+	client := createClient(nodeClient)
 
 	update, err := client.FetchUpdates(context.Background(), &node.FetchX509SVIDRequest{}, false)
 	assert.Nil(t, update)
@@ -219,9 +219,8 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToSendRequest(t *testing.T) {
 	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
 	req := &node.FetchX509SVIDRequest{}
 	nodeFsc.EXPECT().Send(req).Return(errors.New("an error"))
-	nodeFsc.EXPECT().CloseSend()
 	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
-	client := createClient(t, nodeClient)
+	client := createClient(nodeClient)
 
 	update, err := client.FetchUpdates(context.Background(), req, false)
 	assert.Nil(t, update)
@@ -236,10 +235,10 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
 	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
 	req := &node.FetchX509SVIDRequest{}
 	nodeFsc.EXPECT().Send(req).Return(nil)
-	nodeFsc.EXPECT().CloseSend()
+	nodeFsc.EXPECT().CloseSend().Return(nil)
 	nodeFsc.EXPECT().Recv().Return(nil, errors.New("an error"))
 	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
-	client := createClient(t, nodeClient)
+	client := createClient(nodeClient)
 
 	update, err := client.FetchUpdates(context.Background(), req, false)
 	assert.Nil(t, update)
@@ -248,8 +247,8 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
 }
 
 // Creates a sample client with mocked components for testing purposes
-func createClient(t *testing.T, nodeClient *mock_node.MockNodeClient) *client {
-	client := New(&Config{
+func createClient(nodeClient *mock_node.MockNodeClient) *client {
+	client := newClient(&Config{
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 		RotMtx:        new(sync.RWMutex),

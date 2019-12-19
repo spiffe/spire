@@ -224,6 +224,7 @@ func TestAttestor(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			require := require.New(t)
 
@@ -475,6 +476,7 @@ func TestIsSVIDValid(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.Desc, func(t *testing.T) {
 			isExpired := isSVIDExpired(tt.SVID, func() time.Time { return now })
 			require.Equal(t, tt.ExpectExpired, isExpired)

@@ -34,7 +34,7 @@ func readARN(ctx context.Context, sm secretsManagerClient, arn string) (string, 
 	return *resp.SecretString, nil
 }
 
-func newSecretsManagerClient(config *AWSSecretConfiguration, region string) (secretsManagerClient, error) {
+func newSecretsManagerClient(config *Config, region string) (secretsManagerClient, error) {
 	awsConfig := &aws.Config{
 		Region: aws.String(region),
 	}

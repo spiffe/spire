@@ -26,7 +26,11 @@ type RotatorConfig struct {
 	Interval time.Duration
 }
 
-func NewRotator(c *RotatorConfig) *rotator {
+func NewRotator(c *RotatorConfig) Rotator {
+	return newRotator(c)
+}
+
+func newRotator(c *RotatorConfig) *rotator {
 	if c.Interval == 0 {
 		c.Interval = DefaultRotatorInterval
 	}
