@@ -8,8 +8,15 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"google.golang.org/grpc"
 )
+
+type NodeResolverClient = noderesolver.NodeResolverClient                           //nolint: golint
+type NodeResolverServer = noderesolver.NodeResolverServer                           //nolint: golint
+type ResolveRequest = noderesolver.ResolveRequest                                   //nolint: golint
+type ResolveResponse = noderesolver.ResolveResponse                                 //nolint: golint
+type UnimplementedNodeResolverServer = noderesolver.UnimplementedNodeResolverServer //nolint: golint
 
 const (
 	Type = "NodeResolver"
@@ -47,7 +54,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	RegisterNodeResolverServer(server, s.server)
+	noderesolver.RegisterNodeResolverServer(server, s.server)
 	return s.server
 }
 
@@ -61,7 +68,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
-	return AdaptPluginClient(NewNodeResolverClient(conn))
+	return AdaptPluginClient(noderesolver.NewNodeResolverClient(conn))
 }
 
 func AdaptPluginClient(client NodeResolverClient) NodeResolver {

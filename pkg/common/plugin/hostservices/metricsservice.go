@@ -7,8 +7,24 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/spire/common/hostservices"
 	"google.golang.org/grpc"
 )
+
+type AddSampleRequest = hostservices.AddSampleRequest                                   //nolint: golint
+type AddSampleResponse = hostservices.AddSampleResponse                                 //nolint: golint
+type EmitKeyRequest = hostservices.EmitKeyRequest                                       //nolint: golint
+type EmitKeyResponse = hostservices.EmitKeyResponse                                     //nolint: golint
+type IncrCounterRequest = hostservices.IncrCounterRequest                               //nolint: golint
+type IncrCounterResponse = hostservices.IncrCounterResponse                             //nolint: golint
+type Label = hostservices.Label                                                         //nolint: golint
+type MeasureSinceRequest = hostservices.MeasureSinceRequest                             //nolint: golint
+type MeasureSinceResponse = hostservices.MeasureSinceResponse                           //nolint: golint
+type MetricsServiceClient = hostservices.MetricsServiceClient                           //nolint: golint
+type MetricsServiceServer = hostservices.MetricsServiceServer                           //nolint: golint
+type SetGaugeRequest = hostservices.SetGaugeRequest                                     //nolint: golint
+type SetGaugeResponse = hostservices.SetGaugeResponse                                   //nolint: golint
+type UnimplementedMetricsServiceServer = hostservices.UnimplementedMetricsServiceServer //nolint: golint
 
 const (
 	MetricsServiceType = "MetricsService"
@@ -39,7 +55,7 @@ func (s metricsServiceHostServiceServer) HostServiceType() string {
 }
 
 func (s metricsServiceHostServiceServer) RegisterHostServiceServer(server *grpc.Server) {
-	RegisterMetricsServiceServer(server, s.server)
+	hostservices.RegisterMetricsServiceServer(server, s.server)
 }
 
 // MetricsServiceHostServiceServer returns a catalog HostServiceServer implementation for the MetricsService plugin.
@@ -58,7 +74,7 @@ func (c *metricsServiceHostServiceClient) HostServiceType() string {
 }
 
 func (c *metricsServiceHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
-	*c.client = AdaptMetricsServiceHostServiceClient(NewMetricsServiceClient(conn))
+	*c.client = AdaptMetricsServiceHostServiceClient(hostservices.NewMetricsServiceClient(conn))
 }
 
 func AdaptMetricsServiceHostServiceClient(client MetricsServiceClient) MetricsService {

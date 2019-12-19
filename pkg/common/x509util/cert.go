@@ -7,7 +7,7 @@ import (
 	"crypto/x509"
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
 func CertificateMatchesPublicKey(certificate *x509.Certificate, publicKey crypto.PublicKey) (bool, error) {

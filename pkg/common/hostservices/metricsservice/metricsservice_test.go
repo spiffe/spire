@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
 	mock_metrics "github.com/spiffe/spire/test/mock/common/telemetry"
 	"github.com/stretchr/testify/assert"
 )

@@ -8,8 +8,17 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"google.golang.org/grpc"
 )
+
+type AttestRequest = nodeattestor.AttestRequest                                     //nolint: golint
+type AttestResponse = nodeattestor.AttestResponse                                   //nolint: golint
+type NodeAttestorClient = nodeattestor.NodeAttestorClient                           //nolint: golint
+type NodeAttestorServer = nodeattestor.NodeAttestorServer                           //nolint: golint
+type NodeAttestor_AttestClient = nodeattestor.NodeAttestor_AttestClient             //nolint: golint
+type NodeAttestor_AttestServer = nodeattestor.NodeAttestor_AttestServer             //nolint: golint
+type UnimplementedNodeAttestorServer = nodeattestor.UnimplementedNodeAttestorServer //nolint: golint
 
 const (
 	Type = "NodeAttestor"
@@ -47,7 +56,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	RegisterNodeAttestorServer(server, s.server)
+	nodeattestor.RegisterNodeAttestorServer(server, s.server)
 	return s.server
 }
 
@@ -61,7 +70,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
-	return AdaptPluginClient(NewNodeAttestorClient(conn))
+	return AdaptPluginClient(nodeattestor.NewNodeAttestorClient(conn))
 }
 
 func AdaptPluginClient(client NodeAttestorClient) NodeAttestor {

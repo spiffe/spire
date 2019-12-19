@@ -7,9 +7,20 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc"
 )
+
+type FetchPrivateKeyRequest = keymanager.FetchPrivateKeyRequest               //nolint: golint
+type FetchPrivateKeyResponse = keymanager.FetchPrivateKeyResponse             //nolint: golint
+type GenerateKeyPairRequest = keymanager.GenerateKeyPairRequest               //nolint: golint
+type GenerateKeyPairResponse = keymanager.GenerateKeyPairResponse             //nolint: golint
+type KeyManagerClient = keymanager.KeyManagerClient                           //nolint: golint
+type KeyManagerServer = keymanager.KeyManagerServer                           //nolint: golint
+type StorePrivateKeyRequest = keymanager.StorePrivateKeyRequest               //nolint: golint
+type StorePrivateKeyResponse = keymanager.StorePrivateKeyResponse             //nolint: golint
+type UnimplementedKeyManagerServer = keymanager.UnimplementedKeyManagerServer //nolint: golint
 
 const (
 	Type = "KeyManager"
@@ -51,7 +62,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	RegisterKeyManagerServer(server, s.server)
+	keymanager.RegisterKeyManagerServer(server, s.server)
 	return s.server
 }
 
@@ -65,7 +76,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
-	return AdaptPluginClient(NewKeyManagerClient(conn))
+	return AdaptPluginClient(keymanager.NewKeyManagerClient(conn))
 }
 
 func AdaptPluginClient(client KeyManagerClient) KeyManager {

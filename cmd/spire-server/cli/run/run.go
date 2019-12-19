@@ -27,8 +27,8 @@ import (
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
 const (

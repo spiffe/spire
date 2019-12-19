@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

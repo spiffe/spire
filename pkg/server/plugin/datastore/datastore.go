@@ -8,11 +8,77 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"google.golang.org/grpc"
 )
 
+type AppendBundleRequest = datastore.AppendBundleRequest                           //nolint: golint
+type AppendBundleResponse = datastore.AppendBundleResponse                         //nolint: golint
+type BySelectors = datastore.BySelectors                                           //nolint: golint
+type BySelectors_MatchBehavior = datastore.BySelectors_MatchBehavior               //nolint: golint
+type CreateAttestedNodeRequest = datastore.CreateAttestedNodeRequest               //nolint: golint
+type CreateAttestedNodeResponse = datastore.CreateAttestedNodeResponse             //nolint: golint
+type CreateBundleRequest = datastore.CreateBundleRequest                           //nolint: golint
+type CreateBundleResponse = datastore.CreateBundleResponse                         //nolint: golint
+type CreateJoinTokenRequest = datastore.CreateJoinTokenRequest                     //nolint: golint
+type CreateJoinTokenResponse = datastore.CreateJoinTokenResponse                   //nolint: golint
+type CreateRegistrationEntryRequest = datastore.CreateRegistrationEntryRequest     //nolint: golint
+type CreateRegistrationEntryResponse = datastore.CreateRegistrationEntryResponse   //nolint: golint
+type DataStoreClient = datastore.DataStoreClient                                   //nolint: golint
+type DataStoreServer = datastore.DataStoreServer                                   //nolint: golint
+type DeleteAttestedNodeRequest = datastore.DeleteAttestedNodeRequest               //nolint: golint
+type DeleteAttestedNodeResponse = datastore.DeleteAttestedNodeResponse             //nolint: golint
+type DeleteBundleRequest = datastore.DeleteBundleRequest                           //nolint: golint
+type DeleteBundleRequest_Mode = datastore.DeleteBundleRequest_Mode                 //nolint: golint
+type DeleteBundleResponse = datastore.DeleteBundleResponse                         //nolint: golint
+type DeleteJoinTokenRequest = datastore.DeleteJoinTokenRequest                     //nolint: golint
+type DeleteJoinTokenResponse = datastore.DeleteJoinTokenResponse                   //nolint: golint
+type DeleteRegistrationEntryRequest = datastore.DeleteRegistrationEntryRequest     //nolint: golint
+type DeleteRegistrationEntryResponse = datastore.DeleteRegistrationEntryResponse   //nolint: golint
+type FetchAttestedNodeRequest = datastore.FetchAttestedNodeRequest                 //nolint: golint
+type FetchAttestedNodeResponse = datastore.FetchAttestedNodeResponse               //nolint: golint
+type FetchBundleRequest = datastore.FetchBundleRequest                             //nolint: golint
+type FetchBundleResponse = datastore.FetchBundleResponse                           //nolint: golint
+type FetchJoinTokenRequest = datastore.FetchJoinTokenRequest                       //nolint: golint
+type FetchJoinTokenResponse = datastore.FetchJoinTokenResponse                     //nolint: golint
+type FetchRegistrationEntryRequest = datastore.FetchRegistrationEntryRequest       //nolint: golint
+type FetchRegistrationEntryResponse = datastore.FetchRegistrationEntryResponse     //nolint: golint
+type GetNodeSelectorsRequest = datastore.GetNodeSelectorsRequest                   //nolint: golint
+type GetNodeSelectorsResponse = datastore.GetNodeSelectorsResponse                 //nolint: golint
+type JoinToken = datastore.JoinToken                                               //nolint: golint
+type ListAttestedNodesRequest = datastore.ListAttestedNodesRequest                 //nolint: golint
+type ListAttestedNodesResponse = datastore.ListAttestedNodesResponse               //nolint: golint
+type ListBundlesRequest = datastore.ListBundlesRequest                             //nolint: golint
+type ListBundlesResponse = datastore.ListBundlesResponse                           //nolint: golint
+type ListRegistrationEntriesRequest = datastore.ListRegistrationEntriesRequest     //nolint: golint
+type ListRegistrationEntriesResponse = datastore.ListRegistrationEntriesResponse   //nolint: golint
+type NodeSelectors = datastore.NodeSelectors                                       //nolint: golint
+type Pagination = datastore.Pagination                                             //nolint: golint
+type PruneBundleRequest = datastore.PruneBundleRequest                             //nolint: golint
+type PruneBundleResponse = datastore.PruneBundleResponse                           //nolint: golint
+type PruneJoinTokensRequest = datastore.PruneJoinTokensRequest                     //nolint: golint
+type PruneJoinTokensResponse = datastore.PruneJoinTokensResponse                   //nolint: golint
+type PruneRegistrationEntriesRequest = datastore.PruneRegistrationEntriesRequest   //nolint: golint
+type PruneRegistrationEntriesResponse = datastore.PruneRegistrationEntriesResponse //nolint: golint
+type SetBundleRequest = datastore.SetBundleRequest                                 //nolint: golint
+type SetBundleResponse = datastore.SetBundleResponse                               //nolint: golint
+type SetNodeSelectorsRequest = datastore.SetNodeSelectorsRequest                   //nolint: golint
+type SetNodeSelectorsResponse = datastore.SetNodeSelectorsResponse                 //nolint: golint
+type UnimplementedDataStoreServer = datastore.UnimplementedDataStoreServer         //nolint: golint
+type UpdateAttestedNodeRequest = datastore.UpdateAttestedNodeRequest               //nolint: golint
+type UpdateAttestedNodeResponse = datastore.UpdateAttestedNodeResponse             //nolint: golint
+type UpdateBundleRequest = datastore.UpdateBundleRequest                           //nolint: golint
+type UpdateBundleResponse = datastore.UpdateBundleResponse                         //nolint: golint
+type UpdateRegistrationEntryRequest = datastore.UpdateRegistrationEntryRequest     //nolint: golint
+type UpdateRegistrationEntryResponse = datastore.UpdateRegistrationEntryResponse   //nolint: golint
+
 const (
-	Type = "DataStore"
+	Type                           = "DataStore"
+	BySelectors_MATCH_EXACT        = datastore.BySelectors_MATCH_EXACT        //nolint: golint
+	BySelectors_MATCH_SUBSET       = datastore.BySelectors_MATCH_SUBSET       //nolint: golint
+	DeleteBundleRequest_DELETE     = datastore.DeleteBundleRequest_DELETE     //nolint: golint
+	DeleteBundleRequest_DISSOCIATE = datastore.DeleteBundleRequest_DISSOCIATE //nolint: golint
+	DeleteBundleRequest_RESTRICT   = datastore.DeleteBundleRequest_RESTRICT   //nolint: golint
 )
 
 // DataStore is the client interface for the service type DataStore interface.
@@ -95,7 +161,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	RegisterDataStoreServer(server, s.server)
+	datastore.RegisterDataStoreServer(server, s.server)
 	return s.server
 }
 
@@ -109,7 +175,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
-	return AdaptPluginClient(NewDataStoreClient(conn))
+	return AdaptPluginClient(datastore.NewDataStoreClient(conn))
 }
 
 func AdaptPluginClient(client DataStoreClient) DataStore {

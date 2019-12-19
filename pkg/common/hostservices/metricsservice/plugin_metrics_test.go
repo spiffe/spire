@@ -7,9 +7,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
-	mock_hostservices "github.com/spiffe/spire/test/mock/proto/common/hostservices"
+	mock_hostservices "github.com/spiffe/spire/test/mock/plugin/common/hostservices"
 	"github.com/stretchr/testify/assert"
 )
 

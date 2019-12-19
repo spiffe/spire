@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
+	servernodeattestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
-	servernodeattestor "github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
