@@ -70,7 +70,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 
     	cat conf/server/server.conf
 
-    The default SPIRE Server configurations are shown below. A detailed description of each of the SPIRE Server configuration options is [here](/doc/spire_server.md)
+    The default SPIRE Server configurations are shown below. A detailed description of each of the SPIRE Server configuration options is in [the Server documentation](/doc/spire_server.md).
 
     ```hcl
     server {
@@ -136,7 +136,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 
         cat conf/agent/agent.conf
 
-    The default SPIRE Agent configurations are shown below. A detailed description of each of the SPIRE Agent configuration options is [here](/doc/spire_agent.md)
+    The default SPIRE Agent configurations are shown below. A detailed description of each of the SPIRE Agent configuration options is in [the Agent documentation](/doc/spire_agent.md).
     ```hcl
     agent {
         data_dir = "./.data"

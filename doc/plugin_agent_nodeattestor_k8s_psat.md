@@ -50,7 +50,7 @@ volumeMounts:
       name: spire-agent
 ```
 
-A full example of this attestor is provided [here](../examples/k8s/simple_psat/README.md).
+A full example of this attestor is provided in [the SPIRE examples repository](https://github.com/spiffe/spire-examples/tree/master/examples/k8s/simple_psat).
 
 
 ## Considerations
