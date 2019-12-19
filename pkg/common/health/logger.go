@@ -2,7 +2,7 @@ package health
 
 import (
 	"github.com/InVisionApp/go-health"
-	"github.com/InVisionApp/go-logger"
+	log "github.com/InVisionApp/go-logger"
 	"github.com/sirupsen/logrus"
 )
 

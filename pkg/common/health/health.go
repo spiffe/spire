@@ -6,11 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/telemetry"
-
 	"github.com/InVisionApp/go-health"
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 // health.Checker is responsible for running health checks and serving the healthcheck HTTP paths
