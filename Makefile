@@ -14,7 +14,7 @@ bold  := $(shell which tput > /dev/null && tput bold 2>/dev/null || echo "")
 
 default: build
 
-all: build test
+all: build lint test
 
 help:
 	@echo "$(bold)Usage:$(reset) make $(cyan)<target>$(reset)"
@@ -29,7 +29,7 @@ help:
 	@echo "  $(cyan)integration$(reset)                   - run integration tests (requires docker images)"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
-	@echo "  $(cyan)all$(reset)                           - build all SPIRE binaries and runs unit tests"
+	@echo "  $(cyan)all$(reset)                           - build all SPIRE binaries, lints the code, and runs unit tests"
 	@echo
 	@echo "$(bold)Docker image:$(reset)"
 	@echo "  $(cyan)images$(reset)                        - builds all SPIRE Docker images"
