@@ -20,36 +20,36 @@ help:
 	@echo "$(bold)Usage:$(reset) make $(cyan)<target>$(reset)"
 	@echo
 	@echo "$(bold)Build:$(reset)"
-	@echo "  $(cyan)build$(reset)                         - build all SPIRE binaries"
+	@echo "  $(cyan)build$(reset)                         - build all SPIRE binaries (default)"
 	@echo "  $(cyan)artifact$(reset)                      - build SPIRE tarball artifact"
 	@echo
 	@echo "$(bold)Test:$(reset)"
 	@echo "  $(cyan)test$(reset)                          - run unit tests"
 	@echo "  $(cyan)race-test$(reset)                     - run unit tests with race detection"
-	@echo "  $(cyan)integration$(reset)                   - run integration tests (requires docker images)"
+	@echo "  $(cyan)integration$(reset)                   - run integration tests (requires Docker images)"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
-	@echo "  $(cyan)all$(reset)                           - build all SPIRE binaries, lints the code, and runs unit tests"
+	@echo "  $(cyan)all$(reset)                           - build all SPIRE binaries, lint the code, and run unit tests"
 	@echo
 	@echo "$(bold)Docker image:$(reset)"
-	@echo "  $(cyan)images$(reset)                        - builds all SPIRE Docker images"
-	@echo "  $(cyan)spire-server-image$(reset)            - builds SPIRE server Docker image"
-	@echo "  $(cyan)spire-agent-image$(reset)             - builds SPIRE agent Docker image"
-	@echo "  $(cyan)k8s-workload-registrar-image$(reset)  - builds Kubernetes Workload Registrar image"
-	@echo "  $(cyan)oidc-discovery-provider-image$(reset) - builds OIDC Discovery Provider image"
+	@echo "  $(cyan)images$(reset)                        - build all SPIRE Docker images"
+	@echo "  $(cyan)spire-server-image$(reset)            - build SPIRE server Docker image"
+	@echo "  $(cyan)spire-agent-image$(reset)             - build SPIRE agent Docker image"
+	@echo "  $(cyan)k8s-workload-registrar-image$(reset)  - build Kubernetes Workload Registrar Docker image"
+	@echo "  $(cyan)oidc-discovery-provider-image$(reset) - build OIDC Discovery Provider Docker image"
 	@echo
 	@echo "$(bold)Developer support:$(reset)"
-	@echo "  $(cyan)dev-image$(reset)                     - build the development docker image"
-	@echo "  $(cyan)dev-shell$(reset)                     - run a shell in a development docker container"
+	@echo "  $(cyan)dev-image$(reset)                     - build the development Docker image"
+	@echo "  $(cyan)dev-shell$(reset)                     - run a shell in a development Docker container"
 	@echo
 	@echo "$(bold)Code generation:$(reset)"
 	@echo "  $(cyan)generate$(reset)                      - generate protocol buffers and plugin interface code"
-	@echo "  $(cyan)generate-check$(reset)                - ensures generated code is up to date"
-	@echo "  $(cyan)protogen$(reset)                      - compiles protocol buffers"
-	@echo "  $(cyan)protogen-check$(reset)                - ensures generated protocol buffers are up to date"
-	@echo "  $(cyan)plugingen$(reset)                     - generates plugin interface code"
-	@echo "  $(cyan)plugingen-check$(reset)               - ensures generated plugin interface code is up to date"
-	@echo "  $(cyan)mockgen$(reset)                       - generates test mocks"
+	@echo "  $(cyan)generate-check$(reset)                - ensure generated code is up to date"
+	@echo "  $(cyan)protogen$(reset)                      - compile protocol buffers"
+	@echo "  $(cyan)protogen-check$(reset)                - ensure generated protocol buffers are up to date"
+	@echo "  $(cyan)plugingen$(reset)                     - generate plugin interface code"
+	@echo "  $(cyan)plugingen-check$(reset)               - ensure generated plugin interface code is up to date"
+	@echo "  $(cyan)mockgen$(reset)                       - generate test mocks"
 
 
 ############################################################################
@@ -64,14 +64,14 @@ else ifeq ($(os1),Linux)
 os1=linux
 os2=linux
 else
-$(error unsupported OS $(os1))
+$(error unsupported OS: $(os1))
 endif
 
 arch1=$(shell uname -m)
 ifeq ($(arch1),x86_64)
 arch2=amd64
 else
-$(error unsupported ARCH $(arch1))
+$(error unsupported ARCH: $(arch1))
 endif
 
 ############################################################################
@@ -315,7 +315,7 @@ artifact: build
 #############################################################################
 
 .PHONY: images
-images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image ## Builds SPIRE docker images
+images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile

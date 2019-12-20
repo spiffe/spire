@@ -26,7 +26,7 @@ Since go modules are used, this repository can live in any folder on your local 
 A Makefile is provided for common actions.
 
 * `make` - builds all binaries
-* `make all` - build all binaries, and run all tests
+* `make all` - builds all binaries, lints code, and runs all unit tests
 * `make bin/spire-server` - builds SPIRE server
 * `make bin/spire-agent` - builds SPIRE agent
 * `make images` - builds SPIRE docker images
