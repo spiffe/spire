@@ -88,7 +88,7 @@ go := PATH=$(go_bin_dir):$(PATH) go
 
 golangci_lint_version = v1.21.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
-golangci_lint_bin = $(golangci_lint_dir)/golangci_lint
+golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 
 protoc_version = 3.11.1
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-$(arch1).zip
