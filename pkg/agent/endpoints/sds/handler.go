@@ -55,10 +55,6 @@ type Handler struct {
 	}
 }
 
-func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsServer) error {
-	return errors.New("not implemented")
-}
-
 func NewHandler(config HandlerConfig) *Handler {
 	return &Handler{c: config}
 }
@@ -203,6 +199,10 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 		}
 	}
 	return false
+}
+
+func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsServer) error {
+	return status.Error(codes.Unimplemented, "Method is not implemented")
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
