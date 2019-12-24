@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 )
@@ -83,8 +82,9 @@ func certsFromBlocks(blocks []Block) (certs []*x509.Certificate, err error) {
 	return certs, nil
 }
 
-func encodeCertificate(w io.Writer, cert *x509.Certificate) {
-	pem.Encode(w, &pem.Block{
+func encodeCertificate(buf *bytes.Buffer, cert *x509.Certificate) {
+	// encoding to a memory buffer should not error out
+	_ = pem.Encode(buf, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: cert.Raw,
 	})

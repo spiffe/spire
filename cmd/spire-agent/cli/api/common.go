@@ -86,18 +86,18 @@ func (a *adapter) Run(args []string) int {
 	ctx := context.Background()
 
 	if err := a.flags.Parse(args); err != nil {
-		a.env.ErrPrintln(err)
+		_ = a.env.ErrPrintln(err)
 		return 1
 	}
 
 	clients, err := a.clientsMaker(ctx, a.socketPath, time.Duration(a.timeout))
 	if err != nil {
-		a.env.ErrPrintln(err)
+		_ = a.env.ErrPrintln(err)
 		return 1
 	}
 
 	if err := a.cmd.run(ctx, a.env, clients); err != nil {
-		a.env.ErrPrintln(err)
+		_ = a.env.ErrPrintln(err)
 		return 1
 	}
 
@@ -105,7 +105,7 @@ func (a *adapter) Run(args []string) int {
 }
 
 func (a *adapter) Help() string {
-	a.flags.Parse([]string{"-h"})
+	_ = a.flags.Parse([]string{"-h"})
 	return ""
 }
 

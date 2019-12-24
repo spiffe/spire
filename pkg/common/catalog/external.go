@@ -89,7 +89,7 @@ type ExternalPlugin struct {
 	HostServices  []HostServiceServer
 }
 
-func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *CatalogPlugin, err error) {
+func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *LoadedPlugin, err error) {
 	// Resolve to an absolute path. We don't to use path environment lookups.
 	ext.Path, err = filepath.Abs(ext.Path)
 	if err != nil {
@@ -153,7 +153,7 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Catalo
 		return nil, err
 	}
 
-	plugin, ok := pluginRaw.(*CatalogPlugin)
+	plugin, ok := pluginRaw.(*LoadedPlugin)
 	if !ok {
 		// shouldn't happen.
 		return nil, errs.New("expected %T, got %T", plugin, pluginRaw)

@@ -96,6 +96,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.RS256,
 		Key:       s.fooKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	s.barKey, err = pemutil.ParseECPrivateKey(barKeyPEM)
 	s.Require().NoError(err)
@@ -103,6 +104,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.ES256,
 		Key:       s.barKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	bazKey, err := pemutil.ParseECPrivateKey(bazKeyPEM)
 	s.Require().NoError(err)
@@ -110,6 +112,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.ES256,
 		Key:       bazKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	s.dir = s.TempDir()
 

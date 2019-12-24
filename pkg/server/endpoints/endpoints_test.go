@@ -41,7 +41,7 @@ type EndpointsTestSuite struct {
 	ds *fakedatastore.DataStore
 
 	svidState svid.State
-	e         *endpoints
+	e         *Endpoints
 
 	mockClock *clock.Mock
 }
@@ -82,7 +82,7 @@ func (s *EndpointsTestSuite) TestCreateTCPServer() {
 }
 
 func (s *EndpointsTestSuite) TestCreateUDSServer() {
-	s.Assert().NotNil(s.e.createUDSServer(ctx))
+	s.Assert().NotNil(s.e.createUDSServer())
 }
 
 func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
@@ -90,7 +90,7 @@ func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
 }
 
 func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {
-	s.Assert().NotPanics(func() { s.e.registerRegistrationAPI(s.e.createTCPServer(ctx), s.e.createUDSServer(ctx)) })
+	s.Assert().NotPanics(func() { s.e.registerRegistrationAPI(s.e.createTCPServer(ctx), s.e.createUDSServer()) })
 }
 
 func (s *EndpointsTestSuite) TestListenAndServe() {
@@ -125,7 +125,7 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 	s.e.c.GRPCHook = hook
 
 	ctx, cancel := context.WithCancel(ctx)
-	go s.e.ListenAndServe(ctx)
+	go func() { _ = s.e.ListenAndServe(ctx) }()
 
 	select {
 	case <-snitchChan:
@@ -249,7 +249,7 @@ func (s *EndpointsTestSuite) TestClientCertificateVerification() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.e.ListenAndServe(ctx)
+		_ = s.e.ListenAndServe(ctx)
 	}()
 
 	// This helper function attempts a TLS connection to the gRPC server. It

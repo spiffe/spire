@@ -9,9 +9,9 @@ import (
 func printX509SVIDResponse(svids []*X509SVID, respTime time.Duration) {
 	lenMsg := fmt.Sprintf("Received %d svid", len(svids))
 	if len(svids) != 1 {
-		lenMsg = lenMsg + "s"
+		lenMsg += "s"
 	}
-	lenMsg = lenMsg + fmt.Sprintf(" after %s", respTime)
+	lenMsg += fmt.Sprintf(" after %s", respTime)
 
 	fmt.Println(lenMsg)
 	for _, svid := range svids {

@@ -19,7 +19,7 @@ const (
 )
 
 // NewBackoff returns a new backoff calculator ready for use. Generalizes all backoffs
-// to have the same behaviorial pattern, though with different bounds based on given
+// to have the same behavioral pattern, though with different bounds based on given
 // interval.
 func NewBackoff(clk clock.Clock, interval time.Duration) BackOff {
 	b := &backoff.ExponentialBackOff{

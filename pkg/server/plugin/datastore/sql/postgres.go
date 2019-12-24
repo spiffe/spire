@@ -14,5 +14,4 @@ func (p postgres) connect(cfg *configuration) (*gorm.DB, error) {
 		return nil, sqlError.Wrap(err)
 	}
 	return db, nil
-
 }

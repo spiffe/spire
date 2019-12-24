@@ -3,6 +3,7 @@ package disk
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -76,6 +77,18 @@ func TestDisk_Configure(t *testing.T) {
 	assert.NoError(t, e)
 	assert.Equal(t, keysDir, plugin.dir)
 	assert.DirExists(t, keysDir)
+}
+
+func TestDisk_Configure_DirectoryIsRequired(t *testing.T) {
+	expectedErr := errors.New("directory is required")
+
+	plugin := New()
+	cReq := &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf("directory = \"%s\"", ""),
+	}
+	_, e := plugin.Configure(ctx, cReq)
+	assert.NotNil(t, e)
+	assert.Equal(t, expectedErr, e)
 }
 
 func TestDisk_GetPluginInfo(t *testing.T) {

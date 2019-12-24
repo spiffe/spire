@@ -110,17 +110,17 @@ type federatesWithConfig struct {
 	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
-// Run CLI struct
-type RunCLI struct{}
+// Run Command struct
+type Command struct{}
 
 //Help prints the server cmd usage
-func (*RunCLI) Help() string {
+func (*Command) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
 // Run the SPIFFE Server
-func (*RunCLI) Run(args []string) int {
+func (*Command) Run(args []string) int {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(args)
@@ -169,7 +169,7 @@ func (*RunCLI) Run(args []string) int {
 }
 
 //Synopsis of the command
-func (*RunCLI) Synopsis() string {
+func (*Command) Synopsis() string {
 	return "Runs the server"
 }
 
@@ -452,9 +452,12 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 			l.Warnf("Detected unknown CA Subject config options: %q; this will be fatal in a future release.", cs.UnusedKeys)
 		}
 
-		if len(c.Server.Experimental.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
-		}
+		// TODO: Re-enable unused key detection for experimental config. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//if len(c.Server.Experimental.UnusedKeys) != 0 {
+		//	l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
+		//}
 
 		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
 			l.Warnf("Detected unknown ACME config options: %q; this will be fatal in a future release.", bea.UnusedKeys)
@@ -467,9 +470,12 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 		}
 	}
 
-	if len(c.Telemetry.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
-	}
+	// TODO: Re-enable unused key detection for telemetry. See
+	// https://github.com/spiffe/spire/issues/1101 for more information
+	//
+	//if len(c.Telemetry.UnusedKeys) != 0 {
+	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//}
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)

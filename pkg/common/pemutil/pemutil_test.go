@@ -162,7 +162,6 @@ func (s *Suite) TestLoadECPrivateKey() {
 	key, err = LoadECPrivateKey("testdata/ecdsa-key-pkcs8.pem")
 	s.Require().NoError(err)
 	s.Require().NotNil(key)
-
 }
 
 func (s *Suite) TestParseCertificate() {

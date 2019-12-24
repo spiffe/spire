@@ -4,14 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 )
 
-type CatalogPlugin struct {
+type LoadedPlugin struct {
 	name         string
-	log          logrus.FieldLogger
 	plugin       interface{}
 	all          []interface{}
 	serviceNames []string
@@ -20,11 +18,11 @@ type CatalogPlugin struct {
 	closer    func()
 }
 
-func (p *CatalogPlugin) Name() string {
+func (p *LoadedPlugin) Name() string {
 	return p.name
 }
 
-func (p *CatalogPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) error {
+func (p *LoadedPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) error {
 	type configurable interface {
 		Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
 	}
@@ -39,11 +37,11 @@ func (p *CatalogPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest
 	return nil
 }
 
-func (p *CatalogPlugin) Fill(x interface{}) (err error) {
+func (p *LoadedPlugin) Fill(x interface{}) (err error) {
 	cf := newPluginFiller(p)
 	return cf.fill(x)
 }
 
-func (p *CatalogPlugin) Close() {
+func (p *LoadedPlugin) Close() {
 	p.closeOnce.Do(p.closer)
 }

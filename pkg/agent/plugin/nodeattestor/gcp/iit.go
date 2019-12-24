@@ -21,7 +21,7 @@ import (
 const (
 	defaultIdentityTokenHost     = "metadata.google.internal"
 	identityTokenURLPathTemplate = "/computeMetadata/v1/instance/service-accounts/%s/identity"
-	identityTokenAudience        = "spire-gcp-node-attestor"
+	identityTokenAudience        = "spire-gcp-node-attestor" //nolint: gosec // false positive
 	defaultServiceAccount        = "default"
 )
 

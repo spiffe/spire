@@ -79,7 +79,7 @@ func (b *bsdTracker) NewWatcher(info CallerInfo) (Watcher, error) {
 		b.watchedPIDs[pid] = done
 	}
 
-	return newBSDWatcher(info, done)
+	return newBSDWatcher(info, done), nil
 }
 
 func (b *bsdTracker) addKeventForWatcher(pid int) error {
@@ -154,11 +154,11 @@ type bsdWatcher struct {
 	pid    int32
 }
 
-func newBSDWatcher(info CallerInfo, done <-chan struct{}) (*bsdWatcher, error) {
+func newBSDWatcher(info CallerInfo, done <-chan struct{}) *bsdWatcher {
 	return &bsdWatcher{
 		done: done,
 		pid:  info.PID,
-	}, nil
+	}
 }
 
 func (b *bsdWatcher) Close() {
@@ -171,7 +171,6 @@ func (b *bsdWatcher) Close() {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	b.closed = true
-	return
 }
 
 func (b *bsdWatcher) IsAlive() error {

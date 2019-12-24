@@ -137,7 +137,7 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 }
 
 func httpGetBytes(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint: gosec // URL is provided via explicit configuration
 	if err != nil {
 		return nil, err
 	}

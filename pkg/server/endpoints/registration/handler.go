@@ -44,10 +44,7 @@ type Handler struct {
 
 //CreateEntry creates an entry in the Registration table,
 //used to assign SPIFFE IDs to nodes and workloads.
-func (h *Handler) CreateEntry(
-	ctx context.Context, request *common.RegistrationEntry) (
-	response *registration.RegistrationEntryID, err error) {
-
+func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationEntry) (_ *registration.RegistrationEntryID, err error) {
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -85,10 +82,7 @@ func (h *Handler) CreateEntry(
 }
 
 //DeleteEntry deletes an entry in the Registration table
-func (h *Handler) DeleteEntry(
-	ctx context.Context, request *registration.RegistrationEntryID) (
-	response *common.RegistrationEntry, err error) {
-
+func (h *Handler) DeleteEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -108,10 +102,7 @@ func (h *Handler) DeleteEntry(
 }
 
 //FetchEntry Retrieves a specific registered entry
-func (h *Handler) FetchEntry(
-	ctx context.Context, request *registration.RegistrationEntryID) (
-	response *common.RegistrationEntry, err error) {
-
+func (h *Handler) FetchEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -123,7 +114,7 @@ func (h *Handler) FetchEntry(
 	)
 	if err != nil {
 		log.WithError(err).Error("Error trying to fetch entry")
-		return response, status.Errorf(codes.Internal, "error trying to fetch entry: %v", err)
+		return nil, status.Errorf(codes.Internal, "error trying to fetch entry: %v", err)
 	}
 	if fetchResponse.Entry == nil {
 		log.Error("No such registration entry")
@@ -133,10 +124,7 @@ func (h *Handler) FetchEntry(
 }
 
 //FetchEntries retrieves all registered entries
-func (h *Handler) FetchEntries(
-	ctx context.Context, request *common.Empty) (
-	response *common.RegistrationEntries, err error) {
-
+func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -146,7 +134,7 @@ func (h *Handler) FetchEntries(
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	if err != nil {
 		log.WithError(err).Error("Error trying to fetch entries")
-		return response, status.Errorf(codes.Internal, "error trying to fetch entries: %v", err)
+		return nil, status.Errorf(codes.Internal, "error trying to fetch entries: %v", err)
 	}
 	return &common.RegistrationEntries{
 		Entries: fetchResponse.Entries,
@@ -154,10 +142,7 @@ func (h *Handler) FetchEntries(
 }
 
 //UpdateEntry updates a specific registered entry
-func (h *Handler) UpdateEntry(
-	ctx context.Context, request *registration.UpdateEntryRequest) (
-	response *common.RegistrationEntry, err error) {
-
+func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateEntryRequest) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -193,10 +178,7 @@ func (h *Handler) UpdateEntry(
 }
 
 //ListByParentID Returns all the Entries associated with the ParentID value
-func (h *Handler) ListByParentID(
-	ctx context.Context, request *registration.ParentID) (
-	response *common.RegistrationEntries, err error) {
-
+func (h *Handler) ListByParentID(ctx context.Context, request *registration.ParentID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -226,10 +208,7 @@ func (h *Handler) ListByParentID(
 }
 
 //ListBySelector returns all the Entries associated with the Selector
-func (h *Handler) ListBySelector(
-	ctx context.Context, request *common.Selector) (
-	response *common.RegistrationEntries, err error) {
-
+func (h *Handler) ListBySelector(ctx context.Context, request *common.Selector) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -253,10 +232,7 @@ func (h *Handler) ListBySelector(
 }
 
 //ListBySelectors returns all the Entries associated with the Selectors
-func (h *Handler) ListBySelectors(
-	ctx context.Context, request *common.Selectors) (
-	response *common.RegistrationEntries, err error) {
-
+func (h *Handler) ListBySelectors(ctx context.Context, request *common.Selectors) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -280,10 +256,7 @@ func (h *Handler) ListBySelectors(
 }
 
 //ListBySpiffeID returns all the Entries associated with the SPIFFE ID
-func (h *Handler) ListBySpiffeID(
-	ctx context.Context, request *registration.SpiffeID) (
-	response *common.RegistrationEntries, err error) {
-
+func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.SpiffeID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -312,10 +285,7 @@ func (h *Handler) ListBySpiffeID(
 	}, nil
 }
 
-func (h *Handler) CreateFederatedBundle(
-	ctx context.Context, request *registration.FederatedBundle) (
-	response *common.Empty, err error) {
-
+func (h *Handler) CreateFederatedBundle(ctx context.Context, request *registration.FederatedBundle) (_ *common.Empty, err error) {
 	counter := telemetry_registrationapi.StartCreateFedBundleCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -348,10 +318,7 @@ func (h *Handler) CreateFederatedBundle(
 	return &common.Empty{}, nil
 }
 
-func (h *Handler) FetchFederatedBundle(
-	ctx context.Context, request *registration.FederatedBundleID) (
-	response *registration.FederatedBundle, err error) {
-
+func (h *Handler) FetchFederatedBundle(ctx context.Context, request *registration.FederatedBundleID) (_ *registration.FederatedBundle, err error) {
 	counter := telemetry_registrationapi.StartFetchFedBundleCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -414,10 +381,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	return nil
 }
 
-func (h *Handler) UpdateFederatedBundle(
-	ctx context.Context, request *registration.FederatedBundle) (
-	response *common.Empty, err error) {
-
+func (h *Handler) UpdateFederatedBundle(ctx context.Context, request *registration.FederatedBundle) (_ *common.Empty, err error) {
 	counter := telemetry_registrationapi.StartUpdateFedBundleCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -450,10 +414,7 @@ func (h *Handler) UpdateFederatedBundle(
 	return &common.Empty{}, err
 }
 
-func (h *Handler) DeleteFederatedBundle(
-	ctx context.Context, request *registration.DeleteFederatedBundleRequest) (
-	response *common.Empty, err error) {
-
+func (h *Handler) DeleteFederatedBundle(ctx context.Context, request *registration.DeleteFederatedBundleRequest) (_ *common.Empty, err error) {
 	counter := telemetry_registrationapi.StartDeleteFedBundleCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -488,10 +449,7 @@ func (h *Handler) DeleteFederatedBundle(
 	return &common.Empty{}, nil
 }
 
-func (h *Handler) CreateJoinToken(
-	ctx context.Context, request *registration.JoinToken) (
-	token *registration.JoinToken, err error) {
-
+func (h *Handler) CreateJoinToken(ctx context.Context, request *registration.JoinToken) (_ *registration.JoinToken, err error) {
 	counter := telemetry_registrationapi.StartCreateJoinTokenCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
@@ -530,10 +488,7 @@ func (h *Handler) CreateJoinToken(
 }
 
 // FetchBundle retrieves the CA bundle.
-func (h *Handler) FetchBundle(
-	ctx context.Context, request *common.Empty) (
-	response *registration.Bundle, err error) {
-
+func (h *Handler) FetchBundle(ctx context.Context, request *common.Empty) (_ *registration.Bundle, err error) {
 	counter := telemetry_registrationapi.StartFetchBundleCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)

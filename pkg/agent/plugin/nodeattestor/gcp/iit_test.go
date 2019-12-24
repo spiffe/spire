@@ -50,7 +50,7 @@ func (s *Suite) SetupTest() {
 			return
 		}
 		w.WriteHeader(s.status)
-		w.Write([]byte(s.body))
+		_, _ = w.Write([]byte(s.body))
 	}))
 
 	s.p = s.newPlugin()
@@ -64,7 +64,10 @@ func (s *Suite) TearDownTest() {
 func (s *Suite) TestErrorWhenNotConfigured() {
 	p := s.newPlugin()
 	stream, err := p.FetchAttestationData(context.Background())
-	defer stream.CloseSend()
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 	resp, err := stream.Recv()
 	s.requireErrorContains(err, "gcp-iit: not configured")
 	s.Require().Nil(resp)
@@ -232,6 +235,7 @@ func TestRetrieveIdentity(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.msg, func(t *testing.T) {
 			url := tt.url
 			if tt.handleFunc != nil {

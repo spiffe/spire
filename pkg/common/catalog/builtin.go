@@ -20,7 +20,7 @@ type BuiltInPlugin struct {
 }
 
 // LoadBuiltIn loads a builtin plugin.
-func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *CatalogPlugin, err error) {
+func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *LoadedPlugin, err error) {
 	if builtin.Log == nil {
 		builtin.Log = newDiscardingLogger()
 	}
@@ -57,11 +57,13 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Cata
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		hostServer.Serve(hostNet)
+		if err := hostServer.Serve(hostNet); err != nil {
+			builtin.Log.WithError(err).Warn("host server failed to serve")
+		}
 	}()
 
 	// dial the host. the address is ignored.
-	hostConn, err := grpc.Dial("host", grpc.WithInsecure(), grpc.WithDialer(hostNet.Dial))
+	hostConn, err := grpc.Dial("host", grpc.WithInsecure(), grpc.WithContextDialer(hostNet.DialContext))
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
@@ -92,11 +94,13 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Cata
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		builtinServer.Serve(builtinNet)
+		if err := builtinServer.Serve(builtinNet); err != nil {
+			builtin.Log.WithError(err).Warn("builtin server failed to serve")
+		}
 	}()
 
 	// dial the builtin. the address is ignored.
-	builtinConn, err := grpc.Dial("builtin", grpc.WithInsecure(), grpc.WithDialer(builtinNet.Dial))
+	builtinConn, err := grpc.Dial("builtin", grpc.WithInsecure(), grpc.WithContextDialer(builtinNet.DialContext))
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}

@@ -27,7 +27,6 @@ import (
 
 const (
 	iidPluginName = "aws_iid"
-	defaultRegion = "us-east-1"
 )
 
 var (

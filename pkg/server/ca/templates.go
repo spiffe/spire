@@ -18,7 +18,7 @@ func CreateServerCATemplate(spiffeID string, publicKey crypto.PublicKey, trustDo
 		return nil, err
 	}
 
-	keyID, err := x509util.GetSubjectKeyId(publicKey)
+	keyID, err := x509util.GetSubjectKeyID(publicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func CreateX509SVIDTemplate(spiffeID string, publicKey crypto.PublicKey, trustDo
 		Organization: []string{"SPIRE"},
 	}
 
-	keyID, err := x509util.GetSubjectKeyId(publicKey)
+	keyID, err := x509util.GetSubjectKeyID(publicKey)
 	if err != nil {
 		return nil, err
 	}

@@ -8,13 +8,6 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-func audienceClaim(audience []string) interface{} {
-	if len(audience) == 1 {
-		return audience[0]
-	}
-	return audience
-}
-
 func GetTokenExpiry(token string) (time.Time, time.Time, error) {
 	tok, err := jwt.ParseSigned(token)
 	if err != nil {

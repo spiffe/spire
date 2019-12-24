@@ -25,7 +25,7 @@ var (
 
 func main() {
 	if err := run(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "%+v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %+v\n", err)
 		os.Exit(1)
 	}
 }
@@ -96,11 +96,11 @@ func run(ctx context.Context) error {
 
 	res, err := plugin.Attest(ctx, &workloadattestor.AttestRequest{Pid: int32(pid)})
 	if err != nil {
-		return fmt.Errorf("Failed to attest pid %d: %v", pid, err)
+		return fmt.Errorf("failed to attest pid %d: %v", pid, err)
 	}
 
 	if res.Selectors == nil || len(res.Selectors) == 0 {
-		return fmt.Errorf("Attestation didn't return any selectors.")
+		return fmt.Errorf("attestation didn't return any selectors")
 	}
 
 	fmt.Printf("Workload Attestion Results (Pid %d)\n", pid)

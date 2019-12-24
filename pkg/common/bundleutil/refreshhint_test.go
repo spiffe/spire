@@ -58,6 +58,7 @@ func TestCalculateRefreshHint(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			require.Equal(t, testCase.refreshHint, CalculateRefreshHint(testCase.bundle), "refresh hint is wrong")
 		})

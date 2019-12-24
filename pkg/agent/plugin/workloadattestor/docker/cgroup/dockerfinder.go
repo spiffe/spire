@@ -101,7 +101,7 @@ func (f *containerIDFinder) FindContainerID(cgroup string) (string, bool) {
 	if len(matches) == 0 {
 		return "", false
 	}
-	return string(matches[submatchIndex]), true
+	return matches[submatchIndex], true
 }
 
 type containerIDFinders struct {

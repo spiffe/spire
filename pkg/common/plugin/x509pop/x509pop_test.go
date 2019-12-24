@@ -89,10 +89,10 @@ func TestChallengeResponse(t *testing.T) {
 	require.EqualError(err, "expecting ECDSA response")
 
 	// mutate the signatures and assert verification fails
-	rsaResponse.RSASignature.Signature[0] += 1
+	rsaResponse.RSASignature.Signature[0]++
 	err = VerifyChallengeResponse(rsaPublicKey, rsaChallenge, rsaResponse)
 	require.EqualError(err, "RSA signature verify failed")
-	ecdsaResponse.ECDSASignature.R[0] += 1
+	ecdsaResponse.ECDSASignature.R[0]++
 	err = VerifyChallengeResponse(ecdsaPublicKey, ecdsaChallenge, ecdsaResponse)
 	require.EqualError(err, "ECDSA signature verify failed")
 
@@ -153,6 +153,7 @@ func TestMakeSPIFFEID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			cert := &x509.Certificate{
 				Subject: pkix.Name{

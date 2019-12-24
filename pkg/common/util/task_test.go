@@ -11,7 +11,7 @@ import (
 var (
 	ctx = context.Background()
 
-	errPanic = errors.New("PANIC!")
+	errPanic = errors.New("panic")
 )
 
 func TestRunTasksWithNoTasks(t *testing.T) {

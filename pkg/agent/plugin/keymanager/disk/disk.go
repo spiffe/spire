@@ -30,26 +30,26 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *DiskPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
 }
 
-type pluginConfig struct {
+type Config struct {
 	Directory string `hcl:"directory" json:"directory"`
 }
 
-type DiskPlugin struct {
+type Plugin struct {
 	mtx *sync.RWMutex
 	dir string
 }
 
-func New() *DiskPlugin {
-	return &DiskPlugin{
+func New() *Plugin {
+	return &Plugin{
 		mtx: new(sync.RWMutex),
 	}
 }
 
-func (d *DiskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+func (d *Plugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (d *DiskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPai
 	return resp, nil
 }
 
-func (d *DiskPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+func (d *Plugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
@@ -85,7 +85,7 @@ func (d *DiskPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StoreP
 	return &keymanager.StorePrivateKeyResponse{}, nil
 }
 
-func (d *DiskPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (d *Plugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	// Start with empty response
 	resp := &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}
 
@@ -111,8 +111,8 @@ func (d *DiskPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKe
 	return resp, nil
 }
 
-func (d *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := &pluginConfig{}
+func (d *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	config := &Config{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
 		return nil, err
@@ -125,6 +125,10 @@ func (d *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	if config.Directory == "" {
+		return nil, errors.New("directory is required")
+	}
+
 	// Create directory in which to store the private key if not exists
 	if err := os.MkdirAll(config.Directory, 0755); err != nil {
 		return nil, err
@@ -134,6 +138,6 @@ func (d *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (d *DiskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (d *Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }

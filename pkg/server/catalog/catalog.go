@@ -44,11 +44,6 @@ type Catalog interface {
 	GetNotifiers() []Notifier
 }
 
-type CatalogCloser struct {
-	Catalog
-	catalog.Closer
-}
-
 type GlobalConfig = catalog.GlobalConfig
 type HCLPluginConfig = catalog.HCLPluginConfig
 type HCLPluginConfigMap = catalog.HCLPluginConfigMap
@@ -154,7 +149,12 @@ type Config struct {
 	MetricsService   common_services.MetricsService
 }
 
-func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
+type Repository struct {
+	Catalog
+	catalog.Closer
+}
+
+func Load(ctx context.Context, config Config) (*Repository, error) {
 	pluginConfig, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &CatalogCloser{
+	return &Repository{
 		Catalog: p,
 		Closer:  closer,
 	}, nil

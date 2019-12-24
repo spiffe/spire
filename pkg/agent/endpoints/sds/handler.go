@@ -60,7 +60,7 @@ func NewHandler(config HandlerConfig) *Handler {
 }
 
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
-	_, selectors, done, err := h.startCall(stream.Context())
+	selectors, done, err := h.startCall(stream.Context())
 	log := h.c.Log.WithField(telemetry.Method, telemetry.StreamSecrets)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch stream secrets during context parsing")
@@ -114,7 +114,6 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 
 			// If we've previously sent a nonce, this must be a reply
 			if lastNonce != "" {
-
 				// The nonce should match the last sent nonce, otherwise
 				// it's stale and the request should be ignored.
 				if lastNonce != newReq.ResponseNonce {
@@ -133,7 +132,6 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 						telemetry.Expect:      versionInfo,
 					}).Error("Client rejected expected version and rolled back")
 				}
-
 			}
 
 			// We need to send updates if the requested resource list has changed
@@ -210,7 +208,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 	log.WithFields(logrus.Fields{
 		telemetry.ResourceNames: req.ResourceNames,
 	}).Debug("Received FetchSecrets request")
-	_, selectors, done, err := h.startCall(ctx)
+	selectors, done, err := h.startCall(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch secrets during context parsing")
 		return nil, err
@@ -230,16 +228,15 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 	}).Debug("Sending FetchSecrets response")
 
 	return resp, nil
-
 }
 
 // From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
 // to a new metrics object. Return this information to the caller so it can emit further metrics.
 // If no error, callers must call the output func() to decrement current connections count.
-func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
+func (h *Handler) startCall(ctx context.Context) ([]*common.Selector, func(), error) {
 	watcher, err := peerWatcher(ctx)
 	if err != nil {
-		return 0, nil, nil, status.Errorf(codes.Internal, "is this a supported system? Please report this bug: %v", err)
+		return nil, nil, status.Errorf(codes.Internal, "is this a supported system? Please report this bug: %v", err)
 	}
 
 	pid := watcher.PID()
@@ -258,7 +255,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	if err != nil {
 		telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, -1))
 		log.Debug("Finished handling SDS API request due to error")
-		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "could not verify existence of the original caller: %v", err)
+		return nil, nil, status.Errorf(codes.Unauthenticated, "could not verify existence of the original caller: %v", err)
 	}
 
 	done := func() {
@@ -266,7 +263,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 		log.Debug("Finished handling SDS API request")
 	}
 
-	return pid, selectors, done, nil
+	return selectors, done, nil
 }
 
 func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *api_v2.DiscoveryResponse, err error) {

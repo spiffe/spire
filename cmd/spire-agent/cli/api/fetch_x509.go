@@ -42,7 +42,7 @@ func (*fetchX509Command) synopsis() string {
 func (c *fetchX509Command) run(ctx context.Context, env *common_cli.Env, client *workloadClient) error {
 	start := time.Now()
 	resp, err := c.fetchX509SVID(ctx, client)
-	respTime := time.Now().Sub(start)
+	respTime := time.Since(start)
 	if err != nil {
 		return err
 	}
