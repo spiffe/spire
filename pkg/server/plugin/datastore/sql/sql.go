@@ -70,6 +70,7 @@ func builtin(p *SQLPlugin) catalog.Plugin {
 type configuration struct {
 	DatabaseType     string  `hcl:"database_type" json:"database_type"`
 	ConnectionString string  `hcl:"connection_string" json:"connection_string"`
+	RoConnectionString string `hcl:"ro_connection_string" json:"ro_connection_string"`
 	RootCAPath       string  `hcl:"root_ca_path" json:"root_ca_path"`
 	ClientCertPath   string  `hcl:"client_cert_path" json:"client_cert_path"`
 	ClientKeyPath    string  `hcl:"client_key_path" json:"client_key_path"`
@@ -97,6 +98,7 @@ type sqlDB struct {
 type SQLPlugin struct {
 	mu             sync.Mutex
 	db             *sqlDB
+	roDb           *sqlDB
 	log            hclog.Logger
 	metricsService hostservices.MetricsService
 }
@@ -506,40 +508,73 @@ func (ds *SQLPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	if ds.db == nil ||
-		config.ConnectionString != ds.db.connectionString ||
-		config.DatabaseType != ds.db.databaseType {
+	err := ds.openConnection(config, config.ConnectionString, false)
+	if err != nil  {
+		return nil, err
+	}
 
-		db, err := ds.openDB(config)
+	if config.RoConnectionString == "" {
+		return &spi.ConfigureResponse{}, nil
+	}
+
+	err = ds.openConnection(config, config.RoConnectionString, true)
+	if err != nil  {
+		return nil, err
+	}
+
+	return &spi.ConfigureResponse{}, nil
+}
+
+func (ds *SQLPlugin) openConnection(config *configuration, connectionString string, readOnly bool) (error) {
+	sqlDb := ds.db
+
+	if readOnly {
+		sqlDb = ds.roDb
+	}
+
+	if sqlDb == nil ||
+		connectionString != sqlDb.connectionString ||
+		config.DatabaseType != sqlDb.databaseType {
+
+		db, err := ds.openDB(config, connectionString)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		if ds.db != nil {
-			ds.db.Close()
+		if sqlDb != nil {
+			sqlDb.Close()
 		}
 
 		raw := db.DB()
 		if raw == nil {
-			return nil, sqlError.New("unable to get raw database object")
+			return sqlError.New("unable to get raw database object")
 		}
 
-		ds.db = &sqlDB{
-			DB:               db,
-			raw:              raw,
-			databaseType:     config.DatabaseType,
-			connectionString: config.ConnectionString,
+		sqlDb = &sqlDB{
+			DB:                 db,
+			raw:                raw,
+			databaseType:       config.DatabaseType,
+			connectionString:   connectionString,
 		}
 	}
 
-	ds.db.LogMode(config.LogSQL)
+	if readOnly {
+		ds.roDb = sqlDb
+	} else {
+		ds.db = sqlDb
+	}
 
-	return &spi.ConfigureResponse{}, nil
+	sqlDb.LogMode(config.LogSQL)
+	return nil
 }
 
 func (p *SQLPlugin) closeDB() {
 	if p.db != nil {
 		p.db.Close()
+	}
+
+	if p.roDb != nil {
+		p.roDb.Close()
 	}
 }
 
@@ -549,22 +584,24 @@ func (*SQLPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*sp
 }
 
 func (ds *SQLPlugin) withWriteRepeatableReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, false, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	return ds.withTx(ctx, ds.db, op, false, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 }
 
 func (ds *SQLPlugin) withWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, false, nil)
+	return ds.withTx(ctx, ds.db, op, false, nil)
 }
 
 func (ds *SQLPlugin) withReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, true, nil)
-}
-
-func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool, opts *sql.TxOptions) error {
+	if ds.roDb != nil {
+		return ds.withTx(ctx, ds.roDb, op, true, nil)
+	}
 	ds.mu.Lock()
 	db := ds.db
 	ds.mu.Unlock()
+	return ds.withTx(ctx, db, op, true, nil)
+}
 
+func (ds *SQLPlugin) withTx(ctx context.Context, db *sqlDB, op func(tx *gorm.DB) error, readOnly bool, opts *sql.TxOptions) error {
 	if db.databaseType == SQLite && !readOnly {
 		// sqlite3 can only have one writer at a time. since we're in WAL mode,
 		// there can be concurrent reads and writes, so no lock is necessary
@@ -574,6 +611,7 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	}
 
 	tx := db.BeginTx(ctx, opts)
+
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -592,18 +630,18 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	return sqlError.Wrap(tx.Commit().Error)
 }
 
-func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
+func (ds *SQLPlugin) openDB(cfg *configuration, connectionString string) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
 	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
-		db, err = sqlite{}.connect(cfg)
+		db, err = sqlite{}.connect(cfg, connectionString)
 	case PostgreSQL:
-		db, err = postgres{}.connect(cfg)
+		db, err = postgres{}.connect(cfg, connectionString)
 	case MySQL:
-		db, err = mysql{}.connect(cfg)
+		db, err = mysql{}.connect(cfg, connectionString)
 	default:
 		return nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
 	}
@@ -616,6 +654,7 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	db.SetLogger(gormLogger.StandardLogger(&hclog.StandardLoggerOptions{
 		InferLevels: true,
 	}))
+
 	if cfg.MaxOpenConns != nil {
 		db.DB().SetMaxOpenConns(*cfg.MaxOpenConns)
 	}

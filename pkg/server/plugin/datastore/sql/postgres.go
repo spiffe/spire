@@ -8,8 +8,8 @@ import (
 
 type postgres struct{}
 
-func (p postgres) connect(cfg *configuration) (*gorm.DB, error) {
-	db, err := gorm.Open("postgres", cfg.ConnectionString)
+func (p postgres) connect(cfg *configuration, connectionString string) (*gorm.DB, error) {
+	db, err := gorm.Open("postgres", connectionString)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
