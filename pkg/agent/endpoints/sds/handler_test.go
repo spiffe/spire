@@ -11,10 +11,9 @@ import (
 
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	core_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
-	"github.com/gogo/googleapis/google/rpc"
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -24,6 +23,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -36,8 +36,8 @@ var (
 		Name: "spiffe://domain.test",
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{
-				TrustedCa: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				TrustedCa: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
 					},
 				},
@@ -52,8 +52,8 @@ var (
 		Name: "spiffe://otherdomain.test",
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{
-				TrustedCa: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				TrustedCa: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nRkVEQlVORExF\n-----END CERTIFICATE-----\n"),
 					},
 				},
@@ -74,13 +74,13 @@ MC2hK9d8Z5ENZc9lFW48vObdcHcHdHvAaA8z2GM02pDkTt5pgUvRHlsf
 		Name: "spiffe://domain.test/workload",
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
-				CertificateChain: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				CertificateChain: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nV09SS0xPQUQx\n-----END CERTIFICATE-----\n"),
 					},
 				},
-				PrivateKey: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				PrivateKey: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: workloadKeyPEM,
 					},
 				},
@@ -93,13 +93,13 @@ MC2hK9d8Z5ENZc9lFW48vObdcHcHdHvAaA8z2GM02pDkTt5pgUvRHlsf
 		Name: "spiffe://domain.test/workload",
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
-				CertificateChain: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				CertificateChain: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nV09SS0xPQUQy\n-----END CERTIFICATE-----\n"),
 					},
 				},
-				PrivateKey: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				PrivateKey: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: workloadKeyPEM,
 					},
 				},
@@ -271,7 +271,7 @@ func (s *HandlerSuite) TestStreamSecretsApplicationDoesNotSpin() {
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResponseNonce: resp.Nonce,
 		VersionInfo:   "OHNO",
-		ErrorDetail:   &rpc.Status{Message: "OHNO!"},
+		ErrorDetail:   &status.Status{Message: "OHNO!"},
 		ResourceNames: []string{"spiffe://domain.test/workload"},
 	})
 
@@ -462,7 +462,7 @@ func (s *HandlerSuite) requireSecrets(resp *api_v2.DiscoveryResponse, expectedSe
 	var actualSecrets []*auth_v2.Secret
 	for _, resource := range resp.Resources {
 		secret := new(auth_v2.Secret)
-		s.Require().NoError(types.UnmarshalAny(&resource, secret)) //nolint: scopelint // pointer to resource isn't held
+		s.Require().NoError(ptypes.UnmarshalAny(resource, secret)) //nolint: scopelint // pointer to resource isn't held
 		actualSecrets = append(actualSecrets, secret)
 	}
 
