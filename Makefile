@@ -232,10 +232,16 @@ endif
 ############################################################################
 
 go_flags :=
-ifeq ($(CIRCLECI), true)
+ifneq ($(GOPARALLEL),)
 	# circleci executors don't have enough memory to run compilation with
 	# high parallism
-	go_flags := -p=2
+	go_flags += -p=$(GOPARALLEL)
+endif
+
+ifneq ($(GOVERBOSE),)
+	# circleci executors don't have enough memory to run compilation with
+	# high parallism
+	go_flags += -v
 endif
 
 # Determine the ldflags passed to the go linker. The git tag and hash will be
@@ -276,7 +282,7 @@ $(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-p
 $(eval $(call binary_rule,bin/spire-plugingen,./tools/spire-plugingen))
 
 bin/:
-	mkdir -p $@
+	@mkdir -p $@
 
 #############################################################################
 # Test Targets
@@ -299,7 +305,7 @@ else
 endif
 
 integration:
-	./test/integration/test-all.sh
+	@./test/integration/test-all.sh
 
 #############################################################################
 # Build Artifact
@@ -435,7 +441,7 @@ mockgen-out = $(call mockgen-pkg,$1)/$(call mockgen-pkgname,$1).go
 define mockgen-rule
 $(call mockgen-out,$1): $$(mockgen_bin)
 	@echo "(mockgen) generating $$@..."
-	$$(mockgen_bin) -destination $(call mockgen-out,$1) -package mock_$(call mockgen-pkgname,$1) $(call mockgen-src,$1) $(call mockgen-intfs,$1)
+	@$$(mockgen_bin) -destination $(call mockgen-out,$1) -package mock_$(call mockgen-pkgname,$1) $(call mockgen-src,$1) $(call mockgen-intfs,$1)
 endef
 
 $(foreach x,$(mockgen_mocks),$(eval $(call mockgen-rule,$x)))
