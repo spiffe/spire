@@ -1,0 +1,6 @@
+FROM ubuntu:xenial
+
+RUN apt-get update && apt-get -y install \
+    curl unzip git build-essential ca-certificates
+
+WORKDIR /spire

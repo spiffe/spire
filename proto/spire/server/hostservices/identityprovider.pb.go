@@ -9,6 +9,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	common "github.com/spiffe/spire/proto/spire/common"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -214,6 +216,14 @@ func (c *identityProviderClient) FetchX509Identity(ctx context.Context, in *Fetc
 // IdentityProviderServer is the server API for IdentityProvider service.
 type IdentityProviderServer interface {
 	FetchX509Identity(context.Context, *FetchX509IdentityRequest) (*FetchX509IdentityResponse, error)
+}
+
+// UnimplementedIdentityProviderServer can be embedded to have forward compatible implementations.
+type UnimplementedIdentityProviderServer struct {
+}
+
+func (*UnimplementedIdentityProviderServer) FetchX509Identity(ctx context.Context, req *FetchX509IdentityRequest) (*FetchX509IdentityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchX509Identity not implemented")
 }
 
 func RegisterIdentityProviderServer(s *grpc.Server, srv IdentityProviderServer) {

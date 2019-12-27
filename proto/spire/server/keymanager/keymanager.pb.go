@@ -9,6 +9,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -757,6 +759,29 @@ type KeyManagerServer interface {
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	// Returns the version and related metadata of the installed plugin
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+}
+
+// UnimplementedKeyManagerServer can be embedded to have forward compatible implementations.
+type UnimplementedKeyManagerServer struct {
+}
+
+func (*UnimplementedKeyManagerServer) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (*GenerateKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateKey not implemented")
+}
+func (*UnimplementedKeyManagerServer) GetPublicKey(ctx context.Context, req *GetPublicKeyRequest) (*GetPublicKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPublicKey not implemented")
+}
+func (*UnimplementedKeyManagerServer) GetPublicKeys(ctx context.Context, req *GetPublicKeysRequest) (*GetPublicKeysResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPublicKeys not implemented")
+}
+func (*UnimplementedKeyManagerServer) SignData(ctx context.Context, req *SignDataRequest) (*SignDataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignData not implemented")
+}
+func (*UnimplementedKeyManagerServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+func (*UnimplementedKeyManagerServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
 }
 
 func RegisterKeyManagerServer(s *grpc.Server, srv KeyManagerServer) {

@@ -9,6 +9,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -176,6 +178,17 @@ type PluginServer interface {
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 }
 
+// UnimplementedPluginServer can be embedded to have forward compatible implementations.
+type UnimplementedPluginServer struct {
+}
+
+func (*UnimplementedPluginServer) CallPlugin(ctx context.Context, req *Request) (*Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CallPlugin not implemented")
+}
+func (*UnimplementedPluginServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+
 func RegisterPluginServer(s *grpc.Server, srv PluginServer) {
 	s.RegisterService(&_Plugin_serviceDesc, srv)
 }
@@ -262,6 +275,14 @@ type ServiceServer interface {
 	CallService(context.Context, *Request) (*Response, error)
 }
 
+// UnimplementedServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedServiceServer struct {
+}
+
+func (*UnimplementedServiceServer) CallService(ctx context.Context, req *Request) (*Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CallService not implemented")
+}
+
 func RegisterServiceServer(s *grpc.Server, srv ServiceServer) {
 	s.RegisterService(&_Service_serviceDesc, srv)
 }
@@ -324,6 +345,14 @@ func (c *hostServiceClient) CallHostService(ctx context.Context, in *Request, op
 // HostServiceServer is the server API for HostService service.
 type HostServiceServer interface {
 	CallHostService(context.Context, *Request) (*Response, error)
+}
+
+// UnimplementedHostServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedHostServiceServer struct {
+}
+
+func (*UnimplementedHostServiceServer) CallHostService(ctx context.Context, req *Request) (*Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CallHostService not implemented")
 }
 
 func RegisterHostServiceServer(s *grpc.Server, srv HostServiceServer) {
