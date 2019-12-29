@@ -84,7 +84,7 @@ go_version := $(shell cat .go-version)
 go_dir := $(build_dir)/go/$(go_version)
 go_bin_dir := $(go_dir)/bin
 go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
-go := PATH=$(go_bin_dir):$(PATH) go
+go := PATH="$(go_bin_dir):$(PATH)" go
 
 golangci_lint_version = v1.21.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
