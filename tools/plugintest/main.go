@@ -13,8 +13,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	agent_catalog "github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/zeebo/errs"
 )
 

@@ -9,10 +9,10 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	mock_upstreamca "github.com/spiffe/spire/test/mock/proto/server/upstreamca"
+	mock_upstreamca "github.com/spiffe/spire/test/mock/plugin/server/upstreamca"
 	"github.com/stretchr/testify/suite"
 )
 

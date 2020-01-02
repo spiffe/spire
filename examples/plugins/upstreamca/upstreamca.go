@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

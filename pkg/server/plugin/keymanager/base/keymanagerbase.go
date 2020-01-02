@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
 type KeyEntry struct {

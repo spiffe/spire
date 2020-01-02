@@ -3,8 +3,8 @@ package fakenotifier
 import (
 	"context"
 
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/notifier"
 )
 
 type Config struct {

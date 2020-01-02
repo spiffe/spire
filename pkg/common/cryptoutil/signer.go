@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
 type KeyManagerSigner struct {
