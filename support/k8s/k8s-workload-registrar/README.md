@@ -146,7 +146,7 @@ Additionally, unless you disable client authentication (`insecure_skip_client_ve
 For convenience, a command line utility is provided to generate authentication
 material and relevant Kubernetes configuration YAML.
 
-````
+```
 $ go run generate-config.go
 .... YAML configuration dump ....
 ```
