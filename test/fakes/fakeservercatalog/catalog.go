@@ -1,14 +1,14 @@
 package fakeservercatalog
 
 import (
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/server/noderesolver"
-	"github.com/spiffe/spire/proto/spire/server/notifier"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
 type Catalog struct {

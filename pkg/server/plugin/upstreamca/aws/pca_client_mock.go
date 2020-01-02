@@ -5,11 +5,12 @@
 package aws
 
 import (
+	reflect "reflect"
+
 	aws "github.com/aws/aws-sdk-go/aws"
 	request "github.com/aws/aws-sdk-go/aws/request"
 	acmpca "github.com/aws/aws-sdk-go/service/acmpca"
 	gomock "github.com/golang/mock/gomock"
-	reflect "reflect"
 )
 
 // MockPCAClient is a mock of PCAClient interface

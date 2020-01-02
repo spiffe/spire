@@ -7,9 +7,16 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc"
 )
+
+type AttestRequest = workloadattestor.AttestRequest                                             //nolint: golint
+type AttestResponse = workloadattestor.AttestResponse                                           //nolint: golint
+type UnimplementedWorkloadAttestorServer = workloadattestor.UnimplementedWorkloadAttestorServer //nolint: golint
+type WorkloadAttestorClient = workloadattestor.WorkloadAttestorClient                           //nolint: golint
+type WorkloadAttestorServer = workloadattestor.WorkloadAttestorServer                           //nolint: golint
 
 const (
 	Type = "WorkloadAttestor"
@@ -47,7 +54,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	RegisterWorkloadAttestorServer(server, s.server)
+	workloadattestor.RegisterWorkloadAttestorServer(server, s.server)
 	return s.server
 }
 
@@ -61,7 +68,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
-	return AdaptPluginClient(NewWorkloadAttestorClient(conn))
+	return AdaptPluginClient(workloadattestor.NewWorkloadAttestorClient(conn))
 }
 
 func AdaptPluginClient(client WorkloadAttestorClient) WorkloadAttestor {

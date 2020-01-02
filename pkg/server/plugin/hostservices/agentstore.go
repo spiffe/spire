@@ -7,8 +7,16 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"google.golang.org/grpc"
 )
+
+type AgentInfo = hostservices.AgentInfo                                         //nolint: golint
+type AgentStoreClient = hostservices.AgentStoreClient                           //nolint: golint
+type AgentStoreServer = hostservices.AgentStoreServer                           //nolint: golint
+type GetAgentInfoRequest = hostservices.GetAgentInfoRequest                     //nolint: golint
+type GetAgentInfoResponse = hostservices.GetAgentInfoResponse                   //nolint: golint
+type UnimplementedAgentStoreServer = hostservices.UnimplementedAgentStoreServer //nolint: golint
 
 const (
 	AgentStoreType = "AgentStore"
@@ -35,7 +43,7 @@ func (s agentStoreHostServiceServer) HostServiceType() string {
 }
 
 func (s agentStoreHostServiceServer) RegisterHostServiceServer(server *grpc.Server) {
-	RegisterAgentStoreServer(server, s.server)
+	hostservices.RegisterAgentStoreServer(server, s.server)
 }
 
 // AgentStoreHostServiceServer returns a catalog HostServiceServer implementation for the AgentStore plugin.
@@ -54,7 +62,7 @@ func (c *agentStoreHostServiceClient) HostServiceType() string {
 }
 
 func (c *agentStoreHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
-	*c.client = AdaptAgentStoreHostServiceClient(NewAgentStoreClient(conn))
+	*c.client = AdaptAgentStoreHostServiceClient(hostservices.NewAgentStoreClient(conn))
 }
 
 func AdaptAgentStoreHostServiceClient(client AgentStoreClient) AgentStore {

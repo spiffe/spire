@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
 )
 
 type pluginMetrics struct {

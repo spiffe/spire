@@ -10,8 +10,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	mock_manager "github.com/spiffe/spire/test/mock/agent/manager"
-	mock_keymanager "github.com/spiffe/spire/test/mock/proto/agent/keymanager"
-	mock_nodeattestor "github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
+	mock_keymanager "github.com/spiffe/spire/test/mock/plugin/agent/keymanager"
+	mock_nodeattestor "github.com/spiffe/spire/test/mock/plugin/agent/nodeattestor"
 	"github.com/stretchr/testify/suite"
 )
 

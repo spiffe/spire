@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/require"
 )

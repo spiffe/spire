@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	km_disk "github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	km_memory "github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	na_aws_iid "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
 	na_azure_msi "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/azure"
 	na_gcp_iit "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/gcp"
@@ -14,13 +16,11 @@ import (
 	na_k8s_sat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/sat"
 	na_sshpop "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/sshpop"
 	na_x509pop "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/x509pop"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	wa_docker "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker"
 	wa_k8s "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
 	wa_unix "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/agent/keymanager"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 )
 
 type Catalog interface {

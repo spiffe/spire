@@ -24,10 +24,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	datastore_pb "github.com/spiffe/spire/pkg/server/plugin/datastore"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	datastore_pb "github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
 // This is the maximum amount of time an agent connection may exist before

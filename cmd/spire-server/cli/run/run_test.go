@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -21,11 +21,11 @@ import (
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
-	"github.com/spiffe/spire/proto/spire/server/notifier"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/zeebo/errs"
 )
 
