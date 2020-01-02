@@ -216,7 +216,7 @@ space := $(null) #
 
 tolower = $(shell echo $1 | tr '[:upper:]' '[:lower:]')
 
-goenv = $(shell PATH=$(go_bin_dir):$(PATH) go env $1)
+goenv = $(shell PATH="$(go_bin_dir):$(PATH)" go env $1)
 
 git-clean-check:
 ifneq ($(git_dirty),)
@@ -354,7 +354,7 @@ tidy: | go-check
 lint: lint-code
 
 lint-code: $(golangci_lint_bin) | go-check
-	@PATH=$(go_bin_dir):$(PATH) $(golangci_lint_bin) run ./...
+	@PATH="$(go_bin_dir):$(PATH)" $(golangci_lint_bin) run ./...
 
 
 #############################################################################
@@ -371,7 +371,7 @@ protogen: $(protos:.proto=.pb.go) $(protodocs)
 
 %.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin)
 	@echo "(proto) compiling $<..."
-	@PATH=$(protoc_gen_go_dir):$(PATH) $(protoc_bin) --proto_path=$(@D) --proto_path=proto --go_out=paths=source_relative,plugins=grpc:$(@D) $<
+	@PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) --proto_path=$(@D) --proto_path=proto --go_out=paths=source_relative,plugins=grpc:$(@D) $<
 
 protogen-check:
 ifneq ($(git_dirty),)
@@ -385,7 +385,7 @@ endif
 
 define protodoc-rule
 $1: $(wildcard $(dir $1)*.proto) $(protoc_bin) $(protoc_gen_doc_bin)
-	@echo "(protodoc) generating $1..."; PATH=$(protoc_gen_doc_dir):$(PATH) $(protoc_bin) --proto_path=$(dir $1) --proto_path=proto --doc_out=markdown,README_pb.md:$(dir $1) $(sort $(wildcard $(dir $1)*.proto))
+	@echo "(protodoc) generating $1..."; PATH="$(protoc_gen_doc_dir):$(PATH)" $(protoc_bin) --proto_path=$(dir $1) --proto_path=proto --doc_out=markdown,README_pb.md:$(dir $1) $(sort $(wildcard $(dir $1)*.proto))
 endef
 
 $(foreach doc,$(protodocs),$(eval $(call protodoc-rule,$(doc))))
@@ -402,7 +402,7 @@ plugingen-out = $(call plugingen-dir,$1)$(call tolower,$(call plugingen-type,$1)
 define plugingen-rule
 $(call plugingen-out,$1): $(call plugingen-pbgo,$1) | bin/spire-plugingen
 	@echo "($2) generating $$@..."
-	@cd $(call plugingen-dir,$1) && PATH=$$(go_bin_dir):$$(PATH) $$(DIR)/bin/spire-plugingen $(call plugingen-shared-opt,$1) -mode $2 . $(call plugingen-type,$1)
+	@cd $(call plugingen-dir,$1) && PATH="$$(go_bin_dir):$$(PATH)" $$(DIR)/bin/spire-plugingen $(call plugingen-shared-opt,$1) -mode $2 . $(call plugingen-type,$1)
 endef
 
 # generate rules for plugins
