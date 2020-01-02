@@ -107,6 +107,7 @@ type federatesWithConfig struct {
 	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
 	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
 	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
+	UseWebPKI              bool     `hcl:"use_web_pki"`
 	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
@@ -315,6 +316,7 @@ func newServerConfig(c *config) (*server.Config, error) {
 		federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
 			EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
 			EndpointSpiffeID: config.BundleEndpointSpiffeID,
+			UseWebPKI:        config.UseWebPKI,
 		}
 	}
 	sc.Experimental.FederatesWith = federatesWith

@@ -14,13 +14,7 @@ import (
 	"github.com/zeebo/errs"
 )
 
-type ClientConfig struct { //nolint: golint // name stutter is intentional
-	// TrustDomain is the federated trust domain (i.e. domain.test)
-	TrustDomain string
-
-	// EndpointAddress is the bundle endpoint for the trust domain.
-	EndpointAddress string
-
+type SPIFFEAuthConfig struct {
 	// EndpointSpiffeID is the expected SPIFFE ID of the endpoint server. If unset, it
 	// defaults to the SPIRE server ID within the trust domain.
 	EndpointSpiffeID string
@@ -28,6 +22,19 @@ type ClientConfig struct { //nolint: golint // name stutter is intentional
 	// RootCAs is the set of root CA certificates used to authenticate the
 	// endpoint server.
 	RootCAs []*x509.Certificate
+}
+
+type ClientConfig struct { //nolint: golint // name stutter is intentional
+	// TrustDomain is the federated trust domain (i.e. domain.test)
+	TrustDomain string
+
+	// EndpointAddress is the bundle endpoint for the trust domain.
+	EndpointAddress string
+
+	// SPIFFEAuth contains required configuration to authenticate the endpoint
+	// using SPIFFE authentication. If unset, it is assumed that the endpoint
+	// is authenticated via Web PKI.
+	SPIFFEAuth *SPIFFEAuthConfig
 }
 
 // Client is used to fetch a bundle and metadata from a bundle endpoint
@@ -41,21 +48,23 @@ type client struct {
 }
 
 func NewClient(config ClientConfig) Client {
-	spiffeID := config.EndpointSpiffeID
-	if spiffeID == "" {
-		spiffeID = idutil.ServerID(config.TrustDomain)
-	}
-	peer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{spiffeID},
-		TrustRoots: util.NewCertPool(config.RootCAs...),
+	httpClient := &http.Client{}
+	if config.SPIFFEAuth != nil {
+		spiffeID := config.SPIFFEAuth.EndpointSpiffeID
+		if spiffeID == "" {
+			spiffeID = idutil.ServerID(config.TrustDomain)
+		}
+		peer := &spiffe_tls.TLSPeer{
+			SpiffeIDs:  []string{spiffeID},
+			TrustRoots: util.NewCertPool(config.SPIFFEAuth.RootCAs...),
+		}
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: peer.NewTLSConfig(nil),
+		}
 	}
 	return &client{
-		c: config,
-		client: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: peer.NewTLSConfig(nil),
-			},
-		},
+		c:      config,
+		client: httpClient,
 	}
 }
 

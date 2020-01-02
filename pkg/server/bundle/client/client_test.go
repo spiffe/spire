@@ -74,10 +74,12 @@ func TestClient(t *testing.T) {
 			defer server.Close()
 
 			client := NewClient(ClientConfig{
-				TrustDomain:      "domain.test",
-				EndpointAddress:  server.Listener.Addr().String(),
-				EndpointSpiffeID: testCase.spiffeID,
-				RootCAs:          []*x509.Certificate{serverCert},
+				TrustDomain:     "domain.test",
+				EndpointAddress: server.Listener.Addr().String(),
+				SPIFFEAuth: &SPIFFEAuthConfig{
+					EndpointSpiffeID: testCase.spiffeID,
+					RootCAs:          []*x509.Certificate{serverCert},
+				},
 			})
 
 			bundle, err := client.FetchBundle(context.Background())

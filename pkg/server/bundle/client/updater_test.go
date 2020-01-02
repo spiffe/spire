@@ -38,7 +38,7 @@ func TestBundleUpdater(t *testing.T) {
 	}{
 		{
 			name: "local bundle not found",
-			err:  "bundle not found",
+			err:  "local bundle not found",
 		},
 		{
 			name:           "bundle has no changes",
