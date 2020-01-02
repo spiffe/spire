@@ -6,6 +6,11 @@ ifneq ($(GOROOT),)
 	export GOROOT=
 endif
 
+E:=@
+ifeq ($(V),1)
+	E=
+endif
+
 cyan := $(shell which tput > /dev/null && tput setaf 6 2>/dev/null || echo "")
 reset := $(shell which tput > /dev/null && tput sgr0 2>/dev/null || echo "")
 bold  := $(shell which tput > /dev/null && tput bold 2>/dev/null || echo "")
@@ -50,6 +55,9 @@ help:
 	@echo "  $(cyan)plugingen$(reset)                     - generate plugin interface code"
 	@echo "  $(cyan)plugingen-check$(reset)               - ensure generated plugin interface code is up to date"
 	@echo "  $(cyan)mockgen$(reset)                       - generate test mocks"
+	@echo
+	@echo "For verbose output set V=1"
+	@echo "  for example: $(cyan)make V=1 build$(reset)"
 
 
 ############################################################################
@@ -269,7 +277,7 @@ define binary_rule
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	@$(go) build $$(go_flags) -ldflags $$(go_ldflags) -o $1 $2
+	$(E)$(go) build $$(go_flags) -ldflags $$(go_ldflags) -o $1 $2
 endef
 
 # main SPIRE binaries
@@ -292,20 +300,20 @@ bin/:
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
-	@$(go) test $(go_flags) -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go) test $(go_flags) -coverprofile="$(COVERPROFILE)" ./...
 else
-	@$(go) test $(go_flags) ./...
+	$(E)$(go) test $(go_flags) ./...
 endif
 
 race-test: | go-check
 ifneq ($(COVERPROFILE),)
-	@$(go) test $(go_flags) -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go) test $(go_flags) -coverprofile="$(COVERPROFILE)" ./...
 else
-	@$(go) test $(go_flags) -race ./...
+	$(E)$(go) test $(go_flags) -race ./...
 endif
 
 integration:
-	@./test/integration/test-all.sh
+	$(E)./test/integration/test-all.sh
 
 #############################################################################
 # Build Artifact
@@ -314,7 +322,7 @@ integration:
 .PHONY: artifact
 
 artifact: build
-	@OUTDIR="$(OUTDIR)" TAG="$(TAG)" ./script/build-artifact.sh
+	$(E)OUTDIR="$(OUTDIR)" TAG="$(TAG)" ./script/build-artifact.sh
 
 #############################################################################
 # Docker Images
@@ -349,12 +357,12 @@ oidc-discovery-provider-image: Dockerfile
 
 .PHONY: tidy lint lint-code
 tidy: | go-check
-	@$(go) mod tidy
+	$(E)$(go) mod tidy
 
 lint: lint-code
 
 lint-code: $(golangci_lint_bin) | go-check
-	@PATH="$(go_bin_dir):$(PATH)" $(golangci_lint_bin) run ./...
+	$(E)PATH="$(go_bin_dir):$(PATH)" $(golangci_lint_bin) run ./...
 
 
 #############################################################################
@@ -371,17 +379,17 @@ protogen: $(protos:.proto=.pb.go) $(protodocs)
 
 %.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin)
 	@echo "(proto) compiling $<..."
-	@PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) --proto_path=$(@D) --proto_path=proto --go_out=paths=source_relative,plugins=grpc:$(@D) $<
+	$(E)PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) --proto_path=$(@D) --proto_path=proto --go_out=paths=source_relative,plugins=grpc:$(@D) $<
 
 protogen-check:
 ifneq ($(git_dirty),)
 	$(error protogen-check must be invoked on a clean repository)
 endif
-	@find . -type f -name "*.proto" -exec touch {} \;
+	$(E)find . -type f -name "*.proto" -exec touch {} \;
 	@echo "Compiling protocol buffers..." 
-	@$(MAKE) protogen
+	$(E)$(MAKE) protogen
 	@echo "Ensuring git repository is clean..." 
-	@$(MAKE) git-clean-check
+	$(E)$(MAKE) git-clean-check
 
 define protodoc-rule
 $1: $(wildcard $(dir $1)*.proto) $(protoc_bin) $(protoc_gen_doc_bin)
@@ -402,7 +410,7 @@ plugingen-out = $(call plugingen-dir,$1)$(call tolower,$(call plugingen-type,$1)
 define plugingen-rule
 $(call plugingen-out,$1): $(call plugingen-pbgo,$1) | bin/spire-plugingen
 	@echo "($2) generating $$@..."
-	@cd $(call plugingen-dir,$1) && PATH="$$(go_bin_dir):$$(PATH)" $$(DIR)/bin/spire-plugingen $(call plugingen-shared-opt,$1) -mode $2 . $(call plugingen-type,$1)
+	$(E)cd $(call plugingen-dir,$1) && PATH="$$(go_bin_dir):$$(PATH)" $$(DIR)/bin/spire-plugingen $(call plugingen-shared-opt,$1) -mode $2 . $(call plugingen-type,$1)
 endef
 
 # generate rules for plugins
@@ -426,11 +434,11 @@ plugingen-check:
 ifneq ($(git_dirty),)
 	$(error plugingen-check must be invoked on a clean repository)
 endif
-	@find . -type f -name "*.pb.go" -exec touch {} \;
+	$(E)find . -type f -name "*.pb.go" -exec touch {} \;
 	@echo "Generating plugin interface code..." 
-	@$(MAKE) plugingen
+	$(E)$(MAKE) plugingen
 	@echo "Ensuring git repository is clean..." 
-	@$(MAKE) git-clean-check
+	$(E)$(MAKE) git-clean-check
 
 mockgen-pkg = $(word 1,$(subst $(comma),$(space),$1))
 mockgen-pkgname = $(notdir $(call mockgen-pkg,$1))
@@ -441,7 +449,7 @@ mockgen-out = $(call mockgen-pkg,$1)/$(call mockgen-pkgname,$1).go
 define mockgen-rule
 $(call mockgen-out,$1): $$(mockgen_bin)
 	@echo "(mockgen) generating $$@..."
-	@$$(mockgen_bin) -destination $(call mockgen-out,$1) -package mock_$(call mockgen-pkgname,$1) $(call mockgen-src,$1) $(call mockgen-intfs,$1)
+	$(E)$$(mockgen_bin) -destination $(call mockgen-out,$1) -package mock_$(call mockgen-pkgname,$1) $(call mockgen-src,$1) $(call mockgen-intfs,$1)
 endef
 
 $(foreach x,$(mockgen_mocks),$(eval $(call mockgen-rule,$x)))
@@ -455,10 +463,10 @@ mockgen: $(foreach x,$(mockgen_mocks),$(call mockgen-out,$x))
 .PHONY: dev-shell dev-image
 
 dev-image:
-	@docker build -t spire-dev -f Dockerfile.dev .
+	$(E)docker build -t spire-dev -f Dockerfile.dev .
 
 dev-shell: | go-check
-	@docker run --rm -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
+	$(E)docker run --rm -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
 
 #############################################################################
 # Toolchain
@@ -475,9 +483,9 @@ dev-shell: | go-check
 go-check:
 ifneq (go$(go_version), $(shell $(go) version 2>/dev/null | cut -f3 -d' '))
 	@echo "Installing go$(go_version)..."
-	@rm -rf $(dir $(go_dir))
-	@mkdir -p $(go_dir)
-	@curl -sSfL $(go_url) | tar xz -C $(go_dir) --strip-components=1
+	$(E)rm -rf $(dir $(go_dir))
+	$(E)mkdir -p $(go_dir)
+	$(E)curl -sSfL $(go_url) | tar xz -C $(go_dir) --strip-components=1
 endif
 
 install-toolchain: install-protoc install-golangci-lint install-protoc-gen-go install-protoc-gen-doc install-mockgen | go-check
@@ -486,38 +494,38 @@ install-protoc: $(protoc_bin)
 
 $(protoc_bin):
 	@echo "Installing protoc $(protoc_version)..."
-	@rm -rf $(dir $(protoc_dir))
-	@mkdir -p $(protoc_dir)
-	@curl -sSfL $(protoc_url) -o $(build_dir)/tmp.zip; unzip -q -d $(protoc_dir) $(build_dir)/tmp.zip; rm $(build_dir)/tmp.zip
+	$(E)rm -rf $(dir $(protoc_dir))
+	$(E)mkdir -p $(protoc_dir)
+	$(E)curl -sSfL $(protoc_url) -o $(build_dir)/tmp.zip; unzip -q -d $(protoc_dir) $(build_dir)/tmp.zip; rm $(build_dir)/tmp.zip
 
 install-golangci-lint: $(golangci_lint_bin)
 
 $(golangci_lint_bin):
 	@echo "Installing golangci-lint $(golangci_lint_version)..."
-	@rm -rf $(dir $(golangci_lint_dir))
-	@mkdir -p $(golangci_lint_dir)
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
+	$(E)rm -rf $(dir $(golangci_lint_dir))
+	$(E)mkdir -p $(golangci_lint_dir)
+	$(E)curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
 
 install-protoc-gen-go: $(protoc_gen_go_bin)
 
 $(protoc_gen_go_bin): | go-check
 	@echo "Installing protoc-gen-go $(protoc_gen_go_version)..."
-	@rm -rf $(dir $(protoc_gen_go_dir))
-	@mkdir -p $(protoc_gen_go_dir)
-	@$(go) build -o $(protoc_gen_go_bin) github.com/golang/protobuf/protoc-gen-go
+	$(E)rm -rf $(dir $(protoc_gen_go_dir))
+	$(E)mkdir -p $(protoc_gen_go_dir)
+	$(E)$(go) build -o $(protoc_gen_go_bin) github.com/golang/protobuf/protoc-gen-go
 
 install-protoc-gen-doc: $(protoc_gen_doc_bin)
 
 $(protoc_gen_doc_bin): | go-check
 	@echo "Installing protoc-gen-doc $(protoc_gen_doc_version)..."
-	@rm -rf $(dir $(protoc_gen_doc_dir))
-	@mkdir -p $(protoc_gen_doc_dir)
-	@cd tools/external; $(go) build -o $(protoc_gen_doc_bin) github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc
+	$(E)rm -rf $(dir $(protoc_gen_doc_dir))
+	$(E)mkdir -p $(protoc_gen_doc_dir)
+	$(E)cd tools/external; $(go) build -o $(protoc_gen_doc_bin) github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc
 
 install-mockgen: $(mockgen_bin)
 
 $(mockgen_bin): | go-check
 	@echo "Installing mockgen $(mockgen_version)..."
-	@rm -rf $(dir $(mockgen_dir))
-	@mkdir -p $(mockgen_dir)
-	@$(go) build -o $(mockgen_bin) github.com/golang/mock/mockgen
+	$(E)rm -rf $(dir $(mockgen_dir))
+	$(E)mkdir -p $(mockgen_dir)
+	$(E)$(go) build -o $(mockgen_bin) github.com/golang/mock/mockgen
