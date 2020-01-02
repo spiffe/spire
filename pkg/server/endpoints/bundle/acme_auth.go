@@ -112,7 +112,7 @@ func (ks *acmeKeyStore) GetPrivateKey(ctx context.Context, id string) (crypto.Si
 		return nil, errs.Wrap(err)
 	}
 	if resp.PublicKey == nil {
-		return nil, nil
+		return nil, autocert.ErrNoSuchKey
 	}
 
 	return ks.signer(keyID, resp.PublicKey, isACMEAccountKey(id))
