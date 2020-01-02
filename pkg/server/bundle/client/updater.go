@@ -8,7 +8,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/zeebo/errs"
 )
 

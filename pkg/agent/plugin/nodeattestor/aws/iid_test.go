@@ -15,8 +15,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
 

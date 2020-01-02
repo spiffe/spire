@@ -10,9 +10,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 )

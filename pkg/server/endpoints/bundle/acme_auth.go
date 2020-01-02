@@ -14,7 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/autocert"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/zeebo/errs"
 	"golang.org/x/crypto/acme"
 )

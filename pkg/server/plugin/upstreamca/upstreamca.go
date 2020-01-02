@@ -8,8 +8,16 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"google.golang.org/grpc"
 )
+
+type SignedCertificate = upstreamca.SignedCertificate                         //nolint: golint
+type SubmitCSRRequest = upstreamca.SubmitCSRRequest                           //nolint: golint
+type SubmitCSRResponse = upstreamca.SubmitCSRResponse                         //nolint: golint
+type UnimplementedUpstreamCAServer = upstreamca.UnimplementedUpstreamCAServer //nolint: golint
+type UpstreamCAClient = upstreamca.UpstreamCAClient                           //nolint: golint
+type UpstreamCAServer = upstreamca.UpstreamCAServer                           //nolint: golint
 
 const (
 	Type = "UpstreamCA"
@@ -47,7 +55,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	RegisterUpstreamCAServer(server, s.server)
+	upstreamca.RegisterUpstreamCAServer(server, s.server)
 	return s.server
 }
 
@@ -61,7 +69,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
-	return AdaptPluginClient(NewUpstreamCAClient(conn))
+	return AdaptPluginClient(upstreamca.NewUpstreamCAClient(conn))
 }
 
 func AdaptPluginClient(client UpstreamCAClient) UpstreamCA {

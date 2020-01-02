@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )

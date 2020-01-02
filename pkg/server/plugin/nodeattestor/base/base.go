@@ -6,7 +6,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 )
 
 type Base struct {
