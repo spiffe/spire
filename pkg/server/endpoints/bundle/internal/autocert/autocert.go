@@ -1012,16 +1012,18 @@ func (m *Manager) accountKey(ctx context.Context) (crypto.Signer, error) {
 	const keyName = "acme_account+key"
 
 	privKey, err := m.KeyStore.GetPrivateKey(ctx, keyName)
-	if err != nil {
-		return nil, fmt.Errorf("acme/autocert: unable to get account key: %v", err)
-	}
-	if privKey == nil {
+	switch {
+	case err == nil:
+		return privKey, nil
+	case err == ErrNoSuchKey:
 		privKey, err = m.KeyStore.NewPrivateKey(ctx, keyName, EC256)
 		if err != nil {
 			return nil, fmt.Errorf("acme/autocert: unable to generate account key: %v", err)
 		}
+		return privKey, nil
+	default:
+		return nil, fmt.Errorf("acme/autocert: unable to get account key: %v", err)
 	}
-	return privKey, nil
 }
 
 func (m *Manager) acmeClient(ctx context.Context) (*acme.Client, error) {
