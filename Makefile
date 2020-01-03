@@ -466,7 +466,7 @@ dev-image:
 	$(E)docker build -t spire-dev -f Dockerfile.dev .
 
 dev-shell: | go-check
-	$(E)docker run --rm -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
+	$(E)docker run --rm -v "$(call goenv,GOCACHE)":/root/.cache/go-build -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
 
 #############################################################################
 # Toolchain
