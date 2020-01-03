@@ -3,8 +3,10 @@ package docker
 import (
 	"context"
 	"errors"
+	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,12 +14,12 @@ import (
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
 	gomock "github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	mock_docker "github.com/spiffe/spire/test/mock/agent/plugin/workloadattestor/docker"
-	filesystem_mock "github.com/spiffe/spire/test/mock/common/filesystem"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
@@ -89,13 +91,13 @@ func TestDockerSelectors(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
+
 			mockDocker := mock_docker.NewMockDocker(mockCtrl)
-			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
-			p := newTestPlugin(t, withMockDocker(mockDocker), withMockFS(mockFS))
+			fs := newFakeFileSystem(testCgroupEntries)
 
-			cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
-			defer cleanup()
+			p := newTestPlugin(t, withMockDocker(mockDocker), withFileSystem(fs))
+
 			ctx := context.Background()
 			container := types.ContainerJSON{
 				Config: &container.Config{
@@ -104,7 +106,6 @@ func TestDockerSelectors(t *testing.T) {
 					Env:    tt.mockEnv,
 				},
 			}
-			mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 			mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
 
 			res, err := p.Attest(ctx, &workloadattestor.AttestRequest{Pid: 123})
@@ -182,18 +183,15 @@ cgroup_container_index = 2`,
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 			mockDocker := mock_docker.NewMockDocker(mockCtrl)
-			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
+
+			fs := newFakeFileSystem(tt.cgroups)
 
 			p := newTestPlugin(
 				t,
 				withConfig(t, tt.cfg), // this must be the first option
 				withMockDocker(mockDocker),
-				withMockFS(mockFS),
+				withFileSystem(fs),
 			)
-
-			cgroupFile, cleanup := newTestFile(t, tt.cgroups)
-			defer cleanup()
-			mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 
 			if tt.hasMatch {
 				container := types.ContainerJSON{
@@ -224,17 +222,11 @@ cgroup_container_index = 2`,
 }
 
 func TestCgroupFileNotFound(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
-
-	p := newTestPlugin(t, withMockFS(mockFS))
-
-	mockFS.EXPECT().Open("/proc/123/cgroup").Return(nil, errors.New("no proc exists"))
+	p := newTestPlugin(t, withFileSystem(FakeFileSystem{}))
 
 	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no proc exists")
+	require.Contains(t, err.Error(), "file does not exist")
 	require.Nil(t, res)
 }
 
@@ -242,18 +234,16 @@ func TestDockerError(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockDocker := mock_docker.NewMockDocker(mockCtrl)
-	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
+
+	fs := newFakeFileSystem(testCgroupEntries)
 
 	p := newTestPlugin(
 		t,
 		withMockDocker(mockDocker),
-		withMockFS(mockFS),
+		withFileSystem(fs),
 		withDisabledRetryer(),
 	)
 
-	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
-	defer cleanup()
-	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 	mockDocker.EXPECT().
 		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error"))
@@ -268,19 +258,17 @@ func TestDockerErrorRetries(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockDocker := mock_docker.NewMockDocker(mockCtrl)
-	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
+
+	fs := newFakeFileSystem(testCgroupEntries)
 
 	p := newTestPlugin(
 		t,
 		withMockClock(mockClock),
 		withMockDocker(mockDocker),
-		withMockFS(mockFS),
+		withFileSystem(fs),
 	)
 
-	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
-	defer cleanup()
-	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 	mockDocker.EXPECT().
 		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error")).
@@ -305,21 +293,19 @@ func TestDockerErrorContextCancel(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockDocker := mock_docker.NewMockDocker(mockCtrl)
-	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockClock := clock.NewMock(t)
+
+	fs := newFakeFileSystem(testCgroupEntries)
 
 	p := newTestPlugin(
 		t,
 		withMockClock(mockClock),
 		withMockDocker(mockDocker),
-		withMockFS(mockFS),
+		withFileSystem(fs),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cgroupFile, cleanup := newTestFile(t, testCgroupEntries)
-	defer cleanup()
-	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 	mockDocker.EXPECT().
 		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error"))
@@ -444,7 +430,7 @@ func withMockDocker(m *mock_docker.MockDocker) testPluginOpt {
 	}
 }
 
-func withMockFS(m *filesystem_mock.MockFileSystem) testPluginOpt {
+func withFileSystem(m cgroups.FileSystem) testPluginOpt {
 	return func(p *Plugin) {
 		p.fs = m
 	}
@@ -486,10 +472,22 @@ func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	return p
 }
 
-func newTestFile(t *testing.T, data string) (filename string, cleanup func()) {
-	f, err := ioutil.TempFile("", "docker-test")
-	require.NoError(t, err)
-	_, err = f.Write([]byte(data))
-	require.NoError(t, err)
-	return f.Name(), func() { os.Remove(f.Name()) }
+func newFakeFileSystem(cgroups string) FakeFileSystem {
+	return FakeFileSystem{
+		Files: map[string]string{
+			"/proc/123/cgroup": cgroups,
+		},
+	}
+}
+
+type FakeFileSystem struct {
+	Files map[string]string
+}
+
+func (fs FakeFileSystem) Open(path string) (io.ReadCloser, error) {
+	data, ok := fs.Files[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return ioutil.NopCloser(strings.NewReader(data)), nil
 }

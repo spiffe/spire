@@ -7,30 +7,22 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	mock_upstreamca "github.com/spiffe/spire/test/mock/plugin/server/upstreamca"
 	"github.com/stretchr/testify/suite"
 )
 
 type ServerTestSuite struct {
 	suite.Suite
 	server *Server
-	upsCa  *mock_upstreamca.MockUpstreamCA
 	ds     *fakedatastore.DataStore
 	stdout *bytes.Buffer
-
-	mockCtrl *gomock.Controller
 }
 
 func (suite *ServerTestSuite) SetupTest() {
-	suite.mockCtrl = gomock.NewController(suite.T())
-
 	suite.ds = fakedatastore.New()
-	suite.upsCa = mock_upstreamca.NewMockUpstreamCA(suite.mockCtrl)
 
 	suite.stdout = new(bytes.Buffer)
 	logrusLevel, err := logrus.ParseLevel("DEBUG")
@@ -47,10 +39,6 @@ func (suite *ServerTestSuite) SetupTest() {
 			Host:   "example.org",
 		},
 	})
-}
-
-func (suite *ServerTestSuite) TearDownTest() {
-	suite.mockCtrl.Finish()
 }
 
 func TestServerTestSuite(t *testing.T) {

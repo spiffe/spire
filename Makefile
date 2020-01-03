@@ -188,10 +188,7 @@ plugingen_hostservices = \
 # entry is as follows:
 # mock-destination-pkg,src-go-pkg,interface[,additional interfaces]
 mockgen_mocks = \
-	test/mock/plugin/server/upstreamca,github.com/spiffe/spire/pkg/server/plugin/upstreamca,UpstreamCA,UpstreamCAServer \
-	test/mock/plugin/agent/nodeattestor,github.com/spiffe/spire/pkg/agent/plugin/nodeattestor,NodeAttestor,NodeAttestorServer,NodeAttestor_FetchAttestationDataClient \
 	test/mock/plugin/agent/workloadattestor,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor,WorkloadAttestor,WorkloadAttestorServer \
-	test/mock/plugin/agent/keymanager,github.com/spiffe/spire/pkg/agent/plugin/keymanager,KeyManager,KeyManagerServer \
 	test/mock/proto/api/registration,github.com/spiffe/spire/proto/spire/api/registration,RegistrationClient,RegistrationServer \
 	test/mock/proto/api/workload,github.com/spiffe/go-spiffe/proto/spiffe/workload,SpiffeWorkloadAPIClient,SpiffeWorkloadAPIServer,SpiffeWorkloadAPI_FetchX509SVIDClient,SpiffeWorkloadAPI_FetchX509SVIDServer,SpiffeWorkloadAPI_FetchJWTBundlesServer \
 	test/mock/proto/api/node,github.com/spiffe/spire/proto/spire/api/node,NodeClient,Node_AttestClient,Node_AttestServer,Node_FetchX509SVIDClient,NodeServer,Node_FetchX509SVIDServer \
@@ -206,7 +203,6 @@ mockgen_mocks = \
 	test/mock/common/plugin/k8s/clientset/corev1/node,k8s.io/client-go/kubernetes/typed/core/v1,NodeInterface \
 	test/mock/common/plugin/k8s/clientset/authenticationv1,k8s.io/client-go/kubernetes/typed/authentication/v1,AuthenticationV1Interface \
 	test/mock/common/plugin/k8s/clientset/authenticationv1/tokenreview,k8s.io/client-go/kubernetes/typed/authentication/v1,TokenReviewInterface \
-	test/mock/common/filesystem,github.com/spiffe/spire/pkg/agent/common/cgroups,FileSystem \
 	test/mock/common/telemetry,github.com/spiffe/spire/pkg/common/telemetry,Metrics \
 	test/mock/agent/plugin/workloadattestor/docker,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker,Docker \
 
@@ -466,7 +462,7 @@ dev-image:
 	$(E)docker build -t spire-dev -f Dockerfile.dev .
 
 dev-shell: | go-check
-	$(E)docker run --rm -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
+	$(E)docker run --rm -v "$(call goenv,GOCACHE)":/root/.cache/go-build -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
 
 #############################################################################
 # Toolchain
