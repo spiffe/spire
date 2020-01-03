@@ -188,10 +188,7 @@ plugingen_hostservices = \
 # entry is as follows:
 # mock-destination-pkg,src-go-pkg,interface[,additional interfaces]
 mockgen_mocks = \
-	test/mock/plugin/server/upstreamca,github.com/spiffe/spire/pkg/server/plugin/upstreamca,UpstreamCA,UpstreamCAServer \
-	test/mock/plugin/agent/nodeattestor,github.com/spiffe/spire/pkg/agent/plugin/nodeattestor,NodeAttestor,NodeAttestorServer,NodeAttestor_FetchAttestationDataClient \
 	test/mock/plugin/agent/workloadattestor,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor,WorkloadAttestor,WorkloadAttestorServer \
-	test/mock/plugin/agent/keymanager,github.com/spiffe/spire/pkg/agent/plugin/keymanager,KeyManager,KeyManagerServer \
 	test/mock/plugin/common/hostservices,github.com/spiffe/spire/pkg/common/plugin/hostservices,MetricsService \
 	test/mock/proto/api/registration,github.com/spiffe/spire/proto/spire/api/registration,RegistrationClient,RegistrationServer \
 	test/mock/proto/api/workload,github.com/spiffe/go-spiffe/proto/spiffe/workload,SpiffeWorkloadAPIClient,SpiffeWorkloadAPIServer,SpiffeWorkloadAPI_FetchX509SVIDClient,SpiffeWorkloadAPI_FetchX509SVIDServer,SpiffeWorkloadAPI_FetchJWTBundlesServer \
@@ -466,7 +463,7 @@ dev-image:
 	$(E)docker build -t spire-dev -f Dockerfile.dev .
 
 dev-shell: | go-check
-	$(E)docker run --rm -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
+	$(E)docker run --rm -v "$(call goenv,GOCACHE)":/root/.cache/go-build -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
 
 #############################################################################
 # Toolchain
