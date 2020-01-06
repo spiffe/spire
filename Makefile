@@ -189,7 +189,6 @@ plugingen_hostservices = \
 # mock-destination-pkg,src-go-pkg,interface[,additional interfaces]
 mockgen_mocks = \
 	test/mock/plugin/agent/workloadattestor,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor,WorkloadAttestor,WorkloadAttestorServer \
-	test/mock/plugin/common/hostservices,github.com/spiffe/spire/pkg/common/plugin/hostservices,MetricsService \
 	test/mock/proto/api/registration,github.com/spiffe/spire/proto/spire/api/registration,RegistrationClient,RegistrationServer \
 	test/mock/proto/api/workload,github.com/spiffe/go-spiffe/proto/spiffe/workload,SpiffeWorkloadAPIClient,SpiffeWorkloadAPIServer,SpiffeWorkloadAPI_FetchX509SVIDClient,SpiffeWorkloadAPI_FetchX509SVIDServer,SpiffeWorkloadAPI_FetchJWTBundlesServer \
 	test/mock/proto/api/node,github.com/spiffe/spire/proto/spire/api/node,NodeClient,Node_AttestClient,Node_AttestServer,Node_FetchX509SVIDClient,NodeServer,Node_FetchX509SVIDServer \
