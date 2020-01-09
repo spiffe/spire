@@ -1,16 +1,21 @@
 package cli
 
 import (
-	"log"
+	stdlog "log"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/api"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/run"
+	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/version"
 )
 
-func Run(args []string) int {
+type CLI struct {
+	LogOptions []log.Option
+}
+
+func (cc *CLI) Run(args []string) int {
 	c := cli.NewCLI("spire-agent", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
@@ -30,7 +35,7 @@ func Run(args []string) int {
 			return &api.WatchCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return &run.Command{}, nil
+			return &run.Command{LogOptions: cc.LogOptions}, nil
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil
@@ -39,7 +44,7 @@ func Run(args []string) int {
 
 	exitStatus, err := c.Run()
 	if err != nil {
-		log.Println(err)
+		stdlog.Println(err)
 	}
 	return exitStatus
 }

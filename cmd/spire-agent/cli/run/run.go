@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
@@ -71,6 +70,7 @@ type agentConfig struct {
 }
 
 type Command struct {
+	LogOptions []log.Option
 }
 
 func (*Command) Help() string {
@@ -78,7 +78,7 @@ func (*Command) Help() string {
 	return err.Error()
 }
 
-func (*Command) Run(args []string) int {
+func (cmd *Command) Run(args []string) int {
 	cliInput, err := parseFlags(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -97,7 +97,7 @@ func (*Command) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newAgentConfig(input)
+	c, err := newAgentConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -213,7 +213,7 @@ func mergeInput(fileInput *config, cliInput *agentConfig) (*config, error) {
 	return c, nil
 }
 
-func newAgentConfig(c *config) (*agent.Config, error) {
+func newAgentConfig(c *config, logOptions []log.Option) (*agent.Config, error) {
 	ac := &agent.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -248,9 +248,12 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
 
-	ll := strings.ToUpper(c.Agent.LogLevel)
-	lf := strings.ToUpper(c.Agent.LogFormat)
-	logger, err := log.NewLogger(ll, lf, c.Agent.LogFile)
+	logOptions = append(logOptions,
+		log.WithLevel(c.Agent.LogLevel),
+		log.WithFormat(c.Agent.LogFormat),
+		log.WithOutputFile(c.Agent.LogFile))
+
+	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}

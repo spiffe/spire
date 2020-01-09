@@ -112,7 +112,9 @@ type federatesWithConfig struct {
 }
 
 // Run Command struct
-type Command struct{}
+type Command struct {
+	LogOptions []log.Option
+}
 
 //Help prints the server cmd usage
 func (*Command) Help() string {
@@ -121,7 +123,7 @@ func (*Command) Help() string {
 }
 
 // Run the SPIFFE Server
-func (*Command) Run(args []string) int {
+func (cmd *Command) Run(args []string) int {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(args)
@@ -144,7 +146,7 @@ func (*Command) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newServerConfig(input)
+	c, err := newServerConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -249,7 +251,7 @@ func mergeInput(fileInput *config, cliInput *serverConfig) (*config, error) {
 	return c, nil
 }
 
-func newServerConfig(c *config) (*server.Config, error) {
+func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -278,9 +280,12 @@ func newServerConfig(c *config) (*server.Config, error) {
 	}
 	sc.TrustDomain = *td
 
-	ll := strings.ToUpper(c.Server.LogLevel)
-	lf := strings.ToUpper(c.Server.LogFormat)
-	logger, err := log.NewLogger(ll, lf, c.Server.LogFile)
+	logOptions = append(logOptions,
+		log.WithLevel(c.Server.LogLevel),
+		log.WithFormat(c.Server.LogFormat),
+		log.WithOutputFile(c.Server.LogFile))
+
+	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}

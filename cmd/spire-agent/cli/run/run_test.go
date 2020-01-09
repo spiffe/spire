@@ -3,6 +3,8 @@ package run
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -662,7 +664,7 @@ func TestNewAgentConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			ac, err := newAgentConfig(input)
+			ac, err := newAgentConfig(input, []log.Option{})
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -764,4 +766,31 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			require.Nil(t, hook.LastEntry())
 		})
 	}
+}
+
+// TestLogOptions verifies the log options given to newAgentConfig are applied, and are overridden
+// by values from the config file
+func TestLogOptions(t *testing.T) {
+	fd, err := ioutil.TempFile("", "test")
+	require.NoError(t, err)
+	require.NoError(t, fd.Close())
+	defer os.Remove(fd.Name())
+
+	logOptions := []log.Option{
+		log.WithLevel("DEBUG"),
+		log.WithFormat(log.JSONFormat),
+		log.WithOutputFile(fd.Name()),
+	}
+
+	agentConfig, err := newAgentConfig(defaultValidConfig(), logOptions)
+	require.NoError(t, err)
+
+	logger := agentConfig.Log.(*log.Logger).Logger
+
+	// defaultConfig() sets level to info,  which should override DEBUG set above
+	require.Equal(t, logrus.InfoLevel, logger.Level)
+
+	// JSON Formatter and output file should be set from above
+	require.IsType(t, &logrus.JSONFormatter{}, logger.Formatter)
+	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
 }
