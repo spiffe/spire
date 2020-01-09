@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"net"
@@ -856,6 +857,6 @@ func (s *Suite) addCgroupsResponse(fixturePath string) {
 
 type testFS string
 
-func (fs testFS) Open(path string) (*os.File, error) {
+func (fs testFS) Open(path string) (io.ReadCloser, error) {
 	return os.Open(filepath.Join(string(fs), path))
 }
