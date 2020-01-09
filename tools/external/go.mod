@@ -13,7 +13,7 @@ require (
 	github.com/pseudomuto/protoc-gen-doc v1.3.0
 	github.com/pseudomuto/protokit v0.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2 // indirect
-	google.golang.org/genproto v0.0.0-20191223191004-3caeed10a8bf // indirect
+	google.golang.org/genproto v0.0.0-20191230161307-f3c370f40bfb // indirect
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 )
 
