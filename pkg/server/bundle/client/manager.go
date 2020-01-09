@@ -20,8 +20,16 @@ const (
 )
 
 type TrustDomainConfig struct {
-	EndpointAddress  string
+	// EndpointAddress is the bundle endpoint for the trust domain.
+	EndpointAddress string
+
+	// EndpointSpiffeID is the expected SPIFFE ID of the endpoint server. If
+	// unset, it defaults to the SPIRE server ID within the trust domain.
 	EndpointSpiffeID string
+
+	// UseWebPKI is true if the endpoint should be authenticated with Web PKI.
+	// Otherwise, SPIFFE authentication is assumed.
+	UseWebPKI bool
 }
 
 type ManagerConfig struct {

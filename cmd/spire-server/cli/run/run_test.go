@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
+	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -678,6 +679,38 @@ func TestNewServerConfig(t *testing.T) {
 				require.True(t, c.Experimental.BundleEndpointEnabled)
 				require.Equal(t, "192.168.1.1", c.Experimental.BundleEndpointAddress.IP.String())
 				require.Equal(t, 1337, c.Experimental.BundleEndpointAddress.Port)
+			},
+		},
+		{
+			msg: "bundle federates with section is parsed and configured correctly",
+			input: func(c *config) {
+				c.Server.Experimental.FederatesWith = map[string]federatesWithConfig{
+					"spiffe://domain1.test": {
+						BundleEndpointAddress:  "192.168.1.1",
+						BundleEndpointPort:     1337,
+						BundleEndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
+						UseWebPKI:              false,
+					},
+					"spiffe://domain2.test": {
+						BundleEndpointAddress:  "192.168.1.1",
+						BundleEndpointSpiffeID: "THIS SHOULD BE IGNORED",
+						BundleEndpointPort:     1337,
+						UseWebPKI:              true,
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, map[string]bundleClient.TrustDomainConfig{
+					"spiffe://domain1.test": {
+						EndpointAddress:  "192.168.1.1:1337",
+						EndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
+						UseWebPKI:        false,
+					},
+					"spiffe://domain2.test": {
+						EndpointAddress: "192.168.1.1:1337",
+						UseWebPKI:       true,
+					},
+				}, c.Experimental.FederatesWith)
 			},
 		},
 		{

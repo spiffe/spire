@@ -2,8 +2,6 @@ package client
 
 import (
 	"context"
-	"crypto/x509"
-	"errors"
 	"fmt"
 
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -49,42 +47,53 @@ func NewBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
 }
 
 func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
-	localBundle, err := fetchBundle(ctx, u.c.DataStore, u.c.TrustDomain)
+	localBundleOrNil, err := fetchBundleIfExists(ctx, u.c.DataStore, u.c.TrustDomain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch local bundle: %v", err)
 	}
 
-	client := u.newClient(localBundle.RootCAs())
+	client, err := u.newClient(localBundleOrNil)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	endpointBundle, err := client.FetchBundle(ctx)
 	if err != nil {
-		return localBundle, nil, fmt.Errorf("failed to fetch endpoint bundle: %v", err)
+		return localBundleOrNil, nil, fmt.Errorf("failed to fetch endpoint bundle: %v", err)
 	}
 
-	if endpointBundle.EqualTo(localBundle) {
-		return localBundle, nil, nil
+	if localBundleOrNil != nil && endpointBundle.EqualTo(localBundleOrNil) {
+		return localBundleOrNil, nil, nil
 	}
 
 	_, err = u.c.DataStore.SetBundle(ctx, &datastore.SetBundleRequest{
 		Bundle: endpointBundle.Proto(),
 	})
 	if err != nil {
-		return localBundle, nil, fmt.Errorf("failed to store endpoint bundle: %v", err)
+		return localBundleOrNil, nil, fmt.Errorf("failed to store endpoint bundle: %v", err)
 	}
 
-	return localBundle, endpointBundle, nil
+	return localBundleOrNil, endpointBundle, nil
 }
 
-func (u *bundleUpdater) newClient(rootCAs []*x509.Certificate) Client {
-	return u.c.newClient(ClientConfig{
-		TrustDomain:      u.c.TrustDomain,
-		EndpointAddress:  u.c.EndpointAddress,
-		EndpointSpiffeID: u.c.EndpointSpiffeID,
-		RootCAs:          rootCAs,
-	})
+func (u *bundleUpdater) newClient(localBundleOrNil *bundleutil.Bundle) (Client, error) {
+	config := ClientConfig{
+		TrustDomain:     u.c.TrustDomain,
+		EndpointAddress: u.c.EndpointAddress,
+	}
+	if !u.c.UseWebPKI {
+		if localBundleOrNil == nil {
+			return nil, errs.New("local bundle not found")
+		}
+		config.SPIFFEAuth = &SPIFFEAuthConfig{
+			EndpointSpiffeID: u.c.EndpointSpiffeID,
+			RootCAs:          localBundleOrNil.RootCAs(),
+		}
+	}
+	return u.c.newClient(config), nil
 }
 
-func fetchBundle(ctx context.Context, ds datastore.DataStore, trustDomain string) (*bundleutil.Bundle, error) {
+func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain string) (*bundleutil.Bundle, error) {
 	// Load the current bundle and extract the root CA certificates
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: idutil.TrustDomainID(trustDomain),
@@ -93,7 +102,7 @@ func fetchBundle(ctx context.Context, ds datastore.DataStore, trustDomain string
 		return nil, errs.Wrap(err)
 	}
 	if resp.Bundle == nil {
-		return nil, errors.New("bundle not found")
+		return nil, nil
 	}
 	return bundleutil.BundleFromProto(resp.Bundle)
 }
