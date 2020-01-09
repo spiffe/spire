@@ -30,6 +30,7 @@ jobs:
       name: lint
       script:
         - make lint
+        - make tidy-check
         - make generate-check
         - shellcheck script/*.sh
         - shellcheck .travis/*.sh
