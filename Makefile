@@ -350,9 +350,20 @@ oidc-discovery-provider-image: Dockerfile
 # Code cleanliness
 #############################################################################
 
-.PHONY: tidy lint lint-code
+.PHONY: tidy tidy-check lint lint-code
 tidy: | go-check
 	$(E)$(go) mod tidy
+	$(E)cd proto/spire; $(go) mod tidy
+	$(E)cd tools/external; $(go) mod tidy
+
+tidy-check:
+ifneq ($(git_dirty),)
+	$(error tidy-check must be invoked on a clean repository)
+endif
+	@echo "Running go tidy..."
+	$(E)$(MAKE) tidy
+	@echo "Ensuring git repository is clean..."
+	$(E)$(MAKE) git-clean-check
 
 lint: lint-code
 
@@ -381,9 +392,9 @@ ifneq ($(git_dirty),)
 	$(error protogen-check must be invoked on a clean repository)
 endif
 	$(E)find . -type f -name "*.proto" -exec touch {} \;
-	@echo "Compiling protocol buffers..." 
+	@echo "Compiling protocol buffers..."
 	$(E)$(MAKE) protogen
-	@echo "Ensuring git repository is clean..." 
+	@echo "Ensuring git repository is clean..."
 	$(E)$(MAKE) git-clean-check
 
 define protodoc-rule
@@ -431,9 +442,9 @@ ifneq ($(git_dirty),)
 	$(error plugingen-check must be invoked on a clean repository)
 endif
 	$(E)find . -type f -name "*.pb.go" -exec touch {} \;
-	@echo "Generating plugin interface code..." 
+	@echo "Generating plugin interface code..."
 	$(E)$(MAKE) plugingen
-	@echo "Ensuring git repository is clean..." 
+	@echo "Ensuring git repository is clean..."
 	$(E)$(MAKE) git-clean-check
 
 mockgen-pkg = $(word 1,$(subst $(comma),$(space),$1))
