@@ -312,7 +312,10 @@ func newServerConfig(c *config) (*server.Config, error) {
 		if config.BundleEndpointPort != 0 {
 			port = config.BundleEndpointPort
 		}
-
+		if config.UseWebPKI && config.BundleEndpointSpiffeID != "" {
+			sc.Log.Warn("The `bundle_endpoint_spiffe_id` configurable is ignored when authenticating with Web PKI")
+			config.BundleEndpointSpiffeID = ""
+		}
 		federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
 			EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
 			EndpointSpiffeID: config.BundleEndpointSpiffeID,

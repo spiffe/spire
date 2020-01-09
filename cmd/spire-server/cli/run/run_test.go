@@ -685,20 +685,30 @@ func TestNewServerConfig(t *testing.T) {
 			msg: "bundle federates with section is parsed and configured correctly",
 			input: func(c *config) {
 				c.Server.Experimental.FederatesWith = map[string]federatesWithConfig{
-					"spiffe://example.org": {
+					"spiffe://domain1.test": {
 						BundleEndpointAddress:  "192.168.1.1",
 						BundleEndpointPort:     1337,
-						BundleEndpointSpiffeID: "spiffe://example.org/bundle/endpoint",
+						BundleEndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
+						UseWebPKI:              false,
+					},
+					"spiffe://domain2.test": {
+						BundleEndpointAddress:  "192.168.1.1",
+						BundleEndpointSpiffeID: "THIS SHOULD BE IGNORED",
+						BundleEndpointPort:     1337,
 						UseWebPKI:              true,
 					},
 				}
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, map[string]bundleClient.TrustDomainConfig{
-					"spiffe://example.org": {
+					"spiffe://domain1.test": {
 						EndpointAddress:  "192.168.1.1:1337",
-						EndpointSpiffeID: "spiffe://example.org/bundle/endpoint",
-						UseWebPKI:        true,
+						EndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
+						UseWebPKI:        false,
+					},
+					"spiffe://domain2.test": {
+						EndpointAddress: "192.168.1.1:1337",
+						UseWebPKI:       true,
 					},
 				}, c.Experimental.FederatesWith)
 			},
