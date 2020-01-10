@@ -810,7 +810,7 @@ func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
 }
 
 func (s *x509CASlot) ShouldActivateNext(now time.Time) bool {
-	return s.x509CA != nil && now.After(activationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
+	return s.x509CA != nil && now.After(KeyActivationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
 }
 
 type jwtKeySlot struct {
@@ -842,7 +842,7 @@ func (s *jwtKeySlot) ShouldPrepareNext(now time.Time) bool {
 }
 
 func (s *jwtKeySlot) ShouldActivateNext(now time.Time) bool {
-	return s.jwtKey == nil || now.After(activationThreshold(s.issuedAt, s.jwtKey.NotAfter))
+	return s.jwtKey == nil || now.After(KeyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
 }
 
 func otherSlotID(id string) string {
@@ -975,7 +975,7 @@ func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 	return notAfter.Add(-threshold)
 }
 
-func activationThreshold(issuedAt, notAfter time.Time) time.Time {
+func KeyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
 	threshold := lifetime / 6
 	if threshold > activationThresholdCap {
