@@ -18,8 +18,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
 const (
@@ -30,13 +30,13 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *AWSSecretPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
 		upstreamca.PluginServer(p),
 	)
 }
 
-type AWSSecretConfiguration struct {
+type Config struct {
 	DeprecatedTTL   string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	Region          string `hcl:"region" json:"region"`
 	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn"`
@@ -47,7 +47,7 @@ type AWSSecretConfiguration struct {
 	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn"`
 }
 
-type AWSSecretPlugin struct {
+type Plugin struct {
 	log hclog.Logger
 
 	mtx        sync.RWMutex
@@ -57,28 +57,28 @@ type AWSSecretPlugin struct {
 	hooks struct {
 		clock     clock.Clock
 		getenv    func(string) string
-		newClient func(config *AWSSecretConfiguration, region string) (secretsManagerClient, error)
+		newClient func(config *Config, region string) (secretsManagerClient, error)
 	}
 }
 
-func New() *AWSSecretPlugin {
+func New() *Plugin {
 	return newPlugin(newSecretsManagerClient)
 }
 
-func newPlugin(newClient func(config *AWSSecretConfiguration, region string) (secretsManagerClient, error)) *AWSSecretPlugin {
-	p := &AWSSecretPlugin{}
+func newPlugin(newClient func(config *Config, region string) (secretsManagerClient, error)) *Plugin {
+	p := &Plugin{}
 	p.hooks.clock = clock.New()
 	p.hooks.getenv = os.Getenv
 	p.hooks.newClient = newClient
 	return p
 }
 
-func (m *AWSSecretPlugin) SetLogger(log hclog.Logger) {
+func (m *Plugin) SetLogger(log hclog.Logger) {
 	m.log = log
 }
 
-func (m *AWSSecretPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config, ttl, err := m.validateConfig(ctx, req)
+func (m *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	config, ttl, err := m.validateConfig(req)
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +112,11 @@ func (m *AWSSecretPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*AWSSecretPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *AWSSecretPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *Plugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -137,7 +137,7 @@ func (m *AWSSecretPlugin) SubmitCSR(ctx context.Context, request *upstreamca.Sub
 	}, nil
 }
 
-func fetchFromSecretsManager(ctx context.Context, config *AWSSecretConfiguration, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, error) {
+func fetchFromSecretsManager(ctx context.Context, config *Config, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, error) {
 	keyPEMstr, err := readARN(ctx, sm, config.KeyFileARN)
 
 	if err != nil {
@@ -173,10 +173,10 @@ func fetchFromSecretsManager(ctx context.Context, config *AWSSecretConfiguration
 	return key, cert, nil
 }
 
-func (m *AWSSecretPlugin) validateConfig(ctx context.Context, req *spi.ConfigureRequest) (*AWSSecretConfiguration, time.Duration, error) {
+func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, time.Duration, error) {
 	// Parse HCL config payload into config struct
 
-	config := new(AWSSecretConfiguration)
+	config := new(Config)
 
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
 		return nil, -1, err

@@ -72,8 +72,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(docBytes)
-
+	_, _ = w.Write(docBytes)
 }
 
 func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {

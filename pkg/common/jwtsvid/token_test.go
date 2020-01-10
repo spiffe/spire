@@ -183,6 +183,7 @@ func (s *TokenSuite) TestSignAndValidate() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.kid, func(t *testing.T) {
 			token, err := s.signer.SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), testCase.key, testCase.kid)
 			if testCase.signErr != "" {

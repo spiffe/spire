@@ -9,27 +9,30 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/agent/keymanager"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
+)
+
+const (
+	joinTokenType = "join_token"
 )
 
 type AttestationResult struct {
@@ -64,9 +67,6 @@ func New(config *Config) Attestor {
 }
 
 func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
-	counter := telemetry_agent.StartNodeAttestCall(a.c.Metrics)
-	defer counter.Done(&err)
-
 	bundle, err := a.loadBundle()
 	if err != nil {
 		return nil, err
@@ -167,10 +167,7 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), nil
 }
 
-func (a *attestor) fetchAttestationData(
-	fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient,
-	challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
-
+func (a *attestor) fetchAttestationData(fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient, challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
 	// the stream should only be nil if this node attestation is via a join
 	// token.
 	if fetchStream == nil {
@@ -220,13 +217,17 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
-	defer counter.Done(&err)
+	attestorName := ""
+	defer func() {
+		telemetry_common.AddAttestorType(counter, attestorName)
+		counter.Done(&err)
+	}()
 
 	// make sure all of the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	attestorName := "join_token"
+	attestorName = joinTokenType
 	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
 	if a.c.JoinToken == "" {
 		attestor := a.c.Catalog.GetNodeAttestor()
@@ -237,8 +238,6 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			return nil, nil, fmt.Errorf("opening stream for fetching attestation: %v", err)
 		}
 	}
-
-	telemetry_common.AddAttestorType(counter, attestorName)
 
 	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {
@@ -317,12 +316,17 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	}
 
 	if fetchStream != nil {
-		fetchStream.CloseSend()
+		if err := fetchStream.CloseSend(); err != nil {
+			return nil, nil, fmt.Errorf("failed to close send on fetch stream: %v", err)
+		}
 		if _, err := fetchStream.Recv(); err != io.EOF {
 			a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 		}
 	}
-	attestStream.CloseSend()
+	if err := attestStream.CloseSend(); err != nil {
+		return nil, nil, fmt.Errorf("failed to close send on attest stream: %v", err)
+	}
+
 	if _, err := attestStream.Recv(); err != io.EOF {
 		a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 	}
@@ -344,9 +348,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 		return client.DialServer(ctx, client.DialServerConfig{
 			Address:     a.c.ServerAddress,
 			TrustDomain: a.c.TrustDomain.Host,
-			GetBundle: func() []*x509.Certificate {
-				return bundle.RootCAs()
-			},
+			GetBundle:   bundle.RootCAs,
 		})
 	}
 
@@ -361,7 +363,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	// SPIFFE ID. This is not a security feature but rather a check that we've
 	// reached what appears to be the right trust domain server.
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: true, //nolint: gosec
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			a.c.Log.Warn("Insecure bootstrap enabled; skipping server certificate verification")
 			if len(rawCerts) == 0 {
@@ -382,7 +384,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	}
 
 	return grpc.DialContext(ctx, a.c.ServerAddress,
-		grpc.WithBalancerName(roundrobin.Name),
+		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
@@ -422,12 +424,4 @@ func (a *attestor) parseAttestationResponse(r *node.AttestResponse) (string, []*
 	}
 
 	return agentID, svid, bundle, nil
-}
-
-func (a *attestor) serverID() *url.URL {
-	return &url.URL{
-		Scheme: "spiffe",
-		Host:   a.c.TrustDomain.Host,
-		Path:   path.Join("spire", "server"),
-	}
 }

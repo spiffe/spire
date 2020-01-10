@@ -6,7 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
+	"crypto/sha1" //nolint: gosec // SHA1 use is according to specification
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -21,7 +21,7 @@ import (
 const (
 	nonceLen = 32
 
-	// PluginName for X.509 Proof of Posession
+	// PluginName for X.509 Proof of Possession
 	PluginName = "x509pop"
 )
 
@@ -165,7 +165,7 @@ func VerifyChallengeResponse(publicKey interface{}, challenge *Challenge, respon
 }
 
 func GenerateRSASignatureChallenge() (*RSASignatureChallenge, error) {
-	nonce, err := randBytes(nonceLen)
+	nonce, err := generateNonce()
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func GenerateRSASignatureChallenge() (*RSASignatureChallenge, error) {
 }
 
 func CalculateRSASignatureResponse(privateKey *rsa.PrivateKey, challenge *RSASignatureChallenge) (*RSASignatureResponse, error) {
-	nonce, err := randBytes(nonceLen)
+	nonce, err := generateNonce()
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func VerifyRSASignatureResponse(publicKey *rsa.PublicKey, challenge *RSASignatur
 }
 
 func GenerateECDSASignatureChallenge() (*ECDSASignatureChallenge, error) {
-	nonce, err := randBytes(32)
+	nonce, err := generateNonce()
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func GenerateECDSASignatureChallenge() (*ECDSASignatureChallenge, error) {
 }
 
 func CalculateECDSASignatureResponse(privateKey *ecdsa.PrivateKey, challenge *ECDSASignatureChallenge) (*ECDSASignatureResponse, error) {
-	nonce, err := randBytes(nonceLen)
+	nonce, err := generateNonce()
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func VerifyECDSASignatureResponse(publicKey *ecdsa.PublicKey, challenge *ECDSASi
 }
 
 func Fingerprint(cert *x509.Certificate) string {
-	sum := sha1.Sum(cert.Raw)
+	sum := sha1.Sum(cert.Raw) //nolint: gosec // SHA1 use is according to specification
 	return hex.EncodeToString(sum[:])
 }
 
@@ -278,8 +278,8 @@ func MakeSpiffeID(trustDomain string, agentPathTemplate *template.Template, cert
 	return idutil.AgentURI(trustDomain, agentPath.String()).String(), nil
 }
 
-func randBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
+func generateNonce() ([]byte, error) {
+	b := make([]byte, nonceLen)
 	if _, err := rand.Read(b); err != nil {
 		return nil, err
 	}
@@ -294,7 +294,9 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 		return nil, errors.New("invalid response nonce")
 	}
 	h := sha256.New()
-	h.Write(challenge)
-	h.Write(response)
+	// write the challenge and response and ignore errors since it won't fail
+	// writing to the digest
+	_, _ = h.Write(challenge)
+	_, _ = h.Write(response)
 	return h.Sum(nil), nil
 }

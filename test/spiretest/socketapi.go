@@ -84,7 +84,14 @@ func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *g
 
 	server := grpc.NewServer()
 	registerFn(server)
-	go server.Serve(listener)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
 	started = true
-	return server.Stop
+	return func() {
+		server.Stop()
+		require.NoError(t, <-errCh)
+	}
 }

@@ -9,16 +9,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 var sampleKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
@@ -154,8 +152,8 @@ func (s *AttestorSuite) configure(config AttestorConfig) {
 			token_path = %q`, config.TokenPath),
 	})
 	s.Require().NoError(err)
-
 }
+
 func (s *AttestorSuite) joinPath(path string) string {
 	return filepath.Join(s.dir, path)
 }
@@ -183,6 +181,10 @@ func (s *AttestorSuite) requireFetchError(contains string) {
 func createPSAT(namespace, podName string) (string, error) {
 	// Create a jwt builder
 	s, err := createSigner()
+	if err != nil {
+		return "", err
+	}
+
 	builder := jwt.Signed(s)
 
 	// Set useful claims for testing
@@ -193,7 +195,6 @@ func createPSAT(namespace, podName string) (string, error) {
 
 	// Serialize and return token
 	token, err := builder.CompactSerialize()
-
 	if err != nil {
 		return "", err
 	}
@@ -217,18 +218,4 @@ func createSigner() (jose.Signer, error) {
 	}
 
 	return sampleSigner, nil
-}
-
-func createPod(nodeName string) *v1.Pod {
-	return &v1.Pod{
-		Spec: v1.PodSpec{
-			NodeName: nodeName,
-		},
-	}
-}
-
-func createNode(nodeUID string) *v1.Node {
-	node := &v1.Node{}
-	node.UID = types.UID(nodeUID)
-	return node
 }

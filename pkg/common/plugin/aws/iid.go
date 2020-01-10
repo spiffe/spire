@@ -15,7 +15,7 @@ const (
 	// AccessKeyIDVarName env var name for AWS access key ID
 	AccessKeyIDVarName = "AWS_ACCESS_KEY_ID"
 	// SecretAccessKeyVarName env car name for AWS secret access key
-	SecretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY"
+	SecretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
 )
 
 // SessionConfig is a common config for AWS session config.
@@ -39,7 +39,7 @@ type IIDAttestationData struct {
 
 // AttestationStepError error with attestation
 func AttestationStepError(step string, cause error) error {
-	return fmt.Errorf("Attempted AWS IID attestation but an error occurred %s: %s", step, cause)
+	return fmt.Errorf("attempted AWS IID attestation but an error occurred %s: %s", step, cause)
 }
 
 // NewAWSSession create an AWS Session from the config and given region

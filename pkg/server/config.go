@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
 type Config struct {

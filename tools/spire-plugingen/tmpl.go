@@ -35,8 +35,15 @@ import (
 {{- end }}
 )
 
+{{- range .Aliases }}
+type {{ .Name }} = {{ .Type }} //nolint: golint
+{{- end }}
+
 const (
 	{{ $typeConst }} = "{{ $c.Name }}"
+{{- range .Consts }}
+	{{ .Name }} = {{ .Value }} //nolint: golint
+{{- end }}
 )
 
 // {{ $c.Name }} is the client interface for the service type {{ $c.Name }} interface.

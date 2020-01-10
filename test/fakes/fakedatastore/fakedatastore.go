@@ -12,23 +12,19 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-const (
-	selectorKeySeparator = '|'
-)
-
 var (
-	// TODO: These should be grpc/status errors with the AlreadyExists code. #992
+	// TODO: The following errors should be grpc/status errors with the AlreadyExists code. #992
+
 	ErrBundleAlreadyExists       = errors.New("bundle already exists")
 	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
 	ErrTokenAlreadyExists        = errors.New("token already exists")
@@ -227,9 +223,7 @@ func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleR
 	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
 }
 
-func (s *DataStore) CreateAttestedNode(ctx context.Context,
-	req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
-
+func (s *DataStore) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -245,9 +239,7 @@ func (s *DataStore) CreateAttestedNode(ctx context.Context,
 	}, nil
 }
 
-func (s *DataStore) FetchAttestedNode(ctx context.Context,
-	req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
-
+func (s *DataStore) FetchAttestedNode(ctx context.Context, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -261,9 +253,7 @@ func (s *DataStore) FetchAttestedNode(ctx context.Context,
 	return resp, nil
 }
 
-func (s *DataStore) ListAttestedNodes(ctx context.Context,
-	req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
-
+func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -288,9 +278,7 @@ func (s *DataStore) ListAttestedNodes(ctx context.Context,
 	return resp, nil
 }
 
-func (s *DataStore) UpdateAttestedNode(ctx context.Context,
-	req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
-
+func (s *DataStore) UpdateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -308,9 +296,7 @@ func (s *DataStore) UpdateAttestedNode(ctx context.Context,
 	}, nil
 }
 
-func (s *DataStore) DeleteAttestedNode(ctx context.Context,
-	req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
-
+func (s *DataStore) DeleteAttestedNode(ctx context.Context, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -325,9 +311,7 @@ func (s *DataStore) DeleteAttestedNode(ctx context.Context,
 	}, nil
 }
 
-func (s *DataStore) SetNodeSelectors(ctx context.Context,
-	req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
-
+func (s *DataStore) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -335,9 +319,7 @@ func (s *DataStore) SetNodeSelectors(ctx context.Context,
 	return &datastore.SetNodeSelectorsResponse{}, nil
 }
 
-func (s *DataStore) GetNodeSelectors(ctx context.Context,
-	req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
-
+func (s *DataStore) GetNodeSelectors(ctx context.Context, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -351,9 +333,7 @@ func (s *DataStore) GetNodeSelectors(ctx context.Context,
 	}, nil
 }
 
-func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
-	req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
-
+func (s *DataStore) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -375,9 +355,7 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *DataStore) FetchRegistrationEntry(ctx context.Context,
-	req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-
+func (s *DataStore) FetchRegistrationEntry(ctx context.Context, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -391,9 +369,7 @@ func (s *DataStore) FetchRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (s *DataStore) ListRegistrationEntries(ctx context.Context,
-	req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-
+func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -474,7 +450,6 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context,
 			lastIndex := len(pagedEntries) - 1
 			// change token to latests element entryId
 			p.Token = pagedEntries[lastIndex].EntryId
-
 		}
 		return &datastore.ListRegistrationEntriesResponse{
 			Entries:    pagedEntries,
@@ -497,9 +472,7 @@ func indexOf(element string, entries []*common.RegistrationEntry) int {
 	return -1
 }
 
-func (s DataStore) UpdateRegistrationEntry(ctx context.Context,
-	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
-
+func (s *DataStore) UpdateRegistrationEntry(ctx context.Context, req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -522,9 +495,7 @@ func (s DataStore) UpdateRegistrationEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *DataStore) DeleteRegistrationEntry(ctx context.Context,
-	req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
-
+func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -617,7 +588,7 @@ func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (DataStore) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*DataStore) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
@@ -640,10 +611,6 @@ func (s *DataStore) removeBundleLinks(entryID string, bundleIDs []string) {
 	for _, bundleID := range bundleIDs {
 		delete(s.bundleEntries[bundleID], entryID)
 	}
-}
-
-func cloneBytes(bytes []byte) []byte {
-	return append([]byte(nil), bytes...)
 }
 
 func cloneBundle(bundle *common.Bundle) *common.Bundle {

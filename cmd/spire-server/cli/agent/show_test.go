@@ -112,7 +112,7 @@ func (s *ShowTestSuite) TestRunListAgentsExitsWithNonZeroCodeOnFailure() {
 	spiffeID := "spiffe://example.org/spire/agent/k8s_sat/demo-cluster/c54f273c-f9c2-4d08-9d6f-08879e418aef"
 
 	req1 := &registration.ListAgentsRequest{}
-	s.mockClient.EXPECT().ListAgents(gomock.Any(), req1).Return(nil, errors.New("Some error"))
+	s.mockClient.EXPECT().ListAgents(gomock.Any(), req1).Return(nil, errors.New("some error"))
 
 	args := []string{"-spiffeID", spiffeID}
 	s.Require().Equal(1, s.cli.Run(args))
@@ -134,7 +134,7 @@ func (s *ShowTestSuite) TestRunGetNodeSelectorsExitsWithNonZeroCodeOnFailure() {
 	req2 := &registration.GetNodeSelectorsRequest{
 		SpiffeId: spiffeID,
 	}
-	s.mockClient.EXPECT().GetNodeSelectors(gomock.Any(), req2).Return(nil, errors.New("Some error"))
+	s.mockClient.EXPECT().GetNodeSelectors(gomock.Any(), req2).Return(nil, errors.New("some error"))
 
 	args := []string{"-spiffeID", spiffeID}
 	s.Require().Equal(1, s.cli.Run(args))

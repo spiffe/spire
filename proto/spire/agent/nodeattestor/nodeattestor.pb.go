@@ -10,6 +10,8 @@ import (
 	common "github.com/spiffe/spire/proto/spire/common"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -244,6 +246,20 @@ type NodeAttestorServer interface {
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	//* Returns the version and related metadata of the plugin
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+}
+
+// UnimplementedNodeAttestorServer can be embedded to have forward compatible implementations.
+type UnimplementedNodeAttestorServer struct {
+}
+
+func (*UnimplementedNodeAttestorServer) FetchAttestationData(srv NodeAttestor_FetchAttestationDataServer) error {
+	return status.Errorf(codes.Unimplemented, "method FetchAttestationData not implemented")
+}
+func (*UnimplementedNodeAttestorServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+func (*UnimplementedNodeAttestorServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
 }
 
 func RegisterNodeAttestorServer(s *grpc.Server, srv NodeAttestorServer) {

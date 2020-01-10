@@ -9,10 +9,9 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -30,8 +29,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 type spirePlugin struct {
-	mtx   sync.RWMutex
-	creds credentials.TransportCredentials
+	mtx sync.RWMutex
 
 	trustDomain url.URL
 	config      *Configuration

@@ -30,24 +30,24 @@ func newRetryer() *retryer {
 	}
 }
 
-func (r *retryer) Retry(ctx context.Context, fn func() error) {
+func (r *retryer) Retry(ctx context.Context, fn func() error) error {
 	if r.disabled {
-		fn()
-		return
+		return fn()
 	}
 	// try once plus the number of retries
-	for i := 0; i <= r.numRetries; i++ {
-		if err := fn(); err == nil {
-			return
+	for i := 0; ; i++ {
+		err := fn()
+		if err == nil {
+			return nil
 		}
 		// don't wait another backoff cycle if we've already maxed out on retries
 		if i == r.numRetries {
-			return
+			return err
 		}
 		backoff := r.initialBackoff * time.Duration(exponentialBackoff(i))
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-r.clock.After(backoff):
 		}
 	}

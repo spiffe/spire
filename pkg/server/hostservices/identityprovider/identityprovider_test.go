@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,7 +59,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	require.NoError(t, err)
 
-	hs.SetDeps(Deps{
+	err = hs.SetDeps(Deps{
 		DataStore: ds,
 		X509IdentityFetcher: X509IdentityFetcherFunc(func(context.Context) (*X509Identity, error) {
 			return &X509Identity{
@@ -68,6 +68,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 			}, nil
 		}),
 	})
+	require.NoError(t, err)
 
 	resp, err := hs.FetchX509Identity(context.Background(), &hostservices.FetchX509IdentityRequest{})
 	require.NoError(t, err)

@@ -9,6 +9,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	common "github.com/spiffe/spire/proto/spire/common"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -1360,6 +1362,74 @@ type RegistrationServer interface {
 	MintJWTSVID(context.Context, *MintJWTSVIDRequest) (*MintJWTSVIDResponse, error)
 	// GetNodeSelectors gets node (agent) selectors
 	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
+}
+
+// UnimplementedRegistrationServer can be embedded to have forward compatible implementations.
+type UnimplementedRegistrationServer struct {
+}
+
+func (*UnimplementedRegistrationServer) CreateEntry(ctx context.Context, req *common.RegistrationEntry) (*RegistrationEntryID, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateEntry not implemented")
+}
+func (*UnimplementedRegistrationServer) DeleteEntry(ctx context.Context, req *RegistrationEntryID) (*common.RegistrationEntry, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteEntry not implemented")
+}
+func (*UnimplementedRegistrationServer) FetchEntry(ctx context.Context, req *RegistrationEntryID) (*common.RegistrationEntry, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchEntry not implemented")
+}
+func (*UnimplementedRegistrationServer) FetchEntries(ctx context.Context, req *common.Empty) (*common.RegistrationEntries, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchEntries not implemented")
+}
+func (*UnimplementedRegistrationServer) UpdateEntry(ctx context.Context, req *UpdateEntryRequest) (*common.RegistrationEntry, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateEntry not implemented")
+}
+func (*UnimplementedRegistrationServer) ListByParentID(ctx context.Context, req *ParentID) (*common.RegistrationEntries, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListByParentID not implemented")
+}
+func (*UnimplementedRegistrationServer) ListBySelector(ctx context.Context, req *common.Selector) (*common.RegistrationEntries, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBySelector not implemented")
+}
+func (*UnimplementedRegistrationServer) ListBySelectors(ctx context.Context, req *common.Selectors) (*common.RegistrationEntries, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBySelectors not implemented")
+}
+func (*UnimplementedRegistrationServer) ListBySpiffeID(ctx context.Context, req *SpiffeID) (*common.RegistrationEntries, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBySpiffeID not implemented")
+}
+func (*UnimplementedRegistrationServer) CreateFederatedBundle(ctx context.Context, req *FederatedBundle) (*common.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateFederatedBundle not implemented")
+}
+func (*UnimplementedRegistrationServer) FetchFederatedBundle(ctx context.Context, req *FederatedBundleID) (*FederatedBundle, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchFederatedBundle not implemented")
+}
+func (*UnimplementedRegistrationServer) ListFederatedBundles(req *common.Empty, srv Registration_ListFederatedBundlesServer) error {
+	return status.Errorf(codes.Unimplemented, "method ListFederatedBundles not implemented")
+}
+func (*UnimplementedRegistrationServer) UpdateFederatedBundle(ctx context.Context, req *FederatedBundle) (*common.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateFederatedBundle not implemented")
+}
+func (*UnimplementedRegistrationServer) DeleteFederatedBundle(ctx context.Context, req *DeleteFederatedBundleRequest) (*common.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFederatedBundle not implemented")
+}
+func (*UnimplementedRegistrationServer) CreateJoinToken(ctx context.Context, req *JoinToken) (*JoinToken, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateJoinToken not implemented")
+}
+func (*UnimplementedRegistrationServer) FetchBundle(ctx context.Context, req *common.Empty) (*Bundle, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchBundle not implemented")
+}
+func (*UnimplementedRegistrationServer) EvictAgent(ctx context.Context, req *EvictAgentRequest) (*EvictAgentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EvictAgent not implemented")
+}
+func (*UnimplementedRegistrationServer) ListAgents(ctx context.Context, req *ListAgentsRequest) (*ListAgentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAgents not implemented")
+}
+func (*UnimplementedRegistrationServer) MintX509SVID(ctx context.Context, req *MintX509SVIDRequest) (*MintX509SVIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MintX509SVID not implemented")
+}
+func (*UnimplementedRegistrationServer) MintJWTSVID(ctx context.Context, req *MintJWTSVIDRequest) (*MintJWTSVIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MintJWTSVID not implemented")
+}
+func (*UnimplementedRegistrationServer) GetNodeSelectors(ctx context.Context, req *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeSelectors not implemented")
 }
 
 func RegisterRegistrationServer(s *grpc.Server, srv RegistrationServer) {

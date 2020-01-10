@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -48,7 +49,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 				telemetry.RegistrationID: entry.EntryId,
 				telemetry.SPIFFEID:       entry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
-		case isSVIDStale(m.c.Clk.Now(), svid.Chain[0]):
+		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
 			// SVID has expired
 			expiresAt = svid.Chain[0].NotAfter
 			expiring++
@@ -79,7 +80,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.CacheUpdate, err error) {
+func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.Update, err error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
@@ -136,7 +137,7 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		}
 	}
 
-	return &cache.CacheUpdate{
+	return &cache.Update{
 		Bundles:             bundles,
 		RegistrationEntries: update.Entries,
 		X509SVIDs:           byEntryID,
@@ -165,10 +166,4 @@ func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, 
 		out[bundle.TrustDomainID()] = bundle
 	}
 	return out, nil
-}
-
-func isSVIDStale(now time.Time, svid *x509.Certificate) bool {
-	ttl := svid.NotAfter.Sub(now)
-	lifetime := svid.NotAfter.Sub(svid.NotBefore)
-	return ttl < lifetime/2
 }

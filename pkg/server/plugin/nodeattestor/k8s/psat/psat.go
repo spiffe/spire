@@ -10,9 +10,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/zeebo/errs"
 )
 
@@ -22,7 +22,6 @@ const (
 
 var (
 	defaultAudience = []string{"spire-server"}
-	defaultIssuer   = "api"
 	psatError       = errs.Class("k8s-psat")
 )
 

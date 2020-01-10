@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/spiffe/spire/pkg/common/errorutil"
 	"io"
 	"net"
 	"net/url"
@@ -16,6 +15,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -23,12 +23,12 @@ import (
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -66,7 +66,11 @@ func NewHandler(config HandlerConfig) *Handler {
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
-	defer counter.Done(&err)
+	attestorName := ""
+	defer func() {
+		telemetry_common.AddAttestorType(counter, attestorName)
+		counter.Done(&err)
+	}()
 
 	log := h.c.Log.WithField(telemetry.Method, telemetry.NodeAPI)
 
@@ -95,7 +99,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		log.Error("Request missing attestation data type")
 		return status.Error(codes.InvalidArgument, "request missing attestation data type")
 	}
-	telemetry_common.AddAttestorType(counter, request.AttestationData.Type)
+	attestorName = request.AttestationData.Type
 	log = log.WithField(telemetry.Attestor, request.AttestationData.Type)
 
 	if len(request.Csr) == 0 {
@@ -145,7 +149,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 			return errorutil.WrapError(err, "unable to open attest stream")
 		}
 
-		attestResponse, err = h.doAttestChallengeResponse(ctx, stream, attestStream, request, attestedBefore)
+		attestResponse, err = h.doAttestChallengeResponse(stream, attestStream, request, attestedBefore)
 		if err != nil {
 			log.WithError(err).Error("Failed to do node attest challenge response")
 			return err
@@ -169,7 +173,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	log = log.WithField(telemetry.SPIFFEID, agentID)
 
 	if csr.SpiffeID != "" && agentID != csr.SpiffeID {
-		log.WithField(telemetry.CsrSpiffeId, csr.SpiffeID).Error("Attested SPIFFE ID does not match CSR")
+		log.WithField(telemetry.CsrSpiffeID, csr.SpiffeID).Error("Attested SPIFFE ID does not match CSR")
 		return status.Error(codes.NotFound, "attestor returned unexpected response")
 	}
 
@@ -285,7 +289,8 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		// Select how to sign the SVIDs based on the agent version
 		var svids map[string]*node.X509SVID
 
-		if csrsLen != 0 {
+		switch {
+		case csrsLen != 0:
 			// Current agent, use regular signCSRs (it returns svids keyed by entryID)
 			// drop spiffe IDs
 			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
@@ -293,14 +298,14 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 				log.WithError(err).Error("Failed to sign CSRs")
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
-		} else if csrsLenDeprecated != 0 {
+		case csrsLenDeprecated != 0:
 			// Legacy agent, use legacy SignCSRs (it returns svids keyed by spiffeID)
 			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
 			if err != nil {
 				log.WithError(err).Error("Failed to sign CSRs for legacy agent")
 				return status.Error(codes.Internal, "failed to sign CSRs")
 			}
-		} else {
+		default:
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids = make(map[string]*node.X509SVID)
 		}
@@ -584,13 +589,13 @@ func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certifi
 	return h.getDownstreamEntry(ctx, peerID)
 }
 
-func (h *Handler) doAttestChallengeResponse(ctx context.Context,
+func (h *Handler) doAttestChallengeResponse(
 	nodeStream node.Node_AttestServer,
 	attestStream nodeattestor.NodeAttestor_AttestClient,
 	request *node.AttestRequest, attestedBefore bool) (*nodeattestor.AttestResponse, error) {
 	// challenge/response loop
 	for {
-		response, err := h.attest(ctx, attestStream, request, attestedBefore)
+		response, err := h.attest(attestStream, request, attestedBefore)
 		if err != nil {
 			h.c.Log.WithError(err).Error("Failed to attest")
 			return nil, errorutil.WrapError(err, "failed to attest")
@@ -616,11 +621,7 @@ func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 	}
 }
 
-func (h *Handler) attest(ctx context.Context,
-	attestStream nodeattestor.NodeAttestor_AttestClient,
-	nodeRequest *node.AttestRequest, attestedBefore bool) (
-	response *nodeattestor.AttestResponse, err error) {
-
+func (h *Handler) attest(attestStream nodeattestor.NodeAttestor_AttestClient, nodeRequest *node.AttestRequest, attestedBefore bool) (*nodeattestor.AttestResponse, error) {
 	attestRequest := &nodeattestor.AttestRequest{
 		AttestationData:          nodeRequest.AttestationData,
 		Response:                 nodeRequest.Response,
@@ -709,9 +710,7 @@ func (h *Handler) createAttestationEntry(ctx context.Context, cert *x509.Certifi
 	return createAttestationEntry(ctx, ds, cert, attestationType)
 }
 
-func (h *Handler) updateNodeSelectors(ctx context.Context,
-	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse, attestationType string) error {
-
+func (h *Handler) updateNodeSelectors(ctx context.Context, baseSpiffeID string, attestResponse *nodeattestor.AttestResponse, attestationType string) error {
 	var selectors []*common.Selector
 
 	// Select node resolver based on request attestation type
@@ -748,10 +747,7 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 	return nil
 }
 
-func (h *Handler) getAttestResponse(ctx context.Context,
-	baseSpiffeID string, svid []*x509.Certificate) (
-	*node.AttestResponse, error) {
-
+func (h *Handler) getAttestResponse(ctx context.Context, baseSpiffeID string, svid []*x509.Certificate) (*node.AttestResponse, error) {
 	svids := make(map[string]*node.X509SVID)
 	svids[baseSpiffeID] = makeX509SVID(svid)
 
@@ -800,10 +796,7 @@ func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*com
 // This function is used to handle legacy agents request that use
 // the 'DEPRECATED_csrs' field of the 'FetchX509SVIDRequest' message.
 // TODO: remove this function when 'DEPRECATED_csrs' gets removed
-func (h *Handler) signCSRsLegacy(ctx context.Context,
-	peerCert *x509.Certificate, csrs [][]byte, regEntries []*common.RegistrationEntry) (
-	svids map[string]*node.X509SVID, err error) {
-
+func (h *Handler) signCSRsLegacy(ctx context.Context, peerCert *x509.Certificate, csrs [][]byte, regEntries []*common.RegistrationEntry) (map[string]*node.X509SVID, error) {
 	callerID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
 		return nil, err
@@ -816,7 +809,7 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 	}
 
 	ds := h.c.Catalog.GetDataStore()
-	svids = make(map[string]*node.X509SVID)
+	svids := make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
 	for _, csrBytes := range csrs {
 		csr, err := h.parseCSR(csrBytes, idutil.AllowAny())
@@ -879,10 +872,7 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 	return svids, nil
 }
 
-func (h *Handler) signCSRs(ctx context.Context,
-	peerCert *x509.Certificate, csrs map[string][]byte, regEntries []*common.RegistrationEntry) (
-	svids map[string]*node.X509SVID, err error) {
-
+func (h *Handler) signCSRs(ctx context.Context, peerCert *x509.Certificate, csrs map[string][]byte, regEntries []*common.RegistrationEntry) (map[string]*node.X509SVID, error) {
 	callerID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
 		return nil, err
@@ -895,7 +885,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 	}
 
 	ds := h.c.Catalog.GetDataStore()
-	svids = make(map[string]*node.X509SVID)
+	svids := make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
 	for entryID, csrBytes := range csrs {
 		csr, err := h.parseCSR(csrBytes, idutil.AllowAny())
@@ -1066,7 +1056,7 @@ func (h *Handler) parseX509CACSR(csrBytes []byte) (*CSR, error) {
 		return nil, err
 	}
 	if csr.SpiffeID == "" {
-		return nil, errors.New("X509 CA CSR is missing the SPIFFE ID")
+		return nil, errors.New("X509 CA CSR is missing the SPIFFE ID") //nolint: golint // leading cap on error is ok
 	}
 	return csr, nil
 }
@@ -1095,23 +1085,6 @@ func (h *Handler) parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, e
 		SpiffeID:  spiffeID,
 		PublicKey: csr.PublicKey,
 	}, nil
-}
-
-func (h *Handler) getSpiffeIDFromCSR(csrBytes []byte, mode idutil.ValidationMode) (string, error) {
-	csr, err := x509.ParseCertificateRequest(csrBytes)
-	if err != nil {
-		h.c.Log.WithError(err).Error("Failed to parse CSR")
-		return "", errorutil.WrapError(err, "failed to parse CSR")
-	}
-	if len(csr.URIs) != 1 {
-		return "", errors.New("the CSR must have exactly one URI SAN")
-	}
-
-	spiffeID, err := idutil.NormalizeSpiffeIDURL(csr.URIs[0], mode)
-	if err != nil {
-		return "", err
-	}
-	return spiffeID.String(), nil
 }
 
 func getPeerCertificateFromRequestContext(ctx context.Context) (cert *x509.Certificate, err error) {

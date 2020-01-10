@@ -30,7 +30,7 @@ func run(ctx context.Context, configPath string) error {
 		return err
 	}
 
-	log, err := log.NewLogger(config.LogLevel, config.LogFormat, config.LogPath)
+	log, err := log.NewLogger(log.WithLevel(config.LogLevel), log.WithFormat(config.LogFormat), log.WithOutputFile(config.LogPath))
 	if err != nil {
 		return err
 	}

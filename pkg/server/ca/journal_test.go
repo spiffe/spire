@@ -168,7 +168,6 @@ func (s *JournalSuite) TestX509CAOverflow() {
 			Certificate: testChain[0],
 		})
 		s.Require().NoError(err)
-
 	}
 
 	entries := journal.Entries()

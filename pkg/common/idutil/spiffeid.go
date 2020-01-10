@@ -11,12 +11,12 @@ import (
 type idType int
 
 const (
-	anyId idType = iota
-	trustDomainId
-	memberId
-	workloadId
-	agentId
-	serverId
+	anyID idType = iota
+	trustDomainID
+	memberID
+	workloadID
+	agentID
+	serverID
 )
 
 // ValidateSpiffeID validates the SPIFFE ID according to the SPIFFE
@@ -47,15 +47,15 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	validationError := func(format string, args ...interface{}) error {
 		var kind string
 		switch options.idType {
-		case trustDomainId:
+		case trustDomainID:
 			kind = "trust domain "
-		case memberId:
+		case memberID:
 			kind = "trust domain member "
-		case workloadId:
+		case workloadID:
 			kind = "workload "
-		case serverId:
+		case serverID:
 			kind = "server "
-		case agentId:
+		case agentID:
 			kind = "agent "
 		}
 		return fmt.Errorf("%q is not a valid %sSPIFFE ID: "+format,
@@ -94,30 +94,30 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 
 	// id type validation
 	switch options.idType {
-	case anyId:
-	case trustDomainId:
+	case anyID:
+	case trustDomainID:
 		if id.Path != "" {
 			return validationError("path is not empty")
 		}
-	case memberId:
+	case memberID:
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
-	case workloadId:
+	case workloadID:
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
 		if isReservedPath(id.Path) {
 			return validationError(`invalid path: "/spire/*" namespace is reserved`)
 		}
-	case serverId:
+	case serverID:
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
 		if !isServerPath(id.Path) {
 			return validationError(`invalid path: expecting "/spire/server"`)
 		}
-	case agentId:
+	case agentID:
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
@@ -188,7 +188,7 @@ func AllowAnyInTrustDomain(trustDomain string) ValidationMode {
 		options: validationOptions{
 			trustDomain:         trustDomain,
 			trustDomainRequired: true,
-			idType:              memberId,
+			idType:              memberID,
 		},
 	}
 }
@@ -199,7 +199,7 @@ func AllowTrustDomain(trustDomain string) ValidationMode {
 		options: validationOptions{
 			trustDomain:         trustDomain,
 			trustDomainRequired: true,
-			idType:              trustDomainId,
+			idType:              trustDomainID,
 		},
 	}
 }
@@ -210,7 +210,7 @@ func AllowTrustDomainWorkload(trustDomain string) ValidationMode {
 		options: validationOptions{
 			trustDomain:         trustDomain,
 			trustDomainRequired: true,
-			idType:              workloadId,
+			idType:              workloadID,
 		},
 	}
 }
@@ -220,7 +220,7 @@ func AllowTrustDomainServer(trustDomain string) ValidationMode {
 		options: validationOptions{
 			trustDomain:         trustDomain,
 			trustDomainRequired: true,
-			idType:              serverId,
+			idType:              serverID,
 		},
 	}
 }
@@ -230,7 +230,7 @@ func AllowTrustDomainAgent(trustDomain string) ValidationMode {
 		options: validationOptions{
 			trustDomain:         trustDomain,
 			trustDomainRequired: true,
-			idType:              agentId,
+			idType:              agentID,
 		},
 	}
 }
@@ -239,7 +239,7 @@ func AllowTrustDomainAgent(trustDomain string) ValidationMode {
 func AllowAnyTrustDomain() ValidationMode {
 	return validationMode{
 		options: validationOptions{
-			idType: trustDomainId,
+			idType: trustDomainID,
 		},
 	}
 }
@@ -248,7 +248,7 @@ func AllowAnyTrustDomain() ValidationMode {
 func AllowAnyTrustDomainWorkload() ValidationMode {
 	return validationMode{
 		options: validationOptions{
-			idType: workloadId,
+			idType: workloadID,
 		},
 	}
 }
@@ -256,7 +256,7 @@ func AllowAnyTrustDomainWorkload() ValidationMode {
 func AllowAnyTrustDomainServer() ValidationMode {
 	return validationMode{
 		options: validationOptions{
-			idType: serverId,
+			idType: serverID,
 		},
 	}
 }
@@ -264,7 +264,7 @@ func AllowAnyTrustDomainServer() ValidationMode {
 func AllowAnyTrustDomainAgent() ValidationMode {
 	return validationMode{
 		options: validationOptions{
-			idType: agentId,
+			idType: agentID,
 		},
 	}
 }

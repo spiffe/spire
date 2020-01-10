@@ -27,7 +27,7 @@ type catalogPluginConfig struct {
 	HostServices  []HostServiceServer
 }
 
-func newCatalogPlugin(ctx context.Context, c *grpc.ClientConn, config catalogPluginConfig) (*CatalogPlugin, error) {
+func newCatalogPlugin(ctx context.Context, c *grpc.ClientConn, config catalogPluginConfig) (*LoadedPlugin, error) {
 	hostServiceTypes, err := makeHostServiceTypes(config.HostServices)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func newCatalogPlugin(ctx context.Context, c *grpc.ClientConn, config catalogPlu
 
 	pluginImpl := config.Plugin.NewPluginClient(c)
 
-	return &CatalogPlugin{
+	return &LoadedPlugin{
 		name:         config.Name,
 		plugin:       pluginImpl,
 		all:          append([]interface{}{pluginImpl}, serviceImpls...),

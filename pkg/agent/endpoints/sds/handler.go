@@ -12,9 +12,10 @@ import (
 
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	core_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -59,7 +60,7 @@ func NewHandler(config HandlerConfig) *Handler {
 }
 
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
-	_, selectors, done, err := h.startCall(stream.Context())
+	selectors, done, err := h.startCall(stream.Context())
 	log := h.c.Log.WithField(telemetry.Method, telemetry.StreamSecrets)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch stream secrets during context parsing")
@@ -113,7 +114,6 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 
 			// If we've previously sent a nonce, this must be a reply
 			if lastNonce != "" {
-
 				// The nonce should match the last sent nonce, otherwise
 				// it's stale and the request should be ignored.
 				if lastNonce != newReq.ResponseNonce {
@@ -132,7 +132,6 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 						telemetry.Expect:      versionInfo,
 					}).Error("Client rejected expected version and rolled back")
 				}
-
 			}
 
 			// We need to send updates if the requested resource list has changed
@@ -200,12 +199,16 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 	return false
 }
 
+func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsServer) error {
+	return status.Error(codes.Unimplemented, "Method is not implemented")
+}
+
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
 	log := h.c.Log.WithField(telemetry.Method, telemetry.FetchSecrets)
 	log.WithFields(logrus.Fields{
 		telemetry.ResourceNames: req.ResourceNames,
 	}).Debug("Received FetchSecrets request")
-	_, selectors, done, err := h.startCall(ctx)
+	selectors, done, err := h.startCall(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch secrets during context parsing")
 		return nil, err
@@ -225,16 +228,15 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 	}).Debug("Sending FetchSecrets response")
 
 	return resp, nil
-
 }
 
 // From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
 // to a new metrics object. Return this information to the caller so it can emit further metrics.
 // If no error, callers must call the output func() to decrement current connections count.
-func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
+func (h *Handler) startCall(ctx context.Context) ([]*common.Selector, func(), error) {
 	watcher, err := peerWatcher(ctx)
 	if err != nil {
-		return 0, nil, nil, status.Errorf(codes.Internal, "is this a supported system? Please report this bug: %v", err)
+		return nil, nil, status.Errorf(codes.Internal, "is this a supported system? Please report this bug: %v", err)
 	}
 
 	pid := watcher.PID()
@@ -253,7 +255,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	if err != nil {
 		telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, -1))
 		log.Debug("Finished handling SDS API request due to error")
-		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "could not verify existence of the original caller: %v", err)
+		return nil, nil, status.Errorf(codes.Unauthenticated, "could not verify existence of the original caller: %v", err)
 	}
 
 	done := func() {
@@ -261,7 +263,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 		log.Debug("Finished handling SDS API request")
 	}
 
-	return pid, selectors, done, nil
+	return selectors, done, nil
 }
 
 func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *api_v2.DiscoveryResponse, err error) {
@@ -290,7 +292,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		if err != nil {
 			return nil, err
 		}
-		resp.Resources = append(resp.Resources, *validationContext)
+		resp.Resources = append(resp.Resources, validationContext)
 	}
 
 	for _, federatedBundle := range upd.FederatedBundles {
@@ -299,7 +301,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 			if err != nil {
 				return nil, err
 			}
-			resp.Resources = append(resp.Resources, *validationContext)
+			resp.Resources = append(resp.Resources, validationContext)
 		}
 	}
 
@@ -309,7 +311,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 			if err != nil {
 				return nil, err
 			}
-			resp.Resources = append(resp.Resources, *tlsCertificate)
+			resp.Resources = append(resp.Resources, tlsCertificate)
 		}
 	}
 
@@ -335,7 +337,7 @@ func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	return watcher, nil
 }
 
-func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
+func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
 	keyPEM, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -343,17 +345,17 @@ func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
 
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
-	return types.MarshalAny(&auth_v2.Secret{
+	return ptypes.MarshalAny(&auth_v2.Secret{
 		Name: identity.Entry.SpiffeId,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
-				CertificateChain: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				CertificateChain: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: certsPEM,
 					},
 				},
-				PrivateKey: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				PrivateKey: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: keyPEM,
 					},
 				},
@@ -362,14 +364,14 @@ func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle) (*types.Any, error) {
+func buildValidationContext(bundle *bundleutil.Bundle) (*any.Any, error) {
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
-	return types.MarshalAny(&auth_v2.Secret{
+	return ptypes.MarshalAny(&auth_v2.Secret{
 		Name: bundle.TrustDomainID(),
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{
-				TrustedCa: &core.DataSource{
-					Specifier: &core.DataSource_InlineBytes{
+				TrustedCa: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
 						InlineBytes: caBytes,
 					},
 				},

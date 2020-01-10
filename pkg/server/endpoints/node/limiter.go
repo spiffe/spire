@@ -26,7 +26,11 @@ type Limiter interface {
 }
 
 // Newlimiter returns a new node api rate.Limiter
-func NewLimiter(l logrus.FieldLogger) *limiter {
+func NewLimiter(l logrus.FieldLogger) Limiter {
+	return newLimiter(l)
+}
+
+func newLimiter(l logrus.FieldLogger) *limiter {
 	return &limiter{
 		attestRate:   rate.Limit(node.AttestLimit),
 		csrRate:      rate.Limit(node.CSRLimit),
@@ -88,7 +92,6 @@ func (l *limiter) Limit(ctx context.Context, msgType, count int) error {
 		res.Cancel()
 		return ctx.Err()
 	}
-
 }
 
 func (l *limiter) limiterFor(msgType int, callerID string) (*rate.Limiter, error) {

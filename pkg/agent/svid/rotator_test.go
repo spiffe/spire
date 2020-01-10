@@ -69,7 +69,7 @@ func (s *RotatorTestSuite) SetupTest() {
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 		Clk:          s.mockClock,
 	}
-	s.r, _ = NewRotator(c)
+	s.r, _ = newRotator(c)
 	s.r.client = s.client
 }
 
@@ -152,32 +152,6 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 
 	cancel()
 	s.Require().NoError(t.Wait())
-}
-
-func (s *RotatorTestSuite) TestShouldRotate() {
-	// Cert that's valid for 1hr
-	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
-	s.Require().NoError(err)
-	goodCert, _, err := util.SelfSign(temp)
-	s.Require().NoError(err)
-
-	state := State{
-		SVID: []*x509.Certificate{goodCert},
-	}
-	s.r.state = observer.NewProperty(state)
-
-	// Cert is brand new
-	s.Assert().False(s.r.shouldRotate())
-
-	// Cert that's almost expired
-	temp.NotBefore = s.mockClock.Now().Add(-1 * time.Hour)
-	temp.NotAfter = s.mockClock.Now().Add(1 * time.Minute)
-	badCert, _, err := util.SelfSign(temp)
-	s.Require().NoError(err)
-
-	state.SVID = []*x509.Certificate{badCert}
-	s.r.state = observer.NewProperty(state)
-	s.Assert().True(s.r.shouldRotate())
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {

@@ -18,10 +18,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -177,9 +177,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		if err != nil {
 			return satError.New("fail to parse username from token review status: %v", err)
 		}
-
 	} else {
-
 		token, err := jwt.ParseSigned(attestationData.Token)
 		if err != nil {
 			return satError.New("unable to parse token: %v", err)
@@ -247,7 +245,6 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 	for name, cluster := range hclConfig.Clusters {
-
 		var serviceAccountKeys []crypto.PublicKey
 		var apiserverClient apiserver.Client
 		var err error

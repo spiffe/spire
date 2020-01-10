@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,7 +27,7 @@ func New() *AgentStore {
 
 func (s *AgentStore) SetDeps(deps Deps) error {
 	if deps.DataStore == nil {
-		return errors.New("DataStore is required")
+		return errors.New("required DataStore dependency is missing")
 	}
 	s.mu.Lock()
 	s.deps = &deps

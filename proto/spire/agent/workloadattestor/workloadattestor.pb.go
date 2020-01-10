@@ -10,6 +10,8 @@ import (
 	common "github.com/spiffe/spire/proto/spire/common"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -198,6 +200,20 @@ type WorkloadAttestorServer interface {
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	//* Returns the version and related metadata of the plugin
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+}
+
+// UnimplementedWorkloadAttestorServer can be embedded to have forward compatible implementations.
+type UnimplementedWorkloadAttestorServer struct {
+}
+
+func (*UnimplementedWorkloadAttestorServer) Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Attest not implemented")
+}
+func (*UnimplementedWorkloadAttestorServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+func (*UnimplementedWorkloadAttestorServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
 }
 
 func RegisterWorkloadAttestorServer(s *grpc.Server, srv WorkloadAttestorServer) {

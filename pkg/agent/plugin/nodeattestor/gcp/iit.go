@@ -11,9 +11,9 @@ import (
 
 	"github.com/hashicorp/hcl"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -21,7 +21,7 @@ import (
 const (
 	defaultIdentityTokenHost     = "metadata.google.internal"
 	identityTokenURLPathTemplate = "/computeMetadata/v1/instance/service-accounts/%s/identity"
-	identityTokenAudience        = "spire-gcp-node-attestor"
+	identityTokenAudience        = "spire-gcp-node-attestor" //nolint: gosec // false positive
 	defaultServiceAccount        = "default"
 )
 

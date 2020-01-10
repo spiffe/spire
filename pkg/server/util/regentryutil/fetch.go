@@ -6,14 +6,11 @@ import (
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
-func FetchRegistrationEntries(ctx context.Context,
-	dataStore datastore.DataStore, spiffeID string) (
-	entries []*common.RegistrationEntry, err error) {
-
+func FetchRegistrationEntries(ctx context.Context, dataStore datastore.DataStore, spiffeID string) ([]*common.RegistrationEntry, error) {
 	fetcher := newRegistrationEntryFetcher(dataStore)
 	return fetcher.Fetch(ctx, spiffeID)
 }

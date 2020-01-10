@@ -59,11 +59,11 @@ func configureConnection(cfg *configuration) (string, error) {
 		pem, err := ioutil.ReadFile(cfg.RootCAPath)
 
 		if err != nil {
-			return "", sqlError.Wrap(errors.New("invalid mysql config: cannot find Root CA defined in root_ca_path"))
+			return "", sqlError.New("invalid mysql config: cannot find Root CA defined in root_ca_path")
 		}
 
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-			return "", sqlError.Wrap(errors.New("invalid mysql config: failed to parse Root CA defined in root_ca_path"))
+			return "", sqlError.New("invalid mysql config: failed to parse Root CA defined in root_ca_path")
 		}
 		tlsConf.RootCAs = rootCertPool
 	}
@@ -73,14 +73,16 @@ func configureConnection(cfg *configuration) (string, error) {
 		clientCert := make([]tls.Certificate, 0, 1)
 		certs, err := tls.LoadX509KeyPair(cfg.ClientCertPath, cfg.ClientKeyPath)
 		if err != nil {
-			return "", sqlError.Wrap(errors.New("invalid mysql config: failed to load client certificate defined in client_cert_path and client_key_path"))
+			return "", sqlError.New("invalid mysql config: failed to load client certificate defined in client_cert_path and client_key_path")
 		}
 		clientCert = append(clientCert, certs)
 		tlsConf.Certificates = clientCert
 	}
 
 	// register a custom TLS config that uses custom Root CAs with the MySQL driver
-	mysqldriver.RegisterTLSConfig(tlsConfigName, &tlsConf)
+	if err := mysqldriver.RegisterTLSConfig(tlsConfigName, &tlsConf); err != nil {
+		return "", sqlError.New("failed to register mysql TLS config")
+	}
 
 	// instruct MySQL driver to use the custom TLS config
 	opts.TLSConfig = tlsConfigName

@@ -13,17 +13,17 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
 )
 
 const (
 	pluginName                  = "gcp_iit"
-	tokenAudience               = "spire-gcp-node-attestor"
+	tokenAudience               = "spire-gcp-node-attestor" //nolint: gosec // false positive
 	googleCertURL               = "https://www.googleapis.com/oauth2/v1/certs"
 	defaultMaxMetadataValueSize = 128
 )

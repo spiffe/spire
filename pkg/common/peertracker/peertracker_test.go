@@ -1,6 +1,7 @@
 package peertracker
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -34,7 +35,7 @@ func (p *PeerTrackerTestSuite) SetupTest() {
 	p.NoError(err)
 
 	p.childPath = path.Join(p.tempDir, "child")
-	buildOutput, err := exec.Command("go", "build", "-o", p.childPath, "peertracker_test_child.go").CombinedOutput()
+	buildOutput, err := exec.Command("go", "build", "-o", p.childPath, "peertracker_test_child.go").CombinedOutput() //nolint: gosec // false positive
 	if err != nil {
 		p.T().Logf("build output:\n%v\n", string(buildOutput))
 		p.FailNow("failed to build test child")
@@ -70,7 +71,7 @@ func (p *PeerTrackerTestSuite) TestTrackerClose() {
 }
 
 func (p *PeerTrackerTestSuite) TestUDSListener() {
-	doneCh := make(chan struct{})
+	doneCh := make(chan error)
 	peer := newFakeUDSPeer(p.T())
 
 	peer.connect(p.unixAddr, doneCh)
@@ -79,7 +80,7 @@ func (p *PeerTrackerTestSuite) TestUDSListener() {
 	p.Require().NoError(err)
 
 	// Unblock connect goroutine
-	<-doneCh
+	p.Require().NoError(<-doneCh)
 
 	conn, ok := rawConn.(*Conn)
 	p.Require().True(ok)
@@ -97,7 +98,7 @@ func (p *PeerTrackerTestSuite) TestUDSListener() {
 
 func (p *PeerTrackerTestSuite) TestExitDetection() {
 	// First, just test against ourselves
-	doneCh := make(chan struct{})
+	doneCh := make(chan error)
 	peer := newFakeUDSPeer(p.T())
 
 	peer.connect(p.unixAddr, doneCh)
@@ -106,7 +107,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	p.Require().NoError(err)
 
 	// Unblock connect goroutine
-	<-doneCh
+	p.Require().NoError(<-doneCh)
 
 	conn, ok := rawConn.(*Conn)
 	p.Require().True(ok)
@@ -125,7 +126,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	rawConn, err = p.ul.Accept()
 
 	// Unblock child connect goroutine
-	<-doneCh
+	p.Require().NoError(<-doneCh)
 
 	// Check for Accept() error only after unblocking
 	// the child so we can be sure that we that we can
@@ -176,7 +177,7 @@ func newFakeUDSPeer(t *testing.T) *fakeUDSPeer {
 }
 
 // connect to the uds listener
-func (f *fakeUDSPeer) connect(addr *net.UnixAddr, doneCh chan struct{}) {
+func (f *fakeUDSPeer) connect(addr *net.UnixAddr, doneCh chan error) {
 	if f.conn != nil {
 		f.t.Fatal("fake peer already connected")
 	}
@@ -184,11 +185,12 @@ func (f *fakeUDSPeer) connect(addr *net.UnixAddr, doneCh chan struct{}) {
 	go func() {
 		conn, err := net.DialUnix("unix", nil, addr)
 		if err != nil {
-			f.t.Fatalf("could not dial unix address: %v", err)
+			doneCh <- fmt.Errorf("could not dial unix address: %v", err)
+			return
 		}
 
 		f.conn = conn
-		doneCh <- struct{}{}
+		doneCh <- nil
 	}()
 }
 
@@ -203,7 +205,7 @@ func (f *fakeUDSPeer) disconnect() {
 }
 
 // run child to connect and fork. allows us to test stale PID data
-func (f *fakeUDSPeer) connectFromForkingChild(addr *net.UnixAddr, childPath string, doneCh chan struct{}) {
+func (f *fakeUDSPeer) connectFromForkingChild(addr *net.UnixAddr, childPath string, doneCh chan error) {
 	if f.grandchildPID != 0 {
 		f.t.Fatalf("grandchild already running with PID %v", f.grandchildPID)
 	}
@@ -211,17 +213,19 @@ func (f *fakeUDSPeer) connectFromForkingChild(addr *net.UnixAddr, childPath stri
 	go func() {
 		out, err := exec.Command(childPath, "-socketPath", addr.Name).Output()
 		if err != nil {
-			f.t.Fatalf("child process failed: %v", err)
+			doneCh <- fmt.Errorf("child process failed: %v", err)
+			return
 		}
 
 		// Get and store the grandchild PID from our child's STDOUT
 		grandchildPID, err := strconv.ParseInt(string(out), 10, 0)
 		if err != nil {
-			f.t.Fatalf("could not get grandchild pid: %v", err)
+			doneCh <- fmt.Errorf("could not get grandchild pid: %v", err)
+			return
 		}
 
 		f.grandchildPID = int(grandchildPID)
-		doneCh <- struct{}{}
+		doneCh <- nil
 	}()
 }
 

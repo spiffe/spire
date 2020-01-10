@@ -17,8 +17,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
 const (
@@ -83,7 +83,7 @@ func (m *PCAPlugin) SetLogger(log hclog.Logger) {
 
 // Configure sets up the plugin for use as an upstream CA
 func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config, err := m.validateConfig(ctx, req)
+	config, err := m.validateConfig(req)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (m *PCAPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSR
 	// All else comprises the chain (including the issued certificate)
 	chain := cert.Raw
 	for _, caCert := range certChain[:len(certChain)-1] {
-		chain = append(chain[:], caCert.Raw[:]...)
+		chain = append(chain, caCert.Raw...)
 	}
 
 	return &upstreamca.SubmitCSRResponse{
@@ -230,7 +230,7 @@ func (m *PCAPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSR
 }
 
 // validateConfig returns an error if any configuration provided does not meet acceptable criteria
-func (m *PCAPlugin) validateConfig(ctx context.Context, req *spi.ConfigureRequest) (*PCAPluginConfiguration, error) {
+func (m *PCAPlugin) validateConfig(req *spi.ConfigureRequest) (*PCAPluginConfiguration, error) {
 	config := new(PCAPluginConfiguration)
 
 	if err := hcl.Decode(&config, req.Configuration); err != nil {

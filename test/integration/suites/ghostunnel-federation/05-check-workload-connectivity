@@ -5,10 +5,10 @@ CHECKINTERVAL=1
 
 for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
     log-debug "Checking proxy ($i of $MAXCHECKSPERPORT max)..."
-    docker-compose exec downstream-workload /bin/sh -c "echo HELLO | socat -u STDIN TCP:localhost:8000"
-    if docker-compose exec upstream-workload cat /tmp/howdy | grep -q HELLO ; then
+    docker-compose exec -T downstream-workload /bin/sh -c "echo HELLO | socat -u STDIN TCP:localhost:8000"
+    if docker-compose exec -T upstream-workload cat /tmp/howdy | grep -q HELLO ; then
         log-info "Proxy OK"
-        docker-compose exec upstream-workload rm /tmp/howdy
+        docker-compose exec -T upstream-workload rm /tmp/howdy
         exit 0
     fi
     sleep "${CHECKINTERVAL}"

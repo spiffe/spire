@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -20,19 +19,19 @@ var (
 
 func main() {
 	flag.Parse()
-	if err := run(context.Background(), *configFlag); err != nil {
+	if err := run(*configFlag); err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, configPath string) error {
+func run(configPath string) error {
 	config, err := LoadConfig(configPath)
 	if err != nil {
 		return err
 	}
 
-	log, err := log.NewLogger(config.LogLevel, config.LogFormat, config.LogPath)
+	log, err := log.NewLogger(log.WithLevel(config.LogLevel), log.WithFormat(config.LogFormat), log.WithOutputFile(config.LogPath))
 	if err != nil {
 		return errs.Wrap(err)
 	}

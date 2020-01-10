@@ -10,6 +10,8 @@ import (
 	common "github.com/spiffe/spire/proto/spire/common"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -411,6 +413,23 @@ type NotifierServer interface {
 	NotifyAndAdvise(context.Context, *NotifyAndAdviseRequest) (*NotifyAndAdviseResponse, error)
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+}
+
+// UnimplementedNotifierServer can be embedded to have forward compatible implementations.
+type UnimplementedNotifierServer struct {
+}
+
+func (*UnimplementedNotifierServer) Notify(ctx context.Context, req *NotifyRequest) (*NotifyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Notify not implemented")
+}
+func (*UnimplementedNotifierServer) NotifyAndAdvise(ctx context.Context, req *NotifyAndAdviseRequest) (*NotifyAndAdviseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NotifyAndAdvise not implemented")
+}
+func (*UnimplementedNotifierServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+func (*UnimplementedNotifierServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
 }
 
 func RegisterNotifierServer(s *grpc.Server, srv NotifierServer) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // import registers routes on DefaultServeMux
+	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"net/url"
 	"os"
 	"runtime"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
+	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -22,11 +23,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-	common_services "github.com/spiffe/spire/proto/spire/common/hostservices"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"google.golang.org/grpc"
 )
 
@@ -102,10 +102,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 	defer cat.Close()
 
-	healthChecks := health.NewChecker(
-		s.config.HealthChecks,
-		s.config.Log.WithField(telemetry.SubsystemName, "health"),
-	)
+	healthChecks := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
 	s.config.Log.Info("plugins started")
 
@@ -203,7 +200,9 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			<-ctx.Done()
-			server.Shutdown(ctx)
+			if err := server.Shutdown(ctx); err != nil {
+				s.config.Log.WithError(err).Warn("unable to shutdown the server cleanly")
+			}
 		}()
 	}
 	if s.config.ProfilingFreq > 0 {
@@ -230,7 +229,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
-	metricsService common_services.MetricsService) (*catalog.CatalogCloser, error) {
+	metricsService common_services.MetricsService) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
@@ -244,7 +243,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 }
 
 func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
-	return ca.NewCA(ca.CAConfig{
+	return ca.NewCA(ca.Config{
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:     metrics,
 		X509SVIDTTL: s.config.SVIDTTL,

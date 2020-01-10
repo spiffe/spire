@@ -1,15 +1,44 @@
-FROM ubuntu:xenial
+# Build stage
+ARG goversion
+FROM golang:${goversion}-alpine as builder
+RUN apk add build-base git mercurial
+ADD go.mod /spire/go.mod
+ADD proto/spire/go.mod /spire/proto/spire/go.mod
+RUN cd /spire && go mod download
+ADD . /spire
+WORKDIR /spire
+RUN make build
 
-RUN apt-get update && apt-get -y install \
-    curl unzip git build-essential ca-certificates
+# Common base
+FROM alpine AS spire-base
+RUN apk --no-cache add dumb-init
+RUN apk --no-cache add ca-certificates
+RUN mkdir -p /opt/spire/bin
 
-COPY build.sh /root/
-ENV BUILD_DIR=/root/build
-RUN /root/build.sh setup
+# SPIRE Server
+FROM spire-base AS spire-server
+COPY --from=builder /spire/bin/spire-server /opt/spire/bin/spire-server
+WORKDIR /opt/spire
+ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-server", "run"]
+CMD []
 
-ENV GOPATH=/root/go
-ENV GOROOT=/root/build
-ENV GOBIN=$GOPATH/bin/linux_amd64
-ENV PATH=$GOROOT/bin:$GOBIN:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-RUN mkdir /root/go
-WORKDIR /root/spire
+# SPIRE Agent
+FROM spire-base AS spire-agent
+COPY --from=builder /spire/bin/spire-agent /opt/spire/bin/spire-agent
+WORKDIR /opt/spire
+ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "run"]
+CMD []
+
+# K8S Workload Registrar
+FROM spire-base AS k8s-workload-registrar
+COPY --from=builder /spire/bin/k8s-workload-registrar /opt/spire/bin/k8s-workload-registrar
+WORKDIR /opt/spire
+ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/k8s-workload-registrar"]
+CMD []
+
+# OIDC Discovery Provider
+FROM spire-base AS oidc-discovery-provider
+COPY --from=builder /spire/bin/oidc-discovery-provider /opt/spire/bin/oidc-discovery-provider
+WORKDIR /opt/spire
+ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/oidc-discovery-provider"]
+CMD []

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.1] - 2019-12-19
+- Agent cache file writes are now atomic, more resilient (#1267)
+- Introduced Google Cloud Storage bundle notifier plugin for server (#1227)
+- Server and agent now detect unknown configuration options in supported blocks (#1289, #1299, #1306, #1307)
+- Improved agent response to heavy server load through use of request backoffs (#1270)
+- The in-memory telemetry sink can now be disabled, and will be by default in a future release (#1248)
+- Agents will now re-balance connections to servers (and re-resolve DNS) automatically (#1265)
+- Improved behavior of M3 duration telemetry (#1262)
+- Fixed a bug in which MySQL deadlock may occur under heavy attestation load (#1291)
+- KeyManager "disk" now emits a friendly error when directory option is missing (#1313)
+
 ## [0.9.0] - 2019-11-14
 - Users can now opt-out of workload executable hashing when enabling the workload path as a selector (#1078)
 - Added M3 support to telemetry and other telemetry and logging improvements (#1059, #1085, #1086, #1094, #1102, #1122,#1138,#1160,#1186,#1208)

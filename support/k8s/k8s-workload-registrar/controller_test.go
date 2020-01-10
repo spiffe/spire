@@ -186,21 +186,23 @@ func TestControllerCleansUpOnPodDeletion(t *testing.T) {
 	controller, r := newTestController("", "")
 
 	// create an entry for the POD in one service account
-	r.CreateEntry(context.Background(), &common.RegistrationEntry{
+	_, err := r.CreateEntry(context.Background(), &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			namespaceSelector("NAMESPACE"),
 			podNameSelector("PODNAME"),
 		},
 	})
+	require.NoError(t, err)
 
 	// create an entry for the POD in another service account (should be rare
 	// in practice but we need to handle it).
-	r.CreateEntry(context.Background(), &common.RegistrationEntry{
+	_, err = r.CreateEntry(context.Background(), &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			namespaceSelector("OTHERNAMESPACE"),
 			podNameSelector("PODNAME"),
 		},
 	})
+	require.NoError(t, err)
 
 	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",

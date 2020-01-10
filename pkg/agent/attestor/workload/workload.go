@@ -3,13 +3,12 @@ package attestor
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
-	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -38,7 +37,9 @@ type Config struct {
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
-	defer telemetry_workload.MeasureAttestDuration(wla.c.Metrics, time.Now())
+	counter := telemetry_workload.StartAttestationCall(wla.c.Metrics)
+	defer counter.Done(nil)
+
 	log := wla.c.Log.WithField(telemetry.PID, pid)
 
 	plugins := wla.c.Catalog.GetWorkloadAttestors()
@@ -77,7 +78,7 @@ func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttes
 		Pid: pid,
 	}
 
-	counter := telemetry_workload.StartAttestorLatencyCall(wla.c.Metrics, a.Name())
+	counter := telemetry_workload.StartAttestorCall(wla.c.Metrics, a.Name())
 	defer counter.Done(&err)
 
 	resp, err := a.Attest(ctx, req)

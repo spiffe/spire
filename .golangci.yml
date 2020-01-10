@@ -1,0 +1,30 @@
+run:
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  deadline: 10m
+
+  skip-dirs:
+    - testdata$
+    - test/mock
+
+  skip-files:
+    - ".*\\.pb\\.go"
+
+linters:
+  enable:
+    - bodyclose
+    - depguard
+    - goimports
+    - golint
+    - gosec
+    - misspell
+    - nakedret
+    - scopelint
+    - unconvert
+    - unparam
+    - whitespace
+    - gocritic
+
+linters-settings:
+  golint:
+    # minimal confidence for issues, default is 0.8
+    min-confidence: 0.0

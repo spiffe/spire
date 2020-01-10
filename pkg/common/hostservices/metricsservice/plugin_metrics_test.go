@@ -1,20 +1,19 @@
 package metricsservice
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
-	mock_hostservices "github.com/spiffe/spire/test/mock/proto/common/hostservices"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 )
 
-func setupPluginMetricsWrapper(m hostservices.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
-	return WrapPluginMetrics(m, log, labels...)
+func setupPluginMetricsWrapper(labels ...telemetry.Label) (telemetry.Metrics, *fakemetrics.FakeMetrics) {
+	service, metrics := setupMetricsService()
+	return WrapPluginMetrics(service, hclog.NewNullLogger(), labels...), metrics
 }
 
 func TestWrapPluginMetricsForContext(t *testing.T) {
@@ -57,21 +56,14 @@ func TestWrapEmitKey(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.EmitKey(tt.inKey, tt.inVal)
 
-			ctx := context.Background()
-
-			mockMetricsService := mock_hostservices.NewMockMetricsService(mockCtrl)
-
-			mockMetricsService.EXPECT().EmitKey(ctx, &hostservices.EmitKeyRequest{
-				Key: tt.inKey,
-				Val: tt.inVal,
-			}).Return(&hostservices.EmitKeyResponse{}, nil)
-
-			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger())
-			metricsWrapper.EmitKey(tt.inKey, tt.inVal)
+			wrapper, actual := setupPluginMetricsWrapper()
+			wrapper.EmitKey(tt.inKey, tt.inVal)
+			assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 		})
 	}
 }
@@ -120,22 +112,15 @@ func TestWrapSetGaugeWithLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.SetGaugeWithLabels(tt.inKey, tt.inVal,
+				append(tt.inLabels, tt.fixedLabels...))
 
-			ctx := context.Background()
-
-			mockMetricsService := mock_hostservices.NewMockMetricsService(mockCtrl)
-
-			mockMetricsService.EXPECT().SetGauge(ctx, &hostservices.SetGaugeRequest{
-				Key:    tt.inKey,
-				Val:    tt.inVal,
-				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
-			}).Return(&hostservices.SetGaugeResponse{}, nil)
-
-			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
-			metricsWrapper.SetGaugeWithLabels(tt.inKey, tt.inVal, tt.inLabels)
+			wrapper, actual := setupPluginMetricsWrapper(tt.fixedLabels...)
+			wrapper.SetGaugeWithLabels(tt.inKey, tt.inVal, tt.inLabels)
+			assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 		})
 	}
 }
@@ -184,22 +169,15 @@ func TestWrapIncrCounterWithLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.IncrCounterWithLabels(tt.inKey, tt.inVal,
+				append(tt.inLabels, tt.fixedLabels...))
 
-			ctx := context.Background()
-
-			mockMetricsService := mock_hostservices.NewMockMetricsService(mockCtrl)
-
-			mockMetricsService.EXPECT().IncrCounter(ctx, &hostservices.IncrCounterRequest{
-				Key:    tt.inKey,
-				Val:    tt.inVal,
-				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
-			}).Return(&hostservices.IncrCounterResponse{}, nil)
-
-			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
-			metricsWrapper.IncrCounterWithLabels(tt.inKey, tt.inVal, tt.inLabels)
+			wrapper, actual := setupPluginMetricsWrapper(tt.fixedLabels...)
+			wrapper.IncrCounterWithLabels(tt.inKey, tt.inVal, tt.inLabels)
+			assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 		})
 	}
 }
@@ -248,22 +226,15 @@ func TestWrapAddSampleWithLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.AddSampleWithLabels(tt.inKey, tt.inVal,
+				append(tt.inLabels, tt.fixedLabels...))
 
-			ctx := context.Background()
-
-			mockMetricsService := mock_hostservices.NewMockMetricsService(mockCtrl)
-
-			mockMetricsService.EXPECT().AddSample(ctx, &hostservices.AddSampleRequest{
-				Key:    tt.inKey,
-				Val:    tt.inVal,
-				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
-			}).Return(&hostservices.AddSampleResponse{}, nil)
-
-			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
-			metricsWrapper.AddSampleWithLabels(tt.inKey, tt.inVal, tt.inLabels)
+			wrapper, actual := setupPluginMetricsWrapper(tt.fixedLabels...)
+			wrapper.AddSampleWithLabels(tt.inKey, tt.inVal, tt.inLabels)
+			assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 		})
 	}
 }
@@ -312,22 +283,15 @@ func TestWrapMeasureSinceWithLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.MeasureSinceWithLabels(tt.inKey, tt.inTime,
+				append(tt.inLabels, tt.fixedLabels...))
 
-			ctx := context.Background()
-
-			mockMetricsService := mock_hostservices.NewMockMetricsService(mockCtrl)
-
-			mockMetricsService.EXPECT().MeasureSince(ctx, &hostservices.MeasureSinceRequest{
-				Key:    tt.inKey,
-				Time:   tt.inTime.UnixNano(),
-				Labels: append(convertToRPCLabels(tt.inLabels), convertToRPCLabels(tt.fixedLabels)...),
-			}).Return(&hostservices.MeasureSinceResponse{}, nil)
-
-			metricsWrapper := setupPluginMetricsWrapper(mockMetricsService, hclog.NewNullLogger(), tt.fixedLabels...)
-			metricsWrapper.MeasureSinceWithLabels(tt.inKey, tt.inTime, tt.inLabels)
+			wrapper, actual := setupPluginMetricsWrapper(tt.fixedLabels...)
+			wrapper.MeasureSinceWithLabels(tt.inKey, tt.inTime, tt.inLabels)
+			assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 		})
 	}
 }

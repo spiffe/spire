@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	// this is the default environment used by commands
+	// DefaultEnv is the default environment used by commands
 	DefaultEnv = &Env{
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,

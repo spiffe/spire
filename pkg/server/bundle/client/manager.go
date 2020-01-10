@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
 const (
@@ -20,8 +20,16 @@ const (
 )
 
 type TrustDomainConfig struct {
-	EndpointAddress  string
+	// EndpointAddress is the bundle endpoint for the trust domain.
+	EndpointAddress string
+
+	// EndpointSpiffeID is the expected SPIFFE ID of the endpoint server. If
+	// unset, it defaults to the SPIRE server ID within the trust domain.
 	EndpointSpiffeID string
+
+	// UseWebPKI is true if the endpoint should be authenticated with Web PKI.
+	// Otherwise, SPIFFE authentication is assumed.
+	UseWebPKI bool
 }
 
 type ManagerConfig struct {
@@ -67,6 +75,9 @@ func NewManager(config ManagerConfig) *Manager {
 func (m *Manager) Run(ctx context.Context) error {
 	var tasks []func(context.Context) error
 	for trustDomain, updater := range m.updaters {
+		// alias the loop variables that are used by the closure
+		trustDomain := trustDomain
+		updater := updater
 		tasks = append(tasks, func(ctx context.Context) error {
 			return m.runUpdater(ctx, trustDomain, updater)
 		})

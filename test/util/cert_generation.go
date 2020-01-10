@@ -16,8 +16,8 @@ import (
 )
 
 // NewCSRTemplate returns a default CSR template with the specified SPIFFE ID.
-func NewCSRTemplate(spiffeId string) ([]byte, crypto.PublicKey, error) {
-	uriSAN, err := url.Parse(spiffeId)
+func NewCSRTemplate(spiffeID string) ([]byte, crypto.PublicKey, error) {
+	uriSAN, err := url.Parse(spiffeID)
 	if err != nil {
 		return nil, nil, err
 	}

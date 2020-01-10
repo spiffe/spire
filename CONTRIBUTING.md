@@ -25,57 +25,39 @@ Since go modules are used, this repository can live in any folder on your local 
 
 A Makefile is provided for common actions.
 
-* `make all` - installs 3rd-party dependencies, build all binaries, and run all tests
 * `make` - builds all binaries
-* `make cmd/spire-agent` - builds one binary
-* `make test` - runs all tests
+* `make all` - builds all binaries, lints code, and runs all unit tests
+* `make bin/spire-server` - builds SPIRE server
+* `make bin/spire-agent` - builds SPIRE agent
+* `make images` - builds SPIRE docker images
+* `make test` - runs unit tests
 
-**Other Makefile targets**
+See `make help` for other targets
 
-* `vendor` - Make vendored copy of dependencies using go mod
-* `race-test` - run `go test -race`
-* `clean` - cleans `vendor` directory
-* `distclean` - removes caches in addition to `make clean`
-* `utils` - installs gRPC related development utilities
-* `protobuf` - regenerates the gRPC pb.go and README_pb.md files
-* `protobuf_verify` - checks that the checked-in generated code is up-to-date
-* `help` - shows makefile targets and description
+The Makefile takes care of installing the required toolchain as needed. The
+toolchain and other build related files are cached under the `.build` folder
+(ignored by git).
 
 ## Development in Docker
 
-You can either build Spire on your host or in a Ubuntu docker container. In both cases you will use
-the same Makefile commands.
+You can either build SPIRE on your host or in a Ubuntu docker container. In
+both cases you will use the same Makefile commands.
 
-To run in a docker container set the environment variable `SPIRE_DEV_HOST` to `docker` like so:
-
-```
-$ export SPIRE_DEV_HOST=docker
-```
-
-To set up the build container and run bash within it:
+To build SPIRE within a container, first build the development image:
 
 ```
-$ make container
-$ make cmd
+$ make dev-image
 ```
 
-Because the docker container shares `$GOPATH/pkg/mod` you will not have to re-install the go dependencies every time you run the container.
+Then launch a shell inside of development container:
 
-## CI
+```
+$ make dev-shell
+```
 
-The script `build.sh` manages the CI build process, implementing several unique steps and sanity
-checks. It is also used to bootstrap the Go environment in the Docker container.
-
-* `setup` - download and install necessary build tools into the directory `.build-<os>-<arch>`
-* `protobuf` - calls `make protobuf` and regenerates the gRPC pb.go and README_pb.md files
-* `protobuf_verify` - calls `make protobuf_verify` and checks that the checked-in generated code is up-to-date
-* `distclean` - calls `make distclean` and removes the directory `.build-<os>-<arch>`
-* `artifact` - generate a `.tgz` containing all of the SPIFFE binaries
-* `test` - when called from within a Travis-CI build, runs coverage tests in addition to the
-  regular tests
-* `utils` - calls `make utils` and installs additional packages for the CI build
-* `eval $(build.sh env)` - configure GOPATH, GOROOT and PATH to use the private build tool directory
-
+Because the docker container shares the `.build` cache and `$GOPATH/pkg/mod`
+you will not have to re-install the toolchain or go dependencies every time you
+run the container.
 
 # Conventions
 

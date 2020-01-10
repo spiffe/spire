@@ -19,15 +19,14 @@ import (
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"github.com/zeebo/errs"
 )
 
 const (
 	iidPluginName = "aws_iid"
-	defaultRegion = "us-east-1"
 )
 
 var (

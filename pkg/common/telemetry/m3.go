@@ -11,6 +11,12 @@ import (
 	"github.com/uber-go/tally/m3"
 )
 
+var (
+	// buckets for orders of magnitude of values, up to 100,000
+	// given nature of SPIRE, we do not expect negative values
+	exponentialValueBuckets = append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 10, 5)...)
+)
+
 type m3Sink struct {
 	closer io.Closer
 	scope  tally.Scope
@@ -42,7 +48,7 @@ func newM3Sink(serviceName, address, env string) (*m3Sink, error) {
 	return sink, nil
 }
 
-func newM3TestSink(scope tally.Scope, enableTypePrefix bool) *m3Sink {
+func newM3TestSink(scope tally.Scope) *m3Sink {
 	return &m3Sink{
 		scope: scope,
 	}
@@ -128,18 +134,18 @@ func (m *m3Sink) addSample(key []string, val float32, scope tally.Scope) {
 	if key[1] == "timer" {
 		m.addDurationSample(flattenedKey, val, scope)
 	} else {
-		addValueSample(flattenedKey, val, scope)
+		m.addValueSample(flattenedKey, val, scope)
 	}
 }
 
 func (m *m3Sink) addDurationSample(flattenedKey string, val float32, scope tally.Scope) {
-	histogram := scope.Histogram(flattenedKey, tally.DurationBuckets{})
+	histogram := scope.Histogram(flattenedKey, tally.DefaultBuckets)
 	dur := time.Duration(int64(val)) * timerGranularity
 	histogram.RecordDuration(dur)
 }
 
-func addValueSample(flattenedKey string, val float32, scope tally.Scope) {
-	histogram := scope.Histogram(flattenedKey, tally.ValueBuckets{})
+func (m *m3Sink) addValueSample(flattenedKey string, val float32, scope tally.Scope) {
+	histogram := scope.Histogram(flattenedKey, exponentialValueBuckets)
 	val64 := float64(val)
 	histogram.RecordValue(val64)
 }

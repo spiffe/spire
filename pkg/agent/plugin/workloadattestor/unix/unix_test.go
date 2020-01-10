@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -19,7 +19,7 @@ var (
 	ctx = context.Background()
 )
 
-func TestUnixPlugin(t *testing.T) {
+func TestPlugin(t *testing.T) {
 	spiretest.Run(t, new(Suite))
 }
 
@@ -37,8 +37,8 @@ func (s *Suite) SetupTest() {
 	p.hooks.newProcess = func(pid int32) (processInfo, error) {
 		return newFakeProcess(pid, s.dir), nil
 	}
-	p.hooks.lookupUserById = fakeLookupUserById
-	p.hooks.lookupGroupById = fakeLookupGroupById
+	p.hooks.lookupUserByID = fakeLookupUserByID
+	p.hooks.lookupGroupByID = fakeLookupGroupByID
 	s.LoadPlugin(builtin(p), &s.p)
 
 	s.configure("")
@@ -172,6 +172,7 @@ func (s *Suite) TestAttest() {
 	s.writeFile("exe", []byte("data"))
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		s.T().Run(testCase.name, func(t *testing.T) {
 			s.configure(testCase.config)
 			resp, err := s.p.Attest(ctx, &workloadattestor.AttestRequest{
@@ -274,7 +275,7 @@ func newFakeProcess(pid int32, dir string) processInfo {
 	return fakeProcess{pid: pid, dir: dir}
 }
 
-func fakeLookupUserById(uid string) (*user.User, error) {
+func fakeLookupUserByID(uid string) (*user.User, error) {
 	switch uid {
 	case "1000":
 		return &user.User{Username: "u1000"}, nil
@@ -285,7 +286,7 @@ func fakeLookupUserById(uid string) (*user.User, error) {
 	}
 }
 
-func fakeLookupGroupById(gid string) (*user.Group, error) {
+func fakeLookupGroupByID(gid string) (*user.Group, error) {
 	switch gid {
 	case "2000":
 		return &user.Group{Name: "g2000"}, nil

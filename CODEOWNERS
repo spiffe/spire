@@ -1,11 +1,5 @@
-* @evan2645 @amartinezfayo @martincapello @azdagron @APTy @marcosy
-
-# infrastructure maintenance
-/build.sh        @drrt @evan2645 @amartinezfayo @martincapello @azdagron @APTy @marcosy
-/Dockerfile      @drrt @evan2645 @amartinezfayo @martincapello @azdagron @APTy @marcosy
-/Makefile        @drrt @evan2645 @amartinezfayo @martincapello @azdagron @APTy @marcosy
-/README.md       @drrt @evan2645 @amartinezfayo @martincapello @azdagron @APTy @marcosy @ajessup
-/CONTRIBUTING.md @drrt @evan2645 @amartinezfayo @martincapello @azdagron @APTy @marcosy
+* @evan2645 @amartinezfayo @azdagron @APTy @marcosy
 
 # documentation
-/doc/           @jennybeth @drrt @evan2645 @amartinezfayo @martincapello @azdagron @APTy @marcosy @ajessup
+/README.md      @evan2645 @amartinezfayo @azdagron @APTy @marcosy @ajessup
+/doc/           @evan2645 @amartinezfayo @azdagron @APTy @marcosy @ajessup

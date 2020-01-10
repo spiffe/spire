@@ -8,8 +8,8 @@ import (
 	"crypto/x509"
 	"sync"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
@@ -21,20 +21,20 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *MemoryPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
 }
 
-type MemoryPlugin struct {
+type Plugin struct {
 	key *ecdsa.PrivateKey
 	mtx sync.RWMutex
 }
 
-func New() *MemoryPlugin {
-	return &MemoryPlugin{}
+func New() *Plugin {
+	return &Plugin{}
 }
 
-func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+func (m *Plugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyP
 	}, nil
 }
 
-func (m *MemoryPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+func (m *Plugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -66,7 +66,7 @@ func (m *MemoryPlugin) StorePrivateKey(ctx context.Context, req *keymanager.Stor
 	return &keymanager.StorePrivateKeyResponse{}, nil
 }
 
-func (m *MemoryPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (m *Plugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -83,10 +83,10 @@ func (m *MemoryPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivate
 	return &keymanager.FetchPrivateKeyResponse{PrivateKey: privateKey}, nil
 }
 
-func (m *MemoryPlugin) Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (m *Plugin) Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (m *MemoryPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (m *Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }

@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/telemetry"
-
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/common/backoff"
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 const DefaultRotatorInterval = 5 * time.Second
@@ -40,9 +40,17 @@ type RotatorConfig struct {
 	Clk clock.Clock
 }
 
-func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
+func NewRotator(c *RotatorConfig) (Rotator, client.Client) {
+	return newRotator(c)
+}
+
+func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 	if c.Interval == 0 {
 		c.Interval = DefaultRotatorInterval
+	}
+
+	if c.Clk == nil {
+		c.Clk = clock.New()
 	}
 
 	state := observer.NewProperty(State{
@@ -75,11 +83,12 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 	client := client.New(cfg)
 
 	return &rotator{
-		c:      c,
-		client: client,
-		state:  state,
-		clk:    c.Clk,
-		bsm:    bsm,
-		rotMtx: rotMtx,
+		c:       c,
+		client:  client,
+		state:   state,
+		clk:     c.Clk,
+		backoff: backoff.NewBackoff(c.Clk, c.Interval),
+		bsm:     bsm,
+		rotMtx:  rotMtx,
 	}, client
 }

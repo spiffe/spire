@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ func TestBundleUpdater(t *testing.T) {
 	}{
 		{
 			name: "local bundle not found",
-			err:  "bundle not found",
+			err:  "local bundle not found",
 		},
 		{
 			name:           "bundle has no changes",
@@ -64,13 +64,14 @@ func TestBundleUpdater(t *testing.T) {
 			endpointBundle: nil,
 			storedBundle:   bundle1,
 			client: fakeClient{
-				err: errors.New("OHNO!"),
+				err: errors.New("ohno"),
 			},
-			err: "OHNO!",
+			err: "ohno",
 		},
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			ds := fakedatastore.New()
 

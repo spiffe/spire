@@ -21,12 +21,12 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
-	"github.com/spiffe/spire/proto/spire/server/notifier"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
@@ -55,15 +55,14 @@ func TestManager(t *testing.T) {
 type ManagerSuite struct {
 	spiretest.Suite
 
-	clock    *clock.Mock
-	ca       *fakeCA
-	log      logrus.FieldLogger
-	logHook  *test.Hook
-	dir      string
-	km       *memory.KeyManager
-	ds       *fakedatastore.DataStore
-	notifier *fakenotifier.Notifier
-	cat      *fakeservercatalog.Catalog
+	clock   *clock.Mock
+	ca      *fakeCA
+	log     logrus.FieldLogger
+	logHook *test.Hook
+	dir     string
+	km      *memory.KeyManager
+	ds      *fakedatastore.DataStore
+	cat     *fakeservercatalog.Catalog
 
 	m *Manager
 }
@@ -468,7 +467,7 @@ func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	s.m = NewManager(s.selfSignedConfig())
 	s.setNotifier(fakenotifier.New(fakenotifier.Config{
 		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
-			return nil, errors.New("OH NO!")
+			return nil, errors.New("ohno")
 		},
 	}))
 
@@ -478,12 +477,12 @@ func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	err = s.m.Run(ctx)
-	s.Require().EqualError(err, "one or more notifiers returned an error: OH NO!")
+	s.Require().EqualError(err, "one or more notifiers returned an error: ohno")
 
 	entry := s.logHook.LastEntry()
 	s.Equal("fake", entry.Data["notifier"])
 	s.Equal("bundle loaded", entry.Data["event"])
-	s.Equal("OH NO!", fmt.Sprintf("%v", entry.Data["error"]))
+	s.Equal("ohno", fmt.Sprintf("%v", entry.Data["error"]))
 	s.Equal("Notifier failed to handle event", entry.Message)
 }
 
@@ -626,6 +625,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		s.T().Run(testCase.name, func(t *testing.T) {
 			c := s.selfSignedConfig()
 			c.X509CAKeyType = testCase.x509CAKeyType
@@ -782,12 +782,12 @@ func (s *ManagerSuite) fetchBundle() *common.Bundle {
 	return s.fetchBundleForTrustDomain(testTrustDomainURL.String())
 }
 
-func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomainId string) *common.Bundle {
+func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomainID string) *common.Bundle {
 	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainId,
+		TrustDomainId: trustDomainID,
 	})
 	s.Require().NoError(err)
-	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomainId)
+	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomainID)
 	return resp.Bundle
 }
 

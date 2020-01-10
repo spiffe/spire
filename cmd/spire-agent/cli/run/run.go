@@ -11,10 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
@@ -69,15 +69,16 @@ type agentConfig struct {
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
-type RunCLI struct {
+type Command struct {
+	LogOptions []log.Option
 }
 
-func (*RunCLI) Help() string {
+func (*Command) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
-func (*RunCLI) Run(args []string) int {
+func (cmd *Command) Run(args []string) int {
 	cliInput, err := parseFlags(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -96,7 +97,7 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newAgentConfig(input)
+	c, err := newAgentConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -131,7 +132,7 @@ func (*RunCLI) Run(args []string) int {
 	return 0
 }
 
-func (*RunCLI) Synopsis() string {
+func (*Command) Synopsis() string {
 	return "Runs the agent"
 }
 
@@ -212,7 +213,7 @@ func mergeInput(fileInput *config, cliInput *agentConfig) (*config, error) {
 	return c, nil
 }
 
-func newAgentConfig(c *config) (*agent.Config, error) {
+func newAgentConfig(c *config, logOptions []log.Option) (*agent.Config, error) {
 	ac := &agent.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -247,9 +248,12 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
 
-	ll := strings.ToUpper(c.Agent.LogLevel)
-	lf := strings.ToUpper(c.Agent.LogFormat)
-	logger, err := log.NewLogger(ll, lf, c.Agent.LogFile)
+	logOptions = append(logOptions,
+		log.WithLevel(c.Agent.LogLevel),
+		log.WithFormat(c.Agent.LogFormat),
+		log.WithOutputFile(c.Agent.LogFile))
+
+	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
@@ -264,50 +268,17 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 	ac.Telemetry = c.Telemetry
 	ac.HealthChecks = c.HealthChecks
 
+	// Warn if we detect unknown config options. We need a logger to do this. In
+	// the future, we can move from warning to bailing out (once folks have had
+	// ample time to detect any pre-existing errors)
+	//
+	// TODO: Move this check into validateConfig for 0.11.0
+	warnOnUnknownConfig(c, ac.Log)
+
 	return ac, nil
 }
 
 func validateConfig(c *config) error {
-	// Validations to detect unknown configuration options
-	if len(c.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in root block: %v", strings.Join(c.UnusedKeys, ", "))
-	}
-
-	if a := c.Agent; a != nil && len(a.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in agent block: %v", strings.Join(a.UnusedKeys, ", "))
-	}
-
-	if len(c.Telemetry.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in telemetry block: %v", strings.Join(c.Telemetry.UnusedKeys, ", "))
-	}
-
-	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in nested Prometheus block: %v", strings.Join(p.UnusedKeys, ", "))
-	}
-
-	for i, v := range c.Telemetry.DogStatsd {
-		if len(v.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested DogStatsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
-		}
-	}
-
-	for i, v := range c.Telemetry.Statsd {
-		if len(v.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested Statsd %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
-		}
-	}
-
-	for i, v := range c.Telemetry.M3 {
-		if len(v.UnusedKeys) != 0 {
-			return fmt.Errorf("unknown configuration options in nested M3 %v block: %v", i, strings.Join(v.UnusedKeys, ", "))
-		}
-	}
-
-	if len(c.HealthChecks.UnusedKeys) != 0 {
-		return fmt.Errorf("unknown configuration options in nested health_checks block: %v", strings.Join(c.HealthChecks.UnusedKeys, ", "))
-	}
-
-	// Validations to detect configuration options that must be configured
 	if c.Agent == nil {
 		return errors.New("agent section must be configured")
 	}
@@ -333,6 +304,53 @@ func validateConfig(c *config) error {
 	}
 
 	return nil
+}
+
+func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
+	if len(c.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
+	}
+
+	if a := c.Agent; a != nil && len(a.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown agent config options: %q; this will be fatal in a future release.", a.UnusedKeys)
+	}
+
+	// TODO: Re-enable unused key detection for telemetry. See
+	// https://github.com/spiffe/spire/issues/1101 for more information
+	//
+	//if len(c.Telemetry.UnusedKeys) != 0 {
+	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//}
+
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+	}
+
+	for _, v := range c.Telemetry.DogStatsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown DogStatsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	for _, v := range c.Telemetry.Statsd {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown Statsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	for _, v := range c.Telemetry.M3 {
+		if len(v.UnusedKeys) != 0 {
+			l.Warnf("Detected unknown M3 config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+		}
+	}
+
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown InMem config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+	}
+
+	if len(c.HealthChecks.UnusedKeys) != 0 {
+		l.Warnf("Detected unknown health check config options: %q; this will be fatal in a future release.", c.HealthChecks.UnusedKeys)
+	}
 }
 
 func defaultConfig() *config {

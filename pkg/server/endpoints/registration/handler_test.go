@@ -18,9 +18,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -59,7 +59,6 @@ zFHHu+k8dS32+KooMqtUp71bhMgtlvYIRay4OMD6VurfP70caOHkCVFPxibAW9o9
 NbyKVndd7aGvTed1PQ==
 -----END CERTIFICATE-----
 `))
-	udsAuth = peertracker.AuthInfo{}
 )
 
 func TestHandler(t *testing.T) {
@@ -69,7 +68,6 @@ func TestHandler(t *testing.T) {
 type HandlerSuite struct {
 	suite.Suite
 
-	peer   *peer.Peer
 	server *grpc.Server
 
 	ds       *fakedatastore.DataStore
@@ -97,8 +95,8 @@ func (s *HandlerSuite) SetupTest() {
 	// we need to test a streaming API. without doing the same codegen we
 	// did with plugins, implementing the server or client side interfaces
 	// is a pain. start up a localhost server and test over that.
-	s.server = grpc.NewServer()
-	registration.RegisterRegistrationServer(s.server, handler)
+	server := grpc.NewServer()
+	registration.RegisterRegistrationServer(server, handler)
 
 	// start up a server over localhost
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -107,7 +105,8 @@ func (s *HandlerSuite) SetupTest() {
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
 	s.Require().NoError(err)
 
-	go s.server.Serve(listener)
+	go func() { _ = server.Serve(listener) }()
+	s.server = server
 	s.handler = registration.NewRegistrationClient(conn)
 }
 
@@ -117,19 +116,19 @@ func (s *HandlerSuite) TearDownTest() {
 
 func (s *HandlerSuite) TestCreateFederatedBundle() {
 	testCases := []struct {
-		TrustDomainId string
+		TrustDomainID string
 		CaCerts       []byte
 		Err           string
 	}{
-		{TrustDomainId: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
-		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
-		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: "bundle already exists"},
+		{TrustDomainID: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainID: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
+		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: "bundle already exists"},
 	}
 
 	for _, testCase := range testCases {
 		response, err := s.handler.CreateFederatedBundle(context.Background(), &registration.FederatedBundle{
-			Bundle: bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainId, testCase.CaCerts),
+			Bundle: bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainID, testCase.CaCerts),
 		})
 
 		if testCase.Err != "" {
@@ -141,10 +140,10 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomainId: testCase.TrustDomainId,
+			TrustDomainId: testCase.TrustDomainID,
 		})
 		s.Require().NoError(err)
-		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainId)
+		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainID)
 		s.Require().Len(resp.Bundle.RootCas, 1)
 		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
 	}
@@ -166,19 +165,19 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 	})
 
 	testCases := []struct {
-		TrustDomainId string
+		TrustDomainID string
 		CaCerts       string
 		Err           string
 	}{
-		{TrustDomainId: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
-		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: "OTHERDOMAIN", Err: ""},
-		{TrustDomainId: "spiffe://yetotherdomain.org", CaCerts: "", Err: "bundle not found"},
+		{TrustDomainID: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainID: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: "OTHERDOMAIN", Err: ""},
+		{TrustDomainID: "spiffe://yetotherdomain.org", CaCerts: "", Err: "bundle not found"},
 	}
 
 	for _, testCase := range testCases {
 		response, err := s.handler.FetchFederatedBundle(context.Background(), &registration.FederatedBundleID{
-			Id: testCase.TrustDomainId,
+			Id: testCase.TrustDomainID,
 		})
 
 		if testCase.Err != "" {
@@ -187,7 +186,7 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 		}
 		s.Require().NoError(err)
 		s.Require().NotNil(response)
-		s.Require().Equal(bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainId, []byte(testCase.CaCerts)), response.Bundle)
+		s.Require().Equal(bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainID, []byte(testCase.CaCerts)), response.Bundle)
 	}
 }
 
@@ -235,21 +234,21 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 	})
 
 	testCases := []struct {
-		TrustDomainId string
+		TrustDomainID string
 		CaCerts       []byte
 		Err           string
 	}{
-		{TrustDomainId: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
-		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{TrustDomainId: "spiffe://unknowndomain.org", CaCerts: rootCA1DER, Err: "no such bundle"},
-		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
-		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA2DER, Err: ""},
+		{TrustDomainID: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainID: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainID: "spiffe://unknowndomain.org", CaCerts: rootCA1DER, Err: "no such bundle"},
+		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
+		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA2DER, Err: ""},
 	}
 
 	for _, testCase := range testCases {
 		s.T().Logf("case=%+v", testCase)
 		response, err := s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{
-			Bundle: bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainId, testCase.CaCerts),
+			Bundle: bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainID, testCase.CaCerts),
 		})
 
 		if testCase.Err != "" {
@@ -261,10 +260,10 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomainId: testCase.TrustDomainId,
+			TrustDomainId: testCase.TrustDomainID,
 		})
 		s.Require().NoError(err)
-		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainId)
+		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainID)
 		s.Require().Len(resp.Bundle.RootCas, 1)
 		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
 	}
@@ -272,13 +271,13 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 
 func (s *HandlerSuite) TestDeleteFederatedBundle() {
 	testCases := []struct {
-		TrustDomainId string
+		TrustDomainID string
 		Err           string
 	}{
-		{TrustDomainId: "spiffe://example.org", Err: "federated bundle id cannot match server trust domain"},
-		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{TrustDomainId: "spiffe://otherdomain.org", Err: ""},
-		{TrustDomainId: "spiffe://otherdomain.org", Err: "no such bundle"},
+		{TrustDomainID: "spiffe://example.org", Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainID: "spiffe://otherdomain.org/spire/agent", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainID: "spiffe://otherdomain.org", Err: ""},
+		{TrustDomainID: "spiffe://otherdomain.org", Err: "no such bundle"},
 	}
 
 	s.createBundle(&common.Bundle{
@@ -290,7 +289,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 
 	for _, testCase := range testCases {
 		response, err := s.handler.DeleteFederatedBundle(context.Background(), &registration.DeleteFederatedBundleRequest{
-			Id: testCase.TrustDomainId,
+			Id: testCase.TrustDomainID,
 		})
 
 		if testCase.Err != "" {
@@ -302,7 +301,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 
 		// assert that the bundle was deleted
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomainId: testCase.TrustDomainId,
+			TrustDomainId: testCase.TrustDomainID,
 		})
 		s.Require().NoError(err)
 		s.Require().NotNil(resp)
@@ -357,6 +356,7 @@ func (s *HandlerSuite) TestCreateEntry() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.Name, func(t *testing.T) {
 			resp, err := s.handler.CreateEntry(context.Background(), testCase.Entry)
 			if testCase.Err != "" {
@@ -434,6 +434,7 @@ func (s *HandlerSuite) TestUpdateEntry() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.Name, func(t *testing.T) {
 			resp, err := s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{
 				Entry: testCase.Entry,
@@ -459,12 +460,12 @@ func (s *HandlerSuite) TestDeleteEntry() {
 
 	testCases := []struct {
 		Name    string
-		EntryId string
+		EntryID string
 		Err     string
 	}{
 		{
 			Name:    "Success",
-			EntryId: entry.EntryId,
+			EntryID: entry.EntryId,
 		},
 		{
 			Name: "Registration entry does not exist",
@@ -473,9 +474,10 @@ func (s *HandlerSuite) TestDeleteEntry() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.Name, func(t *testing.T) {
 			resp, err := s.handler.DeleteEntry(context.Background(), &registration.RegistrationEntryID{
-				Id: testCase.EntryId,
+				Id: testCase.EntryID,
 			})
 
 			if testCase.Err != "" {
@@ -483,7 +485,7 @@ func (s *HandlerSuite) TestDeleteEntry() {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, resp.EntryId, testCase.EntryId)
+			require.Equal(t, resp.EntryId, testCase.EntryID)
 		})
 	}
 }
@@ -497,12 +499,12 @@ func (s *HandlerSuite) TestFetchEntry() {
 
 	testCases := []struct {
 		Name    string
-		EntryId string
+		EntryID string
 		Err     string
 	}{
 		{
 			Name:    "Success",
-			EntryId: entry.EntryId,
+			EntryID: entry.EntryId,
 		},
 		{
 			Name: "Registration entry does not exist",
@@ -511,9 +513,10 @@ func (s *HandlerSuite) TestFetchEntry() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.Name, func(t *testing.T) {
 			resp, err := s.handler.FetchEntry(context.Background(), &registration.RegistrationEntryID{
-				Id: testCase.EntryId,
+				Id: testCase.EntryID,
 			})
 
 			if testCase.Err != "" {
@@ -521,7 +524,7 @@ func (s *HandlerSuite) TestFetchEntry() {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, resp.EntryId, testCase.EntryId)
+			require.Equal(t, resp.EntryId, testCase.EntryID)
 		})
 	}
 }
@@ -940,6 +943,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			req := testCase.req
 			resp, err := s.handler.MintX509SVID(context.Background(), req)
@@ -1035,6 +1039,7 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			req := testCase.req
 			resp, err := s.handler.MintJWTSVID(context.Background(), req)
@@ -1066,7 +1071,6 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 			}
 		})
 	}
-
 }
 
 func (s *HandlerSuite) TestGetNodeSelectors() {
@@ -1269,6 +1273,7 @@ INk16I343I4FortWWCEV9nprutN3KQCZiIhHGkK4zQ6iyH7mTGc5bOfPIqE4aLynK`,
 	}
 
 	for _, tt := range tests {
+		tt := tt // alias the loop variable as it is used in the closure
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateDNS(tt.dns)
 
@@ -1314,10 +1319,6 @@ func (s *HandlerSuite) requireGRPCStatusCode(err error, code codes.Code) {
 	requireGRPCStatusCode(s.T(), err, code)
 }
 
-func (s *HandlerSuite) requireNotGRPCStatusCode(err error, code codes.Code) {
-	requireNotGRPCStatusCode(s.T(), err, code)
-}
-
 func pemBytes(p []byte) []byte {
 	b, _ := pem.Decode(p)
 	if b != nil {
@@ -1334,9 +1335,4 @@ func requireErrorContains(t *testing.T, err error, contains string) {
 func requireGRPCStatusCode(t *testing.T, err error, code codes.Code) {
 	s := status.Convert(err)
 	require.Equal(t, code, s.Code(), "GRPC status code should be %v", code)
-}
-
-func requireNotGRPCStatusCode(t *testing.T, err error, code codes.Code) {
-	s := status.Convert(err)
-	require.NotEqual(t, code, s.Code(), "GRPC status code should not be %v", code)
 }

@@ -69,7 +69,6 @@ func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principal
 	}
 
 	return *values[0].ID, nil
-
 }
 
 func (c *azureClient) GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*compute.VirtualMachine, error) {

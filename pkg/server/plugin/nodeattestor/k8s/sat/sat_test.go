@@ -21,10 +21,10 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
@@ -86,6 +86,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.RS256,
 		Key:       s.fooKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	s.barKey, err = pemutil.ParseECPrivateKey(barKeyPEM)
 	s.Require().NoError(err)
@@ -93,6 +94,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.ES256,
 		Key:       s.barKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	bazKey, err := pemutil.ParseECPrivateKey(bazKeyPEM)
 	s.Require().NoError(err)
@@ -100,6 +102,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.ES256,
 		Key:       bazKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	s.dir, err = ioutil.TempDir("", "spire-server-nodeattestor-k8s-sat-")
 	s.Require().NoError(err)
@@ -265,7 +268,6 @@ func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster
 func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with FOO signed token (local validation)
 	token := s.signToken(s.fooSigner, "NS1", "SA1")
-	status := createTokenStatus("NS1", "SA1", true)
 	resp, err := s.doAttest(makeAttestRequest("FOO", token))
 
 	s.Require().NoError(err)
@@ -280,7 +282,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 
 	// Success with BAR signed token (token review API validation)
 	token = s.signToken(s.barSigner, "NS2", "SA2")
-	status = createTokenStatus("NS2", "SA2", true)
+	status := createTokenStatus("NS2", "SA2", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
 	resp, err = s.doAttest(makeAttestRequest("BAR", token))
 
@@ -293,7 +295,6 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_sat", Value: "agent_ns:NS2"},
 		{Type: "k8s_sat", Value: "agent_sa:SA2"},
 	}, resp.Selectors)
-
 }
 
 func (s *AttestorSuite) TestConfigure() {
@@ -453,10 +454,6 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 	token, err := builder.CompactSerialize()
 	s.Require().NoError(err)
 	return token
-}
-
-func (s *AttestorSuite) signAttestRequest(signer jose.Signer, cluster, namespace, serviceAccountName string) *nodeattestor.AttestRequest {
-	return makeAttestRequest(cluster, s.signToken(signer, namespace, serviceAccountName))
 }
 
 func (s *AttestorSuite) newAttestor() nodeattestor.Plugin {

@@ -37,7 +37,7 @@ func (sc *ShowConfig) Validate() error {
 	// If entryID is given, it should be the only constraint
 	if sc.EntryID != "" {
 		if sc.ParentID != "" || sc.SpiffeID != "" || len(sc.Selectors) > 0 {
-			return errors.New("The -entryID flag can't be combined with others")
+			return errors.New("the -entryID flag can't be combined with others")
 		}
 	}
 

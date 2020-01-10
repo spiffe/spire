@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/spire/proto/spire/agent/keymanager"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
@@ -44,7 +44,6 @@ func TestMemory_Configure(t *testing.T) {
 	data, e := plugin.Configure(ctx, &spi.ConfigureRequest{})
 	require.NoError(t, e)
 	assert.Equal(t, &spi.ConfigureResponse{}, data)
-
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {

@@ -79,7 +79,7 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	clientDone := make(chan struct{})
+	clientDone := make(chan error)
 	peer := newFakeUDSPeer(p.T())
 
 	peer.connect(p.unixAddr, clientDone)

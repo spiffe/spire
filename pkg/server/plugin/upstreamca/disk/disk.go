@@ -16,15 +16,15 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
 func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *DiskPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin("disk",
 		upstreamca.PluginServer(p),
 	)
@@ -40,7 +40,7 @@ type Configuration struct {
 	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
 }
 
-type DiskPlugin struct {
+type Plugin struct {
 	log   hclog.Logger
 	clock clock.Clock
 
@@ -57,18 +57,18 @@ type caCerts struct {
 	trustBundle []byte
 }
 
-func New() *DiskPlugin {
-	return &DiskPlugin{
+func New() *Plugin {
+	return &Plugin{
 		clock:                 clock.New(),
 		_testOnlyShouldVerify: true,
 	}
 }
 
-func (p *DiskPlugin) SetLogger(log hclog.Logger) {
+func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &Configuration{}
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
@@ -110,11 +110,11 @@ func (p *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*DiskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (p *Plugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	upstreamCA, upstreamCerts, err := p.reloadCA()
 	if err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (p *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCS
 	}, nil
 }
 
-func (p *DiskPlugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
+func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -152,7 +152,7 @@ func (p *DiskPlugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 	return upstreamCA, upstreamCerts, nil
 }
 
-func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.UpstreamCA, *caCerts, error) {
+func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.UpstreamCA, *caCerts, error) {
 	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
 	if err != nil {
 		return nil, nil, err

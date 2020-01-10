@@ -2,12 +2,13 @@ package telemetry
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"testing"
-	"time"
 )
 
 func TestNewM3Runner(t *testing.T) {
@@ -75,7 +76,7 @@ func TestRunM3(t *testing.T) {
 
 func TestAddSampleForDurationHistogram(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
-	sink := newM3TestSink(scope, true)
+	sink := newM3TestSink(scope)
 	metricName := "foobar_duration_metric"
 	metricKey := []string{"service_name", "timer", metricName}
 	metricVal := float32(123.456)
@@ -97,7 +98,7 @@ func TestAddSampleForDurationHistogram(t *testing.T) {
 
 func TestAddSampleForValueHistogram(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
-	sink := newM3TestSink(scope, true)
+	sink := newM3TestSink(scope)
 	metricName := "foobar_value_metric"
 	metricKey := []string{"service_name", "sample", metricName}
 	metricVal := float32(789.0123)
@@ -108,8 +109,8 @@ func TestAddSampleForValueHistogram(t *testing.T) {
 	histograms1 := snapshot1.Histograms()
 	assert.Len(t, histograms1, 1)
 
-	durationM3Name := metricName + "+"
-	histogram1, ok := histograms1[durationM3Name]
+	valueM3Name := metricName + "+"
+	histogram1, ok := histograms1[valueM3Name]
 	assert.True(t, ok)
 
 	values1 := histogram1.Values()

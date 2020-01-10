@@ -65,6 +65,7 @@ func TestEmbellishSQLite3ConnString(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			actual, err := embellishSQLite3ConnString(testCase.in)
 			require.NoError(t, err)

@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
+	servernodeattestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
-	servernodeattestor "github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -25,8 +25,21 @@ func startNodeServer(t *testing.T, tlsConfig *tls.Config, apiConfig fakeNodeAPIC
 	require.NoError(t, err)
 	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 	node.RegisterNodeServer(server, newFakeNodeAPI(apiConfig))
-	go server.Serve(listener)
-	return listener.Addr().String(), server.Stop
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
+	return listener.Addr().String(), func() {
+		server.Stop()
+		require.NoError(t, ignoreServerClosed(<-errCh))
+	}
+}
+
+func ignoreServerClosed(err error) error {
+	if err == grpc.ErrServerStopped {
+		return nil
+	}
+	return err
 }
 
 type fakeNodeAPIConfig struct {

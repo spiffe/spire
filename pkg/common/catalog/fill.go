@@ -21,7 +21,7 @@ type catalogFiller struct {
 	plugins []*pluginFiller
 }
 
-func newCatalogFiller(plugins []*CatalogPlugin) *catalogFiller {
+func newCatalogFiller(plugins []*LoadedPlugin) *catalogFiller {
 	cf := new(catalogFiller)
 	for _, plugin := range plugins {
 		cf.plugins = append(cf.plugins, newPluginFiller(plugin))
@@ -99,7 +99,6 @@ func (cf *catalogFiller) fillStructField(fv reflect.Value, ft reflect.StructFiel
 // getFieldValue returns a filled out value for a struct field
 func (cf *catalogFiller) getFieldValue(ft reflect.Type, min, max int) (reflect.Value, error) {
 	switch ft.Kind() {
-
 	// Pointer to an interface or struct (of interfaces)
 	case reflect.Ptr:
 		et := ft.Elem()
@@ -266,10 +265,10 @@ func parseTag(tag reflect.StructTag) (min, max int, err error) {
 }
 
 type pluginFiller struct {
-	p *CatalogPlugin
+	p *LoadedPlugin
 }
 
-func newPluginFiller(p *CatalogPlugin) *pluginFiller {
+func newPluginFiller(p *LoadedPlugin) *pluginFiller {
 	return &pluginFiller{
 		p: p,
 	}

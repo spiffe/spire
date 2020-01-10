@@ -106,8 +106,8 @@ const (
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
 
-	// CsrSpiffeId represents the SPIFFE ID in a Certificate Signing Request.
-	CsrSpiffeId = "csr_spiffe_id"
+	// CsrSpiffeID represents the SPIFFE ID in a Certificate Signing Request.
+	CsrSpiffeID = "csr_spiffe_id"
 
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"
@@ -292,11 +292,11 @@ const (
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"
 
-	// WorkloadAttestationDuration tags duration of workload attestation
-	WorkloadAttestationDuration = "workload_attestation_duration"
+	// WorkloadAttestation tags call of overall workload attestation
+	WorkloadAttestation = "workload_attestation"
 
-	// WorkloadAttestorLatency tags latency of a workload attestor
-	WorkloadAttestorLatency = "workload_attestor_latency"
+	// WorkloadAttestor tags call of a workload attestor
+	WorkloadAttestor = "workload_attestor"
 
 	// X509 declared X509 SVID type, clarifying metrics
 	X509 = "x509"

@@ -51,8 +51,8 @@ type Config struct {
 }
 
 // New creates new endpoints struct
-func New(c *Config) *endpoints {
-	return &endpoints{
+func New(c *Config) *Endpoints {
+	return &Endpoints{
 		c:   c,
 		mtx: new(sync.RWMutex),
 		unixListener: &peertracker.ListenerFactory{

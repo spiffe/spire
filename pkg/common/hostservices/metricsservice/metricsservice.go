@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
 )
 
 // Config for the metrics host service

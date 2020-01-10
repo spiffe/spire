@@ -5,25 +5,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
-	mock_metrics "github.com/spiffe/spire/test/mock/common/telemetry"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 )
 
-func setupMetricsService(metrics telemetry.Metrics) hostservices.MetricsService {
+func setupMetricsService() (hostservices.MetricsService, *fakemetrics.FakeMetrics) {
+	metrics := fakemetrics.New()
 	return New(Config{
 		Metrics: metrics,
-	})
+	}), metrics
 }
 
 func TestSetGauge(t *testing.T) {
 	tests := []struct {
-		desc      string
-		req       *hostservices.SetGaugeRequest
-		expectOut *hostservices.SetGaugeResponse
-		expectErr string
+		desc string
+		req  *hostservices.SetGaugeRequest
 	}{
 		{
 			desc: "no labels",
@@ -31,8 +29,6 @@ func TestSetGauge(t *testing.T) {
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
-			expectOut: &hostservices.SetGaugeResponse{},
-			expectErr: "",
 		},
 		{
 			desc: "one label",
@@ -46,46 +42,33 @@ func TestSetGauge(t *testing.T) {
 					},
 				},
 			},
-			expectOut: &hostservices.SetGaugeResponse{},
-			expectErr: "",
 		},
 		{
-			desc:      "empty request",
-			req:       &hostservices.SetGaugeRequest{},
-			expectOut: &hostservices.SetGaugeResponse{},
-			expectErr: "",
+			desc: "empty request",
+			req:  &hostservices.SetGaugeRequest{},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.SetGaugeWithLabels(tt.req.Key, tt.req.Val, convertToTelemetryLabels(tt.req.Labels))
 
-			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
-
-			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
-			mockMetrics.EXPECT().SetGaugeWithLabels(tt.req.Key, tt.req.Val, convertedLabels).Return()
-
-			service := setupMetricsService(mockMetrics)
-			ret, err := service.SetGauge(context.Background(), tt.req)
-
-			if tt.expectErr != "" {
-				assert.EqualError(t, err, tt.expectErr)
-				assert.Nil(t, ret)
+			service, actual := setupMetricsService()
+			resp, err := service.SetGauge(context.Background(), tt.req)
+			if assert.NoError(t, err) {
+				assert.Equal(t, &hostservices.SetGaugeResponse{}, resp)
+				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectOut, ret)
 		})
 	}
 }
 
 func TestMeasureSince(t *testing.T) {
 	tests := []struct {
-		desc      string
-		req       *hostservices.MeasureSinceRequest
-		expectOut *hostservices.MeasureSinceResponse
-		expectErr string
+		desc string
+		req  *hostservices.MeasureSinceRequest
 	}{
 		{
 			desc: "no labels",
@@ -93,8 +76,6 @@ func TestMeasureSince(t *testing.T) {
 				Key:  []string{"key1", "key2"},
 				Time: time.Now().Unix(),
 			},
-			expectOut: &hostservices.MeasureSinceResponse{},
-			expectErr: "",
 		},
 		{
 			desc: "one label",
@@ -108,46 +89,33 @@ func TestMeasureSince(t *testing.T) {
 					},
 				},
 			},
-			expectOut: &hostservices.MeasureSinceResponse{},
-			expectErr: "",
 		},
 		{
-			desc:      "empty request",
-			req:       &hostservices.MeasureSinceRequest{},
-			expectOut: &hostservices.MeasureSinceResponse{},
-			expectErr: "",
+			desc: "empty request",
+			req:  &hostservices.MeasureSinceRequest{},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.MeasureSinceWithLabels(tt.req.Key, time.Unix(0, tt.req.Time), convertToTelemetryLabels(tt.req.Labels))
 
-			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
-
-			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
-			mockMetrics.EXPECT().MeasureSinceWithLabels(tt.req.Key, time.Unix(0, tt.req.Time), convertedLabels).Return()
-
-			service := setupMetricsService(mockMetrics)
-			ret, err := service.MeasureSince(context.Background(), tt.req)
-
-			if tt.expectErr != "" {
-				assert.EqualError(t, err, tt.expectErr)
-				assert.Nil(t, ret)
+			service, actual := setupMetricsService()
+			resp, err := service.MeasureSince(context.Background(), tt.req)
+			if assert.NoError(t, err) {
+				assert.Equal(t, &hostservices.MeasureSinceResponse{}, resp)
+				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectOut, ret)
 		})
 	}
 }
 
 func TestIncrCounter(t *testing.T) {
 	tests := []struct {
-		desc      string
-		req       *hostservices.IncrCounterRequest
-		expectOut *hostservices.IncrCounterResponse
-		expectErr string
+		desc string
+		req  *hostservices.IncrCounterRequest
 	}{
 		{
 			desc: "no labels",
@@ -155,8 +123,6 @@ func TestIncrCounter(t *testing.T) {
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
-			expectOut: &hostservices.IncrCounterResponse{},
-			expectErr: "",
 		},
 		{
 			desc: "one label",
@@ -170,46 +136,33 @@ func TestIncrCounter(t *testing.T) {
 					},
 				},
 			},
-			expectOut: &hostservices.IncrCounterResponse{},
-			expectErr: "",
 		},
 		{
-			desc:      "empty request",
-			req:       &hostservices.IncrCounterRequest{},
-			expectOut: &hostservices.IncrCounterResponse{},
-			expectErr: "",
+			desc: "empty request",
+			req:  &hostservices.IncrCounterRequest{},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.IncrCounterWithLabels(tt.req.Key, tt.req.Val, convertToTelemetryLabels(tt.req.Labels))
 
-			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
-
-			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
-			mockMetrics.EXPECT().IncrCounterWithLabels(tt.req.Key, tt.req.Val, convertedLabels).Return()
-
-			service := setupMetricsService(mockMetrics)
-			ret, err := service.IncrCounter(context.Background(), tt.req)
-
-			if tt.expectErr != "" {
-				assert.EqualError(t, err, tt.expectErr)
-				assert.Nil(t, ret)
+			service, actual := setupMetricsService()
+			resp, err := service.IncrCounter(context.Background(), tt.req)
+			if assert.NoError(t, err) {
+				assert.Equal(t, &hostservices.IncrCounterResponse{}, resp)
+				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectOut, ret)
 		})
 	}
 }
 
 func TestAddSample(t *testing.T) {
 	tests := []struct {
-		desc      string
-		req       *hostservices.AddSampleRequest
-		expectOut *hostservices.AddSampleResponse
-		expectErr string
+		desc string
+		req  *hostservices.AddSampleRequest
 	}{
 		{
 			desc: "no labels",
@@ -217,8 +170,6 @@ func TestAddSample(t *testing.T) {
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
-			expectOut: &hostservices.AddSampleResponse{},
-			expectErr: "",
 		},
 		{
 			desc: "one label",
@@ -232,46 +183,33 @@ func TestAddSample(t *testing.T) {
 					},
 				},
 			},
-			expectOut: &hostservices.AddSampleResponse{},
-			expectErr: "",
 		},
 		{
-			desc:      "empty request",
-			req:       &hostservices.AddSampleRequest{},
-			expectOut: &hostservices.AddSampleResponse{},
-			expectErr: "",
+			desc: "empty request",
+			req:  &hostservices.AddSampleRequest{},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.AddSampleWithLabels(tt.req.Key, tt.req.Val, convertToTelemetryLabels(tt.req.Labels))
 
-			convertedLabels := convertToTelemetryLabels(tt.req.Labels)
-
-			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
-			mockMetrics.EXPECT().AddSampleWithLabels(tt.req.Key, tt.req.Val, convertedLabels).Return()
-
-			service := setupMetricsService(mockMetrics)
-			ret, err := service.AddSample(context.Background(), tt.req)
-
-			if tt.expectErr != "" {
-				assert.EqualError(t, err, tt.expectErr)
-				assert.Nil(t, ret)
+			service, actual := setupMetricsService()
+			resp, err := service.AddSample(context.Background(), tt.req)
+			if assert.NoError(t, err) {
+				assert.Equal(t, &hostservices.AddSampleResponse{}, resp)
+				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectOut, ret)
 		})
 	}
 }
 
 func TestEmitKey(t *testing.T) {
 	tests := []struct {
-		desc      string
-		req       *hostservices.EmitKeyRequest
-		expectOut *hostservices.EmitKeyResponse
-		expectErr string
+		desc string
+		req  *hostservices.EmitKeyRequest
 	}{
 		{
 			desc: "normal request",
@@ -279,34 +217,25 @@ func TestEmitKey(t *testing.T) {
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
-			expectOut: &hostservices.EmitKeyResponse{},
-			expectErr: "",
 		},
 		{
-			desc:      "empty request",
-			req:       &hostservices.EmitKeyRequest{},
-			expectOut: &hostservices.EmitKeyResponse{},
-			expectErr: "",
+			desc: "empty request",
+			req:  &hostservices.EmitKeyRequest{},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
+			expected := fakemetrics.New()
+			expected.EmitKey(tt.req.Key, tt.req.Val)
 
-			mockMetrics := mock_metrics.NewMockMetrics(mockCtrl)
-			mockMetrics.EXPECT().EmitKey(tt.req.Key, tt.req.Val).Return()
-
-			service := setupMetricsService(mockMetrics)
-			ret, err := service.EmitKey(context.Background(), tt.req)
-
-			if tt.expectErr != "" {
-				assert.EqualError(t, err, tt.expectErr)
-				assert.Nil(t, ret)
+			service, actual := setupMetricsService()
+			resp, err := service.EmitKey(context.Background(), tt.req)
+			if assert.NoError(t, err) {
+				assert.Equal(t, &hostservices.EmitKeyResponse{}, resp)
+				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectOut, ret)
 		})
 	}
 }
@@ -403,6 +332,7 @@ func TestConvertToTelemetryLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			outLabels := convertToTelemetryLabels(tt.inLabels)
 
@@ -479,6 +409,7 @@ func TestConvertToRPCLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			outLabels := convertToRPCLabels(tt.inLabels)
 

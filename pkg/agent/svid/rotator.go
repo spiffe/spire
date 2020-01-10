@@ -11,9 +11,11 @@ import (
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/common/backoff"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
@@ -32,6 +34,10 @@ type rotator struct {
 
 	state observer.Property
 	clk   clock.Clock
+
+	// backoff calculator for rotation check interval, backing off if error is returned on
+	// rotation attempt
+	backoff backoff.BackOff
 
 	// Mutex used to protect access to c.BundleStream.
 	bsm *sync.RWMutex
@@ -57,9 +63,11 @@ func (r *rotator) Run(ctx context.Context) error {
 			r.c.Log.Debug("Stopping SVID rotator")
 			r.client.Release()
 			return nil
-		case <-r.clk.After(r.c.Interval):
+		case <-r.clk.After(r.backoff.NextBackOff()):
 			if err := r.rotateSVID(ctx); err != nil {
 				r.c.Log.WithError(err).Error("Could not rotate agent SVID")
+			} else {
+				r.backoff.Reset()
 			}
 		case <-r.c.BundleStream.Changes():
 			r.bsm.Lock()
@@ -85,19 +93,9 @@ func (r *rotator) SetRotationFinishedHook(f func()) {
 	r.rotationFinishedHook = f
 }
 
-// shouldRotate returns a boolean informing the caller of whether or not the
-// SVID should be rotated.
-func (r *rotator) shouldRotate() bool {
-	s := r.state.Value().(State)
-
-	ttl := s.SVID[0].NotAfter.Sub(r.clk.Now())
-	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
-	return ttl <= watermark
-}
-
 // rotateSVID asks SPIRE's server for a new agent's SVID.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	if !r.shouldRotate() {
+	if !rotationutil.ShouldRotateX509(r.clk.Now(), r.state.Value().(State).SVID[0]) {
 		return nil
 	}
 

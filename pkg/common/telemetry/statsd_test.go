@@ -2,12 +2,18 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	defaultStatsdTestListenerPort = 8125
+	statsdProtocol                = "udp"
 )
 
 func TestStatsdIsConfigured(t *testing.T) {
@@ -52,7 +58,7 @@ func TestStatsdRun(t *testing.T) {
 	}
 }
 
-func testStatsdConfig() *MetricsConfig {
+func testStatsdConfigWithPort(port int) *MetricsConfig {
 	l, _ := test.NewNullLogger()
 
 	return &MetricsConfig{
@@ -61,9 +67,13 @@ func testStatsdConfig() *MetricsConfig {
 		FileConfig: FileConfig{
 			Statsd: []StatsdConfig{
 				{
-					Address: "localhost:8125",
+					Address: fmt.Sprintf("127.0.0.1:%d", port),
 				},
 			},
 		},
 	}
+}
+
+func testStatsdConfig() *MetricsConfig {
+	return testStatsdConfigWithPort(defaultStatsdTestListenerPort)
 }

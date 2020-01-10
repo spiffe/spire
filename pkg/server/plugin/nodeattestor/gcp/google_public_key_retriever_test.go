@@ -36,7 +36,9 @@ func (s *GooglePublicKeyRetrieverSuite) SetupTest() {
 		func(w http.ResponseWriter, req *http.Request) {
 			w.Header().Set("Expires", s.expires)
 			w.WriteHeader(s.status)
-			w.Write([]byte(s.body))
+			if _, err := w.Write([]byte(s.body)); err != nil {
+				s.T().Logf("unable to write response body: %v", err)
+			}
 		}))
 	s.retriever = newGooglePublicKeyRetriever(s.server.URL)
 	s.token = jwt.New(jwt.SigningMethodRS256)
