@@ -595,9 +595,5 @@ func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {
 	}
 
 	thresh := ca.KeyActivationThreshold(time.Now(), time.Now().Add(caTTL))
-	if caTTL-thresh.Sub(time.Now()) < svidTTL {
-		return false
-	}
-
-	return true
+	return caTTL-time.Until(thresh) >= svidTTL
 }

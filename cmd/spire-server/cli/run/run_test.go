@@ -1069,6 +1069,8 @@ func TestHasExpectedTTLs(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		t.Run(testCase.msg, func(t *testing.T) {
 			require.Equal(t, testCase.hasExpectedTTLs, hasExpectedTTLs(testCase.caTTL, testCase.svidTTL))
 		})
