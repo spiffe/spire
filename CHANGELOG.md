@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.2] - 2020-01-14
+- Fixed a crash when a key protecting the bundle endpoint is removed (#1326)
+- Bundle endpoint client now supports Web-PKI authenticated endpoints (#1327)
+- SPIRE now warns if the CA TTL will result in shorter-than-expected SVID lifetimes (#1294)
+
 ## [0.9.1] - 2019-12-19
 - Agent cache file writes are now atomic, more resilient (#1267)
 - Introduced Google Cloud Storage bundle notifier plugin for server (#1227)
