@@ -8,7 +8,7 @@ BINDIR="${REPODIR}/bin"
 TAG=${TAG:-$(git log -n1 --pretty=%h)}
 OUTDIR=${OUTDIR:-"${REPODIR}/artifacts"}
 
-OS=$(uname -s)
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
 # handle the case that we're building for alpine
@@ -24,11 +24,14 @@ fi
 TARBALL="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}.tar.gz"
 CHECKSUM="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}_checksums.txt"
 
-STAGING=$(mktemp -d)
+TMPDIR=$(mktemp -d)
 cleanup() {
-    rm -rf "${STAGING}"
+    rm -rf "${TMPDIR}"
 }
 trap cleanup EXIT
+
+STAGING="${TMPDIR}"/spire-${TAG}
+mkdir "${STAGING}"
 
 echo "Creating \"${TARBALL}\""
 
@@ -45,5 +48,5 @@ cp "${BINDIR}"/spire-agent "${STAGING}"/bin
 
 # Create the tarball and checksum
 mkdir -p "${OUTDIR}"
-tar -cvzf "${TARBALL}" --directory "${STAGING}" "${TAROPTS[@]}" .
+tar -cvzf "${TARBALL}" --directory "${TMPDIR}" "${TAROPTS[@]}" .
 echo "$(shasum -a 256 "${TARBALL}" | cut -d' ' -f1) $(basename "${TARBALL}")" > "$CHECKSUM"
