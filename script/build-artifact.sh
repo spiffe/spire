@@ -31,7 +31,7 @@ cleanup() {
 trap cleanup EXIT
 
 STAGING="${TMPDIR}"/spire-${TAG}
-mkdir ${STAGING}
+mkdir "${STAGING}"
 
 echo "Creating \"${TARBALL}\""
 
