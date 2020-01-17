@@ -18,6 +18,14 @@ cache:
     # so this is hitting the default go env of $HOME/go
     - $HOME/go/bin
 
+# Only build for master and branches that look like versions. This also covers
+# tags, which keeps us from building (and deploying) from the extra tags we set
+# during a release for go multi-module repo support (i.e. proto/spire/v1.2.3).
+branches:
+  only:
+    - master
+    - /^v\d+\.\d+(\.\d+)?$/
+
 stages:
   - lint and test
   - build release
