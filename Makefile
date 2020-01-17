@@ -115,7 +115,9 @@ mockgen_version := $(shell grep github.com/golang/mock go.mod | awk '{print $$2}
 mockgen_dir := $(build_dir)/mockgen/$(mockgen_version)
 mockgen_bin := $(mockgen_dir)/mockgen
 
-git_tag := $(shell git tag --points-at HEAD)
+# There may be more than one tag. Only use one that starts with 'v' followed by
+# a number, e.g., v0.9.3.
+git_tag := $(shell git tag --points-at HEAD | grep '^v[0-9]*')
 git_hash := $(shell git rev-parse --short=7 HEAD)
 git_dirty := $(shell git status -s)
 
