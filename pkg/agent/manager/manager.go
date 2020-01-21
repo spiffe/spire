@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	agent_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -235,31 +236,41 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 }
 
 func (m *manager) storeSVID(svidChain []*x509.Certificate) {
-	err := StoreSVID(m.svidCachePath, svidChain)
+	var err error
+	counter := agent_telemetry.StartManagerStoreSVIDCall(m.c.Metrics)
+	defer counter.Done(&err)
+	err = StoreSVID(m.svidCachePath, svidChain)
 	if err != nil {
 		m.c.Log.WithError(err).Warn("could not store SVID")
 	}
 }
 
 func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
+	var err error
+	counter := agent_telemetry.StartManagerStoreBundleCall(m.c.Metrics)
+	defer counter.Done(&err)
+
 	var rootCAs []*x509.Certificate
 	if bundle != nil {
 		rootCAs = bundle.RootCAs()
 	}
-	err := StoreBundle(m.bundleCachePath, rootCAs)
+	err = StoreBundle(m.bundleCachePath, rootCAs)
 	if err != nil {
 		m.c.Log.WithError(err).Error("could not store bundle")
 	}
 }
 
-func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) error {
+func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) (err error) {
+	counter := agent_telemetry.StartManagerStoreKeyCall(m.c.Metrics)
+	defer counter.Done(&err)
+
 	km := m.c.Catalog.GetKeyManager()
 	keyBytes, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
 		return err
 	}
 
-	if _, err := km.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
+	if _, err = km.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
 		m.c.Log.WithError(err).Error("could not store new agent key pair")
 		m.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
 

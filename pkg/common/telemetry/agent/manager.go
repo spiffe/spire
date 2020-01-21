@@ -14,6 +14,24 @@ func StartManagerFetchUpdatesCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Manager, telemetry.Sync, telemetry.FetchUpdates)
 }
 
+// StartManagerStoreBundleCall returns metric for when agent's
+// synchronization manager stores its bundle due to update.
+func StartManagerStoreBundleCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Manager, telemetry.Store, telemetry.Bundle)
+}
+
+// StartManagerStoreKeyCall returns metric for when agent's
+// synchronization manager stores its key due to update.
+func StartManagerStoreKeyCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Manager, telemetry.Store, telemetry.Key)
+}
+
+// StartManagerStoreSVIDCall returns metric for when agent's
+// synchronization manager stores its SVID due to update.
+func StartManagerStoreSVIDCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Manager, telemetry.Store, telemetry.SVID)
+}
+
 // End Call Counters
 
 // Counters (literal increments, not call counters)

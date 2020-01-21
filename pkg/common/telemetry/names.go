@@ -58,6 +58,10 @@ const (
 	// to add clarity
 	Sign = "sign"
 
+	// Store functionality related to storing some object, such as a key or SVID; should be used
+	// with other tags to add clarity
+	Store = "store"
+
 	// Sync functionality for syncing (such as CA manager updates). Should
 	// be used with other tags to add clarity
 	Sync = "sync"
@@ -158,6 +162,10 @@ const (
 	// JWTKeys tags some count or list of JWT Keys. Should NEVER provide the actual keys, use
 	// Key IDs instead.
 	JWTKeys = "jwt_keys"
+
+	// Key tags some operation related to a key or keys. Should NEVER provide the actual keys, just used
+	// to clarity an operation metric.
+	Key = "key"
 
 	// Kid tags some key ID
 	Kid = "kid"
