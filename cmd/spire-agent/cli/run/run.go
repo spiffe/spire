@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
@@ -55,6 +56,7 @@ type agentConfig struct {
 	ServerAddress     string `hcl:"server_address"`
 	ServerPort        int    `hcl:"server_port"`
 	SocketPath        string `hcl:"socket_path"`
+	SyncInterval      string `hcl:"sync_interval"`
 	TrustBundlePath   string `hcl:"trust_bundle_path"`
 	TrustDomain       string `hcl:"trust_domain"`
 
@@ -218,6 +220,14 @@ func newAgentConfig(c *config, logOptions []log.Option) (*agent.Config, error) {
 
 	if err := validateConfig(c); err != nil {
 		return nil, err
+	}
+
+	if c.Agent.SyncInterval != "" {
+		var err error
+		ac.SyncInterval, err = time.ParseDuration(c.Agent.SyncInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse synchronization interval: %v", err)
+		}
 	}
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
