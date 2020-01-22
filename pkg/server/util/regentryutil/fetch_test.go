@@ -36,36 +36,52 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		assert.NoError(err)
 	}
 
-	rootID := "spiffe://example.org/root"
-	oneID := "spiffe://example.org/1"
-	twoID := "spiffe://example.org/2"
-	threeID := "spiffe://example.org/3"
-	fourID := "spiffe://example.org/4"
-	fiveID := "spiffe://example.org/5"
+	var (
+		agentID = "spiffe://example.org/agent"
+		oneID   = "spiffe://example.org/1"
+		twoID   = "spiffe://example.org/2"
+		threeID = "spiffe://example.org/3"
+		fourID  = "spiffe://example.org/4"
+		fiveID  = "spiffe://example.org/5"
+		sixID   = "spiffe://example.org/6"
+		sevenID = "spiffe://example.org/7"
+		eightID = "spiffe://example.org/8"
+		nineID  = "spiffe://example.org/9"
+	)
 
 	a1 := &common.Selector{Type: "a", Value: "1"}
 	b2 := &common.Selector{Type: "b", Value: "2"}
+	c3 := &common.Selector{Type: "c", Value: "3"}
+	d4 := &common.Selector{Type: "d", Value: "4"}
 
-	//
-	//        root             4(a1,b2)
-	//        /   \           /
+	//            ------------------> 6         9
+	//           /                   /
+	//          /                   7
+	//        agent ---------> 4     \
+	//        /   \           /       8
 	//       1     2         5
-	//            /
-	//           3
+	//        \   /
+	//          3
 	//
-	// node resolvers map from 2 to 4
+	// node selectors on agent (a1, b2, c3) are a superset of those set on 4
+	// (a1, b2).
 
 	oneEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: rootID,
+		ParentId: agentID,
 		SpiffeId: oneID,
 	})
 
 	twoEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: rootID,
+		ParentId: agentID,
 		SpiffeId: twoID,
 	})
 
-	threeEntry := createRegistrationEntry(&common.RegistrationEntry{
+	threeOneEntry := createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: oneID,
+		SpiffeId: threeID,
+	})
+
+	threeTwoEntry := createRegistrationEntry(&common.RegistrationEntry{
 		ParentId: twoID,
 		SpiffeId: threeID,
 	})
@@ -80,17 +96,49 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		SpiffeId: fiveID,
 	})
 
-	setNodeSelectors(twoID, a1, b2)
+	sixEntry := createRegistrationEntry(&common.RegistrationEntry{
+		SpiffeId:  sixID,
+		Selectors: []*common.Selector{b2, c3},
+	})
 
-	actual, err := FetchRegistrationEntries(ctx, dataStore, rootID)
+	sevenEntry := createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: sixID,
+		SpiffeId: sevenID,
+	})
+
+	eightEntry := createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: sevenID,
+		SpiffeId: eightID,
+	})
+
+	createRegistrationEntry(&common.RegistrationEntry{
+		SpiffeId:  nineID,
+		Selectors: []*common.Selector{d4},
+	})
+
+	setNodeSelectors(agentID, a1, b2, c3)
+
+	actual, err := FetchRegistrationEntries(ctx, dataStore, agentID)
 	assert.NoError(err)
 
-	expected := []*common.RegistrationEntry{
+	assert.Equal([]*common.RegistrationEntry{
 		oneEntry,
 		twoEntry,
-		threeEntry,
+		threeOneEntry,
+		threeTwoEntry,
 		fourEntry,
 		fiveEntry,
-	}
-	assert.Equal(expected, actual)
+		sixEntry,
+		sevenEntry,
+		eightEntry,
+	}, actual)
+
+	// Now fetch entries for two. Should just be 3 since 2 has no node
+	// selectors that would bring in additional branches.
+	actual, err = FetchRegistrationEntries(ctx, dataStore, twoID)
+	assert.NoError(err)
+
+	assert.Equal([]*common.RegistrationEntry{
+		threeTwoEntry,
+	}, actual)
 }
