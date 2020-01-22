@@ -118,8 +118,6 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 
 	// Get the mtx before starting the rotation
 	// In this way, the client do not create new connections until the new SVID is received
-	r.c.Log.Debug("Acquiring rotation lock")
-	defer r.c.Log.Debug("Releasing rotation lock")
 	r.rotMtx.Lock()
 	defer r.rotMtx.Unlock()
 	r.c.Log.Debug("Rotating agent SVID")
