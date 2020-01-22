@@ -88,9 +88,48 @@ type sqlDB struct {
 	raw              *sql.DB
 	*gorm.DB
 
+	stmtMu sync.RWMutex
+	stmts  map[string]*sql.Stmt
+
 	// this lock is only required for synchronized writes with "sqlite3". see
 	// the withTx() implementation for details.
 	opMu sync.Mutex
+}
+
+func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	stmt, err := db.stmt(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return stmt.QueryContext(ctx, args...)
+}
+
+func (db *sqlDB) stmt(ctx context.Context, query string) (*sql.Stmt, error) {
+	// Do a quick check under the read lock. The statement cache should be
+	// filled almost right away, so in the majority of cases this should be
+	// pretty inexpensive.
+	db.stmtMu.RLock()
+	stmt, ok := db.stmts[query]
+	db.stmtMu.RUnlock()
+	if ok {
+		return stmt, nil
+	}
+
+	// Check if this goroutine lost the race to prepare, and if so, return
+	// the recently prepared statement. Otherwise, prepare the statement
+	// and cache it.
+	db.stmtMu.Lock()
+	defer db.stmtMu.Unlock()
+	stmt, ok = db.stmts[query]
+	if ok {
+		return stmt, nil
+	}
+	stmt, err := db.raw.PrepareContext(ctx, query)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+	db.stmts[query] = stmt
+	return stmt, nil
 }
 
 // Plugin is a DataStore plugin implemented via a SQL database
@@ -339,7 +378,7 @@ func (ds *Plugin) GetNodeSelectors(ctx context.Context,
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return getNodeSelectors(ctx, ds.db.databaseType, ds.db.raw, req)
+	return getNodeSelectors(ctx, ds.db, req)
 }
 
 // CreateRegistrationEntry stores the given registration entry
@@ -368,7 +407,7 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return fetchRegistrationEntry(ctx, ds.db.databaseType, ds.db.raw, req)
+	return fetchRegistrationEntry(ctx, ds.db, req)
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -377,7 +416,7 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return listRegistrationEntries(ctx, ds.db.databaseType, ds.db.raw, req)
+	return listRegistrationEntries(ctx, ds.db, req)
 }
 
 // UpdateRegistrationEntry updates an existing registration entry
@@ -526,6 +565,7 @@ func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*sp
 			raw:              raw,
 			databaseType:     config.DatabaseType,
 			connectionString: config.ConnectionString,
+			stmts:            map[string]*sql.Stmt{},
 		}
 	}
 
@@ -1021,8 +1061,8 @@ func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*dat
 	return &datastore.SetNodeSelectorsResponse{}, nil
 }
 
-func getNodeSelectors(ctx context.Context, dbType string, db *sql.DB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
-	query := maybeRebind(dbType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
+func getNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
+	query := maybeRebind(db.databaseType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
 	rows, err := db.QueryContext(ctx, query, req.SpiffeId)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1111,8 +1151,8 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 	}, nil
 }
 
-func fetchRegistrationEntry(ctx context.Context, dbType string, db *sql.DB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	query, args, err := buildFetchRegistrationEntryQuery(dbType, req)
+func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
+	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1309,7 +1349,7 @@ ORDER BY selector_id, dns_name_id
 	return query, []interface{}{req.EntryId}, nil
 }
 
-func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -1323,7 +1363,7 @@ func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req
 	// query returns rows that are completely filtered out. If that happens,
 	// keep querying until a page gets at least one result.
 	for {
-		resp, err := listRegistrationEntriesOnce(ctx, dbType, db, req)
+		resp, err := listRegistrationEntriesOnce(ctx, db, req)
 		if err != nil {
 			return nil, err
 		}
@@ -1369,8 +1409,8 @@ func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors [
 	return filtered
 }
 
-func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-	query, args, err := buildListRegistrationEntriesQuery(dbType, req)
+func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	query, args, err := buildListRegistrationEntriesQuery(db.databaseType, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
