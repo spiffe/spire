@@ -88,8 +88,7 @@ type sqlDB struct {
 	raw              *sql.DB
 	*gorm.DB
 
-	stmtMu sync.RWMutex
-	stmts  map[string]*sql.Stmt
+	stmtCache *stmtCache
 
 	// this lock is only required for synchronized writes with "sqlite3". see
 	// the withTx() implementation for details.
@@ -97,39 +96,11 @@ type sqlDB struct {
 }
 
 func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
-	stmt, err := db.stmt(ctx, query)
+	stmt, err := db.stmtCache.get(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	return stmt.QueryContext(ctx, args...)
-}
-
-func (db *sqlDB) stmt(ctx context.Context, query string) (*sql.Stmt, error) {
-	// Do a quick check under the read lock. The statement cache should be
-	// filled almost right away, so in the majority of cases this should be
-	// pretty inexpensive.
-	db.stmtMu.RLock()
-	stmt, ok := db.stmts[query]
-	db.stmtMu.RUnlock()
-	if ok {
-		return stmt, nil
-	}
-
-	// Check if this goroutine lost the race to prepare, and if so, return
-	// the recently prepared statement. Otherwise, prepare the statement
-	// and cache it.
-	db.stmtMu.Lock()
-	defer db.stmtMu.Unlock()
-	stmt, ok = db.stmts[query]
-	if ok {
-		return stmt, nil
-	}
-	stmt, err := db.raw.PrepareContext(ctx, query)
-	if err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-	db.stmts[query] = stmt
-	return stmt, nil
 }
 
 // Plugin is a DataStore plugin implemented via a SQL database
@@ -565,7 +536,7 @@ func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*sp
 			raw:              raw,
 			databaseType:     config.DatabaseType,
 			connectionString: config.ConnectionString,
-			stmts:            map[string]*sql.Stmt{},
+			stmtCache:        newStmtCache(raw),
 		}
 	}
 
