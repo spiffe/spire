@@ -657,7 +657,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "sync_interval parses a duration",
 			input: func(c *config) {
-				c.Agent.SyncInterval = "2s45ms"
+				c.Agent.Experimental.SyncInterval = "2s45ms"
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.EqualValues(t, 2045000000, c.SyncInterval)
@@ -667,7 +667,7 @@ func TestNewAgentConfig(t *testing.T) {
 			msg:         "invalid sync_interval returns an error",
 			expectError: true,
 			input: func(c *config) {
-				c.Agent.SyncInterval = "moo"
+				c.Agent.Experimental.SyncInterval = "moo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)

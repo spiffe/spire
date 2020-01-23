@@ -43,7 +43,6 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 | `server_address`     | DNS name or IP address of the SPIRE server                     |                      |
 | `server_port`        | Port number of the SPIRE server                                |                      |
 | `socket_path`        | Location to bind the workload API socket                       | $PWD/spire_api       |
-| `sync_interval`      | Interval that spire agent updates from the server on           | 5s                   |
 | `trust_bundle_path`  | Path to the SPIRE server CA bundle                             |                      |
 | `insecure_bootstrap` | Disables verifying the server's identity when the agent starts for the first time |   |
 | `trust_domain`       | The trust domain that this agent belongs to                    |                      |
