@@ -51,6 +51,8 @@ type HandlerConfig struct {
 type Handler struct {
 	c       HandlerConfig
 	limiter Limiter
+
+	dsCache *datastoreCache
 }
 
 func NewHandler(config HandlerConfig) *Handler {
@@ -60,6 +62,7 @@ func NewHandler(config HandlerConfig) *Handler {
 	return &Handler{
 		c:       config,
 		limiter: NewLimiter(config.Log),
+		dsCache: newDatastoreCache(config.Catalog.GetDataStore(), config.Clock),
 	}
 }
 
@@ -1023,9 +1026,7 @@ func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common
 
 // getBundle fetches a bundle from the datastore, by trust domain
 func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
-	ds := h.c.Catalog.GetDataStore()
-
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+	resp, err := h.dsCache.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,
 	})
 	if err != nil {
