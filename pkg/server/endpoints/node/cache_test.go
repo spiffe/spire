@@ -26,7 +26,7 @@ func TestFetchBundleCache(t *testing.T) {
 	require.Empty(t, resp.Bundle)
 
 	// Add bundle
-	_, err = cache.SetBundle(context.Background(), &datastore.SetBundleRequest{
+	_, err = ds.SetBundle(context.Background(), &datastore.SetBundleRequest{
 		Bundle: bundle1,
 	})
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestFetchBundleCache(t *testing.T) {
 	spiretest.RequireProtoEqual(t, bundle1, resp.Bundle)
 
 	// Change bundle
-	_, err = cache.SetBundle(context.Background(), &datastore.SetBundleRequest{
+	_, err = ds.SetBundle(context.Background(), &datastore.SetBundleRequest{
 		Bundle: bundle2,
 	})
 	require.NoError(t, err)
