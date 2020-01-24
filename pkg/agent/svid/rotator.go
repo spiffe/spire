@@ -57,11 +57,16 @@ type State struct {
 // Run runs the rotator. It monitors the server SVID for expiration and rotates
 // as necessary. It also watches for changes to the trust bundle.
 func (r *rotator) Run(ctx context.Context) error {
+	err := util.RunTasks(ctx, r.runRotation, r.processBundleUpdates)
+	r.c.Log.Debug("Stopping SVID rotator")
+	r.client.Release()
+	return err
+}
+
+func (r *rotator) runRotation(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			r.c.Log.Debug("Stopping SVID rotator")
-			r.client.Release()
 			return nil
 		case <-r.clk.After(r.backoff.NextBackOff()):
 			if err := r.rotateSVID(ctx); err != nil {
@@ -69,6 +74,15 @@ func (r *rotator) Run(ctx context.Context) error {
 			} else {
 				r.backoff.Reset()
 			}
+		}
+	}
+}
+
+func (r *rotator) processBundleUpdates(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
 		case <-r.c.BundleStream.Changes():
 			r.bsm.Lock()
 			r.c.BundleStream.Next()
