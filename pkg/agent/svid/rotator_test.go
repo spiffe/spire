@@ -106,7 +106,7 @@ func (s *RotatorTestSuite) TestRun() {
 	s.Assert().Equal(key, state.Key)
 
 	cancel()
-	s.Require().NoError(t.Wait())
+	s.Require().Equal(context.Canceled, t.Wait())
 }
 
 func (s *RotatorTestSuite) TestRunWithUpdates() {
@@ -151,7 +151,7 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	}
 
 	cancel()
-	s.Require().NoError(t.Wait())
+	s.Require().Equal(context.Canceled, t.Wait())
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {
