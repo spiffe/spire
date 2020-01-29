@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
@@ -61,10 +62,17 @@ type agentConfig struct {
 	ConfigPath string
 
 	// Undocumented configurables
-	ProfilingEnabled bool     `hcl:"profiling_enabled"`
-	ProfilingPort    int      `hcl:"profiling_port"`
-	ProfilingFreq    int      `hcl:"profiling_freq"`
-	ProfilingNames   []string `hcl:"profiling_names"`
+	ProfilingEnabled bool               `hcl:"profiling_enabled"`
+	ProfilingPort    int                `hcl:"profiling_port"`
+	ProfilingFreq    int                `hcl:"profiling_freq"`
+	ProfilingNames   []string           `hcl:"profiling_names"`
+	Experimental     experimentalConfig `hcl:"experimental"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
+}
+
+type experimentalConfig struct {
+	SyncInterval string `hcl:"sync_interval"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -218,6 +226,14 @@ func newAgentConfig(c *config, logOptions []log.Option) (*agent.Config, error) {
 
 	if err := validateConfig(c); err != nil {
 		return nil, err
+	}
+
+	if c.Agent.Experimental.SyncInterval != "" {
+		var err error
+		ac.SyncInterval, err = time.ParseDuration(c.Agent.Experimental.SyncInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse synchronization interval: %v", err)
+		}
 	}
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
