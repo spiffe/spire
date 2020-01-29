@@ -10,8 +10,13 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
+// FetchRegistrationEntries returns a list of registration entries related to
+// an agent. This list consists of any node registration entries with a subset
+// of the agent's node selectors. It also consists of any registration entries
+// parented (directly or indirectly) to either the agent ID or the node
+// registration entries SPIFFE IDs.
 func FetchRegistrationEntries(ctx context.Context, ds datastore.DataStore, agentID string) ([]*common.RegistrationEntry, error) {
-	mapped, err := fetchMappedEntries(ctx, ds, agentID)
+	mapped, err := fetchNodeEntries(ctx, ds, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +41,9 @@ func FetchRegistrationEntries(ctx context.Context, ds datastore.DataStore, agent
 	return util.DedupRegistrationEntries(entries), nil
 }
 
-func fetchMappedEntries(ctx context.Context, ds datastore.DataStore, agentID string) ([]*common.RegistrationEntry, error) {
+// fetchNodeEntries fetches the node entries applicable to the agent ID, i.e.
+// those which have a subset of the agent's node selectors.
+func fetchNodeEntries(ctx context.Context, ds datastore.DataStore, agentID string) ([]*common.RegistrationEntry, error) {
 	selectorsResp, err := ds.GetNodeSelectors(ctx,
 		&datastore.GetNodeSelectorsRequest{
 			SpiffeId: agentID,
@@ -69,6 +76,9 @@ func fetchMappedEntries(ctx context.Context, ds datastore.DataStore, agentID str
 	return listResp.Entries, nil
 }
 
+// fetchDescendantEntries recursively determines those registration entries that
+// are either directly or indirectly parented by the parentID. A visited map
+// is passed and used to prevent traversing parentage cycles.
 func fetchDescendantEntries(ctx context.Context, ds datastore.DataStore, parentID string, visited map[string]struct{}) ([]*common.RegistrationEntry, error) {
 	if _, ok := visited[parentID]; ok {
 		return nil, nil
