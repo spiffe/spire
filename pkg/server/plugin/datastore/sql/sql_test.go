@@ -137,7 +137,8 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "sqlite3"
 				log_sql = true
 				connection_string = "%s"
-				`, dbPath),
+				ro_connection_string = "%s"
+				`, dbPath, dbPath),
 		})
 		s.Require().NoError(err)
 
@@ -147,12 +148,16 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 		}{}
 		p.db.Raw("PRAGMA journal_mode").Scan(&jm)
 		s.Require().Equal(jm.JournalMode, "wal")
+		p.roDb.Raw("PRAGMA journal_mode").Scan(&jm)
+		s.Require().Equal(jm.JournalMode, "wal")
 
 		// assert that foreign_key support is enabled
 		fk := struct {
 			ForeignKeys string
 		}{}
 		p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
+		s.Require().Equal(fk.ForeignKeys, "1")
+		p.roDb.Raw("PRAGMA foreign_keys").Scan(&fk)
 		s.Require().Equal(fk.ForeignKeys, "1")
 	case "mysql":
 		s.T().Logf("CONN STRING: %q", TestConnString)
@@ -163,7 +168,8 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "mysql"
 				log_sql = true
 				connection_string = "%s"
-				`, TestConnString),
+				ro_connection_string = "%s"
+				`, TestConnString, TestConnString),
 		})
 		s.Require().NoError(err)
 	case "postgres":
@@ -175,7 +181,8 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "postgres"
 				log_sql = true
 				connection_string = "%s"
-				`, TestConnString),
+				ro_connection_string = "%s"
+				`, TestConnString, TestConnString),
 		})
 		s.Require().NoError(err)
 	default:
@@ -203,6 +210,21 @@ func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 		`,
 	})
 	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
+
+	_, roErr := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
+		`,
+	})
+	s.RequireErrorContains(roErr, "rpc error: code = Unknown desc = connection_string must be set")
+
+	_, error := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		`,
+	})
+	s.RequireErrorContains(error, "rpc error: code = Unknown desc = connection_string must be set")
 }
 
 func (s *PluginSuite) TestBundleCRUD() {
@@ -1899,7 +1921,8 @@ func (s *PluginSuite) TestMigration() {
 			Configuration: fmt.Sprintf(`
 				database_type = "sqlite3"
 				connection_string = "file://%s"
-			`, dbPath),
+				ro_connection_string = "file://%s"
+			`, dbPath, dbPath),
 		})
 		s.Require().NoError(err)
 
@@ -2036,7 +2059,7 @@ func (s *PluginSuite) TestMigration() {
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			}, false)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_parent_id"))
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
@@ -2045,21 +2068,21 @@ func (s *PluginSuite) TestMigration() {
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			}, false)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
 		case 10:
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			}, false)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 		case 11:
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			}, false)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 		case 12:
@@ -2067,7 +2090,7 @@ func (s *PluginSuite) TestMigration() {
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			}, false)
 			s.Require().NoError(err)
 			// Assert migration version is now 13
 			migration := Migration{}
@@ -2264,22 +2287,30 @@ func (s *PluginSuite) TestConfigure() {
 				database_type = "sqlite3"
 				log_sql = true
 				connection_string = "%s"
+                ro_connection_string = "%s"
 				%s
-		`, dbPath, tt.giveDBConfig),
+		`, dbPath, dbPath, tt.giveDBConfig),
 			})
 			require.NoError(t, err)
 
 			db := p.db.DB.DB()
+			roDb := p.roDb.DB.DB()
 
 			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
+			require.Equal(t, tt.expectMaxOpenConns, roDb.Stats().MaxOpenConnections)
 
 			// begin many queries simultaneously
 			numQueries := 100
 			var rowsList []*sql.Rows
+			var roRowsList []*sql.Rows
 			for i := 0; i < numQueries; i++ {
 				rows, err := db.Query("SELECT * FROM bundles")
 				require.NoError(t, err)
 				rowsList = append(rowsList, rows)
+
+				roRows, roErr := roDb.Query("SELECT * FROM bundles")
+				require.NoError(t, roErr)
+				roRowsList = append(roRowsList, roRows)
 			}
 
 			// close all open queries, which results in idle connections
@@ -2287,6 +2318,11 @@ func (s *PluginSuite) TestConfigure() {
 				require.NoError(t, rows.Close())
 			}
 			require.Equal(t, tt.expectIdle, db.Stats().Idle)
+
+			for _, rows := range roRowsList {
+				require.NoError(t, rows.Close())
+			}
+			require.Equal(t, tt.expectIdle, roDb.Stats().Idle)
 		})
 	}
 }
