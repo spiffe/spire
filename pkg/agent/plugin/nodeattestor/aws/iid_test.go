@@ -13,14 +13,17 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
 )
 
 const (
+	apiTokenPath                 = "/latest/api/token" //nolint: gosec // false positive
 	defaultIdentityDocumentPath  = "/latest/dynamic/instance-identity/document"
 	defaultIdentitySignaturePath = "/latest/dynamic/instance-identity/signature"
 )
@@ -57,6 +60,10 @@ type Suite struct {
 func (s *Suite) SetupTest() {
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch path := req.URL.Path; path {
+		case apiTokenPath:
+			// Token requested by AWS SDK for IMDSv2 authentication
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("token"))
 		case defaultIdentityDocumentPath:
 			// write doc resp
 			w.WriteHeader(s.status)
@@ -67,6 +74,7 @@ func (s *Suite) SetupTest() {
 			_, _ = w.Write([]byte(s.sigBody))
 		default:
 			// unexpected path
+			fmt.Printf("unexpected path %s", path)
 			w.WriteHeader(http.StatusForbidden)
 		}
 	}))
@@ -74,10 +82,7 @@ func (s *Suite) SetupTest() {
 	s.p = s.newPlugin()
 
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-identity_document_url = "http://%s%s"
-identity_signature_url = "http://%s%s"
-`, s.server.Listener.Addr().String(), defaultIdentityDocumentPath, s.server.Listener.Addr().String(), defaultIdentitySignaturePath),
+		Configuration: fmt.Sprintf(`ec2_metadata_endpoint = "http://%s/latest"`, s.server.Listener.Addr().String()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
 		},
@@ -107,7 +112,7 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.docBody = ""
 	_, err := s.fetchAttestationData()
-	s.RequireErrorContains(err, "unexpected status code: 502")
+	s.RequireErrorContains(err, "status code: 502")
 }
 
 func (s *Suite) TestSuccessfulIdentityProcessing() {
@@ -137,16 +142,6 @@ func (s *Suite) TestConfigure() {
 		Configuration: `trust_domain`,
 	})
 	require.Error(err)
-	require.Nil(resp)
-
-	// global configuration not provided
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireErrorContains(err, "global configuration is required")
-	require.Nil(resp)
-
-	// missing trust domain
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireErrorContains(err, "global configuration missing trust domain")
 	require.Nil(resp)
 
 	// success
@@ -201,4 +196,21 @@ func (s *Suite) buildDefaultIIDDocAndSig() (docBytes []byte, sigBytes []byte) {
 	s.Require().NoError(err)
 
 	return docBytes, sig
+}
+
+func TestEndpointFromLegacyConfig(t *testing.T) {
+	// These are the formerly-hardcoded default URLs
+	const defaultIdentityDocumentURL = "http://169.254.169.254/latest/dynamic/instance-identity/document"
+	const defaultIdentitySignatureURL = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
+	// This is the default endpoint we should get from them
+	const defaultEndpointURL = "http://169.254.169.254/latest"
+
+	endpoint, err := endpointFromLegacyConfig(defaultIdentityDocumentURL, defaultIdentitySignatureURL)
+	require.NoError(t, err)
+	require.Equal(t, defaultEndpointURL, endpoint)
+
+	// Verify the endpoint is equal to what's in the SDK, too:
+	sdkDefaultEndpoint, err := endpoints.DefaultResolver().EndpointFor(ec2metadata.ServiceName, endpoints.CaCentral1RegionID)
+	require.NoError(t, err)
+	require.Equal(t, sdkDefaultEndpoint.URL, endpoint)
 }
