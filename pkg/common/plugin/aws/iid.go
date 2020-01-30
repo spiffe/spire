@@ -4,9 +4,8 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
 )
 
 const (
@@ -22,13 +21,6 @@ const (
 type SessionConfig struct {
 	AccessKeyID     string `hcl:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key"`
-}
-
-// InstanceIdentityDocument AWS IID struct
-type InstanceIdentityDocument struct {
-	InstanceID string `json:"instanceId" `
-	AccountID  string `json:"accountId"`
-	Region     string `json:"region"`
 }
 
 // IIDAttestationData AWS IID attestation data

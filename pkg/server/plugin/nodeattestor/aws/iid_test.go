@@ -13,23 +13,22 @@ import (
 	"io"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/pemutil"
-	"google.golang.org/grpc/codes"
-
-	"github.com/spiffe/spire/pkg/common/plugin/aws"
-	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/test/fakes/fakeagentstore"
-	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
-	"github.com/spiffe/spire/test/spiretest"
-
 	awssdk "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/plugin/aws"
+	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
+	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
+	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -546,7 +545,7 @@ func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattesto
 
 func (s *IIDAttestorSuite) buildIIDAttestationData(instanceID, accountID, region string) *aws.IIDAttestationData {
 	// doc body
-	doc := aws.InstanceIdentityDocument{
+	doc := ec2metadata.EC2InstanceIdentityDocument{
 		AccountID:  accountID,
 		InstanceID: instanceID,
 		Region:     region,
