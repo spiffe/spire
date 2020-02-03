@@ -6,7 +6,7 @@ The `sql` plugin implements a sql based storage option for the SPIRE server usin
 | ---------------------| -------------------------------------------------------------------------- |
 | database_type        | database type                                                              |
 | connection_string    | connection string                                                          |
-| ro_connection_string | read-only connection string, used for read-only queries if set             |
+| ro_connection_string | [Read Only connection](#read-only-connection)
 | root_ca_path         | Path to Root CA bundle (MySQL only)                                        |
 | client_cert_path     | Path to client certificate (MySQL only)                                    |
 | client_key_path      | Path to private key for client certificate (MySQL only)                    |
@@ -40,7 +40,6 @@ connection_string=":memory:"
         plugin_data {
             database_type = "sqlite3"
             connection_string = "./.data/datastore.sqlite3"
-            ro_connection_string = "./.data/datastore.sqlite3"
         }
     }
 ```
@@ -52,9 +51,6 @@ The `connection_string` for the PostreSQL database connection consists of the nu
 #### example
 ```
 connection_string="dbname=postgres user=postgres password=password host=localhost sslmode=disable"
-```
-```
-ro_connection_string="ro_username:password@tcp(localhost:3308)/dbname?parseTime=true"
 ```
 
 #### Configuration Options
@@ -128,3 +124,6 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
         }
     }
 ```
+
+#### Read Only connection
+Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3. 

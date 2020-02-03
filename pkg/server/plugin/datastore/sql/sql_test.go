@@ -39,8 +39,9 @@ var (
 
 	// The following are set by the linker during integration tests to
 	// run these unit tests against various SQL backends.
-	TestDialect    string
-	TestConnString string
+	TestDialect      string
+	TestConnString   string
+	TestROConnString string
 )
 
 const (
@@ -68,6 +69,15 @@ type PluginSuite struct {
 
 	m               *fakemetrics.FakeMetrics
 	expectedMetrics *fakepluginmetrics.FakePluginMetrics
+}
+
+type ListRegistrationReq struct {
+	name               string
+	pagination         *datastore.Pagination
+	selectors          []*common.Selector
+	expectedList       []*common.RegistrationEntry
+	expectedPagination *datastore.Pagination
+	err                string
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -137,8 +147,7 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "sqlite3"
 				log_sql = true
 				connection_string = "%s"
-				ro_connection_string = "%s"
-				`, dbPath, dbPath),
+				`, dbPath),
 		})
 		s.Require().NoError(err)
 
@@ -148,16 +157,12 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 		}{}
 		p.db.Raw("PRAGMA journal_mode").Scan(&jm)
 		s.Require().Equal(jm.JournalMode, "wal")
-		p.roDb.Raw("PRAGMA journal_mode").Scan(&jm)
-		s.Require().Equal(jm.JournalMode, "wal")
 
 		// assert that foreign_key support is enabled
 		fk := struct {
 			ForeignKeys string
 		}{}
 		p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
-		s.Require().Equal(fk.ForeignKeys, "1")
-		p.roDb.Raw("PRAGMA foreign_keys").Scan(&fk)
 		s.Require().Equal(fk.ForeignKeys, "1")
 	case "mysql":
 		s.T().Logf("CONN STRING: %q", TestConnString)
@@ -169,7 +174,7 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				log_sql = true
 				connection_string = "%s"
 				ro_connection_string = "%s"
-				`, TestConnString, TestConnString),
+				`, TestConnString, TestROConnString),
 		})
 		s.Require().NoError(err)
 	case "postgres":
@@ -182,7 +187,7 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				log_sql = true
 				connection_string = "%s"
 				ro_connection_string = "%s"
-				`, TestConnString, TestConnString),
+				`, TestConnString, TestROConnString),
 		})
 		s.Require().NoError(err)
 	default:
@@ -841,7 +846,9 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo")
+	selectors := s.getNodeSelectors("foo", true)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.Require().Empty(selectors)
 
 	// set selectors on foo and bar
@@ -849,21 +856,30 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.RequireProtoListEqual(foo1, selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.RequireProtoListEqual(foo2, selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", nil)
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.Require().Empty(selectors)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar")
+	selectors = s.getNodeSelectors("bar", true)
+	s.RequireProtoListEqual(bar, selectors)
+	// get bar selectors (make sure they weren't impacted by deleting foo)
+	selectors = s.getNodeSelectors("bar", false)
 	s.RequireProtoListEqual(bar, selectors)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
@@ -1130,14 +1146,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 		{Type: "Type3", Value: "Value3"},
 	}
 
-	tests := []struct {
-		name               string
-		pagination         *datastore.Pagination
-		selectors          []*common.Selector
-		expectedList       []*common.RegistrationEntry
-		expectedPagination *datastore.Pagination
-		err                string
-	}{
+	tests := []ListRegistrationReq{
 		{
 			name: "pagination_without_token",
 			pagination: &datastore.Pagination{
@@ -1253,6 +1262,22 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 			},
 		},
 	}
+
+	s.listRegistrationEntries(tests, true)
+	s.listRegistrationEntries(tests, false)
+
+	// with invalid token
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "invalid int",
+			PageSize: 10,
+		},
+	})
+	s.Require().Nil(resp)
+	s.Require().Error(err, "could not parse token 'invalid int'")
+}
+
+func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, tolerateStale bool) {
 	for _, test := range tests {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
@@ -1264,8 +1289,9 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				}
 			}
 			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-				BySelectors: bySelectors,
-				Pagination:  test.pagination,
+				BySelectors:   bySelectors,
+				Pagination:    test.pagination,
+				TolerateStale: tolerateStale,
 			})
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -1283,16 +1309,6 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 			require.Equal(t, expectedResponse, resp)
 		})
 	}
-
-	// with invalid token
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		Pagination: &datastore.Pagination{
-			Token:    "invalid int",
-			PageSize: 10,
-		},
-	})
-	s.Require().Nil(resp)
-	s.Require().Error(err, "could not parse token 'invalid int'")
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
@@ -1921,8 +1937,7 @@ func (s *PluginSuite) TestMigration() {
 			Configuration: fmt.Sprintf(`
 				database_type = "sqlite3"
 				connection_string = "file://%s"
-				ro_connection_string = "file://%s"
-			`, dbPath, dbPath),
+			`, dbPath),
 		})
 		s.Require().NoError(err)
 
@@ -1962,7 +1977,8 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
 
 			nodeSelectorsResp, err := s.ds.GetNodeSelectors(context.Background(), &datastore.GetNodeSelectorsRequest{
-				SpiffeId: "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
+				SpiffeId:      "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
+				TolerateStale: true,
 			})
 			s.Require().NoError(err)
 			s.Require().NotNil(nodeSelectorsResp.Selectors)
@@ -2059,7 +2075,7 @@ func (s *PluginSuite) TestMigration() {
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			}, false)
+			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_parent_id"))
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
@@ -2068,21 +2084,21 @@ func (s *PluginSuite) TestMigration() {
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			}, false)
+			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
 		case 10:
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			}, false)
+			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 		case 11:
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			}, false)
+			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 		case 12:
@@ -2090,7 +2106,7 @@ func (s *PluginSuite) TestMigration() {
 			db, err := sqlite{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			}, false)
+			})
 			s.Require().NoError(err)
 			// Assert migration version is now 13
 			migration := Migration{}
@@ -2207,11 +2223,12 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*common.Selector {
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(s.expectedMetrics)
 	defer callCounter.Done(nil)
 	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: spiffeID,
+		SpiffeId:      spiffeID,
+		TolerateStale: tolerateStale,
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
@@ -2287,30 +2304,21 @@ func (s *PluginSuite) TestConfigure() {
 				database_type = "sqlite3"
 				log_sql = true
 				connection_string = "%s"
-                ro_connection_string = "%s"
 				%s
-		`, dbPath, dbPath, tt.giveDBConfig),
+			`, dbPath, tt.giveDBConfig),
 			})
 			require.NoError(t, err)
 
 			db := p.db.DB.DB()
-			roDb := p.roDb.DB.DB()
-
 			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
-			require.Equal(t, tt.expectMaxOpenConns, roDb.Stats().MaxOpenConnections)
 
 			// begin many queries simultaneously
 			numQueries := 100
 			var rowsList []*sql.Rows
-			var roRowsList []*sql.Rows
 			for i := 0; i < numQueries; i++ {
 				rows, err := db.Query("SELECT * FROM bundles")
 				require.NoError(t, err)
 				rowsList = append(rowsList, rows)
-
-				roRows, roErr := roDb.Query("SELECT * FROM bundles")
-				require.NoError(t, roErr)
-				roRowsList = append(roRowsList, roRows)
 			}
 
 			// close all open queries, which results in idle connections
@@ -2318,11 +2326,6 @@ func (s *PluginSuite) TestConfigure() {
 				require.NoError(t, rows.Close())
 			}
 			require.Equal(t, tt.expectIdle, db.Stats().Idle)
-
-			for _, rows := range roRowsList {
-				require.NoError(t, rows.Close())
-			}
-			require.Equal(t, tt.expectIdle, roDb.Stats().Idle)
 		})
 	}
 }

@@ -351,7 +351,7 @@ func (ds *Plugin) GetNodeSelectors(ctx context.Context,
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	if ds.roDb != nil {
+	if req.TolerateStale && ds.roDb != nil {
 		return getNodeSelectors(ctx, ds.roDb, req)
 	}
 	return getNodeSelectors(ctx, ds.db, req)
@@ -392,7 +392,7 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	if ds.roDb != nil {
+	if req.TolerateStale && ds.roDb != nil {
 		return listRegistrationEntries(ctx, ds.roDb, req)
 	}
 	return listRegistrationEntries(ctx, ds.db, req)
@@ -539,15 +539,15 @@ func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*sp
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (ds *Plugin) openConnection(config *configuration, isReadOnlyConnection bool) error {
-	connectionString := getConnectionString(config, isReadOnlyConnection)
+func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
+	connectionString := getConnectionString(config, isReadOnly)
 	sqlDb := ds.db
-	if isReadOnlyConnection {
+	if isReadOnly {
 		sqlDb = ds.roDb
 	}
 
 	if sqlDb == nil || connectionString != sqlDb.connectionString || config.DatabaseType != ds.db.databaseType {
-		db, err := ds.openDB(config, isReadOnlyConnection)
+		db, err := ds.openDB(config, isReadOnly)
 		if err != nil {
 			return err
 		}
@@ -570,7 +570,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnlyConnection boo
 		}
 	}
 
-	if isReadOnlyConnection {
+	if isReadOnly {
 		ds.roDb = sqlDb
 	} else {
 		ds.db = sqlDb
@@ -639,18 +639,21 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 	return sqlError.Wrap(tx.Commit().Error)
 }
 
-func (ds *Plugin) openDB(cfg *configuration, isReadOnlyConnection bool) (*gorm.DB, error) {
+func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
 	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
-		db, err = sqlite{}.connect(cfg, isReadOnlyConnection)
+		if isReadOnly {
+			ds.log.Warn("read-only connection is not applicable for %v. Falling back to primary connection.", cfg.DatabaseType)
+		}
+		db, err = sqlite{}.connect(cfg)
 	case PostgreSQL:
-		db, err = postgres{}.connect(cfg, isReadOnlyConnection)
+		db, err = postgres{}.connect(cfg, isReadOnly)
 	case MySQL:
-		db, err = mysql{}.connect(cfg, isReadOnlyConnection)
+		db, err = mysql{}.connect(cfg, isReadOnly)
 	default:
 		return nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
 	}
@@ -2410,9 +2413,9 @@ func gormToGRPCStatus(err error) error {
 }
 
 // getConnectionString returns the connection string corresponding to the database connection.
-func getConnectionString(cfg *configuration, isReadOnlyConnection bool) string {
+func getConnectionString(cfg *configuration, isReadOnly bool) string {
 	connectionString := cfg.ConnectionString
-	if isReadOnlyConnection {
+	if isReadOnly {
 		connectionString = cfg.RoConnectionString
 	}
 	return connectionString

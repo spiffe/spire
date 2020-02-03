@@ -109,6 +109,7 @@ message SetNodeSelectorsResponse {
 
 message GetNodeSelectorsRequest{
     string spiffe_id = 1;
+    bool tolerate_stale = 2;
 }
 
 message GetNodeSelectorsResponse {
@@ -209,6 +210,7 @@ message ListRegistrationEntriesRequest {
     BySelectors by_selectors = 2;
     google.protobuf.StringValue by_spiffe_id = 3;
     Pagination pagination = 4;
+    bool tolerate_stale = 5;
 }
 
 message ListRegistrationEntriesResponse {

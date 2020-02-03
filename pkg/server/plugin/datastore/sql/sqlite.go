@@ -11,8 +11,8 @@ import (
 
 type sqlite struct{}
 
-func (s sqlite) connect(cfg *configuration, isReadOnlyConnection bool) (*gorm.DB, error) {
-	embellished, err := embellishSQLite3ConnString(getConnectionString(cfg, isReadOnlyConnection))
+func (s sqlite) connect(cfg *configuration) (*gorm.DB, error) {
+	embellished, err := embellishSQLite3ConnString(cfg.ConnectionString)
 	if err != nil {
 		return nil, err
 	}

@@ -24,8 +24,8 @@ const (
 	tlsConfigName = "spireCustomTLS"
 )
 
-func (my mysql) connect(cfg *configuration, isReadOnlyConnection bool) (*gorm.DB, error) {
-	connString, err := configureConnection(cfg, isReadOnlyConnection)
+func (my mysql) connect(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
+	connString, err := configureConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +39,8 @@ func (my mysql) connect(cfg *configuration, isReadOnlyConnection bool) (*gorm.DB
 
 // configureConnection modifies the connection string to support features that
 // normally require code changes, like custom Root CAs or client certificates
-func configureConnection(cfg *configuration, isReadOnlyConnection bool) (string, error) {
-	connectionString := getConnectionString(cfg, isReadOnlyConnection)
+func configureConnection(cfg *configuration, isReadOnly bool) (string, error) {
+	connectionString := getConnectionString(cfg, isReadOnly)
 	if !hasTLSConfig(cfg) {
 		// connection string doesn't have to be modified
 		return connectionString, nil
@@ -96,8 +96,8 @@ func hasTLSConfig(cfg *configuration) bool {
 	return len(cfg.RootCAPath) > 0 || len(cfg.ClientCertPath) > 0 && len(cfg.ClientKeyPath) > 0
 }
 
-func validateMySQLConfig(cfg *configuration, isReadOnlyConnection bool) error {
-	opts, err := mysqldriver.ParseDSN(getConnectionString(cfg, isReadOnlyConnection))
+func validateMySQLConfig(cfg *configuration, isReadOnly bool) error {
+	opts, err := mysqldriver.ParseDSN(getConnectionString(cfg, isReadOnly))
 	if err != nil {
 		return sqlError.Wrap(err)
 	}

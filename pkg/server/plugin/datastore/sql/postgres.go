@@ -9,8 +9,8 @@ import (
 
 type postgres struct{}
 
-func (p postgres) connect(cfg *configuration, isReadOnlyConnection bool) (*gorm.DB, error) {
-	db, err := gorm.Open("postgres", getConnectionString(cfg, isReadOnlyConnection))
+func (p postgres) connect(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
+	db, err := gorm.Open("postgres", getConnectionString(cfg, isReadOnly))
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
