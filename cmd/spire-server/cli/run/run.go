@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/configs"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -200,7 +201,12 @@ func parseFile(path string) (*config, error) {
 		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
 	}
 
-	if err := hcl.Decode(&c, string(data)); err != nil {
+	rendered, err := configs.Render(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("unable to render configuration at %q: %v", path, err)
+	}
+
+	if err := hcl.Decode(&c, rendered); err != nil {
 		return nil, fmt.Errorf("unable to decode configuration %q: %v", path, err)
 	}
 
