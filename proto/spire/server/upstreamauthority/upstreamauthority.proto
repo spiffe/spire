@@ -1,0 +1,66 @@
+syntax = "proto3";
+package spire.server.upstreamauthority;
+option go_package = "github.com/spiffe/spire/proto/spire/server/upstreamauthority";
+
+import "spire/common/common.proto";
+import "spire/common/plugin/plugin.proto";
+
+message MintX509CARequest {
+    // Certificate signing request (PKCS#10)
+    bytes csr = 1;
+
+    // Preferred TTL is the TTL preferred by SPIRE server for signed CA. If
+    // zero, the plugin should determine its own TTL value. Plugins plugins are
+    // free to ignore this and use their own policies around TTLs. 
+    int32 preferred_ttl = 2;
+}
+
+message MintX509CAResponse {
+    // Contains ASN.1 encoded certificates representing the X.509 CA along with
+    // any intermediates necessary to chain back to a certificate present in
+    // the upstream_x509_roots.
+    repeated bytes x509_ca_chain = 1;
+
+    // The trusted X.509 root authorities for the upstream authority
+    repeated bytes upstream_x509_roots = 2;
+}
+
+message PublishX509CARequest {
+    // The self-signed X.509 CA certificate to publish upstream
+    bytes self_signed_x509_ca = 1;
+}
+
+message PublishX509CAResponse {
+    // The trusted X.509 root authorities for the upstream authority
+    repeated bytes upstream_x509_roots = 1;
+}
+
+message PublishJWTKeyRequest {
+    // The JWT signing key to publish upstream 
+    spire.common.PublicKey jwt_key = 1;
+}
+
+message PublishJWTKeyResponse {
+    // The upstream JWT signing keys
+    repeated spire.common.PublicKey upstream_jwt_keys = 1;
+}
+
+service UpstreamAuthority {
+    // Mints an X.509 CA. The plugin should also publish the X.509 CA upstream,
+    // if supported. This RPC is optional and should return NotImplemented if
+    // unsupported.  When unsupported, SPIRE will self-sign an X.509 CA and and
+    // publish via PublishX509CA.
+    rpc MintX509CA(MintX509CARequest) returns (MintX509CAResponse);
+
+    // PublishX509CA publishes a self-signed X.509 CA certificate upstream.
+    // This RPC is optional and should return NotImplemented if unsupported.
+    rpc PublishX509CA(PublishX509CARequest) returns (PublishX509CAResponse);
+
+    // Publishes a JWT signing key upstream. This RPC is optional and should
+    // return NotImplemented if unsupported.
+    rpc PublishJWTKey(PublishJWTKeyRequest) returns (PublishJWTKeyResponse);
+
+    // Standard SPIRE plugin RPCs
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}
