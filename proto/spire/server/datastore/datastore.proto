@@ -109,6 +109,7 @@ message SetNodeSelectorsResponse {
 
 message GetNodeSelectorsRequest{
     string spiffe_id = 1;
+    // When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
     bool tolerate_stale = 2;
 }
 
@@ -210,6 +211,7 @@ message ListRegistrationEntriesRequest {
     BySelectors by_selectors = 2;
     google.protobuf.StringValue by_spiffe_id = 3;
     Pagination pagination = 4;
+    // When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
     bool tolerate_stale = 5;
 }
 

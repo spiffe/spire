@@ -839,7 +839,8 @@ func (m *SetNodeSelectorsResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_SetNodeSelectorsResponse proto.InternalMessageInfo
 
 type GetNodeSelectorsRequest struct {
-	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
+	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
 	TolerateStale        bool     `protobuf:"varint,2,opt,name=tolerate_stale,json=tolerateStale,proto3" json:"tolerate_stale,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1613,14 +1614,15 @@ func (m *Pagination) GetPageSize() int32 {
 }
 
 type ListRegistrationEntriesRequest struct {
-	ByParentId           *wrappers.StringValue `protobuf:"bytes,1,opt,name=by_parent_id,json=byParentId,proto3" json:"by_parent_id,omitempty"`
-	BySelectors          *BySelectors          `protobuf:"bytes,2,opt,name=by_selectors,json=bySelectors,proto3" json:"by_selectors,omitempty"`
-	BySpiffeId           *wrappers.StringValue `protobuf:"bytes,3,opt,name=by_spiffe_id,json=bySpiffeId,proto3" json:"by_spiffe_id,omitempty"`
-	Pagination           *Pagination           `protobuf:"bytes,4,opt,name=pagination,proto3" json:"pagination,omitempty"`
-	TolerateStale        bool                  `protobuf:"varint,5,opt,name=tolerate_stale,json=tolerateStale,proto3" json:"tolerate_stale,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
+	ByParentId  *wrappers.StringValue `protobuf:"bytes,1,opt,name=by_parent_id,json=byParentId,proto3" json:"by_parent_id,omitempty"`
+	BySelectors *BySelectors          `protobuf:"bytes,2,opt,name=by_selectors,json=bySelectors,proto3" json:"by_selectors,omitempty"`
+	BySpiffeId  *wrappers.StringValue `protobuf:"bytes,3,opt,name=by_spiffe_id,json=bySpiffeId,proto3" json:"by_spiffe_id,omitempty"`
+	Pagination  *Pagination           `protobuf:"bytes,4,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
+	TolerateStale        bool     `protobuf:"varint,5,opt,name=tolerate_stale,json=tolerateStale,proto3" json:"tolerate_stale,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ListRegistrationEntriesRequest) Reset()         { *m = ListRegistrationEntriesRequest{} }
