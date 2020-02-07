@@ -493,6 +493,7 @@
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  |  |
+| tolerate_stale | [bool](#bool) |  | When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed. |
 
 
 
@@ -599,6 +600,7 @@
 | by_selectors | [BySelectors](#spire.server.datastore.BySelectors) |  |  |
 | by_spiffe_id | [google.protobuf.StringValue](#google.protobuf.StringValue) |  |  |
 | pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
+| tolerate_stale | [bool](#bool) |  | When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed. |
 
 
 

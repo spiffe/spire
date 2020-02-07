@@ -39,8 +39,9 @@ var (
 
 	// The following are set by the linker during integration tests to
 	// run these unit tests against various SQL backends.
-	TestDialect    string
-	TestConnString string
+	TestDialect      string
+	TestConnString   string
+	TestROConnString string
 )
 
 const (
@@ -68,6 +69,15 @@ type PluginSuite struct {
 
 	m               *fakemetrics.FakeMetrics
 	expectedMetrics *fakepluginmetrics.FakePluginMetrics
+}
+
+type ListRegistrationReq struct {
+	name               string
+	pagination         *datastore.Pagination
+	selectors          []*common.Selector
+	expectedList       []*common.RegistrationEntry
+	expectedPagination *datastore.Pagination
+	err                string
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -163,7 +173,8 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "mysql"
 				log_sql = true
 				connection_string = "%s"
-				`, TestConnString),
+				ro_connection_string = "%s"
+				`, TestConnString, TestROConnString),
 		})
 		s.Require().NoError(err)
 	case "postgres":
@@ -175,7 +186,8 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "postgres"
 				log_sql = true
 				connection_string = "%s"
-				`, TestConnString),
+				ro_connection_string = "%s"
+				`, TestConnString, TestROConnString),
 		})
 		s.Require().NoError(err)
 	default:
@@ -203,6 +215,21 @@ func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 		`,
 	})
 	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
+
+	_, roErr := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
+		`,
+	})
+	s.RequireErrorContains(roErr, "rpc error: code = Unknown desc = connection_string must be set")
+
+	_, error := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		`,
+	})
+	s.RequireErrorContains(error, "rpc error: code = Unknown desc = connection_string must be set")
 }
 
 func (s *PluginSuite) TestBundleCRUD() {
@@ -819,7 +846,9 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo")
+	selectors := s.getNodeSelectors("foo", true)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.Require().Empty(selectors)
 
 	// set selectors on foo and bar
@@ -827,21 +856,30 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.RequireProtoListEqual(foo1, selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.RequireProtoListEqual(foo2, selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", nil)
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.Require().Empty(selectors)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar")
+	selectors = s.getNodeSelectors("bar", true)
+	s.RequireProtoListEqual(bar, selectors)
+	// get bar selectors (make sure they weren't impacted by deleting foo)
+	selectors = s.getNodeSelectors("bar", false)
 	s.RequireProtoListEqual(bar, selectors)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
@@ -1108,14 +1146,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 		{Type: "Type3", Value: "Value3"},
 	}
 
-	tests := []struct {
-		name               string
-		pagination         *datastore.Pagination
-		selectors          []*common.Selector
-		expectedList       []*common.RegistrationEntry
-		expectedPagination *datastore.Pagination
-		err                string
-	}{
+	tests := []ListRegistrationReq{
 		{
 			name: "pagination_without_token",
 			pagination: &datastore.Pagination{
@@ -1231,6 +1262,22 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 			},
 		},
 	}
+
+	s.listRegistrationEntries(tests, true)
+	s.listRegistrationEntries(tests, false)
+
+	// with invalid token
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "invalid int",
+			PageSize: 10,
+		},
+	})
+	s.Require().Nil(resp)
+	s.Require().Error(err, "could not parse token 'invalid int'")
+}
+
+func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, tolerateStale bool) {
 	for _, test := range tests {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
@@ -1242,8 +1289,9 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				}
 			}
 			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-				BySelectors: bySelectors,
-				Pagination:  test.pagination,
+				BySelectors:   bySelectors,
+				Pagination:    test.pagination,
+				TolerateStale: tolerateStale,
 			})
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -1261,16 +1309,6 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 			require.Equal(t, expectedResponse, resp)
 		})
 	}
-
-	// with invalid token
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		Pagination: &datastore.Pagination{
-			Token:    "invalid int",
-			PageSize: 10,
-		},
-	})
-	s.Require().Nil(resp)
-	s.Require().Error(err, "could not parse token 'invalid int'")
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
@@ -1939,7 +1977,8 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
 
 			nodeSelectorsResp, err := s.ds.GetNodeSelectors(context.Background(), &datastore.GetNodeSelectorsRequest{
-				SpiffeId: "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
+				SpiffeId:      "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
+				TolerateStale: true,
 			})
 			s.Require().NoError(err)
 			s.Require().NotNil(nodeSelectorsResp.Selectors)
@@ -2184,11 +2223,12 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*common.Selector {
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(s.expectedMetrics)
 	defer callCounter.Done(nil)
 	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: spiffeID,
+		SpiffeId:      spiffeID,
+		TolerateStale: tolerateStale,
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
@@ -2265,12 +2305,11 @@ func (s *PluginSuite) TestConfigure() {
 				log_sql = true
 				connection_string = "%s"
 				%s
-		`, dbPath, tt.giveDBConfig),
+			`, dbPath, tt.giveDBConfig),
 			})
 			require.NoError(t, err)
 
 			db := p.db.DB.DB()
-
 			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
 
 			// begin many queries simultaneously

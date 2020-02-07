@@ -6,6 +6,7 @@ import (
 	"github.com/jinzhu/gorm"
 	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	_ "github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
 type sqlite struct{}
