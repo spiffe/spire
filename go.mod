@@ -20,7 +20,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878
-	github.com/aws/aws-sdk-go v1.21.7
+	github.com/aws/aws-sdk-go v1.28.9
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/containerd/containerd v1.3.2 // indirect

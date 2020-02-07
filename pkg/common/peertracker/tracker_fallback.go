@@ -6,6 +6,6 @@
 
 package peertracker
 
-func newTracker(PeerTracker, error) {
+func newTracker() (PeerTracker, error) {
 	return nil, ErrUnsupportedPlatform
 }

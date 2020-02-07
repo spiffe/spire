@@ -190,6 +190,7 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 		Metrics:         metrics,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
+		SyncInterval:    a.c.SyncInterval,
 	}
 
 	mgr, err := manager.New(config)

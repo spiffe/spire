@@ -68,15 +68,16 @@ func builtin(p *Plugin) catalog.Plugin {
 // Configuration for the datastore.
 // Pointer values are used to distinguish between "unset" and "zero" values.
 type configuration struct {
-	DatabaseType     string  `hcl:"database_type" json:"database_type"`
-	ConnectionString string  `hcl:"connection_string" json:"connection_string"`
-	RootCAPath       string  `hcl:"root_ca_path" json:"root_ca_path"`
-	ClientCertPath   string  `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKeyPath    string  `hcl:"client_key_path" json:"client_key_path"`
-	ConnMaxLifetime  *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
-	MaxOpenConns     *int    `hcl:"max_open_conns" json:"max_open_conns"`
-	MaxIdleConns     *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
-	DisableMigration bool    `hcl:"disable_migration" json:"disable_migration"`
+	DatabaseType       string  `hcl:"database_type" json:"database_type"`
+	ConnectionString   string  `hcl:"connection_string" json:"connection_string"`
+	RoConnectionString string  `hcl:"ro_connection_string" json:"ro_connection_string"`
+	RootCAPath         string  `hcl:"root_ca_path" json:"root_ca_path"`
+	ClientCertPath     string  `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath      string  `hcl:"client_key_path" json:"client_key_path"`
+	ConnMaxLifetime    *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
+	MaxOpenConns       *int    `hcl:"max_open_conns" json:"max_open_conns"`
+	MaxIdleConns       *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
+	DisableMigration   bool    `hcl:"disable_migration" json:"disable_migration"`
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
@@ -88,15 +89,26 @@ type sqlDB struct {
 	raw              *sql.DB
 	*gorm.DB
 
+	stmtCache *stmtCache
+
 	// this lock is only required for synchronized writes with "sqlite3". see
 	// the withTx() implementation for details.
 	opMu sync.Mutex
+}
+
+func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	stmt, err := db.stmtCache.get(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return stmt.QueryContext(ctx, args...)
 }
 
 // Plugin is a DataStore plugin implemented via a SQL database
 type Plugin struct {
 	mu             sync.Mutex
 	db             *sqlDB
+	roDb           *sqlDB
 	log            hclog.Logger
 	metricsService hostservices.MetricsService
 }
@@ -339,7 +351,10 @@ func (ds *Plugin) GetNodeSelectors(ctx context.Context,
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return getNodeSelectors(ctx, ds.db.databaseType, ds.db.raw, req)
+	if req.TolerateStale && ds.roDb != nil {
+		return getNodeSelectors(ctx, ds.roDb, req)
+	}
+	return getNodeSelectors(ctx, ds.db, req)
 }
 
 // CreateRegistrationEntry stores the given registration entry
@@ -368,7 +383,7 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return fetchRegistrationEntry(ctx, ds.db.databaseType, ds.db.raw, req)
+	return fetchRegistrationEntry(ctx, ds.db, req)
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -377,7 +392,10 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return listRegistrationEntries(ctx, ds.db.databaseType, ds.db.raw, req)
+	if req.TolerateStale && ds.roDb != nil {
+		return listRegistrationEntries(ctx, ds.roDb, req)
+	}
+	return listRegistrationEntries(ctx, ds.db, req)
 }
 
 // UpdateRegistrationEntry updates an existing registration entry
@@ -506,37 +524,69 @@ func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*sp
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	if ds.db == nil || config.ConnectionString != ds.db.connectionString || config.DatabaseType != ds.db.databaseType {
-		db, err := ds.openDB(config)
+	if err := ds.openConnection(config, false); err != nil {
+		return nil, err
+	}
+
+	if config.RoConnectionString == "" {
+		return &spi.ConfigureResponse{}, nil
+	}
+
+	if err := ds.openConnection(config, true); err != nil {
+		return nil, err
+	}
+
+	return &spi.ConfigureResponse{}, nil
+}
+
+func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
+	connectionString := getConnectionString(config, isReadOnly)
+	sqlDb := ds.db
+	if isReadOnly {
+		sqlDb = ds.roDb
+	}
+
+	if sqlDb == nil || connectionString != sqlDb.connectionString || config.DatabaseType != ds.db.databaseType {
+		db, err := ds.openDB(config, isReadOnly)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		if ds.db != nil {
-			ds.db.Close()
+		if sqlDb != nil {
+			sqlDb.Close()
 		}
 
 		raw := db.DB()
 		if raw == nil {
-			return nil, sqlError.New("unable to get raw database object")
+			return sqlError.New("unable to get raw database object")
 		}
 
-		ds.db = &sqlDB{
+		sqlDb = &sqlDB{
 			DB:               db,
 			raw:              raw,
 			databaseType:     config.DatabaseType,
-			connectionString: config.ConnectionString,
+			connectionString: connectionString,
+			stmtCache:        newStmtCache(raw),
 		}
 	}
 
-	ds.db.LogMode(config.LogSQL)
+	if isReadOnly {
+		ds.roDb = sqlDb
+	} else {
+		ds.db = sqlDb
+	}
 
-	return &spi.ConfigureResponse{}, nil
+	sqlDb.LogMode(config.LogSQL)
+	return nil
 }
 
 func (ds *Plugin) closeDB() {
 	if ds.db != nil {
 		ds.db.Close()
+	}
+
+	if ds.roDb != nil {
+		ds.roDb.Close()
 	}
 }
 
@@ -589,18 +639,21 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 	return sqlError.Wrap(tx.Commit().Error)
 }
 
-func (ds *Plugin) openDB(cfg *configuration) (*gorm.DB, error) {
+func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
 	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
+		if isReadOnly {
+			ds.log.Warn("read-only connection is not applicable for %v. Falling back to primary connection.", cfg.DatabaseType)
+		}
 		db, err = sqlite{}.connect(cfg)
 	case PostgreSQL:
-		db, err = postgres{}.connect(cfg)
+		db, err = postgres{}.connect(cfg, isReadOnly)
 	case MySQL:
-		db, err = mysql{}.connect(cfg)
+		db, err = mysql{}.connect(cfg, isReadOnly)
 	default:
 		return nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
 	}
@@ -1021,8 +1074,8 @@ func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*dat
 	return &datastore.SetNodeSelectorsResponse{}, nil
 }
 
-func getNodeSelectors(ctx context.Context, dbType string, db *sql.DB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
-	query := maybeRebind(dbType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
+func getNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
+	query := maybeRebind(db.databaseType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
 	rows, err := db.QueryContext(ctx, query, req.SpiffeId)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1111,8 +1164,8 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 	}, nil
 }
 
-func fetchRegistrationEntry(ctx context.Context, dbType string, db *sql.DB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	query, args, err := buildFetchRegistrationEntryQuery(dbType, req)
+func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
+	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1309,7 +1362,7 @@ ORDER BY selector_id, dns_name_id
 	return query, []interface{}{req.EntryId}, nil
 }
 
-func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -1323,7 +1376,7 @@ func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req
 	// query returns rows that are completely filtered out. If that happens,
 	// keep querying until a page gets at least one result.
 	for {
-		resp, err := listRegistrationEntriesOnce(ctx, dbType, db, req)
+		resp, err := listRegistrationEntriesOnce(ctx, db, req)
 		if err != nil {
 			return nil, err
 		}
@@ -1369,8 +1422,8 @@ func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors [
 	return filtered
 }
 
-func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-	query, args, err := buildListRegistrationEntriesQuery(dbType, req)
+func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	query, args, err := buildListRegistrationEntriesQuery(db.databaseType, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -2325,8 +2378,14 @@ func (cfg *configuration) Validate() error {
 	}
 
 	if cfg.DatabaseType == MySQL {
-		if err := validateMySQLConfig(cfg); err != nil {
+		if err := validateMySQLConfig(cfg, false); err != nil {
 			return err
+		}
+
+		if cfg.RoConnectionString != "" {
+			if err := validateMySQLConfig(cfg, true); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -2351,4 +2410,13 @@ func gormToGRPCStatus(err error) error {
 	}
 
 	return status.Error(code, err.Error())
+}
+
+// getConnectionString returns the connection string corresponding to the database connection.
+func getConnectionString(cfg *configuration, isReadOnly bool) string {
+	connectionString := cfg.ConnectionString
+	if isReadOnly {
+		connectionString = cfg.RoConnectionString
+	}
+	return connectionString
 }

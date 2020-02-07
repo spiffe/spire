@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -34,6 +35,9 @@ type Config struct {
 
 	// Address of SPIRE server
 	ServerAddress string
+
+	// SyncInterval controls how often the agent sync synchronizer waits
+	SyncInterval time.Duration
 
 	// Trust domain and associated CA bundle
 	TrustDomain url.URL
