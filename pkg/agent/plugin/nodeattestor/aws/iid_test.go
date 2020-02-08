@@ -139,16 +139,6 @@ func (s *Suite) TestConfigure() {
 	require.Error(err)
 	require.Nil(resp)
 
-	// global configuration not provided
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireErrorContains(err, "global configuration is required")
-	require.Nil(resp)
-
-	// missing trust domain
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireErrorContains(err, "global configuration missing trust domain")
-	require.Nil(resp)
-
 	// success
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
