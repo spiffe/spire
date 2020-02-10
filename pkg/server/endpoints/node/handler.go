@@ -587,9 +587,9 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 		fieldLog := h.c.Log.WithFields(logrus.Fields{"agent": agentID, "new_serial": n.NewCertSerialNumber})
 		fieldLog.Debug("Activating agent SVID")
 		err := h.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-			SpiffeId:         resp.Node.SpiffeId,
-			CertSerialNumber: resp.Node.NewCertSerialNumber,
-			CertNotAfter:     resp.Node.NewCertNotAfter,
+			SpiffeId:         n.SpiffeId,
+			CertSerialNumber: n.NewCertSerialNumber,
+			CertNotAfter:     n.NewCertNotAfter,
 		})
 
 		if err != nil {
