@@ -330,7 +330,8 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		Pagination: &datastore.Pagination{
 			Token:    "",
 			PageSize: pageSize,
-		}})
+		},
+		TolerateStale: s.config.TolerateStale})
 
 	if err != nil {
 		return err

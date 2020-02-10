@@ -35,11 +35,12 @@ var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchStri
 //Handler service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
 type Handler struct {
-	Log         logrus.FieldLogger
-	Metrics     telemetry.Metrics
-	Catalog     catalog.Catalog
-	TrustDomain url.URL
-	ServerCA    ca.ServerCA
+	Log           logrus.FieldLogger
+	Metrics       telemetry.Metrics
+	Catalog       catalog.Catalog
+	TrustDomain   url.URL
+	ServerCA      ca.ServerCA
+	TolerateStale bool
 }
 
 //CreateEntry creates an entry in the Registration table,
@@ -131,7 +132,7 @@ func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *c
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntries)
 
 	ds := h.getDataStore()
-	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{TolerateStale: h.TolerateStale})
 	if err != nil {
 		log.WithError(err).Error("Error trying to fetch entries")
 		return nil, status.Errorf(codes.Internal, "error trying to fetch entries: %v", err)
@@ -656,6 +657,7 @@ func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNod
 	ds := h.Catalog.GetDataStore()
 	r := &datastore.GetNodeSelectorsRequest{
 		SpiffeId: req.SpiffeId,
+		TolerateStale: h.TolerateStale,
 	}
 	resp, err := ds.GetNodeSelectors(ctx, r)
 	if err != nil {
