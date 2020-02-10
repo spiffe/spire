@@ -299,18 +299,24 @@ func (s *HandlerSuite) TestAttestWithMismatchedAgentIDWithDeprecatedCSR() {
 }
 
 func (s *HandlerSuite) TestAttestSuccess() {
-	s.testAttestSuccess(s.makeCSRWithoutURISAN())
+	s.testAttestSuccess(s.makeCSRWithoutURISAN(), false)
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
+}
+
+func (s *HandlerSuite) TestAttestSuccessWithToleratedStaleness() {
+	s.testAttestSuccess(s.makeCSRWithoutURISAN(), true)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
 func (s *HandlerSuite) TestAttestSuccessWithDeprecatedCSR() {
-	s.testAttestSuccess(s.makeCSR(agentID))
+	s.testAttestSuccess(s.makeCSR(agentID), false)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
-func (s *HandlerSuite) testAttestSuccess(csr []byte) {
+func (s *HandlerSuite) testAttestSuccess(csr []byte, tolerateStale bool) {
 	// Create a federated bundle to return with the SVID update
 	s.createBundle(otherDomainBundle)
 
@@ -325,6 +331,7 @@ func (s *HandlerSuite) testAttestSuccess(csr []byte) {
 		Data: map[string]string{"data": "id"},
 	})
 
+	s.handler.c.AllowAgentlessNodeAttestors = true
 	upd := s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             csr,
@@ -345,7 +352,7 @@ func (s *HandlerSuite) testAttestSuccess(csr []byte) {
 
 	// No selectors were returned and no resolvers were available, so the node
 	// selectors should be empty.
-	s.Empty(s.getNodeSelectors())
+	s.Empty(s.getNodeSelectors(tolerateStale))
 }
 
 func (s *HandlerSuite) TestAttestAgentless() {
@@ -488,7 +495,7 @@ func (s *HandlerSuite) TestAttestWithOnlyAttestorSelectors() {
 
 	s.Equal([]*common.Selector{
 		{Type: "test", Value: "test-attestor-value"},
-	}, s.getNodeSelectors())
+	}, s.getNodeSelectors(false))
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
@@ -520,7 +527,7 @@ func (s *HandlerSuite) TestAttestWithOnlyResolverSelectors() {
 
 	s.Equal([]*common.Selector{
 		{Type: "test", Value: "test-resolver-value"},
-	}, s.getNodeSelectors())
+	}, s.getNodeSelectors(false))
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
@@ -548,7 +555,7 @@ func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
 	s.Equal([]*common.Selector{
 		{Type: "test", Value: "test-resolver-value"},
 		{Type: "test", Value: "test-attestor-value"},
-	}, s.getNodeSelectors())
+	}, s.getNodeSelectors(false))
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
@@ -601,6 +608,13 @@ func (s *HandlerSuite) TestFetchX509SVIDLimitsLegacy() {
 
 func (s *HandlerSuite) TestFetchX509SVIDWithNoRegistrationEntries() {
 	s.attestAgent()
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{})
+	s.assertBundlesInUpdate(upd)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithToleratedStaleness() {
+	s.attestAgent()
+	s.handler.c.TolerateStale = true
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{})
 	s.assertBundlesInUpdate(upd)
 }
@@ -987,7 +1001,17 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509SVID() {
 	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID")
 }
 
+func (s *HandlerSuite) TestAuthorizeCallForFetchX509SVIDWithTolerateStale() {
+	s.handler.c.TolerateStale = true
+	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID")
+}
+
 func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVID() {
+	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID")
+}
+
+func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVIDWithTolerateStale() {
+	s.handler.c.TolerateStale = true
 	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID")
 }
 
@@ -1163,9 +1187,10 @@ func (s *HandlerSuite) fetchAttestedNode() *common.AttestedNode {
 	return resp.Node
 }
 
-func (s *HandlerSuite) getNodeSelectors() []*common.Selector {
+func (s *HandlerSuite) getNodeSelectors(tolerateStale bool) []*common.Selector {
 	resp, err := s.ds.GetNodeSelectors(context.Background(), &datastore.GetNodeSelectorsRequest{
-		SpiffeId: agentID,
+		SpiffeId:      agentID,
+		TolerateStale: tolerateStale,
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)

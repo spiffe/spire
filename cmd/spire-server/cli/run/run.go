@@ -65,6 +65,7 @@ type serverConfig struct {
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
 	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
+	TolerateStale       bool               `hcl:"tolerate_stale"`
 
 	ConfigPath string
 
@@ -221,6 +222,7 @@ func parseFlags(args []string) (*serverConfig, error) {
 	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.Var(newMaybeBoolValue(&c.UpstreamBundle), "upstreamBundle", "Include upstream CA certificates in the bundle")
+	flags.BoolVar(&c.TolerateStale, "tolerateStale", false, "Tolerate staleness of read only data allowed")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -334,6 +336,7 @@ func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error)
 	sc.ProfilingPort = c.Server.ProfilingPort
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
+	sc.TolerateStale = c.Server.TolerateStale
 
 	if c.Server.DeprecatedSVIDTTL != "" {
 		if c.Server.DefaultSVIDTTL != "" {

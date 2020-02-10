@@ -46,6 +46,9 @@ type Config struct {
 	// Bundle endpoint ACME configuration. If unset, SPIFFE auth will be used.
 	BundleEndpointACME *bundle.ACMEConfig
 
+	// TolerateStale allows some level of staleness by using read replica for few readOnly operations
+	TolerateStale bool
+
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 }

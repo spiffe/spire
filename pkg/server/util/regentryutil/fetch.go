@@ -10,9 +10,9 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
-func FetchRegistrationEntries(ctx context.Context, dataStore datastore.DataStore, spiffeID string) ([]*common.RegistrationEntry, error) {
+func FetchRegistrationEntries(ctx context.Context, dataStore datastore.DataStore, spiffeID string, tolerateStale bool) ([]*common.RegistrationEntry, error) {
 	fetcher := newRegistrationEntryFetcher(dataStore)
-	return fetcher.Fetch(ctx, spiffeID)
+	return fetcher.Fetch(ctx, spiffeID, tolerateStale)
 }
 
 type registrationEntryFetcher struct {
@@ -25,28 +25,28 @@ func newRegistrationEntryFetcher(dataStore datastore.DataStore) *registrationEnt
 	}
 }
 
-func (f *registrationEntryFetcher) Fetch(ctx context.Context, id string) ([]*common.RegistrationEntry, error) {
-	entries, err := f.fetch(ctx, id, make(map[string]bool))
+func (f *registrationEntryFetcher) Fetch(ctx context.Context, id string, tolerateStale bool) ([]*common.RegistrationEntry, error) {
+	entries, err := f.fetch(ctx, id, make(map[string]bool), tolerateStale)
 	if err != nil {
 		return nil, err
 	}
 	return util.DedupRegistrationEntries(entries), nil
 }
 
-func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited map[string]bool) ([]*common.RegistrationEntry, error) {
+func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited map[string]bool, tolerateStale bool) ([]*common.RegistrationEntry, error) {
 	if visited[id] {
 		return nil, nil
 	}
 	visited[id] = true
 
-	directEntries, err := f.directEntries(ctx, id)
+	directEntries, err := f.directEntries(ctx, id, tolerateStale)
 	if err != nil {
 		return nil, err
 	}
 
 	entries := directEntries
 	for _, directEntry := range directEntries {
-		descendantEntries, err := f.fetch(ctx, directEntry.SpiffeId, visited)
+		descendantEntries, err := f.fetch(ctx, directEntry.SpiffeId, visited, tolerateStale)
 		if err != nil {
 			return nil, err
 		}
@@ -58,13 +58,13 @@ func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited
 
 // directEntries queries the datastore to determine the registration entries
 // the provided ID is immediately authorized to issue.
-func (f *registrationEntryFetcher) directEntries(ctx context.Context, id string) ([]*common.RegistrationEntry, error) {
-	childEntries, err := f.childEntries(ctx, id)
+func (f *registrationEntryFetcher) directEntries(ctx context.Context, id string, tolerateStale bool) ([]*common.RegistrationEntry, error) {
+	childEntries, err := f.childEntries(ctx, id, tolerateStale)
 	if err != nil {
 		return nil, err
 	}
 
-	mappedEntries, err := f.mappedEntries(ctx, id)
+	mappedEntries, err := f.mappedEntries(ctx, id, tolerateStale)
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +74,13 @@ func (f *registrationEntryFetcher) directEntries(ctx context.Context, id string)
 
 // childEntries returns all registration entries for which the given ID is
 // defined as a parent.
-func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID string) ([]*common.RegistrationEntry, error) {
+func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID string, tolerateStale bool) ([]*common.RegistrationEntry, error) {
 	resp, err := f.dataStore.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
 			ByParentId: &wrappers.StringValue{
 				Value: clientID,
 			},
+			TolerateStale: tolerateStale,
 		})
 	if err != nil {
 		return nil, err
@@ -90,10 +91,11 @@ func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID st
 
 // mappedEntries returns all registration entries for which the given ID has
 // been mapped to by a node resolver.
-func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID string) ([]*common.RegistrationEntry, error) {
+func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID string, tolerateStale bool) ([]*common.RegistrationEntry, error) {
 	selectorsResp, err := f.dataStore.GetNodeSelectors(ctx,
 		&datastore.GetNodeSelectorsRequest{
-			SpiffeId: clientID,
+			SpiffeId:      clientID,
+			TolerateStale: tolerateStale,
 		})
 	if err != nil {
 		return nil, err
@@ -115,6 +117,7 @@ func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID s
 				Selectors: selectors,
 				Match:     datastore.BySelectors_MATCH_SUBSET,
 			},
+			TolerateStale: tolerateStale,
 		})
 	if err != nil {
 		return nil, err

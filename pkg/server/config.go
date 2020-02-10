@@ -71,6 +71,9 @@ type Config struct {
 
 	// CAKeyType is the key type used for the X509 and JWT signing keys
 	CAKeyType keymanager.KeyType
+
+	// TolerateStale allows some level of staleness by using read replica for few readOnly operations
+	TolerateStale bool
 }
 
 type ExperimentalConfig struct {

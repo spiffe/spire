@@ -15,6 +15,14 @@ var (
 )
 
 func TestFetchRegistrationEntries(t *testing.T) {
+	registrationEntriesTests(t, false)
+}
+
+func TestFetchRegistrationEntriesWithToleratedStaleness(t *testing.T) {
+	registrationEntriesTests(t, true)
+}
+
+func registrationEntriesTests(t *testing.T, tolerateStale bool) {
 	assert := assert.New(t)
 	dataStore := fakedatastore.New()
 
@@ -82,7 +90,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 
 	setNodeSelectors(twoID, a1, b2)
 
-	actual, err := FetchRegistrationEntries(ctx, dataStore, rootID)
+	actual, err := FetchRegistrationEntries(ctx, dataStore, rootID, tolerateStale)
 	assert.NoError(err)
 
 	expected := []*common.RegistrationEntry{

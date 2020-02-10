@@ -44,6 +44,7 @@ type HandlerConfig struct {
 	TrustDomain url.URL
 	Clock       clock.Clock
 
+	TolerateStale bool
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
 }
@@ -195,7 +196,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return status.Error(codes.Internal, "failed to update node selectors")
 	}
 
-	response, err := h.getAttestResponse(ctx, agentID, svid)
+	response, err := h.getAttestResponse(ctx, agentID, svid, h.c.TolerateStale)
 	if err != nil {
 		log.WithError(err).Error("Failed to compose response")
 		return status.Error(codes.Internal, "failed to compose response")
@@ -271,7 +272,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), agentID)
+		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), agentID, h.c.TolerateStale)
 		if err != nil {
 			log.WithError(err).Error("Failed to fetch agent registration entries")
 			return status.Error(codes.Internal, "failed to fetch agent registration entries")
@@ -435,7 +436,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	}
 
 	ds := h.c.Catalog.GetDataStore()
-	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID)
+	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID, h.c.TolerateStale)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch registration entries")
 		return nil, status.Error(codes.Internal, err.Error())
@@ -750,11 +751,11 @@ func (h *Handler) updateNodeSelectors(ctx context.Context, baseSpiffeID string, 
 	return nil
 }
 
-func (h *Handler) getAttestResponse(ctx context.Context, baseSpiffeID string, svid []*x509.Certificate) (*node.AttestResponse, error) {
+func (h *Handler) getAttestResponse(ctx context.Context, baseSpiffeID string, svid []*x509.Certificate, tolerateStale bool) (*node.AttestResponse, error) {
 	svids := make(map[string]*node.X509SVID)
 	svids[baseSpiffeID] = makeX509SVID(svid)
 
-	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), baseSpiffeID)
+	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), baseSpiffeID, tolerateStale)
 	if err != nil {
 		return nil, err
 	}
