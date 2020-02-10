@@ -59,6 +59,7 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 | `default_svid_ttl`          | The default SVID TTL                                                       | 1h                            |
 | `trust_domain`              | The trust domain that this server belongs to                               |                               |
 | `upstream_bundle`           | Include upstream CA certificates in the trust bundle                       | false                         |
+| `tolerate_stale `           | Tolerate staleness of read only data                                       | false                         |
 
 | ca_subject Configuration    | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
