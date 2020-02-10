@@ -158,11 +158,12 @@ func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 // it against the provided gRPC.
 func (e *Endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
 	r := &registration.Handler{
-		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
-		Metrics:     e.c.Metrics,
-		Catalog:     e.c.Catalog,
-		TrustDomain: e.c.TrustDomain,
-		ServerCA:    e.c.ServerCA,
+		Log:           e.c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
+		Metrics:       e.c.Metrics,
+		Catalog:       e.c.Catalog,
+		TrustDomain:   e.c.TrustDomain,
+		ServerCA:      e.c.ServerCA,
+		TolerateStale: e.c.TolerateStale,
 	}
 
 	registration_pb.RegisterRegistrationServer(tcpServer, r)
