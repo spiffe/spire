@@ -656,7 +656,7 @@ func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNod
 	log := h.Log.WithField(telemetry.Method, telemetry.GetNodeSelectors)
 	ds := h.Catalog.GetDataStore()
 	r := &datastore.GetNodeSelectorsRequest{
-		SpiffeId: req.SpiffeId,
+		SpiffeId:      req.SpiffeId,
 		TolerateStale: h.TolerateStale,
 	}
 	resp, err := ds.GetNodeSelectors(ctx, r)
