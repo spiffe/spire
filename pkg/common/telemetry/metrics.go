@@ -100,8 +100,7 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 
 func (m *MetricsImpl) SetGauge(key []string, val float32) {
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.SetGauge(keyCopy, val)
+		s.SetGauge(key, val)
 	}
 }
 
@@ -109,22 +108,19 @@ func (m *MetricsImpl) SetGauge(key []string, val float32) {
 func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Label) {
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.SetGaugeWithLabels(keyCopy, val, sanitizedLabels)
+		s.SetGaugeWithLabels(key, val, sanitizedLabels)
 	}
 }
 
 func (m *MetricsImpl) EmitKey(key []string, val float32) {
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.EmitKey(keyCopy, val)
+		s.EmitKey(key, val)
 	}
 }
 
 func (m *MetricsImpl) IncrCounter(key []string, val float32) {
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.IncrCounter(keyCopy, val)
+		s.IncrCounter(key, val)
 	}
 }
 
@@ -132,15 +128,13 @@ func (m *MetricsImpl) IncrCounter(key []string, val float32) {
 func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []Label) {
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.IncrCounterWithLabels(keyCopy, val, sanitizedLabels)
+		s.IncrCounterWithLabels(key, val, sanitizedLabels)
 	}
 }
 
 func (m *MetricsImpl) AddSample(key []string, val float32) {
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.AddSample(keyCopy, val)
+		s.AddSample(key, val)
 	}
 }
 
@@ -148,15 +142,13 @@ func (m *MetricsImpl) AddSample(key []string, val float32) {
 func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []Label) {
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.AddSampleWithLabels(keyCopy, val, sanitizedLabels)
+		s.AddSampleWithLabels(key, val, sanitizedLabels)
 	}
 }
 
 func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.MeasureSince(keyCopy, start)
+		s.MeasureSince(key, start)
 	}
 }
 
@@ -164,17 +156,6 @@ func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
 func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labels []Label) {
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
-		keyCopy := copyKey(key)
-		s.MeasureSinceWithLabels(keyCopy, start, sanitizedLabels)
+		s.MeasureSinceWithLabels(key, start, sanitizedLabels)
 	}
-}
-
-// TODO: [rturner3] Remove this if/when go-metrics is fixed to not modify its input "key" slice
-func copyKey(key []string) []string {
-	var newKey []string
-	for _, e := range key {
-		newKey = append(newKey, e)
-	}
-
-	return newKey
 }
