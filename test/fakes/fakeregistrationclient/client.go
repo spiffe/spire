@@ -2,17 +2,18 @@ package fakeregistrationclient
 
 import (
 	"context"
-	"github.com/sirupsen/logrus/hooks/test"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ep_registration "github.com/spiffe/spire/pkg/server/endpoints/registration"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 
 	c.RegistrationClient = registration.NewRegistrationClient(conn)
 
-	go c.server.Serve(listener)
+	go func() { _ = c.server.Serve(listener) }()
 
 	return c
 }

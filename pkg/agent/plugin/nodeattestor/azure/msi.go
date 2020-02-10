@@ -7,13 +7,12 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -125,25 +124,4 @@ func (p *MSIAttestorPlugin) setConfig(config *MSIAttestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
-}
-
-func getUnverifiedMSITokenClaims(rawToken string) (*azure.MSITokenClaims, error) {
-	token, err := jwt.ParseSigned(rawToken)
-	if err != nil {
-		return nil, msiError.New("unable to parse token: %v", err)
-	}
-
-	claims := new(azure.MSITokenClaims)
-	if err := token.UnsafeClaimsWithoutVerification(claims); err != nil {
-		return nil, msiError.New("unable to parse token claims: %v", err)
-	}
-
-	if claims.Subject == "" {
-		return nil, msiError.New("token missing subject claim")
-	}
-	if claims.TenantID == "" {
-		return nil, msiError.New("token missing tenant ID claim")
-	}
-
-	return claims, nil
 }

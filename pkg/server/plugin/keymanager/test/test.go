@@ -12,7 +12,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -39,7 +39,7 @@ func (s *baseSuite) SetupTest() {
 	s.LoadPlugin(s.maker(s.T()), &s.m)
 }
 
-func (s *baseSuite) TestGenerateKeyMissingKeyId() {
+func (s *baseSuite) TestGenerateKeyMissingKeyID() {
 	// missing key id
 	resp, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
 		KeyType: keymanager.KeyType_EC_P256,
@@ -142,7 +142,7 @@ func (s *baseSuite) TestGenerateKeyRSA4096() {
 	s.Require().Equal(4096, rsaPublicKey.N.BitLen())
 }
 
-func (s *baseSuite) TestGetPublicKeyMissingKeyId() {
+func (s *baseSuite) TestGetPublicKeyMissingKeyID() {
 	resp, err := s.m.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{})
 	s.Require().Error(err)
 	s.Require().Nil(resp)
@@ -170,7 +170,6 @@ func (s *baseSuite) TestGetPublicKey() {
 	s.Require().NoError(err)
 	s.Require().NotNil(getResp)
 	s.Require().Equal(resp.PublicKey, getResp.PublicKey)
-
 }
 
 func (s *baseSuite) TestGetPublicKeysNoKeys() {
@@ -242,7 +241,7 @@ func (s *baseSuite) testSignData(keyType keymanager.KeyType, signatureAlgorithm 
 	s.Require().NoError(err)
 }
 
-func (s *baseSuite) TestSignDataMissingKeyId() {
+func (s *baseSuite) TestSignDataMissingKeyID() {
 	resp, err := s.m.SignData(ctx, &keymanager.SignDataRequest{
 		SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
 			HashAlgorithm: keymanager.HashAlgorithm_SHA256,

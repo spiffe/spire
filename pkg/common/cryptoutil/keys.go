@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
 func RSAPublicKeyEqual(a, b *rsa.PublicKey) bool {
@@ -28,9 +28,9 @@ func RSAKeyMatches(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
 	return RSAPublicKeyEqual(&privateKey.PublicKey, publicKey)
 }
 
-func GetPublicKey(ctx context.Context, km keymanager.KeyManager, keyId string) (crypto.PublicKey, error) {
+func GetPublicKey(ctx context.Context, km keymanager.KeyManager, keyID string) (crypto.PublicKey, error) {
 	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
-		KeyId: keyId,
+		KeyId: keyID,
 	})
 	if err != nil {
 		return nil, err

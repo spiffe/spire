@@ -13,7 +13,7 @@ import (
 )
 
 type KeyStore interface {
-	FindPublicKey(ctx context.Context, trustDomainId, kid string) (crypto.PublicKey, error)
+	FindPublicKey(ctx context.Context, trustDomainID, kid string) (crypto.PublicKey, error)
 }
 
 type keyStore struct {
@@ -26,14 +26,14 @@ func NewKeyStore(trustDomainKeys map[string]map[string]crypto.PublicKey) KeyStor
 	}
 }
 
-func (t *keyStore) FindPublicKey(ctx context.Context, trustDomainId, keyID string) (crypto.PublicKey, error) {
-	publicKeys, ok := t.trustDomainKeys[trustDomainId]
+func (t *keyStore) FindPublicKey(ctx context.Context, trustDomainID, keyID string) (crypto.PublicKey, error) {
+	publicKeys, ok := t.trustDomainKeys[trustDomainID]
 	if !ok {
-		return nil, fmt.Errorf("no keys found for trust domain %q", trustDomainId)
+		return nil, fmt.Errorf("no keys found for trust domain %q", trustDomainID)
 	}
 	publicKey, ok := publicKeys[keyID]
 	if !ok {
-		return nil, fmt.Errorf("public key %q not found in trust domain %q", keyID, trustDomainId)
+		return nil, fmt.Errorf("public key %q not found in trust domain %q", keyID, trustDomainID)
 	}
 	return publicKey, nil
 }
@@ -80,9 +80,9 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	}
 
 	// Construct the trust domain id from the SPIFFE ID and look up key by ID
-	trustDomainId := *spiffeID
-	trustDomainId.Path = ""
-	key, err := keyStore.FindPublicKey(ctx, trustDomainId.String(), keyID)
+	trustDomainID := *spiffeID
+	trustDomainID.Path = ""
+	key, err := keyStore.FindPublicKey(ctx, trustDomainID.String(), keyID)
 	if err != nil {
 		return "", nil, err
 	}

@@ -9,6 +9,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	common "github.com/spiffe/spire/proto/spire/common"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -881,6 +883,23 @@ type NodeServer interface {
 	FetchJWTSVID(context.Context, *FetchJWTSVIDRequest) (*FetchJWTSVIDResponse, error)
 	// Fetches an X509 CA SVID for a downstream SPIRE server.
 	FetchX509CASVID(context.Context, *FetchX509CASVIDRequest) (*FetchX509CASVIDResponse, error)
+}
+
+// UnimplementedNodeServer can be embedded to have forward compatible implementations.
+type UnimplementedNodeServer struct {
+}
+
+func (*UnimplementedNodeServer) Attest(srv Node_AttestServer) error {
+	return status.Errorf(codes.Unimplemented, "method Attest not implemented")
+}
+func (*UnimplementedNodeServer) FetchX509SVID(srv Node_FetchX509SVIDServer) error {
+	return status.Errorf(codes.Unimplemented, "method FetchX509SVID not implemented")
+}
+func (*UnimplementedNodeServer) FetchJWTSVID(ctx context.Context, req *FetchJWTSVIDRequest) (*FetchJWTSVIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchJWTSVID not implemented")
+}
+func (*UnimplementedNodeServer) FetchX509CASVID(ctx context.Context, req *FetchX509CASVIDRequest) (*FetchX509CASVIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchX509CASVID not implemented")
 }
 
 func RegisterNodeServer(s *grpc.Server, srv NodeServer) {

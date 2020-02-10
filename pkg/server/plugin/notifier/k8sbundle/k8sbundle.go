@@ -13,10 +13,10 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
-	"github.com/spiffe/spire/proto/spire/server/notifier"
 	"github.com/zeebo/errs"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -92,8 +92,7 @@ func (p *Plugin) Notify(ctx context.Context, req *notifier.NotifyRequest) (*noti
 		return nil, err
 	}
 
-	switch req.Event.(type) {
-	case *notifier.NotifyRequest_BundleUpdated:
+	if _, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
 		if err := p.updateBundleConfigMap(ctx, config); err != nil {
 			return nil, err
@@ -108,8 +107,7 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdv
 		return nil, err
 	}
 
-	switch req.Event.(type) {
-	case *notifier.NotifyAndAdviseRequest_BundleLoaded:
+	if _, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
 		if err := p.updateBundleConfigMap(ctx, config); err != nil {
 			return nil, err
@@ -120,7 +118,7 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdv
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
 	if p.identityProvider == nil {
-		return nil, errors.New("IdentityProvider host service is required but not brokered")
+		return nil, errors.New("required IdentityProvider host service not available")
 	}
 
 	config := new(pluginConfig)
@@ -194,6 +192,9 @@ func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig) (er
 				c.ConfigMapKey: bundleData(resp.Bundle),
 			},
 		})
+		if err != nil {
+			return k8sErr.New("unable to marshal patch: %v", err)
+		}
 
 		// Patch the bundle, handling version conflicts
 		if err := client.PatchConfigMap(ctx, c.Namespace, c.ConfigMap, patchBytes); err != nil {
@@ -252,7 +253,7 @@ func (c kubeClientset) PatchConfigMap(ctx context.Context, namespace, configMap 
 func bundleData(bundle *common.Bundle) string {
 	bundleData := new(bytes.Buffer)
 	for _, rootCA := range bundle.RootCas {
-		pem.Encode(bundleData, &pem.Block{
+		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: rootCA.DerBytes,
 		})

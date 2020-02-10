@@ -7,8 +7,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -58,9 +58,9 @@ func New(config Config) *IdentityProvider {
 func (s *IdentityProvider) SetDeps(deps Deps) error {
 	switch {
 	case deps.DataStore == nil:
-		return errors.New("DataStore is required")
+		return errors.New("missing required DataStore dependency")
 	case deps.X509IdentityFetcher == nil:
-		return errors.New("X509IdentityFetcher is required")
+		return errors.New("missing required X509IdentityFetcher dependency")
 	}
 	s.mu.Lock()
 	s.deps = &deps

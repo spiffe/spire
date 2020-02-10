@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -129,8 +129,8 @@ func (s *AttestorSuite) configure(config AttestorConfig) {
 			token_path = %q`, config.TokenPath),
 	})
 	s.Require().NoError(err)
-
 }
+
 func (s *AttestorSuite) joinPath(path string) string {
 	return filepath.Join(s.dir, path)
 }

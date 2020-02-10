@@ -20,9 +20,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -96,6 +96,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.RS256,
 		Key:       s.fooKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	s.barKey, err = pemutil.ParseECPrivateKey(barKeyPEM)
 	s.Require().NoError(err)
@@ -103,6 +104,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.ES256,
 		Key:       s.barKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	bazKey, err := pemutil.ParseECPrivateKey(bazKeyPEM)
 	s.Require().NoError(err)
@@ -110,6 +112,7 @@ func (s *AttestorSuite) SetupSuite() {
 		Algorithm: jose.ES256,
 		Key:       bazKey,
 	}, nil)
+	s.Require().NoError(err)
 
 	s.dir = s.TempDir()
 

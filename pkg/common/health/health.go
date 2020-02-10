@@ -9,6 +9,7 @@ import (
 	"github.com/InVisionApp/go-health"
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 // health.Checker is responsible for running health checks and serving the healthcheck HTTP paths
@@ -47,6 +48,7 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 	}
 
 	hc.StatusListener = &statusListener{}
+	hc.Logger = &logadapter{FieldLogger: log.WithField(telemetry.SubsystemName, "health")}
 
 	return &Checker{config: config, server: server, hc: hc, log: log}
 }

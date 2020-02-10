@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -74,6 +74,7 @@ func (s *Suite) TestAttestSuccess() {
 	}
 
 	for _, tt := range tests {
+		tt := tt // alias loop variable as it is used in the closure
 		s.T().Run(tt.desc, func(t *testing.T) {
 			s.configure(tt.giveConfig)
 
@@ -259,7 +260,6 @@ func (s *Suite) TestConfigure() {
 	})
 	s.errorContains(err, "x509pop: unable to load trust bundle")
 	require.Nil(resp)
-
 }
 
 func (s *Suite) TestGetPluginInfo() {

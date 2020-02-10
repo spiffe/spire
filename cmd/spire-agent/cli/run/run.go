@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
@@ -62,23 +62,31 @@ type agentConfig struct {
 	ConfigPath string
 
 	// Undocumented configurables
-	ProfilingEnabled bool     `hcl:"profiling_enabled"`
-	ProfilingPort    int      `hcl:"profiling_port"`
-	ProfilingFreq    int      `hcl:"profiling_freq"`
-	ProfilingNames   []string `hcl:"profiling_names"`
+	ProfilingEnabled bool               `hcl:"profiling_enabled"`
+	ProfilingPort    int                `hcl:"profiling_port"`
+	ProfilingFreq    int                `hcl:"profiling_freq"`
+	ProfilingNames   []string           `hcl:"profiling_names"`
+	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
-type RunCLI struct {
+type experimentalConfig struct {
+	SyncInterval string `hcl:"sync_interval"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
-func (*RunCLI) Help() string {
+type Command struct {
+	LogOptions []log.Option
+}
+
+func (*Command) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
-func (*RunCLI) Run(args []string) int {
+func (cmd *Command) Run(args []string) int {
 	cliInput, err := parseFlags(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -97,7 +105,7 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newAgentConfig(input)
+	c, err := newAgentConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -132,7 +140,7 @@ func (*RunCLI) Run(args []string) int {
 	return 0
 }
 
-func (*RunCLI) Synopsis() string {
+func (*Command) Synopsis() string {
 	return "Runs the agent"
 }
 
@@ -213,11 +221,19 @@ func mergeInput(fileInput *config, cliInput *agentConfig) (*config, error) {
 	return c, nil
 }
 
-func newAgentConfig(c *config) (*agent.Config, error) {
+func newAgentConfig(c *config, logOptions []log.Option) (*agent.Config, error) {
 	ac := &agent.Config{}
 
 	if err := validateConfig(c); err != nil {
 		return nil, err
+	}
+
+	if c.Agent.Experimental.SyncInterval != "" {
+		var err error
+		ac.SyncInterval, err = time.ParseDuration(c.Agent.Experimental.SyncInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse synchronization interval: %v", err)
+		}
 	}
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
@@ -248,9 +264,12 @@ func newAgentConfig(c *config) (*agent.Config, error) {
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
 
-	ll := strings.ToUpper(c.Agent.LogLevel)
-	lf := strings.ToUpper(c.Agent.LogFormat)
-	logger, err := log.NewLogger(ll, lf, c.Agent.LogFile)
+	logOptions = append(logOptions,
+		log.WithLevel(c.Agent.LogLevel),
+		log.WithFormat(c.Agent.LogFormat),
+		log.WithOutputFile(c.Agent.LogFile))
+
+	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
@@ -312,9 +331,12 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 		l.Warnf("Detected unknown agent config options: %q; this will be fatal in a future release.", a.UnusedKeys)
 	}
 
-	if len(c.Telemetry.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
-	}
+	// TODO: Re-enable unused key detection for telemetry. See
+	// https://github.com/spiffe/spire/issues/1101 for more information
+	//
+	//if len(c.Telemetry.UnusedKeys) != 0 {
+	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//}
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)

@@ -69,6 +69,7 @@ func TestRegistrationAPISource(t *testing.T) {
 	clock.Add(pollInterval)
 	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
 	keySet2, modTime2, ok := source.FetchKeySet()
+	require.True(t, ok)
 	require.Equal(t, 3, api.GetFetchBundleCount())
 	require.Equal(t, keySet1, keySet2)
 	require.Equal(t, modTime1, modTime2)

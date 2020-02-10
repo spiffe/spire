@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/spiretest"
@@ -147,7 +147,9 @@ func (s *Suite) TestFetchAttestationDataFailure() {
 	// not configured
 	stream, err := s.newPlugin().FetchAttestationData(context.Background())
 	require.NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		require.NoError(stream.CloseSend())
+	}()
 	resp, err := stream.Recv()
 	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: not configured")
 	require.Nil(resp)

@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
@@ -17,7 +17,7 @@ import (
 
 const (
 	pluginName       = "k8s_psat"
-	defaultTokenPath = "/var/run/secrets/tokens/spire-agent"
+	defaultTokenPath = "/var/run/secrets/tokens/spire-agent" //nolint: gosec // false positive
 )
 
 var (

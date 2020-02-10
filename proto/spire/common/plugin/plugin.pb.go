@@ -8,6 +8,8 @@ import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -446,6 +448,14 @@ func (c *pluginInitClient) Init(ctx context.Context, in *InitRequest, opts ...gr
 // PluginInitServer is the server API for PluginInit service.
 type PluginInitServer interface {
 	Init(context.Context, *InitRequest) (*InitResponse, error)
+}
+
+// UnimplementedPluginInitServer can be embedded to have forward compatible implementations.
+type UnimplementedPluginInitServer struct {
+}
+
+func (*UnimplementedPluginInitServer) Init(ctx context.Context, req *InitRequest) (*InitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Init not implemented")
 }
 
 func RegisterPluginInitServer(s *grpc.Server, srv PluginInitServer) {

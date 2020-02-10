@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +43,7 @@ func TestAgentStore(t *testing.T) {
 		{
 			name:    "deps missing datastore",
 			deps:    &Deps{},
-			depsErr: "DataStore is required",
+			depsErr: "required DataStore dependency is missing",
 		},
 		{
 			name:    "no such agent",
@@ -60,6 +60,7 @@ func TestAgentStore(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			assert := assert.New(t)
 			require := require.New(t)

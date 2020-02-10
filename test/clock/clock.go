@@ -69,7 +69,6 @@ func (m *Mock) WaitForAfter(timeout time.Duration, format string, args ...interf
 // WaitForTicker waits up to the specified timeout for a Ticker to be created from the clock.
 func (m *Mock) WaitForTicker(timeout time.Duration, format string, args ...interface{}) {
 	m.WaitForTickerMulti(timeout, 1, format, args...)
-	return
 }
 
 func (m *Mock) WaitForTickerMulti(timeout time.Duration, count int, format string, args ...interface{}) {

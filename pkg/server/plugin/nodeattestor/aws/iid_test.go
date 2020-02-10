@@ -13,23 +13,22 @@ import (
 	"io"
 	"testing"
 
+	awssdk "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"google.golang.org/grpc/codes"
-
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
 	"github.com/spiffe/spire/test/spiretest"
-
-	awssdk "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -91,7 +90,9 @@ func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
 	// the stream should open but the plugin should immediately return an error
 	stream, err := s.p.Attest(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 
 	// Send() will either succeed or return EOF if the gRPC stream has already
 	// been torn down due to the plugin-side failure.
@@ -353,6 +354,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
 			mockCtl := gomock.NewController(s.T())
 			defer mockCtl.Finish()
@@ -376,17 +378,17 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				configStr = fmt.Sprintf(`agent_path_template = "%s"`, tt.replacementTemplate)
 			}
 			if len(tt.allowList) > 0 {
-				configStr = configStr + "\naccount_ids_for_local_validation = [\n"
+				configStr += "\naccount_ids_for_local_validation = [\n"
 				for _, id := range tt.allowList {
 					configStr = `  ` + configStr + `"` + id + `",`
 				}
-				configStr = configStr + "\n]"
+				configStr += "\n]"
 			}
 			if tt.skipBlockDev {
-				configStr = configStr + "\nskip_block_device = true"
+				configStr += "\nskip_block_device = true"
 			}
 			if tt.skipEC2Block {
-				configStr = configStr + "\nskip_ec2_attest_calling = true"
+				configStr += "\nskip_ec2_attest_calling = true"
 			}
 
 			_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
@@ -533,7 +535,9 @@ func getDefaultDescribeInstancesOutput() ec2.DescribeInstancesOutput {
 func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
 	s.Require().NoError(err)
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 	err = stream.Send(req)
 	s.Require().NoError(err)
 	return stream.Recv()
@@ -541,7 +545,7 @@ func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattesto
 
 func (s *IIDAttestorSuite) buildIIDAttestationData(instanceID, accountID, region string) *aws.IIDAttestationData {
 	// doc body
-	doc := aws.InstanceIdentityDocument{
+	doc := ec2metadata.EC2InstanceIdentityDocument{
 		AccountID:  accountID,
 		InstanceID: instanceID,
 		Region:     region,

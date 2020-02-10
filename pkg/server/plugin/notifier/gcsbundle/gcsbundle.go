@@ -12,10 +12,10 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
-	"github.com/spiffe/spire/proto/spire/server/notifier"
 	"github.com/zeebo/errs"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -83,8 +83,7 @@ func (p *Plugin) Notify(ctx context.Context, req *notifier.NotifyRequest) (*noti
 		return nil, err
 	}
 
-	switch req.Event.(type) {
-	case *notifier.NotifyRequest_BundleUpdated:
+	if _, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
@@ -99,8 +98,7 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdv
 		return nil, err
 	}
 
-	switch req.Event.(type) {
-	case *notifier.NotifyAndAdviseRequest_BundleLoaded:
+	if _, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
@@ -249,7 +247,8 @@ func (c *gcsBucketClient) Close() error {
 func bundleData(bundle *common.Bundle) []byte {
 	bundleData := new(bytes.Buffer)
 	for _, rootCA := range bundle.RootCas {
-		pem.Encode(bundleData, &pem.Block{
+		// no need to check the error since we're encoding into a memory buffer
+		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: rootCA.DerBytes,
 		})

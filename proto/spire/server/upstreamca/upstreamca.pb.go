@@ -9,6 +9,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -263,6 +265,20 @@ type UpstreamCAServer interface {
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
 	// Signs a certificate from the request
 	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
+}
+
+// UnimplementedUpstreamCAServer can be embedded to have forward compatible implementations.
+type UnimplementedUpstreamCAServer struct {
+}
+
+func (*UnimplementedUpstreamCAServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
+}
+func (*UnimplementedUpstreamCAServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
+}
+func (*UnimplementedUpstreamCAServer) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SubmitCSR not implemented")
 }
 
 func RegisterUpstreamCAServer(s *grpc.Server, srv UpstreamCAServer) {

@@ -40,7 +40,11 @@ type RotatorConfig struct {
 	Clk clock.Clock
 }
 
-func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
+func NewRotator(c *RotatorConfig) (Rotator, client.Client) {
+	return newRotator(c)
+}
+
+func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 	if c.Interval == 0 {
 		c.Interval = DefaultRotatorInterval
 	}

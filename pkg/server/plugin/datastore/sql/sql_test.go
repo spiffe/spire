@@ -17,12 +17,12 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
+	proto_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	proto_services "github.com/spiffe/spire/proto/spire/common/hostservices"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakepluginmetrics"
@@ -39,12 +39,13 @@ var (
 
 	// The following are set by the linker during integration tests to
 	// run these unit tests against various SQL backends.
-	TestDialect    string
-	TestConnString string
+	TestDialect      string
+	TestConnString   string
+	TestROConnString string
 )
 
 const (
-	_ttl                   = time.Duration(time.Hour)
+	_ttl                   = time.Hour
 	_expiredNotAfterString = "2018-01-10T01:34:00+00:00"
 	_validNotAfterString   = "2018-01-10T01:36:00+00:00"
 	_middleTimeString      = "2018-01-10T01:35:00+00:00"
@@ -64,10 +65,19 @@ type PluginSuite struct {
 	dir       string
 	nextID    int
 	ds        datastore.Plugin
-	sqlPlugin *SQLPlugin
+	sqlPlugin *Plugin
 
 	m               *fakemetrics.FakeMetrics
 	expectedMetrics *fakepluginmetrics.FakePluginMetrics
+}
+
+type ListRegistrationReq struct {
+	name               string
+	pagination         *datastore.Pagination
+	selectors          []*common.Selector
+	expectedList       []*common.RegistrationEntry
+	expectedPagination *datastore.Pagination
+	err                string
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -163,7 +173,8 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "mysql"
 				log_sql = true
 				connection_string = "%s"
-				`, TestConnString),
+				ro_connection_string = "%s"
+				`, TestConnString, TestROConnString),
 		})
 		s.Require().NoError(err)
 	case "postgres":
@@ -175,7 +186,8 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 				database_type = "postgres"
 				log_sql = true
 				connection_string = "%s"
-				`, TestConnString),
+				ro_connection_string = "%s"
+				`, TestConnString, TestROConnString),
 		})
 		s.Require().NoError(err)
 	default:
@@ -203,6 +215,21 @@ func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 		`,
 	})
 	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
+
+	_, roErr := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
+		`,
+	})
+	s.RequireErrorContains(roErr, "rpc error: code = Unknown desc = connection_string must be set")
+
+	_, error := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		`,
+	})
+	s.RequireErrorContains(error, "rpc error: code = Unknown desc = connection_string must be set")
 }
 
 func (s *PluginSuite) TestBundleCRUD() {
@@ -680,6 +707,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 				ByExpiresBefore: test.byExpiresBefore,
@@ -818,7 +846,9 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo")
+	selectors := s.getNodeSelectors("foo", true)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.Require().Empty(selectors)
 
 	// set selectors on foo and bar
@@ -826,21 +856,30 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.RequireProtoListEqual(foo1, selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.RequireProtoListEqual(foo2, selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", nil)
-	selectors = s.getNodeSelectors("foo")
+	selectors = s.getNodeSelectors("foo", true)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", false)
 	s.Require().Empty(selectors)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar")
+	selectors = s.getNodeSelectors("bar", true)
+	s.RequireProtoListEqual(bar, selectors)
+	// get bar selectors (make sure they weren't impacted by deleting foo)
+	selectors = s.getNodeSelectors("bar", false)
 	s.RequireProtoListEqual(bar, selectors)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
@@ -1107,14 +1146,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 		{Type: "Type3", Value: "Value3"},
 	}
 
-	tests := []struct {
-		name               string
-		pagination         *datastore.Pagination
-		selectors          []*common.Selector
-		expectedList       []*common.RegistrationEntry
-		expectedPagination *datastore.Pagination
-		err                string
-	}{
+	tests := []ListRegistrationReq{
 		{
 			name: "pagination_without_token",
 			pagination: &datastore.Pagination{
@@ -1230,7 +1262,24 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 			},
 		},
 	}
+
+	s.listRegistrationEntries(tests, true)
+	s.listRegistrationEntries(tests, false)
+
+	// with invalid token
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "invalid int",
+			PageSize: 10,
+		},
+	})
+	s.Require().Nil(resp)
+	s.Require().Error(err, "could not parse token 'invalid int'")
+}
+
+func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, tolerateStale bool) {
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			var bySelectors *datastore.BySelectors
 			if test.selectors != nil {
@@ -1240,8 +1289,9 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				}
 			}
 			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-				BySelectors: bySelectors,
-				Pagination:  test.pagination,
+				BySelectors:   bySelectors,
+				Pagination:    test.pagination,
+				TolerateStale: tolerateStale,
 			})
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -1259,16 +1309,6 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 			require.Equal(t, expectedResponse, resp)
 		})
 	}
-
-	// with invalid token
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		Pagination: &datastore.Pagination{
-			Token:    "invalid int",
-			PageSize: 10,
-		},
-	})
-	s.Require().Nil(resp)
-	s.Require().Error(err, "could not parse token 'invalid int'")
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
@@ -1349,6 +1389,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
 	res, err := s.sqlPlugin.db.raw.Exec("DELETE FROM registered_entries")
 	s.Require().NoError(err)
 	rowsAffected, err := res.RowsAffected()
+	s.Require().NoError(err)
 	s.Require().Equal(int64(1), rowsAffected)
 
 	// Assert that no rows are returned.
@@ -1479,6 +1520,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
@@ -1528,6 +1570,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
@@ -1582,6 +1625,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
@@ -1933,7 +1977,8 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
 
 			nodeSelectorsResp, err := s.ds.GetNodeSelectors(context.Background(), &datastore.GetNodeSelectorsRequest{
-				SpiffeId: "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
+				SpiffeId:      "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
+				TolerateStale: true,
 			})
 			s.Require().NoError(err)
 			s.Require().NotNil(nodeSelectorsResp.Selectors)
@@ -2178,11 +2223,12 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*common.Selector {
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(s.expectedMetrics)
 	defer callCounter.Done(nil)
 	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: spiffeID,
+		SpiffeId:      spiffeID,
+		TolerateStale: tolerateStale,
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
@@ -2239,6 +2285,7 @@ func (s *PluginSuite) TestConfigure() {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
 			p := New()
 
@@ -2258,12 +2305,11 @@ func (s *PluginSuite) TestConfigure() {
 				log_sql = true
 				connection_string = "%s"
 				%s
-		`, dbPath, tt.giveDBConfig),
+			`, dbPath, tt.giveDBConfig),
 			})
 			require.NoError(t, err)
 
 			db := p.db.DB.DB()
-
 			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
 
 			// begin many queries simultaneously
@@ -4815,6 +4861,7 @@ ORDER BY e_id, selector_id, dns_name_id
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		name := testCase.dialect + "-list-"
 		if len(testCase.by) == 0 {
 			name += "all"
@@ -4912,7 +4959,6 @@ func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
 	for id := range es {
 		assert.Failf(t, "bundle %q was expected but not found", id)
 	}
-
 }
 
 func wipePostgres(t *testing.T, connString string) {

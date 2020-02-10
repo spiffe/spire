@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	wellKnownOpenIdConfiguration = "/.well-known/openid-configuration"
+	wellKnownOpenIDConfiguration = "/.well-known/openid-configuration"
 )
 
 type KeySetProvider interface {
@@ -36,7 +36,7 @@ func (c OIDCIssuer) GetKeySet(ctx context.Context) (*jose.JSONWebKeySet, error) 
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	u.Path = path.Join(u.Path, wellKnownOpenIdConfiguration)
+	u.Path = path.Join(u.Path, wellKnownOpenIDConfiguration)
 
 	uri, err := DiscoverKeySetURI(ctx, u.String())
 	if err != nil {

@@ -3,6 +3,8 @@ package run
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -496,6 +498,8 @@ func TestMergeInput(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		fileInput := &config{Agent: &agentConfig{}}
 		cliInput := &agentConfig{}
 
@@ -650,15 +654,36 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, c)
 			},
 		},
+		{
+			msg: "sync_interval parses a duration",
+			input: func(c *config) {
+				c.Agent.Experimental.SyncInterval = "2s45ms"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 2045000000, c.SyncInterval)
+			},
+		},
+		{
+			msg:         "invalid sync_interval returns an error",
+			expectError: true,
+			input: func(c *config) {
+				c.Agent.Experimental.SyncInterval = "moo"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		input := defaultValidConfig()
 
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			ac, err := newAgentConfig(input)
+			ac, err := newAgentConfig(input, []log.Option{})
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -703,11 +728,14 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			testFilePath:   fmt.Sprintf("%v/agent_bad_agent_block.conf", testFileDir),
 			expectedLogMsg: "Detected unknown agent config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
-		{
-			msg:            "in telemetry block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
-		},
+		// TODO: Re-enable unused key detection for telemetry. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//{
+		//	msg:            "in telemetry block",
+		//	testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
 		{
 			msg:            "in nested Prometheus block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),
@@ -741,6 +769,8 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		c, err := parseFile(testCase.testFilePath)
 		require.NoError(t, err)
 
@@ -755,4 +785,31 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			require.Nil(t, hook.LastEntry())
 		})
 	}
+}
+
+// TestLogOptions verifies the log options given to newAgentConfig are applied, and are overridden
+// by values from the config file
+func TestLogOptions(t *testing.T) {
+	fd, err := ioutil.TempFile("", "test")
+	require.NoError(t, err)
+	require.NoError(t, fd.Close())
+	defer os.Remove(fd.Name())
+
+	logOptions := []log.Option{
+		log.WithLevel("DEBUG"),
+		log.WithFormat(log.JSONFormat),
+		log.WithOutputFile(fd.Name()),
+	}
+
+	agentConfig, err := newAgentConfig(defaultValidConfig(), logOptions)
+	require.NoError(t, err)
+
+	logger := agentConfig.Log.(*log.Logger).Logger
+
+	// defaultConfig() sets level to info,  which should override DEBUG set above
+	require.Equal(t, logrus.InfoLevel, logger.Level)
+
+	// JSON Formatter and output file should be set from above
+	require.IsType(t, &logrus.JSONFormatter{}, logger.Formatter)
+	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
 }

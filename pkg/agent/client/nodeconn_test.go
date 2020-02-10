@@ -24,7 +24,7 @@ func TestNewNodeConn(t *testing.T) {
 }
 
 func newTestConn(t *testing.T) *grpc.ClientConn {
-	client := New(&Config{
+	client := newClient(&Config{
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 	})

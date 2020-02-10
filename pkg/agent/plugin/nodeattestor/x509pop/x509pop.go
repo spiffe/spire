@@ -11,10 +11,10 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -27,33 +27,32 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *X509PoPPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
 }
 
 type configData struct {
-	spiffeID        string
 	privateKey      crypto.PrivateKey
 	attestationData *common.AttestationData
 }
 
-type X509PoPConfig struct {
+type Config struct {
 	trustDomain       string
 	PrivateKeyPath    string `hcl:"private_key_path"`
 	CertificatePath   string `hcl:"certificate_path"`
 	IntermediatesPath string `hcl:"intermediates_path"`
 }
 
-type X509PoPPlugin struct {
+type Plugin struct {
 	m sync.Mutex
-	c *X509PoPConfig
+	c *Config
 }
 
-func New() *X509PoPPlugin {
-	return &X509PoPPlugin{}
+func New() *Plugin {
+	return &Plugin{}
 }
 
-func (p *X509PoPPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
+func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
 	data, err := p.loadConfigData()
 	if err != nil {
 		return err
@@ -97,9 +96,9 @@ func (p *X509PoPPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_Fe
 	return nil
 }
 
-func (p *X509PoPPlugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
-	config := new(X509PoPConfig)
+	config := new(Config)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, fmt.Errorf("x509pop: unable to decode configuration: %v", err)
 	}
@@ -129,23 +128,23 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *plugin.ConfigureRequ
 	return &plugin.ConfigureResponse{}, nil
 }
 
-func (p *X509PoPPlugin) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (p *Plugin) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func (p *X509PoPPlugin) getConfig() *X509PoPConfig {
+func (p *Plugin) getConfig() *Config {
 	p.m.Lock()
 	defer p.m.Unlock()
 	return p.c
 }
 
-func (p *X509PoPPlugin) setConfig(c *X509PoPConfig) {
+func (p *Plugin) setConfig(c *Config) {
 	p.m.Lock()
 	defer p.m.Unlock()
 	p.c = c
 }
 
-func (p *X509PoPPlugin) loadConfigData() (*configData, error) {
+func (p *Plugin) loadConfigData() (*configData, error) {
 	config := p.getConfig()
 	if config == nil {
 		return nil, errors.New("x509pop: not configured")
@@ -153,7 +152,7 @@ func (p *X509PoPPlugin) loadConfigData() (*configData, error) {
 	return loadConfigData(config)
 }
 
-func loadConfigData(config *X509PoPConfig) (*configData, error) {
+func loadConfigData(config *Config) (*configData, error) {
 	certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("x509pop: unable to load keypair: %v", err)

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
 )
 
 type IdentityProvider struct {

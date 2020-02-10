@@ -12,12 +12,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/test/spiretest"
-
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 const (
@@ -60,11 +60,11 @@ func (s *Suite) SetupTest() {
 		case defaultIdentityDocumentPath:
 			// write doc resp
 			w.WriteHeader(s.status)
-			w.Write([]byte(s.docBody))
+			_, _ = w.Write([]byte(s.docBody))
 		case defaultIdentitySignaturePath:
 			// write sig resp
 			w.WriteHeader(s.status)
-			w.Write([]byte(s.sigBody))
+			_, _ = w.Write([]byte(s.sigBody))
 		default:
 			// unexpected path
 			w.WriteHeader(http.StatusForbidden)
@@ -94,7 +94,10 @@ func (s *Suite) TearDownTest() {
 func (s *Suite) TestErrorWhenNotConfigured() {
 	p := s.newPlugin()
 	stream, err := p.FetchAttestationData(context.Background())
-	defer stream.CloseSend()
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 	resp, err := stream.Recv()
 	s.RequireErrorContains(err, "not configured")
 	s.Require().Nil(resp)
@@ -180,7 +183,7 @@ func (s *Suite) fetchAttestationData() (*nodeattestor.FetchAttestationDataRespon
 
 func (s *Suite) buildDefaultIIDDocAndSig() (docBytes []byte, sigBytes []byte) {
 	// doc body
-	doc := aws.InstanceIdentityDocument{
+	doc := ec2metadata.EC2InstanceIdentityDocument{
 		AccountID:  "test-account",
 		InstanceID: "test-instance",
 		Region:     "test-region",

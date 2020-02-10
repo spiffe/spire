@@ -33,7 +33,8 @@ type healthCheckCommand struct {
 }
 
 func (c *healthCheckCommand) Help() string {
-	c.parseFlags([]string{"-h"})
+	// ignoring parsing errors since "-h" is always supported by the flags package
+	_ = c.parseFlags([]string{"-h"})
 	return ""
 }
 
@@ -45,11 +46,15 @@ func (c *healthCheckCommand) Run(args []string) int {
 	if err := c.parseFlags(args); err != nil {
 		return 1
 	}
-	if err := c.run(args); err != nil {
-		c.env.ErrPrintf("Server is unhealthy: %v\n", err)
+	if err := c.run(); err != nil {
+		// Ignore error since a failure to write to stderr cannot very well be
+		// reported
+		_ = c.env.ErrPrintf("Server is unhealthy: %v\n", err)
 		return 1
 	}
-	c.env.Println("Server is healthy.")
+	if err := c.env.Println("Server is healthy."); err != nil {
+		return 1
+	}
 	return 0
 }
 
@@ -62,15 +67,19 @@ func (c *healthCheckCommand) parseFlags(args []string) error {
 	return fs.Parse(args)
 }
 
-func (c *healthCheckCommand) run(args []string) error {
+func (c *healthCheckCommand) run() error {
 	if c.verbose {
-		c.env.Println("Fetching bundle via Registration API...")
+		if err := c.env.Println("Fetching bundle via Registration API..."); err != nil {
+			return err
+		}
 	}
 
 	client, err := util.NewRegistrationClient(c.socketPath)
 	if err != nil {
 		if c.verbose {
-			c.env.ErrPrintf("Failed to create client: %v\n", err)
+			// Ignore error since a failure to write to stderr cannot very well
+			// be reported
+			_ = c.env.ErrPrintf("Failed to create client: %v\n", err)
 		}
 		return errors.New("cannot create registration client")
 	}
@@ -81,12 +90,16 @@ func (c *healthCheckCommand) run(args []string) error {
 	// the server CA has been signed by upstream.
 	if _, err := client.FetchBundle(context.Background(), &common.Empty{}); err != nil {
 		if c.verbose {
-			c.env.ErrPrintf("Failed to fetch bundle: %v\n", err)
+			// Ignore error since a failure to write to stderr cannot very well
+			// be reported
+			_ = c.env.ErrPrintf("Failed to fetch bundle: %v\n", err)
 		}
 		return errors.New("unable to fetch bundle")
 	}
 	if c.verbose {
-		c.env.Println("Successfully fetched bundle.")
+		if err := c.env.Println("Successfully fetched bundle."); err != nil {
+			return err
+		}
 	}
 
 	return nil

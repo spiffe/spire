@@ -31,7 +31,6 @@ type RotatorTestSuite struct {
 	r        *rotator
 	serverCA *fakeserverca.CA
 
-	mu    sync.Mutex
 	clock *clock.Mock
 }
 
@@ -47,7 +46,7 @@ func (s *RotatorTestSuite) SetupTest() {
 		Clock:       s.clock,
 		X509SVIDTTL: testTTL,
 	})
-	s.r = NewRotator(&RotatorConfig{
+	s.r = newRotator(&RotatorConfig{
 		ServerCA:    s.serverCA,
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
@@ -74,9 +73,10 @@ func (s *RotatorTestSuite) TestRotation() {
 	// Run should rotate whenever the certificate is within half of its
 	// remaining lifetime.
 	wg.Add(1)
+	errCh := make(chan error, 1)
 	go func() {
 		defer wg.Done()
-		s.r.Run(ctx)
+		errCh <- s.r.Run(ctx)
 	}()
 
 	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
@@ -95,6 +95,9 @@ func (s *RotatorTestSuite) TestRotation() {
 	s.clock.Set(certHalfLife(cert).Add(-time.Minute))
 	s.clock.Add(DefaultRotatorInterval)
 	s.requireStateChangeTimeout(stream)
+
+	cancel()
+	s.Require().NoError(<-errCh)
 }
 
 func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, prevSerialNumber *big.Int) *x509.Certificate {

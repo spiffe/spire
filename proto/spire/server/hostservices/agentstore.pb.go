@@ -8,6 +8,8 @@ import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -200,6 +202,14 @@ func (c *agentStoreClient) GetAgentInfo(ctx context.Context, in *GetAgentInfoReq
 // AgentStoreServer is the server API for AgentStore service.
 type AgentStoreServer interface {
 	GetAgentInfo(context.Context, *GetAgentInfoRequest) (*GetAgentInfoResponse, error)
+}
+
+// UnimplementedAgentStoreServer can be embedded to have forward compatible implementations.
+type UnimplementedAgentStoreServer struct {
+}
+
+func (*UnimplementedAgentStoreServer) GetAgentInfo(ctx context.Context, req *GetAgentInfoRequest) (*GetAgentInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAgentInfo not implemented")
 }
 
 func RegisterAgentStoreServer(s *grpc.Server, srv AgentStoreServer) {

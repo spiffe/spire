@@ -56,7 +56,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(admv1beta1.AdmissionReview{
+	_ = json.NewEncoder(w).Encode(admv1beta1.AdmissionReview{
 		Response: out,
 	})
 }

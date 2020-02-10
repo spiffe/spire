@@ -48,7 +48,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL t
 		return nil, err
 	}
 
-	keyID, err := x509util.GetSubjectKeyId(csr.PublicKey)
+	keyID, err := x509util.GetSubjectKeyID(csr.PublicKey)
 	if err != nil {
 		return nil, err
 	}

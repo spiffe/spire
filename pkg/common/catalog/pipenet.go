@@ -1,10 +1,10 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
-	"time"
 )
 
 type PipeAddr struct {
@@ -44,12 +44,10 @@ func (n *PipeNet) Accept() (net.Conn, error) {
 	}
 }
 
-func (n *PipeNet) Dial(addr string, timeout time.Duration) (conn net.Conn, err error) {
+func (n *PipeNet) DialContext(ctx context.Context, addr string) (conn net.Conn, err error) {
 	c, s := net.Pipe()
 
-	t := time.NewTimer(timeout)
 	defer func() {
-		t.Stop()
 		if err != nil {
 			c.Close()
 			s.Close()
@@ -57,8 +55,8 @@ func (n *PipeNet) Dial(addr string, timeout time.Duration) (conn net.Conn, err e
 	}()
 
 	select {
-	case <-t.C:
-		return nil, errors.New("timed out")
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case n.accept <- s:
 		return c, nil
 	case <-n.closed:

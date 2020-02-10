@@ -11,8 +11,8 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
 	"github.com/stretchr/testify/suite"
@@ -336,12 +336,4 @@ func (s *ExperimentalBundleSuite) createBundle(bundle *common.Bundle) {
 		Bundle: bundle,
 	})
 	s.Require().NoError(err)
-}
-
-func (s *ExperimentalBundleSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
-	s.Require().NoError(err)
-	return resp.Entry
 }

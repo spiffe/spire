@@ -10,8 +10,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -40,7 +40,7 @@ type DiskSuite struct {
 	spiretest.Suite
 
 	clock     *clock.Mock
-	rawPlugin *DiskPlugin
+	rawPlugin *Plugin
 	p         upstreamca.Plugin
 }
 
@@ -307,8 +307,10 @@ func (s *DiskSuite) TestRace() {
 	s.Require().NoError(err)
 
 	testutil.RaceTest(s.T(), func(t *testing.T) {
-		s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
-		s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+		// the results of these RPCs aren't important; the test is just trying
+		// to get a bunch of stuff happening at once.
+		_, _ = s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
+		_, _ = s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 	})
 }
 
@@ -368,6 +370,7 @@ func TestInvalidConfigs(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.msg, func(t *testing.T) {
 			p := New()
 

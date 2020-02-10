@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
 const (
@@ -57,7 +57,10 @@ func (m *Manager) pruneEvery(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker.C:
-			m.prune(ctx)
+			// Log an error on failure unless we're shutting down
+			if err := m.prune(ctx); err != nil && ctx.Err() == nil {
+				m.log.WithError(err).Error("Failed pruning registration entries")
+			}
 		case <-ctx.Done():
 			return nil
 		}
@@ -71,12 +74,5 @@ func (m *Manager) prune(ctx context.Context) (err error) {
 	_, err = m.c.DataStore.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: m.c.Clock.Now().Unix(),
 	})
-
-	// We don't want to log an error if we bailed out to shut down or similar
-	if err != nil && ctx.Err() == nil {
-		m.log.WithError(err).Error("Could not prune registration entries")
-		return err
-	}
-
-	return nil
+	return err
 }

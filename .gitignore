@@ -5,6 +5,7 @@
 .tmp
 *.swp
 *.log
+/bin
 /vendor
 /test_results
 /artifacts

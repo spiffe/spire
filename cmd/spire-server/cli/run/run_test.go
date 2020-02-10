@@ -3,6 +3,8 @@ package run
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -12,7 +14,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -508,6 +511,8 @@ func TestMergeInput(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		fileInput := &config{Server: &serverConfig{}}
 		cliInput := &serverConfig{}
 
@@ -679,6 +684,38 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "bundle federates with section is parsed and configured correctly",
+			input: func(c *config) {
+				c.Server.Experimental.FederatesWith = map[string]federatesWithConfig{
+					"spiffe://domain1.test": {
+						BundleEndpointAddress:  "192.168.1.1",
+						BundleEndpointPort:     1337,
+						BundleEndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
+						UseWebPKI:              false,
+					},
+					"spiffe://domain2.test": {
+						BundleEndpointAddress:  "192.168.1.1",
+						BundleEndpointSpiffeID: "THIS SHOULD BE IGNORED",
+						BundleEndpointPort:     1337,
+						UseWebPKI:              true,
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, map[string]bundleClient.TrustDomainConfig{
+					"spiffe://domain1.test": {
+						EndpointAddress:  "192.168.1.1:1337",
+						EndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
+						UseWebPKI:        false,
+					},
+					"spiffe://domain2.test": {
+						EndpointAddress: "192.168.1.1:1337",
+						UseWebPKI:       true,
+					},
+				}, c.Experimental.FederatesWith)
+			},
+		},
+		{
 			msg: "deprecated svid_ttl is correctly parsed",
 			input: func(c *config) {
 				c.Server.DeprecatedSVIDTTL = "1m"
@@ -809,12 +846,14 @@ func TestNewServerConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		input := defaultValidConfig()
 
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := newServerConfig(input)
+			sc, err := newServerConfig(input, []log.Option{})
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -861,11 +900,14 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_ca_subject_block.conf", testFileDir),
 			expectedLogMsg: "Detected unknown CA Subject config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
-		{
-			msg:            "in nested experimental block",
-			testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
-		},
+		// TODO: Re-enable unused key detection for experimental config. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//{
+		//	msg:            "in nested experimental block",
+		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
 		{
 			msg:            "in nested bundle_endpoint_acme block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_acme_block.conf", testFileDir),
@@ -874,13 +916,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		{
 			msg:            "in nested federates_with block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_federates_with_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown experimental config options: [\"federates_with\" \"test1\" \"test2\"]; this will be fatal in a future release.",
+			expectedLogMsg: "Detected unknown federation config options for \"test1\": [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
-		{
-			msg:            "in telemetry block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
-		},
+		// TODO: Re-enable unused key detection for telemetry. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//{
+		//	msg:            "in telemetry block",
+		//	testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
 		{
 			msg:            "in nested Prometheus block",
 			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),
@@ -914,6 +959,8 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		testCase := testCase
+
 		c, err := parseFile(testCase.testFilePath)
 		require.NoError(t, err)
 
@@ -921,11 +968,111 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 
 		t.Run(testCase.msg, func(t *testing.T) {
 			warnOnUnknownConfig(c, log)
-			require.NotNil(t, hook.LastEntry())
-			require.Equal(t, testCase.expectedLogMsg, hook.AllEntries()[0].Message)
+			requireLogLine(t, hook, testCase.expectedLogMsg)
 
 			hook.Reset()
 			require.Nil(t, hook.LastEntry())
+		})
+	}
+}
+
+func requireLogLine(t *testing.T, h *test.Hook, expectedMsg string) {
+	var currMsg string
+	for _, e := range h.AllEntries() {
+		currMsg = e.Message
+		if currMsg == expectedMsg {
+			break
+		}
+	}
+
+	require.Equal(t, expectedMsg, currMsg)
+}
+
+// TestLogOptions verifies the log options given to newAgentConfig are applied, and are overridden
+// by values from the config file
+func TestLogOptions(t *testing.T) {
+	fd, err := ioutil.TempFile("", "test")
+	require.NoError(t, err)
+	require.NoError(t, fd.Close())
+	defer os.Remove(fd.Name())
+
+	logOptions := []log.Option{
+		log.WithLevel("DEBUG"),
+		log.WithFormat(log.JSONFormat),
+		log.WithOutputFile(fd.Name()),
+	}
+
+	agentConfig, err := newServerConfig(defaultValidConfig(), logOptions)
+	require.NoError(t, err)
+
+	logger := agentConfig.Log.(*log.Logger).Logger
+
+	// defaultConfig() sets level to info,  which should override DEBUG set above
+	require.Equal(t, logrus.InfoLevel, logger.Level)
+
+	// JSON Formatter and output file should be set from above
+	require.IsType(t, &logrus.JSONFormatter{}, logger.Formatter)
+	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
+}
+
+func TestHasExpectedTTLs(t *testing.T) {
+	cases := []struct {
+		msg             string
+		caTTL           time.Duration
+		svidTTL         time.Duration
+		hasExpectedTTLs bool
+	}{
+		// ca_ttl isn't less than default_svid_ttl * 6
+		{
+			msg:             "Both values are default values",
+			caTTL:           0,
+			svidTTL:         0,
+			hasExpectedTTLs: true,
+		},
+		{
+			msg:             "ca_ttl is 7h and default_svid_ttl is default value 1h",
+			caTTL:           time.Hour * 7,
+			svidTTL:         0,
+			hasExpectedTTLs: true,
+		},
+		{
+			msg:             "ca_ttl is default value 24h and default_svid_ttl is 3h",
+			caTTL:           0,
+			svidTTL:         time.Hour * 3,
+			hasExpectedTTLs: true,
+		},
+		{
+			msg:             "ca_ttl is 70h and default_svid_ttl is 10h",
+			caTTL:           time.Hour * 70,
+			svidTTL:         time.Hour * 10,
+			hasExpectedTTLs: true,
+		},
+		// ca_ttl is less than default_svid_ttl * 6
+		{
+			msg:             "ca_ttl is 5h and default_svid_ttl is default value 1h",
+			caTTL:           time.Hour * 5,
+			svidTTL:         0,
+			hasExpectedTTLs: false,
+		},
+		{
+			msg:             "ca_ttl is default value 24h and default_svid_ttl is 5h",
+			caTTL:           0,
+			svidTTL:         time.Hour * 5,
+			hasExpectedTTLs: false,
+		},
+		{
+			msg:             "ca_ttl is 50h and default_svid_ttl is 10h",
+			caTTL:           time.Hour * 50,
+			svidTTL:         time.Hour * 10,
+			hasExpectedTTLs: false,
+		},
+	}
+
+	for _, testCase := range cases {
+		testCase := testCase
+
+		t.Run(testCase.msg, func(t *testing.T) {
+			require.Equal(t, testCase.hasExpectedTTLs, hasExpectedTTLs(testCase.caTTL, testCase.svidTTL))
 		})
 	}
 }

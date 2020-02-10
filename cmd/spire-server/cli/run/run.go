@@ -26,9 +26,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/proto/spire/server/keymanager"
-	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
 const (
@@ -107,20 +108,23 @@ type federatesWithConfig struct {
 	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
 	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
 	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
+	UseWebPKI              bool     `hcl:"use_web_pki"`
 	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
-// Run CLI struct
-type RunCLI struct{}
+// Run Command struct
+type Command struct {
+	LogOptions []log.Option
+}
 
 //Help prints the server cmd usage
-func (*RunCLI) Help() string {
+func (*Command) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
 // Run the SPIFFE Server
-func (*RunCLI) Run(args []string) int {
+func (cmd *Command) Run(args []string) int {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(args)
@@ -143,7 +147,7 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newServerConfig(input)
+	c, err := newServerConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -169,7 +173,7 @@ func (*RunCLI) Run(args []string) int {
 }
 
 //Synopsis of the command
-func (*RunCLI) Synopsis() string {
+func (*Command) Synopsis() string {
 	return "Runs the server"
 }
 
@@ -248,7 +252,7 @@ func mergeInput(fileInput *config, cliInput *serverConfig) (*config, error) {
 	return c, nil
 }
 
-func newServerConfig(c *config) (*server.Config, error) {
+func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -277,9 +281,12 @@ func newServerConfig(c *config) (*server.Config, error) {
 	}
 	sc.TrustDomain = *td
 
-	ll := strings.ToUpper(c.Server.LogLevel)
-	lf := strings.ToUpper(c.Server.LogFormat)
-	logger, err := log.NewLogger(ll, lf, c.Server.LogFile)
+	logOptions = append(logOptions,
+		log.WithLevel(c.Server.LogLevel),
+		log.WithFormat(c.Server.LogFormat),
+		log.WithOutputFile(c.Server.LogFile))
+
+	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
@@ -311,10 +318,14 @@ func newServerConfig(c *config) (*server.Config, error) {
 		if config.BundleEndpointPort != 0 {
 			port = config.BundleEndpointPort
 		}
-
+		if config.UseWebPKI && config.BundleEndpointSpiffeID != "" {
+			sc.Log.Warn("The `bundle_endpoint_spiffe_id` configurable is ignored when authenticating with Web PKI")
+			config.BundleEndpointSpiffeID = ""
+		}
 		federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
 			EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
 			EndpointSpiffeID: config.BundleEndpointSpiffeID,
+			UseWebPKI:        config.UseWebPKI,
 		}
 	}
 	sc.Experimental.FederatesWith = federatesWith
@@ -352,6 +363,10 @@ func newServerConfig(c *config) (*server.Config, error) {
 			return nil, fmt.Errorf("could not parse default CA ttl %q: %v", c.Server.CATTL, err)
 		}
 		sc.CATTL = ttl
+	}
+
+	if !hasExpectedTTLs(sc.CATTL, sc.SVIDTTL) {
+		sc.Log.Warnf("The configured SVID TTL cannot be guaranteed in all cases - SVIDs with shorter TTLs may be issued if the signing key is expiring soon. Set a CA TTL of at least 6x or reduce SVID TTL below 6x to avoid issuing SVIDs with a smaller TTL than specified.")
 	}
 
 	if c.Server.CAKeyType != "" {
@@ -452,9 +467,12 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 			l.Warnf("Detected unknown CA Subject config options: %q; this will be fatal in a future release.", cs.UnusedKeys)
 		}
 
-		if len(c.Server.Experimental.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
-		}
+		// TODO: Re-enable unused key detection for experimental config. See
+		// https://github.com/spiffe/spire/issues/1101 for more information
+		//
+		//if len(c.Server.Experimental.UnusedKeys) != 0 {
+		//	l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
+		//}
 
 		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
 			l.Warnf("Detected unknown ACME config options: %q; this will be fatal in a future release.", bea.UnusedKeys)
@@ -467,9 +485,12 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 		}
 	}
 
-	if len(c.Telemetry.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
-	}
+	// TODO: Re-enable unused key detection for telemetry. See
+	// https://github.com/spiffe/spire/issues/1101 for more information
+	//
+	//if len(c.Telemetry.UnusedKeys) != 0 {
+	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//}
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
@@ -563,3 +584,16 @@ func (b *maybeBoolValue) String() string {
 }
 
 func (b maybeBoolValue) IsBoolFlag() bool { return true }
+
+// hasExpectedTTLs is a function that checks if ca_ttl is less than default_svid_ttl * 6. SPIRE Server prepares a new CA certificate when 1/2 of the CA lifetime has elapsed in order to give ample time for the new trust bundle to propagate. However, it does not start using it until 5/6th of the CA lifetime. So its normal for an SVID TTL to be capped to 1/6th of the CA TTL. In order to get the expected lifetime on SVID TTLs, the CA TTL should be 6x.
+func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {
+	if caTTL == 0 {
+		caTTL = ca.DefaultCATTL
+	}
+	if svidTTL == 0 {
+		svidTTL = ca.DefaultX509SVIDTTL
+	}
+
+	thresh := ca.KeyActivationThreshold(time.Now(), time.Now().Add(caTTL))
+	return caTTL-time.Until(thresh) >= svidTTL
+}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 )
 
 type Base struct {
@@ -19,7 +19,7 @@ func (p *Base) BrokerHostServices(broker catalog.HostServiceBroker) error {
 		return err
 	}
 	if !has {
-		return errors.New("AgentStore host service is required")
+		return errors.New("required AgentStore host service not available")
 	}
 	return nil
 }

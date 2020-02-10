@@ -8,6 +8,8 @@ import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -618,6 +620,26 @@ type MetricsServiceServer interface {
 	IncrCounter(context.Context, *IncrCounterRequest) (*IncrCounterResponse, error)
 	AddSample(context.Context, *AddSampleRequest) (*AddSampleResponse, error)
 	MeasureSince(context.Context, *MeasureSinceRequest) (*MeasureSinceResponse, error)
+}
+
+// UnimplementedMetricsServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedMetricsServiceServer struct {
+}
+
+func (*UnimplementedMetricsServiceServer) SetGauge(ctx context.Context, req *SetGaugeRequest) (*SetGaugeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetGauge not implemented")
+}
+func (*UnimplementedMetricsServiceServer) EmitKey(ctx context.Context, req *EmitKeyRequest) (*EmitKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EmitKey not implemented")
+}
+func (*UnimplementedMetricsServiceServer) IncrCounter(ctx context.Context, req *IncrCounterRequest) (*IncrCounterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IncrCounter not implemented")
+}
+func (*UnimplementedMetricsServiceServer) AddSample(ctx context.Context, req *AddSampleRequest) (*AddSampleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddSample not implemented")
+}
+func (*UnimplementedMetricsServiceServer) MeasureSince(ctx context.Context, req *MeasureSinceRequest) (*MeasureSinceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MeasureSince not implemented")
 }
 
 func RegisterMetricsServiceServer(s *grpc.Server, srv MetricsServiceServer) {

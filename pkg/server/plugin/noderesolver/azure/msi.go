@@ -21,9 +21,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 )
 
 const (
@@ -51,8 +51,8 @@ func builtin(p *MSIResolverPlugin) catalog.Plugin {
 }
 
 type TenantConfig struct {
-	SubscriptionId string `hcl:"subscription_id" json:"subscription_id"`
-	AppId          string `hcl:"app_id" json:"app_id"`
+	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
+	AppID          string `hcl:"app_id" json:"app_id"`
 	AppSecret      string `hcl:"app_secret" json:"app_secret"`
 }
 
@@ -129,20 +129,20 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		}
 		tenantClients = make(map[string]apiClient)
 		for tenantID, tenant := range config.Tenants {
-			if tenant.SubscriptionId == "" {
+			if tenant.SubscriptionID == "" {
 				return nil, msiError.New("misconfigured tenant %q: missing subscription id", tenantID)
 			}
-			if tenant.AppId == "" {
+			if tenant.AppID == "" {
 				return nil, msiError.New("misconfigured tenant %q: missing app id", tenantID)
 			}
 			if tenant.AppSecret == "" {
 				return nil, msiError.New("misconfigured tenant %q: missing app secret", tenantID)
 			}
-			authorizer, err := auth.NewClientCredentialsConfig(tenant.AppId, tenant.AppSecret, tenantID).Authorizer()
+			authorizer, err := auth.NewClientCredentialsConfig(tenant.AppID, tenant.AppSecret, tenantID).Authorizer()
 			if err != nil {
 				return nil, msiError.Wrap(err)
 			}
-			tenantClients[tenantID] = p.hooks.newClient(tenant.SubscriptionId, authorizer)
+			tenantClients[tenantID] = p.hooks.newClient(tenant.SubscriptionID, authorizer)
 		}
 	}
 

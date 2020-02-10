@@ -22,12 +22,12 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
-
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -35,7 +35,6 @@ import (
 var _awsTimeout = 5 * time.Second
 
 const (
-	pluginName                               = "aws_iid"
 	maxSecondsBetweenDeviceAttachments int64 = 60
 )
 
@@ -191,12 +190,12 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	config := &IIDAttestorConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
-		err := fmt.Errorf("Error parsing AWS IID Attestor configuration: %s", err)
+		err := fmt.Errorf("error parsing AWS IID Attestor configuration: %s", err)
 		return resp, err
 	}
 	err = hcl.DecodeObject(&config, hclTree)
 	if err != nil {
-		err := fmt.Errorf("Error decoding AWS IID Attestor configuration: %v", err)
+		err := fmt.Errorf("error decoding AWS IID Attestor configuration: %v", err)
 		return resp, err
 	}
 
@@ -204,13 +203,13 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	awsCaCert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		err := fmt.Errorf("Error reading the AWS CA Certificate in the AWS IID Attestor: %v", err)
+		err := fmt.Errorf("error reading the AWS CA Certificate in the AWS IID Attestor: %v", err)
 		return resp, err
 	}
 
 	awsCaCertPublicKey, ok := awsCaCert.PublicKey.(*rsa.PublicKey)
 	if !ok {
-		err := fmt.Errorf("Error extracting the AWS CA Certificate's public key in the AWS IID Attestor: %v", err)
+		err := fmt.Errorf("error extracting the AWS CA Certificate's public key in the AWS IID Attestor: %v", err)
 		return resp, err
 	}
 	config.awsCaCertPublicKey = awsCaCertPublicKey
@@ -271,7 +270,7 @@ func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 	ifaceZeroDeviceIndex := *instance.NetworkInterfaces[0].Attachment.DeviceIndex
 
 	if ifaceZeroDeviceIndex != 0 {
-		innerErr := fmt.Errorf("DeviceIndex is %d", ifaceZeroDeviceIndex)
+		innerErr := fmt.Errorf("the DeviceIndex is %d", ifaceZeroDeviceIndex)
 		return caws.AttestationStepError("verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0", innerErr)
 	}
 
@@ -317,7 +316,7 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 	return p.config, nil
 }
 
-func (p *IIDAttestorPlugin) getEC2Instance(ctx context.Context, c *IIDAttestorConfig, doc caws.InstanceIdentityDocument) (*ec2.Instance, error) {
+func (p *IIDAttestorPlugin) getEC2Instance(ctx context.Context, c *IIDAttestorConfig, doc ec2metadata.EC2InstanceIdentityDocument) (*ec2.Instance, error) {
 	awsSession, err := caws.NewAWSSession(c.AccessKeyID, c.SecretAccessKey, doc.Region)
 	if err != nil {
 		return nil, caws.AttestationStepError("creating AWS session", err)
@@ -362,26 +361,26 @@ func tagsFromInstance(instance *ec2.Instance) instanceTags {
 	return tags
 }
 
-func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (caws.InstanceIdentityDocument, error) {
+func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (ec2metadata.EC2InstanceIdentityDocument, error) {
 	var attestationData caws.IIDAttestationData
 	if err := json.Unmarshal(data, &attestationData); err != nil {
-		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("unmarshaling the attestation data", err)
+		return ec2metadata.EC2InstanceIdentityDocument{}, caws.AttestationStepError("unmarshaling the attestation data", err)
 	}
 
-	var doc caws.InstanceIdentityDocument
+	var doc ec2metadata.EC2InstanceIdentityDocument
 	if err := json.Unmarshal([]byte(attestationData.Document), &doc); err != nil {
-		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("unmarshaling the IID", err)
+		return ec2metadata.EC2InstanceIdentityDocument{}, caws.AttestationStepError("unmarshaling the IID", err)
 	}
 
 	docHash := sha256.Sum256([]byte(attestationData.Document))
 
 	sigBytes, err := base64.StdEncoding.DecodeString(attestationData.Signature)
 	if err != nil {
-		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("base64 decoding the IID signature", err)
+		return ec2metadata.EC2InstanceIdentityDocument{}, caws.AttestationStepError("base64 decoding the IID signature", err)
 	}
 
 	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, docHash[:], sigBytes); err != nil {
-		return caws.InstanceIdentityDocument{}, caws.AttestationStepError("verifying the cryptographic signature", err)
+		return ec2metadata.EC2InstanceIdentityDocument{}, caws.AttestationStepError("verifying the cryptographic signature", err)
 	}
 
 	return doc, nil

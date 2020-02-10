@@ -23,7 +23,7 @@ func GetRegistrationEntries(fileName string) []*common.RegistrationEntry {
 	regEntries := &common.RegistrationEntries{}
 	path := path.Join(ProjectRoot(), "test/fixture/registration/", fileName)
 	dat, _ := ioutil.ReadFile(path)
-	json.Unmarshal(dat, &regEntries)
+	_ = json.Unmarshal(dat, &regEntries)
 	return regEntries.Entries
 }
 
@@ -32,7 +32,7 @@ func GetRegistrationEntriesMap(fileName string) map[string][]*common.Registratio
 	regEntriesMap := map[string]*common.RegistrationEntries{}
 	path := path.Join(ProjectRoot(), "test/fixture/registration/", fileName)
 	dat, _ := ioutil.ReadFile(path)
-	json.Unmarshal(dat, &regEntriesMap)
+	_ = json.Unmarshal(dat, &regEntriesMap)
 	result := map[string][]*common.RegistrationEntry{}
 	for key, regEntries := range regEntriesMap {
 		result[key] = regEntries.Entries

@@ -15,6 +15,7 @@ import (
 	// gorm mysql dialect init registration
 	// also needed for GCP Cloud SQL Proxy
 	_ "github.com/jinzhu/gorm/dialects/mysql"
+	_ "github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
 type mysql struct{}
@@ -23,8 +24,8 @@ const (
 	tlsConfigName = "spireCustomTLS"
 )
 
-func (my mysql) connect(cfg *configuration) (*gorm.DB, error) {
-	connString, err := configureConnection(cfg)
+func (my mysql) connect(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
+	connString, err := configureConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -38,15 +39,16 @@ func (my mysql) connect(cfg *configuration) (*gorm.DB, error) {
 
 // configureConnection modifies the connection string to support features that
 // normally require code changes, like custom Root CAs or client certificates
-func configureConnection(cfg *configuration) (string, error) {
+func configureConnection(cfg *configuration, isReadOnly bool) (string, error) {
+	connectionString := getConnectionString(cfg, isReadOnly)
 	if !hasTLSConfig(cfg) {
 		// connection string doesn't have to be modified
-		return cfg.ConnectionString, nil
+		return connectionString, nil
 	}
 
 	tlsConf := tls.Config{}
 
-	opts, err := mysqldriver.ParseDSN(cfg.ConnectionString)
+	opts, err := mysqldriver.ParseDSN(connectionString)
 	if err != nil {
 		// the connection string should have already been validated by now
 		// (in validateMySQLConfig)
@@ -59,11 +61,11 @@ func configureConnection(cfg *configuration) (string, error) {
 		pem, err := ioutil.ReadFile(cfg.RootCAPath)
 
 		if err != nil {
-			return "", sqlError.Wrap(errors.New("invalid mysql config: cannot find Root CA defined in root_ca_path"))
+			return "", sqlError.New("invalid mysql config: cannot find Root CA defined in root_ca_path")
 		}
 
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-			return "", sqlError.Wrap(errors.New("invalid mysql config: failed to parse Root CA defined in root_ca_path"))
+			return "", sqlError.New("invalid mysql config: failed to parse Root CA defined in root_ca_path")
 		}
 		tlsConf.RootCAs = rootCertPool
 	}
@@ -73,14 +75,16 @@ func configureConnection(cfg *configuration) (string, error) {
 		clientCert := make([]tls.Certificate, 0, 1)
 		certs, err := tls.LoadX509KeyPair(cfg.ClientCertPath, cfg.ClientKeyPath)
 		if err != nil {
-			return "", sqlError.Wrap(errors.New("invalid mysql config: failed to load client certificate defined in client_cert_path and client_key_path"))
+			return "", sqlError.New("invalid mysql config: failed to load client certificate defined in client_cert_path and client_key_path")
 		}
 		clientCert = append(clientCert, certs)
 		tlsConf.Certificates = clientCert
 	}
 
 	// register a custom TLS config that uses custom Root CAs with the MySQL driver
-	mysqldriver.RegisterTLSConfig(tlsConfigName, &tlsConf)
+	if err := mysqldriver.RegisterTLSConfig(tlsConfigName, &tlsConf); err != nil {
+		return "", sqlError.New("failed to register mysql TLS config")
+	}
 
 	// instruct MySQL driver to use the custom TLS config
 	opts.TLSConfig = tlsConfigName
@@ -92,8 +96,8 @@ func hasTLSConfig(cfg *configuration) bool {
 	return len(cfg.RootCAPath) > 0 || len(cfg.ClientCertPath) > 0 && len(cfg.ClientKeyPath) > 0
 }
 
-func validateMySQLConfig(cfg *configuration) error {
-	opts, err := mysqldriver.ParseDSN(cfg.ConnectionString)
+func validateMySQLConfig(cfg *configuration, isReadOnly bool) error {
+	opts, err := mysqldriver.ParseDSN(getConnectionString(cfg, isReadOnly))
 	if err != nil {
 		return sqlError.Wrap(err)
 	}

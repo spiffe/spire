@@ -1,3 +1,6 @@
 # Ignore build tools and cache
-.build-*
+.build*
 .cache
+bin/
+releases/
+artifacts/

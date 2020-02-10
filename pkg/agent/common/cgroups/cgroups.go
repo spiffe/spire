@@ -3,14 +3,14 @@ package cgroups
 import (
 	"bufio"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 )
 
 // Filesystem abstracts filesystem operations.
 type FileSystem interface {
 	// Open opens the named file for reading.
-	Open(name string) (*os.File, error)
+	Open(name string) (io.ReadCloser, error)
 }
 
 // Cgroup represents a linux cgroup.

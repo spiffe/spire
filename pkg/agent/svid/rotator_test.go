@@ -69,7 +69,7 @@ func (s *RotatorTestSuite) SetupTest() {
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 		Clk:          s.mockClock,
 	}
-	s.r, _ = NewRotator(c)
+	s.r, _ = newRotator(c)
 	s.r.client = s.client
 }
 
@@ -106,7 +106,7 @@ func (s *RotatorTestSuite) TestRun() {
 	s.Assert().Equal(key, state.Key)
 
 	cancel()
-	s.Require().NoError(t.Wait())
+	s.Require().Equal(context.Canceled, t.Wait())
 }
 
 func (s *RotatorTestSuite) TestRunWithUpdates() {
@@ -151,7 +151,7 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	}
 
 	cancel()
-	s.Require().NoError(t.Wait())
+	s.Require().Equal(context.Canceled, t.Wait())
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {

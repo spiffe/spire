@@ -3,6 +3,11 @@ package autocert
 import (
 	"context"
 	"crypto"
+	"errors"
+)
+
+var (
+	ErrNoSuchKey = errors.New("no such key")
 )
 
 type KeyType int
@@ -13,7 +18,8 @@ const (
 )
 
 type KeyStore interface {
-	// GetPrivateKey is used to obtain a private key
+	// GetPrivateKey is used to obtain a private key. If the key does not
+	// exist, ErrNoSuchKey is returned.
 	GetPrivateKey(ctx context.Context, id string) (crypto.Signer, error)
 
 	// NewPrivateKey is used create a new private key

@@ -11,10 +11,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/api/compute/v1"
@@ -68,7 +68,10 @@ func (s *IITAttestorSuite) SetupTest() {
 func (s *IITAttestorSuite) TestErrorWhenNotConfigured() {
 	p := s.newPlugin()
 	stream, err := p.Attest(context.Background())
-	defer stream.CloseSend()
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 	resp, err := stream.Recv()
 	s.RequireErrorContains(err, "gcp-iit: not configured")
 	s.Require().Nil(resp)
@@ -441,7 +444,9 @@ projectid_whitelist = ["test-project"]
 
 func (s *IITAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
-	defer stream.CloseSend()
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
 	s.Require().NoError(err)
 	err = stream.Send(req)
 	s.Require().NoError(err)
@@ -478,20 +483,6 @@ type recvFailStream struct {
 
 func (r *recvFailStream) Recv() (*nodeattestor.AttestRequest, error) {
 	return nil, errors.New("failed to recv from stream")
-}
-
-type sendFailStream struct {
-	nodeattestor.NodeAttestor_AttestServer
-
-	req *nodeattestor.AttestRequest
-}
-
-func (s *sendFailStream) Recv() (*nodeattestor.AttestRequest, error) {
-	return s.req, nil
-}
-
-func (s *sendFailStream) Send(*nodeattestor.AttestResponse) error {
-	return errors.New("failed to send to stream")
 }
 
 type testKeyRetriever struct{}

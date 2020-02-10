@@ -2,9 +2,9 @@ package fakeagentcatalog
 
 import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/proto/spire/agent/keymanager"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 )
 
 type Catalog struct {

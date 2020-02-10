@@ -23,12 +23,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -59,7 +59,7 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *SQLPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin("sql",
 		datastore.PluginServer(p),
 	)
@@ -68,15 +68,16 @@ func builtin(p *SQLPlugin) catalog.Plugin {
 // Configuration for the datastore.
 // Pointer values are used to distinguish between "unset" and "zero" values.
 type configuration struct {
-	DatabaseType     string  `hcl:"database_type" json:"database_type"`
-	ConnectionString string  `hcl:"connection_string" json:"connection_string"`
-	RootCAPath       string  `hcl:"root_ca_path" json:"root_ca_path"`
-	ClientCertPath   string  `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKeyPath    string  `hcl:"client_key_path" json:"client_key_path"`
-	ConnMaxLifetime  *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
-	MaxOpenConns     *int    `hcl:"max_open_conns" json:"max_open_conns"`
-	MaxIdleConns     *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
-	DisableMigration bool    `hcl:"disable_migration" json:"disable_migration"`
+	DatabaseType       string  `hcl:"database_type" json:"database_type"`
+	ConnectionString   string  `hcl:"connection_string" json:"connection_string"`
+	RoConnectionString string  `hcl:"ro_connection_string" json:"ro_connection_string"`
+	RootCAPath         string  `hcl:"root_ca_path" json:"root_ca_path"`
+	ClientCertPath     string  `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath      string  `hcl:"client_key_path" json:"client_key_path"`
+	ConnMaxLifetime    *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
+	MaxOpenConns       *int    `hcl:"max_open_conns" json:"max_open_conns"`
+	MaxIdleConns       *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
+	DisableMigration   bool    `hcl:"disable_migration" json:"disable_migration"`
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
@@ -88,42 +89,53 @@ type sqlDB struct {
 	raw              *sql.DB
 	*gorm.DB
 
+	stmtCache *stmtCache
+
 	// this lock is only required for synchronized writes with "sqlite3". see
 	// the withTx() implementation for details.
 	opMu sync.Mutex
 }
 
-// SQLPlugin plugin for SQL connection and operations
-type SQLPlugin struct {
+func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	stmt, err := db.stmtCache.get(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return stmt.QueryContext(ctx, args...)
+}
+
+// Plugin is a DataStore plugin implemented via a SQL database
+type Plugin struct {
 	mu             sync.Mutex
 	db             *sqlDB
+	roDb           *sqlDB
 	log            hclog.Logger
 	metricsService hostservices.MetricsService
 }
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
-func New() *SQLPlugin {
-	return &SQLPlugin{}
+func New() *Plugin {
+	return &Plugin{}
 }
 
-func (ds *SQLPlugin) SetLogger(logger hclog.Logger) {
+func (ds *Plugin) SetLogger(logger hclog.Logger) {
 	ds.log = logger
 }
 
-func (p *SQLPlugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(hostservices.MetricsServiceHostServiceClient(&p.metricsService))
+func (ds *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
+	has, err := broker.GetHostService(hostservices.MetricsServiceHostServiceClient(&ds.metricsService))
 	if err != nil {
 		return err
 	}
 	if !has {
-		return errors.New("Metrics host service is required")
+		return errors.New("required Metrics host service is not available")
 	}
 	return nil
 }
 
 // CreateBundle stores the given bundle
-func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (resp *datastore.CreateBundleResponse, err error) {
+func (ds *Plugin) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (resp *datastore.CreateBundleResponse, err error) {
 	callCounter := ds_telemetry.StartCreateBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -138,7 +150,7 @@ func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBund
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
+func (ds *Plugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
 	callCounter := ds_telemetry.StartUpdateBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -152,7 +164,7 @@ func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBund
 }
 
 // SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
-func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
+func (ds *Plugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
 	callCounter := ds_telemetry.StartSetBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -166,7 +178,7 @@ func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequ
 }
 
 // AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
-func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
+func (ds *Plugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
 	callCounter := ds_telemetry.StartAppendBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -180,7 +192,7 @@ func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBund
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (ds *SQLPlugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (resp *datastore.DeleteBundleResponse, err error) {
+func (ds *Plugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (resp *datastore.DeleteBundleResponse, err error) {
 	callCounter := ds_telemetry.StartDeleteBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -194,7 +206,7 @@ func (ds *SQLPlugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBund
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (ds *SQLPlugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (resp *datastore.FetchBundleResponse, err error) {
+func (ds *Plugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (resp *datastore.FetchBundleResponse, err error) {
 	callCounter := ds_telemetry.StartFetchBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -208,12 +220,12 @@ func (ds *SQLPlugin) FetchBundle(ctx context.Context, req *datastore.FetchBundle
 }
 
 // ListBundles can be used to fetch all existing bundles.
-func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
+func (ds *Plugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
 	callCounter := ds_telemetry.StartListBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listBundles(tx, req)
+		resp, err = listBundles(tx)
 		return err
 	}); err != nil {
 		return nil, err
@@ -222,7 +234,7 @@ func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundles
 }
 
 // PruneBundle removes expired certs and keys from a bundle
-func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
+func (ds *Plugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
 	callCounter := ds_telemetry.StartPruneBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -237,7 +249,7 @@ func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundle
 }
 
 // CreateAttestedNode stores the given attested node
-func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
+func (ds *Plugin) CreateAttestedNode(ctx context.Context,
 	req *datastore.CreateAttestedNodeRequest) (resp *datastore.CreateAttestedNodeResponse, err error) {
 	callCounter := ds_telemetry.StartCreateNodeCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -256,7 +268,7 @@ func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
 }
 
 // FetchAttestedNode fetches an existing attested node by SPIFFE ID
-func (ds *SQLPlugin) FetchAttestedNode(ctx context.Context,
+func (ds *Plugin) FetchAttestedNode(ctx context.Context,
 	req *datastore.FetchAttestedNodeRequest) (resp *datastore.FetchAttestedNodeResponse, err error) {
 	callCounter := ds_telemetry.StartFetchNodeCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -271,7 +283,7 @@ func (ds *SQLPlugin) FetchAttestedNode(ctx context.Context,
 }
 
 // ListAttestedNodes lists all attested nodes (pagination available)
-func (ds *SQLPlugin) ListAttestedNodes(ctx context.Context,
+func (ds *Plugin) ListAttestedNodes(ctx context.Context,
 	req *datastore.ListAttestedNodesRequest) (resp *datastore.ListAttestedNodesResponse, err error) {
 	callCounter := ds_telemetry.StartListNodeCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -286,7 +298,7 @@ func (ds *SQLPlugin) ListAttestedNodes(ctx context.Context,
 }
 
 // UpdateAttestedNode updates the given node's cert serial and expiration.
-func (ds *SQLPlugin) UpdateAttestedNode(ctx context.Context,
+func (ds *Plugin) UpdateAttestedNode(ctx context.Context,
 	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
 	callCounter := ds_telemetry.StartUpdateNodeCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -301,7 +313,7 @@ func (ds *SQLPlugin) UpdateAttestedNode(ctx context.Context,
 }
 
 // DeleteAttestedNode deletes the given attested node
-func (ds *SQLPlugin) DeleteAttestedNode(ctx context.Context,
+func (ds *Plugin) DeleteAttestedNode(ctx context.Context,
 	req *datastore.DeleteAttestedNodeRequest) (resp *datastore.DeleteAttestedNodeResponse, err error) {
 	callCounter := ds_telemetry.StartDeleteNodeCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -316,7 +328,7 @@ func (ds *SQLPlugin) DeleteAttestedNode(ctx context.Context,
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
-func (ds *SQLPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (resp *datastore.SetNodeSelectorsResponse, err error) {
+func (ds *Plugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (resp *datastore.SetNodeSelectorsResponse, err error) {
 	callCounter := ds_telemetry.StartSetNodeSelectorsCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -334,16 +346,19 @@ func (ds *SQLPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNod
 }
 
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
-func (ds *SQLPlugin) GetNodeSelectors(ctx context.Context,
+func (ds *Plugin) GetNodeSelectors(ctx context.Context,
 	req *datastore.GetNodeSelectorsRequest) (resp *datastore.GetNodeSelectorsResponse, err error) {
 	callCounter := ds_telemetry.StartGetNodeSelectorsCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return getNodeSelectors(ctx, ds.db.databaseType, ds.db.raw, req)
+	if req.TolerateStale && ds.roDb != nil {
+		return getNodeSelectors(ctx, ds.roDb, req)
+	}
+	return getNodeSelectors(ctx, ds.db, req)
 }
 
 // CreateRegistrationEntry stores the given registration entry
-func (ds *SQLPlugin) CreateRegistrationEntry(ctx context.Context,
+func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 	req *datastore.CreateRegistrationEntryRequest) (resp *datastore.CreateRegistrationEntryResponse, err error) {
 	callCounter := ds_telemetry.StartCreateRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -363,25 +378,28 @@ func (ds *SQLPlugin) CreateRegistrationEntry(ctx context.Context,
 }
 
 // FetchRegistrationEntry fetches an existing registration by entry ID
-func (ds *SQLPlugin) FetchRegistrationEntry(ctx context.Context,
+func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	req *datastore.FetchRegistrationEntryRequest) (resp *datastore.FetchRegistrationEntryResponse, err error) {
 	callCounter := ds_telemetry.StartFetchRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return fetchRegistrationEntry(ctx, ds.db.databaseType, ds.db.raw, req)
+	return fetchRegistrationEntry(ctx, ds.db, req)
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
-func (ds *SQLPlugin) ListRegistrationEntries(ctx context.Context,
+func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
 	callCounter := ds_telemetry.StartListRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	return listRegistrationEntries(ctx, ds.db.databaseType, ds.db.raw, req)
+	if req.TolerateStale && ds.roDb != nil {
+		return listRegistrationEntries(ctx, ds.roDb, req)
+	}
+	return listRegistrationEntries(ctx, ds.db, req)
 }
 
 // UpdateRegistrationEntry updates an existing registration entry
-func (ds *SQLPlugin) UpdateRegistrationEntry(ctx context.Context,
+func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context,
 	req *datastore.UpdateRegistrationEntryRequest) (resp *datastore.UpdateRegistrationEntryResponse, err error) {
 	callCounter := ds_telemetry.StartUpdateRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -400,7 +418,7 @@ func (ds *SQLPlugin) UpdateRegistrationEntry(ctx context.Context,
 }
 
 // DeleteRegistrationEntry deletes the given registration
-func (ds *SQLPlugin) DeleteRegistrationEntry(ctx context.Context,
+func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 	req *datastore.DeleteRegistrationEntryRequest) (resp *datastore.DeleteRegistrationEntryResponse, err error) {
 	callCounter := ds_telemetry.StartDeleteRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
@@ -416,7 +434,7 @@ func (ds *SQLPlugin) DeleteRegistrationEntry(ctx context.Context,
 
 // PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
 // before the date in the message
-func (ds *SQLPlugin) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (resp *datastore.PruneRegistrationEntriesResponse, err error) {
+func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (resp *datastore.PruneRegistrationEntriesResponse, err error) {
 	callCounter := ds_telemetry.StartPruneRegistrationCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -430,7 +448,7 @@ func (ds *SQLPlugin) PruneRegistrationEntries(ctx context.Context, req *datastor
 }
 
 // CreateJoinToken takes a Token message and stores it
-func (ds *SQLPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
+func (ds *Plugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
 	callCounter := ds_telemetry.StartCreateJoinTokenCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -449,7 +467,7 @@ func (ds *SQLPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJ
 
 // FetchJoinToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (ds *SQLPlugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (resp *datastore.FetchJoinTokenResponse, err error) {
+func (ds *Plugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (resp *datastore.FetchJoinTokenResponse, err error) {
 	callCounter := ds_telemetry.StartFetchJoinTokenCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -464,7 +482,7 @@ func (ds *SQLPlugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoi
 }
 
 // DeleteJoinToken deletes the given join token
-func (ds *SQLPlugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
+func (ds *Plugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
 	callCounter := ds_telemetry.StartDeleteJoinTokenCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -479,7 +497,7 @@ func (ds *SQLPlugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJ
 
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *SQLPlugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (resp *datastore.PruneJoinTokensResponse, err error) {
+func (ds *Plugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (resp *datastore.PruneJoinTokensResponse, err error) {
 	callCounter := ds_telemetry.StartPruneJoinTokenCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
@@ -493,7 +511,7 @@ func (ds *SQLPlugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJo
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
-func (ds *SQLPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := &configuration{}
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, err
@@ -506,61 +524,90 @@ func (ds *SQLPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	if ds.db == nil ||
-		config.ConnectionString != ds.db.connectionString ||
-		config.DatabaseType != ds.db.databaseType {
-
-		db, err := ds.openDB(config)
-		if err != nil {
-			return nil, err
-		}
-
-		if ds.db != nil {
-			ds.db.Close()
-		}
-
-		raw := db.DB()
-		if raw == nil {
-			return nil, sqlError.New("unable to get raw database object")
-		}
-
-		ds.db = &sqlDB{
-			DB:               db,
-			raw:              raw,
-			databaseType:     config.DatabaseType,
-			connectionString: config.ConnectionString,
-		}
+	if err := ds.openConnection(config, false); err != nil {
+		return nil, err
 	}
 
-	ds.db.LogMode(config.LogSQL)
+	if config.RoConnectionString == "" {
+		return &spi.ConfigureResponse{}, nil
+	}
+
+	if err := ds.openConnection(config, true); err != nil {
+		return nil, err
+	}
 
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p *SQLPlugin) closeDB() {
-	if p.db != nil {
-		p.db.Close()
+func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
+	connectionString := getConnectionString(config, isReadOnly)
+	sqlDb := ds.db
+	if isReadOnly {
+		sqlDb = ds.roDb
+	}
+
+	if sqlDb == nil || connectionString != sqlDb.connectionString || config.DatabaseType != ds.db.databaseType {
+		db, err := ds.openDB(config, isReadOnly)
+		if err != nil {
+			return err
+		}
+
+		if sqlDb != nil {
+			sqlDb.Close()
+		}
+
+		raw := db.DB()
+		if raw == nil {
+			return sqlError.New("unable to get raw database object")
+		}
+
+		sqlDb = &sqlDB{
+			DB:               db,
+			raw:              raw,
+			databaseType:     config.DatabaseType,
+			connectionString: connectionString,
+			stmtCache:        newStmtCache(raw),
+		}
+	}
+
+	if isReadOnly {
+		ds.roDb = sqlDb
+	} else {
+		ds.db = sqlDb
+	}
+
+	sqlDb.LogMode(config.LogSQL)
+	return nil
+}
+
+func (ds *Plugin) closeDB() {
+	if ds.db != nil {
+		ds.db.Close()
+	}
+
+	if ds.roDb != nil {
+		ds.roDb.Close()
 	}
 }
 
 // GetPluginInfo returns the sql plugin
-func (*SQLPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-func (ds *SQLPlugin) withWriteRepeatableReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
+func (ds *Plugin) withWriteRepeatableReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
 	return ds.withTx(ctx, op, false, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 }
 
-func (ds *SQLPlugin) withWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
+func (ds *Plugin) withWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
 	return ds.withTx(ctx, op, false, nil)
 }
 
-func (ds *SQLPlugin) withReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
+func (ds *Plugin) withReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
 	return ds.withTx(ctx, op, true, nil)
 }
 
-func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool, opts *sql.TxOptions) error {
+func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool, opts *sql.TxOptions) error {
 	ds.mu.Lock()
 	db := ds.db
 	ds.mu.Unlock()
@@ -592,18 +639,21 @@ func (ds *SQLPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	return sqlError.Wrap(tx.Commit().Error)
 }
 
-func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
+func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
 	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
+		if isReadOnly {
+			ds.log.Warn("read-only connection is not applicable for %v. Falling back to primary connection.", cfg.DatabaseType)
+		}
 		db, err = sqlite{}.connect(cfg)
 	case PostgreSQL:
-		db, err = postgres{}.connect(cfg)
+		db, err = postgres{}.connect(cfg, isReadOnly)
 	case MySQL:
-		db, err = mysql{}.connect(cfg)
+		db, err = mysql{}.connect(cfg, isReadOnly)
 	default:
 		return nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
 	}
@@ -638,7 +688,7 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	return db, nil
 }
 
-func (ds *SQLPlugin) prepareMetricsForCall() telemetry.Metrics {
+func (ds *Plugin) prepareMetricsForCall() telemetry.Metrics {
 	return metricsservice.WrapPluginMetrics(ds.metricsService, ds.log)
 }
 
@@ -832,8 +882,8 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 	}, nil
 }
 
-// ListBundles can be used to fetch all existing bundles.
-func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
+// listBundles can be used to fetch all existing bundles.
+func listBundles(tx *gorm.DB) (*datastore.ListBundlesResponse, error) {
 	var bundles []Bundle
 	if err := tx.Find(&bundles).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -841,6 +891,7 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 
 	resp := &datastore.ListBundlesResponse{}
 	for _, model := range bundles {
+		model := model // alias the loop variable since we pass it by reference below
 		bundle, err := modelToBundle(&model)
 		if err != nil {
 			return nil, err
@@ -999,7 +1050,7 @@ func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*dat
 	// clause (i.e. rows for that spiffe_id). The gap locks caused MySQL
 	// deadlocks when SetNodeSelectors was being called concurrently. Changing
 	// the transaction isolation level fixed the deadlocks but only when there
-	// were no existing rows; the deadlocks still occured when existing rows
+	// were no existing rows; the deadlocks still occurred when existing rows
 	// existed (i.e. reattestation). Instead, gather all of the IDs to be
 	// deleted and delete them from separate queries, which does not trigger
 	// gap locks on the index.
@@ -1027,8 +1078,8 @@ func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*dat
 	return &datastore.SetNodeSelectorsResponse{}, nil
 }
 
-func getNodeSelectors(ctx context.Context, dbType string, db *sql.DB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
-	query := maybeRebind(dbType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
+func getNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
+	query := maybeRebind(db.databaseType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
 	rows, err := db.QueryContext(ctx, query, req.SpiffeId)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1056,9 +1107,7 @@ func getNodeSelectors(ctx context.Context, dbType string, db *sql.DB, req *datas
 	}, nil
 }
 
-func createRegistrationEntry(tx *gorm.DB,
-	req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
-
+func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 	entryID, err := newRegistrationEntryID()
 	if err != nil {
 		return nil, err
@@ -1119,8 +1168,8 @@ func createRegistrationEntry(tx *gorm.DB,
 	}, nil
 }
 
-func fetchRegistrationEntry(ctx context.Context, dbType string, db *sql.DB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	query, args, err := buildFetchRegistrationEntryQuery(dbType, req)
+func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
+	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1317,7 +1366,7 @@ ORDER BY selector_id, dns_name_id
 	return query, []interface{}{req.EntryId}, nil
 }
 
-func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -1331,7 +1380,7 @@ func listRegistrationEntries(ctx context.Context, dbType string, db *sql.DB, req
 	// query returns rows that are completely filtered out. If that happens,
 	// keep querying until a page gets at least one result.
 	for {
-		resp, err := listRegistrationEntriesOnce(ctx, dbType, db, req)
+		resp, err := listRegistrationEntriesOnce(ctx, db, req)
 		if err != nil {
 			return nil, err
 		}
@@ -1377,8 +1426,8 @@ func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors [
 	return filtered
 }
 
-func listRegistrationEntriesOnce(ctx context.Context, dbType string, db *sql.DB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-	query, args, err := buildListRegistrationEntriesQuery(dbType, req)
+func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	query, args, err := buildListRegistrationEntriesQuery(db.databaseType, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1864,7 +1913,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 			builder.WriteString("SELECT id FROM registered_entries")
 		}
 		if len(req.Pagination.Token) > 0 {
-			token, err := strconv.ParseUint(string(req.Pagination.Token), 10, 32)
+			token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
 			if err != nil {
 				return false, nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
 			}
@@ -2047,9 +2096,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	}, nil
 }
 
-func deleteRegistrationEntry(tx *gorm.DB,
-	req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
-
+func deleteRegistrationEntry(tx *gorm.DB, req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 	entry := RegisteredEntry{}
 	if err := tx.Find(&entry, "entry_id = ?", req.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -2311,9 +2358,7 @@ func bindVars(db *gorm.DB, query string) string {
 		return query
 	}
 
-	return bindVarsFn(func(n int) string {
-		return dialect.BindVar(n)
-	}, query)
+	return bindVarsFn(dialect.BindVar, query)
 }
 
 func bindVarsFn(fn func(int) string, query string) string {
@@ -2338,10 +2383,15 @@ func (cfg *configuration) Validate() error {
 		return errors.New("connection_string must be set")
 	}
 
-	switch cfg.DatabaseType {
-	case MySQL:
-		if err := validateMySQLConfig(cfg); err != nil {
+	if cfg.DatabaseType == MySQL {
+		if err := validateMySQLConfig(cfg, false); err != nil {
 			return err
+		}
+
+		if cfg.RoConnectionString != "" {
+			if err := validateMySQLConfig(cfg, true); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -2366,6 +2416,15 @@ func gormToGRPCStatus(err error) error {
 	}
 
 	return status.Error(code, err.Error())
+}
+
+// getConnectionString returns the connection string corresponding to the database connection.
+func getConnectionString(cfg *configuration, isReadOnly bool) string {
+	connectionString := cfg.ConnectionString
+	if isReadOnly {
+		connectionString = cfg.RoConnectionString
+	}
+	return connectionString
 }
 
 func nullableDBTimeToUnixTime(dbTime *time.Time) int64 {

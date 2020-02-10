@@ -12,9 +12,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 )
 
 const (
@@ -25,7 +25,7 @@ func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
-func builtin(p *X509PoPPlugin) catalog.Plugin {
+func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
 		nodeattestor.PluginServer(p),
 	)
@@ -37,21 +37,21 @@ type configuration struct {
 	pathTemplate *template.Template
 }
 
-type X509PoPConfig struct {
+type Config struct {
 	CABundlePath      string `hcl:"ca_bundle_path"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
-type X509PoPPlugin struct {
+type Plugin struct {
 	m sync.Mutex
 	c *configuration
 }
 
-func New() *X509PoPPlugin {
-	return &X509PoPPlugin{}
+func New() *Plugin {
+	return &Plugin{}
 }
 
-func (p *X509PoPPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
+func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return err
@@ -142,8 +142,8 @@ func (p *X509PoPPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) er
 	})
 }
 
-func (p *X509PoPPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := new(X509PoPConfig)
+func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	config := new(Config)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, newError("unable to decode configuration: %v", err)
 	}
@@ -183,17 +183,17 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*X509PoPPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *X509PoPPlugin) getConfiguration() *configuration {
+func (p *Plugin) getConfiguration() *configuration {
 	p.m.Lock()
 	defer p.m.Unlock()
 	return p.c
 }
 
-func (p *X509PoPPlugin) setConfiguration(c *configuration) {
+func (p *Plugin) setConfiguration(c *configuration) {
 	p.m.Lock()
 	defer p.m.Unlock()
 	p.c = c
