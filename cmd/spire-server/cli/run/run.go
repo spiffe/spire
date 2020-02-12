@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,13 @@ const (
 	defaultSocketPath         = "/tmp/spire-registration.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
+)
+
+var (
+	defaultCASubject = pkix.Name{
+		Country:      []string{"US"},
+		Organization: []string{"SPIFFE"},
+	}
 )
 
 // config contains all available configurables, arranged by section
@@ -384,6 +392,13 @@ func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error)
 			Country:      subject.Country,
 			CommonName:   subject.CommonName,
 		}
+		if isPKIXNameEmpty(sc.CASubject) {
+			sc.Log.Warn("ca_subject configurable is set but empty; the default will be used")
+		}
+	}
+	// RFC3280(4.1.2.4) requires the issuer DN be set.
+	if isPKIXNameEmpty(sc.CASubject) {
+		sc.CASubject = defaultCASubject
 	}
 
 	sc.PluginConfigs = *c.Plugins
@@ -596,4 +611,12 @@ func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {
 
 	thresh := ca.KeyActivationThreshold(time.Now(), time.Now().Add(caTTL))
 	return caTTL-time.Until(thresh) >= svidTTL
+}
+
+func isPKIXNameEmpty(name pkix.Name) bool {
+	// pkix.Name contains slices which make it directly incomparable. We could
+	// do a field by field check since it is unlikely that pkix.Name will grow,
+	// but reflect.DeepEqual is more convenient and safe for this particular
+	// use.
+	return reflect.DeepEqual(name, pkix.Name{})
 }
