@@ -80,6 +80,7 @@ func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID st
 			ByParentId: &wrappers.StringValue{
 				Value: clientID,
 			},
+			TolerateStale: true,
 		})
 	if err != nil {
 		return nil, err
@@ -93,7 +94,8 @@ func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID st
 func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID string) ([]*common.RegistrationEntry, error) {
 	selectorsResp, err := f.dataStore.GetNodeSelectors(ctx,
 		&datastore.GetNodeSelectorsRequest{
-			SpiffeId: clientID,
+			SpiffeId:      clientID,
+			TolerateStale: true,
 		})
 	if err != nil {
 		return nil, err
@@ -115,6 +117,7 @@ func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID s
 				Selectors: selectors,
 				Match:     datastore.BySelectors_MATCH_SUBSET,
 			},
+			TolerateStale: true,
 		})
 	if err != nil {
 		return nil, err
