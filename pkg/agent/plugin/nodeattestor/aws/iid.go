@@ -38,7 +38,6 @@ func builtin(p *IIDAttestorPlugin) catalog.Plugin {
 type IIDAttestorConfig struct {
 	IdentityDocumentURL  string `hcl:"identity_document_url"`
 	IdentitySignatureURL string `hcl:"identity_signature_url"`
-	trustDomain          string
 }
 
 // IIDAttestorPlugin implements aws nodeattestation in the agent.
@@ -95,15 +94,6 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-
-	if req.GlobalConfig == nil {
-		return nil, status.Error(codes.InvalidArgument, "global configuration is required")
-	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "global configuration missing trust domain")
-	}
-	// Set local vars from config struct
-	config.trustDomain = req.GlobalConfig.TrustDomain
 
 	if config.IdentityDocumentURL == "" {
 		config.IdentityDocumentURL = defaultIdentityDocumentURL
