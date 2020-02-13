@@ -15,11 +15,14 @@
     - [JoinToken](#spire.api.registration.JoinToken)
     - [ListAgentsRequest](#spire.api.registration.ListAgentsRequest)
     - [ListAgentsResponse](#spire.api.registration.ListAgentsResponse)
+    - [ListAllEntriesRequest](#spire.api.registration.ListAllEntriesRequest)
+    - [ListAllEntriesResponse](#spire.api.registration.ListAllEntriesResponse)
     - [MintJWTSVIDRequest](#spire.api.registration.MintJWTSVIDRequest)
     - [MintJWTSVIDResponse](#spire.api.registration.MintJWTSVIDResponse)
     - [MintX509SVIDRequest](#spire.api.registration.MintX509SVIDRequest)
     - [MintX509SVIDResponse](#spire.api.registration.MintX509SVIDResponse)
     - [NodeSelectors](#spire.api.registration.NodeSelectors)
+    - [Pagination](#spire.api.registration.Pagination)
     - [ParentID](#spire.api.registration.ParentID)
     - [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
     - [SpiffeID](#spire.api.registration.SpiffeID)
@@ -204,6 +207,38 @@ Represents a ListAgents response
 
 
 
+<a name="spire.api.registration.ListAllEntriesRequest"></a>
+
+### ListAllEntriesRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  |  |
+| page_size | [int32](#int32) |  |  |
+
+
+
+
+
+
+<a name="spire.api.registration.ListAllEntriesResponse"></a>
+
+### ListAllEntriesResponse
+It is used to list all registration entries with pagination
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | repeated |  |
+| pagination | [Pagination](#spire.api.registration.Pagination) |  |  |
+
+
+
+
+
+
 <a name="spire.api.registration.MintJWTSVIDRequest"></a>
 
 ### MintJWTSVIDRequest
@@ -280,6 +315,22 @@ Represents a ListAgents response
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | Node SPIFFE ID |
 | selectors | [spire.common.Selector](#spire.common.Selector) | repeated | Node selectors |
+
+
+
+
+
+
+<a name="spire.api.registration.Pagination"></a>
+
+### Pagination
+A type that represents pagination for list responses
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  |  |
+| page_size | [int32](#int32) |  |  |
 
 
 
@@ -382,6 +433,7 @@ associated with the bundle (e.g. registration entries).
 | ListBySelector | [.spire.common.Selector](#spire.common.Selector) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the entries associated with a selector value. |
 | ListBySelectors | [.spire.common.Selectors](#spire.common.Selectors) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the entries matching the set of selectors |
 | ListBySpiffeID | [SpiffeID](#spire.api.registration.SpiffeID) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Return all registration entries for which SPIFFE ID matches. |
+| ListAllEntriesWithPages | [ListAllEntriesRequest](#spire.api.registration.ListAllEntriesRequest) | [ListAllEntriesResponse](#spire.api.registration.ListAllEntriesResponse) | Return all registration entries with pagination of default page size of 50. |
 | CreateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [.spire.common.Empty](#spire.common.Empty) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
 | FetchFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [FederatedBundle](#spire.api.registration.FederatedBundle) | Retrieves a single federated bundle |
 | ListFederatedBundles | [.spire.common.Empty](#spire.common.Empty) | [FederatedBundle](#spire.api.registration.FederatedBundle) stream | Retrieves Federated bundles for all the Federated SPIFFE IDs. |

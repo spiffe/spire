@@ -480,6 +480,9 @@ const (
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
 
+	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
+	ListAllEntriesWithPages = "list_all_entries_with_pages"
+
 	// ListFederatedBundles functionality related to listing federated bundles
 	ListFederatedBundles = "list_federated_bundles"
 

@@ -32,6 +32,8 @@ import (
 
 var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
 
+const _defaultListEntriesPageSize = 50
+
 //Handler service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
 type Handler struct {
@@ -282,6 +284,36 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 
 	return &common.RegistrationEntries{
 		Entries: resp.Entries,
+	}, nil
+}
+
+//ListAllEntriesWithPages retrieves all registered entries with pagination.
+func (h *Handler) ListAllEntriesWithPages(ctx context.Context, request *registration.ListAllEntriesRequest) (_ *registration.ListAllEntriesResponse, err error) {
+	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
+	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, telemetry.ListAllEntriesWithPages)
+
+	ds := h.getDataStore()
+	if request.PageSize == 0 {
+		request.PageSize = _defaultListEntriesPageSize
+	}
+	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    request.Token,
+			PageSize: request.PageSize,
+		},
+	})
+	if err != nil {
+		log.WithError(err).Error("Error trying to fetch entries")
+		return nil, status.Errorf(codes.Internal, "error trying to fetch entries: %v", err)
+	}
+	return &registration.ListAllEntriesResponse{
+		Entries: fetchResponse.Entries,
+		Pagination: &registration.Pagination{
+			Token:    fetchResponse.Pagination.Token,
+			PageSize: fetchResponse.Pagination.PageSize,
+		},
 	}, nil
 }
 

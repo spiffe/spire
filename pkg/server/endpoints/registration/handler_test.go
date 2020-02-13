@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -742,6 +743,111 @@ func (s *HandlerSuite) TestListBySpiffeID() {
 	s.Require().Len(resp.Entries, 2)
 	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
 	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+}
+
+func (s *HandlerSuite) TestListAllEntriesWithPages() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/baz",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/buz",
+		SpiffeId:  "spiffe://example.org/fuz",
+		Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+	})
+
+	tests := []struct {
+		name             string
+		request          *registration.ListAllEntriesRequest
+		expectedList     []*common.RegistrationEntry
+		expectedPageSize int32
+		err              string
+	}{
+		{
+			name:         "without token and page size",
+			request:      &registration.ListAllEntriesRequest{},
+			expectedList: []*common.RegistrationEntry{entry3, entry2, entry1},
+		},
+		{
+			name: "without just page size",
+			request: &registration.ListAllEntriesRequest{
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry2, entry1},
+		},
+		{
+			name: "with request page size as 0 but returning list of default page size",
+			request: &registration.ListAllEntriesRequest{
+				PageSize: 0,
+			},
+			expectedList:     []*common.RegistrationEntry{entry3, entry2, entry1},
+			expectedPageSize: _defaultListEntriesPageSize,
+		},
+		{
+			name: "with request page size greater than entries",
+			request: &registration.ListAllEntriesRequest{
+				PageSize: 10,
+			},
+			expectedList: []*common.RegistrationEntry{entry3, entry2, entry1},
+		},
+	}
+	for _, testCase := range tests {
+		testCase := testCase
+		s.T().Run(testCase.name, func(t *testing.T) {
+			resp, err := s.handler.ListAllEntriesWithPages(context.Background(), testCase.request)
+			if testCase.err != "" {
+				require.EqualError(t, err, testCase.err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			expectedResponse := &datastore.ListRegistrationEntriesResponse{
+				Entries: testCase.expectedList,
+			}
+			util.SortRegistrationEntries(expectedResponse.Entries)
+			util.SortRegistrationEntries(resp.Entries)
+			require.Equal(t, expectedResponse.Entries, resp.Entries)
+		})
+	}
+
+	// testCase pagination tokens
+	resp, err := s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
+		PageSize: 1,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+
+	// 2nd page
+	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
+		Token:    resp.Pagination.Token,
+		PageSize: 1,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry2, resp.Entries[0]))
+
+	// 3rd page
+	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
+		Token:    resp.Pagination.Token,
+		PageSize: 1,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+
+	// 4th page should be empty
+	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
+		Token: resp.Pagination.Token,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 0)
 }
 
 func (s *HandlerSuite) TestCreateJoinToken() {
