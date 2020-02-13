@@ -32,6 +32,24 @@ message UpdateEntryRequest {
     spire.common.RegistrationEntry entry = 1;
 }
 
+// A type that represents pagination for list responses
+message Pagination {
+    string token = 1;
+    int32 page_size = 2;
+}
+
+//
+message ListAllEntriesRequest {
+    string token = 1;
+    int32 page_size = 2;
+}
+
+// It is used to list all registration entries with pagination
+message ListAllEntriesResponse {
+    repeated spire.common.RegistrationEntry entries = 1;
+    Pagination pagination = 2;
+}
+
 // A CA bundle for a different Trust Domain than the one used and managed by the Server.
 message FederatedBundle {
     // Common bundle format
@@ -184,6 +202,8 @@ service Registration {
     rpc ListBySelectors(spire.common.Selectors) returns (spire.common.RegistrationEntries);
     // Return all registration entries for which SPIFFE ID matches.
     rpc ListBySpiffeID(SpiffeID) returns (spire.common.RegistrationEntries);
+    // Return all registration entries with pagination of default page size of 50.
+    rpc ListAllEntriesWithPages(ListAllEntriesRequest) returns (ListAllEntriesResponse);
 
     // Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
     rpc CreateFederatedBundle(FederatedBundle) returns (spire.common.Empty);

@@ -356,6 +356,26 @@ func (mr *MockRegistrationClientMockRecorder) ListBySpiffeID(arg0, arg1 interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBySpiffeID", reflect.TypeOf((*MockRegistrationClient)(nil).ListBySpiffeID), varargs...)
 }
 
+// ListAllEntries mocks base method
+func (m *MockRegistrationClient) ListAllEntriesWithPages(arg0 context.Context, arg1 *registration.ListAllEntriesRequest, arg2 ...grpc.CallOption) (*registration.ListAllEntriesResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListAllEntriesWithPages", varargs...)
+	ret0, _ := ret[0].(*registration.ListAllEntriesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAllEntries indicates an expected call of ListAllEntries
+func (mr *MockRegistrationClientMockRecorder) ListAllEntriesWithPages(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllEntriesWithPages", reflect.TypeOf((*MockRegistrationClient)(nil).ListAllEntriesWithPages), varargs...)
+}
+
 // ListFederatedBundles mocks base method
 func (m *MockRegistrationClient) ListFederatedBundles(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (registration.Registration_ListFederatedBundlesClient, error) {
 	m.ctrl.T.Helper()
