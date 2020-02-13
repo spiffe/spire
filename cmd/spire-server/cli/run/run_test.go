@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"crypto/x509/pkix"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -829,7 +830,25 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "ca_subject is configured correctly",
+			msg: "ca_subject is defaulted when unset",
+			input: func(c *config) {
+				c.Server.CASubject = nil
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, defaultCASubject, c.CASubject)
+			},
+		},
+		{
+			msg: "ca_subject is defaulted when set but empty",
+			input: func(c *config) {
+				c.Server.CASubject = &caSubjectConfig{}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, defaultCASubject, c.CASubject)
+			},
+		},
+		{
+			msg: "ca_subject is overridable",
 			input: func(c *config) {
 				c.Server.CASubject = &caSubjectConfig{
 					Organization: []string{"foo"},
@@ -838,9 +857,11 @@ func TestNewServerConfig(t *testing.T) {
 				}
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, []string{"foo"}, c.CASubject.Organization)
-				require.Equal(t, []string{"us"}, c.CASubject.Country)
-				require.Equal(t, "bar", c.CASubject.CommonName)
+				require.Equal(t, pkix.Name{
+					Organization: []string{"foo"},
+					Country:      []string{"us"},
+					CommonName:   "bar",
+				}, c.CASubject)
 			},
 		},
 	}
