@@ -993,8 +993,8 @@ func requireLogLine(t *testing.T, h *test.Hook, expectedMsg string) {
 func TestLogOptions(t *testing.T) {
 	fd, err := ioutil.TempFile("", "test")
 	require.NoError(t, err)
-	require.NoError(t, fd.Close())
 	defer os.Remove(fd.Name())
+	defer func() { require.NoError(t, fd.Close()) }()
 
 	logOptions := []log.Option{
 		log.WithLevel("DEBUG"),
@@ -1010,9 +1010,9 @@ func TestLogOptions(t *testing.T) {
 	// defaultConfig() sets level to info,  which should override DEBUG set above
 	require.Equal(t, logrus.InfoLevel, logger.Level)
 
-	// JSON Formatter and output file should be set from above
+	// JSON Formatter should be set from above
+	// logging unit tests verify log file settings and writing
 	require.IsType(t, &logrus.JSONFormatter{}, logger.Formatter)
-	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
 }
 
 func TestHasExpectedTTLs(t *testing.T) {

@@ -67,3 +67,32 @@ func TestOutputFile(t *testing.T) {
 		}
 	}
 }
+
+func TestMultipleOutputFile(t *testing.T) {
+	msg := "This should get written"
+
+	files := make([]*os.File, 0)
+	options := make([]Option, 0)
+	for i := 0; i < 5; i++ {
+		file, err := ioutil.TempFile("", "testoutputfile")
+		require.NoError(t, err)
+		files = append(files, file)
+		defer os.Remove(file.Name())
+
+		options = append(options, WithOutputFile(file.Name()))
+	}
+
+	logger, err := NewLogger(options...)
+	require.NoError(t, err)
+
+	logger.Warning(msg)
+
+	require.NoError(t, logger.Close())
+
+	for _, file := range files {
+		log, err := ioutil.ReadAll(file)
+		require.NoError(t, err)
+		expected := fmt.Sprintf("level=warning msg=\"%s\"", msg)
+		require.Contains(t, string(log), expected)
+	}
+}

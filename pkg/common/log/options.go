@@ -9,38 +9,46 @@ import (
 )
 
 const (
+	// DefaultFormat signifies the default logrus format
 	DefaultFormat = ""
-	JSONFormat    = "JSON"
-	TextFormat    = "TEXT"
+	// JSONFormat signifies JSON logging format
+	JSONFormat = "JSON"
+	// TextFormat signifies Text logging format
+	TextFormat = "TEXT"
 )
 
 // An Option can change the Logger to apply desired configuration in NewLogger
 type Option func(*Logger) error
 
+// WithStdOut configures logger to log with a `stdout` hook
+func WithStdOut() Option {
+	return func(logger *Logger) error {
+		logger.useStdout = true
+		return nil
+	}
+}
+
+// WithOutputFile configures logger to log with a hook to the given file
 func WithOutputFile(file string) Option {
 	return func(logger *Logger) error {
 		if file == "" {
 			return nil
 		}
+
 		fd, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
 			return err
 		}
 
-		logger.SetOutput(fd)
+		// setting writing for the file is saved for Logger construction, after the
+		// logging Level is known
 
-		// If, for some reason, there's another closer set, close it first.
-		if logger.Closer != nil {
-			if err := logger.Closer.Close(); err != nil {
-				return err
-			}
-		}
-
-		logger.Closer = fd
+		logger.files = append(logger.files, fd)
 		return nil
 	}
 }
 
+// WithFormat configures logger to log in the given format
 func WithFormat(format string) Option {
 	return func(logger *Logger) error {
 		switch strings.ToUpper(format) {
@@ -57,6 +65,7 @@ func WithFormat(format string) Option {
 	}
 }
 
+// WithLevel configures logger to log at the given level
 func WithLevel(logLevel string) Option {
 	return func(logger *Logger) error {
 		level, err := logrus.ParseLevel(logLevel)
