@@ -12,12 +12,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/test/spiretest"
-
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 const (
@@ -139,16 +139,6 @@ func (s *Suite) TestConfigure() {
 	require.Error(err)
 	require.Nil(resp)
 
-	// global configuration not provided
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireErrorContains(err, "global configuration is required")
-	require.Nil(resp)
-
-	// missing trust domain
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireErrorContains(err, "global configuration missing trust domain")
-	require.Nil(resp)
-
 	// success
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
@@ -183,7 +173,7 @@ func (s *Suite) fetchAttestationData() (*nodeattestor.FetchAttestationDataRespon
 
 func (s *Suite) buildDefaultIIDDocAndSig() (docBytes []byte, sigBytes []byte) {
 	// doc body
-	doc := aws.InstanceIdentityDocument{
+	doc := ec2metadata.EC2InstanceIdentityDocument{
 		AccountID:  "test-account",
 		InstanceID: "test-instance",
 		Region:     "test-region",
