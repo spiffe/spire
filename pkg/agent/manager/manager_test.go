@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/util"
@@ -87,7 +88,14 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -134,7 +142,14 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -148,7 +163,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	_, err := ReadSVID(c.SVIDCachePath)
+	_, err = ReadSVID(c.SVIDCachePath)
 	if err != ErrNotCached {
 		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
@@ -249,7 +264,14 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err = km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -447,7 +469,14 @@ func TestSynchronization(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err = km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	c := &Config{
 		ServerAddr:       l.Addr().String(),
@@ -584,7 +613,14 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err = km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -646,7 +682,14 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err = km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -707,7 +750,14 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err = km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	c := &Config{
 		ServerAddr:       l.Addr().String(),
@@ -769,7 +819,14 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
+	km := disk.New()
+	_, err = km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`directory = %q`, dir),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 	ttlSeconds := time.Duration(ttl) * time.Second
 	syncInterval := ttlSeconds / 2
