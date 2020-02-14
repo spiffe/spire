@@ -34,7 +34,7 @@ func (w *wrapper) MintX509CA(ctx context.Context, request *MintX509CARequest) (*
 	// Call upstreamCA SubmitCSR
 	resp, err := w.upstreamCA.SubmitCSR(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, wrapperErr.Wrap(err)
 	}
 
 	// Creates an array of []byte from response CertChain
