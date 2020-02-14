@@ -30,8 +30,8 @@ type MintX509CARequest struct {
 	// Certificate signing request (PKCS#10)
 	Csr []byte `protobuf:"bytes,1,opt,name=csr,proto3" json:"csr,omitempty"`
 	// Preferred TTL is the TTL preferred by SPIRE server for signed CA. If
-	// zero, the plugin should determine its own TTL value. Plugins plugins are
-	// free to ignore this and use their own policies around TTLs.
+	// zero, the plugin should determine its own TTL value. Plugins are free to
+	// ignore this and use their own policies around TTLs.
 	PreferredTtl         int32    `protobuf:"varint,2,opt,name=preferred_ttl,json=preferredTtl,proto3" json:"preferred_ttl,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -348,7 +348,7 @@ const _ = grpc.SupportPackageIsVersion4
 type UpstreamAuthorityClient interface {
 	// Mints an X.509 CA. The plugin should also publish the X.509 CA upstream,
 	// if supported. This RPC is optional and should return NotImplemented if
-	// unsupported.  When unsupported, SPIRE will self-sign an X.509 CA and and
+	// unsupported. When unsupported, SPIRE will self-sign an X.509 CA and
 	// publish via PublishX509CA.
 	MintX509CA(ctx context.Context, in *MintX509CARequest, opts ...grpc.CallOption) (*MintX509CAResponse, error)
 	// PublishX509CA publishes a self-signed X.509 CA certificate upstream.
@@ -419,7 +419,7 @@ func (c *upstreamAuthorityClient) GetPluginInfo(ctx context.Context, in *plugin.
 type UpstreamAuthorityServer interface {
 	// Mints an X.509 CA. The plugin should also publish the X.509 CA upstream,
 	// if supported. This RPC is optional and should return NotImplemented if
-	// unsupported.  When unsupported, SPIRE will self-sign an X.509 CA and and
+	// unsupported. When unsupported, SPIRE will self-sign an X.509 CA and
 	// publish via PublishX509CA.
 	MintX509CA(context.Context, *MintX509CARequest) (*MintX509CAResponse, error)
 	// PublishX509CA publishes a self-signed X.509 CA certificate upstream.

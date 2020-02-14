@@ -36,7 +36,7 @@
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | csr | [bytes](#bytes) |  | Certificate signing request (PKCS#10) |
-| preferred_ttl | [int32](#int32) |  | Preferred TTL is the TTL preferred by SPIRE server for signed CA. If zero, the plugin should determine its own TTL value. Plugins plugins are free to ignore this and use their own policies around TTLs. |
+| preferred_ttl | [int32](#int32) |  | Preferred TTL is the TTL preferred by SPIRE server for signed CA. If zero, the plugin should determine its own TTL value. Plugins are free to ignore this and use their own policies around TTLs. |
 
 
 
@@ -132,7 +132,7 @@
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| MintX509CA | [MintX509CARequest](#spire.server.upstreamauthority.MintX509CARequest) | [MintX509CAResponse](#spire.server.upstreamauthority.MintX509CAResponse) | Mints an X.509 CA. The plugin should also publish the X.509 CA upstream, if supported. This RPC is optional and should return NotImplemented if unsupported. When unsupported, SPIRE will self-sign an X.509 CA and and publish via PublishX509CA. |
+| MintX509CA | [MintX509CARequest](#spire.server.upstreamauthority.MintX509CARequest) | [MintX509CAResponse](#spire.server.upstreamauthority.MintX509CAResponse) | Mints an X.509 CA. The plugin should also publish the X.509 CA upstream, if supported. This RPC is optional and should return NotImplemented if unsupported. When unsupported, SPIRE will self-sign an X.509 CA and publish via PublishX509CA. |
 | PublishX509CA | [PublishX509CARequest](#spire.server.upstreamauthority.PublishX509CARequest) | [PublishX509CAResponse](#spire.server.upstreamauthority.PublishX509CAResponse) | PublishX509CA publishes a self-signed X.509 CA certificate upstream. This RPC is optional and should return NotImplemented if unsupported. |
 | PublishJWTKey | [PublishJWTKeyRequest](#spire.server.upstreamauthority.PublishJWTKeyRequest) | [PublishJWTKeyResponse](#spire.server.upstreamauthority.PublishJWTKeyResponse) | Publishes a JWT signing key upstream. This RPC is optional and should return NotImplemented if unsupported. |
 | Configure | [.spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [.spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureResponse) | Standard SPIRE plugin RPCs |

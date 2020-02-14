@@ -10,8 +10,8 @@ message MintX509CARequest {
     bytes csr = 1;
 
     // Preferred TTL is the TTL preferred by SPIRE server for signed CA. If
-    // zero, the plugin should determine its own TTL value. Plugins plugins are
-    // free to ignore this and use their own policies around TTLs. 
+    // zero, the plugin should determine its own TTL value. Plugins are free to
+    // ignore this and use their own policies around TTLs. 
     int32 preferred_ttl = 2;
 }
 
@@ -48,7 +48,7 @@ message PublishJWTKeyResponse {
 service UpstreamAuthority {
     // Mints an X.509 CA. The plugin should also publish the X.509 CA upstream,
     // if supported. This RPC is optional and should return NotImplemented if
-    // unsupported.  When unsupported, SPIRE will self-sign an X.509 CA and and
+    // unsupported. When unsupported, SPIRE will self-sign an X.509 CA and
     // publish via PublishX509CA.
     rpc MintX509CA(MintX509CARequest) returns (MintX509CAResponse);
 
