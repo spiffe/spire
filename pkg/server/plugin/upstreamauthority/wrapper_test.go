@@ -6,10 +6,10 @@ import (
 	"crypto/x509"
 	"testing"
 
-	"github.com/spiffe/spire/.cache/cache/src/https-github.com-stretchr-testify/require"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
