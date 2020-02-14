@@ -55,7 +55,7 @@ func TestMintX509CA(t *testing.T) {
 			req: &MintX509CARequest{
 				Csr: csrAnotherTD,
 			},
-			err: "\"spiffe://another-td\" does not belong to trust domain \"domain.test\"",
+			err: "upstreamauthority-wrapper: unable to submit csr: \"spiffe://another-td\" does not belong to trust domain \"domain.test\"",
 			config: fakeupstreamca.Config{
 				TrustDomain: "domain.test",
 			},
@@ -70,7 +70,7 @@ func TestMintX509CA(t *testing.T) {
 
 			resp, err := wrapper.MintX509CA(ctx, testCase.req)
 			if testCase.err != "" {
-				spiretest.AssertErrorContains(t, err, testCase.err)
+				spiretest.RequireGRPCStatus(t, err, codes.Internal, testCase.err)
 				return
 			}
 
@@ -97,7 +97,7 @@ func TestPublishX509CA(t *testing.T) {
 	resp, err := wrapper.PublishX509CA(ctx, &PublishX509CARequest{})
 	require.Nil(t, resp, "no response expected")
 
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "publishing upstream is unsupported")
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority-wrapper: publishing upstream is unsupported")
 }
 
 func TestPublishJWTKey(t *testing.T) {
@@ -110,7 +110,7 @@ func TestPublishJWTKey(t *testing.T) {
 	resp, err := wrapper.PublishJWTKey(ctx, &PublishJWTKeyRequest{})
 	require.Nil(t, resp, "no response expected")
 
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "publishing upstream is unsupported")
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority-wrapper: publishing upstream is unsupported")
 }
 
 func validateX509CaChain(t *testing.T, caChain [][]byte, pubKey crypto.PublicKey, useIntermediate bool, upstreamCA *fakeupstreamca.UpstreamCA) {

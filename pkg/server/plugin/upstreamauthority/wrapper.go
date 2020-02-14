@@ -5,13 +5,8 @@ import (
 	"crypto/x509"
 
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-)
-
-var (
-	wrapperErr = errs.Class("upstreamauthority-wrapper")
 )
 
 type wrapper struct {
@@ -34,19 +29,19 @@ func (w *wrapper) MintX509CA(ctx context.Context, request *MintX509CARequest) (*
 	// Call upstreamCA SubmitCSR
 	resp, err := w.upstreamCA.SubmitCSR(ctx, req)
 	if err != nil {
-		return nil, wrapperErr.Wrap(err)
+		return nil, makeError(codes.Internal, "unable to submit csr: %v", err)
 	}
 
 	// Creates an array of []byte from response CertChain
 	caChain, err := parseCertificates(resp.SignedCertificate.CertChain)
 	if err != nil {
-		return nil, wrapperErr.New("unable to parse cert chain: %v", err)
+		return nil, makeError(codes.Internal, "unable to parse cert chain: %v", err)
 	}
 
 	// Creates an array of []byte from response Bundle
 	roots, err := parseCertificates(resp.SignedCertificate.Bundle)
 	if err != nil {
-		return nil, wrapperErr.New("unable to parse bundle: %v", err)
+		return nil, makeError(codes.Internal, "unable to parse bundle: %v", err)
 	}
 
 	return &MintX509CAResponse{
@@ -57,12 +52,12 @@ func (w *wrapper) MintX509CA(ctx context.Context, request *MintX509CARequest) (*
 
 // PublishJWTKey it is not implemented for wrapper
 func (w *wrapper) PublishJWTKey(ctx context.Context, request *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "publishing upstream is unsupported")
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 // PublishX509CA it is not implemented for wrapper
 func (w *wrapper) PublishX509CA(ctx context.Context, request *PublishX509CARequest) (*PublishX509CAResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "publishing upstream is unsupported")
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 // parseCertificates parse certificates and return an array with each certificate raw
@@ -78,4 +73,8 @@ func parseCertificates(rawCerts []byte) ([][]byte, error) {
 	}
 
 	return certificates, nil
+}
+
+func makeError(code codes.Code, format string, args ...interface{}) error {
+	return status.Errorf(code, "upstreamauthority-wrapper: "+format, args...)
 }
