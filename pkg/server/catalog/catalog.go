@@ -102,12 +102,14 @@ type Notifier struct {
 }
 
 type Plugins struct {
-	DataStore         datastore.DataStore
-	NodeAttestors     map[string]nodeattestor.NodeAttestor
-	NodeResolvers     map[string]noderesolver.NodeResolver
-	UpstreamCA        *upstreamca.UpstreamCA
-	KeyManager        keymanager.KeyManager
-	Notifiers         []Notifier
+	DataStore     datastore.DataStore
+	NodeAttestors map[string]nodeattestor.NodeAttestor
+	NodeResolvers map[string]noderesolver.NodeResolver
+	UpstreamCA    *upstreamca.UpstreamCA
+	KeyManager    keymanager.KeyManager
+	Notifiers     []Notifier
+
+	// It is unexported to prevent to be processed by Fill, it is handled by ourselves
 	upstreamAuthority upstreamauthority.UpstreamAuthority
 }
 
@@ -143,11 +145,7 @@ func (p *Plugins) GetNotifiers() []Notifier {
 }
 
 func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
-	if p.upstreamAuthority != nil {
-		return p.upstreamAuthority, true
-	}
-
-	return nil, false
+	return p.upstreamAuthority, p.upstreamAuthority != nil
 }
 
 type Config struct {

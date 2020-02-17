@@ -18,7 +18,7 @@ func Wrap(upstreamCA upstreamca.UpstreamCA) UpstreamAuthority {
 	return &wrapper{upstreamCA: upstreamCA}
 }
 
-// MintX509CA pass MinMintX509CA request to UpstreamCA SubmitCSR RPC, parse SubmitCSRResponse into MintX509CAResponse
+// MintX509CA pass request to UpstreamCA SubmitCSR RPC, parse SubmitCSRResponse into MintX509CAResponse
 func (w *wrapper) MintX509CA(ctx context.Context, request *MintX509CARequest) (*MintX509CAResponse, error) {
 	// Create a SubmitCSRRequest from MintX509CARequest
 	req := &upstreamca.SubmitCSRRequest{
@@ -50,16 +50,6 @@ func (w *wrapper) MintX509CA(ctx context.Context, request *MintX509CARequest) (*
 	}, nil
 }
 
-// PublishJWTKey it is not implemented for wrapper
-func (w *wrapper) PublishJWTKey(ctx context.Context, request *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
-// PublishX509CA it is not implemented for wrapper
-func (w *wrapper) PublishX509CA(ctx context.Context, request *PublishX509CARequest) (*PublishX509CAResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
 // parseCertificates parse certificates and return an array with each certificate raw
 func parseCertificates(rawCerts []byte) ([][]byte, error) {
 	var certificates [][]byte
@@ -73,6 +63,16 @@ func parseCertificates(rawCerts []byte) ([][]byte, error) {
 	}
 
 	return certificates, nil
+}
+
+// PublishJWTKey it is not implemented for wrapper
+func (w *wrapper) PublishJWTKey(ctx context.Context, request *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+// PublishX509CA it is not implemented for wrapper
+func (w *wrapper) PublishX509CA(ctx context.Context, request *PublishX509CARequest) (*PublishX509CAResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 func makeError(code codes.Code, format string, args ...interface{}) error {
