@@ -65,7 +65,7 @@ func parseCertificates(rawCerts []byte) ([][]byte, error) {
 	return certificates, nil
 }
 
-// PublishJWTKey it is not implemented for wrapper
+// PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
 func (w *wrapper) PublishJWTKey(ctx context.Context, request *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error) {
 	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
