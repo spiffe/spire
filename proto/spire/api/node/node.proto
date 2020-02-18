@@ -135,6 +135,15 @@ message FetchX509CASVIDResponse {
     spire.common.Bundle bundle = 2;
 }
 
+message PushJWTKeyUpstreamRequest {
+    spire.common.PublicKey jwt_key = 1;          
+}
+
+message PushJWTKeyUpstreamResponse {
+    /** up-to-date bundle of JWT signing keys */
+    repeated spire.common.PublicKey jwt_signing_keys = 1;    
+}
+
 service Node {
     // Attest the node, get base node SVID.
     rpc Attest(stream AttestRequest) returns (stream AttestResponse);
@@ -149,4 +158,9 @@ service Node {
 
     // Fetches an X509 CA SVID for a downstream SPIRE server.
     rpc FetchX509CASVID(FetchX509CASVIDRequest) returns (FetchX509CASVIDResponse);
+
+    // PushJWTKeyUpstream pushes new public JWKs to upstream SPIRE Server, unless this 
+    // is the root server, in which case it stores the JWK in its bundle. Returns an
+    // up-to-date list of the JWT signing keys stored in the bundle.
+    rpc PushJWTKeyUpstream(PushJWTKeyUpstreamRequest) returns (PushJWTKeyUpstreamResponse);
 }
