@@ -13,7 +13,7 @@ type wrapper struct {
 	upstreamCA upstreamca.UpstreamCA
 }
 
-// Wrap creates a wrapper for UpstreamCA interface that satisfies the UpstreamAuthority interface
+// Wrap produces a conforming UpstreamAuthority by wrapping an UpstreamCA. The PublishX509CA and PublishJWTKey methods are not implemented and return a codes.Unimplemented status.
 func Wrap(upstreamCA upstreamca.UpstreamCA) UpstreamAuthority {
 	return &wrapper{upstreamCA: upstreamCA}
 }
