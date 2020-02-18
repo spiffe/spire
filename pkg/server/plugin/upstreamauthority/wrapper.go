@@ -18,7 +18,7 @@ func Wrap(upstreamCA upstreamca.UpstreamCA) UpstreamAuthority {
 	return &wrapper{upstreamCA: upstreamCA}
 }
 
-// MintX509CA pass request to UpstreamCA SubmitCSR RPC, parse SubmitCSRResponse into MintX509CAResponse
+// MintX509CA mints an X509CA by forwarding the request to the wrapped UpstreamCA's SubmitCSR method
 func (w *wrapper) MintX509CA(ctx context.Context, request *MintX509CARequest) (*MintX509CAResponse, error) {
 	// Create a SubmitCSRRequest from MintX509CARequest
 	req := &upstreamca.SubmitCSRRequest{
