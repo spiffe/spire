@@ -70,7 +70,7 @@ func (w *wrapper) PublishJWTKey(ctx context.Context, request *PublishJWTKeyReque
 	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-// PublishX509CA it is not implemented for wrapper
+// PublishX509CA is not implemented by the wrapper and returns a codes.Unimplemented status
 func (w *wrapper) PublishX509CA(ctx context.Context, request *PublishX509CARequest) (*PublishX509CAResponse, error) {
 	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
