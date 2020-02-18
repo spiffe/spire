@@ -495,8 +495,8 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 
 		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
 			h.c.Log.WithError(err).WithFields(logrus.Fields{
-				telemetry.Method: fullMethod,
-				"id":             getSpiffeIDFromCertUnsafe(peerCert),
+				telemetry.Method:  fullMethod,
+				telemetry.AgentID: tryGetSpiffeIDFromCert(peerCert),
 			}).Error("Agent is not attested or no longer valid")
 			return nil, status.Error(codes.PermissionDenied, "agent is not attested or no longer valid")
 		}
@@ -1134,7 +1134,7 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 }
 
 // Gets the SPIFFE ID from a cert or returns an empty string if there is an error.
-func getSpiffeIDFromCertUnsafe(cert *x509.Certificate) string {
+func tryGetSpiffeIDFromCert(cert *x509.Certificate) string {
 	spiffeid, _ := getSpiffeIDFromCert(cert)
 	return spiffeid
 }
