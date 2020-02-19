@@ -932,7 +932,7 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		return nil, nil, errs.New("upstream CA failed with %v", err)
 	}
 
-	caChain, trustBundle, err := parseUpstreamCACSRResponse(resp)
+	caChain, trustBundle, err := parseUpstreamAuthorityCSRResponse(resp)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -953,7 +953,7 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 	}, trustBundle, nil
 }
 
-func parseUpstreamCACSRResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
+func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
 	certChain, err := parseCertificates(resp.X509CaChain)
 	if err != nil {
 		return nil, nil, err

@@ -39,11 +39,7 @@ func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.No
 }
 
 func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.UpstreamAuthority) {
-	if upstreamAuthority == nil {
-		c.upstreamAuthority = nil
-	} else {
-		c.upstreamAuthority = upstreamAuthority
-	}
+	c.upstreamAuthority = upstreamAuthority
 }
 
 // GetUpstreamAuthority obtains upstream authority from fake instead original catalog,
