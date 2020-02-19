@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
@@ -42,6 +43,7 @@ type Catalog interface {
 	GetUpstreamCA() (upstreamca.UpstreamCA, bool)
 	GetKeyManager() keymanager.KeyManager
 	GetNotifiers() []Notifier
+	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
 }
 
 type GlobalConfig = catalog.GlobalConfig
@@ -106,6 +108,9 @@ type Plugins struct {
 	UpstreamCA    *upstreamca.UpstreamCA
 	KeyManager    keymanager.KeyManager
 	Notifiers     []Notifier
+
+	// It is unexported to prevent to be processed by Fill, it is handled by ourselves
+	upstreamAuthority upstreamauthority.UpstreamAuthority
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -137,6 +142,10 @@ func (p *Plugins) GetKeyManager() keymanager.KeyManager {
 
 func (p *Plugins) GetNotifiers() []Notifier {
 	return p.Notifiers
+}
+
+func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
+	return p.upstreamAuthority, p.upstreamAuthority != nil
 }
 
 type Config struct {
@@ -177,6 +186,11 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if p.UpstreamCA != nil {
+		p.upstreamAuthority = upstreamauthority.Wrap(*p.UpstreamCA)
+	}
+
 	return &Repository{
 		Catalog: p,
 		Closer:  closer,

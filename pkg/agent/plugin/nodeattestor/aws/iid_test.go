@@ -21,6 +21,8 @@ import (
 )
 
 const (
+	apiTokenPath                 = "/latest/api/token"   //nolint: gosec // false positive
+	staticToken                  = "It's just some data" //nolint: gosec // false positive
 	defaultIdentityDocumentPath  = "/latest/dynamic/instance-identity/document"
 	defaultIdentitySignaturePath = "/latest/dynamic/instance-identity/signature"
 )
@@ -57,6 +59,10 @@ type Suite struct {
 func (s *Suite) SetupTest() {
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch path := req.URL.Path; path {
+		case apiTokenPath:
+			// Token requested by AWS SDK for IMDSv2 authentication
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(staticToken))
 		case defaultIdentityDocumentPath:
 			// write doc resp
 			w.WriteHeader(s.status)
@@ -74,10 +80,7 @@ func (s *Suite) SetupTest() {
 	s.p = s.newPlugin()
 
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-identity_document_url = "http://%s%s"
-identity_signature_url = "http://%s%s"
-`, s.server.Listener.Addr().String(), defaultIdentityDocumentPath, s.server.Listener.Addr().String(), defaultIdentitySignaturePath),
+		Configuration: fmt.Sprintf(`ec2_metadata_endpoint = "http://%s/latest"`, s.server.Listener.Addr().String()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
 		},
@@ -107,7 +110,7 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.docBody = ""
 	_, err := s.fetchAttestationData()
-	s.RequireErrorContains(err, "unexpected status code: 502")
+	s.RequireErrorContains(err, "status code: 502")
 }
 
 func (s *Suite) TestSuccessfulIdentityProcessing() {
@@ -137,16 +140,6 @@ func (s *Suite) TestConfigure() {
 		Configuration: `trust_domain`,
 	})
 	require.Error(err)
-	require.Nil(resp)
-
-	// global configuration not provided
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireErrorContains(err, "global configuration is required")
-	require.Nil(resp)
-
-	// missing trust domain
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireErrorContains(err, "global configuration missing trust domain")
 	require.Nil(resp)
 
 	// success
