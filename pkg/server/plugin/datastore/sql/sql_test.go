@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blang/semver"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
@@ -2073,7 +2072,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Len(resp.Entries[0].DnsNames, 1)
 			s.Require().Equal("abcd.efg", resp.Entries[0].DnsNames[0])
 		case 8:
-			db, err := sqlite{}.connect(&configuration{
+			db, _, _, err := sqliteDB{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
 			})
@@ -2082,21 +2081,21 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
 			s.Require().True(db.Dialect().HasIndex("selectors", "idx_selectors_type_value"))
 		case 9:
-			db, err := sqlite{}.connect(&configuration{
+			db, _, _, err := sqliteDB{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
 			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
 		case 10:
-			db, err := sqlite{}.connect(&configuration{
+			db, _, _, err := sqliteDB{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
 			})
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 		case 11:
-			db, err := sqlite{}.connect(&configuration{
+			db, _, _, err := sqliteDB{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
 			})
@@ -2104,7 +2103,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 		case 12:
 			// Ensure attested_nodes_entries gained two new columns
-			db, err := sqlite{}.connect(&configuration{
+			db, _, _, err := sqliteDB{}.connect(&configuration{
 				DatabaseType:     "sqlite3",
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
 			})
@@ -2333,11 +2332,11 @@ func (s *PluginSuite) TestConfigure() {
 
 func TestListRegistrationEntriesQuery(t *testing.T) {
 	testCases := []struct {
-		dialect string
-		paged   string
-		by      []string
-		version string
-		query   string
+		dialect     string
+		paged       string
+		by          []string
+		supportsCTE bool
+		query       string
 	}{
 		{
 			dialect: "sqlite3",
@@ -4251,7 +4250,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		},
 		{
 			dialect: "mysql",
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4285,7 +4283,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"parent-id"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4321,7 +4318,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"spiffe-id"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4357,7 +4353,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"parent-id", "spiffe-id"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4393,7 +4388,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"selector-subset-one"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4429,7 +4423,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"selector-subset-many"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4469,7 +4462,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"selector-exact-one"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4505,7 +4497,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"selector-exact-many"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4546,7 +4537,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"parent-id", "selector-subset-one"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4587,7 +4577,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"parent-id", "selector-subset-many"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4632,7 +4621,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"parent-id", "selector-exact-one"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4673,7 +4661,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			by:      []string{"parent-id", "selector-exact-many"},
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4717,7 +4704,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			paged:   "no-token",
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4755,7 +4741,6 @@ ORDER BY e_id, selector_id, dns_name_id
 		{
 			dialect: "mysql",
 			paged:   "with-token",
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4794,7 +4779,6 @@ ORDER BY e_id, selector_id, dns_name_id
 			dialect: "mysql",
 			by:      []string{"spiffe-id"},
 			paged:   "with-token",
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4833,7 +4817,6 @@ ORDER BY e_id, selector_id, dns_name_id
 			dialect: "mysql",
 			by:      []string{"spiffe-id", "selector-exact-one"},
 			paged:   "with-token",
-			version: "7.0.0",
 			query: `
 SELECT
 	E.id AS e_id,
@@ -4874,8 +4857,8 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			version: "8.0.0",
+			dialect:     "mysql",
+			supportsCTE: true,
 			query: `
 SELECT
 	id as e_id,
@@ -4924,9 +4907,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"parent-id"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"parent-id"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE parent_id = ?
@@ -4983,9 +4966,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"spiffe-id"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"spiffe-id"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE spiffe_id = ?
@@ -5042,9 +5025,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"parent-id", "spiffe-id"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"parent-id", "spiffe-id"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
@@ -5101,9 +5084,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"selector-subset-one"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"selector-subset-one"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
@@ -5160,9 +5143,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"selector-subset-many"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"selector-subset-many"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM (
@@ -5223,9 +5206,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"selector-exact-one"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"selector-exact-one"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
@@ -5282,9 +5265,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"selector-exact-many"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"selector-exact-many"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT DISTINCT id FROM (
@@ -5346,9 +5329,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"parent-id", "selector-subset-one"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"parent-id", "selector-subset-one"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT DISTINCT id FROM (
@@ -5410,9 +5393,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"parent-id", "selector-subset-many"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"parent-id", "selector-subset-many"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT DISTINCT id FROM (
@@ -5478,9 +5461,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"parent-id", "selector-exact-one"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"parent-id", "selector-exact-one"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT DISTINCT id FROM (
@@ -5542,9 +5525,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"parent-id", "selector-exact-many"},
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"parent-id", "selector-exact-many"},
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT DISTINCT id FROM (
@@ -5609,9 +5592,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			paged:   "no-token",
-			version: "8.0.0",
+			dialect:     "mysql",
+			paged:       "no-token",
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM (
@@ -5670,9 +5653,9 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			paged:   "with-token",
-			version: "8.0.0",
+			dialect:     "mysql",
+			paged:       "with-token",
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM (
@@ -5731,10 +5714,10 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"spiffe-id"},
-			paged:   "with-token",
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"spiffe-id"},
+			paged:       "with-token",
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM (
@@ -5793,10 +5776,10 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`,
 		},
 		{
-			dialect: "mysql",
-			by:      []string{"spiffe-id", "selector-exact-one"},
-			paged:   "with-token",
-			version: "8.0.0",
+			dialect:     "mysql",
+			by:          []string{"spiffe-id", "selector-exact-one"},
+			paged:       "with-token",
+			supportsCTE: true,
 			query: `
 WITH listing AS (
 	SELECT id FROM (
@@ -5863,11 +5846,7 @@ ORDER BY e_id, selector_id, dns_name_id
 
 	for _, testCase := range testCases {
 		testCase := testCase
-		name := testCase.dialect
-		if testCase.version != "" {
-			name += "-" + testCase.version
-		}
-		name += "-list-"
+		name := testCase.dialect + "-list-"
 		if len(testCase.by) == 0 {
 			name += "all"
 		} else {
@@ -5875,6 +5854,9 @@ ORDER BY e_id, selector_id, dns_name_id
 		}
 		if testCase.paged != "" {
 			name += "-paged-" + testCase.paged
+		}
+		if testCase.supportsCTE {
+			name += "-cte"
 		}
 		t.Run(name, func(t *testing.T) {
 			req := new(datastore.ListRegistrationEntriesRequest)
@@ -5928,12 +5910,7 @@ ORDER BY e_id, selector_id, dns_name_id
 				}
 			}
 
-			var version semver.Version
-			if testCase.version != "" {
-				version = semver.MustParse(testCase.version)
-			}
-
-			query, _, err := buildListRegistrationEntriesQuery(testCase.dialect, version, req)
+			query, _, err := buildListRegistrationEntriesQuery(testCase.dialect, testCase.supportsCTE, req)
 			require.NoError(t, err)
 			require.Equal(t, testCase.query, query)
 		})

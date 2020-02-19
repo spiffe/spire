@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/ioutil"
 
+	"github.com/go-sql-driver/mysql"
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 
@@ -18,23 +19,56 @@ import (
 	_ "github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
-type mysql struct{}
+type mysqlDB struct{}
 
 const (
 	tlsConfigName = "spireCustomTLS"
 )
 
-func (my mysql) connect(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
+func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, error) {
 	connString, err := configureConnection(cfg, isReadOnly)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 
 	db, err := gorm.Open("mysql", connString)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
-	return db, nil
+
+	version, err := queryVersion(db, "SELECT VERSION()")
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	supportsCTE, err := my.supportsCTE(db)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	return db, version, supportsCTE, nil
+}
+
+func (my mysqlDB) supportsCTE(gormDB *gorm.DB) (bool, error) {
+	db := gormDB.DB()
+	if db == nil {
+		return false, sqlError.New("unable to get raw database object")
+	}
+	var value int64
+	err := db.QueryRow("WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
+	switch {
+	case err == nil:
+		return true, nil
+	case my.isParseError(err):
+		return false, nil
+	default:
+		return false, sqlError.Wrap(err)
+	}
+}
+
+func (my mysqlDB) isParseError(err error) bool {
+	mysqlError, ok := err.(*mysql.MySQLError)
+	return ok && mysqlError.Number == 1064
 }
 
 // configureConnection modifies the connection string to support features that
