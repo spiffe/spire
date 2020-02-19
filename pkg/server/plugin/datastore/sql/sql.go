@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	hclog "github.com/hashicorp/go-hclog"
@@ -90,6 +91,7 @@ type sqlDB struct {
 	*gorm.DB
 
 	stmtCache *stmtCache
+	version   semver.Version
 
 	// this lock is only required for synchronized writes with "sqlite3". see
 	// the withTx() implementation for details.
@@ -524,7 +526,7 @@ func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*sp
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	if err := ds.openConnection(config, false); err != nil {
+	if err := ds.openConnection(ctx, config, false); err != nil {
 		return nil, err
 	}
 
@@ -532,14 +534,14 @@ func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*sp
 		return &spi.ConfigureResponse{}, nil
 	}
 
-	if err := ds.openConnection(config, true); err != nil {
+	if err := ds.openConnection(ctx, config, true); err != nil {
 		return nil, err
 	}
 
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
+func (ds *Plugin) openConnection(ctx context.Context, config *configuration, isReadOnly bool) error {
 	connectionString := getConnectionString(config, isReadOnly)
 	sqlDb := ds.db
 	if isReadOnly {
@@ -552,14 +554,25 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 			return err
 		}
 
-		if sqlDb != nil {
-			sqlDb.Close()
-		}
-
 		raw := db.DB()
 		if raw == nil {
 			return sqlError.New("unable to get raw database object")
 		}
+
+		version, err := getVersion(ctx, raw, config.DatabaseType)
+		if err != nil {
+			return err
+		}
+
+		if sqlDb != nil {
+			sqlDb.Close()
+		}
+
+		ds.log.Info("Opened SQL database",
+			"type", config.DatabaseType,
+			"version", version.String(),
+			"read-only", isReadOnly,
+		)
 
 		sqlDb = &sqlDB{
 			DB:               db,
@@ -567,6 +580,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 			databaseType:     config.DatabaseType,
 			connectionString: connectionString,
 			stmtCache:        newStmtCache(raw),
+			version:          version,
 		}
 	}
 
@@ -1165,7 +1179,7 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 }
 
 func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, req)
+	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, db.version, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1200,13 +1214,16 @@ func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.Fetch
 	}, nil
 }
 
-func buildFetchRegistrationEntryQuery(dbType string, req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+func buildFetchRegistrationEntryQuery(dbType string, version semver.Version, req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
 	switch dbType {
 	case SQLite:
 		return buildFetchRegistrationEntryQuerySQLite3(req)
 	case PostgreSQL:
 		return buildFetchRegistrationEntryQueryPostgreSQL(req)
 	case MySQL:
+		if version.Major < 8 {
+			return buildFetchRegistrationEntryQueryMySQLPre8(req)
+		}
 		return buildFetchRegistrationEntryQueryMySQL(req)
 	default:
 		return "", nil, sqlError.New("unsupported db type: %q", dbType)
@@ -1329,7 +1346,7 @@ ORDER BY selector_id, dns_name_id
 	return query, []interface{}{req.EntryId}, nil
 }
 
-func buildFetchRegistrationEntryQueryMySQL(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+func buildFetchRegistrationEntryQueryMySQLPre8(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
 	const query = `
 SELECT
 	E.id AS e_id,
@@ -1360,6 +1377,65 @@ WHERE E.entry_id = ?
 ORDER BY selector_id, dns_name_id
 ;`
 	return query, []interface{}{req.EntryId}, nil
+}
+
+func buildFetchRegistrationEntryQueryMySQL(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+	const query = `
+WITH listing AS (
+	SELECT id FROM registered_entries WHERE entry_id = ?
+)
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+WHERE id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+WHERE
+	F.registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+WHERE registered_entry_id IN (SELECT id FROM listing)
+
+ORDER BY selector_id, dns_name_id
+;`
+	return query, []interface{}{req.EntryId}, nil
+
 }
 
 func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
@@ -1423,7 +1499,7 @@ func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors [
 }
 
 func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-	query, args, err := buildListRegistrationEntriesQuery(db.databaseType, req)
+	query, args, err := buildListRegistrationEntriesQuery(db.databaseType, db.version, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1494,13 +1570,16 @@ func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.
 	return resp, nil
 }
 
-func buildListRegistrationEntriesQuery(dbType string, req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
+func buildListRegistrationEntriesQuery(dbType string, version semver.Version, req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
 	switch dbType {
 	case SQLite:
 		return buildListRegistrationEntriesQuerySQLite3(req)
 	case PostgreSQL:
 		return buildListRegistrationEntriesQueryPostgreSQL(req)
 	case MySQL:
+		if version.Major < 8 {
+			return buildListRegistrationEntriesQueryMySQLPre8(req)
+		}
 		return buildListRegistrationEntriesQueryMySQL(req)
 	default:
 		return "", nil, sqlError.New("unsupported db type: %q", dbType)
@@ -1674,7 +1753,7 @@ func postgreSQLRebind(s string) string {
 	}, s)
 }
 
-func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
+func buildListRegistrationEntriesQueryMySQLPre8(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
 	builder := new(strings.Builder)
 	builder.WriteString(`
 SELECT
@@ -1714,6 +1793,83 @@ LEFT JOIN
 	}
 
 	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
+
+	return builder.String(), args, nil
+}
+
+func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
+	builder := new(strings.Builder)
+
+	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
+	if err != nil {
+		return "", nil, err
+	}
+	if filtered {
+		builder.WriteString(")")
+	}
+
+	builder.WriteString(`
+SELECT
+	id as e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name
+FROM
+	registered_entries
+`)
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+FROM
+	dns_names
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+FROM
+	selectors
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+	}
+	builder.WriteString(`
+ORDER BY e_id, selector_id, dns_name_id
+;`)
 
 	return builder.String(), args, nil
 }
@@ -2419,4 +2575,29 @@ func getConnectionString(cfg *configuration, isReadOnly bool) string {
 		connectionString = cfg.RoConnectionString
 	}
 	return connectionString
+}
+
+func getVersion(ctx context.Context, db *sql.DB, dbType string) (semver.Version, error) {
+	var query string
+	switch dbType {
+	case SQLite:
+		query = "SELECT sqlite_version()"
+	case PostgreSQL:
+		query = "SHOW server_version"
+	case MySQL:
+		query = "SELECT VERSION()"
+	default:
+		return semver.Version{}, sqlError.New("obtaining version from %q is not implemented", dbType)
+	}
+
+	var versionRow string
+	if err := db.QueryRowContext(ctx, query).Scan(&versionRow); err != nil {
+		return semver.Version{}, sqlError.Wrap(err)
+	}
+	version, err := semver.Parse(versionRow)
+	if err != nil {
+		return semver.Version{}, sqlError.Wrap(err)
+	}
+
+	return version, nil
 }
