@@ -40,8 +40,7 @@ message Pagination {
 
 //
 message ListAllEntriesRequest {
-    string token = 1;
-    int32 page_size = 2;
+    Pagination pagination = 1;
 }
 
 // It is used to list all registration entries with pagination

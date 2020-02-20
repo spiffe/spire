@@ -32,7 +32,7 @@ import (
 
 var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
 
-const _defaultListEntriesPageSize = 50
+const defaultListEntriesPageSize = 50
 
 //Handler service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
@@ -295,13 +295,19 @@ func (h *Handler) ListAllEntriesWithPages(ctx context.Context, request *registra
 	log := h.Log.WithField(telemetry.Method, telemetry.ListAllEntriesWithPages)
 
 	ds := h.getDataStore()
-	if request.PageSize == 0 {
-		request.PageSize = _defaultListEntriesPageSize
+	var pageSize int32 = defaultListEntriesPageSize
+	var token string
+
+	if request.Pagination != nil {
+		if request.Pagination.PageSize != 0 {
+			pageSize = request.Pagination.PageSize
+		}
+		token = request.Pagination.Token
 	}
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
-			Token:    request.Token,
-			PageSize: request.PageSize,
+			Token:    token,
+			PageSize: pageSize,
 		},
 	})
 	if err != nil {

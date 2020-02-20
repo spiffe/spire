@@ -775,24 +775,30 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 			expectedList: []*common.RegistrationEntry{entry3, entry2, entry1},
 		},
 		{
-			name: "without just page size",
+			name: "with just page size",
 			request: &registration.ListAllEntriesRequest{
-				PageSize: 2,
+				Pagination: &registration.Pagination{
+					PageSize: 2,
+				},
 			},
 			expectedList: []*common.RegistrationEntry{entry2, entry1},
 		},
 		{
 			name: "with request page size as 0 but returning list of default page size",
 			request: &registration.ListAllEntriesRequest{
-				PageSize: 0,
+				Pagination: &registration.Pagination{
+					PageSize: 0,
+				},
 			},
 			expectedList:     []*common.RegistrationEntry{entry3, entry2, entry1},
-			expectedPageSize: _defaultListEntriesPageSize,
+			expectedPageSize: defaultListEntriesPageSize,
 		},
 		{
 			name: "with request page size greater than entries",
 			request: &registration.ListAllEntriesRequest{
-				PageSize: 10,
+				Pagination: &registration.Pagination{
+					PageSize: 10,
+				},
 			},
 			expectedList: []*common.RegistrationEntry{entry3, entry2, entry1},
 		},
@@ -816,9 +822,11 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 		})
 	}
 
-	// testCase pagination tokens
+	// test pagination tokens
 	resp, err := s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
-		PageSize: 1,
+		Pagination: &registration.Pagination{
+			PageSize: 1,
+		},
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
@@ -826,8 +834,10 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 
 	// 2nd page
 	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
-		Token:    resp.Pagination.Token,
-		PageSize: 1,
+		Pagination: &registration.Pagination{
+			Token:    resp.Pagination.Token,
+			PageSize: 1,
+		},
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
@@ -835,8 +845,10 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 
 	// 3rd page
 	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
-		Token:    resp.Pagination.Token,
-		PageSize: 1,
+		Pagination: &registration.Pagination{
+			Token:    resp.Pagination.Token,
+			PageSize: 1,
+		},
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
@@ -844,7 +856,9 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 
 	// 4th page should be empty
 	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
-		Token: resp.Pagination.Token,
+		Pagination: &registration.Pagination{
+			Token: resp.Pagination.Token,
+		},
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 0)
