@@ -24,7 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 )
@@ -207,9 +207,9 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 
 	var x509CA *X509CA
 	var trustBundle []*x509.Certificate
-	upstreamCA, useUpstream := m.c.Catalog.GetUpstreamCA()
+	upstreamAuthority, useUpstream := m.c.Catalog.GetUpstreamAuthority()
 	if useUpstream {
-		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamCA, m.c.UpstreamBundle, m.c.CATTL)
+		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamAuthority, m.c.UpstreamBundle, m.c.CATTL)
 	} else {
 		notBefore := now.Add(-backdate)
 		notAfter := now.Add(m.c.CATTL)
@@ -918,13 +918,13 @@ func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain strin
 	}, trustBundle, nil
 }
 
-func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool, caTTL time.Duration) (*X509CA, []*x509.Certificate, error) {
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamAuthority upstreamauthority.UpstreamAuthority, upstreamBundle bool, caTTL time.Duration) (*X509CA, []*x509.Certificate, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	resp, err := upstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	resp, err := upstreamAuthority.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: int32(caTTL / time.Second),
 	})
@@ -932,7 +932,7 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		return nil, nil, errs.New("upstream CA failed with %v", err)
 	}
 
-	caChain, trustBundle, err := parseUpstreamCACSRResponse(resp)
+	caChain, trustBundle, err := parseUpstreamAuthorityCSRResponse(resp)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -953,18 +953,15 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 	}, trustBundle, nil
 }
 
-func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
-	if resp.SignedCertificate == nil {
-		return nil, nil, errs.New("upstream CA returned a nil signed certificate")
-	}
-	certChain, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
+	certChain, err := parseCertificates(resp.X509CaChain)
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(certChain) == 0 {
 		return nil, nil, errs.New("upstream CA returned an empty cert chain")
 	}
-	trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
+	trustBundle, err := parseCertificates(resp.UpstreamX509Roots)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -972,6 +969,19 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 		return nil, nil, errs.New("upstream CA returned an empty trust bundle")
 	}
 	return certChain, trustBundle, nil
+}
+
+func parseCertificates(rawCerts [][]byte) ([]*x509.Certificate, error) {
+	var certificates []*x509.Certificate
+	for _, rawCert := range rawCerts {
+		cert, err := x509.ParseCertificate(rawCert)
+		if err != nil {
+			return nil, err
+		}
+		certificates = append(certificates, cert)
+	}
+
+	return certificates, nil
 }
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
