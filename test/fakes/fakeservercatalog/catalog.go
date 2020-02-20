@@ -43,7 +43,7 @@ func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.Upstr
 }
 
 // GetUpstreamAuthority obtains upstream authority from fake instead original catalog,
-// it can be removed once upstream authority is properly loaded on catalog
+// it can be removed once upstream authority is properly loaded on catalog. Please see issue #1374.
 func (c *Catalog) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
 	return c.upstreamAuthority, c.upstreamAuthority != nil
 }

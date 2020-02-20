@@ -971,10 +971,10 @@ func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CARespons
 	return certChain, trustBundle, nil
 }
 
-func parseCertificates(certChain [][]byte) ([]*x509.Certificate, error) {
+func parseCertificates(rawCerts [][]byte) ([]*x509.Certificate, error) {
 	var certificates []*x509.Certificate
-	for _, chain := range certChain {
-		cert, err := x509.ParseCertificate(chain)
+	for _, rawCert := range rawCerts {
+		cert, err := x509.ParseCertificate(rawCert)
 		if err != nil {
 			return nil, err
 		}
