@@ -215,8 +215,7 @@ Represents a ListAgents response
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| token | [string](#string) |  |  |
-| page_size | [int32](#int32) |  |  |
+| pagination | [Pagination](#spire.api.registration.Pagination) |  |  |
 
 
 
