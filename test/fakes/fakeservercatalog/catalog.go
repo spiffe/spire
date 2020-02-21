@@ -8,11 +8,13 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 )
 
 type Catalog struct {
 	catalog.Plugins
+
+	upstreamAuthority upstreamauthority.UpstreamAuthority
 }
 
 func New() *Catalog {
@@ -36,12 +38,14 @@ func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.No
 	c.NodeResolvers[name] = nodeResolver
 }
 
-func (c *Catalog) SetUpstreamCA(upstreamCA upstreamca.UpstreamCA) {
-	if upstreamCA == nil {
-		c.UpstreamCA = nil
-	} else {
-		c.UpstreamCA = &upstreamCA
-	}
+func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.UpstreamAuthority) {
+	c.upstreamAuthority = upstreamAuthority
+}
+
+// GetUpstreamAuthority obtains upstream authority from fake instead original catalog,
+// it can be removed once upstream authority is properly loaded on catalog. Please see issue #1374.
+func (c *Catalog) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
+	return c.upstreamAuthority, c.upstreamAuthority != nil
 }
 
 func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
