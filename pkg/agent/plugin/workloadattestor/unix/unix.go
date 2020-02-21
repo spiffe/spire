@@ -125,7 +125,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		selectors = append(selectors, makeSelector("path", processPath))
 
 		if config.WorkloadSizeLimit >= 0 {
-			exePath := p.getProcPath(proc)
+			exePath := p.getNamespacedPath(proc)
 			sha256Digest, err := getSHA256Digest(exePath, config.WorkloadSizeLimit)
 			if err != nil {
 				return nil, err
@@ -226,7 +226,7 @@ func (p *Plugin) getPath(proc processInfo) (string, error) {
 	return path, nil
 }
 
-func (p *Plugin) getProcPath(proc processInfo) string {
+func (p *Plugin) getNamespacedPath(proc processInfo) string {
 	return proc.NamespacedExe()
 }
 
