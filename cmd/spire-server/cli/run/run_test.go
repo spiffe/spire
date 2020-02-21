@@ -655,11 +655,11 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg: "upstream_bundle is configured correctly",
 			input: func(c *config) {
-				value := true
+				value := false
 				c.Server.UpstreamBundle = &value
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.True(t, c.UpstreamBundle)
+				require.False(t, c.UpstreamBundle)
 			},
 		},
 		{
