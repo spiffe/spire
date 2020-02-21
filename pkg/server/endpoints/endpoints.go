@@ -147,6 +147,7 @@ func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
 		ServerCA:    e.c.ServerCA,
+		Manager:     e.c.Manager,
 
 		AllowAgentlessNodeAttestors: e.c.AllowAgentlessNodeAttestors,
 	})
