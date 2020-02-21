@@ -663,6 +663,13 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:   "upstream_bundle default value must be 'true'",
+			input: func(c *config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.UpstreamBundle)
+			},
+		},
+		{
 			msg: "allow_agentless_node_attestors is configured correctly",
 			input: func(c *config) {
 				c.Server.Experimental.AllowAgentlessNodeAttestors = true
