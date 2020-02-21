@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	gcu "github.com/spiffe/spire/pkg/server/util/grpccodesutil"
 )
 
 type HandlerConfig struct {
@@ -43,6 +44,7 @@ type HandlerConfig struct {
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
 	Clock       clock.Clock
+	Manager 	*ca.Manager
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -479,6 +481,72 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	}, nil
 }
 
+func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (resp *node.PushJWTKeyUpstreamResponse, error) {
+	counter := telemetry_server.StartNodeAPIPushJWTKeyUpstreamCall(h.c.Metrics)
+	defer counter.Done(&err)
+	log := h.c.Log.WithField(telemetry.Method, telemetry.PushJWTKeyUpstream)
+
+	peerCert, ok := getPeerCertificate(ctx)
+	if !ok {
+		log.Error("Downstream SVID is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
+	}
+
+	entry, ok := getDownstreamEntry(ctx)
+	if !ok {
+		log.Error("Downstream entry is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream entry is required for this request")
+	}
+
+	err = h.limiter.Limit(ctx, PushJWTKey, 1)
+	if err != nil {
+		log.WithError(err).Error("Rejecting request due to jwk push rate limiting")
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
+
+	upstreamAuth, useUpstream := h.c.Catalog.GetUpstreamAuthority()
+	if useUpstream { // We are an intermediate SPIRE server
+		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		res, err := upstreamAuth.PublishJWTKey(
+			publishCtx,
+			&upstreamauthority.PublishJWTKeyRequest{
+				JwtKey: req.JwtKey,
+			})
+		if gcu.IsUnimplementedError(err) {
+			h.warnOnce.Do(func() {
+				log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
+					"by this server may have trouble communicating with workloads outside " +
+					"this cluster when using JWT-SVIDs.")
+			})
+		} else if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		} else { // No error, then we can use the response.
+			// In this case we just send back to the caller the received
+			// JWKs from upstream.
+			return &node.PushJWTKeyUpstreamResponse{
+				JwtSigningKeys: res.UpstreamJwtKeys,
+			}, nil
+		}
+	}
+
+	if err := h.c.Manager.AppendBundle(ctx, nil, []*common.PublicKey{req.JwtKey}); err != nil {
+		return err
+	}
+
+	// Ensure we delete any cached bundle to get the latest one.
+	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
+	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
+	if err != nil {
+		return nil, err
+	}	
+
+	return &node.PushJWTKeyUpstreamResponse{
+		JwtSigningKeys: bundle.JwtSigningKeys,
+	}, nil
+}
+
+
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	switch fullMethod {
 	// no authn/authz is required for attestation
@@ -502,7 +570,8 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		}
 
 		ctx = withPeerCertificate(ctx, peerCert)
-	case "/spire.api.node.Node/FetchX509CASVID":
+	case "/spire.api.node.Node/FetchX509CASVID",
+		"/spire.api.node.Node/PushJWTKeyUpstream":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Downstream SVID is required for this request")
@@ -1027,7 +1096,7 @@ func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common
 	return bundles, nil
 }
 
-// getBundle fetches a bundle from the datastore, by trust domain
+// getBundle fetches a bundle from the datastore, by trust domain, using a cache.
 func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
 	resp, err := h.dsCache.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,

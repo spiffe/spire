@@ -19,6 +19,7 @@ const (
 	AttestMsg = iota
 	CSRMsg
 	JSRMsg
+	PushJWTKey
 )
 
 type Limiter interface {
@@ -35,6 +36,7 @@ func newLimiter(l logrus.FieldLogger) *limiter {
 		attestRate:   rate.Limit(node.AttestLimit),
 		csrRate:      rate.Limit(node.CSRLimit),
 		jsrRate:      rate.Limit(node.JSRLimit),
+		jwtKeyRate:   rate.Limit(node.PushJWTKeyLimit),
 		lastNotified: make(map[string]time.Time),
 		limiters:     make(map[int]map[string]*rate.Limiter),
 		log:          l,
@@ -46,6 +48,7 @@ type limiter struct {
 	attestRate rate.Limit
 	csrRate    rate.Limit
 	jsrRate    rate.Limit
+	jwtKeyRate rate.Limit
 
 	lastNotified map[string]time.Time
 	limiters     map[int]map[string]*rate.Limiter
@@ -133,6 +136,8 @@ func (l *limiter) newLimiterFor(msgType int) (*rate.Limiter, error) {
 		return rate.NewLimiter(l.csrRate, node.CSRLimit), nil
 	case JSRMsg:
 		return rate.NewLimiter(l.jsrRate, node.JSRLimit), nil
+	case PushJWTKey:
+		return rate.NewLimiter(l.jwtKeyRate, node.PushJWTKeyLimit), nil
 	}
 
 	return nil, fmt.Errorf("limiter: unknown message type %v", msgType)
@@ -174,6 +179,8 @@ func (l *limiter) notify(callerID string, msgType int) {
 		action = "get certificates signed"
 	case JSRMsg:
 		action = "get JWTs signed"
+	case PushJWTKey:
+		action = "push JWK"
 	default:
 		action = "do a questionable thing"
 	}

@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/url"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -25,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	gcu "github.com/spiffe/spire/pkg/server/util/grpccodesutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 )
@@ -73,6 +75,9 @@ type Manager struct {
 	nextJWTKey    *jwtKeySlot
 
 	journal *Journal
+
+	// Used to log a warning only once.
+	warnOnce sync.Once
 }
 
 func NewManager(c ManagerConfig) *Manager {
@@ -219,7 +224,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 		return err
 	}
 
-	if err := m.appendBundle(ctx, trustBundle, nil); err != nil {
+	if err := m.AppendBundle(ctx, trustBundle, nil); err != nil {
 		return err
 	}
 
@@ -314,7 +319,30 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 		return err
 	}
 
-	if err := m.appendBundle(ctx, nil, publicKey); err != nil {
+	publicKeys := []*common.PublicKey{publicKey}
+	upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority()
+	if useUpstream {
+		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		res, err := upstreamAuth.PublishJWTKey(
+			publishCtx,
+			&upstreamauthority.PublishJWTKeyRequest{
+				JwtKey: publicKey,
+			})
+		if gcu.IsUnimplementedError(err) {
+			m.warnOnce.Do(func() {
+				log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
+					"by this server may have trouble communicating with workloads outside " +
+					"this cluster when using JWT-SVIDs.")
+			})
+		} else if err != nil {
+			return err
+		} else { // No error, then we can use the response.
+			publicKeys = res.UpstreamJwtKeys
+		}
+	}
+
+	if err := m.AppendBundle(ctx, nil, publicKeys); err != nil {
 		return err
 	}
 
@@ -384,17 +412,12 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
+func (m *Manager) AppendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey) error {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{
 			DerBytes: caCert.Raw,
 		})
-	}
-
-	var jwtSigningKeys []*common.PublicKey
-	if jwtSigningKey != nil {
-		jwtSigningKeys = append(jwtSigningKeys, jwtSigningKey)
 	}
 
 	ds := m.c.Catalog.GetDataStore()
