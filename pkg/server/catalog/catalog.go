@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -36,36 +37,10 @@ import (
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
 )
 
-type Catalog interface {
-	GetDataStore() datastore.DataStore
-	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
-	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
-	GetKeyManager() keymanager.KeyManager
-	GetNotifiers() []Notifier
-	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
-}
+var (
+	portedUpstreamCA = map[string]bool{}
 
-type GlobalConfig = catalog.GlobalConfig
-type HCLPluginConfig = catalog.HCLPluginConfig
-type HCLPluginConfigMap = catalog.HCLPluginConfigMap
-
-func KnownPlugins() []catalog.PluginClient {
-	return []catalog.PluginClient{
-		datastore.PluginClient,
-		nodeattestor.PluginClient,
-		noderesolver.PluginClient,
-		upstreamca.PluginClient,
-		keymanager.PluginClient,
-		notifier.PluginClient,
-	}
-}
-
-func KnownServices() []catalog.ServiceClient {
-	return []catalog.ServiceClient{}
-}
-
-func BuiltIns() []catalog.Plugin {
-	return []catalog.Plugin{
+	builtIn = []catalog.Plugin{
 		// DataStores
 		ds_sql.BuiltIn(),
 		// NodeAttestors
@@ -93,6 +68,39 @@ func BuiltIns() []catalog.Plugin {
 		no_k8sbundle.BuiltIn(),
 		no_gcs_bundle.BuiltIn(),
 	}
+)
+
+type Catalog interface {
+	GetDataStore() datastore.DataStore
+	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
+	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
+	GetKeyManager() keymanager.KeyManager
+	GetNotifiers() []Notifier
+	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
+}
+
+type GlobalConfig = catalog.GlobalConfig
+type HCLPluginConfig = catalog.HCLPluginConfig
+type HCLPluginConfigMap = catalog.HCLPluginConfigMap
+
+func KnownPlugins() []catalog.PluginClient {
+	return []catalog.PluginClient{
+		datastore.PluginClient,
+		nodeattestor.PluginClient,
+		noderesolver.PluginClient,
+		upstreamauthority.PluginClient,
+		upstreamca.PluginClient,
+		keymanager.PluginClient,
+		notifier.PluginClient,
+	}
+}
+
+func KnownServices() []catalog.ServiceClient {
+	return []catalog.ServiceClient{}
+}
+
+func BuiltIns() []catalog.Plugin {
+	return builtIn
 }
 
 type Notifier struct {
@@ -108,8 +116,7 @@ type Plugins struct {
 	KeyManager    keymanager.KeyManager
 	Notifiers     []Notifier
 
-	// It is unexported to prevent to be processed by Fill, it is handled by ourselves
-	upstreamAuthority upstreamauthority.UpstreamAuthority
+	UpstreamAuthority *upstreamauthority.UpstreamAuthority
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -137,7 +144,10 @@ func (p *Plugins) GetNotifiers() []Notifier {
 }
 
 func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
-	return p.upstreamAuthority, p.upstreamAuthority != nil
+	if p.UpstreamAuthority != nil {
+		return *p.UpstreamAuthority, true
+	}
+	return nil, false
 }
 
 type Config struct {
@@ -155,8 +165,27 @@ type Repository struct {
 	catalog.Closer
 }
 
+// updatePluginConfig update ported UpstreamCA plugins into UpstreamAuthority
+func updatePluginConfig(pluginConfig catalog.HCLPluginConfigMap, log logrus.FieldLogger) {
+	for k, v := range pluginConfig[upstreamca.Type] {
+		if portedUpstreamCA[k] {
+			pluginConfig[upstreamauthority.Type] = map[string]catalog.HCLPluginConfig{
+				k: v,
+			}
+			log.Warnf("The UpstreamCA plugin %q is now an UpstreamAuthority plugin. "+
+				"Please update your configuration to load UpstreamAuthority %q instead.", k, k)
+			delete(pluginConfig[upstreamca.Type], k)
+			if len(pluginConfig[upstreamca.Type]) == 0 {
+				delete(pluginConfig, upstreamca.Type)
+			}
+		}
+	}
+}
+
 func Load(ctx context.Context, config Config) (*Repository, error) {
-	pluginConfig, err := catalog.PluginConfigFromHCL(config.PluginConfig)
+	updatePluginConfig(config.PluginConfig, config.Log)
+
+	pluginConfigs, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +194,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	closer, err := catalog.Fill(ctx, catalog.Config{
 		Log:           config.Log,
 		GlobalConfig:  config.GlobalConfig,
-		PluginConfig:  pluginConfig,
+		PluginConfig:  pluginConfigs,
 		KnownPlugins:  KnownPlugins(),
 		KnownServices: KnownServices(),
 		BuiltIns:      BuiltIns(),
@@ -180,7 +209,12 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	}
 
 	if p.UpstreamCA != nil {
-		p.upstreamAuthority = upstreamauthority.Wrap(*p.UpstreamCA)
+		if p.UpstreamAuthority != nil {
+			return nil, errors.New("only one UpstreamCA or UpstreamAuthority is allowed. Please remove one of them")
+		}
+
+		wrap := upstreamauthority.Wrap(*p.UpstreamCA)
+		p.UpstreamAuthority = &wrap
 	}
 
 	return &Repository{
