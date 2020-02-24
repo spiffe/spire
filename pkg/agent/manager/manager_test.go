@@ -1257,6 +1257,10 @@ func (h *mockNodeAPIHandler) FetchX509CASVID(ctx context.Context, req *node.Fetc
 	return nil, errors.New("oh noes")
 }
 
+func (h *mockNodeAPIHandler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (*node.PushJWTKeyUpstreamResponse, error) {
+	return nil, errors.New("oh noes")
+}
+
 func (h *mockNodeAPIHandler) start() {
 	s := grpc.NewServer(h.creds)
 	node.RegisterNodeServer(s, h)

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -26,6 +27,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	gcu "github.com/spiffe/spire/pkg/server/util/grpccodesutil"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -34,7 +37,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	gcu "github.com/spiffe/spire/pkg/server/util/grpccodesutil"
 )
 
 type HandlerConfig struct {
@@ -44,7 +46,7 @@ type HandlerConfig struct {
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
 	Clock       clock.Clock
-	Manager 	*ca.Manager
+	Manager     *ca.Manager
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -55,6 +57,9 @@ type Handler struct {
 	limiter Limiter
 
 	dsCache *datastoreCache
+
+	// Used to log a warning only once.
+	warnOnce sync.Once
 }
 
 func NewHandler(config HandlerConfig) *Handler {
@@ -481,18 +486,18 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	}, nil
 }
 
-func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (resp *node.PushJWTKeyUpstreamResponse, error) {
+func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (resp *node.PushJWTKeyUpstreamResponse, err error) {
 	counter := telemetry_server.StartNodeAPIPushJWTKeyUpstreamCall(h.c.Metrics)
 	defer counter.Done(&err)
 	log := h.c.Log.WithField(telemetry.Method, telemetry.PushJWTKeyUpstream)
 
-	peerCert, ok := getPeerCertificate(ctx)
+	_, ok := getPeerCertificate(ctx)
 	if !ok {
 		log.Error("Downstream SVID is required for this request")
 		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
 	}
 
-	entry, ok := getDownstreamEntry(ctx)
+	_, ok = getDownstreamEntry(ctx)
 	if !ok {
 		log.Error("Downstream entry is required for this request")
 		return nil, status.Error(codes.InvalidArgument, "downstream entry is required for this request")
@@ -531,7 +536,7 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 	}
 
 	if err := h.c.Manager.AppendBundle(ctx, nil, []*common.PublicKey{req.JwtKey}); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Ensure we delete any cached bundle to get the latest one.
@@ -539,13 +544,12 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
 	if err != nil {
 		return nil, err
-	}	
+	}
 
 	return &node.PushJWTKeyUpstreamResponse{
 		JwtSigningKeys: bundle.JwtSigningKeys,
 	}, nil
 }
-
 
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	switch fullMethod {

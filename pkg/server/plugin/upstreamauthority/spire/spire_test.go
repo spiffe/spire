@@ -216,6 +216,10 @@ func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
 	return errors.New("NOT IMPLEMENTED")
 }
 
+func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKeyUpstreamRequest) (*node_pb.PushJWTKeyUpstreamResponse, error) {
+	return nil, errors.New("NOT IMPLEMENTED")
+}
+
 func TestSpirePlugin_Configure(t *testing.T) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
