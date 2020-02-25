@@ -18,6 +18,9 @@ For example:
 * SPIRE Servers are at both 0.9.3 and 0.9.2
 * SPIRE Agents are supported at 0.8.0 through 0.9.2
 
+### SPIRE Plugin Compatibility
+SPIRE plugins follow the same overall guarantees as all other SPIRE components. A plugin compiled against SPIRE N-1 will still work, but will log a warning. Plugins compiled against SPIRE N-2 will not work.
+
 ## Supported Upgrade Paths
 
 The supported version skew between SPIRE Servers and agents has implications on the order in which they must be upgraded. SPIRE Servers must be upgraded before SPIRE Agents, and is limited to a jump of at most one minor version (regardless of patch version). Upgrades that jump two or more minor versions (e.g. 0.8.1 to 0.10.0) are not supported.
