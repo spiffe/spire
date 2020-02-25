@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -40,7 +41,7 @@ import (
 var (
 	portedUpstreamCA = map[string]bool{}
 
-	builtIn = []catalog.Plugin{
+	builtIns = []catalog.Plugin{
 		// DataStores
 		ds_sql.BuiltIn(),
 		// NodeAttestors
@@ -100,7 +101,7 @@ func KnownServices() []catalog.ServiceClient {
 }
 
 func BuiltIns() []catalog.Plugin {
-	return builtIn
+	return append([]catalog.Plugin(nil), builtIns...)
 }
 
 type Notifier struct {
@@ -165,25 +166,34 @@ type Repository struct {
 	catalog.Closer
 }
 
-// updatePluginConfig update ported UpstreamCA plugins into UpstreamAuthority
-func updatePluginConfig(pluginConfig catalog.HCLPluginConfigMap, log logrus.FieldLogger) {
-	for k, v := range pluginConfig[upstreamca.Type] {
-		if portedUpstreamCA[k] {
-			pluginConfig[upstreamauthority.Type] = map[string]catalog.HCLPluginConfig{
-				k: v,
-			}
-			log.Warnf("The UpstreamCA plugin %q is now an UpstreamAuthority plugin. "+
-				"Please update your configuration to load UpstreamAuthority %q instead.", k, k)
-			delete(pluginConfig[upstreamca.Type], k)
-			if len(pluginConfig[upstreamca.Type]) == 0 {
-				delete(pluginConfig, upstreamca.Type)
-			}
+// reclassifyPortedUpstreamCAs reclassify ported UpstreamCA plugins into UpstreamAuthority
+func reclassifyPortedUpstreamCAs(pluginConfig catalog.HCLPluginConfigMap, log logrus.FieldLogger) error {
+	// We only expect one UpstreamCA configuration
+	for name, config := range pluginConfig[upstreamca.Type] {
+		// in case configured UpstreamCA is ported update configuration to process it as an UpstreamAuthority
+		if !portedUpstreamCA[name] || config.PluginCmd != "" {
+			continue
 		}
+
+		if _, ok := pluginConfig[upstreamauthority.Type]; ok {
+			return fmt.Errorf("%q cannot be configured as both an UpstreamCA and UpstreamAuthority", name)
+		}
+		// Create upstream authority type entry
+		pluginConfig[upstreamauthority.Type] = map[string]catalog.HCLPluginConfig{
+			name: config,
+		}
+
+		log.Warnf("%q should be configured as an UpstreamAuthority plugin. The UpstreamCA plugin type has been deprecated.", name)
+		delete(pluginConfig[upstreamca.Type], name)
 	}
+
+	return nil
 }
 
 func Load(ctx context.Context, config Config) (*Repository, error) {
-	updatePluginConfig(config.PluginConfig, config.Log)
+	if err := reclassifyPortedUpstreamCAs(config.PluginConfig, config.Log); err != nil {
+		return nil, err
+	}
 
 	pluginConfigs, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
@@ -208,11 +218,12 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	if p.UpstreamCA != nil {
-		if p.UpstreamAuthority != nil {
-			return nil, errors.New("only one UpstreamCA or UpstreamAuthority is allowed. Please remove one of them")
-		}
-
+	switch {
+	case p.UpstreamCA == nil:
+	case p.UpstreamAuthority != nil:
+		logrus.Error("UpstreamCA and UpstreamAuthority are mutually exclusive. Please remove one of them")
+		return nil, errors.New("plugins UpstreamCA and UpstreamAuthority are mutually exclusive")
+	default:
 		wrap := upstreamauthority.Wrap(*p.UpstreamCA)
 		p.UpstreamAuthority = &wrap
 	}
