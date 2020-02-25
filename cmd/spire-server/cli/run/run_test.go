@@ -405,16 +405,6 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "deprecated svid_ttl should be configurable by file",
-			fileInput: func(c *config) {
-				c.Server.DeprecatedSVIDTTL = "1h"
-			},
-			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
-				require.Equal(t, "1h", c.Server.DeprecatedSVIDTTL)
-			},
-		},
-		{
 			msg: "default_svid_ttl should be configurable by file",
 			fileInput: func(c *config) {
 				c.Server.DefaultSVIDTTL = "1h"
@@ -718,16 +708,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:         "using deprecated svid_ttl returns an error",
-			expectError: true,
-			input: func(c *config) {
-				c.Server.DeprecatedSVIDTTL = "1m"
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Nil(t, c)
-			},
-		},
-		{
 			msg: "default_svid_ttl is correctly parsed",
 			input: func(c *config) {
 				c.Server.DefaultSVIDTTL = "1m"
@@ -946,11 +926,6 @@ func TestValidateConfig(t *testing.T) {
 				c.Server.Experimental.FederatesWith = federatesWith
 			},
 			expectedErr: "spiffe://domain.test bundle_endpoint_address must be configured",
-		},
-		{
-			name:        "deprecated configurable `svid_ttl` must not be set",
-			applyConf:   func(c *config) { c.Server.DeprecatedSVIDTTL = "1h" },
-			expectedErr: `the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`,
 		},
 	}
 
