@@ -25,14 +25,14 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 )
@@ -145,10 +145,10 @@ func (s *ManagerSuite) TestSelfSigning() {
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
-	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-	s.initUpstreamSignedManager(upstreamCA, false)
+	s.initUpstreamSignedManager(upstreamAuthority, false)
 
 	// The X509CA should not be an intermediate and the chain should only
 	// contain itself.
@@ -164,47 +164,47 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
-	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-	s.initUpstreamSignedManager(upstreamCA, true)
+	s.initUpstreamSignedManager(upstreamAuthority, true)
 
 	// X509 CA should be set up to be an intermediate but only have itself
 	// in the chain since it was signed directly by the upstream root.
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(upstreamCA.Root().Subject, x509CA.Certificate.Issuer)
+		s.Equal(upstreamAuthority.Root().Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 1) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(upstreamCA.Root())
+	s.requireBundleRootCAs(upstreamAuthority.Root())
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
-	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
 		TrustDomain:     testTrustDomain,
 		UseIntermediate: true,
 	})
-	s.initUpstreamSignedManager(upstreamCA, true)
+	s.initUpstreamSignedManager(upstreamAuthority, true)
 
 	// X509 CA should be set up to be an intermediate and have two certs in
 	// its chain: itself and the upstream intermediate that signed it.
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(upstreamCA.Intermediate().Subject, x509CA.Certificate.Issuer)
+		s.Equal(upstreamAuthority.Intermediate().Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 2) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
-		s.Equal(upstreamCA.Intermediate(), x509CA.UpstreamChain[1])
+		s.Equal(upstreamAuthority.Intermediate(), x509CA.UpstreamChain[1])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(upstreamCA.Root())
+	s.requireBundleRootCAs(upstreamAuthority.Root())
 }
 
 func (s *ManagerSuite) TestX509CARotation() {
@@ -507,7 +507,7 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 }
 
 func (s *ManagerSuite) TestAlternateKeyTypes() {
-	upstreamCA := fakeupstreamca.New(s.T(), fakeupstreamca.Config{
+	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
 
@@ -544,12 +544,12 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 	}
 
 	testCases := []struct {
-		name          string
-		upstreamCA    upstreamca.UpstreamCA
-		x509CAKeyType keymanager.KeyType
-		jwtKeyType    keymanager.KeyType
-		checkX509CA   func(*testing.T, crypto.Signer)
-		checkJWTKey   func(*testing.T, crypto.Signer)
+		name              string
+		upstreamAuthority upstreamauthority.UpstreamAuthority
+		x509CAKeyType     keymanager.KeyType
+		jwtKeyType        keymanager.KeyType
+		checkX509CA       func(*testing.T, crypto.Signer)
+		checkJWTKey       func(*testing.T, crypto.Signer)
 	}{
 		{
 			name:        "self-signed with defaults",
@@ -585,42 +585,42 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 			checkJWTKey:   expectEC384,
 		},
 		{
-			name:        "upstream-signed with defaults",
-			upstreamCA:  upstreamCA,
-			checkX509CA: expectEC384,
-			checkJWTKey: expectEC256,
+			name:              "upstream-signed with defaults",
+			upstreamAuthority: upstreamAuthority,
+			checkX509CA:       expectEC384,
+			checkJWTKey:       expectEC256,
 		},
 		{
-			name:          "upstream-signed with RSA 2048",
-			upstreamCA:    upstreamCA,
-			x509CAKeyType: keymanager.KeyType_RSA_2048,
-			jwtKeyType:    keymanager.KeyType_RSA_2048,
-			checkX509CA:   expectRSA2048,
-			checkJWTKey:   expectRSA2048,
+			name:              "upstream-signed with RSA 2048",
+			upstreamAuthority: upstreamAuthority,
+			x509CAKeyType:     keymanager.KeyType_RSA_2048,
+			jwtKeyType:        keymanager.KeyType_RSA_2048,
+			checkX509CA:       expectRSA2048,
+			checkJWTKey:       expectRSA2048,
 		},
 		{
-			name:          "upstream-signed with RSA 4096",
-			upstreamCA:    upstreamCA,
-			x509CAKeyType: keymanager.KeyType_RSA_4096,
-			jwtKeyType:    keymanager.KeyType_RSA_4096,
-			checkX509CA:   expectRSA4096,
-			checkJWTKey:   expectRSA4096,
+			name:              "upstream-signed with RSA 4096",
+			upstreamAuthority: upstreamAuthority,
+			x509CAKeyType:     keymanager.KeyType_RSA_4096,
+			jwtKeyType:        keymanager.KeyType_RSA_4096,
+			checkX509CA:       expectRSA4096,
+			checkJWTKey:       expectRSA4096,
 		},
 		{
-			name:          "upstream-signed with EC P256",
-			upstreamCA:    upstreamCA,
-			x509CAKeyType: keymanager.KeyType_EC_P256,
-			jwtKeyType:    keymanager.KeyType_EC_P256,
-			checkX509CA:   expectEC256,
-			checkJWTKey:   expectEC256,
+			name:              "upstream-signed with EC P256",
+			upstreamAuthority: upstreamAuthority,
+			x509CAKeyType:     keymanager.KeyType_EC_P256,
+			jwtKeyType:        keymanager.KeyType_EC_P256,
+			checkX509CA:       expectEC256,
+			checkJWTKey:       expectEC256,
 		},
 		{
-			name:          "upstream-signed with EC P384",
-			upstreamCA:    upstreamCA,
-			x509CAKeyType: keymanager.KeyType_EC_P384,
-			jwtKeyType:    keymanager.KeyType_EC_P384,
-			checkX509CA:   expectEC384,
-			checkJWTKey:   expectEC384,
+			name:              "upstream-signed with EC P384",
+			upstreamAuthority: upstreamAuthority,
+			x509CAKeyType:     keymanager.KeyType_EC_P384,
+			jwtKeyType:        keymanager.KeyType_EC_P384,
+			checkX509CA:       expectEC384,
+			checkJWTKey:       expectEC384,
 		},
 	}
 
@@ -636,8 +636,8 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 			// rotation.
 			s.cat.SetKeyManager(memory.New())
 
-			// Optionally provide an upstream CA
-			s.cat.SetUpstreamCA(testCase.upstreamCA)
+			// Optionally provide an upstream authority
+			s.cat.SetUpstreamAuthority(testCase.upstreamAuthority)
 
 			s.m = NewManager(c)
 			assert.NoError(t, s.m.Initialize(context.Background()))
@@ -649,13 +649,13 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 }
 
 func (s *ManagerSuite) initSelfSignedManager() {
-	s.cat.SetUpstreamCA(nil)
+	s.cat.SetUpstreamAuthority(nil)
 	s.m = NewManager(s.selfSignedConfig())
 	s.NoError(s.m.Initialize(context.Background()))
 }
 
-func (s *ManagerSuite) initUpstreamSignedManager(upstreamCA upstreamca.UpstreamCA, upstreamBundle bool) {
-	s.cat.SetUpstreamCA(upstreamCA)
+func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamauthority.UpstreamAuthority, upstreamBundle bool) {
+	s.cat.SetUpstreamAuthority(upstreamAuthority)
 
 	c := s.selfSignedConfig()
 	c.UpstreamBundle = upstreamBundle
