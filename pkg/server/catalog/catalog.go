@@ -40,7 +40,6 @@ type Catalog interface {
 	GetDataStore() datastore.DataStore
 	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
 	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
-	GetUpstreamCA() (upstreamca.UpstreamCA, bool)
 	GetKeyManager() keymanager.KeyManager
 	GetNotifiers() []Notifier
 	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
@@ -127,13 +126,6 @@ func (p *Plugins) GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, 
 func (p *Plugins) GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool) {
 	n, ok := p.NodeResolvers[name]
 	return n, ok
-}
-
-func (p *Plugins) GetUpstreamCA() (upstreamca.UpstreamCA, bool) {
-	if p.UpstreamCA != nil {
-		return *p.UpstreamCA, true
-	}
-	return nil, false
 }
 
 func (p *Plugins) GetKeyManager() keymanager.KeyManager {

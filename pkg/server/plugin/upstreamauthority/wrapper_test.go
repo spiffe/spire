@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
-	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -127,11 +126,7 @@ func TestMintX509CA(t *testing.T) {
 }
 
 func TestPublishX509CA(t *testing.T) {
-	upstreamCA := fakeupstreamca.New(t, fakeupstreamca.Config{
-		TrustDomain:     "domain.test",
-		UseIntermediate: true,
-	})
-	wrapper := Wrap(upstreamCA)
+	wrapper := Wrap(&fakeUpstreamCA{})
 
 	resp, err := wrapper.PublishX509CA(ctx, &PublishX509CARequest{})
 	require.Nil(t, resp, "no response expected")
@@ -140,11 +135,7 @@ func TestPublishX509CA(t *testing.T) {
 }
 
 func TestPublishJWTKey(t *testing.T) {
-	upstreamCA := fakeupstreamca.New(t, fakeupstreamca.Config{
-		TrustDomain:     "domain.test",
-		UseIntermediate: true,
-	})
-	wrapper := Wrap(upstreamCA)
+	wrapper := Wrap(&fakeUpstreamCA{})
 
 	resp, err := wrapper.PublishJWTKey(ctx, &PublishJWTKeyRequest{})
 	require.Nil(t, resp, "no response expected")
