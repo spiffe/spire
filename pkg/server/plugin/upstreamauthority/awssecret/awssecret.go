@@ -10,16 +10,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -32,7 +33,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		upstreamca.PluginServer(p),
+		upstreamauthority.PluginServer(p),
 	)
 }
 
@@ -85,7 +86,6 @@ func (m *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 
 	// set the AWS configuration and reset clients +
 	// Set local vars from config struct
-
 	sm, err := m.hooks.newClient(config, config.Region)
 
 	if err != nil {
@@ -116,7 +116,8 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *Plugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+// MintX509CA mints an X509CA by signing presented CSR with root CA fetched from AWS Secrets Manager
+func (m *Plugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -129,11 +130,9 @@ func (m *Plugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRReq
 		return nil, err
 	}
 
-	return &upstreamca.SubmitCSRResponse{
-		SignedCertificate: &upstreamca.SignedCertificate{
-			CertChain: cert.Raw,
-			Bundle:    m.cert.Raw,
-		},
+	return &upstreamauthority.MintX509CAResponse{
+		X509CaChain:       [][]byte{cert.Raw},
+		UpstreamX509Roots: [][]byte{m.cert.Raw},
 	}, nil
 }
 
@@ -175,7 +174,6 @@ func fetchFromSecretsManager(ctx context.Context, config *Config, sm secretsMana
 
 func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, time.Duration, error) {
 	// Parse HCL config payload into config struct
-
 	config := new(Config)
 
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
@@ -216,4 +214,18 @@ func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, time.Durati
 	}
 
 	return config, ttl, nil
+}
+
+// PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
+func (m *Plugin) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+// PublishX509CA is not implemented by the wrapper and returns a codes.Unimplemented status
+func (m *Plugin) PublishX509CA(context.Context, *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+func makeError(code codes.Code, format string, args ...interface{}) error {
+	return status.Errorf(code, "aws-secret: "+format, args...)
 }
