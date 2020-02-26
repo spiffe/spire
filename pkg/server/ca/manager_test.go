@@ -161,6 +161,13 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 
 	// The trust bundle should contain the CA cert itself
 	s.requireBundleRootCAs(x509CA.Certificate)
+
+	s.Equal(
+		1,
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using JWT-SVIDs."),
+	)
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
@@ -182,6 +189,13 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamAuthority.Root())
+
+	s.Equal(
+		1,
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using JWT-SVIDs."),
+	)
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
@@ -205,6 +219,13 @@ func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
 
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamAuthority.Root())
+
+	s.Equal(
+		1,
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using JWT-SVIDs."),
+	)
 }
 
 func (s *ManagerSuite) TestX509CARotation() {
@@ -865,6 +886,16 @@ func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *notifier.Noti
 		expected := s.fetchBundle()
 		s.RequireProtoEqual(expected, actual)
 	}
+}
+
+func (s *ManagerSuite) countLogEntries(level logrus.Level, message string) int {
+	count := 0
+	for _, e := range s.logHook.AllEntries() {
+		if e.Message == message && level == e.Level {
+			count++
+		}
+	}
+	return count
 }
 
 type fakeCA struct {
