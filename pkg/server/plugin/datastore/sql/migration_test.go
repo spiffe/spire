@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blang/semver"
 )
@@ -531,12 +532,12 @@ func TestIsCompatibleCodeVersion(t *testing.T) {
 	}{
 		{
 			desc:             "backwards compatible 1 minor version",
-			dbCodeVersion:    semver.Version{Major: 0, Minor: 8},
+			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor - 1)},
 			expectCompatible: true,
 		},
 		{
 			desc:             "forwards compatible 1 minor version",
-			dbCodeVersion:    semver.Version{Major: 0, Minor: 10},
+			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor + 1)},
 			expectCompatible: true,
 		},
 		{
@@ -546,17 +547,17 @@ func TestIsCompatibleCodeVersion(t *testing.T) {
 		},
 		{
 			desc:             "not backwards compatible 2 minor versions",
-			dbCodeVersion:    semver.Version{Major: 0, Minor: 7},
+			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor - 2)},
 			expectCompatible: false,
 		},
 		{
 			desc:             "not forwards compatible 2 minor versions",
-			dbCodeVersion:    semver.Version{Major: 0, Minor: 11},
+			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor + 2)},
 			expectCompatible: false,
 		},
 		{
 			desc:             "not compatible with different major version",
-			dbCodeVersion:    semver.Version{Major: 1, Minor: 9},
+			dbCodeVersion:    semver.Version{Major: (codeVersion.Major + 1), Minor: codeVersion.Minor},
 			expectCompatible: false,
 		},
 	}
@@ -579,11 +580,11 @@ func TestIsDisabledMigrationAllowed(t *testing.T) {
 	}{
 		{
 			desc:          "allowed",
-			dbCodeVersion: semver.Version{Major: 0, Minor: 10},
+			dbCodeVersion: semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor + 1)},
 		},
 		{
 			desc:          "not allowed, versioning",
-			dbCodeVersion: semver.Version{Major: 0, Minor: 11},
+			dbCodeVersion: semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor + 2)},
 			expectErr:     "auto-migration must be enabled for current DB",
 		},
 	}
@@ -594,6 +595,7 @@ func TestIsDisabledMigrationAllowed(t *testing.T) {
 			err := isDisabledMigrationAllowed(tt.dbCodeVersion)
 
 			if tt.expectErr != "" {
+				require.Error(t, err)
 				assert.Equal(t, tt.expectErr, err.Error())
 				return
 			}
