@@ -140,7 +140,7 @@ func (*PCAPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*sp
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-// MintX509CA submits the CSR to ACM to be signed by the certificate authority
+// MintX509CA mints an X509CA by submitting the CSR to ACM to be signed by the certificate authority
 func (m *PCAPlugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
 	csrBuf := new(bytes.Buffer)
 	err := pem.Encode(csrBuf, &pem.Block{

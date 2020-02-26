@@ -39,7 +39,9 @@ import (
 )
 
 var (
-	portedUpstreamCA = map[string]bool{}
+	portedUpstreamCA = map[string]bool{
+		"aws_pca": true,
+	}
 
 	builtIns = []catalog.Plugin{
 		// DataStores
@@ -57,9 +59,10 @@ var (
 		nr_noop.BuiltIn(),
 		nr_aws_iid.BuiltIn(),
 		nr_azure_msi.BuiltIn(),
+		// UpstreamAuthorities
+		up_awspca.BuiltIn(),
 		// UpstreamCAs
 		up_disk.BuiltIn(),
-		up_awspca.BuiltIn(),
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		// KeyManagers
