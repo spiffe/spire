@@ -328,27 +328,34 @@ artifact: build
 # Docker Images
 #############################################################################
 
+# go_image_version is the docker image version, which can be different from
+# the go version on the minor version boundary (i.e. go1.14 is image go1.14.0)
+go_image_version := $(go_version)
+ifeq ($(word 3, $(subst ., ,$(go_version))),)
+	go_image_version := $(go_version).0
+endif
+
 .PHONY: images
 images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target spire-server -t spire-server .
+	docker build --build-arg goversion=$(go_image_version) --target spire-server -t spire-server .
 	docker tag spire-server:latest spire-server:latest-local
 
 .PHONY: spire-agent-image
 spire-agent-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target spire-agent -t spire-agent .
+	docker build --build-arg goversion=$(go_image_version) --target spire-agent -t spire-agent .
 	docker tag spire-agent:latest spire-agent:latest-local
 
 .PHONY: k8s-workload-registrar-image
 k8s-workload-registrar-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target k8s-workload-registrar -t k8s-workload-registrar .
+	docker build --build-arg goversion=$(go_image_version) --target k8s-workload-registrar -t k8s-workload-registrar .
 	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
 
 .PHONY: oidc-discovery-provider-image
 oidc-discovery-provider-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target oidc-discovery-provider -t oidc-discovery-provider .
+	docker build --build-arg goversion=$(go_image_version) --target oidc-discovery-provider -t oidc-discovery-provider .
 	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
 
 #############################################################################
