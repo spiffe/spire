@@ -329,15 +329,17 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 			&upstreamauthority.PublishJWTKeyRequest{
 				JwtKey: publicKey,
 			})
-		if gcu.IsUnimplementedError(err) {
+
+		switch {
+		case gcu.IsUnimplementedError(err):
 			m.warnOnce.Do(func() {
 				log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
 					"by this server may have trouble communicating with workloads outside " +
 					"this cluster when using JWT-SVIDs.")
 			})
-		} else if err != nil {
+		case err != nil:
 			return err
-		} else { // No error, then we can use the response.
+		default:
 			publicKeys = res.UpstreamJwtKeys
 		}
 	}

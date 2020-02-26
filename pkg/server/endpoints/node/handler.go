@@ -518,17 +518,19 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 			&upstreamauthority.PublishJWTKeyRequest{
 				JwtKey: req.JwtKey,
 			})
-		if gcu.IsUnimplementedError(err) {
+
+		switch {
+		case gcu.IsUnimplementedError(err):
 			h.warnOnce.Do(func() {
 				log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
 					"by this server may have trouble communicating with workloads outside " +
 					"this cluster when using JWT-SVIDs.")
 			})
-		} else if err != nil {
+		case err != nil:
 			return nil, status.Error(codes.Internal, err.Error())
-		} else { // No error, then we can use the response.
-			// In this case we just send back to the caller the received
-			// JWKs from upstream.
+		default:
+			// Send back to the caller the received JWKs from upstream,
+			// this will change soon according to https://github.com/spiffe/spire/issues/1372#issuecomment-589469449
 			return &node.PushJWTKeyUpstreamResponse{
 				JwtSigningKeys: res.UpstreamJwtKeys,
 			}, nil
