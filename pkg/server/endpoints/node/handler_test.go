@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -26,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -35,6 +37,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -73,6 +76,14 @@ var (
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgUdF3LNDNZWKYQHFj
 UIs5TNt4LXDawuZFFj2J7D1T9mehRANCAASEhjkDbIFdNaZ9EneJaSXKfLiBDqt2
 l37cUGNqRvIYDhSH/IJycqxLTtvHoYMHLSV9N5UHIFgPJ/30RCBQiH3t
+-----END PRIVATE KEY-----
+`))
+
+	jwtSigningKey, _ = pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGZx/yLVskGyXAyIT
+uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
+KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 -----END PRIVATE KEY-----
 `))
 )
@@ -135,6 +146,10 @@ func (s *HandlerSuite) SetupTest() {
 		ServerCA:    s.serverCA,
 		TrustDomain: *trustDomainURL,
 		Clock:       s.clock,
+		Manager: ca.NewManager(ca.ManagerConfig{
+			Catalog:     s.catalog,
+			TrustDomain: *trustDomainURL,
+		}),
 	})
 	handler.limiter = s.limiter
 
@@ -968,6 +983,131 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 	s.Equal(s.clock.Now().Add(s.serverCA.JWTSVIDTTL()).Unix(), svid.ExpiresAt)
 }
 
+func (s *HandlerSuite) TestPushJWTKeyUpstreamWithoutUpstreamAuthority() {
+	preExistentJwtSigningKey, _ := pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgchJzydaeUKOV6IjL
+B/8CXIhS797GajySZWNNFRqM/jChRANCAATcHYgISDwxmf0fulS8NRaMqItrplrk
+UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
+-----END PRIVATE KEY-----`))
+	pkixBytes, err := x509.MarshalPKIXPublicKey(preExistentJwtSigningKey.Public())
+	s.Require().NoError(err)
+	// Append one JWK on the bundle, so it must be reported in the result of PushJWTKeyUpstream
+	// along with the JWK sent on the request.
+	s.ds.AppendBundle(context.Background(),
+		&datastore.AppendBundleRequest{
+			Bundle: &common.Bundle{
+				TrustDomainId: trustDomainID,
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						Kid:       "kid1",
+						PkixBytes: pkixBytes,
+					},
+				},
+			},
+		})
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 1)
+
+	pkixBytes, err = x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: &common.PublicKey{
+			Kid:       "kid2",
+			PkixBytes: pkixBytes,
+		},
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 2)
+	s.Assert().Equal("kid1", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Equal("kid2", resp.JwtSigningKeys[1].Kid)
+	s.Assert().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 2)
+}
+
+func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+	jwk := &common.PublicKey{
+		Kid:       "kid",
+		PkixBytes: pkixBytes,
+	}
+	s.catalog.SetUpstreamAuthority(fakeupstreamauthority.New(
+		s.T(),
+		fakeupstreamauthority.Config{
+			TrustDomain: trustDomainID,
+			PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
+				UpstreamJwtKeys: []*common.PublicKey{jwk},
+			},
+		},
+	))
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 0)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: jwk,
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 1)
+	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 0)
+}
+
+func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
+	s.catalog.SetUpstreamAuthority(fakeupstreamauthority.New(
+		s.T(),
+		fakeupstreamauthority.Config{
+			TrustDomain: trustDomainID,
+		},
+	))
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 0)
+
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: &common.PublicKey{
+			Kid:       "kid",
+			PkixBytes: pkixBytes,
+		},
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 1)
+	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 1)
+	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+		"by this server may have trouble communicating with workloads outside "+
+		"this cluster when using JWT-SVIDs.")
+}
+
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
 	ctx, err := s.handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Foo")
 	s.Require().Error(err)
@@ -1384,6 +1524,14 @@ func (s *HandlerSuite) requireErrorContains(err error, contains string) {
 	s.Require().Contains(err.Error(), contains)
 }
 
+func (s *HandlerSuite) assertLastLogLevelAndMessage(level logrus.Level, message string) {
+	entry := s.logHook.LastEntry()
+	if s.NotNil(entry) {
+		s.Equal(message, entry.Message)
+		s.Equal(level, entry.Level)
+	}
+}
+
 func (s *HandlerSuite) assertLastLogMessage(message string) {
 	entry := s.logHook.LastEntry()
 	if s.NotNil(entry) {
@@ -1431,6 +1579,14 @@ func (s *HandlerSuite) makeCSRs(entryID, spiffeID string) map[string][]byte {
 	csrs := make(map[string][]byte)
 	csrs[entryID] = s.makeCSR(spiffeID)
 	return csrs
+}
+
+func (s *HandlerSuite) fetchBundle(trustDomainID string) *common.Bundle {
+	r, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
+		TrustDomainId: trustDomainID,
+	})
+	s.Require().NoError(err)
+	return r.Bundle
 }
 
 type fakeLimiter struct {

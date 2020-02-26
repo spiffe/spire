@@ -34,8 +34,9 @@ zFoQQSb86LNz+t2Jy/3Ydrwln2AGsii8NKRr9xAVcWR6wR/lVmen81SH
 )
 
 type Config struct {
-	TrustDomain     string
-	UseIntermediate bool
+	TrustDomain           string
+	UseIntermediate       bool
+	PublishJWTKeyResponse *upstreamauthority.PublishJWTKeyResponse
 }
 
 type UpstreamAuthority struct {
@@ -134,7 +135,12 @@ func certsDER(certs []*x509.Certificate) [][]byte {
 }
 
 func (m *UpstreamAuthority) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
+	switch {
+	case m.config.PublishJWTKeyResponse != nil:
+		return m.config.PublishJWTKeyResponse, nil
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
+	}
 }
 
 func (m *UpstreamAuthority) PublishX509CA(context.Context, *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
