@@ -30,16 +30,19 @@ The provider has the following command line flags:
 The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                | Type    | Required? | Description                              | Default |
-| ------------------ | --------| ---------| ----------------------------------------- | ------- |
-| `acme`             | section | required | Provides the ACME configuration. | |
-| `domain`           | string  | required | The domain the provider is being served from | |
-| `log_format`       | string  | optional | Format of the logs (either `"TEXT"` or `"JSON"`) | `""` |
-| `log_level`        | string  | required | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
-| `log_path`         | string  | optional | Path on disk to write the log | |
-| `log_requests`     | bool    | optional | If true, all HTTP requests are logged at the debug level | false |
-| `registration_api` | section | required\* | Provides Registration API details. Required unless the `workload_api` section is defined | |
-| `workload_api`     | section | required\* | Provides Workload API details. Required unless the `registration_api` section is defined | |
+| Key                  | Type    | Required? | Description                              | Default |
+| -------------------- | --------| ---------| ----------------------------------------- | ------- |
+| `acme`               | section | optional | Provides the ACME configuration. | |
+| `domain`             | string  | required | The domain the provider is being served from | |
+| `listen_socket_path` | string  | optional | Path on disk to listen with a Unix Domain Socket | |
+| `log_format`         | string  | optional | Format of the logs (either `"TEXT"` or `"JSON"`) | `""` |
+| `log_level`          | string  | required | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
+| `log_path`           | string  | optional | Path on disk to write the log | |
+| `log_requests`       | bool    | optional | If true, all HTTP requests are logged at the debug level | false |
+| `registration_api`   | section | required\* | Provides Registration API details. Required unless the `workload_api` section is defined | |
+| `workload_api`       | section | required\* | Provides Workload API details. Required unless the `registration_api` section is defined | |
+
+Either the `acme` or `listen_socket_path` must be defined.
 
 \* - Either `registration_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document.
 

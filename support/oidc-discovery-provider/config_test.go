@@ -164,6 +164,33 @@ func TestParseConfig(t *testing.T) {
 			err: "insecure_addr and the acme section are mutually exclusive",
 		},
 		{
+			name: "both acme and socket_listen_path configured",
+			in: `
+				domain = "domain.test"
+				listen_socket_path = "test"
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				registration_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "listen_socket_path and the acme section are mutually exclusive",
+		},
+		{
+			name: "both insecure_addr and socket_listen_path configured",
+			in: `
+				domain = "domain.test"
+				insecure_addr = ":8080"
+				listen_socket_path = "test"
+				registration_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "insecure_addr and listen_socket_path are mutually exclusive",
+		},
+		{
 			name: "with insecure addr",
 			in: `
 				domain = "domain.test"
@@ -176,6 +203,25 @@ func TestParseConfig(t *testing.T) {
 				LogLevel:     defaultLogLevel,
 				Domain:       "domain.test",
 				InsecureAddr: ":8080",
+				RegistrationAPI: &RegistrationAPIConfig{
+					SocketPath:   "/some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+			},
+		},
+		{
+			name: "with listen_socket_path",
+			in: `
+				domain = "domain.test"
+				listen_socket_path = "/a/path/here"
+				registration_api {
+					socket_path = "/some/socket/path"
+				}
+			`,
+			out: &Config{
+				LogLevel:         defaultLogLevel,
+				Domain:           "domain.test",
+				ListenSocketPath: "/a/path/here",
 				RegistrationAPI: &RegistrationAPIConfig{
 					SocketPath:   "/some/socket/path",
 					PollInterval: defaultPollInterval,

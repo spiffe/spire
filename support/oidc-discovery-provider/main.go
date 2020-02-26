@@ -68,13 +68,27 @@ func run(configPath string) error {
 		handler = logHandler(log, handler)
 	}
 
-	if config.InsecureAddr != "" {
+	var listener net.Listener
+
+	switch {
+	case config.InsecureAddr != "":
+		listener, err = net.Listen("tcp", config.InsecureAddr)
+		if err != nil {
+			return err
+		}
 		log.WithField("address", config.InsecureAddr).Warn("Serving HTTP (insecure)")
-		return http.ListenAndServe(config.InsecureAddr, handler)
+	case config.ListenSocketPath != "":
+		listener, err = net.Listen("unix", config.ListenSocketPath)
+		if err != nil {
+			return err
+		}
+		log.WithField("socket", config.ListenSocketPath).Info("Serving HTTP (unix)")
+	default:
+		listener = acmeListener(log, config)
+		log.Info("Serving HTTPS via ACME")
 	}
 
-	log.Info("Serving HTTPS via ACME")
-	return http.Serve(acmeListener(log, config), handler)
+	return http.Serve(listener, handler)
 }
 
 func acmeListener(logger *log.Logger, config *Config) net.Listener {

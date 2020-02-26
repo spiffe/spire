@@ -33,8 +33,12 @@ type Config struct {
 	// going to be deployed behind an HTTPS proxy.
 	InsecureAddr string `hcl:"insecure_addr"`
 
-	// ACME is the ACME configuration. It is required unless InsecureAddr
-	// is set.
+	// ListenSocketPath specifies a unix socket to listen for plaintext HTTP
+	// on, for when deployed behind another webserver or sidecar.
+	ListenSocketPath string `hcl:"listen_socket_path"`
+
+	// ACME is the ACME configuration. It is required unless InsecureAddr or
+	// ListenSocketPath is set.
 	ACME *ACMEConfig `hcl:"acme"`
 
 	// RegistrationAPI is the configuration for using the SPIRE Registration
@@ -130,11 +134,16 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	switch {
 	case c.ACME == nil:
-		if c.InsecureAddr == "" {
+		if c.InsecureAddr == "" && c.ListenSocketPath == "" {
 			return nil, errs.New("acme section must be configured")
+		}
+		if c.InsecureAddr != "" && c.ListenSocketPath != "" {
+			return nil, errs.New("insecure_addr and listen_socket_path are mutually exclusive")
 		}
 	case c.InsecureAddr != "":
 		return nil, errs.New("insecure_addr and the acme section are mutually exclusive")
+	case c.ListenSocketPath != "":
+		return nil, errs.New("listen_socket_path and the acme section are mutually exclusive")
 	case !c.ACME.ToSAccepted:
 		return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
 	case c.ACME.Email == "":
