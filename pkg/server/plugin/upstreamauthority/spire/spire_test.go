@@ -285,6 +285,20 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 	require.Nil(t, resp)
 }
 
+func TestSpirePlugin_PublishJWTKey(t *testing.T) {
+	m := New()
+	resp, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	require.Nil(t, resp)
+	require.EqualError(t, err, "rpc error: code = Unimplemented desc = upstreamauthority-spire: publishing upstream is unsupported")
+}
+
+func TestSpirePlugin_PublishX509CA(t *testing.T) {
+	m := New()
+	resp, err := m.PublishX509CA(context.Background(), &upstreamauthority.PublishX509CARequest{})
+	require.Nil(t, resp)
+	require.EqualError(t, err, "rpc error: code = Unimplemented desc = upstreamauthority-spire: publishing upstream is unsupported")
+}
+
 func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
 	host, port, _ := net.SplitHostPort(addr)
 
