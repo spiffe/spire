@@ -41,7 +41,7 @@ import (
 var (
 	portedUpstreamCA = map[string]bool{
 		"awssecret": true,
-		"spire": true,
+		"spire":     true,
 	}
 
 	builtIns = []catalog.Plugin{
