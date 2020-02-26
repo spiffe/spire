@@ -1,4 +1,4 @@
-package aws
+package awspca
 
 import (
 	"bytes"
@@ -7,18 +7,17 @@ import (
 	"errors"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acmpca"
-
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-
-	"github.com/andres-erbsen/clock"
-
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -37,7 +36,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *PCAPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		upstreamca.PluginServer(p),
+		upstreamauthority.PluginServer(p),
 	)
 }
 
@@ -50,7 +49,7 @@ type PCAPluginConfiguration struct {
 	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn"`
 }
 
-// PCAPlugin is the main representation of this upstreamca plugin
+// PCAPlugin is the main representation of this upstreamauthority plugin
 type PCAPlugin struct {
 	log hclog.Logger
 
@@ -81,7 +80,7 @@ func (m *PCAPlugin) SetLogger(log hclog.Logger) {
 	m.log = log
 }
 
-// Configure sets up the plugin for use as an upstream CA
+// Configure sets up the plugin for use as an upstream authority
 func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config, err := m.validateConfig(req)
 	if err != nil {
@@ -141,8 +140,8 @@ func (*PCAPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*sp
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-// SubmitCSR submits the CSR to ACM to be signed by the certificate authority
-func (m *PCAPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+// MintX509CA submits the CSR to ACM to be signed by the certificate authority
+func (m *PCAPlugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
 	csrBuf := new(bytes.Buffer)
 	err := pem.Encode(csrBuf, &pem.Block{
 		Type:  csrRequestType,
@@ -213,19 +212,17 @@ func (m *PCAPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSR
 	// and https://docs.aws.amazon.com/cli/latest/reference/acm-pca/get-certificate.html
 
 	// The last certificate returned from the chain is the bundle.
-	bundle := certChain[len(certChain)-1].Raw
+	bundle := [][]byte{certChain[len(certChain)-1].Raw}
 
 	// All else comprises the chain (including the issued certificate)
-	chain := cert.Raw
+	chain := [][]byte{cert.Raw}
 	for _, caCert := range certChain[:len(certChain)-1] {
-		chain = append(chain, caCert.Raw...)
+		chain = append(chain, caCert.Raw)
 	}
 
-	return &upstreamca.SubmitCSRResponse{
-		SignedCertificate: &upstreamca.SignedCertificate{
-			CertChain: chain,
-			Bundle:    bundle,
-		},
+	return &upstreamauthority.MintX509CAResponse{
+		X509CaChain:       chain,
+		UpstreamX509Roots: bundle,
 	}, nil
 }
 
@@ -246,4 +243,18 @@ func (m *PCAPlugin) validateConfig(req *spi.ConfigureRequest) (*PCAPluginConfigu
 	}
 
 	return config, nil
+}
+
+// PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
+func (m *PCAPlugin) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+// PublishX509CA is not implemented by the wrapper and returns a codes.Unimplemented status
+func (m *PCAPlugin) PublishX509CA(context.Context, *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+func makeError(code codes.Code, format string, args ...interface{}) error {
+	return status.Errorf(code, "aws-pca: "+format, args...)
 }

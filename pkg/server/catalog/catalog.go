@@ -31,8 +31,8 @@ import (
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
-	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
@@ -59,7 +59,7 @@ var (
 		nr_azure_msi.BuiltIn(),
 		// UpstreamCAs
 		up_disk.BuiltIn(),
-		up_aws_pca.BuiltIn(),
+		up_awspca.BuiltIn(),
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		// KeyManagers
