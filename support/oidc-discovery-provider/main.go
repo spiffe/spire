@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 
@@ -73,7 +74,10 @@ func run(configPath string) error {
 	}
 
 	log.Info("Serving HTTPS via ACME")
+	return http.Serve(acmeListener(log, config), handler)
+}
 
+func acmeListener(logger *log.Logger, config *Config) net.Listener {
 	var cache autocert.Cache
 	if config.ACME.CacheDir != "" {
 		cache = autocert.DirCache(config.ACME.CacheDir)
@@ -88,11 +92,11 @@ func run(configPath string) error {
 		Email:      config.ACME.Email,
 		HostPolicy: autocert.HostWhitelist(config.Domain),
 		Prompt: func(tosURL string) bool {
-			log.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
+			logger.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
 			return true
 		},
 	}
-	return http.Serve(m.Listener(), handler)
+	return m.Listener()
 }
 
 func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {
