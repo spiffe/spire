@@ -8,7 +8,7 @@ It provides the following endpoints:
 
 | Verb  | Path                                | Description                               |
 | ----- | ------------------------------------| ------------------------------------------|
-| `GET` | `/.well-known/openid-configuration` | Returns the OIDC discovery document   |
+| `GET` | `/.well-known/openid-configuration` | Returns the OIDC discovery document       |
 | `GET` | `/keys`                             | Returns the JWKS for JWT validation       |
 
 The provider by default relies on ACME to obtain TLS certificates that it uses to
@@ -20,8 +20,8 @@ serve the documents securely.
 
 The provider has the following command line flags:
 
-| Flag         | Description                                                      | Default                       |
-| ------------ | -----------------------------------------------------------------| ----------------------------- |
+| Flag         | Description                                                      | Default                        |
+| ------------ | -----------------------------------------------------------------| ------------------------------ |
 | `-config`    | Path on disk to the [HCL Configuration](#hcl-configuration) file | `oidc-discovery-provider.conf` |
 
 
@@ -34,7 +34,7 @@ The configuration file is **required** by the provider. It contains
 | -------------------- | --------| ---------| ----------------------------------------- | ------- |
 | `acme`               | section | optional | Provides the ACME configuration. | |
 | `domain`             | string  | required | The domain the provider is being served from | |
-| `listen_socket_path` | string  | optional | Path on disk to listen with a Unix Domain Socket | |
+| `listen_socket_path` | string  | optional | Path on disk to listen with a Unix Domain Socket. | |
 | `log_format`         | string  | optional | Format of the logs (either `"TEXT"` or `"JSON"`) | `""` |
 | `log_level`          | string  | required | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
 | `log_path`           | string  | optional | Path on disk to write the log | |
@@ -99,4 +99,42 @@ workload_api {
     socket_path = "/run/spire/sockets/agent.sock"
     trust_domain = "domain.test"
 }
+```
+
+#### Listening on a Unix Socket
+
+The following configuration has the OIDC Discovery Provider listen for requests
+on the given socket.  This can be used in conjunction with a webserver like 
+Nginx, Apache, or Envoy which supports reverse proxying to a unix socket.
+
+
+```
+log_level = "debug"
+domain = "mypublicdomain.test"
+listen_socket_path = "/run/oidc-discovery-provider/server.sock"
+
+workload_api {
+    socket_path = "/run/spire/sockets/agent.sock"
+    trust_domain = "domain.test"
+}
+```
+
+A minimal Nginx configuration that proxies all traffic to the OIDC Discovery 
+Provider's socket might look like this.
+
+```
+daemon off;
+ events {}
+ http {
+   access_log /dev/stdout;
+   upstream oidc {
+     server unix:/run/oidc-discovery-provider/server.sock;
+   }
+   server {
+     # ... Any TLS and listening config you may need
+     location / {
+       proxy_pass http://oidc;
+     }
+   }
+ }
 ```
