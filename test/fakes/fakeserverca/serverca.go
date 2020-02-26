@@ -12,7 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/require"
 )
@@ -29,11 +28,9 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 )
 
 type Options struct {
-	Clock          clock.Clock
-	X509SVIDTTL    time.Duration
-	JWTSVIDTTL     time.Duration
-	UpstreamCA     upstreamca.UpstreamCA
-	UpstreamBundle bool
+	Clock       clock.Clock
+	X509SVIDTTL time.Duration
+	JWTSVIDTTL  time.Duration
 }
 
 type CA struct {
@@ -64,11 +61,7 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	var x509CA *ca.X509CA
 	var bundle []*x509.Certificate
 	var err error
-	if options.UpstreamCA != nil {
-		x509CA, bundle, err = ca.UpstreamSignX509CA(context.Background(), signer, trustDomain, subject, options.UpstreamCA, options.UpstreamBundle, 0)
-	} else {
-		x509CA, bundle, err = ca.SelfSignX509CA(context.Background(), signer, trustDomain, subject, notBefore, notAfter)
-	}
+	x509CA, bundle, err = ca.SelfSignX509CA(context.Background(), signer, trustDomain, subject, notBefore, notAfter)
 	require.NoError(t, err)
 
 	serverCA := ca.NewCA(ca.Config{
