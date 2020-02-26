@@ -31,15 +31,17 @@ import (
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
-	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
 )
 
 var (
-	portedUpstreamCA = map[string]bool{}
+	portedUpstreamCA = map[string]bool{
+		"spire": true,
+	}
 
 	builtIns = []catalog.Plugin{
 		// DataStores
@@ -61,6 +63,7 @@ var (
 		up_disk.BuiltIn(),
 		up_aws_pca.BuiltIn(),
 		up_awssecret.BuiltIn(),
+		// UpstreamAuthorities
 		up_spire.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
