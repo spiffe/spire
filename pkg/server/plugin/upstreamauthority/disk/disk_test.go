@@ -10,6 +10,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
@@ -253,17 +254,17 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
-	certs, err := rawCertsToCerts(resp.X509CaChain)
+	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	s.Require().NoError(err)
 	s.Require().Len(certs, 1)
 	s.Require().Equal(s.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
 }
 
 func testCSRResp(t *testing.T, resp *upstreamauthority.MintX509CAResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
-	certs, err := rawCertsToCerts(resp.X509CaChain)
+	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	require.NoError(t, err)
 
-	trustBundle, err := rawCertsToCerts(resp.UpstreamX509Roots)
+	trustBundle, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
 	require.NoError(t, err)
 
 	for i, cert := range certs {
@@ -330,6 +331,18 @@ func (s *DiskSuite) configureWithTTL(keyFilePath, certFilePath, deprecatedTTL st
 	return err
 }
 
+func (s *DiskSuite) TestPublishJWTKey() {
+	resp, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
+}
+
+func (s *DiskSuite) TestPublishX509CA() {
+	resp, err := s.p.PublishX509CA(context.Background(), &upstreamauthority.PublishX509CARequest{})
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
+}
+
 func certURI(cert *x509.Certificate) string {
 	if len(cert.URIs) == 1 {
 		return cert.URIs[0].String()
@@ -378,17 +391,4 @@ func TestInvalidConfigs(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.expectErrContains)
 		})
 	}
-}
-
-func rawCertsToCerts(rawCerts [][]byte) ([]*x509.Certificate, error) {
-	var certs []*x509.Certificate
-	for _, rawCert := range rawCerts {
-		cert, err := x509.ParseCertificate(rawCert)
-		if err != nil {
-			return nil, err
-		}
-
-		certs = append(certs, cert)
-	}
-	return certs, nil
 }
