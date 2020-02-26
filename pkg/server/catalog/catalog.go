@@ -32,15 +32,16 @@ import (
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
+	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
-	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
 )
 
 var (
 	portedUpstreamCA = map[string]bool{
 		"aws_pca": true,
+		"spire":   true,
 	}
 
 	builtIns = []catalog.Plugin{
@@ -61,6 +62,7 @@ var (
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities
 		up_awspca.BuiltIn(),
+		up_spire.BuiltIn(),
 		// UpstreamCAs
 		up_disk.BuiltIn(),
 		up_awssecret.BuiltIn(),
