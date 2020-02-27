@@ -9,9 +9,11 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -25,7 +27,7 @@ type Configuration struct {
 }
 
 func BuiltIn() catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamca.PluginServer(New()))
+	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(New()))
 }
 
 type spirePlugin struct {
@@ -35,7 +37,7 @@ type spirePlugin struct {
 	config      *Configuration
 }
 
-func New() upstreamca.Plugin {
+func New() upstreamauthority.Plugin {
 	return &spirePlugin{}
 }
 
@@ -70,7 +72,7 @@ func (m *spirePlugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoReques
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func (m *spirePlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *spirePlugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -91,17 +93,28 @@ func (m *spirePlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitC
 		return nil, err
 	}
 
-	return &upstreamca.SubmitCSRResponse{
-		SignedCertificate: &upstreamca.SignedCertificate{
-			CertChain: certificatesDER(certChain),
-			Bundle:    certificatesDER(bundle.RootCAs()),
-		},
+	return &upstreamauthority.MintX509CAResponse{
+		X509CaChain:       certsToRawCerts(certChain),
+		UpstreamX509Roots: certsToRawCerts(bundle.RootCAs()),
 	}, nil
 }
 
-func certificatesDER(certs []*x509.Certificate) (der []byte) {
+func (m *spirePlugin) PublishJWTKey(ctx context.Context, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+func (m *spirePlugin) PublishX509CA(ctx context.Context, req *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+func makeError(code codes.Code, format string, args ...interface{}) error {
+	return status.Errorf(code, "upstreamauthority-spire: "+format, args...)
+}
+
+func certsToRawCerts(certs []*x509.Certificate) [][]byte {
+	var rawCerts [][]byte
 	for _, cert := range certs {
-		der = append(der, cert.Raw...)
+		rawCerts = append(rawCerts, cert.Raw)
 	}
-	return der
+	return rawCerts
 }

@@ -1,4 +1,4 @@
-package fakeupstreamca
+package fakeupstreamauthority
 
 import (
 	"context"
@@ -12,8 +12,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -36,23 +38,24 @@ type Config struct {
 	UseIntermediate bool
 }
 
-type UpstreamCA struct {
+type UpstreamAuthority struct {
 	chain      []*x509.Certificate
 	upstreamCA *x509svid.UpstreamCA
 	config     Config
 }
 
-func New(t *testing.T, config Config) *UpstreamCA {
+func New(t *testing.T, config Config) *UpstreamAuthority {
 	rootKey, err := pemutil.ParseECPrivateKey(rootKeyPEM)
 	require.NoError(t, err, "unable to parse root key")
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName: "FAKEUPSTREAMCA",
+			CommonName: "FAKEUPSTREAMAUTHORITY",
 		},
-		NotAfter:              time.Now().Add(time.Hour),
-		IsCA:                  true,
+		NotAfter: time.Now().Add(time.Hour),
+		IsCA:     true,
+
 		BasicConstraintsValid: true,
 	}
 
@@ -88,25 +91,25 @@ func New(t *testing.T, config Config) *UpstreamCA {
 		config.TrustDomain,
 		x509svid.UpstreamCAOptions{})
 
-	return &UpstreamCA{
+	return &UpstreamAuthority{
 		chain:      chain,
 		upstreamCA: upstreamCA,
 		config:     config,
 	}
 }
 
-func (m *UpstreamCA) Root() *x509.Certificate {
+func (m *UpstreamAuthority) Root() *x509.Certificate {
 	return m.chain[len(m.chain)-1]
 }
 
-func (m *UpstreamCA) Intermediate() *x509.Certificate {
+func (m *UpstreamAuthority) Intermediate() *x509.Certificate {
 	if len(m.chain) < 2 {
 		return nil
 	}
 	return m.chain[0]
 }
 
-func (m *UpstreamCA) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *UpstreamAuthority) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
 	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
 		return nil, err
@@ -114,20 +117,26 @@ func (m *UpstreamCA) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCS
 
 	chain := append([]*x509.Certificate{cert}, m.chain...)
 
-	return &upstreamca.SubmitCSRResponse{
-		SignedCertificate: &upstreamca.SignedCertificate{
-			// Signed CA + intermediates
-			CertChain: certsDER(chain[:len(chain)-1]),
-			// Just the root
-			Bundle: certsDER(chain[len(chain)-1:]),
-		},
+	return &upstreamauthority.MintX509CAResponse{
+		// Signed CA + intermediates
+		X509CaChain: certsDER(chain[:len(chain)-1]),
+		// Root certificates
+		UpstreamX509Roots: certsDER(chain[len(chain)-1:]),
 	}, nil
 }
 
-func certsDER(certs []*x509.Certificate) []byte {
-	var out []byte
+func certsDER(certs []*x509.Certificate) [][]byte {
+	var out [][]byte
 	for _, cert := range certs {
-		out = append(out, cert.Raw...)
+		out = append(out, cert.Raw)
 	}
 	return out
+}
+
+func (m *UpstreamAuthority) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
+}
+
+func (m *UpstreamAuthority) PublishX509CA(context.Context, *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
 }

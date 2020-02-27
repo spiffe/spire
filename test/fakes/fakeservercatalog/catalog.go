@@ -8,7 +8,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 )
 
 type Catalog struct {
@@ -36,11 +36,11 @@ func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.No
 	c.NodeResolvers[name] = nodeResolver
 }
 
-func (c *Catalog) SetUpstreamCA(upstreamCA upstreamca.UpstreamCA) {
-	if upstreamCA == nil {
-		c.UpstreamCA = nil
+func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.UpstreamAuthority) {
+	if upstreamAuthority == nil {
+		c.UpstreamAuthority = nil
 	} else {
-		c.UpstreamCA = &upstreamCA
+		c.UpstreamAuthority = &upstreamAuthority
 	}
 }
 

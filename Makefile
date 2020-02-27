@@ -137,6 +137,7 @@ protos := \
 	proto/spire/server/nodeattestor/nodeattestor.proto \
 	proto/spire/server/noderesolver/noderesolver.proto \
 	proto/spire/server/notifier/notifier.proto \
+	proto/spire/server/upstreamauthority/upstreamauthority.proto \
 	proto/spire/server/upstreamca/upstreamca.proto \
 	pkg/common/catalog/test/test.proto \
 	pkg/server/ca/journal.proto \
@@ -156,6 +157,7 @@ protodocs := \
 	proto/spire/server/nodeattestor/README_pb.md \
 	proto/spire/server/noderesolver/README_pb.md \
 	proto/spire/server/notifier/README_pb.md \
+	proto/spire/server/upstreamauthority/README_pb.md \
 	proto/spire/server/upstreamca/README_pb.md \
 
 # The following three variables define the plugin, service, and hostservice
@@ -169,6 +171,7 @@ plugingen_plugins = \
 	proto/spire/server/notifier/notifier.proto,pkg/server/plugin/notifier,Notifier \
 	proto/spire/server/nodeattestor/nodeattestor.proto,pkg/server/plugin/nodeattestor,NodeAttestor \
 	proto/spire/server/datastore/datastore.proto,pkg/server/plugin/datastore,DataStore \
+	proto/spire/server/upstreamauthority/upstreamauthority.proto,pkg/server/plugin/upstreamauthority,UpstreamAuthority \
 	proto/spire/server/upstreamca/upstreamca.proto,pkg/server/plugin/upstreamca,UpstreamCA \
 	proto/spire/server/noderesolver/noderesolver.proto,pkg/server/plugin/noderesolver,NodeResolver \
 	proto/spire/server/keymanager/keymanager.proto,pkg/server/plugin/keymanager,KeyManager \
