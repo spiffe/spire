@@ -562,10 +562,10 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 			sqlDb.Close()
 		}
 
-		ds.log.Info("Opened SQL database",
+		ds.log.Info("Connected to SQL database",
 			"type", config.DatabaseType,
 			"version", version,
-			"read-only", isReadOnly,
+			"read_only", isReadOnly,
 		)
 
 		sqlDb = &sqlDB{
@@ -1213,8 +1213,12 @@ func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.Fetch
 func buildFetchRegistrationEntryQuery(dbType string, supportsCTE bool, req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
 	switch dbType {
 	case SQLite:
+		// The SQLite3 queries unconditionally leverage CTE since the
+		// embedded version of SQLite3 supports CTE.
 		return buildFetchRegistrationEntryQuerySQLite3(req)
 	case PostgreSQL:
+		// The PostgreSQL queries unconditionally leverage CTE since all versions
+		// of PostgreSQL supported by the plugin support CTE.
 		return buildFetchRegistrationEntryQueryPostgreSQL(req)
 	case MySQL:
 		if supportsCTE {
@@ -1568,8 +1572,12 @@ func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.
 func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
 	switch dbType {
 	case SQLite:
+		// The SQLite3 queries unconditionally leverage CTE since the
+		// embedded version of SQLite3 supports CTE.
 		return buildListRegistrationEntriesQuerySQLite3(req)
 	case PostgreSQL:
+		// The PostgreSQL queries unconditionally leverage CTE since all versions
+		// of PostgreSQL supported by the plugin support CTE.
 		return buildListRegistrationEntriesQueryPostgreSQL(req)
 	case MySQL:
 		if supportsCTE {

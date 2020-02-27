@@ -12,21 +12,22 @@ import (
 
 type sqliteDB struct{}
 
-func (s sqliteDB) connect(cfg *configuration) (*gorm.DB, string, bool, error) {
+func (s sqliteDB) connect(cfg *configuration) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	embellished, err := embellishSQLite3ConnString(cfg.ConnectionString)
 	if err != nil {
 		return nil, "", false, err
 	}
-	db, err := gorm.Open("sqlite3", embellished)
+	db, err = gorm.Open("sqlite3", embellished)
 	if err != nil {
 		return nil, "", false, sqlError.Wrap(err)
 	}
 
-	version, err := queryVersion(db, "SELECT sqlite_version()")
+	version, err = queryVersion(db, "SELECT sqlite_version()")
 	if err != nil {
 		return nil, "", false, err
 	}
 
+	// The embedded version of SQLite3 unconditionally supports CTE.
 	return db, version, true, nil
 }
 

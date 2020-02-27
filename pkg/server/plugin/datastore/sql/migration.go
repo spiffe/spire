@@ -163,7 +163,7 @@ func isCompatibleCodeVersion(dbCodeVersion semver.Version) bool {
 }
 
 func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
-	log.Info("Initializing database.")
+	log.Info("Initializing new database.")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)

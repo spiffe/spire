@@ -10,16 +10,18 @@ import (
 
 type postgresDB struct{}
 
-func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, error) {
-	db, err := gorm.Open("postgres", getConnectionString(cfg, isReadOnly))
+func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+	db, err = gorm.Open("postgres", getConnectionString(cfg, isReadOnly))
 	if err != nil {
 		return nil, "", false, sqlError.Wrap(err)
 	}
 
-	version, err := queryVersion(db, "SHOW server_version")
+	version, err = queryVersion(db, "SHOW server_version")
 	if err != nil {
 		return nil, "", false, err
 	}
 
+	// Supported versions of PostgreSQL all support CTE so unconditionally
+	// return true.
 	return db, version, true, nil
 }
