@@ -60,3 +60,9 @@ func (ds *datastoreCache) FetchBundle(ctx context.Context, req *datastore.FetchB
 	}
 	return entry.resp, nil
 }
+
+func (ds *datastoreCache) DeleteBundleEntry(trustDomainID string) {
+	ds.bundlesMu.Lock()
+	delete(ds.bundles, trustDomainID)
+	ds.bundlesMu.Unlock()
+}

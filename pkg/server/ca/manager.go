@@ -220,7 +220,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 		return err
 	}
 
-	if err := m.appendBundle(ctx, trustBundle, nil); err != nil {
+	if err := m.AppendBundle(ctx, trustBundle, nil); err != nil {
 		return err
 	}
 
@@ -315,7 +315,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 		return err
 	}
 
-	if err := m.appendBundle(ctx, nil, publicKey); err != nil {
+	if err := m.AppendBundle(ctx, nil, publicKey); err != nil {
 		return err
 	}
 
@@ -385,7 +385,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
+func (m *Manager) AppendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -26,6 +27,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	gcu "github.com/spiffe/spire/pkg/server/util/grpccodesutil"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -43,6 +46,7 @@ type HandlerConfig struct {
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
 	Clock       clock.Clock
+	Manager     *ca.Manager
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -53,6 +57,9 @@ type Handler struct {
 	limiter Limiter
 
 	dsCache *datastoreCache
+
+	// Used to log a warning only once.
+	warnOnce sync.Once
 }
 
 func NewHandler(config HandlerConfig) *Handler {
@@ -480,7 +487,70 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 }
 
 func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (resp *node.PushJWTKeyUpstreamResponse, err error) {
-	return nil, status.Error(codes.Unimplemented, "cannot push JWK upstream")
+	counter := telemetry_server.StartNodeAPIPushJWTKeyUpstreamCall(h.c.Metrics)
+	defer counter.Done(&err)
+	log := h.c.Log.WithField(telemetry.Method, telemetry.PushJWTKeyUpstream)
+
+	_, ok := getPeerCertificate(ctx)
+	if !ok {
+		log.Error("Downstream SVID is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
+	}
+
+	_, ok = getDownstreamEntry(ctx)
+	if !ok {
+		log.Error("Downstream entry is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream entry is required for this request")
+	}
+
+	err = h.limiter.Limit(ctx, PushJWTKey, 1)
+	if err != nil {
+		log.WithError(err).Error("Rejecting request due to jwk push rate limiting")
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
+
+	upstreamAuth, useUpstream := h.c.Catalog.GetUpstreamAuthority()
+	if useUpstream { // We are an intermediate SPIRE server
+		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		res, err := upstreamAuth.PublishJWTKey(
+			publishCtx,
+			&upstreamauthority.PublishJWTKeyRequest{
+				JwtKey: req.JwtKey,
+			})
+
+		switch {
+		case gcu.IsUnimplementedError(err):
+			h.warnOnce.Do(func() {
+				log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
+					"by this server may have trouble communicating with workloads outside " +
+					"this cluster when using JWT-SVIDs.")
+			})
+		case err != nil:
+			return nil, status.Error(codes.Internal, err.Error())
+		default:
+			// Send back to the caller the received JWKs from upstream,
+			// this will change soon according to https://github.com/spiffe/spire/issues/1372#issuecomment-589469449
+			return &node.PushJWTKeyUpstreamResponse{
+				JwtSigningKeys: res.UpstreamJwtKeys,
+			}, nil
+		}
+	}
+
+	if err := h.c.Manager.AppendBundle(ctx, nil, req.JwtKey); err != nil {
+		return nil, err
+	}
+
+	// Ensure we delete any cached bundle to get the latest one.
+	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
+	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &node.PushJWTKeyUpstreamResponse{
+		JwtSigningKeys: bundle.JwtSigningKeys,
+	}, nil
 }
 
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
@@ -506,7 +576,8 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		}
 
 		ctx = withPeerCertificate(ctx, peerCert)
-	case "/spire.api.node.Node/FetchX509CASVID":
+	case "/spire.api.node.Node/FetchX509CASVID",
+		"/spire.api.node.Node/PushJWTKeyUpstream":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Downstream SVID is required for this request")
@@ -1031,7 +1102,7 @@ func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common
 	return bundles, nil
 }
 
-// getBundle fetches a bundle from the datastore, by trust domain
+// getBundle fetches a bundle from the datastore, by trust domain, using a cache.
 func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
 	resp, err := h.dsCache.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,
