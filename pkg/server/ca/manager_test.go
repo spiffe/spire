@@ -19,6 +19,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -161,6 +162,13 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 
 	// The trust bundle should contain the CA cert itself
 	s.requireBundleRootCAs(x509CA.Certificate)
+
+	s.Equal(
+		1,
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using JWT-SVIDs."),
+	)
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
@@ -182,6 +190,13 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamAuthority.Root())
+
+	s.Equal(
+		1,
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using JWT-SVIDs."),
+	)
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
@@ -205,6 +220,43 @@ func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
 
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamAuthority.Root())
+
+	s.Equal(
+		1,
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using JWT-SVIDs."),
+	)
+}
+
+func (s *ManagerSuite) TestUpstreamAuthorityWithPublishJWTKeyImplemented() {
+	bundle := s.createBundle()
+	s.Require().Len(bundle.JwtSigningKeys, 0)
+
+	jwtSigningKey, _ := pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGZx/yLVskGyXAyIT
+uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
+KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
+-----END PRIVATE KEY-----
+`))
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+	jwk := &common.PublicKey{
+		Kid:       "kid",
+		PkixBytes: pkixBytes,
+	}
+	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
+		TrustDomain: testTrustDomain,
+		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
+			UpstreamJwtKeys: []*common.PublicKey{jwk},
+		},
+	})
+	s.initUpstreamSignedManager(upstreamAuthority, true)
+
+	bundle = s.fetchBundle()
+	s.Len(bundle.JwtSigningKeys, 1)
+	s.Equal("kid", bundle.JwtSigningKeys[0].Kid)
 }
 
 func (s *ManagerSuite) TestX509CARotation() {
@@ -778,6 +830,16 @@ func (s *ManagerSuite) requireBundleJWTKeys(jwtKeys ...*JWTKey) {
 	})
 }
 
+func (s *ManagerSuite) createBundle() *common.Bundle {
+	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: &common.Bundle{
+			TrustDomainId: testTrustDomainURL.String(),
+		},
+	})
+	s.Require().NoError(err)
+	return resp.Bundle
+}
+
 func (s *ManagerSuite) fetchBundle() *common.Bundle {
 	return s.fetchBundleForTrustDomain(testTrustDomainURL.String())
 }
@@ -865,6 +927,16 @@ func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *notifier.Noti
 		expected := s.fetchBundle()
 		s.RequireProtoEqual(expected, actual)
 	}
+}
+
+func (s *ManagerSuite) countLogEntries(level logrus.Level, message string) int {
+	count := 0
+	for _, e := range s.logHook.AllEntries() {
+		if e.Message == message && level == e.Level {
+			count++
+		}
+	}
+	return count
 }
 
 type fakeCA struct {

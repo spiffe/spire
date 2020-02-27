@@ -537,7 +537,7 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 		}
 	}
 
-	if err := h.c.Manager.AppendBundle(ctx, nil, req.JwtKey); err != nil {
+	if err := h.c.Manager.AppendBundle(ctx, nil, []*common.PublicKey{req.JwtKey}); err != nil {
 		return nil, err
 	}
 
