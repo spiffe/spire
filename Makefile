@@ -328,8 +328,12 @@ artifact: build
 # Docker Images
 #############################################################################
 
-# go_image_version is the docker image version, which can be different from
-# the go version on the minor version boundary (i.e. go1.14 is image go1.14.0)
+# go_image_version is the docker image version. If the go version is on a minor
+# version boundary, ".0" is added to get the specific image tag for that
+# version since the tag of the minor version means "the latest point release
+# for this minor version". For example, when our toolchain uses go1.14, we need
+# to use the "1.14.0" image tag, since "1.14" refers to the latest "1.14.X"
+# release.
 go_image_version := $(go_version)
 ifeq ($(word 3, $(subst ., ,$(go_version))),)
 	go_image_version := $(go_version).0
