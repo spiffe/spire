@@ -31,17 +31,19 @@ import (
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
+	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
-	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
-	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 )
 
 var (
 	portedUpstreamCA = map[string]bool{
-		"disk":  true,
-		"spire": true,
+		"aws_pca":   true,
+		"awssecret": true,
+		"disk":      true,
+		"spire":     true,
 	}
 
 	builtIns = []catalog.Plugin{
@@ -60,12 +62,13 @@ var (
 		nr_noop.BuiltIn(),
 		nr_aws_iid.BuiltIn(),
 		nr_azure_msi.BuiltIn(),
-		// UpstreamCAs
-		up_aws_pca.BuiltIn(),
-		up_awssecret.BuiltIn(),
 		// UpstreamAuthorities
-		up_disk.BuiltIn(),
+		up_awspca.BuiltIn(),
+		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
+		// UpstreamCAs
+		up_awssecret.BuiltIn(),
+		up_disk.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),
