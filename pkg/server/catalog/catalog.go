@@ -67,7 +67,6 @@ var (
 		up_spire.BuiltIn(),
 		// UpstreamCAs
 		up_disk.BuiltIn(),
-		up_awssecret.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),
