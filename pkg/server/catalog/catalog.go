@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -29,11 +31,48 @@ import (
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
+	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
-	up_aws_pca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/aws"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
-	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
+)
+
+var (
+	portedUpstreamCA = map[string]bool{
+		"aws_pca": true,
+		"spire":   true,
+	}
+
+	builtIns = []catalog.Plugin{
+		// DataStores
+		ds_sql.BuiltIn(),
+		// NodeAttestors
+		na_aws_iid.BuiltIn(),
+		na_gcp_iit.BuiltIn(),
+		na_x509pop.BuiltIn(),
+		na_sshpop.BuiltIn(),
+		na_azure_msi.BuiltIn(),
+		na_k8s_sat.BuiltIn(),
+		na_k8s_psat.BuiltIn(),
+		na_join_token.BuiltIn(),
+		// NodeResolvers
+		nr_noop.BuiltIn(),
+		nr_aws_iid.BuiltIn(),
+		nr_azure_msi.BuiltIn(),
+		// UpstreamAuthorities
+		up_awspca.BuiltIn(),
+		up_spire.BuiltIn(),
+		// UpstreamCAs
+		up_disk.BuiltIn(),
+		up_awssecret.BuiltIn(),
+		// KeyManagers
+		km_disk.BuiltIn(),
+		km_memory.BuiltIn(),
+		// Notifiers
+		no_k8sbundle.BuiltIn(),
+		no_gcs_bundle.BuiltIn(),
+	}
 )
 
 type Catalog interface {
@@ -54,6 +93,7 @@ func KnownPlugins() []catalog.PluginClient {
 		datastore.PluginClient,
 		nodeattestor.PluginClient,
 		noderesolver.PluginClient,
+		upstreamauthority.PluginClient,
 		upstreamca.PluginClient,
 		keymanager.PluginClient,
 		notifier.PluginClient,
@@ -65,34 +105,7 @@ func KnownServices() []catalog.ServiceClient {
 }
 
 func BuiltIns() []catalog.Plugin {
-	return []catalog.Plugin{
-		// DataStores
-		ds_sql.BuiltIn(),
-		// NodeAttestors
-		na_aws_iid.BuiltIn(),
-		na_gcp_iit.BuiltIn(),
-		na_x509pop.BuiltIn(),
-		na_sshpop.BuiltIn(),
-		na_azure_msi.BuiltIn(),
-		na_k8s_sat.BuiltIn(),
-		na_k8s_psat.BuiltIn(),
-		na_join_token.BuiltIn(),
-		// NodeResolvers
-		nr_noop.BuiltIn(),
-		nr_aws_iid.BuiltIn(),
-		nr_azure_msi.BuiltIn(),
-		// UpstreamCAs
-		up_disk.BuiltIn(),
-		up_aws_pca.BuiltIn(),
-		up_awssecret.BuiltIn(),
-		up_spire.BuiltIn(),
-		// KeyManagers
-		km_disk.BuiltIn(),
-		km_memory.BuiltIn(),
-		// Notifiers
-		no_k8sbundle.BuiltIn(),
-		no_gcs_bundle.BuiltIn(),
-	}
+	return append([]catalog.Plugin(nil), builtIns...)
 }
 
 type Notifier struct {
@@ -108,8 +121,7 @@ type Plugins struct {
 	KeyManager    keymanager.KeyManager
 	Notifiers     []Notifier
 
-	// It is unexported to prevent to be processed by Fill, it is handled by ourselves
-	upstreamAuthority upstreamauthority.UpstreamAuthority
+	UpstreamAuthority *upstreamauthority.UpstreamAuthority
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -137,7 +149,10 @@ func (p *Plugins) GetNotifiers() []Notifier {
 }
 
 func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
-	return p.upstreamAuthority, p.upstreamAuthority != nil
+	if p.UpstreamAuthority != nil {
+		return *p.UpstreamAuthority, true
+	}
+	return nil, false
 }
 
 type Config struct {
@@ -155,8 +170,36 @@ type Repository struct {
 	catalog.Closer
 }
 
+// reclassifyPortedUpstreamCAs reclassify ported UpstreamCA plugins into UpstreamAuthority
+func reclassifyPortedUpstreamCAs(pluginConfig catalog.HCLPluginConfigMap, log logrus.FieldLogger) error {
+	// We only expect one UpstreamCA configuration
+	for name, config := range pluginConfig[upstreamca.Type] {
+		// in case configured UpstreamCA is ported update configuration to process it as an UpstreamAuthority
+		if !portedUpstreamCA[name] || config.PluginCmd != "" {
+			continue
+		}
+
+		if _, ok := pluginConfig[upstreamauthority.Type]; ok {
+			return fmt.Errorf("%q cannot be configured as both an UpstreamCA and UpstreamAuthority", name)
+		}
+		// Create upstream authority type entry
+		pluginConfig[upstreamauthority.Type] = map[string]catalog.HCLPluginConfig{
+			name: config,
+		}
+
+		log.Warnf("%q should be configured as an UpstreamAuthority plugin. The UpstreamCA plugin type has been deprecated.", name)
+		delete(pluginConfig[upstreamca.Type], name)
+	}
+
+	return nil
+}
+
 func Load(ctx context.Context, config Config) (*Repository, error) {
-	pluginConfig, err := catalog.PluginConfigFromHCL(config.PluginConfig)
+	if err := reclassifyPortedUpstreamCAs(config.PluginConfig, config.Log); err != nil {
+		return nil, err
+	}
+
+	pluginConfigs, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +208,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	closer, err := catalog.Fill(ctx, catalog.Config{
 		Log:           config.Log,
 		GlobalConfig:  config.GlobalConfig,
-		PluginConfig:  pluginConfig,
+		PluginConfig:  pluginConfigs,
 		KnownPlugins:  KnownPlugins(),
 		KnownServices: KnownServices(),
 		BuiltIns:      BuiltIns(),
@@ -179,8 +222,14 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	if p.UpstreamCA != nil {
-		p.upstreamAuthority = upstreamauthority.Wrap(*p.UpstreamCA)
+	switch {
+	case p.UpstreamCA == nil:
+	case p.UpstreamAuthority != nil:
+		logrus.Error("UpstreamCA and UpstreamAuthority are mutually exclusive. Please remove one of them")
+		return nil, errors.New("plugins UpstreamCA and UpstreamAuthority are mutually exclusive")
+	default:
+		wrap := upstreamauthority.Wrap(*p.UpstreamCA)
+		p.UpstreamAuthority = &wrap
 	}
 
 	return &Repository{
