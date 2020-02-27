@@ -1016,7 +1016,7 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 		Downstream: true,
 	})
 
-	s.Require().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 1)
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 1)
 
 	pkixBytes, err = x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
 	s.Require().NoError(err)
@@ -1032,7 +1032,7 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 	s.Assert().Len(resp.JwtSigningKeys, 2)
 	s.Assert().Equal("kid1", resp.JwtSigningKeys[0].Kid)
 	s.Assert().Equal("kid2", resp.JwtSigningKeys[1].Kid)
-	s.Assert().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 2)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 2)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
@@ -1060,7 +1060,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 		Downstream: true,
 	})
 
-	s.Require().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 0)
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 0)
 
 	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
 		JwtKey: jwk,
@@ -1069,7 +1069,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	s.Assert().NotNil(resp)
 	s.Assert().Len(resp.JwtSigningKeys, 1)
 	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 0)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 0)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
@@ -1088,7 +1088,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 		Downstream: true,
 	})
 
-	s.Require().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 0)
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 0)
 
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
 	s.Require().NoError(err)
@@ -1103,7 +1103,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 	s.Assert().NotNil(resp)
 	s.Assert().Len(resp.JwtSigningKeys, 1)
 	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle(trustDomainID).JwtSigningKeys, 1)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
 	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
 		"by this server may have trouble communicating with workloads outside "+
 		"this cluster when using JWT-SVIDs.")
@@ -1582,9 +1582,9 @@ func (s *HandlerSuite) makeCSRs(entryID, spiffeID string) map[string][]byte {
 	return csrs
 }
 
-func (s *HandlerSuite) fetchBundle(tdID string) *common.Bundle {
+func (s *HandlerSuite) fetchBundle() *common.Bundle {
 	r, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomainId: tdID,
+		TrustDomainId: trustDomainID,
 	})
 	s.Require().NoError(err)
 	return r.Bundle
