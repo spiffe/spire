@@ -54,12 +54,11 @@ func NewLogger(options ...Option) (*Logger, error) {
 	if len(logger.Hooks) == 0 {
 		// no hooks (outputs) have been defined, default to standard out
 		logger.SetOutput(os.Stdout)
-	} else {
-		// we have some hooks defined, set regular output to discard,
-		// as logging will be handled by the hooks
-		logger.SetOutput(ioutil.Discard)
+		return logger, nil
 	}
-
+	// we have some hooks defined, set regular output to discard,
+	// as logging will be handled by the hooks
+	logger.SetOutput(ioutil.Discard)
 	return logger, nil
 }
 
