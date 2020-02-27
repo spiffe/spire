@@ -831,7 +831,6 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
 	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
-
 	// 2nd page
 	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
 		Pagination: &registration.Pagination{
@@ -862,6 +861,7 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 0)
+	s.Require().Empty(resp.Pagination.Token)
 }
 
 func (s *HandlerSuite) TestCreateJoinToken() {
