@@ -6,11 +6,12 @@ package mock_node
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	node "github.com/spiffe/spire/proto/spire/api/node"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"
-	reflect "reflect"
 )
 
 // MockNodeClient is a mock of NodeClient interface
@@ -114,6 +115,26 @@ func (mr *MockNodeClientMockRecorder) FetchX509SVID(arg0 interface{}, arg1 ...in
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0}, arg1...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509SVID", reflect.TypeOf((*MockNodeClient)(nil).FetchX509SVID), varargs...)
+}
+
+// PushJWTKeyUpstream mocks base method
+func (m *MockNodeClient) PushJWTKeyUpstream(arg0 context.Context, arg1 *node.PushJWTKeyUpstreamRequest, arg2 ...grpc.CallOption) (*node.PushJWTKeyUpstreamResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "PushJWTKeyUpstream", varargs...)
+	ret0, _ := ret[0].(*node.PushJWTKeyUpstreamResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PushJWTKeyUpstream indicates an expected call of PushJWTKeyUpstream
+func (mr *MockNodeClientMockRecorder) PushJWTKeyUpstream(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PushJWTKeyUpstream", reflect.TypeOf((*MockNodeClient)(nil).PushJWTKeyUpstream), varargs...)
 }
 
 // MockNode_AttestClient is a mock of Node_AttestClient interface
@@ -603,6 +624,21 @@ func (m *MockNodeServer) FetchX509SVID(arg0 node.Node_FetchX509SVIDServer) error
 func (mr *MockNodeServerMockRecorder) FetchX509SVID(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509SVID", reflect.TypeOf((*MockNodeServer)(nil).FetchX509SVID), arg0)
+}
+
+// PushJWTKeyUpstream mocks base method
+func (m *MockNodeServer) PushJWTKeyUpstream(arg0 context.Context, arg1 *node.PushJWTKeyUpstreamRequest) (*node.PushJWTKeyUpstreamResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PushJWTKeyUpstream", arg0, arg1)
+	ret0, _ := ret[0].(*node.PushJWTKeyUpstreamResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PushJWTKeyUpstream indicates an expected call of PushJWTKeyUpstream
+func (mr *MockNodeServerMockRecorder) PushJWTKeyUpstream(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PushJWTKeyUpstream", reflect.TypeOf((*MockNodeServer)(nil).PushJWTKeyUpstream), arg0, arg1)
 }
 
 // MockNode_FetchX509SVIDServer is a mock of Node_FetchX509SVIDServer interface
