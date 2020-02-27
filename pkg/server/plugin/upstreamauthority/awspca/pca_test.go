@@ -1,4 +1,4 @@
-package aws
+package awspca
 
 import (
 	"bytes"
@@ -14,11 +14,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/acmpca"
 	gomock "github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -160,7 +161,7 @@ func (as *PCAPluginSuite) Test_Configure_DecodeError() {
 	as.Require().Error(err)
 }
 
-func (as *PCAPluginSuite) Test_SubmitCSR() {
+func (as *PCAPluginSuite) Test_MintX509CA() {
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
@@ -187,17 +188,17 @@ func (as *PCAPluginSuite) Test_SubmitCSR() {
 
 	// The resulting response should not error, and should contain the expected
 	// values from ACM.
-	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	response, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
 	as.Require().NoError(err)
 	as.Require().NotNil(response)
-	as.Require().Equal(append(expectedCert.Raw, expectedIntermediate.Raw...), response.SignedCertificate.CertChain)
-	as.Require().Equal(expectedRoot.Raw, response.SignedCertificate.Bundle)
+	as.Require().Equal([][]byte{expectedCert.Raw, expectedIntermediate.Raw}, response.X509CaChain)
+	as.Require().Equal([][]byte{expectedRoot.Raw}, response.UpstreamX509Roots)
 }
 
-func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceError() {
+func (as *PCAPluginSuite) Test_MintX509CA_IssuanceError() {
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
@@ -206,7 +207,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceError() {
 	as.verifyIssueCertificate(expectedEncodedCsr, errors.New("issuance error"))
 
 	// The resulting response should return an error
-	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	response, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -214,7 +215,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceError() {
 	as.Require().Error(err)
 }
 
-func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceWaitError() {
+func (as *PCAPluginSuite) Test_MintX509CA_IssuanceWaitError() {
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
@@ -226,7 +227,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceWaitError() {
 	as.verifyWaitUntilCertificateIssued(errors.New("issuance waiting error"))
 
 	// The resulting response should error
-	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	response, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -234,7 +235,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_IssuanceWaitError() {
 	as.Require().Error(err)
 }
 
-func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificateError() {
+func (as *PCAPluginSuite) Test_MintX509CA_GetCertificateError() {
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
@@ -250,7 +251,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificateError() {
 	as.verifyGetCertificate(nil, nil, errors.New("get certificate error"))
 
 	// The resulting response should error
-	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	response, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -258,7 +259,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificateError() {
 	as.Require().Error(err)
 }
 
-func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateParseError() {
+func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateParseError() {
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
@@ -275,7 +276,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateParseError() 
 	as.verifyGetCertificate(nil, encodedBundle, nil)
 
 	// The resulting response should error
-	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	response, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -283,7 +284,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateParseError() 
 	as.Require().Error(err)
 }
 
-func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateChainParseError() {
+func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateChainParseError() {
 	defer as.mockController.Finish()
 	as.configurePlugin()
 
@@ -300,7 +301,7 @@ func (as *PCAPluginSuite) Test_SubmitCSR_GetCertificate_CertificateChainParseErr
 	as.verifyGetCertificate(encodedCert, nil, nil)
 
 	// The resulting response should error
-	response, err := as.plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	response, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -471,4 +472,18 @@ func (as *PCAPluginSuite) generateCSR() ([]byte, *bytes.Buffer) {
 	})
 	as.Require().NoError(err)
 	return csr, encodedCsr
+}
+
+func (as *PCAPluginSuite) TestPublishX509CA() {
+	resp, err := as.plugin.PublishX509CA(ctx, &upstreamauthority.PublishX509CARequest{})
+	as.Require().Nil(resp, "no response expected")
+
+	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-pca: publishing upstream is unsupported")
+}
+
+func (as *PCAPluginSuite) TestPublishJWTKey() {
+	resp, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
+	as.Require().Nil(resp, "no response expected")
+
+	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-pca: publishing upstream is unsupported")
 }
