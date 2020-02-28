@@ -125,15 +125,6 @@ func TestMintX509CA(t *testing.T) {
 	}
 }
 
-func TestPublishX509CA(t *testing.T) {
-	wrapper := Wrap(&fakeUpstreamCA{})
-
-	resp, err := wrapper.PublishX509CA(ctx, &PublishX509CARequest{})
-	require.Nil(t, resp, "no response expected")
-
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority-wrapper: publishing upstream is unsupported")
-}
-
 func TestPublishJWTKey(t *testing.T) {
 	wrapper := Wrap(&fakeUpstreamCA{})
 

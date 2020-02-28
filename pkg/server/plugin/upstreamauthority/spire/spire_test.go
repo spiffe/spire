@@ -2,7 +2,6 @@ package spireplugin
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -257,7 +256,7 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	certs, err := rawCertsToCerts(resp.X509CaChain)
+	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	require.NoError(t, err)
 
 	isEqual, err := cryptoutil.PublicKeyEqual(certs[0].PublicKey, pubKey)
@@ -296,13 +295,6 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	require.EqualError(t, err, "rpc error: code = Unimplemented desc = upstreamauthority-spire: publishing upstream is unsupported")
 }
 
-func TestSpirePlugin_PublishX509CA(t *testing.T) {
-	m := New()
-	resp, err := m.PublishX509CA(context.Background(), &upstreamauthority.PublishX509CARequest{})
-	require.Nil(t, resp)
-	require.EqualError(t, err, "rpc error: code = Unimplemented desc = upstreamauthority-spire: publishing upstream is unsupported")
-}
-
 func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
 	host, port, _ := net.SplitHostPort(addr)
 
@@ -327,18 +319,4 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 		require.NoError(t, err)
 	}
 	return plugin, done
-}
-
-// rawCertsToCerts
-func rawCertsToCerts(rawCerts [][]byte) ([]*x509.Certificate, error) {
-	var certs []*x509.Certificate
-	for _, rawCert := range rawCerts {
-		cert, err := x509.ParseCertificate(rawCert)
-		if err != nil {
-			return nil, err
-		}
-
-		certs = append(certs, cert)
-	}
-	return certs, nil
 }

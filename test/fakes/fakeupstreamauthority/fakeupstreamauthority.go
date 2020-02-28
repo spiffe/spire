@@ -136,7 +136,3 @@ func certsDER(certs []*x509.Certificate) [][]byte {
 func (m *UpstreamAuthority) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
 }
-
-func (m *UpstreamAuthority) PublishX509CA(context.Context, *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
-}

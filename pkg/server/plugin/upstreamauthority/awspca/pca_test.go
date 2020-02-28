@@ -474,13 +474,6 @@ func (as *PCAPluginSuite) generateCSR() ([]byte, *bytes.Buffer) {
 	return csr, encodedCsr
 }
 
-func (as *PCAPluginSuite) TestPublishX509CA() {
-	resp, err := as.plugin.PublishX509CA(ctx, &upstreamauthority.PublishX509CARequest{})
-	as.Require().Nil(resp, "no response expected")
-
-	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-pca: publishing upstream is unsupported")
-}
-
 func (as *PCAPluginSuite) TestPublishJWTKey() {
 	resp, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
 	as.Require().Nil(resp, "no response expected")
