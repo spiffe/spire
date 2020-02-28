@@ -66,7 +66,6 @@ var (
 		up_awspca.BuiltIn(),
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
-		up_awssecret.BuiltIn(),
 		up_disk.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
