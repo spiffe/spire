@@ -90,7 +90,7 @@ func TestParseConfig(t *testing.T) {
 					socket_path = "/other/socket/path"
 				}
 			`,
-			err: "acme section must be configured",
+			err: "either acme or listen_socket_path must be configured",
 		},
 		{
 			name: "ACME ToS not accepted",

@@ -135,7 +135,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	switch {
 	case c.ACME == nil:
 		if c.InsecureAddr == "" && c.ListenSocketPath == "" {
-			return nil, errs.New("acme section must be configured")
+			return nil, errs.New("either acme or listen_socket_path must be configured")
 		}
 		if c.InsecureAddr != "" && c.ListenSocketPath != "" {
 			return nil, errs.New("insecure_addr and listen_socket_path are mutually exclusive")
