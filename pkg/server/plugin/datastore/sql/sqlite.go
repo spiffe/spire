@@ -4,24 +4,31 @@ import (
 	"net/url"
 
 	"github.com/jinzhu/gorm"
+
 	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	_ "github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
-type sqlite struct{}
+type sqliteDB struct{}
 
-func (s sqlite) connect(cfg *configuration) (*gorm.DB, error) {
+func (s sqliteDB) connect(cfg *configuration) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	embellished, err := embellishSQLite3ConnString(cfg.ConnectionString)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
-	db, err := gorm.Open("sqlite3", embellished)
+	db, err = gorm.Open("sqlite3", embellished)
 	if err != nil {
-		return nil, sqlError.Wrap(err)
+		return nil, "", false, sqlError.Wrap(err)
 	}
 
-	return db, nil
+	version, err = queryVersion(db, "SELECT sqlite_version()")
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	// The embedded version of SQLite3 unconditionally supports CTE.
+	return db, version, true, nil
 }
 
 // embellishSQLite3ConnString adds query values supported by

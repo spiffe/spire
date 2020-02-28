@@ -2,20 +2,32 @@
 
 *Must be used in conjunction with the server-side aws_iid plugin*
 
-The `aws_iid` plugin automatically attests instances using the AWS Instance Metadata API and the AWS Instance Identity document. It also allows an operator to use AWS Instance IDs when defining SPIFFE ID attestation policies.
+The `aws_iid` plugin automatically attests instances using the AWS Instance 
+Metadata API and the AWS Instance Identity document. It also allows an operator
+to use AWS Instance IDs when defining SPIFFE ID attestation policies.
 
-| Configuration | Description | Default                 |
-| ------------- | ----------- | ----------------------- |
-| identity_document_url  |  URL pointing to the [AWS Instance Identity Document](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html). | http://169.254.169.254/latest/dynamic/instance-identity/document |
-| identity_signature_url | URL pointing to the [AWS Instance Identity Signature](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html). | http://169.254.169.254/latest/dynamic/instance-identity/signature |
+Generally no plugin data is needed in AWS, and this configuration should be used:
 
-A sample configuration:
+```
+    NodeAttestor "aws_iid" {
+        plugin_data {}
+    }
+```
+
+| Configuration          | Description                                        |
+| ---------------------- | -------------------------------------------------- |
+| ec2_metadata_endpoint  | Endpoint for AWS SDK to retrieve instance metadata |
+| identity_document_url  | Deprecated; use ec2_metadata_endpoint              |
+| identity_signature_url | Deprecated; use ec2_metadata_endpoint              |
+
+
+For testing or non-standard AWS environments, you may need to specify the
+Metadata endpoint.  For more information, see [the AWS SDK documentation](https://docs.aws.amazon.com/sdk-for-go/api/aws/ec2metadata/)
 
 ```
     NodeAttestor "aws_iid" {
         plugin_data {
-            identity_document_url = "http://169.254.169.254/latest/dynamic/instance-identity/document"
-            identity_signature_url = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
+            ec2_metadata_endpoint = "http://169.264.169.254/latest"
         }
     }
 ```
