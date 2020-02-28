@@ -10,7 +10,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
@@ -41,7 +42,7 @@ type DiskSuite struct {
 
 	clock     *clock.Mock
 	rawPlugin *Plugin
-	p         upstreamca.Plugin
+	p         upstreamauthority.Plugin
 }
 
 func (s *DiskSuite) SetupTest() {
@@ -161,10 +162,9 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(err)
 
-	resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 	require.NoError(err)
 	require.NotNil(resp)
-	require.NotNil(resp.SignedCertificate)
 
 	testCSRResp(s.T(), resp, pubKey, []string{"spiffe://localhost", "spiffe://upstream", "spiffe://intermediate"}, []string{"spiffe://root"})
 }
@@ -206,10 +206,9 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+		resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 		require.NoError(err)
 		require.NotNil(resp)
-		require.NotNil(resp.SignedCertificate)
 
 		testCSRResp(s.T(), resp, pubKey, []string{"spiffe://localhost"}, []string{"spiffe://local"})
 	}
@@ -251,22 +250,21 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
-	resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr, PreferredTtl: preferredTTL})
+	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().NotNil(resp.SignedCertificate)
 
-	certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	s.Require().NoError(err)
 	s.Require().Len(certs, 1)
 	s.Require().Equal(s.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
 }
 
-func testCSRResp(t *testing.T, resp *upstreamca.SubmitCSRResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
-	certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+func testCSRResp(t *testing.T, resp *upstreamauthority.MintX509CAResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
+	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	require.NoError(t, err)
 
-	trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
+	trustBundle, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
 	require.NoError(t, err)
 
 	for i, cert := range certs {
@@ -290,13 +288,13 @@ func (s *DiskSuite) TestSubmitInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+		resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 		require.Error(err)
 		require.Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(err)
 	require.Nil(resp)
 }
@@ -310,7 +308,7 @@ func (s *DiskSuite) TestRace() {
 		// the results of these RPCs aren't important; the test is just trying
 		// to get a bunch of stuff happening at once.
 		_, _ = s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
-		_, _ = s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+		_, _ = s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 	})
 }
 
@@ -331,6 +329,18 @@ func (s *DiskSuite) configureWithTTL(keyFilePath, certFilePath, deprecatedTTL st
 		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
 	})
 	return err
+}
+
+func (s *DiskSuite) TestPublishJWTKey() {
+	resp, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
+}
+
+func (s *DiskSuite) TestPublishX509CA() {
+	resp, err := s.p.PublishX509CA(context.Background(), &upstreamauthority.PublishX509CARequest{})
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
 }
 
 func certURI(cert *x509.Certificate) string {

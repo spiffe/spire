@@ -10,13 +10,15 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
@@ -26,7 +28,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin("disk",
-		upstreamca.PluginServer(p),
+		upstreamauthority.PluginServer(p),
 	)
 }
 
@@ -53,8 +55,8 @@ type Plugin struct {
 }
 
 type caCerts struct {
-	certChain   []byte
-	trustBundle []byte
+	certChain   [][]byte
+	trustBundle [][]byte
 }
 
 func New() *Plugin {
@@ -114,7 +116,7 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *Plugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (p *Plugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
 	upstreamCA, upstreamCerts, err := p.reloadCA()
 	if err != nil {
 		return nil, err
@@ -125,12 +127,18 @@ func (p *Plugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRReq
 		return nil, err
 	}
 
-	return &upstreamca.SubmitCSRResponse{
-		SignedCertificate: &upstreamca.SignedCertificate{
-			CertChain: append(cert.Raw, upstreamCerts.certChain...),
-			Bundle:    upstreamCerts.trustBundle,
-		},
+	return &upstreamauthority.MintX509CAResponse{
+		X509CaChain:       append([][]byte{cert.Raw}, upstreamCerts.certChain...),
+		UpstreamX509Roots: upstreamCerts.trustBundle,
 	}, nil
+}
+
+func (*Plugin) PublishJWTKey(ctx context.Context, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+func (p *Plugin) PublishX509CA(ctx context.Context, req *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
+	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
@@ -214,10 +222,10 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 
 	caCerts := &caCerts{}
 	for _, cert := range certs {
-		caCerts.certChain = append(caCerts.certChain, cert.Raw...)
+		caCerts.certChain = append(caCerts.certChain, cert.Raw)
 	}
 	for _, cert := range trustBundle {
-		caCerts.trustBundle = append(caCerts.trustBundle, cert.Raw...)
+		caCerts.trustBundle = append(caCerts.trustBundle, cert.Raw)
 	}
 
 	return x509svid.NewUpstreamCA(
@@ -228,4 +236,8 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 			Clock: p.clock,
 		},
 	), caCerts, nil
+}
+
+func makeError(code codes.Code, format string, args ...interface{}) error {
+	return status.Errorf(code, "upstreamauthority-disk: "+format, args...)
 }
