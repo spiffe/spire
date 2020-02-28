@@ -13,8 +13,6 @@ import (
 
 type Catalog struct {
 	catalog.Plugins
-
-	upstreamAuthority upstreamauthority.UpstreamAuthority
 }
 
 func New() *Catalog {
@@ -39,13 +37,11 @@ func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.No
 }
 
 func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.UpstreamAuthority) {
-	c.upstreamAuthority = upstreamAuthority
-}
-
-// GetUpstreamAuthority obtains upstream authority from fake instead original catalog,
-// it can be removed once upstream authority is properly loaded on catalog. Please see issue #1374.
-func (c *Catalog) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
-	return c.upstreamAuthority, c.upstreamAuthority != nil
+	if upstreamAuthority == nil {
+		c.UpstreamAuthority = nil
+	} else {
+		c.UpstreamAuthority = &upstreamAuthority
+	}
 }
 
 func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
