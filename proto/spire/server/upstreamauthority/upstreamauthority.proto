@@ -25,16 +25,6 @@ message MintX509CAResponse {
     repeated bytes upstream_x509_roots = 2;
 }
 
-message PublishX509CARequest {
-    // The self-signed X.509 CA certificate to publish upstream
-    bytes self_signed_x509_ca = 1;
-}
-
-message PublishX509CAResponse {
-    // The trusted X.509 root authorities for the upstream authority
-    repeated bytes upstream_x509_roots = 1;
-}
-
 message PublishJWTKeyRequest {
     // The JWT signing key to publish upstream 
     spire.common.PublicKey jwt_key = 1;
@@ -46,15 +36,8 @@ message PublishJWTKeyResponse {
 }
 
 service UpstreamAuthority {
-    // Mints an X.509 CA. The plugin should also publish the X.509 CA upstream,
-    // if supported. This RPC is optional and should return NotImplemented if
-    // unsupported. When unsupported, SPIRE will self-sign an X.509 CA and
-    // publish via PublishX509CA.
+    // Mints an X.509 CA.
     rpc MintX509CA(MintX509CARequest) returns (MintX509CAResponse);
-
-    // PublishX509CA publishes a self-signed X.509 CA certificate upstream.
-    // This RPC is optional and should return NotImplemented if unsupported.
-    rpc PublishX509CA(PublishX509CARequest) returns (PublishX509CAResponse);
 
     // Publishes a JWT signing key upstream. This RPC is optional and should
     // return NotImplemented if unsupported.

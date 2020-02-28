@@ -16,8 +16,6 @@ type MintX509CARequest = upstreamauthority.MintX509CARequest                    
 type MintX509CAResponse = upstreamauthority.MintX509CAResponse                                     //nolint: golint
 type PublishJWTKeyRequest = upstreamauthority.PublishJWTKeyRequest                                 //nolint: golint
 type PublishJWTKeyResponse = upstreamauthority.PublishJWTKeyResponse                               //nolint: golint
-type PublishX509CARequest = upstreamauthority.PublishX509CARequest                                 //nolint: golint
-type PublishX509CAResponse = upstreamauthority.PublishX509CAResponse                               //nolint: golint
 type UnimplementedUpstreamAuthorityServer = upstreamauthority.UnimplementedUpstreamAuthorityServer //nolint: golint
 type UpstreamAuthorityClient = upstreamauthority.UpstreamAuthorityClient                           //nolint: golint
 type UpstreamAuthorityServer = upstreamauthority.UpstreamAuthorityServer                           //nolint: golint
@@ -30,7 +28,6 @@ const (
 type UpstreamAuthority interface {
 	MintX509CA(context.Context, *MintX509CARequest) (*MintX509CAResponse, error)
 	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error)
-	PublishX509CA(context.Context, *PublishX509CARequest) (*PublishX509CAResponse, error)
 }
 
 // Plugin is the client interface for the service with the plugin related methods used by the catalog to initialize the plugin.
@@ -39,7 +36,6 @@ type Plugin interface {
 	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 	MintX509CA(context.Context, *MintX509CARequest) (*MintX509CAResponse, error)
 	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error)
-	PublishX509CA(context.Context, *PublishX509CARequest) (*PublishX509CAResponse, error)
 }
 
 // PluginServer returns a catalog PluginServer implementation for the UpstreamAuthority plugin.
@@ -101,8 +97,4 @@ func (a pluginClientAdapter) MintX509CA(ctx context.Context, in *MintX509CAReque
 
 func (a pluginClientAdapter) PublishJWTKey(ctx context.Context, in *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error) {
 	return a.client.PublishJWTKey(ctx, in)
-}
-
-func (a pluginClientAdapter) PublishX509CA(ctx context.Context, in *PublishX509CARequest) (*PublishX509CAResponse, error) {
-	return a.client.PublishX509CA(ctx, in)
 }

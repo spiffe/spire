@@ -137,10 +137,6 @@ func (*Plugin) PublishJWTKey(ctx context.Context, req *upstreamauthority.Publish
 	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-func (p *Plugin) PublishX509CA(ctx context.Context, req *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
 func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
