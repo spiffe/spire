@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.3] - 2020-02-28
+- Significantly reduced the server's database load (#1350, #1355, #1397)
+- Improved consistency in SVID propagation time for some cases (#1352)
+- AWS IID node attestor now supports the v2 metadata service (#1369)
+- SQL datastore plugin now supports leveraging read-only replicas (#1363)
+- Fixed a bug in which CA certificates may have an empty Subject if incorrectly configured (#1387)
+- Server now logs an agent ID when an invalid agent makes a request (#1395)
+- Fixed a bug in which the server CLI did not correctly show entries when querying with multiple selectors (#1398)
+- Registration API now has an RPC for listing entries that supports paging (#1392)
+
 ## [0.9.2] - 2020-01-14
 - Fixed a crash when a key protecting the bundle endpoint is removed (#1326)
 - Bundle endpoint client now supports Web-PKI authenticated endpoints (#1327)
