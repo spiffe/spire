@@ -724,7 +724,7 @@ func (m *PushJWTKeyUpstreamRequest) GetJwtKey() *common.PublicKey {
 }
 
 type PushJWTKeyUpstreamResponse struct {
-	//* up-to-date bundle of JWT signing keys
+	// up-to-date bundle of JWT signing keys
 	JwtSigningKeys       []*common.PublicKey `protobuf:"bytes,1,rep,name=jwt_signing_keys,json=jwtSigningKeys,proto3" json:"jwt_signing_keys,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
 	XXX_unrecognized     []byte              `json:"-"`
