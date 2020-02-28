@@ -140,7 +140,7 @@ message PushJWTKeyUpstreamRequest {
 }
 
 message PushJWTKeyUpstreamResponse {
-    /** up-to-date bundle of JWT signing keys */
+    // up-to-date bundle of JWT signing keys
     repeated spire.common.PublicKey jwt_signing_keys = 1;    
 }
 
