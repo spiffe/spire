@@ -337,12 +337,6 @@ func (s *DiskSuite) TestPublishJWTKey() {
 	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
 }
 
-func (s *DiskSuite) TestPublishX509CA() {
-	resp, err := s.p.PublishX509CA(context.Background(), &upstreamauthority.PublishX509CARequest{})
-	s.Require().Nil(resp)
-	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
-}
-
 func certURI(cert *x509.Certificate) string {
 	if len(cert.URIs) == 1 {
 		return cert.URIs[0].String()

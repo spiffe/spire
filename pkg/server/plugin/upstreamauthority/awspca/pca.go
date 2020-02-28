@@ -250,11 +250,6 @@ func (m *PCAPlugin) PublishJWTKey(context.Context, *upstreamauthority.PublishJWT
 	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-// PublishX509CA is not implemented by the wrapper and returns a codes.Unimplemented status
-func (m *PCAPlugin) PublishX509CA(context.Context, *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
 func makeError(code codes.Code, format string, args ...interface{}) error {
 	return status.Errorf(code, "aws-pca: "+format, args...)
 }
