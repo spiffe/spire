@@ -25,6 +25,7 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -215,8 +216,18 @@ func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
 	return errors.New("NOT IMPLEMENTED")
 }
 
+// PushJWTKeyUpstream fakes the real implementation (node endpoint) for testing purposes
 func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKeyUpstreamRequest) (*node_pb.PushJWTKeyUpstreamResponse, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
+	keys := []*common.PublicKey{
+		&common.PublicKey{
+			Kid: "kid-0",
+		},
+		req.JwtKey,
+	}
+
+	return &node_pb.PushJWTKeyUpstreamResponse{
+		JwtSigningKeys: keys,
+	}, nil
 }
 
 func TestSpirePlugin_Configure(t *testing.T) {
@@ -289,10 +300,26 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 }
 
 func TestSpirePlugin_PublishJWTKey(t *testing.T) {
-	m := New()
-	resp, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
-	require.Nil(t, resp)
-	require.EqualError(t, err, "rpc error: code = Unimplemented desc = upstreamauthority-spire: publishing upstream is unsupported")
+	server := testHandler{}
+	server.startTestServers(t)
+	defer server.stopTestServers()
+
+	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+	defer done()
+
+	resp, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{
+		JwtKey: &common.PublicKey{
+			Kid: "kid-1",
+		},
+	})
+
+	// Assertions only checks that the keys contained in the handler response
+	// are forwarded by the plugin method.
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.Len(t, resp.UpstreamJwtKeys, 2)
+	assert.Equal(t, resp.UpstreamJwtKeys[0].Kid, "kid-0")
+	assert.Equal(t, resp.UpstreamJwtKeys[1].Kid, "kid-1")
 }
 
 func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
