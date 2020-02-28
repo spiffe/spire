@@ -201,13 +201,6 @@ func (as *Suite) newAWSUpstreamAuthority(deprecatedTTL string) upstreamauthority
 	return plugin
 }
 
-func (as *Suite) TestPublishX509CA() {
-	resp, err := as.plugin.PublishX509CA(ctx, &upstreamauthority.PublishX509CARequest{})
-	as.Require().Nil(resp, "no response expected")
-
-	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-secret: publishing upstream is unsupported")
-}
-
 func (as *Suite) TestPublishJWTKey() {
 	resp, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
 	as.Require().Nil(resp, "no response expected")
