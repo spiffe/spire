@@ -103,10 +103,6 @@ func (m *spirePlugin) PublishJWTKey(ctx context.Context, req *upstreamauthority.
 	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-func (m *spirePlugin) PublishX509CA(ctx context.Context, req *upstreamauthority.PublishX509CARequest) (*upstreamauthority.PublishX509CAResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
 func makeError(code codes.Code, format string, args ...interface{}) error {
 	return status.Errorf(code, "upstreamauthority-spire: "+format, args...)
 }

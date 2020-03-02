@@ -13,7 +13,7 @@ type wrapper struct {
 	upstreamCA upstreamca.UpstreamCA
 }
 
-// Wrap produces a conforming UpstreamAuthority by wrapping an UpstreamCA. The PublishX509CA and PublishJWTKey methods are not implemented and return a codes.Unimplemented status.
+// Wrap produces a conforming UpstreamAuthority by wrapping an UpstreamCA. The PublishJWTKey method is not implemented and returns a codes.Unimplemented status.
 func Wrap(upstreamCA upstreamca.UpstreamCA) UpstreamAuthority {
 	return &wrapper{upstreamCA: upstreamCA}
 }
@@ -67,11 +67,6 @@ func parseCertificates(rawCerts []byte) ([][]byte, error) {
 
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
 func (w *wrapper) PublishJWTKey(ctx context.Context, request *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
-// PublishX509CA is not implemented by the wrapper and returns a codes.Unimplemented status
-func (w *wrapper) PublishX509CA(ctx context.Context, request *PublishX509CARequest) (*PublishX509CAResponse, error) {
 	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
