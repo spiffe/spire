@@ -196,19 +196,26 @@ func (s *ShowCLI) fetchBySpiffeID(ctx context.Context) error {
 // fetchBySelectors fetches all registration entries containing the full
 // set of configured selectors, appending them to `entries`
 func (s *ShowCLI) fetchBySelectors(ctx context.Context) error {
-	for _, sel := range s.Config.Selectors {
+	if len(s.Config.Selectors) == 0 {
+		return nil
+	}
+	selectors := make([]*common.Selector, len(s.Config.Selectors))
+	for i, sel := range s.Config.Selectors {
 		selector, err := parseSelector(sel)
 		if err != nil {
 			return err
 		}
-
-		entries, err := s.Client.ListBySelector(ctx, selector)
-		if err != nil {
-			return err
-		}
-
-		s.Entries = append(s.Entries, entries.Entries...)
+		selectors[i] = selector
 	}
+
+	entries, err := s.Client.ListBySelectors(ctx, &common.Selectors{
+		Entries: selectors,
+	})
+	if err != nil {
+		return err
+	}
+
+	s.Entries = append(s.Entries, entries.Entries...)
 
 	return nil
 }

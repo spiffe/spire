@@ -12,11 +12,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
+	"google.golang.org/grpc/codes"
 )
 
 var (
@@ -30,14 +31,14 @@ func TestPlugin(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	clock         *clock.Mock
-	client        secretsManagerClient
-	awsUpstreamCA upstreamca.Plugin
+	clock  *clock.Mock
+	client secretsManagerClient
+	plugin upstreamauthority.Plugin
 }
 
 func (as *Suite) SetupTest() {
 	as.clock = clock.NewMock(as.T())
-	as.awsUpstreamCA = as.newAWSUpstreamCA("")
+	as.plugin = as.newAWSUpstreamAuthority("")
 }
 
 func (as *Suite) TestConfigureNoGlobal() {
@@ -71,16 +72,17 @@ func (as *Suite) TestGetSecretFail() {
 	as.Require().Nil(resp)
 }
 
-func (as *Suite) Test_SubmitValidCSR() {
+func (as *Suite) Test_MintX509CAValidCSR() {
 	validSpiffeID := "spiffe://localhost"
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+	resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
 
-	cert, err := x509.ParseCertificate(resp.SignedCertificate.CertChain)
+	as.Require().Len(resp.X509CaChain, 1)
+	cert, err := x509.ParseCertificate(resp.X509CaChain[0])
 	as.Require().NoError(err)
 
 	isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, pubKey)
@@ -88,52 +90,52 @@ func (as *Suite) Test_SubmitValidCSR() {
 	as.Require().True(isEqual)
 }
 
-func (as *Suite) Test_SubmitInvalidCSR() {
+func (as *Suite) Test_MintX509CAInvalidCSR() {
 	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
 	for _, invalidSpiffeID := range invalidSpiffeIDs {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		as.Require().NoError(err)
 
-		resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+		resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 		as.Require().Error(err)
 		as.Require().Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := as.awsUpstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	as.Require().Error(err)
 	as.Require().Nil(resp)
 }
 
 func (as *Suite) TestDeprecatedTTLUsedIfSet() {
-	awsUpstreamCA := as.newAWSUpstreamCA("10h")
+	awsUpstreamAuthority := as.newAWSUpstreamAuthority("10h")
 
 	// Submit CSR with 1 hour preferred TTL. The deprecated TTL configurable
 	// (10 hours) should take precedence.
-	as.testCSRTTL(awsUpstreamCA, 3600, time.Hour*10)
+	as.testCSRTTL(awsUpstreamAuthority, 3600, time.Hour*10)
 }
 
 func (as *Suite) TestDeprecatedTTLUsesPreferredIfNoDeprecatedTTLSet() {
-	awsUpstreamCA := as.newAWSUpstreamCA("")
+	awsUpstreamAuthority := as.newAWSUpstreamAuthority("")
 
 	// If the preferred TTL is set, it should be used.
-	as.testCSRTTL(awsUpstreamCA, 3600, time.Hour)
+	as.testCSRTTL(awsUpstreamAuthority, 3600, time.Hour)
 
 	// If the preferred TTL is zero, the default should be used.
-	as.testCSRTTL(awsUpstreamCA, 0, x509svid.DefaultUpstreamCATTL)
+	as.testCSRTTL(awsUpstreamAuthority, 0, x509svid.DefaultUpstreamCATTL)
 }
 
-func (as *Suite) testCSRTTL(plugin upstreamca.Plugin, preferredTTL int32, expectedTTL time.Duration) {
+func (as *Suite) testCSRTTL(plugin upstreamauthority.Plugin, preferredTTL int32, expectedTTL time.Duration) {
 	validSpiffeID := "spiffe://localhost"
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := plugin.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr, PreferredTtl: preferredTTL})
+	resp, err := plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
-	as.Require().NotNil(resp.SignedCertificate)
 
-	certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+	as.Require().Len(resp.X509CaChain, 1)
+	certs, err := x509.ParseCertificates(resp.X509CaChain[0])
 	as.Require().NoError(err)
 	as.Require().Len(certs, 1)
 	as.Require().Equal(as.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
@@ -157,19 +159,19 @@ func (as *Suite) TestFailConfiguration() {
 
 	m := newPlugin(newFakeSecretsManagerClient)
 
-	var plugin upstreamca.Plugin
+	var plugin upstreamauthority.Plugin
 	as.LoadPlugin(builtin(m), &plugin)
 	_, err := plugin.Configure(ctx, pluginConfig)
 	as.Require().Error(err)
 }
 
 func (as *Suite) TestAWSSecret_GetPluginInfo() {
-	res, err := as.awsUpstreamCA.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
+	res, err := as.plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	as.Require().NoError(err)
 	as.Require().NotNil(res)
 }
 
-func (as *Suite) newAWSUpstreamCA(deprecatedTTL string) upstreamca.Plugin {
+func (as *Suite) newAWSUpstreamAuthority(deprecatedTTL string) upstreamauthority.Plugin {
 	config := Config{
 		KeyFileARN:      "key",
 		CertFileARN:     "cert",
@@ -191,10 +193,17 @@ func (as *Suite) newAWSUpstreamCA(deprecatedTTL string) upstreamca.Plugin {
 	m := newPlugin(newFakeSecretsManagerClient)
 	m.hooks.clock = as.clock
 
-	var plugin upstreamca.Plugin
+	var plugin upstreamauthority.Plugin
 	as.LoadPlugin(builtin(m), &plugin)
 	_, err = plugin.Configure(ctx, pluginConfig)
 	as.Require().NoError(err)
 
 	return plugin
+}
+
+func (as *Suite) TestPublishJWTKey() {
+	resp, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
+	as.Require().Nil(resp, "no response expected")
+
+	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-secret: publishing upstream is unsupported")
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -954,14 +955,14 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 }
 
 func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
-	certChain, err := parseCertificates(resp.X509CaChain)
+	certChain, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(certChain) == 0 {
 		return nil, nil, errs.New("upstream CA returned an empty cert chain")
 	}
-	trustBundle, err := parseCertificates(resp.UpstreamX509Roots)
+	trustBundle, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -969,19 +970,6 @@ func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CARespons
 		return nil, nil, errs.New("upstream CA returned an empty trust bundle")
 	}
 	return certChain, trustBundle, nil
-}
-
-func parseCertificates(rawCerts [][]byte) ([]*x509.Certificate, error) {
-	var certificates []*x509.Certificate
-	for _, rawCert := range rawCerts {
-		cert, err := x509.ParseCertificate(rawCert)
-		if err != nil {
-			return nil, err
-		}
-		certificates = append(certificates, cert)
-	}
-
-	return certificates, nil
 }
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
