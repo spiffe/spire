@@ -451,6 +451,7 @@ func validateConfig(c *config) error {
 		}
 	}
 
+	// TODO: Remove this check at 0.11.0 (after warnOnUnknownConfig bails out instead of only display a warning)
 	if c.Server.DeprecatedSVIDTTL != "" {
 		return errors.New(`the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`)
 	}
