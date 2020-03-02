@@ -69,6 +69,7 @@ type serverConfig struct {
 	LogLevel            string             `hcl:"log_level"`
 	LogFormat           string             `hcl:"log_format"`
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
+	DeprecatedSVIDTTL   string             `hcl:"svid_ttl"`
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
 	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
@@ -448,6 +449,10 @@ func validateConfig(c *config) error {
 		if tdConfig.BundleEndpointAddress == "" {
 			return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
 		}
+	}
+
+	if c.Server.DeprecatedSVIDTTL != "" {
+		return errors.New(`the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`)
 	}
 
 	return nil
