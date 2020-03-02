@@ -47,12 +47,12 @@ jobs:
       os: linux 
       dist: xenial
     - stage: lint and test
-      name: linux tests
+      name: macos tests
       script:
         - .travis/run-unit-tests.sh
       os: macos
     - stage: lint and test
-      name: macos tests
+      name: linux tests
       script:
         - .travis/run-unit-tests.sh
       os: linux
