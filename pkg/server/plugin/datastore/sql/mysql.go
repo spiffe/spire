@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io/ioutil"
 
-	mysqldriver "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 
 	// gorm mysql `cloudsql` dialect, for GCP
@@ -18,23 +18,56 @@ import (
 	_ "github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
-type mysql struct{}
+type mysqlDB struct{}
 
 const (
 	tlsConfigName = "spireCustomTLS"
 )
 
-func (my mysql) connect(cfg *configuration, isReadOnly bool) (*gorm.DB, error) {
+func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	connString, err := configureConnection(cfg, isReadOnly)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 
-	db, err := gorm.Open("mysql", connString)
+	db, err = gorm.Open("mysql", connString)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
-	return db, nil
+
+	version, err = queryVersion(db, "SELECT VERSION()")
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	supportsCTE, err = my.supportsCTE(db)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	return db, version, supportsCTE, nil
+}
+
+func (my mysqlDB) supportsCTE(gormDB *gorm.DB) (bool, error) {
+	db := gormDB.DB()
+	if db == nil {
+		return false, sqlError.New("unable to get raw database object")
+	}
+	var value int64
+	err := db.QueryRow("WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
+	switch {
+	case err == nil:
+		return true, nil
+	case my.isParseError(err):
+		return false, nil
+	default:
+		return false, sqlError.Wrap(err)
+	}
+}
+
+func (my mysqlDB) isParseError(err error) bool {
+	mysqlError, ok := err.(*mysql.MySQLError)
+	return ok && mysqlError.Number == 1064
 }
 
 // configureConnection modifies the connection string to support features that
@@ -48,7 +81,7 @@ func configureConnection(cfg *configuration, isReadOnly bool) (string, error) {
 
 	tlsConf := tls.Config{}
 
-	opts, err := mysqldriver.ParseDSN(connectionString)
+	opts, err := mysql.ParseDSN(connectionString)
 	if err != nil {
 		// the connection string should have already been validated by now
 		// (in validateMySQLConfig)
@@ -82,7 +115,7 @@ func configureConnection(cfg *configuration, isReadOnly bool) (string, error) {
 	}
 
 	// register a custom TLS config that uses custom Root CAs with the MySQL driver
-	if err := mysqldriver.RegisterTLSConfig(tlsConfigName, &tlsConf); err != nil {
+	if err := mysql.RegisterTLSConfig(tlsConfigName, &tlsConf); err != nil {
 		return "", sqlError.New("failed to register mysql TLS config")
 	}
 
@@ -97,7 +130,7 @@ func hasTLSConfig(cfg *configuration) bool {
 }
 
 func validateMySQLConfig(cfg *configuration, isReadOnly bool) error {
-	opts, err := mysqldriver.ParseDSN(getConnectionString(cfg, isReadOnly))
+	opts, err := mysql.ParseDSN(getConnectionString(cfg, isReadOnly))
 	if err != nil {
 		return sqlError.Wrap(err)
 	}

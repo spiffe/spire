@@ -446,14 +446,18 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.
 
 		// create a new array with paged entries
 		pagedEntries := entries[init:end]
+		var token string
 		if len(pagedEntries) > 0 {
 			lastIndex := len(pagedEntries) - 1
 			// change token to latests element entryId
-			p.Token = pagedEntries[lastIndex].EntryId
+			token = pagedEntries[lastIndex].EntryId
 		}
 		return &datastore.ListRegistrationEntriesResponse{
-			Entries:    pagedEntries,
-			Pagination: p,
+			Entries: pagedEntries,
+			Pagination: &datastore.Pagination{
+				Token:    token,
+				PageSize: p.PageSize,
+			},
 		}, nil
 	}
 

@@ -389,7 +389,7 @@ func loadPackage(path string) (*types.Package, *token.FileSet, error) {
 	pkgs, err := packages.Load(&packages.Config{
 		Fset: fset,
 		Dir:  path,
-		Mode: packages.NeedTypes | packages.NeedImports,
+		Mode: packages.NeedTypes | packages.NeedImports | packages.NeedTypesInfo,
 	}, ".")
 	if err != nil {
 		return nil, nil, errs.New("unable to load package %q: %v", path, err)
