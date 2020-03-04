@@ -253,12 +253,15 @@ endif
 # provided to the linker unless the git status is dirty.
 go_ldflags := -s -w
 ifeq ($(git_dirty),)
-  ifneq ($(git_tag),)
-    go_ldflags += -X github.com/spiffe/spire/pkg/common/version.gittag=$(git_tag)
-  endif
-  ifneq ($(git_hash),)
-    go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
-  endif
+	ifneq ($(git_tag),)
+		# Remove the "v" prefix from the git_tag for use as the version number.
+		# e.g. 0.9.3 instead of v0.9.3
+		git_version_tag := $(git_tag:v%=%)
+		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.gittag=$(git_version_tag)
+	endif
+	ifneq ($(git_hash),)
+		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
+	endif
 endif
 go_ldflags := '${go_ldflags}'
 
