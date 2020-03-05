@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 
@@ -67,13 +68,30 @@ func run(configPath string) error {
 		handler = logHandler(log, handler)
 	}
 
-	if config.InsecureAddr != "" {
+	var listener net.Listener
+
+	switch {
+	case config.InsecureAddr != "":
+		listener, err = net.Listen("tcp", config.InsecureAddr)
+		if err != nil {
+			return err
+		}
 		log.WithField("address", config.InsecureAddr).Warn("Serving HTTP (insecure)")
-		return http.ListenAndServe(config.InsecureAddr, handler)
+	case config.ListenSocketPath != "":
+		listener, err = net.Listen("unix", config.ListenSocketPath)
+		if err != nil {
+			return err
+		}
+		log.WithField("socket", config.ListenSocketPath).Info("Serving HTTP (unix)")
+	default:
+		listener = acmeListener(log, config)
+		log.Info("Serving HTTPS via ACME")
 	}
 
-	log.Info("Serving HTTPS via ACME")
+	return http.Serve(listener, handler)
+}
 
+func acmeListener(logger *log.Logger, config *Config) net.Listener {
 	var cache autocert.Cache
 	if config.ACME.CacheDir != "" {
 		cache = autocert.DirCache(config.ACME.CacheDir)
@@ -88,11 +106,11 @@ func run(configPath string) error {
 		Email:      config.ACME.Email,
 		HostPolicy: autocert.HostWhitelist(config.Domain),
 		Prompt: func(tosURL string) bool {
-			log.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
+			logger.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
 			return true
 		},
 	}
-	return http.Serve(m.Listener(), handler)
+	return m.Listener()
 }
 
 func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {
