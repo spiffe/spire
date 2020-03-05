@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.9.3] - 2020-02-28
+## [0.9.3] - 2020-03-05
 - Significantly reduced the server's database load (#1350, #1355, #1397)
 - Improved consistency in SVID propagation time for some cases (#1352)
 - AWS IID node attestor now supports the v2 metadata service (#1369)
