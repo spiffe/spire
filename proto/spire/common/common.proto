@@ -78,6 +78,19 @@ message RegistrationEntry {
     int64 entryExpiry = 9;
     /** DNS entries */
     repeated string dns_names = 10;
+    /** Registration Entry type */
+    RegistrationEntryType type = 11;
+}
+
+enum RegistrationEntryType {
+    // The UNKNOWN value should not be directly used by clients in Create or Update Registration Entry requests.
+    // It has two purposes:
+    // 1) Serve as the default value for Create/Update requests which do not set the registration entry type,
+    //    i.e. N-1 version clients
+    // 2) Serve as the default value in responses for existing registration entries that have no defined type.
+    UNKNOWN = 0;
+    NODE = 1;
+    WORKLOAD = 2;
 }
 
 /** A list of registration entries. */

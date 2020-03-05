@@ -15,6 +15,7 @@
     - [Selector](#spire.common.Selector)
     - [Selectors](#spire.common.Selectors)
   
+    - [RegistrationEntryType](#spire.common.RegistrationEntryType)
   
   
   
@@ -160,6 +161,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
 | entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
 | dns_names | [string](#string) | repeated | DNS entries |
+| type | [RegistrationEntryType](#spire.common.RegistrationEntryType) |  | Registration Entry type |
 
 
 
@@ -198,6 +200,19 @@ Represents a type with a list of Selector.
 
 
  
+
+
+<a name="spire.common.RegistrationEntryType"></a>
+
+### RegistrationEntryType
+
+
+| Name | Number | Description |
+| ---- | ------ | ----------- |
+| UNKNOWN | 0 | Unknown type of RegistrationEntry. Used for backward compatibility for registrations which did not set the type. |
+| NODE | 1 | Node registration |
+| WORKLOAD | 2 | Workload registration |
+
 
  
 

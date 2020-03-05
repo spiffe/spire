@@ -4,6 +4,14 @@ import (
 	"time"
 )
 
+type RegisteredEntryType int32
+
+const (
+	RegisteredEntryTypeUnknown RegisteredEntryType = iota
+	RegisteredEntryTypeNode
+	RegisteredEntryTypeWorkload
+)
+
 // Model is used as a base for other models. Similar to gorm.Model without `DeletedAt`.
 // We don't want soft-delete support.
 type Model struct {
@@ -83,6 +91,7 @@ type RegisteredEntry struct {
 	Expiry int64 `gorm:"index"`
 	// (optional) DNS entries
 	DNSList []DNSName
+	Type    RegisteredEntryType
 }
 
 // JoinToken holds a join token

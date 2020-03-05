@@ -418,7 +418,7 @@ COMMIT;
 		COMMIT;
 		`,
 		// below this point is SPIRE Code version 0.9.X
-		// future v12 database entry, in which code_version string was added to migrations table
+		// v12 database entry, in which code_version string was added to migrations table
 		`
 		PRAGMA foreign_keys=OFF;
 		BEGIN TRANSACTION;
@@ -455,7 +455,44 @@ COMMIT;
 		INSERT INTO attested_node_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','spiffe://example.org/host','test','111','2018-12-19 15:26:58-07:00');
 		COMMIT;
 		`,
-		// future v13 database entry, in which the table 'attested_node_entries' gained two columns: 'new_serial_number' and 'new_expires_at'
+		// v13 database entry, in which the table 'attested_node_entries' gained two columns: 'new_serial_number' and 'new_expires_at'
+		`
+		PRAGMA foreign_keys=OFF;
+		BEGIN TRANSACTION;
+		CREATE TABLE IF NOT EXISTS "federated_registration_entries" ("bundle_id" integer,"registered_entry_id" integer, PRIMARY KEY ("bundle_id","registered_entry_id"));
+		CREATE TABLE IF NOT EXISTS "bundles" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"trust_domain" varchar(255) NOT NULL,"data" blob );
+		INSERT INTO bundles VALUES(1,'2018-12-19 14:26:32.340488-07:00','2018-12-19 14:26:32.340488-07:00','spiffe://example.org',X'0a147370696666653a2f2f6578616d706c652e6f726712f6030af303308201ef30820174a003020102020101300a06082a8648ce3d040303301e310b3009060355040613025553310f300d060355040a0c06535049464645301e170d3138313231393231323632325a170d3138313231393232323633325a301e310b3009060355040613025553310f300d060355040a13065350494646453076301006072a8648ce3d020106052b8104002203620004c941f4fdc386a57aa74807d64a05fdedac4d3c9cd0841beac744db4163ae6ba46e883551c683cf11781c8958ebb11ae9a4bbeb3bbf751aaa9e645e65ab6ee3c5b681621d538929956f37e182c8f955614bef67e7921b3371571b87a0065e0f8da38185308182300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d0e04160414bb9e6ee33abb3b2d2587b5c67f66f74851487739301f0603551d2304183016801487a5f357a2f035acc0f864c454e76ed3ba39c8e8301f0603551d110418301686147370696666653a2f2f6578616d706c652e6f7267300a06082a8648ce3d0403030369003066023100813cc8650728e10cdfd5230d484dd4353ec7513dc2543cb51c1115dfb62d5d1ca92dd586137d273b4ad6a78a53dedc6c023100d16f9478064213f3e6fbe9cd3a96dd730caa413464fadaf634337e810d5e6be7da15d7c142d309cb76fd0f6f5cf111e112d3030ad003308201cc30820153a00302010202090093380e1447d2f9ae300a06082a8648ce3d040304301e310b3009060355040613025553310f300d060355040a0c06535049464645301e170d3138303531333139333334375a170d3233303531323139333334375a301e310b3009060355040613025553310f300d060355040a0c065350494646453076301006072a8648ce3d020106052b81040022036200045a307e9d2192c48622ce76fce31bb95860d98fcd272fb5b5737cdfe3c5a1cb499aed8ee60812b37d092b80382e2388f467ed3fb431ffafc82d3ad2cbac8a6e330587a1ee2f6d5045b5ed6f8fa5ede96784f255f0702bcbb3f99c9af3ea54af63a35d305b301d0603551d0e0416041487a5f357a2f035acc0f864c454e76ed3ba39c8e8300f0603551d130101ff040530030101ff300e0603551d0f0101ff04040302010630190603551d1104123010860e7370696666653a2f2f6c6f63616c300a06082a8648ce3d0403040367003064023013831ed77a8c0bd8ba164c74876eb2d3d41921bb91a80f69b8b83d01e780032a39b41cd197560bd0a344a74d9529260902305d789bea8c9f705b9e4e1a3d494300c50fb91678407aa0c9703db23fe61118ddacc98b5e88d2e375252613496192a9671a85010a5b3059301306072a8648ce3d020106082a8648ce3d030107034200041db49815c4dc0a343e25ba73a2f6add69a034f968f9319c34eb6ef89c2674c92a310ebcef9d393fb478c7f00ce4a1dd0926b54cf6bbae5544968cd933b1372f61220486558424e674565324b6d744b563143384738674b5450766c59536c4156675318988bebe005');
+		CREATE TABLE IF NOT EXISTS "attested_node_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"spiffe_id" varchar(255),"data_type" varchar(255),"serial_number" varchar(255),"expires_at" datetime,"new_serial_number" varchar(255),"new_expires_at" datetime );
+		CREATE TABLE IF NOT EXISTS "node_resolver_map_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"spiffe_id" varchar(255),"type" varchar(255),"value" varchar(255) );
+		CREATE TABLE IF NOT EXISTS "registered_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"entry_id" varchar(255),"spiffe_id" varchar(255),"parent_id" varchar(255),"ttl" integer, "admin" bool, "downstream" bool, "expiry" bigint);
+		INSERT INTO registered_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','f0373f87-a0f3-4c94-aa6a-a2f948bfc15a','spiffe://example.org/admin','spiffe://example.org/spire/agent/x509pop/e81aef2e9178db3db836a1a85d362ca5b2241631',3600, 0, 0, 0);
+		CREATE TABLE IF NOT EXISTS "join_tokens" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"token" varchar(255),"expiry" bigint );
+		CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
+		INSERT INTO selectors VALUES(1,'2018-12-19 14:26:58.228067-07:00','2018-12-19 14:26:58.228067-07:00',1,'unix','uid:501');
+		CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer,"code_version" varchar(255) );
+		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',12,'0.9.0');
+		CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
+		DELETE FROM sqlite_sequence;
+		INSERT INTO sqlite_sequence VALUES('migrations',1);
+		INSERT INTO sqlite_sequence VALUES('bundles',1);
+		INSERT INTO sqlite_sequence VALUES('registered_entries',1);
+		INSERT INTO sqlite_sequence VALUES('selectors',1);
+		CREATE UNIQUE INDEX uix_bundles_trust_domain ON "bundles"(trust_domain) ;
+		CREATE UNIQUE INDEX uix_attested_node_entries_spiffe_id ON "attested_node_entries"(spiffe_id) ;
+		CREATE UNIQUE INDEX idx_node_resolver_map ON "node_resolver_map_entries"(spiffe_id, "type", "value") ;
+		CREATE UNIQUE INDEX uix_registered_entries_entry_id ON "registered_entries"(entry_id) ;
+		CREATE UNIQUE INDEX uix_join_tokens_token ON "join_tokens"("token") ;
+		CREATE UNIQUE INDEX idx_selector_entry ON "selectors"(registered_entry_id, "type", "value") ;
+		CREATE UNIQUE INDEX idx_selectors_type_value ON "selectors"("type", "value") ;
+		CREATE UNIQUE INDEX idx_dns_entry ON "dns_names"(registered_entry_id, "value") ;
+		CREATE INDEX idx_registered_entries_spiffe_id ON "registered_entries"(spiffe_id) ;
+		CREATE INDEX idx_registered_entries_parent_id ON "registered_entries"(parent_id) ;
+		CREATE INDEX idx_registered_entries_expiry ON "registered_entries"(expiry) ;
+		CREATE INDEX idx_federated_registration_entries_registered_entry_id ON "federated_registration_entries"(registered_entry_id) ;
+		INSERT INTO attested_node_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','spiffe://example.org/host','test','111','2018-12-19 15:26:58-07:00','112','2020-03-04 14:48:00-07:00');
+		COMMIT;
+		`,
+		// future v14 database entry, in which the table 'registered_entries' gained one new column: 'type'
 	}
 )
 
