@@ -46,6 +46,10 @@ func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited
 
 	entries := directEntries
 	for _, directEntry := range directEntries {
+		// don't recurse if this is a "workload" registration, since it has no children
+		if directEntry.GetType() == common.RegistrationEntryType_WORKLOAD {
+			continue
+		}
 		descendantEntries, err := f.fetch(ctx, directEntry.SpiffeId, visited)
 		if err != nil {
 			return nil, err
