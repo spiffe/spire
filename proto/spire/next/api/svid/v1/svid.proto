@@ -1,0 +1,58 @@
+syntax = "proto3";
+package spire.api.svid.v1;
+option go_package = "github.com/spiffe/spire/proto/spire/next/api/svid/v1;svid";
+
+import "spire/next/types/svid/jwtsvid.proto";
+import "spire/next/types/svid/x509svid.proto";
+
+service SVID {
+    // MintX509SVID creates an X509-SVID.
+    rpc MintX509SVID(MintX509SVIDRequest) returns (MintX509SVIDResponse);
+
+    // MintX509SVID creates an JWT-SVID.
+    rpc MintJWTSVID(MintJWTSVIDRequest) returns (MintJWTSVIDResponse);
+}
+
+message MintX509SVIDRequest {
+    // SPIFFE ID of the X509-SVID
+    string spiffe_id = 1;
+
+    // ASN.1 encoded CSR. The CSR is only used to convey the public key and
+    // prove possession of the private key. The rest of the CSR is ignored.
+    bytes csr = 2;
+
+    // TTL of the X509-SVID, in seconds. The server default will be used if
+    // unset. The TTL is advisory only. The actual lifetime of the X509-SVID
+    // may be lower depending on the remaining lifetime of the active SPIRE
+    // Server CA.
+    int32 ttl = 3;
+
+    // DNS names to include as DNS SANs in the X509-SVID. If set, the first
+    // in the list is also set as the X509-SVID common name.
+    repeated string dns_names = 4;
+}
+
+message MintX509SVIDResponse {
+    // The newly issued X509-SVID.
+    spire.types.svid.X509SVID svid = 1;
+}
+
+message MintJWTSVIDRequest {
+    // SPIFFE ID of the JWT-SVID
+    string spiffe_id = 1;
+
+    // TTL of the JWT-SVID, in seconds. The server default will be used if
+    // unset. The TTL is advisory only. The actual lifetime of the JWT-SVID may
+    // be lower depending on the remaining lifetime of the active SPIRE Server
+    // CA.
+    int32 ttl = 2;
+
+    // List of audience claims to include in the JWT-SVID. At least one must
+    // be set.
+    repeated string audience = 3;
+}
+
+message MintJWTSVIDResponse {
+    // The newly issued JWT-SVID
+    spire.types.svid.JWTSVID svid = 1;
+}

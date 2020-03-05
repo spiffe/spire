@@ -1,0 +1,83 @@
+syntax = "proto3";
+package spire.api.entry.v1;
+option go_package = "github.com/spiffe/spire/proto/spire/next/api/entry/v1;entry";
+
+import "google/protobuf/empty.proto";
+import "spire/next/types/entry.proto";
+import "spire/next/types/selector.proto";
+
+service Entry {
+    // Lists entries.
+    rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse);
+
+    // Gets an entry by id.
+    rpc GetEntry(GetEntryRequest) returns (spire.types.Entry);
+
+    // Creates an entry.
+    rpc CreateEntry(CreateEntryRequest) returns (spire.types.Entry);
+
+    // Creates one or more entries in a batch.
+    rpc BatchCreateEntry(BatchCreateEntryRequest) returns (BatchCreateEntryResponse);
+
+    // Updates an entry.
+    rpc UpdateEntry(UpdateEntryRequest) returns (spire.types.Entry);
+
+    // Deletes the entry identified by the request. If the entry does not exist
+    // the call returns NOT_FOUND.
+    rpc DeleteEntry(DeleteEntryRequest) returns (google.protobuf.Empty);
+
+    // Deletes the entries identified by the request. 
+    rpc BatchDeleteEntry(BatchDeleteEntryRequest) returns (google.protobuf.Empty);
+}
+
+message ListEntriesRequest {
+    message Filter {
+        string by_parent_id = 1;
+        spire.types.SelectorMatch by_selectors = 2;
+        string by_spiffe_id = 3;
+    }
+
+    // Filters the entries returned by the list operation.
+    Filter filter = 1;
+
+    // The maximum number of items to return.
+    int32 page_size = 2;
+
+    // The next_page_token value returned from a previous List request, if any.
+    string page_token = 3;
+}
+
+message ListEntriesResponse {
+    repeated spire.types.Entry entries = 1;
+
+    string next_page_token = 2;
+}
+
+message GetEntryRequest {
+    string id = 1;
+}
+
+message CreateEntryRequest {
+    spire.types.Entry entry = 1;
+}
+
+message BatchCreateEntryRequest {
+    repeated spire.types.Entry entries = 1;
+}
+
+message BatchCreateEntryResponse {
+    repeated spire.types.Entry entries = 1;
+}
+
+message UpdateEntryRequest {
+    spire.types.Entry entry = 1;
+    spire.types.EntryMask mask = 2;
+}
+
+message DeleteEntryRequest {
+    string id = 1;
+}
+
+message BatchDeleteEntryRequest {
+    repeated string id = 1;
+}

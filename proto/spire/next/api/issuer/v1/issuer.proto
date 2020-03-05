@@ -1,0 +1,142 @@
+syntax = "proto3";
+package spire.api.issuer.v1;
+option go_package = "github.com/spiffe/spire/proto/spire/next/api/issuer/v1;issuer";
+
+import "spire/next/types/attestation.proto";
+import "spire/next/types/entry.proto";
+import "spire/next/types/svid/jwtsvid.proto";
+import "spire/next/types/svid/x509svid.proto";
+
+service Issuer {
+    // AttestAgent attests the agent via node attestation, using a
+    // bidirectional stream to faciliate attestation methods that require
+    // challenge/response. 
+    rpc AttestAgent(stream AttestAgentRequest) returns (stream AttestAgentResponse);
+
+    // RenewAgent renews the agent and returns a new X509-SVID using a
+    // bidirectional stream to facilitate two-phase commit of the renewal.
+    rpc RenewAgent(stream RenewAgentRequest) returns (stream RenewAgentResponse);
+
+    // NewX509SVID creates an X509-SVID. The caller must be authorized for the
+    // given registration entry.
+    rpc NewX509SVID(NewX509SVIDRequest) returns (NewX509SVIDResponse);
+
+    // NewJWTSVID creates an JWT-SVID. The caller must be authorized for the
+    // given registration entry.
+    rpc NewJWTSVID(NewJWTSVIDRequest) returns (NewJWTSVIDResponse);
+
+    // NewDownstreamX509CA creates an X509 CA certificate appropriate for use
+    // by a downstream entity to mint X509-SVIDs.
+    rpc NewDownstreamX509CA(NewDownstreamX509CARequest) returns (NewDownstreamX509CAResponse);
+
+    // Gets the entries the caller is authorized for.
+    rpc GetAuthorizedEntries(GetAuthorizedEntriesRequest) returns (GetAuthorizedEntriesResponse);
+}
+
+message AttestAgentRequest {
+    message Params {
+        spire.types.AttestationData data = 1;
+        X509SVIDParams params = 2;
+    }
+
+    oneof step {
+        // Attestation parameters. These are only sent in the initial request.
+        Params params = 1;
+
+        // The response to a challenge issued by the attestor. Only sent in
+        // response to a challenge received by the issuer.
+        bytes challenge_response = 2;
+    }
+}
+
+message AttestAgentResponse {
+    message Result {
+        spire.types.svid.X509SVID identity = 1;
+    }
+
+    oneof step {
+        // Attestation results. If set, attestation has completed.
+        Result result = 1;
+
+        // A challenge issued by the attestor. If set, the caller is expected
+        // to send another request on the stream with the challenge response.
+        bytes challenge = 2;
+    }
+}
+
+message RenewAgentRequest {
+    message Ack {};
+
+    oneof step {
+        // Parameters for the X509-SVID
+        X509SVIDParams params = 1;
+
+        // An acknowledgement by the receiving end that it has received the
+        // renewed canonical identity SVID and will be using it in future
+        // requests.
+        Ack ack = 2;
+    }
+}
+
+message RenewAgentResponse {
+    // The renewed X509-SVID
+    spire.types.svid.X509SVID svid = 1;
+}
+
+message NewX509SVIDRequest {
+    // The registration entry ID for the identity being requested.
+    string entry_id = 1;
+
+    // Parameters for the X509-SVID.
+    X509SVIDParams params = 2;
+}
+
+message NewX509SVIDResponse {
+    // The newly issued X509-SVID.
+    spire.types.svid.X509SVID svid = 1;
+}
+
+message NewJWTSVIDRequest {
+    // The unique ID of the identity being requested
+    string identity_uuid = 1;
+
+    // Parameters for the JWT-SVID
+    JWTSVIDParams params = 2;
+}
+
+message NewJWTSVIDResponse {
+    // The newly issued JWT-SVID
+    spire.types.svid.JWTSVID svid = 1;
+}
+
+message NewDownstreamX509CARequest {
+    // The public key of the downstream X509 CA to use in the new CA certificate.
+    bytes public_key = 1;
+}
+
+message NewDownstreamX509CAResponse {
+    // CA certificate and any intermediates part of the chain back to the root
+    // (DER encoded). The CA certificate is the first. 
+    repeated bytes ca_cert_chain = 1;
+
+    // Root CA certificates (DER encoded).
+    repeated bytes root_cas = 2;
+}
+
+message GetAuthorizedEntriesRequest {
+    spire.types.EntryMask mask = 1;
+}
+
+message GetAuthorizedEntriesResponse {
+    repeated spire.types.Entry entry = 1;
+}
+
+// X509SVIDParams are the parameters the issuer needs to mint an X509-SVID
+message X509SVIDParams {
+    bytes public_key = 1;
+}
+
+// JWTSVIDParams are the parameters the issuer needs to mint a JWT-SVID
+message JWTSVIDParams {
+    repeated string audience = 1;
+}

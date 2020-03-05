@@ -1,0 +1,46 @@
+syntax = "proto3";
+package spire.api.bundle.v1;
+option go_package = "github.com/spiffe/spire/proto/spire/next/api/bundle/v1;bundle";
+
+import "google/protobuf/empty.proto";
+import "spire/next/types/bundle.proto";
+
+service Bundle {
+    rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
+    rpc GetBundle(GetBundleRequest) returns (spire.types.Bundle);
+    rpc SetBundle(SetBundleRequest) returns (spire.types.Bundle);
+    rpc DeleteBundle(DeleteBundleRequest) returns (google.protobuf.Empty);
+}
+
+message ListBundlesRequest {
+    // The maximum number of items to return.
+    int32 page_size = 2;
+
+    // The next_page_token value returned from a previous List request, if any.
+    string page_token = 3;
+}
+
+message ListBundlesResponse {
+    // The bundles.
+    repeated spire.types.Bundle bundles = 1;
+
+    // The page token for the next request. Empty if there are no more results.
+    string next_page_token = 2;
+}
+
+message GetBundleRequest {
+    // The trust domain of the bundle, e.g. example.org. If unset, the bundle
+    // for the trust domain that the server belongs to is returned.
+    string trust_domain = 1;
+}
+
+message SetBundleRequest {
+    // Required. The bundle to set.
+    spire.types.Bundle bundle = 1;
+}
+
+message DeleteBundleRequest {
+    // Required. The trust domain of the bundle, e.g. example.org. It cannot
+    // be the bundle for the trust domain the server belongs to.
+    string trust_domain = 1;
+}

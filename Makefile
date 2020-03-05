@@ -123,6 +123,8 @@ git_hash := $(shell git rev-parse --short=7 HEAD)
 git_dirty := $(shell git status -s)
 
 protos := \
+	pkg/common/catalog/test/test.proto \
+	pkg/server/ca/journal.proto \
 	proto/spire/agent/keymanager/keymanager.proto \
 	proto/spire/agent/nodeattestor/nodeattestor.proto \
 	proto/spire/agent/workloadattestor/workloadattestor.proto \
@@ -140,8 +142,16 @@ protos := \
 	proto/spire/server/notifier/notifier.proto \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto \
 	proto/spire/server/upstreamca/upstreamca.proto \
-	pkg/common/catalog/test/test.proto \
-	pkg/server/ca/journal.proto \
+	proto/spire/next/api/agent/v1/agent.proto \
+	proto/spire/next/api/bundle/v1/bundle.proto \
+	proto/spire/next/api/entry/v1/entry.proto \
+	proto/spire/next/api/issuer/v1/issuer.proto \
+	proto/spire/next/api/svid/v1/svid.proto \
+	proto/spire/next/types/attestation.proto \
+	proto/spire/next/types/entry.proto \
+	proto/spire/next/types/selector.proto \
+	proto/spire/next/types/svid/jwtsvid.proto \
+	proto/spire/next/types/svid/x509svid.proto \
 
 protodocs := \
 	proto/spire/agent/keymanager/README_pb.md \

@@ -1,0 +1,92 @@
+syntax = "proto3";
+package spire.api.agent.v1;
+option go_package = "github.com/spiffe/spire/proto/spire/next/api/agent/v1;agent";
+
+import "google/protobuf/empty.proto";
+import "spire/next/types/agent.proto";
+import "spire/next/types/join_token.proto";
+import "spire/next/types/selector.proto";
+
+service Agent {
+    // Lists agents.
+    rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+
+    // Gets an agent by SPIFFE ID.
+    rpc GetAgent(GetAgentRequest) returns (spire.types.Agent);
+
+    // Deletes an agent. The agent can come back into the trust domain through
+    // the Issuer AttestAgent RPC.
+    rpc DeleteAgent(DeleteAgentRequest) returns (google.protobuf.Empty);
+
+    // Bans an agent. This evicts the agent and prevents it from rejoining the
+    // trust domain through attestation until the ban is lifted via a call to
+    // DeleteAgent.
+    rpc BanAgent(BanAgentRequest) returns (google.protobuf.Empty);
+
+    // Creates an agent join token. The token can be used during attestation to
+    // join the trust domain.
+    rpc CreateJoinToken(CreateJoinTokenRequest) returns (spire.types.JoinToken);
+}
+
+message ListAgentsRequest {
+    // TODO: AND relationship
+    message Filter {
+        // Filters the agent by attestation type.
+        string by_attestation_type = 1;
+
+        // Filters the agent by a selector match.
+        spire.types.SelectorMatch by_selector = 2;
+
+        // TODO:
+        bool banned = 3; 
+    }
+
+    // Filters the agents returned by the list operation.
+    Filter filter = 1;
+
+    // The maximum number of items to return.
+    int32 page_size = 2;
+
+    // The next_page_token value returned from a previous List request, if any.
+    string page_token = 3;
+}
+
+message ListAgentsResponse {
+    // The agents.
+    repeated spire.types.Agent agents = 1;
+
+    // The page token for the next request. Empty if there are no more results.
+    string next_page_token = 2;
+}
+
+message GetAgentRequest {
+    // Required. The SPIFFE ID of the agent.
+    string id = 1;
+
+    // TODO:
+    spire.types.AgentMask mask = 2;
+}
+
+message DeleteAgentRequest {
+    // Required. The SPIFFE ID of the agent.
+    string id = 1;
+}
+
+message BanAgentRequest {
+    // Required. The SPIFFE ID of the agent.
+    string id = 1;
+}
+
+message CreateJoinTokenRequest {
+    // Required. How long until the token expires (in seconds).
+    int32 ttl = 3;
+
+    // An optional token value to use for the token. Must be unique. If unset,
+    // the server will generate a value.
+    string token = 1;
+
+    // An optional SPIFFE ID to assign to the agent beyond that given by
+    // join token attestation. If set, this results in an entry being created
+    // that maps the attestation assigned agent ID to this ID.
+    string agent_id = 2;
+}

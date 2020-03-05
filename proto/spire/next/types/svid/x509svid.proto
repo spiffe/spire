@@ -1,0 +1,20 @@
+syntax = "proto3";
+package spire.types.svid;
+option go_package = "github.com/spiffe/spire/proto/spire/v2/types/svid";
+
+// X.509 SPIFFE Verifiable Identity Document. It contains the raw X.509
+// certificate data as well as a few denormalized fields for convenience.
+message X509SVID {
+    // Certificate and intermediates necessary to form a chain of trust back to a
+    // root CA in the bundle (DER encoded).
+    repeated bytes cert_chain = 1;
+
+    // SPIFFE ID in the SVID
+    string spiffe_id = 2;
+
+    // Trust domain of the SVID
+    string trust_domain = 3;
+
+    // Expiration timestamp (in seconds since Unix epoch)
+    int64 expires_at = 4;
+}

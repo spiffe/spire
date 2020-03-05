@@ -1,0 +1,17 @@
+syntax = "proto3";
+package spire.types;
+option go_package = "github.com/spiffe/spire/proto/spire/next/types";
+
+message Selector {
+    string type = 1;
+    string value = 2;
+}
+
+message SelectorMatch {
+    enum MatchBehavior {
+        MATCH_EXACT = 0;
+        MATCH_SUBSET = 1;
+    }
+    repeated Selector selectors = 1;
+    MatchBehavior match = 2;
+}
