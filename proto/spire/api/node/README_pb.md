@@ -16,6 +16,8 @@
     - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
     - [JSR](#spire.api.node.JSR)
     - [JWTSVID](#spire.api.node.JWTSVID)
+    - [PushJWTKeyUpstreamRequest](#spire.api.node.PushJWTKeyUpstreamRequest)
+    - [PushJWTKeyUpstreamResponse](#spire.api.node.PushJWTKeyUpstreamResponse)
     - [X509SVID](#spire.api.node.X509SVID)
     - [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate)
     - [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry)
@@ -230,6 +232,36 @@ JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
 
 
 
+<a name="spire.api.node.PushJWTKeyUpstreamRequest"></a>
+
+### PushJWTKeyUpstreamRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| jwt_key | [spire.common.PublicKey](#spire.common.PublicKey) |  |  |
+
+
+
+
+
+
+<a name="spire.api.node.PushJWTKeyUpstreamResponse"></a>
+
+### PushJWTKeyUpstreamResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| jwt_signing_keys | [spire.common.PublicKey](#spire.common.PublicKey) | repeated | up-to-date bundle of JWT signing keys |
+
+
+
+
+
+
 <a name="spire.api.node.X509SVID"></a>
 
 ### X509SVID
@@ -314,6 +346,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) stream | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse) stream | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
 | FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
 | FetchX509CASVID | [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest) | [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse) | Fetches an X509 CA SVID for a downstream SPIRE server. |
+| PushJWTKeyUpstream | [PushJWTKeyUpstreamRequest](#spire.api.node.PushJWTKeyUpstreamRequest) | [PushJWTKeyUpstreamResponse](#spire.api.node.PushJWTKeyUpstreamResponse) | PushJWTKeyUpstream pushes new public JWKs to upstream SPIRE Server, unless this is the root server, in which case it stores the JWK in its bundle. Returns an up-to-date list of the JWT signing keys stored in the bundle. |
 
  
 

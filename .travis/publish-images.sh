@@ -9,6 +9,12 @@ echo "Travis Branch : ${TRAVIS_BRANCH}"
 echo "Travis Tag    : ${TRAVIS_TAG}"
 echo "Travis Commit : ${TRAVIS_COMMIT}"
 
+# Strip the leading "v" off of the tag name if this is a version tag (e.g.
+# v0.9.3). SPIRE images are tagged with just the version number.
+if [[ "${TRAVIS_TAG}" =~ v[0-9.]+ ]]; then
+    TRAVIS_TAG=${TRAVIS_TAG##v}
+fi
+
 # Log in to gcr.io using a key file for the Travis CI service account. The key
 # file is NOT stored plaintext and is decrypted by Travis CI before this script
 # is run.
