@@ -1,3 +1,5 @@
+//go:generate stringer -type=RegisteredEntryType
+
 package sql
 
 import (
