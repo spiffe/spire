@@ -88,8 +88,13 @@ enum RegistrationEntryType {
     // 1) Serve as the default value for Create/Update requests which do not set the registration entry type,
     //    i.e. N-1 version clients
     // 2) Serve as the default value in responses for existing registration entries that have no defined type.
+    /** Unknown type of RegistrationEntry. Used for backward compatibility for registrations which did not set the type. */
     UNKNOWN = 0;
+
+    /** Node registration */
     NODE = 1;
+
+    /** Workload registration */
     WORKLOAD = 2;
 }
 

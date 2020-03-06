@@ -5,9 +5,8 @@ package common
 
 import (
 	fmt "fmt"
-	math "math"
-
 	proto "github.com/golang/protobuf/proto"
+	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -24,8 +23,11 @@ const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 type RegistrationEntryType int32
 
 const (
-	RegistrationEntryType_UNKNOWN  RegistrationEntryType = 0
-	RegistrationEntryType_NODE     RegistrationEntryType = 1
+	//* Unknown type of RegistrationEntry. Used for backward compatibility for registrations which did not set the type.
+	RegistrationEntryType_UNKNOWN RegistrationEntryType = 0
+	//* Node registration
+	RegistrationEntryType_NODE RegistrationEntryType = 1
+	//* Workload registration
 	RegistrationEntryType_WORKLOAD RegistrationEntryType = 2
 )
 

@@ -205,7 +205,11 @@ Represents a type with a list of Selector.
 <a name="spire.common.RegistrationEntryType"></a>
 
 ### RegistrationEntryType
-
+The UNKNOWN value should not be directly used by clients in Create or Update Registration Entry requests.
+It has two purposes:
+1) Serve as the default value for Create/Update requests which do not set the registration entry type,
+   i.e. N-1 version clients
+2) Serve as the default value in responses for existing registration entries that have no defined type.
 
 | Name | Number | Description |
 | ---- | ------ | ----------- |
