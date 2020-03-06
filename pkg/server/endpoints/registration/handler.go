@@ -50,12 +50,12 @@ func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationE
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
-	log := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntry)
+	l := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntry)
 
 	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
 		err = status.Error(codes.InvalidArgument, err.Error())
-		log.WithError(err).Error("Request parameter validation error")
+		l.WithError(err).Error("Request parameter validation error")
 		return nil, err
 	}
 
@@ -63,20 +63,24 @@ func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationE
 
 	unique, err := h.isEntryUnique(ctx, ds, request)
 	if err != nil {
-		log.WithError(err).Error("Error trying to create entry")
+		l.WithError(err).Error("Error trying to create entry")
 		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
 	if !unique {
-		log.Error("Entry already exists")
+		l.Error("Entry already exists")
 		return nil, status.Error(codes.AlreadyExists, "entry already exists")
+	}
+
+	if err := validateRelationshipsOfRegistration(ctx, request.ParentId, request.SpiffeId, request.Type, ds, l); err != nil {
+		return nil, err
 	}
 
 	createResponse, err := ds.CreateRegistrationEntry(ctx,
 		&datastore.CreateRegistrationEntryRequest{Entry: request},
 	)
 	if err != nil {
-		log.WithError(err).Error("Error trying to create entry")
+		l.WithError(err).Error("Error trying to create entry")
 		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
@@ -184,24 +188,18 @@ func (h *Handler) ListByParentID(ctx context.Context, request *registration.Pare
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
-	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsByParentID)
+	l := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsByParentID)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
-		log.WithError(err).Error("Failed to normalize SPIFFE ID")
+		l.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
-	listResponse, err := ds.ListRegistrationEntries(ctx,
-		&datastore.ListRegistrationEntriesRequest{
-			ByParentId: &wrappers.StringValue{
-				Value: request.Id,
-			},
-		})
+	listResponse, err := listByParentID(ctx, request.Id, ds, l)
 	if err != nil {
-		log.WithError(err).Error("Failed to list entries by parent ID")
-		return nil, status.Errorf(codes.Internal, "error trying to list entries by parent ID: %v", err)
+		return nil, err
 	}
 
 	return &common.RegistrationEntries{
@@ -262,24 +260,19 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
-	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySPIFFEID)
 
-	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
+	l := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySPIFFEID)
+
+	spiffeID, err := idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
-		log.WithError(err).Error("Failed to normalize SPIFFE ID")
+		l.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
-	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
-			Value: request.Id,
-		},
-	}
-	resp, err := ds.ListRegistrationEntries(ctx, req)
+	resp, err := listBySpiffeID(ctx, spiffeID, ds, l)
 	if err != nil {
-		log.WithError(err).Error("Failed to list entries by SPIFFE ID")
-		return nil, status.Errorf(codes.Internal, "error trying to list entries by SPIFFE ID: %v", err)
+		return nil, err
 	}
 
 	return &common.RegistrationEntries{
@@ -932,6 +925,93 @@ func validateDNSLabel(label string) error {
 
 	if match := isDNSLabel(label); !match {
 		return fmt.Errorf("label does not match regex: %v", label)
+	}
+
+	return nil
+}
+
+func listBySpiffeID(ctx context.Context, spiffeID string, ds datastore.DataStore, l logrus.FieldLogger) (*datastore.ListRegistrationEntriesResponse, error) {
+	req := &datastore.ListRegistrationEntriesRequest{
+		BySpiffeId: &wrappers.StringValue{
+			Value: spiffeID,
+		},
+	}
+	resp, err := ds.ListRegistrationEntries(ctx, req)
+	if err != nil {
+		l.WithError(err).Error("Failed to list entries by SPIFFE ID")
+		return nil, status.Errorf(codes.Internal, "error trying to list entries by SPIFFE ID: %v", err)
+	}
+
+	return resp, nil
+}
+
+func listByParentID(ctx context.Context, parentID string, ds datastore.DataStore, l logrus.FieldLogger) (*datastore.ListRegistrationEntriesResponse, error) {
+	listResponse, err := ds.ListRegistrationEntries(ctx,
+		&datastore.ListRegistrationEntriesRequest{
+			ByParentId: &wrappers.StringValue{
+				Value: parentID,
+			},
+		})
+	if err != nil {
+		l.WithError(err).Error("Failed to list entries by parent ID")
+		return nil, status.Errorf(codes.Internal, "error trying to list entries by parent ID: %v", err)
+	}
+
+	return listResponse, nil
+}
+
+func validateRelationshipsOfRegistration(ctx context.Context, parentID, spiffeID string, regType common.RegistrationEntryType, ds datastore.DataStore, l logrus.FieldLogger) error {
+	// We want to prevent registrations whose parent registration is also of type WORKLOAD.
+	// In order to enforce that, we need to evaluate the possible relationships of parent and children
+	// that this registration would introduce.
+	if err := validateParentOfRegistration(ctx, parentID, ds, l); err != nil {
+		return err
+	}
+	if err := validateChildrenOfRegistration(ctx, spiffeID, regType, ds, l); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateParentOfRegistration(ctx context.Context, parentID string, ds datastore.DataStore, l logrus.FieldLogger) error {
+	// If this requested registration's parent ID maps to an existing registration's SPIFFE ID,
+	// validate that the parent registration is of type NODE or UNKNOWN.
+	// Example: There exists a Workload registration A with SPIFFE ID "spiffe://foo".
+	//          This requested Workload registration B specifies "spiffe://foo" as its parent.
+	parentEntryResp, err := listBySpiffeID(ctx, parentID, ds, l)
+	if err != nil {
+		return fmt.Errorf("error looking up parent entry: %v", err)
+	}
+
+	if len(parentEntryResp.Entries) == 1 {
+		parentEntry := parentEntryResp.Entries[0]
+		if parentEntry.Type == common.RegistrationEntryType_WORKLOAD {
+			l.Error("Registration cannot have a parent registration of type WORKLOAD")
+			return status.Errorf(codes.InvalidArgument, "registration cannot have a parent registration of type WORKLOAD")
+		}
+	}
+
+	return nil
+}
+
+func validateChildrenOfRegistration(ctx context.Context, spiffeID string, regType common.RegistrationEntryType, ds datastore.DataStore, l logrus.FieldLogger) error {
+	// If there are already registrations who specify this requested registration's SPIFFE ID as their parent ID,
+	// validate that this requested registration is of type NODE or UNKNOWN.
+	// Example: There exists a Workload registration A
+	//          whose parent ID "spiffe://foo" does not correspond with an existing registration.
+	//          This requested Workload registration B has a SPIFFE ID of "spiffe://foo".
+	if regType != common.RegistrationEntryType_WORKLOAD {
+		return nil
+	}
+
+	childEntriesResp, err := listByParentID(ctx, spiffeID, ds, l)
+	if err != nil {
+		return status.Errorf(codes.Internal, "error looking up children entries: %v", err)
+	}
+
+	if len(childEntriesResp.Entries) > 0 {
+		l.Error("Workload registration cannot be a parent of other existing workload registrations")
+		return status.Errorf(codes.InvalidArgument, "workload registration cannot be a parent of other existing workload registrations")
 	}
 
 	return nil

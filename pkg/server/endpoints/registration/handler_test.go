@@ -380,6 +380,52 @@ func (s *HandlerSuite) TestCreateEntry() {
 	}
 }
 
+func (s *HandlerSuite) TestCreateInvalidChildEntry() {
+	ctx := context.Background()
+	validParentEntry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+		ParentId:  "spiffe://example.org/node/a",
+		SpiffeId:  "spiffe://example.org/workload/b",
+		Type:      common.RegistrationEntryType_WORKLOAD,
+	}
+
+	_, err := s.handler.CreateEntry(ctx, validParentEntry)
+	s.Require().NoError(err)
+
+	invalidChildWorkloadEntry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+		ParentId:  "spiffe://example.org/workload/b",
+		SpiffeId:  "spiffe://example.org/workload/c",
+		Type:      common.RegistrationEntryType_WORKLOAD,
+	}
+
+	_, err = s.handler.CreateEntry(context.Background(), invalidChildWorkloadEntry)
+	s.Require().Error(err)
+}
+
+func (s *HandlerSuite) TestCreateInvalidParentEntry() {
+	ctx := context.Background()
+	orphanedWorkloadEntry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{{Type: "C", Value: "c"}},
+		ParentId:  "spiffe://example.org/workload/b",
+		SpiffeId:  "spiffe://example.org/workload/c",
+		Type:      common.RegistrationEntryType_WORKLOAD,
+	}
+
+	_, err := s.handler.CreateEntry(ctx, orphanedWorkloadEntry)
+	s.Require().NoError(err)
+
+	invalidParentWorkloadEntry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+		ParentId:  "spiffe://example.org/node/a",
+		SpiffeId:  "spiffe://example.org/workload/b",
+		Type:      common.RegistrationEntryType_WORKLOAD,
+	}
+
+	_, err = s.handler.CreateEntry(ctx, invalidParentWorkloadEntry)
+	s.Require().Error(err)
+}
+
 func (s *HandlerSuite) TestUpdateEntry() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:  "spiffe://example.org/foo",
