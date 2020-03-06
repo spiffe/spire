@@ -104,6 +104,7 @@ func (GenerateCLI) createVanityRecord(ctx context.Context, c registration.Regist
 		Selectors: []*common.Selector{
 			{Type: "spiffe_id", Value: parentID.String()},
 		},
+		Type: common.RegistrationEntryType_NODE,
 	}
 
 	_, err = c.CreateEntry(ctx, req)

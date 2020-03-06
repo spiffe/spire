@@ -45,6 +45,7 @@ func TestCreateVanityRecord(t *testing.T) {
 		Selectors: []*common.Selector{
 			{Type: "spiffe_id", Value: tokenID},
 		},
+		Type: common.RegistrationEntryType_NODE,
 	}
 
 	c.EXPECT().CreateEntry(gomock.Any(), req)
