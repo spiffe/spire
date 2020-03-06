@@ -1,4 +1,4 @@
-# Server plugin: UpstreamCA "disk"
+# Server plugin: UpstreamAuthority "disk"
 
 The `disk` plugin loads CA credentials from disk, using them to generate
 intermediate signing certificates for the server's signing authority. The
@@ -42,7 +42,7 @@ Key files must contain a single PEM encoded key. The supported key types are EC 
 A sample configuration:
 
 ```
-    UpstreamCA "disk" {
+    UpstreamAuthority "disk" {
         plugin_data {
             cert_file_path = "conf/server/dummy_upstream_ca.crt"
             key_file_path = "conf/server/dummy_upstream_ca.key"
