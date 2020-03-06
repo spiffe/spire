@@ -87,6 +87,13 @@ func printEntry(e *common.RegistrationEntry) {
 		fmt.Printf("Admin         : %t\n", e.Admin)
 	}
 
+	typeName, ok := common.RegistrationEntryType_name[int32(e.Type)]
+	if !ok {
+		typeName = common.RegistrationEntryType_name[int32(common.RegistrationEntryType_UNKNOWN)]
+	}
+
+	fmt.Printf("Type          : %s\n", typeName)
+
 	fmt.Println()
 }
 
