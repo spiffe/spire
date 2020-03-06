@@ -179,7 +179,7 @@ func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*common.RegistrationEntr
 }
 
 func (UpdateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
-	entries := &common.RegistrationEntries{}
+	entries := &RegistrationEntries{}
 
 	dat, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -189,7 +189,12 @@ func (UpdateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 	if err := json.Unmarshal(dat, &entries); err != nil {
 		return nil, err
 	}
-	return entries.Entries, nil
+	entriesProto, err := entries.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	return entriesProto.Entries, nil
 }
 
 func (UpdateCLI) registerEntries(ctx context.Context, c registration.RegistrationClient, entries []*common.RegistrationEntry) error {

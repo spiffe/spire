@@ -35,6 +35,7 @@ func TestCreateCLI(t *testing.T) {
 		"-dns", "ung1000",
 		"-dns", "aa2000",
 		"-dns", "zz2000",
+		"-type", "WORKLOAD",
 	})
 	require.NoError(t, err)
 
@@ -48,6 +49,7 @@ func TestCreateCLI(t *testing.T) {
 		Admin:               true,
 		EntryExpiry:         1552410266,
 		DNSNames:            StringsFlag{"unu1000", "ung1000", "aa2000", "zz2000"},
+		Type:                common.RegistrationEntryType_name[int32(common.RegistrationEntryType_WORKLOAD)],
 	}
 
 	assert.Equal(t, createdConfig, c)
@@ -63,6 +65,7 @@ func TestCreateParseConfig(t *testing.T) {
 		FederatesWith:       StringsFlag{"spiffe://domain1.test", "spiffe://domain2.test"},
 		Admin:               true,
 		EntryExpiry:         1552410266,
+		Type:                common.RegistrationEntryType_name[int32(common.RegistrationEntryType_WORKLOAD)],
 	}
 
 	entries, err := CreateCLI{}.parseConfig(c)
@@ -82,6 +85,7 @@ func TestCreateParseConfig(t *testing.T) {
 		},
 		Admin:       true,
 		EntryExpiry: 1552410266,
+		Type:        common.RegistrationEntryType_WORKLOAD,
 	}
 
 	expectedEntries := []*common.RegistrationEntry{expectedEntry}
@@ -95,6 +99,7 @@ func TestCreateNodeParseConfig(t *testing.T) {
 		Node:                true,
 		TTL:                 60,
 		Selectors:           StringsFlag{"aws:sg:sg-12345"},
+		Type:                common.RegistrationEntryType_name[int32(common.RegistrationEntryType_NODE)],
 	}
 
 	entries, err := CreateCLI{}.parseConfig(c)
@@ -108,6 +113,7 @@ func TestCreateNodeParseConfig(t *testing.T) {
 			{Type: "aws", Value: "sg:sg-12345"},
 		},
 		Admin: false,
+		Type:  common.RegistrationEntryType_NODE,
 	}
 
 	expectedEntries := []*common.RegistrationEntry{expectedEntry}
@@ -130,6 +136,7 @@ func TestRegisterParseFile(t *testing.T) {
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 		Ttl:      200,
 		Admin:    true,
+		Type:     common.RegistrationEntryType_WORKLOAD,
 	}
 	entry2 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -141,6 +148,7 @@ func TestRegisterParseFile(t *testing.T) {
 		SpiffeId: "spiffe://example.org/Database",
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenDatabase",
 		Ttl:      200,
+		Type:     common.RegistrationEntryType_WORKLOAD,
 	}
 
 	expectedEntries := []*common.RegistrationEntry{

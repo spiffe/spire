@@ -82,6 +82,7 @@ func TestUpdateParseConfig(t *testing.T) {
 		},
 		Admin:       true,
 		EntryExpiry: 1552410266,
+		Type:        common.RegistrationEntryType_UNKNOWN,
 	}
 
 	expectedEntries := []*common.RegistrationEntry{expectedEntry}
@@ -104,6 +105,7 @@ func TestUpdateParseFile(t *testing.T) {
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 		Ttl:      200,
 		Admin:    true,
+		Type:     common.RegistrationEntryType_WORKLOAD,
 	}
 	entry2 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -115,6 +117,7 @@ func TestUpdateParseFile(t *testing.T) {
 		SpiffeId: "spiffe://example.org/Database",
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenDatabase",
 		Ttl:      200,
+		Type:     common.RegistrationEntryType_WORKLOAD,
 	}
 
 	expectedEntries := []*common.RegistrationEntry{

@@ -97,6 +97,16 @@ func printEntry(e *common.RegistrationEntry) {
 	fmt.Println()
 }
 
+func RegistrationEntryTypeStringToProtoEnum(t string) (common.RegistrationEntryType, error) {
+	tUpper := strings.ToUpper(t)
+	tInt, ok := common.RegistrationEntryType_value[tUpper]
+	if !ok {
+		return common.RegistrationEntryType_UNKNOWN, fmt.Errorf(`unrecognized registration entry type %q. allowable values: {"node", "workload"}`, t)
+	}
+
+	return common.RegistrationEntryType(tInt), nil
+}
+
 // StringsFlag defines a custom type for string lists. Doing
 // this allows us to support repeatable string flags.
 type StringsFlag []string

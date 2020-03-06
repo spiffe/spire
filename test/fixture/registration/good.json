@@ -10,7 +10,8 @@
             "spiffe_id": "spiffe://example.org/Blog",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
             "ttl": 200,
-            "admin": true
+            "admin": true,
+            "type": "WORKLOAD"
         },
         {
             "selectors": [
@@ -21,7 +22,8 @@
             ],
             "spiffe_id": "spiffe://example.org/Database",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
-            "ttl": 200
+            "ttl": 200,
+            "type": "WORKLOAD"
         }
     ]
 }

@@ -48,6 +48,9 @@ type CreateConfig struct {
 
 	// DNSNames entries for SVIDs based on this entry
 	DNSNames StringsFlag
+
+	// Registration type, i.e. node, workload
+	Type string
 }
 
 // Validate performs basic validation, even on fields that we
@@ -100,6 +103,10 @@ func (rc *CreateConfig) Validate() (err error) {
 		if err != nil {
 			return err
 		}
+	}
+
+	if _, err := RegistrationEntryTypeStringToProtoEnum(rc.Type); err != nil {
+		return err
 	}
 
 	return nil
@@ -158,24 +165,16 @@ func (c CreateCLI) Run(args []string) int {
 
 // parseConfig builds a registration entry from the given config
 func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntry, error) {
-	e := &common.RegistrationEntry{
-		ParentId:    config.ParentID,
-		SpiffeId:    config.SpiffeID,
-		Ttl:         int32(config.TTL),
-		Downstream:  config.Downstream,
-		EntryExpiry: config.EntryExpiry,
-		DnsNames:    config.DNSNames,
-	}
-
+	parentID := config.ParentID
 	// If the node flag is set, then set the Parent ID to the server's expected SPIFFE ID
 	if config.Node {
-		id, err := idutil.ParseSpiffeID(e.SpiffeId, idutil.AllowAny())
+		id, err := idutil.ParseSpiffeID(config.SpiffeID, idutil.AllowAny())
 		if err != nil {
 			return nil, err
 		}
 
 		id.Path = "/spire/server"
-		e.ParentId = id.String()
+		parentID = id.String()
 	}
 
 	selectors := []*common.Selector{}
@@ -188,14 +187,30 @@ func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntr
 		selectors = append(selectors, cs)
 	}
 
-	e.Selectors = selectors
-	e.FederatesWith = config.FederatesWith
-	e.Admin = config.Admin
-	return []*common.RegistrationEntry{e}, nil
+	t, err := RegistrationEntryTypeStringToProtoEnum(config.Type)
+	if err != nil {
+		// Shouldn't reach this point since Validate() already checks this
+		return nil, fmt.Errorf(`unrecognized registration entry type %q. allowable values: {"node", "workload"}`, t)
+	}
+
+	return []*common.RegistrationEntry{
+		{
+			Selectors:     selectors,
+			ParentId:      parentID,
+			SpiffeId:      config.SpiffeID,
+			Ttl:           int32(config.TTL),
+			FederatesWith: config.FederatesWith,
+			Admin:         config.Admin,
+			Downstream:    config.Downstream,
+			EntryExpiry:   config.EntryExpiry,
+			DnsNames:      config.DNSNames,
+			Type:          t,
+		},
+	}, nil
 }
 
 func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
-	entries := &common.RegistrationEntries{}
+	entries := &RegistrationEntries{}
 
 	dat, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -205,7 +220,12 @@ func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 	if err := json.Unmarshal(dat, &entries); err != nil {
 		return nil, err
 	}
-	return entries.Entries, nil
+	protoEntries, err := entries.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	return protoEntries.Entries, nil
 }
 
 func (CreateCLI) registerEntries(ctx context.Context, c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
@@ -244,6 +264,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.Int64Var(&c.EntryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 
 	f.Var(&c.DNSNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
+	f.StringVar(&c.Type, "type", common.RegistrationEntryType_name[int32(common.RegistrationEntryType_UNKNOWN)], `The type of registration. Acceptable values are "node" or "workload".`)
 
 	return c, f.Parse(args)
 }
