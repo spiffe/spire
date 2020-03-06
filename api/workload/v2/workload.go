@@ -77,7 +77,6 @@ type X509SVIDClient struct {
 	watcher      X509SVIDWatcher
 	addr         string
 	wg           sync.WaitGroup
-	ctx          context.Context
 	cancelFn     func()
 	backoff      *backoff
 	stateManager *clientStateManager
@@ -95,12 +94,10 @@ func WithAddr(addr string) Option {
 
 // NewX509SVIDClient returns a new Workload API client for X.509 SVIDs.
 func NewX509SVIDClient(watcher X509SVIDWatcher, opts ...Option) (*X509SVIDClient, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	c := &X509SVIDClient{
 		addr:         GetAgentAddress(),
 		watcher:      watcher,
-		ctx:          ctx,
-		cancelFn:     cancel,
+		cancelFn:     func() {},
 		backoff:      newBackoff(),
 		stateManager: newClientStateManager(),
 	}
@@ -124,33 +121,35 @@ func (c *X509SVIDClient) Start(ctx context.Context) error {
 	if err := c.stateManager.StartIfStartable(); err != nil {
 		return fmt.Errorf("spiffe/workload: %v", err)
 	}
+	childctx, cancel := context.WithCancel(ctx)
+	c.cancelFn = cancel
 	c.wg.Add(1)
-	go c.run()
+	go c.run(childctx)
 	return nil
 }
 
-func (c *X509SVIDClient) run() {
+func (c *X509SVIDClient) run(ctx context.Context) {
 	defer c.wg.Done()
 
-	conn := c.newConn()
+	conn := c.newConn(ctx)
 	if conn == nil {
 		return
 	}
 	defer conn.Close()
 
 	for {
-		if done := c.watch(conn); done {
+		if done := c.watch(ctx, conn); done {
 			return
 		}
 	}
 }
 
 // establishes a new persistent connection, returns nil if a connection can't be created
-func (c *X509SVIDClient) newConn() *grpc.ClientConn {
+func (c *X509SVIDClient) newConn(ctx context.Context) *grpc.ClientConn {
 	for {
-		conn, err := grpc.DialContext(c.ctx, c.addr, grpc.WithInsecure())
+		conn, err := grpc.DialContext(ctx, c.addr, grpc.WithInsecure())
 		if err != nil {
-			if done := c.handleError(err); done {
+			if done := c.handleError(ctx, err); done {
 				return nil
 			}
 			continue
@@ -161,7 +160,7 @@ func (c *X509SVIDClient) newConn() *grpc.ClientConn {
 }
 
 // handles an error, applies backoff, and returns true if the context has been canceled
-func (c *X509SVIDClient) handleError(err error) (done bool) {
+func (c *X509SVIDClient) handleError(ctx context.Context, err error) (done bool) {
 	if status.Code(err) == codes.Canceled {
 		return true
 	}
@@ -169,21 +168,21 @@ func (c *X509SVIDClient) handleError(err error) (done bool) {
 	select {
 	case <-time.After(c.backoff.Duration()):
 		return false
-	case <-c.ctx.Done():
+	case <-ctx.Done():
 		return true
 	}
 }
 
 // creates single watch for the connection and returns whether we should stop watching
-func (c *X509SVIDClient) watch(conn *grpc.ClientConn) bool {
-	ctx, cancel := context.WithCancel(c.ctx)
+func (c *X509SVIDClient) watch(ctx context.Context, conn *grpc.ClientConn) bool {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream, err := c.newX509SVIDStream(ctx, conn)
 	if err != nil {
-		return c.handleError(err)
+		return c.handleError(ctx, err)
 	}
 	if err := c.handleX509SVIDStream(stream); err != nil {
-		return c.handleError(err)
+		return c.handleError(ctx, err)
 	}
 	return false
 }
