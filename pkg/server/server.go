@@ -39,7 +39,8 @@ const (
 	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
 	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID, from attested node"
 
-	pageSize = 1
+	pageSize          = 1
+	publishJWKTimeout = 5 * time.Second
 )
 
 type Server struct {
@@ -255,17 +256,18 @@ func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA) (*ca.Manager, error) {
 	caManager := ca.NewManager(ca.ManagerConfig{
-		CA:             serverCA,
-		Catalog:        cat,
-		TrustDomain:    s.config.TrustDomain,
-		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Metrics:        metrics,
-		UpstreamBundle: s.config.UpstreamBundle,
-		CATTL:          s.config.CATTL,
-		CASubject:      s.config.CASubject,
-		Dir:            s.config.DataDir,
-		X509CAKeyType:  s.config.CAKeyType,
-		JWTKeyType:     s.config.CAKeyType,
+		CA:                serverCA,
+		Catalog:           cat,
+		TrustDomain:       s.config.TrustDomain,
+		Log:               s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:           metrics,
+		UpstreamBundle:    s.config.UpstreamBundle,
+		CATTL:             s.config.CATTL,
+		CASubject:         s.config.CASubject,
+		Dir:               s.config.DataDir,
+		X509CAKeyType:     s.config.CAKeyType,
+		JWTKeyType:        s.config.CAKeyType,
+		PublishJWKTimeout: publishJWKTimeout,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -306,6 +308,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:                     metrics,
 		Manager:                     caManager,
+		PublishJWKTimeout:           publishJWKTimeout,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 	}
 	if s.config.Experimental.BundleEndpointEnabled {

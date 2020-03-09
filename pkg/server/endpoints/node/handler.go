@@ -40,13 +40,14 @@ import (
 )
 
 type HandlerConfig struct {
-	Log         logrus.FieldLogger
-	Metrics     telemetry.Metrics
-	Catalog     catalog.Catalog
-	ServerCA    ca.ServerCA
-	TrustDomain url.URL
-	Clock       clock.Clock
-	Manager     *ca.Manager
+	Log               logrus.FieldLogger
+	Metrics           telemetry.Metrics
+	Catalog           catalog.Catalog
+	ServerCA          ca.ServerCA
+	TrustDomain       url.URL
+	Clock             clock.Clock
+	Manager           *ca.Manager
+	PublishJWKTimeout time.Duration
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -505,13 +506,13 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 
 	err = h.limiter.Limit(ctx, PushJWTKey, 1)
 	if err != nil {
-		log.WithError(err).Error("Rejecting request due to jwk push rate limiting")
+		log.WithError(err).Error("Rejecting request due to JWK push rate limiting")
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
 	upstreamAuth, useUpstream := h.c.Catalog.GetUpstreamAuthority()
 	if useUpstream { // We are an intermediate SPIRE server
-		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		publishCtx, cancel := context.WithTimeout(ctx, h.c.PublishJWKTimeout)
 		defer cancel()
 		res, err := upstreamAuth.PublishJWTKey(
 			publishCtx,

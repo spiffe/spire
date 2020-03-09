@@ -52,18 +52,19 @@ type ManagedCA interface {
 }
 
 type ManagerConfig struct {
-	CA             ManagedCA
-	Catalog        catalog.Catalog
-	TrustDomain    url.URL
-	UpstreamBundle bool
-	CATTL          time.Duration
-	X509CAKeyType  keymanager.KeyType
-	JWTKeyType     keymanager.KeyType
-	CASubject      pkix.Name
-	Dir            string
-	Log            logrus.FieldLogger
-	Metrics        telemetry.Metrics
-	Clock          clock.Clock
+	CA                ManagedCA
+	Catalog           catalog.Catalog
+	TrustDomain       url.URL
+	UpstreamBundle    bool
+	CATTL             time.Duration
+	X509CAKeyType     keymanager.KeyType
+	JWTKeyType        keymanager.KeyType
+	CASubject         pkix.Name
+	Dir               string
+	Log               logrus.FieldLogger
+	Metrics           telemetry.Metrics
+	Clock             clock.Clock
+	PublishJWKTimeout time.Duration
 }
 
 type Manager struct {
@@ -323,7 +324,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 	publicKeys := []*common.PublicKey{publicKey}
 	upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority()
 	if useUpstream {
-		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		publishCtx, cancel := context.WithTimeout(ctx, m.c.PublishJWKTimeout)
 		defer cancel()
 		res, err := upstreamAuth.PublishJWTKey(
 			publishCtx,
