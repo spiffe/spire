@@ -54,7 +54,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 			// SVID has expired
 			expiresAt = svid.Chain[0].NotAfter
 			expiring++
-		case existingEntry != nil && !equal(existingEntry.DnsNames, newEntry.DnsNames):
+		case existingEntry != nil && !stringsEqual(existingEntry.DnsNames, newEntry.DnsNames):
 			// DNS Names have changed
 			outdated++
 		case existingEntry != nil && existingEntry.Ttl != newEntry.Ttl:
@@ -180,8 +180,8 @@ func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, 
 	return out, nil
 }
 
-// equal determines whether two string slices are equal or not
-func equal(x, y []string) bool {
+// stringsEqual determines whether two string slices are equal or not
+func stringsEqual(x, y []string) bool {
 	if len(x) != len(y) {
 		return false
 	}
