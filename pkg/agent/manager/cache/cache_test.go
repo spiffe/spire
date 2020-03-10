@@ -452,9 +452,8 @@ func TestCheckSVIDCallback(t *testing.T) {
 		callCount++
 		assert.Equal(t, "FOO", newEntry.EntryId)
 
-		//  there is no existing entry
+		// there is no already existing entry, only the new entry
 		assert.Nil(t, existingEntry)
-
 		assert.Equal(t, foo, newEntry)
 		assert.Nil(t, svid)
 	})
