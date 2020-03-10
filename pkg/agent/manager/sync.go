@@ -38,7 +38,8 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	// the values in `update` now belong to the cache. DO NOT MODIFY.
 	var csrs []csrRequest
 	var expiring int
-	m.cache.Update(update, func(entry *common.RegistrationEntry, svid *cache.X509SVID) {
+	var outdated int
+	m.cache.Update(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.X509SVID) {
 		var expiresAt time.Time
 		switch {
 		case svid == nil:
@@ -46,13 +47,19 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		case len(svid.Chain) == 0:
 			// SVID has an empty chain. this is not expected to happen.
 			m.c.Log.WithFields(logrus.Fields{
-				telemetry.RegistrationID: entry.EntryId,
-				telemetry.SPIFFEID:       entry.SpiffeId,
+				telemetry.RegistrationID: newEntry.EntryId,
+				telemetry.SPIFFEID:       newEntry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
 		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
 			// SVID has expired
 			expiresAt = svid.Chain[0].NotAfter
 			expiring++
+		case existingEntry != nil && !equal(existingEntry.DnsNames, newEntry.DnsNames):
+			// DNS Names have changed
+			outdated++
+		case existingEntry != nil && existingEntry.Ttl != newEntry.Ttl:
+			// TTL has changed
+			outdated++
 		default:
 			// SVID is good
 			return
@@ -60,16 +67,20 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		// we've exceeded the CSR limit, don't make any more CSRs
 		if len(csrs) < node.CSRLimit {
 			csrs = append(csrs, csrRequest{
-				EntryID:              entry.EntryId,
-				SpiffeID:             entry.SpiffeId,
+				EntryID:              newEntry.EntryId,
+				SpiffeID:             newEntry.SpiffeId,
 				CurrentSVIDExpiresAt: expiresAt,
 			})
 		}
 	})
 	if len(csrs) > 0 {
-		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, float32(expiring))
-		m.c.Log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating SVIDs in cache")
-
+		if expiring > 0 {
+			telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, float32(expiring))
+			m.c.Log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
+		} else if outdated > 0 {
+			telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, float32(outdated))
+			m.c.Log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
+		}
 		update, err := m.fetchUpdates(ctx, csrs)
 		if err != nil {
 			return err
@@ -166,4 +177,19 @@ func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, 
 		out[bundle.TrustDomainID()] = bundle
 	}
 	return out, nil
+}
+
+// equal determines whether two string slices are equal or not
+func equal(x, y []string) bool {
+	if len(x) != len(y) {
+		return false
+	}
+
+	for i, s := range x {
+		if s != y[i] {
+			return false
+		}
+	}
+
+	return true
 }
