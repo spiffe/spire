@@ -95,9 +95,13 @@ func (s *ShowTestSuite) TestRunWithSelector() {
 		"foo:bar",
 	}
 
-	req := &common.Selector{Type: "foo", Value: "bar"}
+	req := &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "foo", Value: "bar"},
+		},
+	}
 	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySelectors(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 
@@ -115,13 +119,14 @@ func (s *ShowTestSuite) TestRunWithSelectors() {
 		"bar:baz",
 	}
 
-	req := &common.Selector{Type: "foo", Value: "bar"}
+	req := &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "foo", Value: "bar"},
+			{Type: "bar", Value: "baz"},
+		},
+	}
 	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req).Return(resp, nil)
-
-	req = &common.Selector{Type: "bar", Value: "baz"}
-	resp.Entries = entries[1:2]
-	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySelectors(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 	s.Assert().Equal(entries[1:2], s.cli.Entries)
@@ -141,9 +146,13 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 	resp := &common.RegistrationEntries{Entries: entries}
 	s.mockClient.EXPECT().ListByParentID(gomock.Any(), req1).Return(resp, nil)
 
-	req2 := &common.Selector{Type: "bar", Value: "baz"}
+	req2 := &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "bar", Value: "baz"},
+		},
+	}
 	resp = &common.RegistrationEntries{Entries: entries[0:1]}
-	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req2).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySelectors(gomock.Any(), req2).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 

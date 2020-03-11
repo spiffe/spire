@@ -94,7 +94,7 @@ go_bin_dir := $(go_dir)/bin
 go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
 go := PATH="$(go_bin_dir):$(PATH)" go
 
-golangci_lint_version = v1.23.2
+golangci_lint_version = v1.23.6
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 
@@ -256,12 +256,15 @@ endif
 # provided to the linker unless the git status is dirty.
 go_ldflags := -s -w
 ifeq ($(git_dirty),)
-  ifneq ($(git_tag),)
-    go_ldflags += -X github.com/spiffe/spire/pkg/common/version.gittag=$(git_tag)
-  endif
-  ifneq ($(git_hash),)
-    go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
-  endif
+	ifneq ($(git_tag),)
+		# Remove the "v" prefix from the git_tag for use as the version number.
+		# e.g. 0.9.3 instead of v0.9.3
+		git_version_tag := $(git_tag:v%=%)
+		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.gittag=$(git_version_tag)
+	endif
+	ifneq ($(git_hash),)
+		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
+	endif
 endif
 go_ldflags := '${go_ldflags}'
 
@@ -328,27 +331,38 @@ artifact: build
 # Docker Images
 #############################################################################
 
+# go_image_version is the docker image version. If the go version is on a minor
+# version boundary, ".0" is added to get the specific image tag for that
+# version since the tag of the minor version means "the latest point release
+# for this minor version". For example, when our toolchain uses go1.14, we need
+# to use the "1.14.0" image tag, since "1.14" refers to the latest "1.14.X"
+# release.
+go_image_version := $(go_version)
+ifeq ($(word 3, $(subst ., ,$(go_version))),)
+	go_image_version := $(go_version).0
+endif
+
 .PHONY: images
 images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target spire-server -t spire-server .
+	docker build --build-arg goversion=$(go_image_version) --target spire-server -t spire-server .
 	docker tag spire-server:latest spire-server:latest-local
 
 .PHONY: spire-agent-image
 spire-agent-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target spire-agent -t spire-agent .
+	docker build --build-arg goversion=$(go_image_version) --target spire-agent -t spire-agent .
 	docker tag spire-agent:latest spire-agent:latest-local
 
 .PHONY: k8s-workload-registrar-image
 k8s-workload-registrar-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target k8s-workload-registrar -t k8s-workload-registrar .
+	docker build --build-arg goversion=$(go_image_version) --target k8s-workload-registrar -t k8s-workload-registrar .
 	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
 
 .PHONY: oidc-discovery-provider-image
 oidc-discovery-provider-image: Dockerfile
-	docker build --build-arg goversion=$(go_version) --target oidc-discovery-provider -t oidc-discovery-provider .
+	docker build --build-arg goversion=$(go_image_version) --target oidc-discovery-provider -t oidc-discovery-provider .
 	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
 
 #############################################################################

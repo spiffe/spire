@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"os/user"
+	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -39,6 +41,19 @@ type processInfo interface {
 	Uids() ([]int32, error)
 	Gids() ([]int32, error)
 	Exe() (string, error)
+	NamespacedExe() string
+}
+
+type PSProcessInfo struct {
+	*process.Process
+}
+
+func (ps PSProcessInfo) NamespacedExe() string {
+	procPath := os.Getenv("HOST_PROC")
+	if procPath == "" {
+		procPath = "/proc"
+	}
+	return filepath.Join(procPath, strconv.Itoa(int(ps.Pid)), "exe")
 }
 
 type Configuration struct {
@@ -60,7 +75,7 @@ type Plugin struct {
 
 func New() *Plugin {
 	p := &Plugin{}
-	p.hooks.newProcess = func(pid int32) (processInfo, error) { return process.NewProcess(pid) }
+	p.hooks.newProcess = func(pid int32) (processInfo, error) { p, err := process.NewProcess(pid); return PSProcessInfo{p}, err }
 	p.hooks.lookupUserByID = user.LookupId
 	p.hooks.lookupGroupByID = user.LookupGroupId
 	return p
@@ -110,7 +125,8 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		selectors = append(selectors, makeSelector("path", processPath))
 
 		if config.WorkloadSizeLimit >= 0 {
-			sha256Digest, err := getSHA256Digest(processPath, config.WorkloadSizeLimit)
+			exePath := p.getNamespacedPath(proc)
+			sha256Digest, err := getSHA256Digest(exePath, config.WorkloadSizeLimit)
 			if err != nil {
 				return nil, err
 			}
@@ -208,6 +224,10 @@ func (p *Plugin) getPath(proc processInfo) (string, error) {
 	}
 
 	return path, nil
+}
+
+func (p *Plugin) getNamespacedPath(proc processInfo) string {
+	return proc.NamespacedExe()
 }
 
 func getSHA256Digest(path string, limit int64) (string, error) {

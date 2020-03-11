@@ -49,3 +49,16 @@ func DERFromCertificates(certs []*x509.Certificate) (derBytes []byte) {
 	}
 	return derBytes
 }
+
+// RawCertsToCertificates parses certificates from the given slice of ASN.1 DER data
+func RawCertsToCertificates(rawCerts [][]byte) ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for _, rawCert := range rawCerts {
+		cert, err := x509.ParseCertificate(rawCert)
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}

@@ -485,6 +485,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	}, nil
 }
 
+func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (resp *node.PushJWTKeyUpstreamResponse, err error) {
+	return nil, status.Error(codes.Unimplemented, "cannot push JWK upstream")
+}
+
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	switch fullMethod {
 	// no authn/authz is required for attestation
