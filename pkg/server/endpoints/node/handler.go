@@ -132,7 +132,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		// TODO: remove in SPIRE 0.10
 		attestedBefore := true
 		if csr.SpiffeID != "" {
-			attestedBefore, _, err = h.isAttested(ctx, csr.SpiffeID)
+			attestedBefore, err = h.isAttested(ctx, csr.SpiffeID)
 			if err != nil {
 				log.WithError(err).Error("Failed to determine if agent has already attested")
 				return status.Error(codes.Internal, "failed to determine if agent has already attested")
@@ -201,18 +201,16 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return status.Error(codes.Internal, "failed to compose response")
 	}
 
-	isAttested, node, err := h.isAttested(ctx, agentID)
+	isAttested, err := h.isAttested(ctx, agentID)
 	switch {
 	case err != nil:
 		log.WithError(err).Error("Failed to determine if agent has already attested")
 		return status.Error(codes.Internal, "failed to determine if agent has already attested")
 	case isAttested:
 		req := &datastore.UpdateAttestedNodeRequest{
-			SpiffeId:            node.SpiffeId,
-			CertNotAfter:        node.CertNotAfter,
-			CertSerialNumber:    node.CertSerialNumber,
-			NewCertNotAfter:     svid[0].NotAfter.Unix(),
-			NewCertSerialNumber: svid[0].SerialNumber.String(),
+			SpiffeId:         agentID,
+			CertNotAfter:     svid[0].NotAfter.Unix(),
+			CertSerialNumber: svid[0].SerialNumber.String(),
 		}
 
 		if err := h.updateAttestedNode(ctx, req); err != nil {
@@ -534,7 +532,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	return ctx, nil
 }
 
-func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, *common.AttestedNode, error) {
+func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, error) {
 	ds := h.c.Catalog.GetDataStore()
 
 	fetchRequest := &datastore.FetchAttestedNodeRequest{
@@ -542,15 +540,15 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, *c
 	}
 	fetchResponse, err := ds.FetchAttestedNode(ctx, fetchRequest)
 	if err != nil {
-		return false, nil, err
+		return false, err
 	}
 
 	n := fetchResponse.Node
 	if n != nil && n.SpiffeId == baseSpiffeID {
-		return true, n, nil
+		return true, nil
 	}
 
-	return false, nil, nil
+	return false, nil
 }
 
 func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate) error {
@@ -674,7 +672,7 @@ func (h *Handler) attestToken(ctx context.Context, attestationData *common.Attes
 		Path:   path.Join("spire", "agent", "join_token", tokenValue),
 	}).String()
 
-	attestedBefore, _, err := h.isAttested(ctx, agentID)
+	attestedBefore, err := h.isAttested(ctx, agentID)
 	switch {
 	case err != nil:
 		h.c.Log.WithError(err).Error("Failed to determine if agent has already attested")

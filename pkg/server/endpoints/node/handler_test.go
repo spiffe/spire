@@ -401,32 +401,30 @@ func (s *HandlerSuite) TestAttestReattestation() {
 	s.Require().NotNil(attestedNode)
 	s.Equal(agentID, attestedNode.SpiffeId)
 
-	// Current serial and expiration must remain the same
-	s.Equal(initialSerialNumber, attestedNode.CertSerialNumber)
-	s.Equal(initialNotAfter, attestedNode.CertNotAfter)
-
-	// New serial and expiration must be the same than the ones in the response
+	// Current serial and expiration must be updated
 	cert, err := x509.ParseCertificate(resp.Svids[agentID].CertChain)
 	s.Require().NoError(err)
-	s.Equal(cert.SerialNumber.String(), attestedNode.NewCertSerialNumber)
-	s.Equal(resp.Svids[agentID].ExpiresAt, attestedNode.NewCertNotAfter)
+	s.Equal(cert.SerialNumber.String(), attestedNode.CertSerialNumber)
+	s.Equal(resp.Svids[agentID].ExpiresAt, attestedNode.CertNotAfter)
+
+	// New serial and expiration must be zero-valued
+	s.Zero(attestedNode.NewCertSerialNumber)
+	s.Zero(attestedNode.NewCertNotAfter)
 
 	// Attestation data type is NOT updatable
 	s.Equal("", attestedNode.AttestationDataType)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 
-	// After the first request validation
+	// Request validation must succeed
 	s.NoError(s.handler.validateAgentSVID(context.Background(), cert))
-	nodeAfterActivation := s.fetchAttestedNode()
+	nodeAfterValidation := s.fetchAttestedNode()
 
-	// The new SVID is activated and set as 'current'
-	s.Equal(nodeAfterActivation.CertSerialNumber, attestedNode.NewCertSerialNumber)
-	s.Equal(nodeAfterActivation.CertNotAfter, attestedNode.NewCertNotAfter)
-
-	// The 'new' slot is now empty
-	s.Empty(nodeAfterActivation.NewCertSerialNumber)
-	s.Empty(nodeAfterActivation.NewCertNotAfter)
+	// There must not be any expected change in the node after request validation
+	s.Equal(nodeAfterValidation.CertSerialNumber, attestedNode.CertSerialNumber)
+	s.Equal(nodeAfterValidation.CertNotAfter, attestedNode.CertNotAfter)
+	s.Zero(nodeAfterValidation.NewCertSerialNumber)
+	s.Zero(nodeAfterValidation.NewCertNotAfter)
 }
 
 func (s *HandlerSuite) TestAttestChallengeResponseSuccess() {
