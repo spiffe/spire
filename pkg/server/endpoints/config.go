@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -49,10 +48,6 @@ type Config struct {
 
 	// CA Manager
 	Manager *ca.Manager
-
-	// Amount of time to wait for a response when publishing a JWK to the
-	// upstream server.
-	PublishJWKTimeout time.Duration
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics

@@ -163,6 +163,7 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 	// The trust bundle should contain the CA cert itself
 	s.requireBundleRootCAs(x509CA.Certificate)
 
+	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
 		1,
 		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
@@ -191,6 +192,7 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamAuthority.Root())
 
+	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
 		1,
 		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
@@ -221,6 +223,7 @@ func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamAuthority.Root())
 
+	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
 		1,
 		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
@@ -257,6 +260,12 @@ KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 	bundle = s.fetchBundle()
 	s.Len(bundle.JwtSigningKeys, 1)
 	s.Equal("kid", bundle.JwtSigningKeys[0].Kid)
+	s.Equal(
+		0,
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using JWT-SVIDs."),
+	)
 }
 
 func (s *ManagerSuite) TestX509CARotation() {

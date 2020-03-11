@@ -142,13 +142,12 @@ func (e *Endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 // the provided gRPC server.
 func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 	n := node.NewHandler(node.HandlerConfig{
-		Log:               e.c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
-		Metrics:           e.c.Metrics,
-		Catalog:           e.c.Catalog,
-		TrustDomain:       e.c.TrustDomain,
-		ServerCA:          e.c.ServerCA,
-		Manager:           e.c.Manager,
-		PublishJWKTimeout: e.c.PublishJWKTimeout,
+		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
+		Metrics:     e.c.Metrics,
+		Catalog:     e.c.Catalog,
+		TrustDomain: e.c.TrustDomain,
+		ServerCA:    e.c.ServerCA,
+		Manager:     e.c.Manager,
 
 		AllowAgentlessNodeAttestors: e.c.AllowAgentlessNodeAttestors,
 	})

@@ -149,6 +149,7 @@ func (s *HandlerSuite) SetupTest() {
 		Manager: ca.NewManager(ca.ManagerConfig{
 			Catalog:     s.catalog,
 			TrustDomain: *trustDomainURL,
+			Log:         log,
 		}),
 	})
 	handler.limiter = s.limiter
@@ -1069,7 +1070,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	s.Assert().NotNil(resp)
 	s.Assert().Len(resp.JwtSigningKeys, 1)
 	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 0)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {

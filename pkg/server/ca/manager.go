@@ -27,9 +27,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	gcu "github.com/spiffe/spire/pkg/server/util/grpccodesutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -44,6 +45,8 @@ const (
 
 	sevenDays              = 7 * 24 * time.Hour
 	activationThresholdCap = sevenDays
+
+	publishJWKTimeout = 5 * time.Second
 )
 
 type ManagedCA interface {
@@ -52,19 +55,18 @@ type ManagedCA interface {
 }
 
 type ManagerConfig struct {
-	CA                ManagedCA
-	Catalog           catalog.Catalog
-	TrustDomain       url.URL
-	UpstreamBundle    bool
-	CATTL             time.Duration
-	X509CAKeyType     keymanager.KeyType
-	JWTKeyType        keymanager.KeyType
-	CASubject         pkix.Name
-	Dir               string
-	Log               logrus.FieldLogger
-	Metrics           telemetry.Metrics
-	Clock             clock.Clock
-	PublishJWKTimeout time.Duration
+	CA             ManagedCA
+	Catalog        catalog.Catalog
+	TrustDomain    url.URL
+	UpstreamBundle bool
+	CATTL          time.Duration
+	X509CAKeyType  keymanager.KeyType
+	JWTKeyType     keymanager.KeyType
+	CASubject      pkix.Name
+	Dir            string
+	Log            logrus.FieldLogger
+	Metrics        telemetry.Metrics
+	Clock          clock.Clock
 }
 
 type Manager struct {
@@ -78,8 +80,8 @@ type Manager struct {
 
 	journal *Journal
 
-	// Used to log a warning only once.
-	warnOnce sync.Once
+	// Used to log a warning only once when the UpstreamAuthority does not support JWT-SVIDs.
+	jwtUnimplementedWarnOnce sync.Once
 }
 
 func NewManager(c ManagerConfig) *Manager {
@@ -226,7 +228,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 		return err
 	}
 
-	if err := m.AppendBundle(ctx, trustBundle, nil); err != nil {
+	if _, err := m.appendBundle(ctx, trustBundle, nil); err != nil {
 		return err
 	}
 
@@ -321,32 +323,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 		return err
 	}
 
-	publicKeys := []*common.PublicKey{publicKey}
-	upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority()
-	if useUpstream {
-		publishCtx, cancel := context.WithTimeout(ctx, m.c.PublishJWKTimeout)
-		defer cancel()
-		res, err := upstreamAuth.PublishJWTKey(
-			publishCtx,
-			&upstreamauthority.PublishJWTKeyRequest{
-				JwtKey: publicKey,
-			})
-
-		switch {
-		case gcu.IsUnimplementedError(err):
-			m.warnOnce.Do(func() {
-				log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
-					"by this server may have trouble communicating with workloads outside " +
-					"this cluster when using JWT-SVIDs.")
-			})
-		case err != nil:
-			return err
-		default:
-			publicKeys = res.UpstreamJwtKeys
-		}
-	}
-
-	if err := m.AppendBundle(ctx, nil, publicKeys); err != nil {
+	if _, err := m.PublishJWTKeyUpstream(ctx, publicKey); err != nil {
 		return err
 	}
 
@@ -363,6 +340,53 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 		telemetry.Expiration: timeField(slot.jwtKey.NotAfter),
 	}).Info("JWT key prepared")
 	return nil
+}
+
+// PublishJWTKeyUpstream publishes the passed JWK to the upstream server using the configured
+// UpstreamAuthority plugin, then appends to the bundle the JWKs returned by the upstream server,
+// and finally it returns the updated list of JWT keys contained in the bundle.
+//
+// The following cases may arise when calling this function:
+//
+// - The UpstreamAuthority plugin doesn't implement PublishJWTKey, in which case we receive an
+// Unimplemented error from the upstream server, and hence we log a one time warning about this,
+// append the passed JWK to the bundle, and return the updated list of JWT keys.
+//
+// - The UpstreamAuthority plugin returned an error, then we return the error.
+//
+// - There is no UpstreamAuthority plugin configured, then assumes we are the root server and
+// just appends the passed JWK to the bundle and returns the updated list of JWT keys.
+func (m *Manager) PublishJWTKeyUpstream(ctx context.Context, publicKey *common.PublicKey) ([]*common.PublicKey, error) {
+	publicKeys := []*common.PublicKey{publicKey}
+	if upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority(); useUpstream {
+		publishCtx, cancel := context.WithTimeout(ctx, publishJWKTimeout)
+		defer cancel()
+		res, err := upstreamAuth.PublishJWTKey(
+			publishCtx,
+			&upstreamauthority.PublishJWTKeyRequest{
+				JwtKey: publicKey,
+			})
+
+		switch {
+		case status.Code(err) == codes.Unimplemented:
+			m.jwtUnimplementedWarnOnce.Do(func() {
+				m.c.Log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
+					"by this server may have trouble communicating with workloads outside " +
+					"this cluster when using JWT-SVIDs.")
+			})
+		case err != nil:
+			return nil, err
+		default:
+			publicKeys = res.UpstreamJwtKeys
+		}
+	}
+
+	appendResp, err := m.appendBundle(ctx, nil, publicKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	return appendResp.Bundle.JwtSigningKeys, nil
 }
 
 func (m *Manager) activateJWTKey() {
@@ -416,7 +440,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) AppendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey) error {
+func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey) (*datastore.AppendBundleResponse, error) {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{
@@ -425,18 +449,19 @@ func (m *Manager) AppendBundle(ctx context.Context, caChain []*x509.Certificate,
 	}
 
 	ds := m.c.Catalog.GetDataStore()
-	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+	res, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId:  m.c.TrustDomain.String(),
 			RootCas:        rootCAs,
 			JwtSigningKeys: jwtSigningKeys,
 		},
-	}); err != nil {
-		return err
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	m.bundleUpdated()
-	return nil
+	return res, nil
 }
 
 func (m *Manager) loadJournal(ctx context.Context) error {

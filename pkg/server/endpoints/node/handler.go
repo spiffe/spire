@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -27,8 +26,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	gcu "github.com/spiffe/spire/pkg/server/util/grpccodesutil"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -40,14 +37,13 @@ import (
 )
 
 type HandlerConfig struct {
-	Log               logrus.FieldLogger
-	Metrics           telemetry.Metrics
-	Catalog           catalog.Catalog
-	ServerCA          ca.ServerCA
-	TrustDomain       url.URL
-	Clock             clock.Clock
-	Manager           *ca.Manager
-	PublishJWKTimeout time.Duration
+	Log         logrus.FieldLogger
+	Metrics     telemetry.Metrics
+	Catalog     catalog.Catalog
+	ServerCA    ca.ServerCA
+	TrustDomain url.URL
+	Clock       clock.Clock
+	Manager     *ca.Manager
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -58,9 +54,6 @@ type Handler struct {
 	limiter Limiter
 
 	dsCache *datastoreCache
-
-	// Used to log a warning only once.
-	warnOnce sync.Once
 }
 
 func NewHandler(config HandlerConfig) *Handler {
@@ -510,47 +503,16 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
-	upstreamAuth, useUpstream := h.c.Catalog.GetUpstreamAuthority()
-	if useUpstream { // We are an intermediate SPIRE server
-		publishCtx, cancel := context.WithTimeout(ctx, h.c.PublishJWKTimeout)
-		defer cancel()
-		res, err := upstreamAuth.PublishJWTKey(
-			publishCtx,
-			&upstreamauthority.PublishJWTKeyRequest{
-				JwtKey: req.JwtKey,
-			})
-
-		switch {
-		case gcu.IsUnimplementedError(err):
-			h.warnOnce.Do(func() {
-				log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
-					"by this server may have trouble communicating with workloads outside " +
-					"this cluster when using JWT-SVIDs.")
-			})
-		case err != nil:
-			return nil, status.Error(codes.Internal, err.Error())
-		default:
-			// Send back to the caller the received JWKs from upstream,
-			// this will change soon according to https://github.com/spiffe/spire/issues/1372#issuecomment-589469449
-			return &node.PushJWTKeyUpstreamResponse{
-				JwtSigningKeys: res.UpstreamJwtKeys,
-			}, nil
-		}
-	}
-
-	if err := h.c.Manager.AppendBundle(ctx, nil, []*common.PublicKey{req.JwtKey}); err != nil {
-		return nil, err
-	}
-
-	// Ensure we delete any cached bundle to get the latest one.
-	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
-	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
+	jwtSigningKeys, err := h.c.Manager.PublishJWTKeyUpstream(ctx, req.JwtKey)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
+
+	// Ensure we invalidate the cached bundle because PublishJWTKeyUpstream updated it.
+	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
 
 	return &node.PushJWTKeyUpstreamResponse{
-		JwtSigningKeys: bundle.JwtSigningKeys,
+		JwtSigningKeys: jwtSigningKeys,
 	}, nil
 }
 
