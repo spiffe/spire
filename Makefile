@@ -88,7 +88,8 @@ endif
 
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
-go_version := $(shell cat .go-version)
+go_version_full := $(shell cat .go-version)
+go_version := $(go_version_full:.0=)
 go_dir := $(build_dir)/go/$(go_version)
 go_bin_dir := $(go_dir)/bin
 go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
@@ -331,38 +332,27 @@ artifact: build
 # Docker Images
 #############################################################################
 
-# go_image_version is the docker image version. If the go version is on a minor
-# version boundary, ".0" is added to get the specific image tag for that
-# version since the tag of the minor version means "the latest point release
-# for this minor version". For example, when our toolchain uses go1.14, we need
-# to use the "1.14.0" image tag, since "1.14" refers to the latest "1.14.X"
-# release.
-go_image_version := $(go_version)
-ifeq ($(word 3, $(subst ., ,$(go_version))),)
-	go_image_version := $(go_version).0
-endif
-
 .PHONY: images
 images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile
-	docker build --build-arg goversion=$(go_image_version) --target spire-server -t spire-server .
+	docker build --build-arg goversion=$(go_version_full) --target spire-server -t spire-server .
 	docker tag spire-server:latest spire-server:latest-local
 
 .PHONY: spire-agent-image
 spire-agent-image: Dockerfile
-	docker build --build-arg goversion=$(go_image_version) --target spire-agent -t spire-agent .
+	docker build --build-arg goversion=$(go_version_full) --target spire-agent -t spire-agent .
 	docker tag spire-agent:latest spire-agent:latest-local
 
 .PHONY: k8s-workload-registrar-image
 k8s-workload-registrar-image: Dockerfile
-	docker build --build-arg goversion=$(go_image_version) --target k8s-workload-registrar -t k8s-workload-registrar .
+	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar -t k8s-workload-registrar .
 	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
 
 .PHONY: oidc-discovery-provider-image
 oidc-discovery-provider-image: Dockerfile
-	docker build --build-arg goversion=$(go_image_version) --target oidc-discovery-provider -t oidc-discovery-provider .
+	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider -t oidc-discovery-provider .
 	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
 
 #############################################################################
