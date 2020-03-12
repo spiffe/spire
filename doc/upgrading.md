@@ -19,7 +19,14 @@ For example:
 * SPIRE Agents are supported at 0.8.0 through 0.9.2
 
 ### SPIRE Plugin Compatibility
-SPIRE plugins follow the same overall guarantees as all other SPIRE components. A plugin compiled against SPIRE N-1 will still work, but will log a warning. Plugins compiled against SPIRE N-2 will not work.
+SPIRE plugins generally follow the same overall guarantees as all other SPIRE components with small exception for changes made to external plugins outside of SPIRE's control.
+
+#### Configuration and Behavior Compatibility
+A built-in plugin undergoing a backwards incompatible change (e.g. change to configuration semantics, change to selectors produced, etc.) should log a warning but otherwise maintain backwards compatibility for one minor version after the change is introduced, giving operators time to adopt requisite changes.
+SPIRE cannot make any guarantees around configuration or behavior compatibility for external plugins.
+
+#### Interface Compatibility
+All efforts will be made to introduce changes to plugin interfaces in a backwards compatible manner. If a breaking change is introduced to a plugin interface, existing plugins compiled against the old interface will still continue to function for one minor version release cycle to give operators time to adopt requisite changes. SPIRE will log warnings to make operators aware of the change.
 
 ## Supported Upgrade Paths
 
