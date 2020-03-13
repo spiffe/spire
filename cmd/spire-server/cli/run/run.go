@@ -30,8 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
 const (
@@ -410,16 +408,8 @@ func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error)
 	sc.HealthChecks = c.HealthChecks
 
 	// Write out deprecation warnings
-	switch {
-	case len(sc.PluginConfigs[upstreamca.Type]) == 0 &&
-		len(sc.PluginConfigs[upstreamauthority.Type]) == 0:
-		// neither UpstreamCA nor UpstreamAuthority is configured
-	case c.Server.UpstreamBundle == nil:
-		// relying on the default upstream_bundle value of true
-		sc.Log.Warn("The `upstream_bundle` configurable is not set, and you are using an UpstreamCA or UpstreamAuthority. The default value has been changed from `false` to `true`.  Please see issue #1095 and the configuration documentation for more information.")
-	case !*c.Server.UpstreamBundle:
-		// UpstreamBundle is set to false, warn about deprecation
-		sc.Log.Warn("The `upstream_bundle` configurable is set to `false`. This configurable will be deprecated and enforced to `true` in a future release.  Please see issue #1095 and the configuration documentation for more information.")
+	if c.Server.UpstreamBundle != nil {
+		sc.Log.Warn("The `upstream_bundle` configurable will be deprecated and enforced to 'true' in a future release.  Please see issue #1095 and the configuration documentation for more information.")
 	}
 
 	// Warn if we detect unknown config options. We need a logger to do this. In
