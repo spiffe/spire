@@ -36,7 +36,7 @@ type Update struct {
 	// trust domain id.
 	Bundles map[string]*bundleutil.Bundle
 
-	// RegistrationEntries is a set ALL registration entries available to the
+	// RegistrationEntries is a set of ALL registration entries available to the
 	// agent, keyed by registration entry id.
 	RegistrationEntries map[string]*common.RegistrationEntry
 
@@ -175,7 +175,7 @@ func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscri
 	return sub
 }
 
-func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry, *X509SVID)) {
+func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -300,7 +300,7 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 
 		// Invoke the svid checker callback for this record
 		if checkSVID != nil {
-			checkSVID(newEntry, record.svid)
+			checkSVID(existingEntry, newEntry, record.svid)
 		}
 
 		// Log all the details of the update to the DEBUG log
