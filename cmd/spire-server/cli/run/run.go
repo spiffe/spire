@@ -345,20 +345,6 @@ func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error)
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
 
-	if c.Server.DeprecatedSVIDTTL != "" {
-		if c.Server.DefaultSVIDTTL != "" {
-			sc.Log.Warn("Both `svid_ttl` and `default_svid_ttl` are set. `svid_ttl` will be ignored")
-		} else {
-			// TODO: remove in 0.10.0
-			sc.Log.Warn("The `svid_ttl` configurable has been renamed to `default_svid_ttl`; please update your configuration.")
-			ttl, err := time.ParseDuration(c.Server.DeprecatedSVIDTTL)
-			if err != nil {
-				return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DeprecatedSVIDTTL, err)
-			}
-			sc.SVIDTTL = ttl
-		}
-	}
-
 	if c.Server.DefaultSVIDTTL != "" {
 		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)
 		if err != nil {
@@ -461,6 +447,11 @@ func validateConfig(c *config) error {
 		if tdConfig.BundleEndpointAddress == "" {
 			return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
 		}
+	}
+
+	// TODO: Remove this check at 0.11.0 (after warnOnUnknownConfig bails out instead of only display a warning)
+	if c.Server.DeprecatedSVIDTTL != "" {
+		return errors.New(`the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`)
 	}
 
 	return nil

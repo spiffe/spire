@@ -382,12 +382,16 @@ func (s *HandlerSuite) TestAttestReattestation() {
 	})
 
 	// Create an attested node entry
+	initialSerialNumber := "111"
+	initialNotAfter := time.Now().Add(time.Hour).Unix()
 	s.createAttestedNode(&common.AttestedNode{
-		SpiffeId: agentID,
+		SpiffeId:         agentID,
+		CertSerialNumber: initialSerialNumber,
+		CertNotAfter:     initialNotAfter,
 	})
 
 	// Reattest
-	s.requireAttestSuccess(&node.AttestRequest{
+	resp := s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             s.makeCSR(agentID),
 	}, agentID)
@@ -396,13 +400,31 @@ func (s *HandlerSuite) TestAttestReattestation() {
 	attestedNode := s.fetchAttestedNode()
 	s.Require().NotNil(attestedNode)
 	s.Equal(agentID, attestedNode.SpiffeId)
-	s.NotEmpty(attestedNode.CertSerialNumber)
-	s.NotEqual(0, attestedNode.CertNotAfter)
+
+	// Current serial and expiration must be updated
+	cert, err := x509.ParseCertificate(resp.Svids[agentID].CertChain)
+	s.Require().NoError(err)
+	s.Equal(cert.SerialNumber.String(), attestedNode.CertSerialNumber)
+	s.Equal(resp.Svids[agentID].ExpiresAt, attestedNode.CertNotAfter)
+
+	// New serial and expiration must be zero-valued
+	s.Zero(attestedNode.NewCertSerialNumber)
+	s.Zero(attestedNode.NewCertNotAfter)
 
 	// Attestation data type is NOT updatable
 	s.Equal("", attestedNode.AttestationDataType)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
+
+	// Request validation must succeed
+	s.NoError(s.handler.validateAgentSVID(context.Background(), cert))
+	nodeAfterValidation := s.fetchAttestedNode()
+
+	// There must not be any expected change in the node after request validation
+	s.Equal(nodeAfterValidation.CertSerialNumber, attestedNode.CertSerialNumber)
+	s.Equal(nodeAfterValidation.CertNotAfter, attestedNode.CertNotAfter)
+	s.Zero(nodeAfterValidation.NewCertSerialNumber)
+	s.Zero(nodeAfterValidation.NewCertNotAfter)
 }
 
 func (s *HandlerSuite) TestAttestChallengeResponseSuccess() {
@@ -658,8 +680,19 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
+	// After node attestation
 	s.attestAgent()
+	attNode := s.fetchAttestedNode()
 
+	// Current SVID is active
+	s.NotEmpty(attNode.CertSerialNumber)
+	s.NotEmpty(attNode.CertNotAfter)
+
+	// New SVID is empty
+	s.Empty(attNode.NewCertSerialNumber)
+	s.Empty(attNode.NewCertNotAfter)
+
+	// After SVID rotation
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
 		// Since there is not a registration entry for the agent ID, spiffeID is used as key
 		Csrs: s.makeCSRs(agentID, agentID),
@@ -670,17 +703,47 @@ func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
 	svidChain := s.assertSVIDsInUpdate(upd, map[string]string{agentID: agentID})[0]
 
 	// Assert an attested node entry has been updated
-	attestedNode := s.fetchAttestedNode()
-	s.Require().NotNil(attestedNode)
-	s.Equal("test", attestedNode.AttestationDataType)
-	s.Equal(agentID, attestedNode.SpiffeId)
-	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
-	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+	nodeAfterRotation := s.fetchAttestedNode()
+	s.Require().NotNil(nodeAfterRotation)
+	s.Equal("test", nodeAfterRotation.AttestationDataType)
+	s.Equal(agentID, nodeAfterRotation.SpiffeId)
+
+	// The initial SVID is still active
+	s.Equal(attNode.CertSerialNumber, nodeAfterRotation.CertSerialNumber)
+	s.Equal(attNode.CertNotAfter, nodeAfterRotation.CertNotAfter)
+
+	// The new SVID is not empty and is the same than the one sent back to the agent
+	s.Equal(svidChain[0].SerialNumber.String(), nodeAfterRotation.NewCertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(nodeAfterRotation.NewCertNotAfter, 0), 0)
+
+	// After the first request validation
+	s.NoError(s.handler.validateAgentSVID(context.Background(), svidChain[0]))
+	nodeAfterActivation := s.fetchAttestedNode()
+
+	// The new SVID is activated and set as current
+	s.Equal(nodeAfterActivation.CertSerialNumber, nodeAfterRotation.NewCertSerialNumber)
+	s.Equal(nodeAfterActivation.CertNotAfter, nodeAfterRotation.NewCertNotAfter)
+
+	// The 'new' slot is now empty
+	s.Empty(nodeAfterActivation.NewCertSerialNumber)
+	s.Empty(nodeAfterActivation.NewCertNotAfter)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSRLegacy() {
+	// After node attestation
 	s.attestAgent()
 
+	attNode := s.fetchAttestedNode()
+
+	// Current SVID is active
+	s.NotEmpty(attNode.CertSerialNumber)
+	s.NotEmpty(attNode.CertNotAfter)
+
+	// The new SVID is empty
+	s.Empty(attNode.NewCertSerialNumber)
+	s.Empty(attNode.NewCertNotAfter)
+
+	// After SVID rotation
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(agentID),
 	})
@@ -690,12 +753,30 @@ func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSRLegacy() {
 	svidChain := s.assertSVIDsInUpdateLegacy(upd, agentID)[0]
 
 	// Assert an attested node entry has been updated
-	attestedNode := s.fetchAttestedNode()
-	s.Require().NotNil(attestedNode)
-	s.Equal("test", attestedNode.AttestationDataType)
-	s.Equal(agentID, attestedNode.SpiffeId)
-	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
-	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+	nodeAfterRotation := s.fetchAttestedNode()
+	s.Require().NotNil(nodeAfterRotation)
+	s.Equal("test", nodeAfterRotation.AttestationDataType)
+	s.Equal(agentID, nodeAfterRotation.SpiffeId)
+
+	// The initial SVID is still active
+	s.Equal(attNode.CertSerialNumber, nodeAfterRotation.CertSerialNumber)
+	s.Equal(attNode.CertNotAfter, nodeAfterRotation.CertNotAfter)
+
+	// The new SVID is not empty and is the same than the one sent back to the agent
+	s.Equal(svidChain[0].SerialNumber.String(), nodeAfterRotation.NewCertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(nodeAfterRotation.NewCertNotAfter, 0), 0)
+
+	// After the first request validation
+	s.NoError(s.handler.validateAgentSVID(context.Background(), svidChain[0]))
+	nodeAfterActivation := s.fetchAttestedNode()
+
+	// The new SVID is activated and set as 'current'
+	s.Equal(nodeAfterActivation.CertSerialNumber, nodeAfterRotation.NewCertSerialNumber)
+	s.Equal(nodeAfterActivation.CertNotAfter, nodeAfterRotation.NewCertNotAfter)
+
+	// The 'new' slot is now empty
+	s.Empty(nodeAfterActivation.NewCertSerialNumber)
+	s.Empty(nodeAfterActivation.NewCertNotAfter)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {

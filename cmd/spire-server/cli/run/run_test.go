@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -724,19 +725,10 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "deprecated svid_ttl is correctly parsed",
-			input: func(c *config) {
-				c.Server.DeprecatedSVIDTTL = "1m"
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, time.Minute, c.SVIDTTL)
-			},
-		},
-		{
-			msg:         "invalid deprecated svid_ttl returns an error",
+			msg:         "using deprecated svid_ttl returns an error",
 			expectError: true,
 			input: func(c *config) {
-				c.Server.DeprecatedSVIDTTL = "b"
+				c.Server.DeprecatedSVIDTTL = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
@@ -759,16 +751,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "default_svid_ttl preferred over svid_ttl",
-			input: func(c *config) {
-				c.Server.DeprecatedSVIDTTL = "2m"
-				c.Server.DefaultSVIDTTL = "1m"
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, time.Minute, c.SVIDTTL)
 			},
 		},
 		{
@@ -904,6 +886,95 @@ func defaultValidConfig() *config {
 	c.Plugins = &catalog.HCLPluginConfigMap{}
 
 	return c
+}
+
+func TestValidateConfig(t *testing.T) {
+	testCases := []struct {
+		name        string
+		applyConf   func(*config)
+		expectedErr string
+	}{
+		{
+			name:        "server section must be configured",
+			applyConf:   func(c *config) { c.Server = nil },
+			expectedErr: "server section must be configured",
+		},
+		{
+			name:        "bind_address must be configured",
+			applyConf:   func(c *config) { c.Server.BindAddress = "" },
+			expectedErr: "bind_address and bind_port must be configured",
+		},
+		{
+			name:        "bind_port must be configured",
+			applyConf:   func(c *config) { c.Server.BindPort = 0 },
+			expectedErr: "bind_address and bind_port must be configured",
+		},
+		{
+			name:        "registration_uds_path must be configured",
+			applyConf:   func(c *config) { c.Server.RegistrationUDSPath = "" },
+			expectedErr: "registration_uds_path must be configured",
+		},
+		{
+			name:        "trust_domain must be configured",
+			applyConf:   func(c *config) { c.Server.TrustDomain = "" },
+			expectedErr: "trust_domain must be configured",
+		},
+		{
+			name:        "data_dir must be configured",
+			applyConf:   func(c *config) { c.Server.DataDir = "" },
+			expectedErr: "data_dir must be configured",
+		},
+		{
+			name:        "plugins section must be configured",
+			applyConf:   func(c *config) { c.Plugins = nil },
+			expectedErr: "plugins section must be configured",
+		},
+		{
+			name: "if ACME is used, bundle_endpoint_acme domain_name must be configured",
+			applyConf: func(c *config) {
+				c.Server.Experimental.BundleEndpointACME = &bundleEndpointACMEConfig{}
+			},
+			expectedErr: "bundle_endpoint_acme domain_name must be configured",
+		},
+		{
+			name: "if ACME is used, bundle_endpoint_acme email must be configured",
+			applyConf: func(c *config) {
+				c.Server.Experimental.BundleEndpointACME = &bundleEndpointACMEConfig{
+					DomainName: "domain-name",
+				}
+			},
+			expectedErr: "bundle_endpoint_acme email must be configured",
+		},
+		{
+			name: "if FederatesWith is used, bundle_endpoint_address must be configured",
+			applyConf: func(c *config) {
+				federatesWith := make(map[string]federatesWithConfig)
+				federatesWith["spiffe://domain.test"] = federatesWithConfig{}
+				c.Server.Experimental.FederatesWith = federatesWith
+			},
+			expectedErr: "spiffe://domain.test bundle_endpoint_address must be configured",
+		},
+		{
+			name:        "deprecated configurable `svid_ttl` must not be set",
+			applyConf:   func(c *config) { c.Server.DeprecatedSVIDTTL = "1h" },
+			expectedErr: `the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			conf := defaultValidConfig()
+			testCase.applyConf(conf)
+			err := validateConfig(conf)
+			if testCase.expectedErr != "" {
+				require.Error(t, err)
+				spiretest.AssertErrorContains(t, err, testCase.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestWarnOnUnknownConfig(t *testing.T) {
