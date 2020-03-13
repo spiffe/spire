@@ -30,7 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
 const (
@@ -38,6 +37,7 @@ const (
 	defaultSocketPath         = "/tmp/spire-registration.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
+	defaultUpstreamBundle     = true
 )
 
 var (
@@ -302,6 +302,8 @@ func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error)
 
 	if c.Server.UpstreamBundle != nil {
 		sc.UpstreamBundle = *c.Server.UpstreamBundle
+	} else {
+		sc.UpstreamBundle = defaultUpstreamBundle
 	}
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
 	sc.Experimental.BundleEndpointEnabled = c.Server.Experimental.BundleEndpointEnabled
@@ -392,12 +394,8 @@ func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error)
 	sc.HealthChecks = c.HealthChecks
 
 	// Write out deprecation warnings
-	switch {
-	case len(sc.PluginConfigs[upstreamca.Type]) == 0:
-		// no UpstreamCA configured
-	case c.Server.UpstreamBundle == nil:
-		// relying on the default upstream_bundle value of false
-		sc.Log.Warn("The `upstream_bundle` configurable is not set, and you are using an UpstreamCA. The default value will be changed from `false` to `true` in a future release.  Please see issue #1095 and the configuration documentation for more information.")
+	if c.Server.UpstreamBundle != nil {
+		sc.Log.Warn("The `upstream_bundle` configurable will be deprecated and enforced to 'true' in a future release.  Please see issue #1095 and the configuration documentation for more information.")
 	}
 
 	// Warn if we detect unknown config options. We need a logger to do this. In
