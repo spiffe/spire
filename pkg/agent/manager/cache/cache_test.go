@@ -86,6 +86,7 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
+	//reg := makeRegistrationEntry("REG", "C")
 	update := &Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),
@@ -103,11 +104,11 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	cache.Update(update, nil)
 
 	expected := fakemetrics.New()
-	telemetry_agent.IncrRegistrationEntryCreatedCounter(expected, foo.SpiffeId)
-	telemetry_agent.IncrRegistrationEntryCreatedCounter(expected, bar.SpiffeId)
-	telemetry_agent.IncrRegistrationEntryDeletedCounter(expected, bar.SpiffeId)
-	telemetry_agent.IncrRegistrationEntryUpdatedCounter(expected, foo.SpiffeId)
-
+	telemetry_agent.IncrRegistrationEntryCreatedCounter(expected, 2)
+	telemetry_agent.IncrRegistrationEntryDeletedCounter(expected, 1)
+	telemetry_agent.IncrRegistrationEntryUpdatedCounter(expected, 1)
+	fmt.Println(actual.AllMetrics())
+	fmt.Println(expected.AllMetrics())
 	assert.ElementsMatch(t, expected.AllMetrics(), actual.AllMetrics())
 }
 
