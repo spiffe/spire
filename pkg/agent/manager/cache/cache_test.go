@@ -86,7 +86,6 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
-	//reg := makeRegistrationEntry("REG", "C")
 	update := &Update{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),
