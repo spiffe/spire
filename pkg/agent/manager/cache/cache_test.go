@@ -107,8 +107,7 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	telemetry_agent.IncrRegistrationEntryCreatedCounter(expected, 2)
 	telemetry_agent.IncrRegistrationEntryDeletedCounter(expected, 1)
 	telemetry_agent.IncrRegistrationEntryUpdatedCounter(expected, 1)
-	fmt.Println(actual.AllMetrics())
-	fmt.Println(expected.AllMetrics())
+
 	assert.ElementsMatch(t, expected.AllMetrics(), actual.AllMetrics())
 }
 
