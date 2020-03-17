@@ -22,11 +22,11 @@ For example:
 SPIRE plugins generally follow the same overall guarantees as all other SPIRE components with small exception for changes made to external plugins outside of SPIRE's control.
 
 #### Configuration and Behavior Compatibility
-A built-in plugin undergoing a backwards incompatible change (e.g. change to configuration semantics, change to selectors produced, etc.) should log a warning but otherwise maintain backwards compatibility for one minor version after the change is introduced, giving operators time to adopt requisite changes.
+A built-in plugin undergoing a backwards incompatible change (e.g. change to configuration semantics, change to selectors produced, etc.) will log a warning but otherwise maintain backwards compatibility for one minor version after the change is introduced, giving operators time to adopt requisite changes.
 SPIRE cannot make any guarantees around configuration or behavior compatibility for external plugins.
 
 #### Interface Compatibility
-All efforts will be made to introduce changes to plugin interfaces in a backwards compatible manner. If a breaking change is introduced to a plugin interface, existing plugins compiled against the old interface will still continue to function for one minor version release cycle to give operators time to adopt requisite changes. SPIRE will log warnings to make operators aware of the change.
+When a breaking change is introduced to a plugin interface, existing plugins compiled against the old interface will still continue to function for one minor version release cycle to give operators time to adopt requisite changes. SPIRE will log warnings to make operators aware of the change.
 
 ## Supported Upgrade Paths
 
