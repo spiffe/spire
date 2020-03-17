@@ -351,6 +351,9 @@ const (
 	// ExpiringSVIDs tags expiring SVID count/list
 	ExpiringSVIDs = "expiring_svids"
 
+	// OutdatedSVIDs tags SVID with outdated attributes count/list
+	OutdatedSVIDs = "outdated_svids"
+
 	// FederatedBundle functionality related to a federated bundle; should be used
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
@@ -479,6 +482,9 @@ const (
 
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
+
+	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
+	ListAllEntriesWithPages = "list_all_entries_with_pages"
 
 	// ListFederatedBundles functionality related to listing federated bundles
 	ListFederatedBundles = "list_federated_bundles"

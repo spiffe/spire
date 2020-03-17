@@ -2,7 +2,6 @@ package spireplugin
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -19,7 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -216,6 +215,10 @@ func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
 	return errors.New("NOT IMPLEMENTED")
 }
 
+func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKeyUpstreamRequest) (*node_pb.PushJWTKeyUpstreamResponse, error) {
+	return nil, errors.New("NOT IMPLEMENTED")
+}
+
 func TestSpirePlugin_Configure(t *testing.T) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
@@ -249,14 +252,14 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(t, err)
 
-	resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+	resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	cert, err := x509.ParseCertificate(resp.SignedCertificate.CertChain)
+	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	require.NoError(t, err)
 
-	isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, pubKey)
+	isEqual, err := cryptoutil.PublicKeyEqual(certs[0].PublicKey, pubKey)
 	require.NoError(t, err)
 	require.True(t, isEqual)
 }
@@ -274,18 +277,25 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(t, err)
 
-		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+		resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(t, err)
 	require.Nil(t, resp)
 }
 
-func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamca.Plugin, func()) {
+func TestSpirePlugin_PublishJWTKey(t *testing.T) {
+	m := New()
+	resp, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	require.Nil(t, resp)
+	require.EqualError(t, err, "rpc error: code = Unimplemented desc = upstreamauthority-spire: publishing upstream is unsupported")
+}
+
+func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
 	host, port, _ := net.SplitHostPort(addr)
 
 	config := Configuration{
@@ -302,7 +312,7 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamca.Pl
 		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
 	}
 
-	var plugin upstreamca.Plugin
+	var plugin upstreamauthority.Plugin
 	done := spiretest.LoadPlugin(t, BuiltIn(), &plugin)
 	if _, err = plugin.Configure(ctx, pluginConfig); err != nil {
 		done()
