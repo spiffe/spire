@@ -22,6 +22,7 @@ var (
 	bundleV3      = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{Raw: []byte{3}})
 	otherBundleV1 = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{Raw: []byte{4}})
 	otherBundleV2 = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{Raw: []byte{5}})
+	defaultTTL    = int32(600)
 )
 
 func TestFetchWorkloadUpdate(t *testing.T) {
@@ -435,20 +436,24 @@ func TestCheckSVIDCallback(t *testing.T) {
 	// no calls because there are no registration entries
 	cache.Update(&Update{
 		Bundles: makeBundles(bundleV2),
-	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) {
 		assert.Fail(t, "should not be called if there are no registration entries")
 	})
 
-	foo := makeRegistrationEntry("FOO")
+	foo := makeRegistrationEntryWithTTL("FOO", 60)
 
 	// called once for FOO with no SVID
 	callCount := 0
 	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
-	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) {
 		callCount++
-		assert.Equal(t, "FOO", entry.EntryId)
+		assert.Equal(t, "FOO", newEntry.EntryId)
+
+		// there is no already existing entry, only the new entry
+		assert.Nil(t, existingEntry)
+		assert.Equal(t, foo, newEntry)
 		assert.Nil(t, svid)
 	})
 	assert.Equal(t, 1, callCount)
@@ -460,9 +465,12 @@ func TestCheckSVIDCallback(t *testing.T) {
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
 		X509SVIDs:           svids,
-	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) {
 		callCount++
-		assert.Equal(t, "FOO", entry.EntryId)
+		assert.Equal(t, "FOO", newEntry.EntryId)
+
+		// the cache should now have the entry
+		assert.Equal(t, newEntry, existingEntry)
 		if assert.NotNil(t, svid) {
 			assert.Exactly(t, svids["FOO"], svid)
 		}
@@ -474,9 +482,9 @@ func TestCheckSVIDCallback(t *testing.T) {
 	cache.Update(&Update{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
-	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) {
 		callCount++
-		assert.Equal(t, "FOO", entry.EntryId)
+		assert.Equal(t, "FOO", newEntry.EntryId)
 		if assert.NotNil(t, svid) {
 			assert.Exactly(t, svids["FOO"], svid)
 		}
@@ -591,6 +599,18 @@ func makeRegistrationEntry(id string, selectors ...string) *common.RegistrationE
 		EntryId:   id,
 		SpiffeId:  "spiffe://domain.test/" + id,
 		Selectors: makeSelectors(selectors...),
+		DnsNames:  []string{fmt.Sprintf("name-%s", id)},
+		Ttl:       defaultTTL,
+	}
+}
+
+func makeRegistrationEntryWithTTL(id string, ttl int32, selectors ...string) *common.RegistrationEntry {
+	return &common.RegistrationEntry{
+		EntryId:   id,
+		SpiffeId:  "spiffe://domain.test/" + id,
+		Selectors: makeSelectors(selectors...),
+		DnsNames:  []string{fmt.Sprintf("name-%s", id)},
+		Ttl:       ttl,
 	}
 }
 

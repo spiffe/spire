@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
@@ -120,7 +121,7 @@ func (s *Suite) TestAttest() {
 			name:   "fail to hash process binary",
 			pid:    10,
 			config: "discover_workload_path = true",
-			err:    fmt.Sprintf("unix: SHA256 digest: open %s: no such file or directory", filepath.Join(s.dir, "unreadable-exe")),
+			err:    "unix: SHA256 digest: open /proc/10/unreadable-exe: no such file or directory",
 		},
 		{
 			name:   "process binary exceeds size limits",
@@ -268,6 +269,15 @@ func (p fakeProcess) Exe() (string, error) {
 		return filepath.Join(p.dir, "exe"), nil
 	default:
 		return "", fmt.Errorf("unhandled exe test case %d", p.pid)
+	}
+}
+
+func (p fakeProcess) NamespacedExe() string {
+	switch p.pid {
+	case 11, 12:
+		return filepath.Join(p.dir, "exe")
+	default:
+		return filepath.Join("/proc", strconv.Itoa(int(p.pid)), "unreadable-exe")
 	}
 }
 
