@@ -82,7 +82,7 @@ type Catalog interface {
 	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
 	GetKeyManager() keymanager.KeyManager
 	GetNotifiers() []Notifier
-	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
+	GetUpstreamAuthority() (*UpstreamAuthority, bool)
 }
 
 type GlobalConfig = catalog.GlobalConfig
@@ -114,6 +114,11 @@ type Notifier struct {
 	notifier.Notifier
 }
 
+type UpstreamAuthority struct {
+	catalog.PluginInfo
+	upstreamauthority.UpstreamAuthority
+}
+
 type Plugins struct {
 	DataStore     datastore.DataStore
 	NodeAttestors map[string]nodeattestor.NodeAttestor
@@ -122,7 +127,7 @@ type Plugins struct {
 	KeyManager    keymanager.KeyManager
 	Notifiers     []Notifier
 
-	UpstreamAuthority *upstreamauthority.UpstreamAuthority
+	UpstreamAuthority *UpstreamAuthority
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -149,11 +154,8 @@ func (p *Plugins) GetNotifiers() []Notifier {
 	return p.Notifiers
 }
 
-func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
-	if p.UpstreamAuthority != nil {
-		return *p.UpstreamAuthority, true
-	}
-	return nil, false
+func (p *Plugins) GetUpstreamAuthority() (*UpstreamAuthority, bool) {
+	return p.UpstreamAuthority, p.UpstreamAuthority != nil
 }
 
 type Config struct {
@@ -230,7 +232,10 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, errors.New("plugins UpstreamCA and UpstreamAuthority are mutually exclusive")
 	default:
 		wrap := upstreamauthority.Wrap(*p.UpstreamCA)
-		p.UpstreamAuthority = &wrap
+		p.UpstreamAuthority = &UpstreamAuthority{
+			UpstreamAuthority: wrap,
+			PluginInfo:        wrap,
+		}
 	}
 
 	return &Repository{

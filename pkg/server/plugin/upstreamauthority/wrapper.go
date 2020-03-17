@@ -3,6 +3,7 @@ package upstreamauthority
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 	"google.golang.org/grpc/codes"
@@ -14,7 +15,7 @@ type wrapper struct {
 }
 
 // Wrap produces a conforming UpstreamAuthority by wrapping an UpstreamCA. The PublishJWTKey method is not implemented and returns a codes.Unimplemented status.
-func Wrap(upstreamCA upstreamca.UpstreamCA) UpstreamAuthority {
+func Wrap(upstreamCA upstreamca.UpstreamCA) *wrapper { // nolint
 	return &wrapper{upstreamCA: upstreamCA}
 }
 
@@ -72,4 +73,8 @@ func (w *wrapper) PublishJWTKey(ctx context.Context, request *PublishJWTKeyReque
 
 func makeError(code codes.Code, format string, args ...interface{}) error {
 	return status.Errorf(code, "upstreamauthority-wrapper: "+format, args...)
+}
+
+func (w *wrapper) Name() string {
+	return fmt.Sprintf("%T wrapper", w.upstreamCA)
 }

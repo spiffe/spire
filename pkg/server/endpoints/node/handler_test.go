@@ -1105,7 +1105,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 	s.Assert().Len(resp.JwtSigningKeys, 1)
 	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
 	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
-	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 		"by this server may have trouble communicating with workloads outside "+
 		"this cluster when using JWT-SVIDs.")
 }

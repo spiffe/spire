@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
+	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
@@ -166,7 +167,7 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
 		1,
-		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 			"by this server may have trouble communicating with workloads outside "+
 			"this cluster when using JWT-SVIDs."),
 	)
@@ -178,24 +179,25 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 	})
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
+	root := upstreamAuthority.UpstreamAuthority.(*fakeupstreamauthority.UpstreamAuthority).Root()
 	// X509 CA should be set up to be an intermediate but only have itself
 	// in the chain since it was signed directly by the upstream root.
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(upstreamAuthority.Root().Subject, x509CA.Certificate.Issuer)
+		s.Equal(root.Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 1) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(upstreamAuthority.Root())
+	s.requireBundleRootCAs(root)
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
 		1,
-		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 			"by this server may have trouble communicating with workloads outside "+
 			"this cluster when using JWT-SVIDs."),
 	)
@@ -208,25 +210,27 @@ func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
 	})
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
+	root := upstreamAuthority.UpstreamAuthority.(*fakeupstreamauthority.UpstreamAuthority).Root()
+	intermediate := upstreamAuthority.UpstreamAuthority.(*fakeupstreamauthority.UpstreamAuthority).Intermediate()
 	// X509 CA should be set up to be an intermediate and have two certs in
 	// its chain: itself and the upstream intermediate that signed it.
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(upstreamAuthority.Intermediate().Subject, x509CA.Certificate.Issuer)
+		s.Equal(intermediate.Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 2) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
-		s.Equal(upstreamAuthority.Intermediate(), x509CA.UpstreamChain[1])
+		s.Equal(intermediate, x509CA.UpstreamChain[1])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(upstreamAuthority.Root())
+	s.requireBundleRootCAs(root)
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
 		1,
-		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 			"by this server may have trouble communicating with workloads outside "+
 			"this cluster when using JWT-SVIDs."),
 	)
@@ -262,7 +266,7 @@ KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 	s.Equal("kid", bundle.JwtSigningKeys[0].Kid)
 	s.Equal(
 		0,
-		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority does not support JWT-SVIDs. Workloads managed "+
+		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 			"by this server may have trouble communicating with workloads outside "+
 			"this cluster when using JWT-SVIDs."),
 	)
@@ -606,7 +610,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 
 	testCases := []struct {
 		name              string
-		upstreamAuthority upstreamauthority.UpstreamAuthority
+		upstreamAuthority *catalog.UpstreamAuthority
 		x509CAKeyType     keymanager.KeyType
 		jwtKeyType        keymanager.KeyType
 		checkX509CA       func(*testing.T, crypto.Signer)
@@ -715,7 +719,7 @@ func (s *ManagerSuite) initSelfSignedManager() {
 	s.NoError(s.m.Initialize(context.Background()))
 }
 
-func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamauthority.UpstreamAuthority, upstreamBundle bool) {
+func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority *catalog.UpstreamAuthority, upstreamBundle bool) {
 	s.cat.SetUpstreamAuthority(upstreamAuthority)
 
 	c := s.selfSignedConfig()

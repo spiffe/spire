@@ -503,12 +503,13 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
-	jwtSigningKeys, err := h.c.Manager.PublishJWTKeyUpstream(ctx, req.JwtKey)
+	jwtSigningKeys, err := h.c.Manager.PublishJWTKey(ctx, req.JwtKey)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		log.WithError(err).Error("Could not publish new JWT key")
+		return nil, status.Error(codes.Internal, "error publishing new JWT key")
 	}
 
-	// Ensure we invalidate the cached bundle because PublishJWTKeyUpstream updated it.
+	// Ensure we invalidate the cached bundle because PublishJWTKey updated it.
 	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
 
 	return &node.PushJWTKeyUpstreamResponse{

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -45,7 +47,7 @@ type UpstreamAuthority struct {
 	config     Config
 }
 
-func New(t *testing.T, config Config) *UpstreamAuthority {
+func New(t *testing.T, config Config) *catalog.UpstreamAuthority {
 	rootKey, err := pemutil.ParseECPrivateKey(rootKeyPEM)
 	require.NoError(t, err, "unable to parse root key")
 
@@ -92,10 +94,14 @@ func New(t *testing.T, config Config) *UpstreamAuthority {
 		config.TrustDomain,
 		x509svid.UpstreamCAOptions{})
 
-	return &UpstreamAuthority{
+	ua := &UpstreamAuthority{
 		chain:      chain,
 		upstreamCA: upstreamCA,
 		config:     config,
+	}
+	return &catalog.UpstreamAuthority{
+		UpstreamAuthority: ua,
+		PluginInfo:        ua,
 	}
 }
 
@@ -141,4 +147,12 @@ func (m *UpstreamAuthority) PublishJWTKey(context.Context, *upstreamauthority.Pu
 	default:
 		return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
 	}
+}
+
+func (m *UpstreamAuthority) Name() string {
+	return "fakeupstreamauthority"
+}
+
+func (m *UpstreamAuthority) Type() string {
+	return fmt.Sprintf("%T", m)
 }

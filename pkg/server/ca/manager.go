@@ -323,7 +323,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 		return err
 	}
 
-	if _, err := m.PublishJWTKeyUpstream(ctx, publicKey); err != nil {
+	if _, err := m.PublishJWTKey(ctx, publicKey); err != nil {
 		return err
 	}
 
@@ -342,7 +342,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 	return nil
 }
 
-// PublishJWTKeyUpstream publishes the passed JWK to the upstream server using the configured
+// PublishJWTKey publishes the passed JWK to the upstream server using the configured
 // UpstreamAuthority plugin, then appends to the bundle the JWKs returned by the upstream server,
 // and finally it returns the updated list of JWT keys contained in the bundle.
 //
@@ -356,7 +356,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 //
 // - There is no UpstreamAuthority plugin configured, then assumes we are the root server and
 // just appends the passed JWK to the bundle and returns the updated list of JWT keys.
-func (m *Manager) PublishJWTKeyUpstream(ctx context.Context, publicKey *common.PublicKey) ([]*common.PublicKey, error) {
+func (m *Manager) PublishJWTKey(ctx context.Context, publicKey *common.PublicKey) ([]*common.PublicKey, error) {
 	publicKeys := []*common.PublicKey{publicKey}
 	if upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority(); useUpstream {
 		publishCtx, cancel := context.WithTimeout(ctx, publishJWKTimeout)
@@ -370,7 +370,7 @@ func (m *Manager) PublishJWTKeyUpstream(ctx context.Context, publicKey *common.P
 		switch {
 		case status.Code(err) == codes.Unimplemented:
 			m.jwtUnimplementedWarnOnce.Do(func() {
-				m.c.Log.Warn("UpstreamAuthority does not support JWT-SVIDs. Workloads managed " +
+				m.c.Log.WithField("plugin_name", upstreamAuth.Name()).Warn("UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed " +
 					"by this server may have trouble communicating with workloads outside " +
 					"this cluster when using JWT-SVIDs.")
 			})
