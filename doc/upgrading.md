@@ -18,6 +18,16 @@ For example:
 * SPIRE Servers are at both 0.9.3 and 0.9.2
 * SPIRE Agents are supported at 0.8.0 through 0.9.2
 
+### SPIRE Plugin Compatibility
+SPIRE plugins generally follow the same overall guarantees as all other SPIRE components with small exception for changes made to external plugins outside of SPIRE's control.
+
+#### Configuration and Behavior Compatibility
+A built-in plugin undergoing a backwards incompatible change (e.g. change to configuration semantics, change to selectors produced, etc.) will log a warning but otherwise maintain backwards compatibility for one minor version after the change is introduced, giving operators time to adopt requisite changes.
+SPIRE cannot make any guarantees around configuration or behavior compatibility for external plugins.
+
+#### Interface Compatibility
+When a breaking change is introduced to a plugin interface, existing plugins compiled against the old interface will still continue to function for one minor version release cycle to give operators time to adopt requisite changes. SPIRE will log warnings to make operators aware of the change.
+
 ## Supported Upgrade Paths
 
 The supported version skew between SPIRE Servers and agents has implications on the order in which they must be upgraded. SPIRE Servers must be upgraded before SPIRE Agents, and is limited to a jump of at most one minor version (regardless of patch version). Upgrades that jump two or more minor versions (e.g. 0.8.1 to 0.10.0) are not supported.

@@ -14,7 +14,8 @@
                 "entry_id": "0001",
                 "spiffe_id": "spiffe://example.org/spire/agent",
                 "parent_id": "spiffe://example.org/spire/agent/join_token/abcd",
-                "ttl": 200
+                "ttl": 200,
+                "dns_names": ["name-0001"]
             }
         ]
     },
@@ -42,7 +43,8 @@
                 "entry_id": "0003",
                 "spiffe_id": "spiffe://example.org/database",
                 "parent_id": "spiffe://example.org/spire/agent",
-                "ttl": 200
+                "ttl": 200,
+                "dns_names": ["name-0003"]
             }
         ]
     },
@@ -71,7 +73,8 @@
                 "spiffe_id": "spiffe://example.org/database",
                 "parent_id": "spiffe://example.org/spire/agent",
                 "ttl": 200,
-                "federates_with": ["spiffe://otherdomain.test"]
+                "federates_with": ["spiffe://otherdomain.test"],
+                "dns_names": ["name-0003"]
             }
         ]
     }

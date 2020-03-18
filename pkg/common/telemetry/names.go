@@ -356,6 +356,9 @@ const (
 	// ExpiringSVIDs tags expiring SVID count/list
 	ExpiringSVIDs = "expiring_svids"
 
+	// OutdatedSVIDs tags SVID with outdated attributes count/list
+	OutdatedSVIDs = "outdated_svids"
+
 	// FederatedBundle functionality related to a federated bundle; should be used
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
