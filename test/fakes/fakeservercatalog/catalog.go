@@ -8,6 +8,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 )
 
 type Catalog struct {
@@ -51,6 +52,13 @@ func Notifier(name string, notifier notifier.Notifier) catalog.Notifier {
 	return catalog.Notifier{
 		PluginInfo: pluginInfo{name: name, typ: workloadattestor.Type},
 		Notifier:   notifier,
+	}
+}
+
+func UpstreamAuthority(name string, ua upstreamauthority.UpstreamAuthority) *catalog.UpstreamAuthority {
+	return &catalog.UpstreamAuthority{
+		PluginInfo:        pluginInfo{name: name},
+		UpstreamAuthority: ua,
 	}
 }
 

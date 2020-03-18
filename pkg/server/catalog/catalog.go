@@ -114,6 +114,11 @@ type Notifier struct {
 	notifier.Notifier
 }
 
+type UpstreamCA struct {
+	catalog.PluginInfo
+	upstreamca.UpstreamCA
+}
+
 type UpstreamAuthority struct {
 	catalog.PluginInfo
 	upstreamauthority.UpstreamAuthority
@@ -123,7 +128,7 @@ type Plugins struct {
 	DataStore     datastore.DataStore
 	NodeAttestors map[string]nodeattestor.NodeAttestor
 	NodeResolvers map[string]noderesolver.NodeResolver
-	UpstreamCA    *upstreamca.UpstreamCA
+	UpstreamCA    *UpstreamCA
 	KeyManager    keymanager.KeyManager
 	Notifiers     []Notifier
 
@@ -231,10 +236,9 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		logrus.Error("UpstreamCA and UpstreamAuthority are mutually exclusive. Please remove one of them")
 		return nil, errors.New("plugins UpstreamCA and UpstreamAuthority are mutually exclusive")
 	default:
-		wrap := upstreamauthority.Wrap(*p.UpstreamCA)
 		p.UpstreamAuthority = &UpstreamAuthority{
-			UpstreamAuthority: wrap,
-			PluginInfo:        wrap,
+			UpstreamAuthority: upstreamauthority.Wrap(p.UpstreamCA),
+			PluginInfo:        p.UpstreamCA,
 		}
 	}
 

@@ -1043,15 +1043,18 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 		Kid:       "kid",
 		PkixBytes: pkixBytes,
 	}
-	s.catalog.SetUpstreamAuthority(fakeupstreamauthority.New(
-		s.T(),
-		fakeupstreamauthority.Config{
-			TrustDomain: trustDomainID,
-			PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
-				UpstreamJwtKeys: []*common.PublicKey{jwk},
-			},
-		},
-	))
+	s.catalog.SetUpstreamAuthority(
+		fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			fakeupstreamauthority.New(
+				s.T(),
+				fakeupstreamauthority.Config{
+					TrustDomain: trustDomainID,
+					PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
+						UpstreamJwtKeys: []*common.PublicKey{jwk},
+					},
+				},
+			)))
 
 	s.attestAgent()
 
@@ -1074,12 +1077,15 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
-	s.catalog.SetUpstreamAuthority(fakeupstreamauthority.New(
-		s.T(),
-		fakeupstreamauthority.Config{
-			TrustDomain: trustDomainID,
-		},
-	))
+	s.catalog.SetUpstreamAuthority(
+		fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			fakeupstreamauthority.New(
+				s.T(),
+				fakeupstreamauthority.Config{
+					TrustDomain: trustDomainID,
+				},
+			)))
 
 	s.attestAgent()
 
