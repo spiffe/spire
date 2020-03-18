@@ -43,6 +43,7 @@ type HandlerConfig struct {
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
 	Clock       clock.Clock
+	Manager     *ca.Manager
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -486,7 +487,40 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 }
 
 func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (resp *node.PushJWTKeyUpstreamResponse, err error) {
-	return nil, status.Error(codes.Unimplemented, "cannot push JWK upstream")
+	counter := telemetry_server.StartNodeAPIPushJWTKeyUpstreamCall(h.c.Metrics)
+	defer counter.Done(&err)
+	log := h.c.Log.WithField(telemetry.Method, telemetry.PushJWTKeyUpstream)
+
+	_, ok := getPeerCertificate(ctx)
+	if !ok {
+		log.Error("Downstream SVID is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
+	}
+
+	_, ok = getDownstreamEntry(ctx)
+	if !ok {
+		log.Error("Downstream entry is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream entry is required for this request")
+	}
+
+	err = h.limiter.Limit(ctx, PushJWTKey, 1)
+	if err != nil {
+		log.WithError(err).Error("Rejecting request due to JWK push rate limiting")
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
+
+	jwtSigningKeys, err := h.c.Manager.PublishJWTKey(ctx, req.JwtKey)
+	if err != nil {
+		log.WithError(err).Error("Could not publish new JWT key")
+		return nil, status.Error(codes.Internal, "error publishing new JWT key")
+	}
+
+	// Ensure we invalidate the cached bundle because PublishJWTKey updated it.
+	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
+
+	return &node.PushJWTKeyUpstreamResponse{
+		JwtSigningKeys: jwtSigningKeys,
+	}, nil
 }
 
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
@@ -512,7 +546,8 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		}
 
 		ctx = withPeerCertificate(ctx, peerCert)
-	case "/spire.api.node.Node/FetchX509CASVID":
+	case "/spire.api.node.Node/FetchX509CASVID",
+		"/spire.api.node.Node/PushJWTKeyUpstream":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Downstream SVID is required for this request")
@@ -1059,7 +1094,7 @@ func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common
 	return bundles, nil
 }
 
-// getBundle fetches a bundle from the datastore, by trust domain
+// getBundle fetches a bundle from the datastore, by trust domain, using a cache.
 func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
 	resp, err := h.dsCache.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,

@@ -125,7 +125,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics)
+	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
 
 	// Set the identity provider dependencies
 	if err := identityProvider.SetDeps(identityprovider.Deps{
@@ -295,7 +295,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) endpoints.Server {
 	config := &endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
@@ -305,6 +305,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		ServerCA:                    serverCA,
 		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:                     metrics,
+		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 	}
 	if s.config.Experimental.BundleEndpointEnabled {
