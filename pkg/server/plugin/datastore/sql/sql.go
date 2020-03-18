@@ -354,7 +354,7 @@ func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createRegistrationEntry(tx, req)
+		resp, err = ds.createRegistrationEntry(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -391,7 +391,7 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context,
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateRegistrationEntry(tx, req)
+		resp, err = ds.updateRegistrationEntry(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -1050,7 +1050,7 @@ func getNodeSelectors(ctx context.Context, dbType string, db *sql.DB, req *datas
 	}, nil
 }
 
-func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
+func (ds *Plugin) createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 	entryID, err := newRegistrationEntryID()
 	if err != nil {
 		return nil, err
@@ -1070,7 +1070,7 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 		return nil, sqlError.Wrap(err)
 	}
 
-	federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	federatesWith, err := makeFederatesWith(ds.log, tx, req.Entry.FederatesWith)
 	if err != nil {
 		return nil, err
 	}
@@ -1975,7 +1975,7 @@ func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error
 	return entryTx, nil
 }
 
-func updateRegistrationEntry(tx *gorm.DB,
+func (ds *Plugin) updateRegistrationEntry(tx *gorm.DB,
 	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 	// Get the existing entry
 	entry := RegisteredEntry{}
@@ -2024,7 +2024,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
-	federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	federatesWith, err := makeFederatesWith(ds.log, tx, req.Entry.FederatesWith)
 	if err != nil {
 		return nil, err
 	}
@@ -2272,7 +2272,7 @@ func modelToJoinToken(model JoinToken) *datastore.JoinToken {
 	}
 }
 
-func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
+func makeFederatesWith(logger hclog.Logger, tx *gorm.DB, ids []string) ([]*Bundle, error) {
 	var bundles []*Bundle
 	if err := tx.Where("trust_domain in (?)", ids).Find(&bundles).Error; err != nil {
 		return nil, err
@@ -2286,7 +2286,17 @@ func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 
 	for _, id := range ids {
 		if !idset[id] {
-			return nil, fmt.Errorf("unable to find federated bundle %q", id)
+			// If the bundle isn't there, create a new empty bundle
+			newBundle := &Bundle{
+				TrustDomain: id,
+				Data:        nil,
+			}
+
+			if err := tx.Create(newBundle).Error; err != nil {
+				return nil, sqlError.Wrap(err)
+			}
+
+			logger.Info("Creating a federated registration entry for a bundle that doesn't exist yet: %q", id)
 		}
 	}
 

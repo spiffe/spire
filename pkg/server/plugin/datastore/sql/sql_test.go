@@ -1616,7 +1616,7 @@ func (s *PluginSuite) TestRegistrationEntriesFederatesWithAgainstMissingBundle()
 	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: makeFederatedRegistrationEntry(),
 	})
-	s.RequireErrorContains(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
+	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) TestRegistrationEntriesFederatesWithSuccess() {
