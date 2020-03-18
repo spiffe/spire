@@ -46,6 +46,11 @@ const (
 	// to add clarity
 	Prune = "prune"
 
+	// Push functionality related to pushing some entity to let a destination know
+	// that some source generated such entity; should be used with other tags
+	// to add clarity
+	Push = "push"
+
 	// Rotate functionality related to rotation of SVID; should be used with other tags
 	// to add clarity
 	Rotate = "rotate"
@@ -351,6 +356,9 @@ const (
 	// ExpiringSVIDs tags expiring SVID count/list
 	ExpiringSVIDs = "expiring_svids"
 
+	// OutdatedSVIDs tags SVID with outdated attributes count/list
+	OutdatedSVIDs = "outdated_svids"
+
 	// FederatedBundle functionality related to a federated bundle; should be used
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
@@ -506,6 +514,9 @@ const (
 
 	// NodeAPI functionality related to attested/attesting nodes (agents)
 	NodeAPI = "node_api"
+
+	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
+	PushJWTKeyUpstream = "push_jwtkey_upstream"
 
 	// RegistrationAPI functionality related to the registration api; should be used
 	// with other tags to add clarity

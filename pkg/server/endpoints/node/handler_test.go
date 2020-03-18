@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -26,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -35,6 +37,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -73,6 +76,14 @@ var (
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgUdF3LNDNZWKYQHFj
 UIs5TNt4LXDawuZFFj2J7D1T9mehRANCAASEhjkDbIFdNaZ9EneJaSXKfLiBDqt2
 l37cUGNqRvIYDhSH/IJycqxLTtvHoYMHLSV9N5UHIFgPJ/30RCBQiH3t
+-----END PRIVATE KEY-----
+`))
+
+	jwtSigningKey, _ = pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGZx/yLVskGyXAyIT
+uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
+KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 -----END PRIVATE KEY-----
 `))
 )
@@ -135,6 +146,11 @@ func (s *HandlerSuite) SetupTest() {
 		ServerCA:    s.serverCA,
 		TrustDomain: *trustDomainURL,
 		Clock:       s.clock,
+		Manager: ca.NewManager(ca.ManagerConfig{
+			Catalog:     s.catalog,
+			TrustDomain: *trustDomainURL,
+			Log:         log,
+		}),
 	})
 	handler.limiter = s.limiter
 
@@ -382,12 +398,16 @@ func (s *HandlerSuite) TestAttestReattestation() {
 	})
 
 	// Create an attested node entry
+	initialSerialNumber := "111"
+	initialNotAfter := time.Now().Add(time.Hour).Unix()
 	s.createAttestedNode(&common.AttestedNode{
-		SpiffeId: agentID,
+		SpiffeId:         agentID,
+		CertSerialNumber: initialSerialNumber,
+		CertNotAfter:     initialNotAfter,
 	})
 
 	// Reattest
-	s.requireAttestSuccess(&node.AttestRequest{
+	resp := s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
 		Csr:             s.makeCSR(agentID),
 	}, agentID)
@@ -396,13 +416,31 @@ func (s *HandlerSuite) TestAttestReattestation() {
 	attestedNode := s.fetchAttestedNode()
 	s.Require().NotNil(attestedNode)
 	s.Equal(agentID, attestedNode.SpiffeId)
-	s.NotEmpty(attestedNode.CertSerialNumber)
-	s.NotEqual(0, attestedNode.CertNotAfter)
+
+	// Current serial and expiration must be updated
+	cert, err := x509.ParseCertificate(resp.Svids[agentID].CertChain)
+	s.Require().NoError(err)
+	s.Equal(cert.SerialNumber.String(), attestedNode.CertSerialNumber)
+	s.Equal(resp.Svids[agentID].ExpiresAt, attestedNode.CertNotAfter)
+
+	// New serial and expiration must be zero-valued
+	s.Zero(attestedNode.NewCertSerialNumber)
+	s.Zero(attestedNode.NewCertNotAfter)
 
 	// Attestation data type is NOT updatable
 	s.Equal("", attestedNode.AttestationDataType)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
+
+	// Request validation must succeed
+	s.NoError(s.handler.validateAgentSVID(context.Background(), cert))
+	nodeAfterValidation := s.fetchAttestedNode()
+
+	// There must not be any expected change in the node after request validation
+	s.Equal(nodeAfterValidation.CertSerialNumber, attestedNode.CertSerialNumber)
+	s.Equal(nodeAfterValidation.CertNotAfter, attestedNode.CertNotAfter)
+	s.Zero(nodeAfterValidation.NewCertSerialNumber)
+	s.Zero(nodeAfterValidation.NewCertNotAfter)
 }
 
 func (s *HandlerSuite) TestAttestChallengeResponseSuccess() {
@@ -658,8 +696,19 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
+	// After node attestation
 	s.attestAgent()
+	attNode := s.fetchAttestedNode()
 
+	// Current SVID is active
+	s.NotEmpty(attNode.CertSerialNumber)
+	s.NotEmpty(attNode.CertNotAfter)
+
+	// New SVID is empty
+	s.Empty(attNode.NewCertSerialNumber)
+	s.Empty(attNode.NewCertNotAfter)
+
+	// After SVID rotation
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
 		// Since there is not a registration entry for the agent ID, spiffeID is used as key
 		Csrs: s.makeCSRs(agentID, agentID),
@@ -670,17 +719,47 @@ func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
 	svidChain := s.assertSVIDsInUpdate(upd, map[string]string{agentID: agentID})[0]
 
 	// Assert an attested node entry has been updated
-	attestedNode := s.fetchAttestedNode()
-	s.Require().NotNil(attestedNode)
-	s.Equal("test", attestedNode.AttestationDataType)
-	s.Equal(agentID, attestedNode.SpiffeId)
-	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
-	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+	nodeAfterRotation := s.fetchAttestedNode()
+	s.Require().NotNil(nodeAfterRotation)
+	s.Equal("test", nodeAfterRotation.AttestationDataType)
+	s.Equal(agentID, nodeAfterRotation.SpiffeId)
+
+	// The initial SVID is still active
+	s.Equal(attNode.CertSerialNumber, nodeAfterRotation.CertSerialNumber)
+	s.Equal(attNode.CertNotAfter, nodeAfterRotation.CertNotAfter)
+
+	// The new SVID is not empty and is the same than the one sent back to the agent
+	s.Equal(svidChain[0].SerialNumber.String(), nodeAfterRotation.NewCertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(nodeAfterRotation.NewCertNotAfter, 0), 0)
+
+	// After the first request validation
+	s.NoError(s.handler.validateAgentSVID(context.Background(), svidChain[0]))
+	nodeAfterActivation := s.fetchAttestedNode()
+
+	// The new SVID is activated and set as current
+	s.Equal(nodeAfterActivation.CertSerialNumber, nodeAfterRotation.NewCertSerialNumber)
+	s.Equal(nodeAfterActivation.CertNotAfter, nodeAfterRotation.NewCertNotAfter)
+
+	// The 'new' slot is now empty
+	s.Empty(nodeAfterActivation.NewCertSerialNumber)
+	s.Empty(nodeAfterActivation.NewCertNotAfter)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSRLegacy() {
+	// After node attestation
 	s.attestAgent()
 
+	attNode := s.fetchAttestedNode()
+
+	// Current SVID is active
+	s.NotEmpty(attNode.CertSerialNumber)
+	s.NotEmpty(attNode.CertNotAfter)
+
+	// The new SVID is empty
+	s.Empty(attNode.NewCertSerialNumber)
+	s.Empty(attNode.NewCertNotAfter)
+
+	// After SVID rotation
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(agentID),
 	})
@@ -690,12 +769,30 @@ func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSRLegacy() {
 	svidChain := s.assertSVIDsInUpdateLegacy(upd, agentID)[0]
 
 	// Assert an attested node entry has been updated
-	attestedNode := s.fetchAttestedNode()
-	s.Require().NotNil(attestedNode)
-	s.Equal("test", attestedNode.AttestationDataType)
-	s.Equal(agentID, attestedNode.SpiffeId)
-	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
-	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+	nodeAfterRotation := s.fetchAttestedNode()
+	s.Require().NotNil(nodeAfterRotation)
+	s.Equal("test", nodeAfterRotation.AttestationDataType)
+	s.Equal(agentID, nodeAfterRotation.SpiffeId)
+
+	// The initial SVID is still active
+	s.Equal(attNode.CertSerialNumber, nodeAfterRotation.CertSerialNumber)
+	s.Equal(attNode.CertNotAfter, nodeAfterRotation.CertNotAfter)
+
+	// The new SVID is not empty and is the same than the one sent back to the agent
+	s.Equal(svidChain[0].SerialNumber.String(), nodeAfterRotation.NewCertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(nodeAfterRotation.NewCertNotAfter, 0), 0)
+
+	// After the first request validation
+	s.NoError(s.handler.validateAgentSVID(context.Background(), svidChain[0]))
+	nodeAfterActivation := s.fetchAttestedNode()
+
+	// The new SVID is activated and set as 'current'
+	s.Equal(nodeAfterActivation.CertSerialNumber, nodeAfterRotation.NewCertSerialNumber)
+	s.Equal(nodeAfterActivation.CertNotAfter, nodeAfterRotation.NewCertNotAfter)
+
+	// The 'new' slot is now empty
+	s.Empty(nodeAfterActivation.NewCertSerialNumber)
+	s.Empty(nodeAfterActivation.NewCertNotAfter)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
@@ -966,6 +1063,138 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 	s.NotEmpty(svid.Token)
 	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
 	s.Equal(s.clock.Now().Add(s.serverCA.JWTSVIDTTL()).Unix(), svid.ExpiresAt)
+}
+
+func (s *HandlerSuite) TestPushJWTKeyUpstreamWithoutUpstreamAuthority() {
+	preExistentJwtSigningKey, _ := pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgchJzydaeUKOV6IjL
+B/8CXIhS797GajySZWNNFRqM/jChRANCAATcHYgISDwxmf0fulS8NRaMqItrplrk
+UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
+-----END PRIVATE KEY-----`))
+	pkixBytes, err := x509.MarshalPKIXPublicKey(preExistentJwtSigningKey.Public())
+	s.Require().NoError(err)
+	// Append one JWK on the bundle, so it must be reported in the result of PushJWTKeyUpstream
+	// along with the JWK sent on the request.
+	_, err = s.ds.AppendBundle(context.Background(),
+		&datastore.AppendBundleRequest{
+			Bundle: &common.Bundle{
+				TrustDomainId: trustDomainID,
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						Kid:       "kid1",
+						PkixBytes: pkixBytes,
+					},
+				},
+			},
+		})
+	s.Require().NoError(err)
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 1)
+
+	pkixBytes, err = x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: &common.PublicKey{
+			Kid:       "kid2",
+			PkixBytes: pkixBytes,
+		},
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 2)
+	s.Assert().Equal("kid1", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Equal("kid2", resp.JwtSigningKeys[1].Kid)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 2)
+}
+
+func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+	jwk := &common.PublicKey{
+		Kid:       "kid",
+		PkixBytes: pkixBytes,
+	}
+	s.catalog.SetUpstreamAuthority(
+		fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			fakeupstreamauthority.New(
+				s.T(),
+				fakeupstreamauthority.Config{
+					TrustDomain: trustDomainID,
+					PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
+						UpstreamJwtKeys: []*common.PublicKey{jwk},
+					},
+				},
+			)))
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 0)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: jwk,
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 1)
+	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+}
+
+func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
+	s.catalog.SetUpstreamAuthority(
+		fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			fakeupstreamauthority.New(
+				s.T(),
+				fakeupstreamauthority.Config{
+					TrustDomain: trustDomainID,
+				},
+			)))
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 0)
+
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: &common.PublicKey{
+			Kid:       "kid",
+			PkixBytes: pkixBytes,
+		},
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 1)
+	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
+		"by this server may have trouble communicating with workloads outside "+
+		"this cluster when using JWT-SVIDs.")
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
@@ -1384,6 +1613,14 @@ func (s *HandlerSuite) requireErrorContains(err error, contains string) {
 	s.Require().Contains(err.Error(), contains)
 }
 
+func (s *HandlerSuite) assertLastLogLevelAndMessage(level logrus.Level, message string) {
+	entry := s.logHook.LastEntry()
+	if s.NotNil(entry) {
+		s.Equal(message, entry.Message)
+		s.Equal(level, entry.Level)
+	}
+}
+
 func (s *HandlerSuite) assertLastLogMessage(message string) {
 	entry := s.logHook.LastEntry()
 	if s.NotNil(entry) {
@@ -1431,6 +1668,14 @@ func (s *HandlerSuite) makeCSRs(entryID, spiffeID string) map[string][]byte {
 	csrs := make(map[string][]byte)
 	csrs[entryID] = s.makeCSR(spiffeID)
 	return csrs
+}
+
+func (s *HandlerSuite) fetchBundle() *common.Bundle {
+	r, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
+		TrustDomainId: trustDomainID,
+	})
+	s.Require().NoError(err)
+	return r.Bundle
 }
 
 type fakeLimiter struct {

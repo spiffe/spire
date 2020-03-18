@@ -90,7 +90,7 @@ func (s *RegistrationAPISource) pollEvery(ctx context.Context, conn *grpc.Client
 		s.pollOnce(ctx, client)
 		select {
 		case <-ctx.Done():
-			s.log.Debug("Polling done: %v", ctx.Err())
+			s.log.WithError(ctx.Err()).Debug("Polling done")
 			return
 		case <-s.clock.After(interval):
 		}
