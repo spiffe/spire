@@ -68,8 +68,13 @@ func run(ctx context.Context, configPath string, kubeconfig string) error {
 		// Route klog output (from client-go) to logrus
 		klogFlags := flag.NewFlagSet("klog", flag.ContinueOnError)
 		klog.InitFlags(klogFlags)
-		// This is the only way to access this setting :(
-		klogFlags.Set("logtostderr", "false")
+		// This is the only way to access these settings :(
+		if err := klogFlags.Set("logtostderr", "false"); err != nil {
+			return err
+		}
+		if err := klogFlags.Set("skip_headers", "true"); err != nil {
+			return err
+		}
 		klog.SetOutputBySeverity("INFO", log.WriterLevel(logrus.InfoLevel))
 		klog.SetOutputBySeverity("WARNING", log.WriterLevel(logrus.WarnLevel))
 		klog.SetOutputBySeverity("ERROR", log.WriterLevel(logrus.ErrorLevel))
@@ -94,19 +99,19 @@ func run(ctx context.Context, configPath string, kubeconfig string) error {
 		})
 
 		return handler.Run(ctx)
-	} else {
-		server, err := NewServer(ServerConfig{
-			Log:                            log,
-			Addr:                           config.Addr,
-			Handler:                        NewWebhookHandler(controller),
-			CertPath:                       config.CertPath,
-			KeyPath:                        config.KeyPath,
-			CaCertPath:                     config.CaCertPath,
-			InsecureSkipClientVerification: config.InsecureSkipClientVerification,
-		})
-		if err != nil {
-			return err
-		}
-		return server.Run(ctx)
 	}
+
+	server, err := NewServer(ServerConfig{
+		Log:                            log,
+		Addr:                           config.Addr,
+		Handler:                        NewWebhookHandler(controller),
+		CertPath:                       config.CertPath,
+		KeyPath:                        config.KeyPath,
+		CaCertPath:                     config.CaCertPath,
+		InsecureSkipClientVerification: config.InsecureSkipClientVerification,
+	})
+	if err != nil {
+		return err
+	}
+	return server.Run(ctx)
 }

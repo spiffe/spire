@@ -29,24 +29,45 @@ func NewInformerHandler(config InformerHandlerConfig) *InformerHandler {
 func (ih *InformerHandler) Run(ctx context.Context) error {
 	podInformer := ih.c.Factory.Core().V1().Pods().Informer()
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*corev1.Pod)
-			ih.c.Controller.SyncPod(ctx, pod)
+			log := ih.c.Log.WithFields(logrus.Fields{
+				"ns":  pod.Namespace,
+				"pod": pod.Name,
+			})
+			if err := ih.c.Controller.SyncPod(ctx, pod); err != nil {
+				log.WithError(err).Error("Failed to sync pod")
+			}
 		},
+
 		UpdateFunc: func(old, new interface{}) {
 			oldPod := old.(*corev1.Pod)
 			newPod := new.(*corev1.Pod)
+			log := ih.c.Log.WithFields(logrus.Fields{
+				"ns":  newPod.Namespace,
+				"pod": newPod.Name,
+			})
 			if oldPod.ResourceVersion != newPod.ResourceVersion {
-				ih.c.Controller.SyncPod(ctx, newPod)
+				if err := ih.c.Controller.SyncPod(ctx, newPod); err != nil {
+					log.WithError(err).Error("Failed to sync pod")
+				}
 			}
 		},
+
 		DeleteFunc: func(obj interface{}) {
 			if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 				// This might be stale, but we're only going to use the name anyway
 				obj = tombstone.Obj
 			}
 			pod := obj.(*corev1.Pod)
-			ih.c.Controller.DeletePod(ctx, pod)
+			log := ih.c.Log.WithFields(logrus.Fields{
+				"ns":  pod.Namespace,
+				"pod": pod.Name,
+			})
+			if err := ih.c.Controller.DeletePod(ctx, pod); err != nil {
+				log.WithError(err).Error("Failed to sync pod")
+			}
 		},
 	})
 

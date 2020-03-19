@@ -105,13 +105,13 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 }
 
 // Ensure that the entries for this pod in spire are synced with the state of the pod
-func (c *Controller) SyncPod(ctx context.Context, pod *corev1.Pod) {
-	c.syncPodEntry(ctx, pod)
+func (c *Controller) SyncPod(ctx context.Context, pod *corev1.Pod) error {
+	return c.syncPodEntry(ctx, pod)
 }
 
 // Remove all entries for this pod
-func (c *Controller) DeletePod(ctx context.Context, pod *corev1.Pod) {
-	c.deletePodEntry(ctx, pod.Namespace, pod.Name)
+func (c *Controller) DeletePod(ctx context.Context, pod *corev1.Pod) error {
+	return c.deletePodEntry(ctx, pod.Namespace, pod.Name)
 }
 
 // podSpiffeID returns the desired spiffe ID for the pod, or "" if it should be ignored
