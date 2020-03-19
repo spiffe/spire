@@ -12,8 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -100,11 +98,29 @@ func (m *spirePlugin) MintX509CA(ctx context.Context, request *upstreamauthority
 }
 
 func (m *spirePlugin) PublishJWTKey(ctx context.Context, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
 
-func makeError(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "upstreamauthority-spire: "+format, args...)
+	wCert, wKey, wBundle, err := m.getWorkloadSVID(ctx, m.config)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := m.newNodeClientConn(ctx, wCert, wKey, wBundle)
+	if err != nil {
+		return nil, err
+	}
+	nodeClient := node.NewNodeClient(conn)
+	defer conn.Close()
+
+	resp, err := nodeClient.PushJWTKeyUpstream(ctx, &node.PushJWTKeyUpstreamRequest{JwtKey: req.JwtKey})
+	if err != nil {
+		return nil, err
+	}
+
+	return &upstreamauthority.PublishJWTKeyResponse{
+		UpstreamJwtKeys: resp.JwtSigningKeys,
+	}, nil
 }
 
 func certsToRawCerts(certs []*x509.Certificate) [][]byte {

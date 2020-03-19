@@ -46,6 +46,9 @@ type Config struct {
 	// Bundle endpoint ACME configuration. If unset, SPIFFE auth will be used.
 	BundleEndpointACME *bundle.ACMEConfig
 
+	// CA Manager
+	Manager *ca.Manager
+
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 }

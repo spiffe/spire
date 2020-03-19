@@ -55,4 +55,10 @@ func AddCacheManagerExpiredSVIDsSample(m telemetry.Metrics, count float32) {
 	m.AddSample([]string{telemetry.CacheManager, telemetry.ExpiringSVIDs}, count)
 }
 
+// AddCacheManagerOutdatedSVIDsSample count of SVIDs with outdated attributes
+// according to agent cache manager
+func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, count float32) {
+	m.AddSample([]string{telemetry.CacheManager, telemetry.OutdatedSVIDs}, count)
+}
+
 // End Add Samples
