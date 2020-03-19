@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/zeebo/errs"
@@ -16,19 +17,21 @@ const (
 )
 
 type Config struct {
-	LogFormat                      string `hcl:"log_format"`
-	LogLevel                       string `hcl:"log_level"`
-	LogPath                        string `hcl:"log_path"`
-	Addr                           string `hcl:"addr"`
-	CertPath                       string `hcl:"cert_path"`
-	KeyPath                        string `hcl:"key_path"`
-	CaCertPath                     string `hcl:"cacert_path"`
-	InsecureSkipClientVerification bool   `hcl:"insecure_skip_client_verification"`
-	TrustDomain                    string `hcl:"trust_domain"`
-	ServerSocketPath               string `hcl:"server_socket_path"`
-	Cluster                        string `hcl:"cluster"`
-	PodLabel                       string `hcl:"pod_label"`
-	PodAnnotation                  string `hcl:"pod_annotation"`
+	LogFormat                      string        `hcl:"log_format"`
+	LogLevel                       string        `hcl:"log_level"`
+	LogPath                        string        `hcl:"log_path"`
+	Addr                           string        `hcl:"addr"`
+	CertPath                       string        `hcl:"cert_path"`
+	KeyPath                        string        `hcl:"key_path"`
+	CaCertPath                     string        `hcl:"cacert_path"`
+	InsecureSkipClientVerification bool          `hcl:"insecure_skip_client_verification"`
+	TrustDomain                    string        `hcl:"trust_domain"`
+	ServerSocketPath               string        `hcl:"server_socket_path"`
+	Cluster                        string        `hcl:"cluster"`
+	PodLabel                       string        `hcl:"pod_label"`
+	PodAnnotation                  string        `hcl:"pod_annotation"`
+	UseInformer                    bool          `hcl:"use_informer"`
+	InformerResyncInterval         time.Duration `hcl:"informer_resync_interval"`
 }
 
 func LoadConfig(path string) (*Config, error) {

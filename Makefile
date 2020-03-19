@@ -325,6 +325,13 @@ artifact: build
 .PHONY: images
 images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
+# go 1.14 introduces asynchronous preemption, which results in
+# https://github.com/golang/go/issues/37436 when building on linux 5.3
+# and later. This requires the flag --ulimit memlock=-1 to be passed
+# to docker build memlock=-1. We're currently using go 1.13 so we
+# leave it out for now, but this is expected to be necessary in the
+# future.
+
 .PHONY: spire-server-image
 spire-server-image: Dockerfile
 	docker build --build-arg goversion=$(go_version_full) --target spire-server -t spire-server .

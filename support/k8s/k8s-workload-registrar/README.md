@@ -1,8 +1,13 @@
 # SPIRE Kubernetes Workload Registrar
 
 The SPIRE Kubernetes Workload Registrar implements a Kubernetes
-ValidatingAdmissionWebhook that facilitates automatic workload registration
-within Kubernetes.
+ValidatingAdmissionWebhook or informer that facilitates automatic
+workload registration within Kubernetes.
+
+In webhook mode, this tool is an http server which needs to be
+notified by the Kubernetes API server when pods are created and
+deleted. In informer mode, this tool watches the Kubernetes API for
+pod changes and synchronises the spire registration entries.
 
 ## Configuration
 
@@ -13,6 +18,7 @@ The registrar has the following command line flags:
 | Flag         | Description                                                      | Default                       |
 | ------------ | -----------------------------------------------------------------| ----------------------------- |
 | `-config`    | Path on disk to the [HCL Configuration](#hcl-configuration) file | `k8s-workload-registrar.conf` |
+| `-kubeconfig` | Path on disk to the kubeconfig file. Only required when using the informer from outside the cluster. | |
 
 
 ### HCL Configuration
@@ -24,16 +30,32 @@ The configuration file is a **required** by the registrar. It contains
 | -------------------------- | --------| ---------| ----------------------------------------- | ------- |
 | `log_level`                | string  | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
 | `log_path`                 | string  | optional | Path on disk to write the log | |
-| `addr`                     | string  | required | Address to bind the HTTPS listener to | `":8443"` |
-| `cert_path`                | string  | required | Path on disk to the PEM-encoded server TLS certificate | `"cert.pem"` |
-| `key_path`                 | string  | required | Path on disk to the PEM-encoded server TLS key |  `"key.pem"` |
-| `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
-| `insecure_skip_client_verification` | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
+| `use_informer`             | string  | optional | If true, uses an informer instead of serving a webhook | `false` |
 | `trust_domain`             | string  | required | Trust domain of the SPIRE server | |
 | `server_socket_path`       | string  | required | Path to the Unix domain socket of the SPIRE server | |
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string  | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string  | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
+
+If `use_informer` is `false`, then the following keys are also
+required to configure the webhook server. If `use_informer` is `true`,
+there is no webhook server so they are ignored.
+
+| Key                        | Type    | Required? | Description                              | Default |
+| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
+| `addr`                     | string  | required | Address to bind the HTTPS listener to | `":8443"` |
+| `cert_path`                | string  | required | Path on disk to the PEM-encoded server TLS certificate | `"cert.pem"` |
+| `key_path`                 | string  | required | Path on disk to the PEM-encoded server TLS key |  `"key.pem"` |
+| `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
+| `insecure_skip_client_verification` | boolean | optional | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
+
+If `use_informer` is `true`, then the following keys are also
+required to configure the informer. If `use_informer` is `false`,
+they are ignored.
+
+| Key                        | Type    | Required? | Description                              | Default |
+| -------------------------- | --------| --------- | ---------------------------------------- | ------- |
+| `informer_resync_interval` | duration| optional  | Every time this interval expires, the informer will resync all registration entries from the API server's config. | `0` (never) |
 
 ### Example
 
@@ -61,8 +83,8 @@ Selector      : k8s_psat:cluster:example-cluster
 
 ## Workload Registration
 
-The registrar handles pod CREATE and DELETE admission review requests to create
-and delete registration entries for workloads running on those pods. The
+The registrar handles pod CREATE and DELETE events to create and
+delete registration entries for workloads running on those pods. The
 workload registration entries are configured to run on any node in the
 cluster.
 
@@ -130,6 +152,8 @@ Pods that don't contain the pod annotation are ignored.
 
 ## Deployment
 
+### Webhook mode
+
 The registrar should be deployed as a container in the SPIRE server pod, since
 it talks to SPIRE server via a Unix domain socket. It will need access to a
 shared volume containing the socket file. The registrar will also need access
@@ -151,11 +175,22 @@ $ go run generate-config.go
 .... YAML configuration dump ....
 ```
 
+### Informer mode
+
+The registrar should be deployed as a container in the SPIRE server pod, since
+it talks to SPIRE server via a Unix domain socket. It will need access to a
+shared volume containing the socket file.
+
+Authentication is via the in-cluster Kubernetes API, so the only
+additional configuration needed is to ensure that the registrar is
+running as a ServiceAccount which has permissions to get, list, and
+watch pods in all namespaces.
+
 ## Security Considerations
 
-The registrar authenticates clients by default. This is a very important aspect
-of the overall security of the registrar since the registrar can be used to
-provide indirect access to the SPIRE server registration API, albeit scoped. It
-is *NOT* recommended to skip client verification (via the
-`insecure_skip_client_verification` configurable) unless you fully understand
-the risks.
+The registrar authenticates webhook clients by default. This is a very
+important aspect of the overall security of the registrar since the
+registrar can be used to provide indirect access to the SPIRE server
+registration API, albeit scoped. It is *NOT* recommended to skip
+client verification (via the `insecure_skip_client_verification`
+configurable) unless you fully understand the risks.

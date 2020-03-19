@@ -92,7 +92,7 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 		if err := json.Unmarshal(req.Object.Raw, pod); err != nil {
 			return errs.New("unable to unmarshal %s/%s object: %v", req.Kind.Version, req.Kind.Kind, err)
 		}
-		return c.createPodEntry(ctx, pod)
+		return c.syncPodEntry(ctx, pod)
 	case admv1beta1.Delete:
 		return c.deletePodEntry(ctx, req.Namespace, req.Name)
 	default:
@@ -104,7 +104,17 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 	return nil
 }
 
-// podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored
+// Ensure that the entries for this pod in spire are synced with the state of the pod
+func (c *Controller) SyncPod(ctx context.Context, pod *corev1.Pod) {
+	c.syncPodEntry(ctx, pod)
+}
+
+// Remove all entries for this pod
+func (c *Controller) DeletePod(ctx context.Context, pod *corev1.Pod) {
+	c.deletePodEntry(ctx, pod.Namespace, pod.Name)
+}
+
+// podSpiffeID returns the desired spiffe ID for the pod, or "" if it should be ignored
 func (c *Controller) podSpiffeID(pod *corev1.Pod) string {
 	if c.c.PodLabel != "" {
 		// the controller has been configured with a pod label. if the pod
@@ -131,14 +141,14 @@ func (c *Controller) podSpiffeID(pod *corev1.Pod) string {
 	return c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }
 
-func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
+func (c *Controller) syncPodEntry(ctx context.Context, pod *corev1.Pod) error {
 	spiffeID := c.podSpiffeID(pod)
 	// If we have no spiffe ID for the pod, do nothing
 	if spiffeID == "" {
 		return nil
 	}
 
-	return c.createEntry(ctx, &common.RegistrationEntry{
+	return c.syncEntry(ctx, &common.RegistrationEntry{
 		ParentId: c.nodeID(),
 		SpiffeId: spiffeID,
 		Selectors: []*common.Selector{
@@ -193,6 +203,51 @@ func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) string {
 		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
 	}
 	return id.String()
+}
+
+// Ensure that there is exactly one entry matching these selectors, and it's this one
+func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEntry) error {
+	entries, err := c.c.R.ListBySelectors(ctx, &common.Selectors{
+		Entries: entry.Selectors,
+	})
+	if err != nil {
+		return errs.New("unable to list by pod entries: %v", err)
+	}
+
+	found := false
+	var errGroup errs.Group
+
+	for _, e := range entries.Entries {
+		if e.SpiffeId != entry.SpiffeId {
+			// This is a stale entry (pod has changed), delete it
+			log := c.c.Log.WithFields(logrus.Fields{
+				"parent_id": e.ParentId,
+				"spiffe_id": e.SpiffeId,
+				"selectors": selectorsField(e.Selectors),
+			})
+			_, err := c.c.R.DeleteEntry(ctx, &registration.RegistrationEntryID{
+				Id: e.EntryId,
+			})
+			if err != nil {
+				log.WithError(err).Error("Failed deleting stale pod entry")
+				errGroup.Add(errs.New("unable to delete entry %q: %v", entry.EntryId, err))
+			} else {
+				log.Info("Deleted stale pod entry")
+			}
+		} else {
+			// This is the entry we want
+			found = true
+		}
+	}
+
+	if !found {
+		// Create the entry if it is missing
+		if err := c.createEntry(ctx, entry); err != nil {
+			errGroup.Add(err)
+		}
+	}
+
+	return errGroup.Err()
 }
 
 func (c *Controller) createEntry(ctx context.Context, entry *common.RegistrationEntry) error {
