@@ -75,6 +75,7 @@ type serverConfig struct {
 	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
 
 	ConfigPath string
+	ExpandEnv  bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
@@ -143,7 +144,7 @@ func (cmd *Command) Run(args []string) int {
 
 	// Load and parse the config file using either the default
 	// path or CLI-specified value
-	fileInput, err := parseFile(cliInput.ConfigPath)
+	fileInput, err := parseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -185,7 +186,7 @@ func (*Command) Synopsis() string {
 	return "Runs the server"
 }
 
-func parseFile(path string) (*config, error) {
+func parseFile(path string, expandEnv bool) (*config, error) {
 	c := &config{}
 
 	if path == "" {
@@ -193,7 +194,7 @@ func parseFile(path string) (*config, error) {
 	}
 
 	// Return a friendly error if the file is missing
-	data, err := ioutil.ReadFile(path)
+	byteData, err := ioutil.ReadFile(path)
 	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
@@ -207,9 +208,15 @@ func parseFile(path string) (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
 	}
+	data := string(byteData)
 
-	if err := hcl.Decode(&c, string(data)); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration %q: %v", path, err)
+	// If envTemplate flag is passed, substitute $VARIABLES in configuration file
+	if expandEnv {
+		data = os.ExpandEnv(data)
+	}
+
+	if err := hcl.Decode(&c, data); err != nil {
+		return nil, fmt.Errorf("unable to decode configuration at %q: %v", path, err)
 	}
 
 	return c, nil
@@ -229,6 +236,7 @@ func parseFlags(args []string) (*serverConfig, error) {
 	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.Var(newMaybeBoolValue(&c.UpstreamBundle), "upstreamBundle", "Include upstream CA certificates in the bundle")
+	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	err := flags.Parse(args)
 	if err != nil {

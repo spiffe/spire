@@ -23,7 +23,7 @@ import (
 )
 
 func TestParseConfigGood(t *testing.T) {
-	c, err := parseFile("../../../../test/fixture/config/server_good.conf")
+	c, err := parseFile("../../../../test/fixture/config/server_good.conf", false)
 	require.NoError(t, err)
 
 	// Check for server configurations
@@ -1060,7 +1060,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 
-		c, err := parseFile(testCase.testFilePath)
+		c, err := parseFile(testCase.testFilePath, false)
 		require.NoError(t, err)
 
 		log, hook := test.NewNullLogger()
