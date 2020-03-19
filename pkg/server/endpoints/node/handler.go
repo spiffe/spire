@@ -43,6 +43,7 @@ type HandlerConfig struct {
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
 	Clock       clock.Clock
+	Manager     *ca.Manager
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -207,7 +208,13 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		log.WithError(err).Error("Failed to determine if agent has already attested")
 		return status.Error(codes.Internal, "failed to determine if agent has already attested")
 	case isAttested:
-		if err := h.updateAttestationEntry(ctx, svid[0]); err != nil {
+		req := &datastore.UpdateAttestedNodeRequest{
+			SpiffeId:         agentID,
+			CertNotAfter:     svid[0].NotAfter.Unix(),
+			CertSerialNumber: svid[0].SerialNumber.String(),
+		}
+
+		if err := h.updateAttestedNode(ctx, req); err != nil {
 			log.WithError(err).Error("Failed to update attestation entry")
 			return status.Error(codes.Internal, "failed to update attestation entry")
 		}
@@ -480,7 +487,40 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 }
 
 func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUpstreamRequest) (resp *node.PushJWTKeyUpstreamResponse, err error) {
-	return nil, status.Error(codes.Unimplemented, "cannot push JWK upstream")
+	counter := telemetry_server.StartNodeAPIPushJWTKeyUpstreamCall(h.c.Metrics)
+	defer counter.Done(&err)
+	log := h.c.Log.WithField(telemetry.Method, telemetry.PushJWTKeyUpstream)
+
+	_, ok := getPeerCertificate(ctx)
+	if !ok {
+		log.Error("Downstream SVID is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
+	}
+
+	_, ok = getDownstreamEntry(ctx)
+	if !ok {
+		log.Error("Downstream entry is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream entry is required for this request")
+	}
+
+	err = h.limiter.Limit(ctx, PushJWTKey, 1)
+	if err != nil {
+		log.WithError(err).Error("Rejecting request due to JWK push rate limiting")
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
+
+	jwtSigningKeys, err := h.c.Manager.PublishJWTKey(ctx, req.JwtKey)
+	if err != nil {
+		log.WithError(err).Error("Could not publish new JWT key")
+		return nil, status.Error(codes.Internal, "error publishing new JWT key")
+	}
+
+	// Ensure we invalidate the cached bundle because PublishJWTKey updated it.
+	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
+
+	return &node.PushJWTKeyUpstreamResponse{
+		JwtSigningKeys: jwtSigningKeys,
+	}, nil
 }
 
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
@@ -506,7 +546,8 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		}
 
 		ctx = withPeerCertificate(ctx, peerCert)
-	case "/spire.api.node.Node/FetchX509CASVID":
+	case "/spire.api.node.Node/FetchX509CASVID",
+		"/spire.api.node.Node/PushJWTKeyUpstream":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Downstream SVID is required for this request")
@@ -577,11 +618,28 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	if n == nil {
 		return errors.New("agent is not attested")
 	}
-	if n.CertSerialNumber != cert.SerialNumber.String() {
-		return errors.New("agent SVID does not match expected serial number")
+
+	if n.CertSerialNumber != "" && n.CertSerialNumber == cert.SerialNumber.String() {
+		return nil
 	}
 
-	return nil
+	if n.NewCertSerialNumber != "" && n.NewCertSerialNumber == cert.SerialNumber.String() {
+		fieldLog := h.c.Log.WithFields(logrus.Fields{"agent": agentID, "new_serial": n.NewCertSerialNumber})
+		fieldLog.Debug("Activating agent SVID")
+		err := h.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+			SpiffeId:         n.SpiffeId,
+			CertSerialNumber: n.NewCertSerialNumber,
+			CertNotAfter:     n.NewCertNotAfter,
+		})
+
+		if err != nil {
+			fieldLog.Warningf("Failed to activate agent SVID: %v", err)
+			return fmt.Errorf("failed to activate agent SVID: %v", err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("agent %q SVID does not match expected serial number", agentID)
 }
 
 func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certificate) (*common.RegistrationEntry, error) {
@@ -695,21 +753,10 @@ func (h *Handler) attestToken(ctx context.Context, attestationData *common.Attes
 	}, nil
 }
 
-func (h *Handler) updateAttestationEntry(ctx context.Context, cert *x509.Certificate) error {
+func (h *Handler) updateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest) error {
 	ds := h.c.Catalog.GetDataStore()
-
-	spiffeID, err := getSpiffeIDFromCert(cert)
-	if err != nil {
-		return err
-	}
-
-	req := &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:         spiffeID,
-		CertNotAfter:     cert.NotAfter.Unix(),
-		CertSerialNumber: cert.SerialNumber.String(),
-	}
 	if _, err := ds.UpdateAttestedNode(ctx, req); err != nil {
-		return err
+		return fmt.Errorf("failed to update attested node %q: %v", req.SpiffeId, err)
 	}
 
 	return nil
@@ -866,7 +913,15 @@ func (h *Handler) signCSRsLegacy(ctx context.Context, peerCert *x509.Certificate
 			}
 			svids[csr.SpiffeID] = svid
 
-			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
+			req := &datastore.UpdateAttestedNodeRequest{
+				SpiffeId:            res.Node.SpiffeId,
+				CertNotAfter:        res.Node.CertNotAfter,
+				CertSerialNumber:    res.Node.CertSerialNumber,
+				NewCertNotAfter:     svidCert.NotAfter.Unix(),
+				NewCertSerialNumber: svidCert.SerialNumber.String(),
+			}
+
+			if err := h.updateAttestedNode(ctx, req); err != nil {
 				return nil, err
 			}
 		} else {
@@ -942,7 +997,15 @@ func (h *Handler) signCSRs(ctx context.Context, peerCert *x509.Certificate, csrs
 			}
 			svids[entryID] = svid
 
-			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
+			req := &datastore.UpdateAttestedNodeRequest{
+				SpiffeId:            res.Node.SpiffeId,
+				CertNotAfter:        res.Node.CertNotAfter,
+				CertSerialNumber:    res.Node.CertSerialNumber,
+				NewCertNotAfter:     svidCert.NotAfter.Unix(),
+				NewCertSerialNumber: svidCert.SerialNumber.String(),
+			}
+
+			if err := h.updateAttestedNode(ctx, req); err != nil {
 				return nil, err
 			}
 		} else {
@@ -1031,7 +1094,7 @@ func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common
 	return bundles, nil
 }
 
-// getBundle fetches a bundle from the datastore, by trust domain
+// getBundle fetches a bundle from the datastore, by trust domain, using a cache.
 func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
 	resp, err := h.dsCache.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,
