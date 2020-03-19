@@ -66,6 +66,10 @@ func run(ctx context.Context, configPath string, kubeconfig string) error {
 
 	if config.UseInformer {
 		// Route klog output (from client-go) to logrus
+		klogFlags := flag.NewFlagSet("klog", flag.ContinueOnError)
+		klog.InitFlags(klogFlags)
+		// This is the only way to access this setting :(
+		klogFlags.Set("logtostderr", "false")
 		klog.SetOutputBySeverity("INFO", log.WriterLevel(logrus.InfoLevel))
 		klog.SetOutputBySeverity("WARNING", log.WriterLevel(logrus.WarnLevel))
 		klog.SetOutputBySeverity("ERROR", log.WriterLevel(logrus.ErrorLevel))
