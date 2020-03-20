@@ -147,10 +147,9 @@ func (s *ManagerSuite) TestSelfSigning() {
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-	defer upDone()
 
 	s.initUpstreamSignedManager(upstreamAuthority, false)
 
@@ -176,10 +175,9 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
-	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-	defer upDone()
 
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
@@ -207,11 +205,10 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
-	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain:     testTrustDomain,
 		UseIntermediate: true,
 	})
-	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
 	// X509 CA should be set up to be an intermediate and have two certs in
@@ -255,13 +252,12 @@ KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 		Kid:       "kid",
 		PkixBytes: pkixBytes,
 	}
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
 			UpstreamJwtKeys: []*common.PublicKey{jwk},
 		},
 	})
-	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
 	bundle = s.fetchBundle()
@@ -575,10 +571,9 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 }
 
 func (s *ManagerSuite) TestAlternateKeyTypes() {
-	ua, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	ua, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-	defer upDone()
 
 	upstreamAuthority := fakeservercatalog.UpstreamAuthority(
 		"fakeupstreamauthority", ua)

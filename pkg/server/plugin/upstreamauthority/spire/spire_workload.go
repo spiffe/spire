@@ -9,7 +9,7 @@ import (
 	"github.com/spiffe/spire/api/workload"
 )
 
-func (m *SpirePlugin) getWorkloadSVID(ctx context.Context, config *Configuration) ([]byte, []byte, []byte, error) {
+func (m *Plugin) getWorkloadSVID(ctx context.Context, config *Configuration) ([]byte, []byte, []byte, error) {
 	errorChan := make(chan error, 1)
 
 	wapiClient := m.newWorkloadAPIClient(config.WorkloadAPISocket)
@@ -35,7 +35,7 @@ func (m *SpirePlugin) getWorkloadSVID(ctx context.Context, config *Configuration
 	}
 }
 
-func (m *SpirePlugin) receiveUpdatedCerts(svidResponse *proto.X509SVIDResponse) ([]byte, []byte, []byte, error) {
+func (m *Plugin) receiveUpdatedCerts(svidResponse *proto.X509SVIDResponse) ([]byte, []byte, []byte, error) {
 	if len(svidResponse.Svids) == 0 {
 		return nil, nil, nil, errors.New("no X509 SVID in response")
 	}
@@ -44,7 +44,7 @@ func (m *SpirePlugin) receiveUpdatedCerts(svidResponse *proto.X509SVIDResponse) 
 }
 
 //newWorkloadAPIClient creates a workload.X509Client
-func (m *SpirePlugin) newWorkloadAPIClient(agentAddress string) workload.X509Client {
+func (m *Plugin) newWorkloadAPIClient(agentAddress string) workload.X509Client {
 	addr := &net.UnixAddr{
 		Net:  "unix",
 		Name: agentAddress,

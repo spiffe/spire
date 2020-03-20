@@ -28,18 +28,18 @@ func BuiltIn() catalog.Plugin {
 	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(New()))
 }
 
-type SpirePlugin struct {
+type Plugin struct {
 	mtx sync.RWMutex
 
 	trustDomain url.URL
 	config      *Configuration
 }
 
-func New() *SpirePlugin {
-	return &SpirePlugin{}
+func New() *Plugin {
+	return &Plugin{}
 }
 
-func (m *SpirePlugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (m *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := Configuration{}
 
@@ -66,11 +66,11 @@ func (m *SpirePlugin) Configure(ctx context.Context, req *plugin.ConfigureReques
 	return &plugin.ConfigureResponse{}, nil
 }
 
-func (m *SpirePlugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (m *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func (m *SpirePlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 	ctx := stream.Context()
@@ -98,7 +98,7 @@ func (m *SpirePlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, s
 	})
 }
 
-func (m *SpirePlugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (m *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 	ctx := stream.Context()

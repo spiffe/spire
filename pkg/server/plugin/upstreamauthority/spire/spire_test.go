@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -263,11 +264,7 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(t, err)
 
-	stream, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	resp, err := stream.Recv()
+	resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: csr})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
@@ -292,21 +289,13 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(t, err)
 
-		stream, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
-		require.NoError(t, err)
-		require.NotNil(t, stream)
-
-		resp, err := stream.Recv()
+		resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: csr})
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	stream, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	resp, err := stream.Recv()
+	resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(t, err)
 	require.Nil(t, resp)
 }
@@ -319,17 +308,14 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
 	defer done()
 
-	stream, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{
+	// Assertions only checks that the keys contained in the handler response
+	// are forwarded by the plugin method.
+	resp, err := publishJWTKey(t, m, &upstreamauthority.PublishJWTKeyRequest{
 		JwtKey: &common.PublicKey{
 			Kid: "kid-1",
 		},
 	})
-	require.NoError(t, err)
-	require.NotNil(t, stream)
 
-	resp, err := stream.Recv()
-	// Assertions only checks that the keys contained in the handler response
-	// are forwarded by the plugin method.
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.Len(t, resp.UpstreamJwtKeys, 2)
@@ -361,4 +347,42 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 		require.NoError(t, err)
 	}
 	return plugin, done
+}
+
+func mintX509CA(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stream, err := plugin.MintX509CA(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	// Get response and error to be returned
+	response, err := stream.Recv()
+	if err == nil {
+		// Verify stream is closed
+		_, eofErr := stream.Recv()
+		require.Equal(t, io.EOF, eofErr)
+	}
+
+	return response, err
+}
+
+func publishJWTKey(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stream, err := plugin.PublishJWTKey(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	// Get response and error to be returned
+	response, err := stream.Recv()
+	if err == nil {
+		// Verify stream is closed
+		_, eofErr := stream.Recv()
+		require.Equal(t, io.EOF, eofErr)
+	}
+
+	return response, err
 }

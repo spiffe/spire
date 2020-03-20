@@ -17,7 +17,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
-func (m *SpirePlugin) submitCSRUpstreamCA(ctx context.Context, nodeClient node.NodeClient, csr []byte) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+func (m *Plugin) submitCSRUpstreamCA(ctx context.Context, nodeClient node.NodeClient, csr []byte) ([]*x509.Certificate, *bundleutil.Bundle, error) {
 	resp, err := nodeClient.FetchX509CASVID(ctx, &node.FetchX509CASVIDRequest{
 		Csr: csr,
 	})
@@ -28,7 +28,7 @@ func (m *SpirePlugin) submitCSRUpstreamCA(ctx context.Context, nodeClient node.N
 	return m.getCertFromResponse(resp)
 }
 
-func (m *SpirePlugin) getCertFromResponse(response *node.FetchX509CASVIDResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+func (m *Plugin) getCertFromResponse(response *node.FetchX509CASVIDResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
 	if response.Svid == nil {
 		return nil, nil, errors.New("response missing svid")
 	}
@@ -49,11 +49,11 @@ func (m *SpirePlugin) getCertFromResponse(response *node.FetchX509CASVIDResponse
 	return svid, bundle, nil
 }
 
-func (m *SpirePlugin) newNodeClientConn(ctx context.Context, wCert []byte, wKey []byte, wBundle []byte) (*grpc.ClientConn, error) {
+func (m *Plugin) newNodeClientConn(ctx context.Context, wCert []byte, wKey []byte, wBundle []byte) (*grpc.ClientConn, error) {
 	return m.dialNodeAPI(ctx, wCert, wKey, wBundle)
 }
 
-func (m *SpirePlugin) dialNodeAPI(ctx context.Context, wCert []byte, wKey []byte, wBundle []byte) (*grpc.ClientConn, error) {
+func (m *Plugin) dialNodeAPI(ctx context.Context, wCert []byte, wKey []byte, wBundle []byte) (*grpc.ClientConn, error) {
 	serverAddr := fmt.Sprintf("%s:%s", m.config.ServerAddr, m.config.ServerPort)
 	tc, err := m.getGrpcTransportCreds(wCert, wKey, wBundle)
 	if err != nil {
@@ -66,7 +66,7 @@ func (m *SpirePlugin) dialNodeAPI(ctx context.Context, wCert []byte, wKey []byte
 	return conn, nil
 }
 
-func (m *SpirePlugin) getGrpcTransportCreds(wCert []byte, wKey []byte, wBundle []byte) (credentials.TransportCredentials, error) {
+func (m *Plugin) getGrpcTransportCreds(wCert []byte, wKey []byte, wBundle []byte) (credentials.TransportCredentials, error) {
 	var tlsCerts []tls.Certificate
 	var tlsConfig *tls.Config
 	var err error

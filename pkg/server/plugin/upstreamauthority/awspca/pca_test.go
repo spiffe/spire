@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -59,7 +60,7 @@ func (as *PCAPluginSuite) SetupTest() {
 	// Setup mocks
 	as.clock = clock.NewMock(as.T())
 
-	as.pcaClientFake = &pcaClientFake{}
+	as.pcaClientFake = &pcaClientFake{t: as.T()}
 
 	// Setup plugin
 	plugin := newPlugin(func(config *PCAPluginConfiguration) (PCAClient, error) {
@@ -78,45 +79,37 @@ func (as *PCAPluginSuite) Test_GetPluginInfo() {
 }
 
 func (as *PCAPluginSuite) Test_Configure() {
-	as.pcaClientFake.recycle(as.T())
-
 	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
 
-	_, err := as.rawPlugin.Configure(ctx, as.defaultConfigureRequest())
+	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
 	as.Require().NoError(err)
 }
 
 func (as *PCAPluginSuite) Test_Configure_Default_SigningAlgorithm() {
-	as.pcaClientFake.recycle(as.T())
-
 	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
 
 	// If the configuration does not contain a signing algorithm, we'll fall
 	// back to the CA's pre-configured value
-	_, err := as.rawPlugin.Configure(ctx, as.optionalConfigureRequest("", validCASigningTemplateARN))
+	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest("", validCASigningTemplateARN))
 	as.Require().NoError(err)
 	as.Require().Equal("defaultSigningAlgorithm", as.rawPlugin.signingAlgorithm)
 }
 
 func (as *PCAPluginSuite) Test_Configure_Default_CASigningTemplateARN() {
-	as.pcaClientFake.recycle(as.T())
-
 	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
 
 	// If the configuration does not contain a CA signing template ARN, we'll fall
 	// back to the default value.
-	_, err := as.rawPlugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, ""))
+	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, ""))
 	as.Require().NoError(err)
 	as.Require().Equal(defaultCASigningTemplateArn, as.rawPlugin.caSigningTemplateArn)
 }
 
 func (as *PCAPluginSuite) Test_Configure_Disabled_CA() {
-	as.pcaClientFake.recycle(as.T())
-
 	// The certificate authority is in a DISABLED state
 	as.verifyDescribeCertificateAuthority("DISABLED", nil)
 
-	_, err := as.rawPlugin.Configure(ctx, as.defaultConfigureRequest())
+	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
 
 	// The configuration should proceed without error, as we
 	// will attempt to issue against it, allowing the server to stay alive
@@ -125,11 +118,9 @@ func (as *PCAPluginSuite) Test_Configure_Disabled_CA() {
 }
 
 func (as *PCAPluginSuite) Test_Configure_DescribeCertificateAuthorityError() {
-	as.pcaClientFake.recycle(as.T())
-
 	as.verifyDescribeCertificateAuthority("", errors.New("describe error"))
 
-	_, err := as.rawPlugin.Configure(ctx, as.defaultConfigureRequest())
+	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
 	as.Require().Error(err)
 }
 
@@ -140,7 +131,7 @@ func (as *PCAPluginSuite) Test_Configure_Invalid() {
 		"ca_signing_template_arn":"templateArn",
 		"signing_algorithm":"signingAlgorithm"
 	}`
-	_, err := as.rawPlugin.Configure(ctx, as.configureRequest(validTrustDomain, invalidConfig))
+	_, err := as.plugin.Configure(ctx, as.configureRequest(validTrustDomain, invalidConfig))
 	as.Require().Error(err)
 
 	// Missing certificate authority ARN
@@ -149,7 +140,7 @@ func (as *PCAPluginSuite) Test_Configure_Invalid() {
 		"ca_signing_template_arn":"templateArn",
 		"signing_algorithm":"signingAlgorithm"
 	}`
-	_, err = as.rawPlugin.Configure(ctx, as.configureRequest(validTrustDomain, invalidConfig))
+	_, err = as.plugin.Configure(ctx, as.configureRequest(validTrustDomain, invalidConfig))
 	as.Require().Error(err)
 }
 
@@ -157,12 +148,11 @@ func (as *PCAPluginSuite) Test_Configure_DecodeError() {
 	malformedConfig := `{
 		badjson
 	}`
-	_, err := as.rawPlugin.Configure(ctx, as.configureRequest(validTrustDomain, malformedConfig))
+	_, err := as.plugin.Configure(ctx, as.configureRequest(validTrustDomain, malformedConfig))
 	as.Require().Error(err)
 }
 
 func (as *PCAPluginSuite) Test_MintX509CA() {
-	as.pcaClientFake.recycle(as.T())
 	as.configurePlugin()
 
 	// Since ACM does the signing, these are used to verify the signed
@@ -186,16 +176,12 @@ func (as *PCAPluginSuite) Test_MintX509CA() {
 	as.Require().NoError(err)
 	as.verifyGetCertificate(encodedCert, encodedCertChain, nil)
 
-	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	// The resulting response should not error, and should contain the expected
+	// values from ACM.
+	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	// The resulting response should not error, and should contain the expected
-	// values from ACM.
-	response, err := stream.Recv()
 	as.Require().NoError(err)
 	as.Require().NotNil(response)
 	as.Require().Equal([][]byte{expectedCert.Raw, expectedIntermediate.Raw}, response.X509CaChain)
@@ -203,28 +189,23 @@ func (as *PCAPluginSuite) Test_MintX509CA() {
 }
 
 func (as *PCAPluginSuite) Test_MintX509CA_IssuanceError() {
-	as.pcaClientFake.recycle(as.T())
 	as.configurePlugin()
 
+	expectedErr := errors.New("issuance error")
 	// Issuance returns an error
 	csr, expectedEncodedCsr := as.generateCSR()
-	as.verifyIssueCertificate(expectedEncodedCsr, errors.New("issuance error"))
+	as.verifyIssueCertificate(expectedEncodedCsr, expectedErr)
 
 	// The resulting response should return an error
-	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	response, err := stream.Recv()
 	as.Require().Nil(response)
 	as.Require().Error(err)
 }
 
 func (as *PCAPluginSuite) Test_MintX509CA_IssuanceWaitError() {
-	as.pcaClientFake.recycle(as.T())
 	as.configurePlugin()
 
 	// Should send an issue request
@@ -234,21 +215,16 @@ func (as *PCAPluginSuite) Test_MintX509CA_IssuanceWaitError() {
 	// But the wait call returns an error
 	as.verifyWaitUntilCertificateIssued(errors.New("issuance waiting error"))
 
-	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	// The resulting response should error
+	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	// The resulting response should error
-	response, err := stream.Recv()
 	as.Require().Nil(response)
 	as.Require().Error(err)
 }
 
 func (as *PCAPluginSuite) Test_MintX509CA_GetCertificateError() {
-	as.pcaClientFake.recycle(as.T())
 	as.configurePlugin()
 
 	csr, expectedEncodedCsr := as.generateCSR()
@@ -262,21 +238,16 @@ func (as *PCAPluginSuite) Test_MintX509CA_GetCertificateError() {
 	// But the GetCertificate call returns an error
 	as.verifyGetCertificate(nil, nil, errors.New("get certificate error"))
 
-	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	// The resulting response should error
+	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	// The resulting response should error
-	response, err := stream.Recv()
 	as.Require().Nil(response)
 	as.Require().Error(err)
 }
 
 func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateParseError() {
-	as.pcaClientFake.recycle(as.T())
 	as.configurePlugin()
 
 	csr, expectedEncodedCsr := as.generateCSR()
@@ -291,21 +262,16 @@ func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateParseError()
 	_, encodedBundle := as.certificateAuthorityFixture()
 	as.verifyGetCertificate(nil, encodedBundle, nil)
 
-	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	// The resulting response should error
+	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	// The resulting response should error
-	response, err := stream.Recv()
 	as.Require().Nil(response)
 	as.Require().Error(err)
 }
 
 func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateChainParseError() {
-	as.pcaClientFake.recycle(as.T())
 	as.configurePlugin()
 
 	csr, expectedEncodedCsr := as.generateCSR()
@@ -320,15 +286,11 @@ func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateChainParseEr
 	_, encodedCert := as.SVIDFixture()
 	as.verifyGetCertificate(encodedCert, nil, nil)
 
-	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	// The resulting response should error
+	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	// The resulting response should error
-	response, err := stream.Recv()
 	as.Require().Nil(response)
 	as.Require().Error(err)
 }
@@ -392,7 +354,7 @@ func (as *PCAPluginSuite) verifyGetCertificate(encodedCert *bytes.Buffer, encode
 func (as *PCAPluginSuite) configurePlugin() {
 	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
 
-	_, err := as.rawPlugin.Configure(ctx, as.defaultConfigureRequest())
+	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
 	as.Require().NoError(err)
 }
 
@@ -488,4 +450,24 @@ func (as *PCAPluginSuite) TestPublishJWTKey() {
 	resp, err := stream.Recv()
 	as.Require().Nil(resp, "no response expected")
 	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-pca: publishing upstream is unsupported")
+}
+
+func (as *PCAPluginSuite) mintX509CA(req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stream, err := as.plugin.MintX509CA(ctx, req)
+	as.Require().NoError(err)
+	as.Require().NotNil(stream)
+
+	// Get response and error to be returned
+	response, err := stream.Recv()
+
+	// Verify stream is closed
+	if err == nil {
+		_, eofErr := stream.Recv()
+		as.Require().Equal(io.EOF, eofErr)
+	}
+
+	return response, err
 }

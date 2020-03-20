@@ -53,17 +53,3 @@ func (f *pcaClientFake) GetCertificateWithContext(ctx aws.Context, input *acmpca
 	}
 	return f.getCertificateOutput, nil
 }
-
-func (f *pcaClientFake) recycle(t *testing.T) {
-	f.t = t
-
-	f.describeCertificateOutput = nil
-	f.expectedDescribeInput = nil
-
-	f.issueCertificateOutput = nil
-	f.expectedIssueInput = nil
-
-	f.expectedGetCertificateInput = nil
-	f.err = nil
-	f.getCertificateOutput = nil
-}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/pem"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
@@ -126,6 +127,9 @@ func TestMintX509CA(t *testing.T) {
 			// Mint must return an array of []byte, instead of a single []byte
 			require.Equal(t, testCase.certChain, resp.X509CaChain)
 			require.Equal(t, testCase.bundle, resp.UpstreamX509Roots)
+
+			_, err = stream.Recv()
+			require.Equal(t, io.EOF, err)
 		})
 	}
 }
