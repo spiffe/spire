@@ -2,10 +2,12 @@ package main
 
 import (
 	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/zeebo/errs"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -32,6 +34,7 @@ type Config struct {
 	PodAnnotation                  string        `hcl:"pod_annotation"`
 	UseInformer                    bool          `hcl:"use_informer"`
 	InformerResyncInterval         time.Duration `hcl:"informer_resync_interval"`
+	KubeConfig                     string        `hcl:"kubeconfig"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -62,6 +65,10 @@ func ParseConfig(hclConfig string) (*Config, error) {
 	}
 	if c.KeyPath == "" {
 		c.KeyPath = defaultKeyPath
+	}
+	if c.KubeConfig == "" {
+		// If this environment variable (KUBECONFIG) is set, it is the default
+		c.KubeConfig = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
 	}
 	if c.ServerSocketPath == "" {
 		return nil, errs.New("server_socket_path must be specified")

@@ -19,19 +19,48 @@ import (
 )
 
 var (
-	configFlag     = flag.String("config", "k8s-workload-registrar.conf", "configuration file")
-	kubeconfigFlag = flag.String("kubeconfig", "", "Path to a kubeconfig file. Only required if using informer, and running out of cluster.")
+	configFlag = flag.String("config", "k8s-workload-registrar.conf", "configuration file")
 )
 
 func main() {
 	flag.Parse()
-	if err := run(context.Background(), *configFlag, *kubeconfigFlag); err != nil {
+	if err := run(context.Background(), *configFlag); err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, configPath string, kubeconfig string) error {
+// Generic boilerplate to set up kubernetes/client-go
+func setupKube(config *Config, log *log.Logger) (*kubernetes.Clientset, error) {
+	// Route klog output (from client-go) to logrus
+	klogFlags := flag.NewFlagSet("klog", flag.ContinueOnError)
+	klog.InitFlags(klogFlags)
+	// This is the only way to access these settings :(
+	if err := klogFlags.Set("logtostderr", "false"); err != nil {
+		return nil, err
+	}
+	if err := klogFlags.Set("skip_headers", "true"); err != nil {
+		return nil, err
+	}
+	klog.SetOutputBySeverity("INFO", log.WriterLevel(logrus.InfoLevel))
+	klog.SetOutputBySeverity("WARNING", log.WriterLevel(logrus.WarnLevel))
+	klog.SetOutputBySeverity("ERROR", log.WriterLevel(logrus.ErrorLevel))
+	klog.SetOutputBySeverity("FATAL", log.WriterLevel(logrus.FatalLevel))
+
+	cfg, err := clientcmd.BuildConfigFromFlags("", config.KubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func run(ctx context.Context, configPath string) error {
 	config, err := LoadConfig(configPath)
 	if err != nil {
 		return err
@@ -65,27 +94,7 @@ func run(ctx context.Context, configPath string, kubeconfig string) error {
 	}
 
 	if config.UseInformer {
-		// Route klog output (from client-go) to logrus
-		klogFlags := flag.NewFlagSet("klog", flag.ContinueOnError)
-		klog.InitFlags(klogFlags)
-		// This is the only way to access these settings :(
-		if err := klogFlags.Set("logtostderr", "false"); err != nil {
-			return err
-		}
-		if err := klogFlags.Set("skip_headers", "true"); err != nil {
-			return err
-		}
-		klog.SetOutputBySeverity("INFO", log.WriterLevel(logrus.InfoLevel))
-		klog.SetOutputBySeverity("WARNING", log.WriterLevel(logrus.WarnLevel))
-		klog.SetOutputBySeverity("ERROR", log.WriterLevel(logrus.ErrorLevel))
-		klog.SetOutputBySeverity("FATAL", log.WriterLevel(logrus.FatalLevel))
-
-		cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			return err
-		}
-
-		client, err := kubernetes.NewForConfig(cfg)
+		client, err := setupKube(config, log)
 		if err != nil {
 			return err
 		}
