@@ -218,6 +218,10 @@ func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEn
 	var errGroup errs.Group
 
 	for _, e := range entries.Entries {
+		if e.ParentId != c.nodeID() {
+			// This is not an entry managed by this registrar
+			continue
+		}
 		if e.SpiffeId != entry.SpiffeId {
 			// This is a stale entry (pod has changed), delete it
 			log := c.c.Log.WithFields(logrus.Fields{
