@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func (as *Suite) Test_MintX509CAValidCSR() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: csr})
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
 
@@ -96,13 +97,13 @@ func (as *Suite) Test_MintX509CAInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		as.Require().NoError(err)
 
-		resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: csr})
 		as.Require().Error(err)
 		as.Require().Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	as.Require().Error(err)
 	as.Require().Nil(resp)
 }
@@ -130,7 +131,7 @@ func (as *Suite) testCSRTTL(plugin upstreamauthority.Plugin, preferredTTL int32,
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	resp, err := as.mintX509CA(plugin, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
 
@@ -202,8 +203,30 @@ func (as *Suite) newAWSUpstreamAuthority(deprecatedTTL string) upstreamauthority
 }
 
 func (as *Suite) TestPublishJWTKey() {
-	resp, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
-	as.Require().Nil(resp, "no response expected")
+	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
+	as.Require().Nil(err)
+	as.Require().NotNil(stream)
 
+	resp, err := stream.Recv()
+	as.Require().Nil(resp, "no response expected")
 	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-secret: publishing upstream is unsupported")
+}
+
+func (as *Suite) mintX509CA(plugin upstreamauthority.Plugin, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stream, err := plugin.MintX509CA(ctx, req)
+	as.Require().NoError(err)
+	as.Require().NotNil(stream)
+
+	// Get response and error to be returned
+	response, err := stream.Recv()
+	if err == nil {
+		// Verify stream is closed
+		_, eofErr := stream.Recv()
+		as.Require().Equal(io.EOF, eofErr)
+	}
+
+	return response, err
 }
