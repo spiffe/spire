@@ -181,9 +181,9 @@ func (p *fakeUpstreamAuthorityPlugin) Configure(context.Context, *spi.ConfigureR
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p fakeUpstreamAuthorityPlugin) MintX509CA(context.Context, *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (p fakeUpstreamAuthorityPlugin) MintX509CA(*upstreamauthority.MintX509CARequest, upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
 	// Returning error with upstream name, it is done this way because wrapper is not exported, we are not able to get type from there
-	return nil, errors.New("fakeUpstreamAuthority")
+	return errors.New("fakeUpstreamAuthority")
 }
 
 type fakeUpstreamCAPlugin struct{ upstreamca.UpstreamCAServer }

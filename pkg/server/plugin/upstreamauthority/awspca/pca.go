@@ -141,14 +141,16 @@ func (*PCAPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*sp
 }
 
 // MintX509CA mints an X509CA by submitting the CSR to ACM to be signed by the certificate authority
-func (m *PCAPlugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+	ctx := stream.Context()
+
 	csrBuf := new(bytes.Buffer)
 	err := pem.Encode(csrBuf, &pem.Block{
 		Type:  csrRequestType,
 		Bytes: request.Csr,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Have ACM sign the certificate
@@ -166,7 +168,7 @@ func (m *PCAPlugin) MintX509CA(ctx context.Context, request *upstreamauthority.M
 	})
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Using the output of the `IssueCertificate` call, poll ACM until
@@ -180,7 +182,7 @@ func (m *PCAPlugin) MintX509CA(ctx context.Context, request *upstreamauthority.M
 	}
 	err = m.pcaClient.WaitUntilCertificateIssuedWithContext(ctx, getCertificateInput)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	m.log.Info("Certificate issued.", "certificate_arn", aws.StringValue(certificateArn))
 
@@ -188,19 +190,19 @@ func (m *PCAPlugin) MintX509CA(ctx context.Context, request *upstreamauthority.M
 	m.log.Info("Retrieving certificate and chain from ACM.", "certificate_arn", aws.StringValue(certificateArn))
 	getResponse, err := m.pcaClient.GetCertificateWithContext(ctx, getCertificateInput)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Parse the cert from the response
 	cert, err := pemutil.ParseCertificate([]byte(aws.StringValue(getResponse.Certificate)))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Parse the chain from the response
 	certChain, err := pemutil.ParseCertificates([]byte(aws.StringValue(getResponse.CertificateChain)))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	m.log.Info("Certificate and chain received.", "certificate_arn", aws.StringValue(certificateArn))
 
@@ -220,10 +222,10 @@ func (m *PCAPlugin) MintX509CA(ctx context.Context, request *upstreamauthority.M
 		chain = append(chain, caCert.Raw)
 	}
 
-	return &upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthority.MintX509CAResponse{
 		X509CaChain:       chain,
 		UpstreamX509Roots: bundle,
-	}, nil
+	})
 }
 
 // validateConfig returns an error if any configuration provided does not meet acceptable criteria
@@ -246,8 +248,8 @@ func (m *PCAPlugin) validateConfig(req *spi.ConfigureRequest) (*PCAPluginConfigu
 }
 
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (m *PCAPlugin) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+func (m *PCAPlugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 func makeError(code codes.Code, format string, args ...interface{}) error {

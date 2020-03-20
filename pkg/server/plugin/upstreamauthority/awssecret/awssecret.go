@@ -117,23 +117,24 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 }
 
 // MintX509CA mints an X509CA by signing presented CSR with root CA fetched from AWS Secrets Manager
-func (m *Plugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+	ctx := stream.Context()
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	if m.upstreamCA == nil {
-		return nil, errors.New("invalid state: not configured")
+		return errors.New("invalid state: not configured")
 	}
 
 	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthority.MintX509CAResponse{
 		X509CaChain:       [][]byte{cert.Raw},
 		UpstreamX509Roots: [][]byte{m.cert.Raw},
-	}, nil
+	})
 }
 
 func fetchFromSecretsManager(ctx context.Context, config *Config, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, error) {
@@ -217,8 +218,8 @@ func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, time.Durati
 }
 
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (m *Plugin) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+func (m *Plugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 func makeError(code codes.Code, format string, args ...interface{}) error {
