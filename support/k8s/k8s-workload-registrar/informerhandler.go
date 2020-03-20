@@ -77,7 +77,7 @@ func (ih *InformerHandler) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
-	fmt.Infof("all pods synced")
+	ih.c.Log.Info("all pods synced")
 
 	<-ctx.Done()
 	return nil

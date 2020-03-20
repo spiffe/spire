@@ -214,44 +214,33 @@ func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEn
 		return errs.New("unable to list by pod entries: %v", err)
 	}
 
-	found := false
-	var errGroup errs.Group
+	var existing *common.RegistrationEntry = nil
 
 	for _, e := range entries.Entries {
 		if e.ParentId != c.nodeID() {
 			// This is not an entry managed by this registrar
 			continue
 		}
-		if e.SpiffeId != entry.SpiffeId {
-			// This is a stale entry (pod has changed), delete it
-			log := c.c.Log.WithFields(logrus.Fields{
-				"parent_id": e.ParentId,
-				"spiffe_id": e.SpiffeId,
-				"selectors": selectorsField(e.Selectors),
-			})
-			_, err := c.c.R.DeleteEntry(ctx, &registration.RegistrationEntryID{
-				Id: e.EntryId,
-			})
-			if err != nil {
-				log.WithError(err).Error("Failed deleting stale pod entry")
-				errGroup.Add(errs.New("unable to delete entry %q: %v", entry.EntryId, err))
-			} else {
-				log.Info("Deleted stale pod entry")
-			}
+		if existing == nil {
+			existing = e
 		} else {
-			// This is the entry we want
-			found = true
+			return errs.New("Multiple pod entries found, with spiffe_id %s and %s", existing.SpiffeId, e.SpiffeId)
 		}
 	}
 
-	if !found {
-		// Create the entry if it is missing
-		if err := c.createEntry(ctx, entry); err != nil {
-			errGroup.Add(err)
+	if existing != nil {
+		if existing.SpiffeId == entry.SpiffeId {
+			// This is already in the state we want
+			return nil
 		}
+
+		// Update the existing entry
+		existing.SpiffeId = entry.SpiffeId
+		return c.updateEntry(ctx, existing)
 	}
 
-	return errGroup.Err()
+	// Create the entry if it is missing
+	return c.createEntry(ctx, entry)
 }
 
 func (c *Controller) createEntry(ctx context.Context, entry *common.RegistrationEntry) error {
@@ -268,6 +257,24 @@ func (c *Controller) createEntry(ctx context.Context, entry *common.Registration
 		return nil
 	default:
 		log.WithError(err).Error("Failed to create pod entry")
+		return errs.Wrap(err)
+	}
+}
+
+// Update an existing entry, identified by entry.EntryId
+func (c *Controller) updateEntry(ctx context.Context, entry *common.RegistrationEntry) error {
+	log := c.c.Log.WithFields(logrus.Fields{
+		"parent_id": entry.ParentId,
+		"spiffe_id": entry.SpiffeId,
+		"selectors": selectorsField(entry.Selectors),
+	})
+	_, err := c.c.R.UpdateEntry(ctx, &registration.UpdateEntryRequest{Entry: entry})
+	switch status.Code(err) {
+	case codes.OK:
+		log.Info("Updated pod entry")
+		return nil
+	default:
+		log.WithError(err).Error("Failed to update pod entry")
 		return errs.Wrap(err)
 	}
 }
