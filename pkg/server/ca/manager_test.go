@@ -147,9 +147,11 @@ func (s *ManagerSuite) TestSelfSigning() {
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
-	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
+	defer upDone()
+
 	s.initUpstreamSignedManager(upstreamAuthority, false)
 
 	// The X509CA should not be an intermediate and the chain should only
@@ -174,9 +176,11 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
-	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
+	defer upDone()
+
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
 	// X509 CA should be set up to be an intermediate but only have itself
@@ -184,14 +188,14 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(upstreamAuthority.Root().Subject, x509CA.Certificate.Issuer)
+		s.Equal(fakeUA.Root().Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 1) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(upstreamAuthority.Root())
+	s.requireBundleRootCAs(fakeUA.Root())
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
@@ -203,10 +207,11 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
-	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain:     testTrustDomain,
 		UseIntermediate: true,
 	})
+	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
 	// X509 CA should be set up to be an intermediate and have two certs in
@@ -214,15 +219,15 @@ func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(upstreamAuthority.Intermediate().Subject, x509CA.Certificate.Issuer)
+		s.Equal(fakeUA.Intermediate().Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 2) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
-		s.Equal(upstreamAuthority.Intermediate(), x509CA.UpstreamChain[1])
+		s.Equal(fakeUA.Intermediate(), x509CA.UpstreamChain[1])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(upstreamAuthority.Root())
+	s.requireBundleRootCAs(fakeUA.Root())
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
@@ -250,12 +255,13 @@ KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 		Kid:       "kid",
 		PkixBytes: pkixBytes,
 	}
-	upstreamAuthority := fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
 			UpstreamJwtKeys: []*common.PublicKey{jwk},
 		},
 	})
+	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
 	bundle = s.fetchBundle()
@@ -569,11 +575,13 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 }
 
 func (s *ManagerSuite) TestAlternateKeyTypes() {
+	ua, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+		TrustDomain: testTrustDomain,
+	})
+	defer upDone()
+
 	upstreamAuthority := fakeservercatalog.UpstreamAuthority(
-		"fakeupstreamauthority",
-		fakeupstreamauthority.New(s.T(), fakeupstreamauthority.Config{
-			TrustDomain: testTrustDomain,
-		}))
+		"fakeupstreamauthority", ua)
 
 	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
 		publicKey, ok := signer.Public().(*rsa.PublicKey)

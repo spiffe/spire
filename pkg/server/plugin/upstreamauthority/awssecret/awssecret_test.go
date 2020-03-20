@@ -77,7 +77,11 @@ func (as *Suite) Test_MintX509CAValidCSR() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	as.Require().NoError(err)
+	as.Require().NotNil(stream)
+
+	resp, err := stream.Recv()
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
 
@@ -96,13 +100,21 @@ func (as *Suite) Test_MintX509CAInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		as.Require().NoError(err)
 
-		resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		as.Require().NoError(err)
+		as.Require().NotNil(stream)
+
+		resp, err := stream.Recv()
 		as.Require().Error(err)
 		as.Require().Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	stream, err := as.plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	as.Require().NoError(err)
+	as.Require().NotNil(stream)
+
+	resp, err := stream.Recv()
 	as.Require().Error(err)
 	as.Require().Nil(resp)
 }
@@ -130,7 +142,11 @@ func (as *Suite) testCSRTTL(plugin upstreamauthority.Plugin, preferredTTL int32,
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	stream, err := plugin.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	as.Require().NoError(err)
+	as.Require().NotNil(stream)
+
+	resp, err := stream.Recv()
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
 
@@ -202,8 +218,11 @@ func (as *Suite) newAWSUpstreamAuthority(deprecatedTTL string) upstreamauthority
 }
 
 func (as *Suite) TestPublishJWTKey() {
-	resp, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
-	as.Require().Nil(resp, "no response expected")
+	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
+	as.Require().Nil(err)
+	as.Require().NotNil(stream)
 
+	resp, err := stream.Recv()
+	as.Require().Nil(resp, "no response expected")
 	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-secret: publishing upstream is unsupported")
 }

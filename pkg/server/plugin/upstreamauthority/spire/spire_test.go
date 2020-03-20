@@ -263,7 +263,11 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(t, err)
 
-	resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	stream, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	resp, err := stream.Recv()
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
@@ -288,13 +292,21 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(t, err)
 
-		resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		stream, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		require.NoError(t, err)
+		require.NotNil(t, stream)
+
+		resp, err := stream.Recv()
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	stream, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	resp, err := stream.Recv()
 	require.Error(t, err)
 	require.Nil(t, resp)
 }
@@ -307,12 +319,15 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
 	defer done()
 
-	resp, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{
+	stream, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{
 		JwtKey: &common.PublicKey{
 			Kid: "kid-1",
 		},
 	})
+	require.NoError(t, err)
+	require.NotNil(t, stream)
 
+	resp, err := stream.Recv()
 	// Assertions only checks that the keys contained in the handler response
 	// are forwarded by the plugin method.
 	require.NoError(t, err)

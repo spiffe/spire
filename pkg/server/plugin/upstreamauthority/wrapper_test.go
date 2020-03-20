@@ -103,10 +103,15 @@ func TestMintX509CA(t *testing.T) {
 			wrapper := Wrap(upstreamCA)
 
 			// Request Mint to wrapper
-			resp, err := wrapper.MintX509CA(ctx, &MintX509CARequest{
+			stream, err := wrapper.MintX509CA(ctx, &MintX509CARequest{
 				Csr:          testCase.csr,
 				PreferredTtl: testCase.preferredTTL,
 			})
+			// Stream returned, and no error expected
+			require.NoError(t, err)
+			require.NotNil(t, stream)
+
+			resp, err := stream.Recv()
 
 			// if test case expect an error validates it has expected code and message
 			if testCase.err != "" {

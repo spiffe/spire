@@ -361,8 +361,9 @@ func (m *Manager) PublishJWTKey(ctx context.Context, publicKey *common.PublicKey
 	if upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority(); useUpstream {
 		publishCtx, cancel := context.WithTimeout(ctx, publishJWKTimeout)
 		defer cancel()
-		res, err := upstreamAuth.PublishJWTKey(
+		res, err := publishJWTKey(
 			publishCtx,
+			upstreamAuth,
 			&upstreamauthority.PublishJWTKeyRequest{
 				JwtKey: publicKey,
 			})
@@ -387,6 +388,16 @@ func (m *Manager) PublishJWTKey(ctx context.Context, publicKey *common.PublicKey
 	}
 
 	return appendResp.Bundle.JwtSigningKeys, nil
+}
+
+func publishJWTKey(ctx context.Context, upstreamAuthority upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream, err := upstreamAuthority.PublishJWTKey(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return stream.Recv()
 }
 
 func (m *Manager) activateJWTKey() {
@@ -976,7 +987,7 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		return nil, nil, err
 	}
 
-	resp, err := upstreamAuthority.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	resp, err := mintX509CA(ctx, upstreamAuthority, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: int32(caTTL / time.Second),
 	})
@@ -1003,6 +1014,16 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		Certificate:   caChain[0],
 		UpstreamChain: upstreamChain,
 	}, trustBundle, nil
+}
+
+func mintX509CA(ctx context.Context, upstreamAuthority upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream, err := upstreamAuthority.MintX509CA(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return stream.Recv()
 }
 
 func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {

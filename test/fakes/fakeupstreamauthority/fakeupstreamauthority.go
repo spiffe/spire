@@ -9,10 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -110,20 +113,22 @@ func (m *UpstreamAuthority) Intermediate() *x509.Certificate {
 	return m.chain[0]
 }
 
-func (m *UpstreamAuthority) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (m *UpstreamAuthority) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+	ctx := stream.Context()
+
 	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	chain := append([]*x509.Certificate{cert}, m.chain...)
 
-	return &upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthority.MintX509CAResponse{
 		// Signed CA + intermediates
 		X509CaChain: certsDER(chain[:len(chain)-1]),
 		// Root certificates
 		UpstreamX509Roots: certsDER(chain[len(chain)-1:]),
-	}, nil
+	})
 }
 
 func certsDER(certs []*x509.Certificate) [][]byte {
@@ -134,11 +139,29 @@ func certsDER(certs []*x509.Certificate) [][]byte {
 	return out
 }
 
-func (m *UpstreamAuthority) PublishJWTKey(context.Context, *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+func (m *UpstreamAuthority) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
 	switch {
 	case m.config.PublishJWTKeyResponse != nil:
-		return m.config.PublishJWTKeyResponse, nil
+		return stream.Send(m.config.PublishJWTKeyResponse)
 	default:
-		return nil, status.Errorf(codes.Unimplemented, "unimplemented on fake")
+		return status.Errorf(codes.Unimplemented, "unimplemented on fake")
 	}
+}
+
+func (m *UpstreamAuthority) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	return &plugin.ConfigureResponse{}, nil
+}
+
+func (m *UpstreamAuthority) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	return &plugin.GetPluginInfoResponse{}, nil
+}
+
+func Load(t *testing.T, config Config) (upstreamauthority.UpstreamAuthority, *UpstreamAuthority, func()) {
+	var serverUA upstreamauthority.UpstreamAuthority
+
+	fake := New(t, config)
+	serverUADone := spiretest.LoadPlugin(t, catalog.MakePlugin("fake",
+		upstreamauthority.PluginServer(fake),
+	), &serverUA)
+	return serverUA, fake, serverUADone
 }

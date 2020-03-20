@@ -12,13 +12,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-type MintX509CARequest = upstreamauthority.MintX509CARequest                                       //nolint: golint
-type MintX509CAResponse = upstreamauthority.MintX509CAResponse                                     //nolint: golint
-type PublishJWTKeyRequest = upstreamauthority.PublishJWTKeyRequest                                 //nolint: golint
-type PublishJWTKeyResponse = upstreamauthority.PublishJWTKeyResponse                               //nolint: golint
-type UnimplementedUpstreamAuthorityServer = upstreamauthority.UnimplementedUpstreamAuthorityServer //nolint: golint
-type UpstreamAuthorityClient = upstreamauthority.UpstreamAuthorityClient                           //nolint: golint
-type UpstreamAuthorityServer = upstreamauthority.UpstreamAuthorityServer                           //nolint: golint
+type MintX509CARequest = upstreamauthority.MintX509CARequest                                         //nolint: golint
+type MintX509CAResponse = upstreamauthority.MintX509CAResponse                                       //nolint: golint
+type PublishJWTKeyRequest = upstreamauthority.PublishJWTKeyRequest                                   //nolint: golint
+type PublishJWTKeyResponse = upstreamauthority.PublishJWTKeyResponse                                 //nolint: golint
+type UnimplementedUpstreamAuthorityServer = upstreamauthority.UnimplementedUpstreamAuthorityServer   //nolint: golint
+type UpstreamAuthorityClient = upstreamauthority.UpstreamAuthorityClient                             //nolint: golint
+type UpstreamAuthorityServer = upstreamauthority.UpstreamAuthorityServer                             //nolint: golint
+type UpstreamAuthority_MintX509CAClient = upstreamauthority.UpstreamAuthority_MintX509CAClient       //nolint: golint
+type UpstreamAuthority_MintX509CAServer = upstreamauthority.UpstreamAuthority_MintX509CAServer       //nolint: golint
+type UpstreamAuthority_PublishJWTKeyClient = upstreamauthority.UpstreamAuthority_PublishJWTKeyClient //nolint: golint
+type UpstreamAuthority_PublishJWTKeyServer = upstreamauthority.UpstreamAuthority_PublishJWTKeyServer //nolint: golint
 
 const (
 	Type = "UpstreamAuthority"
@@ -26,16 +30,16 @@ const (
 
 // UpstreamAuthority is the client interface for the service type UpstreamAuthority interface.
 type UpstreamAuthority interface {
-	MintX509CA(context.Context, *MintX509CARequest) (*MintX509CAResponse, error)
-	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error)
+	MintX509CA(context.Context, *MintX509CARequest) (UpstreamAuthority_MintX509CAClient, error)
+	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (UpstreamAuthority_PublishJWTKeyClient, error)
 }
 
 // Plugin is the client interface for the service with the plugin related methods used by the catalog to initialize the plugin.
 type Plugin interface {
 	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
 	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
-	MintX509CA(context.Context, *MintX509CARequest) (*MintX509CAResponse, error)
-	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error)
+	MintX509CA(context.Context, *MintX509CARequest) (UpstreamAuthority_MintX509CAClient, error)
+	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (UpstreamAuthority_PublishJWTKeyClient, error)
 }
 
 // PluginServer returns a catalog PluginServer implementation for the UpstreamAuthority plugin.
@@ -91,10 +95,10 @@ func (a pluginClientAdapter) GetPluginInfo(ctx context.Context, in *spi.GetPlugi
 	return a.client.GetPluginInfo(ctx, in)
 }
 
-func (a pluginClientAdapter) MintX509CA(ctx context.Context, in *MintX509CARequest) (*MintX509CAResponse, error) {
+func (a pluginClientAdapter) MintX509CA(ctx context.Context, in *MintX509CARequest) (UpstreamAuthority_MintX509CAClient, error) {
 	return a.client.MintX509CA(ctx, in)
 }
 
-func (a pluginClientAdapter) PublishJWTKey(ctx context.Context, in *PublishJWTKeyRequest) (*PublishJWTKeyResponse, error) {
+func (a pluginClientAdapter) PublishJWTKey(ctx context.Context, in *PublishJWTKeyRequest) (UpstreamAuthority_PublishJWTKeyClient, error) {
 	return a.client.PublishJWTKey(ctx, in)
 }

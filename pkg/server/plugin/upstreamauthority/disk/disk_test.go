@@ -162,7 +162,11 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(err)
 
-	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	stream, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	require.NoError(err)
+	require.NotNil(stream)
+
+	resp, err := stream.Recv()
 	require.NoError(err)
 	require.NotNil(resp)
 
@@ -206,7 +210,11 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		stream, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		require.NoError(err)
+		require.NotNil(stream)
+
+		resp, err := stream.Recv()
 		require.NoError(err)
 		require.NotNil(resp)
 
@@ -250,7 +258,11 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
-	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	stream, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	s.Require().NoError(err)
+	s.Require().NotNil(stream)
+
+	resp, err := stream.Recv()
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
@@ -288,13 +300,21 @@ func (s *DiskSuite) TestSubmitInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		stream, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		require.NoError(err)
+		require.NotNil(stream)
+
+		resp, err := stream.Recv()
 		require.Error(err)
 		require.Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	stream, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	require.NoError(err)
+	require.NotNil(stream)
+
+	resp, err := stream.Recv()
 	require.Error(err)
 	require.Nil(resp)
 }
@@ -332,7 +352,11 @@ func (s *DiskSuite) configureWithTTL(keyFilePath, certFilePath, deprecatedTTL st
 }
 
 func (s *DiskSuite) TestPublishJWTKey() {
-	resp, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	stream, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	s.Require().NoError(err)
+	s.Require().NotNil(stream)
+
+	resp, err := stream.Recv()
 	s.Require().Nil(resp)
 	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
 }
