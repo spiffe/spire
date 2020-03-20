@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -228,10 +227,6 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 	fedRem, fedRemDone := allocStringSet()
 	defer fedRemDone()
 
-	var deleteCounter float32
-	var createCounter float32
-	var updateCounter float32
-
 	// Remove records for registration entries that no longer exist
 	for id, record := range c.records {
 		if _, ok := update.RegistrationEntries[id]; !ok {
@@ -248,12 +243,7 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 			c.delSelectorIndicesRecord(selRem, record)
 			notifySet.MergeSet(selRem)
 			delete(c.records, id)
-			deleteCounter++
 		}
-	}
-
-	if deleteCounter > 0 {
-		telemetry_agent.IncrRegistrationEntryDeletedCounter(c.metrics, deleteCounter)
 	}
 
 	// Add/update records for registration entries in the update
@@ -264,13 +254,6 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 		clearStringSet(fedRem)
 
 		record, existingEntry := c.updateOrCreateRecord(newEntry)
-
-		// existingEntry is nil in case of a new registration entry
-		if existingEntry != nil {
-			updateCounter++
-		} else {
-			createCounter++
-		}
 
 		// Calculate the difference in selectors, add/remove the record
 		// from impacted selector indices, and add the selector diff to the
@@ -341,13 +324,6 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 				log.Debug("Entry created")
 			}
 		}
-	}
-
-	if updateCounter > 0 {
-		telemetry_agent.IncrRegistrationEntryUpdatedCounter(c.metrics, updateCounter)
-	}
-	if createCounter > 0 {
-		telemetry_agent.IncrRegistrationEntryCreatedCounter(c.metrics, createCounter)
 	}
 
 	if bundleRemoved || len(bundleChanged) > 0 {
