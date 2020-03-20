@@ -18,7 +18,6 @@ The registrar has the following command line flags:
 | Flag         | Description                                                      | Default                       |
 | ------------ | -----------------------------------------------------------------| ----------------------------- |
 | `-config`    | Path on disk to the [HCL Configuration](#hcl-configuration) file | `k8s-workload-registrar.conf` |
-| `-kubeconfig` | Path on disk to the kubeconfig file. Only required when using the informer from outside the cluster. | |
 
 
 ### HCL Configuration
@@ -56,6 +55,7 @@ they are ignored.
 | Key                        | Type    | Required? | Description                              | Default |
 | -------------------------- | --------| --------- | ---------------------------------------- | ------- |
 | `informer_resync_interval` | duration| optional  | Every time this interval expires, the informer will resync all registration entries from the API server's config. | `0` (never) |
+| `kubeconfig`               | string  | optional  | Path on disk to the kubeconfig file. Only required when using the informer from outside the cluster. | value of `$KUBECONFIG` |
 
 ### Example
 
