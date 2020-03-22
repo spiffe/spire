@@ -15,6 +15,9 @@ var (
 		cluster = "CLUSTER"
 		server_socket_path = "SOCKETPATH"
 `
+	testMinimalInformerConfig = testMinimalConfig + `
+        mode = "informer"
+`
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -45,10 +48,13 @@ func TestLoadConfig(t *testing.T) {
 		ServerSocketPath: "SOCKETPATH",
 		TrustDomain:      "TRUSTDOMAIN",
 		Cluster:          "CLUSTER",
+		Mode:             "admission",
 	}, config)
 }
 
 func TestParseConfig(t *testing.T) {
+	os.Setenv("KUBECONFIG", "DEFAULTKUBE")
+
 	testCases := []struct {
 		name string
 		in   string
@@ -56,7 +62,7 @@ func TestParseConfig(t *testing.T) {
 		err  string
 	}{
 		{
-			name: "defaults",
+			name: "admission defaults",
 			in:   testMinimalConfig,
 			out: &Config{
 				LogLevel:                       defaultLogLevel,
@@ -68,8 +74,24 @@ func TestParseConfig(t *testing.T) {
 				ServerSocketPath:               "SOCKETPATH",
 				TrustDomain:                    "TRUSTDOMAIN",
 				Cluster:                        "CLUSTER",
+				Mode:                           "admission",
 			},
 		},
+
+		{
+			name: "informer defaults",
+			in:   testMinimalInformerConfig,
+			out: &Config{
+				LogLevel:               defaultLogLevel,
+				ServerSocketPath:       "SOCKETPATH",
+				TrustDomain:            "TRUSTDOMAIN",
+				Cluster:                "CLUSTER",
+				Mode:                   "informer",
+				KubeConfig:             "DEFAULTKUBE",
+				InformerResyncInterval: "0",
+			},
+		},
+
 		{
 			name: "overrides",
 			in: `
@@ -97,8 +119,36 @@ func TestParseConfig(t *testing.T) {
 				TrustDomain:                    "TRUSTDOMAINOVERRIDE",
 				Cluster:                        "CLUSTEROVERRIDE",
 				PodLabel:                       "PODLABEL",
+				Mode:                           "admission",
 			},
 		},
+
+		{
+			name: "informer overrides",
+			in: `
+				log_level = "LEVELOVERRIDE"
+				log_path = "PATHOVERRIDE"
+				server_socket_path = "SOCKETPATHOVERRIDE"
+				trust_domain = "TRUSTDOMAINOVERRIDE"
+				cluster = "CLUSTEROVERRIDE"
+				pod_label = "PODLABEL"
+                mode = "informer"
+                kubeconfig = "KUBEOVERRIDE"
+                informer_resync_interval = "10m"
+            `,
+			out: &Config{
+				LogLevel:               "LEVELOVERRIDE",
+				LogPath:                "PATHOVERRIDE",
+				ServerSocketPath:       "SOCKETPATHOVERRIDE",
+				TrustDomain:            "TRUSTDOMAINOVERRIDE",
+				Cluster:                "CLUSTEROVERRIDE",
+				PodLabel:               "PODLABEL",
+				Mode:                   "informer",
+				KubeConfig:             "KUBEOVERRIDE",
+				InformerResyncInterval: "10m",
+			},
+		},
+
 		{
 			name: "bad HCL",
 			in:   `INVALID`,
@@ -135,6 +185,21 @@ func TestParseConfig(t *testing.T) {
 				pod_annotation = "PODANNOTATION"
 			`,
 			err: "workload registration mode specification is incorrect, can't specify both pod_label and pod_annotation",
+		},
+
+		{
+			name: "kubeconfig field in admission mode",
+			in: testMinimalConfig + `
+				kubeconfig = "KUBECONFIG"
+			`,
+			err: "kubeconfig not valid in admission mode",
+		},
+		{
+			name: "addr field in informer mode",
+			in: testMinimalInformerConfig + `
+				addr = "ADDR"
+			`,
+			err: "addr not valid in informer mode",
 		},
 	}
 

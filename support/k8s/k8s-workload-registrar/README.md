@@ -25,20 +25,22 @@ The registrar has the following command line flags:
 The configuration file is a **required** by the registrar. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
+The following fields are available in any mode:
+
 | Key                        | Type    | Required? | Description                              | Default |
 | -------------------------- | --------| ---------| ----------------------------------------- | ------- |
 | `log_level`                | string  | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
 | `log_path`                 | string  | optional | Path on disk to write the log | |
-| `use_informer`             | string  | optional | If true, uses an informer instead of serving a webhook | `false` |
 | `trust_domain`             | string  | required | Trust domain of the SPIRE server | |
 | `server_socket_path`       | string  | required | Path to the Unix domain socket of the SPIRE server | |
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string  | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string  | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
+| `mode`                     | string  | required | "admission" or "informer" | `"admission"` |
 
-If `use_informer` is `false`, then the following keys are also
-required to configure the webhook server. If `use_informer` is `true`,
-there is no webhook server so they are ignored.
+The `mode` field selects whether the registrar will use the admission
+controller or informer approach. When `mode = "admission"`, the
+following config fields are accepted:
 
 | Key                        | Type    | Required? | Description                              | Default |
 | -------------------------- | --------| ---------| ----------------------------------------- | ------- |
@@ -48,22 +50,39 @@ there is no webhook server so they are ignored.
 | `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
 | `insecure_skip_client_verification` | boolean | optional | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
 
-If `use_informer` is `true`, then the following keys are also
-required to configure the informer. If `use_informer` is `false`,
-they are ignored.
+When `mode = "informer"`, the following config fields are accepted:
 
 | Key                        | Type    | Required? | Description                              | Default |
 | -------------------------- | --------| --------- | ---------------------------------------- | ------- |
 | `informer_resync_interval` | duration| optional  | Every time this interval expires, the informer will resync all registration entries from the API server's config. | `0` (never) |
 | `kubeconfig`               | string  | optional  | Path on disk to the kubeconfig file. Only required when using the informer from outside the cluster. | value of `$KUBECONFIG` |
 
+If `informer_resync_interval` is not set, then errors are logged and
+never retried. If it is set, then all registration entries will be
+updated at this interval, which will create some amount of load on the
+spire and kubernetes servers. An appropriate interval depends on the
+size of the cluster.
+
 ### Example
+
+#### Admission mode
 
 ```
 log_level = "debug"
 trust_domain = "domain.test"
 server_socket_path = "/run/spire/sockets/registration.sock"
 cluster = "production"
+```
+
+#### Informer mode
+
+```
+log_level = "debug"
+trust_domain = "domain.test"
+server_socket_path = "/run/spire/sockets/registration.sock"
+cluster = "production"
+mode = "informer"
+informer_resync_interval = "10m"
 ```
 
 ## Node Registration

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -93,13 +94,18 @@ func run(ctx context.Context, configPath string) error {
 		return err
 	}
 
-	if config.UseInformer {
+	switch config.Mode {
+	case "informer":
 		client, err := setupKube(config, log)
 		if err != nil {
 			return err
 		}
 
-		informerFactory := informers.NewSharedInformerFactory(client, config.InformerResyncInterval)
+		resyncInterval, err := time.ParseDuration(config.InformerResyncInterval)
+		if err != nil {
+			return err
+		}
+		informerFactory := informers.NewSharedInformerFactory(client, resyncInterval)
 
 		handler := NewInformerHandler(InformerHandlerConfig{
 			Log:        log,
@@ -108,19 +114,21 @@ func run(ctx context.Context, configPath string) error {
 		})
 
 		return handler.Run(ctx)
+	case "admission":
+		server, err := NewServer(ServerConfig{
+			Log:                            log,
+			Addr:                           config.Addr,
+			Handler:                        NewWebhookHandler(controller),
+			CertPath:                       config.CertPath,
+			KeyPath:                        config.KeyPath,
+			CaCertPath:                     config.CaCertPath,
+			InsecureSkipClientVerification: config.InsecureSkipClientVerification,
+		})
+		if err != nil {
+			return err
+		}
+		return server.Run(ctx)
+	default:
+		return errs.New("invalid mode %s", config.Mode)
 	}
-
-	server, err := NewServer(ServerConfig{
-		Log:                            log,
-		Addr:                           config.Addr,
-		Handler:                        NewWebhookHandler(controller),
-		CertPath:                       config.CertPath,
-		KeyPath:                        config.KeyPath,
-		CaCertPath:                     config.CaCertPath,
-		InsecureSkipClientVerification: config.InsecureSkipClientVerification,
-	})
-	if err != nil {
-		return err
-	}
-	return server.Run(ctx)
 }
