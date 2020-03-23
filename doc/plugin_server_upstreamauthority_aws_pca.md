@@ -1,4 +1,4 @@
-# Server plugin: UpstreamCA "aws_pca"
+# Server plugin: UpstreamAuthority "aws_pca"
 
 The `aws_pca` plugin uses a certificate authority from AWS Certificate Manager (ACM)
 Private Certificate Authority (PCA) to sign intermediate signing certificates for SPIRE Server.
@@ -22,7 +22,7 @@ See [AWS Certificate Manager Private Certificate Authority](https://aws.amazon.c
 Sample configuration:
 
 ```
-UpstreamCA "aws_pca" {
+UpstreamAuthority "aws_pca" {
     plugin_data {
         region = "us-west-2"
         certificate_authority_arn = "arn:aws:acm-pca:us-west-2:123456789012:certificate-authority/12ac02bc-d425-49f7-ab78-570a44972772"

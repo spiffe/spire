@@ -110,7 +110,7 @@ Note: If you don't already have Docker installed, please follow these [installat
             plugin_data = {}
         }
 
-        UpstreamCA "disk" {
+        UpstreamAuthority "disk" {
             plugin_data {
                 ttl = "1h"
                 key_file_path = "./conf/server/dummy_upstream_ca.key"
