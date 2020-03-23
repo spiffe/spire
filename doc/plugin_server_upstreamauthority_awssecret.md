@@ -1,4 +1,4 @@
-# Server plugin: UpstreamCA "awssecret"
+# Server plugin: UpstreamAuthority "awssecret"
 
 The `awssecret` plugin loads root CA credentials from AWS SecretsManager, using
 them to generate intermediate signing certificates for the server's signing
@@ -18,9 +18,9 @@ The plugin accepts the following configuration options:
 | secret_token            | AWS secret token                             |
 | assume_role_arn         | ARN of role to assume                        |
 
-+The `ttl` configurable is deprecated. When unset, the plugin will use the
-+preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
-+configurable.
+The `ttl` configurable is deprecated. When unset, the plugin will use the
+preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
+configurable.
 
 Only the region, cert_file_arn, and key_file_arn must be configured. You optionally configure the remaining fields depending on how you choose to give SPIRE Server access to the ARNs.
 
@@ -29,7 +29,7 @@ Only the region, cert_file_arn, and key_file_arn must be configured. You optiona
 | by providing an access key id and secret access key | `access_key_id`, `secret_access_key` |
 | by using temporary credentials for an IAM account (*NOTE:* It is the server user's responsibility to provide a new valid token whenever the server is started) | `access_key_id`, `secret_access_key`, `secret_token` |
 | via an EC2 instance that has an attached role with read access to the ARNs | none |
-| by configuring the UpstreamCA plugin to assume another IAM role that has access to the secrets (*NOTE:* The IAM user for which the access key id and secret access key must have permissions to assume the other IAM role, or the role attached to the EC2 instance must have this capability. | `access_key_id`, `secret_access_key`, `secret_token`, `assume_role_arn` |
+| by configuring the UpstreamAuthority plugin to assume another IAM role that has access to the secrets (*NOTE:* The IAM user for which the access key id and secret access key must have permissions to assume the other IAM role, or the role attached to the EC2 instance must have this capability. | `access_key_id`, `secret_access_key`, `secret_token`, `assume_role_arn` |
 
 Because the plugin fetches the secrets from the AWS secrets manager only at startup, automatic rotation of secrets is not advised.
 
@@ -40,7 +40,7 @@ For more information on the AWS Secrets Manager, see the [AWS Secrets Manager](h
 A sample configuration:
 
 ```
-    UpstreamCA "awssecret" {
+    UpstreamAuthority "awssecret" {
         plugin_data {
             region = "us-west-2",
             cert_file_arn = "cert",
