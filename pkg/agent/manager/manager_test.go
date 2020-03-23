@@ -1261,6 +1261,10 @@ func (h *mockNodeAPIHandler) PushJWTKeyUpstream(ctx context.Context, req *node.P
 	return nil, errors.New("oh noes")
 }
 
+func (h *mockNodeAPIHandler) FetchBundle(ctx context.Context, req *node.FetchBundleRequest) (*node.FetchBundleResponse, error) {
+	return nil, errors.New("oh noes")
+}
+
 func (h *mockNodeAPIHandler) start() {
 	s := grpc.NewServer(h.creds)
 	node.RegisterNodeServer(s, h)
