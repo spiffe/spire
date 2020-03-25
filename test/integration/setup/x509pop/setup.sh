@@ -4,4 +4,6 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-go run "${DIR}/gencerts.go" "$@"
+GOBINPATH=$(cd "${REPODIR}"; make go-bin-path)
+
+PATH="${GOBINPATH}" go run "${DIR}/gencerts.go" "$@"
