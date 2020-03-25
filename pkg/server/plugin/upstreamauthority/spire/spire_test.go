@@ -231,6 +231,11 @@ func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKe
 	}, nil
 }
 
+// FetchBundle is not implemented
+func (h *handler) FetchBundle(ctx context.Context, req *node_pb.FetchBundleRequest) (*node_pb.FetchBundleResponse, error) {
+	return nil, errors.New("NOT IMPLEMENTED")
+}
+
 func TestSpirePlugin_Configure(t *testing.T) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
@@ -350,7 +355,7 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 }
 
 func mintX509CA(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	stream, err := plugin.MintX509CA(ctx, req)
@@ -369,7 +374,7 @@ func mintX509CA(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *u
 }
 
 func publishJWTKey(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	stream, err := plugin.PublishJWTKey(ctx, req)
