@@ -24,7 +24,7 @@ func TestValidateSpiffeID(t *testing.T) {
 			name:          "test_validate_spiffe_id_invalid_uri",
 			spiffeID:      "192.168.2.2:6688",
 			mode:          AllowAny(),
-			expectedError: `could not parse SPIFFE ID: parse "192.168.2.2:6688": first path segment in URL cannot contain colon`,
+			expectedError: "could not parse SPIFFE ID: parse 192.168.2.2:6688: first path segment in URL cannot contain colon",
 		},
 		{
 			name:          "test_validate_spiffe_id_invalid_scheme",

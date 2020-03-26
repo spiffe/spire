@@ -156,16 +156,13 @@ func (m *UpstreamAuthority) GetPluginInfo(context.Context, *plugin.GetPluginInfo
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func Load(t *testing.T, config Config) (upstreamauthority.UpstreamAuthority, *UpstreamAuthority) {
+func Load(t *testing.T, config Config) (upstreamauthority.UpstreamAuthority, *UpstreamAuthority, func()) {
 	var serverUA upstreamauthority.UpstreamAuthority
 
 	fake := New(t, config)
 	serverUADone := spiretest.LoadPlugin(t, catalog.MakePlugin("fake",
 		upstreamauthority.PluginServer(fake),
 	), &serverUA)
-	t.Cleanup(func() {
-		serverUADone()
-	})
 
-	return serverUA, fake
+	return serverUA, fake, serverUADone
 }
