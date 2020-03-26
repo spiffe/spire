@@ -504,6 +504,9 @@ ifneq (go$(go_version), $(shell $(go) version 2>/dev/null | cut -f3 -d' '))
 	$(E)curl -sSfL $(go_url) | tar xz -C $(go_dir) --strip-components=1
 endif
 
+go-bin-path: go-check
+	@echo "$(go_bin_dir):${PATH}"
+
 install-toolchain: install-protoc install-golangci-lint install-protoc-gen-go install-protoc-gen-doc install-mockgen | go-check
 
 install-protoc: $(protoc_bin)

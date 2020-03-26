@@ -109,6 +109,7 @@ type HandlerSuite struct {
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
 	downstreamSVID   []*x509.Certificate
+	workloadSVID     []*x509.Certificate
 	serverCA         *fakeserverca.CA
 }
 
@@ -135,6 +136,7 @@ func (s *HandlerSuite) SetupTest() {
 	serverSVID := s.makeSVID(serverID)
 	s.agentSVID = s.makeSVID(agentID)
 	s.downstreamSVID = s.makeSVID(downstreamID)
+	s.workloadSVID = s.makeSVID(workloadID)
 
 	s.metrics = fakemetrics.New()
 	s.expectedMetrics = fakemetrics.New()
@@ -1227,33 +1229,13 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 
 	const fullMethod = "/spire.api.node.Node/FetchX509CASVID"
 
-	// no peer context
-	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Downstream SVID is required for this request")
-
-	// non-TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Downstream SVID is required for this request")
-
-	// no verified chains on TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
-		AuthInfo: credentials.TLSInfo{},
-	}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Downstream SVID is required for this request")
-
 	// no downstream registration entry
-	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Peer is not a valid downstream SPIRE server`)
 
-	// good certificate
+	// with downstream registration entry
 	downstreamEntry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   agentID,
 		SpiffeId:   downstreamID,
@@ -1261,14 +1243,12 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 	})
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.Require().NoError(err)
-
-	actualCert, ok := getPeerCertificate(ctx)
-	s.Require().True(ok, "context has peer certificate")
-	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
-
 	actualEntry, ok := getDownstreamEntry(ctx)
 	s.Require().True(ok, "context has downstream entry")
 	s.RequireProtoEqual(downstreamEntry, actualEntry)
+
+	s.testAuthorizeCallRequiringClientCert(peerCtx, fullMethod, "downstream SVID is required for this request",
+		"Downstream SVID is required for this request", peerCert)
 }
 
 func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
@@ -1277,39 +1257,15 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 	fullMethod := fmt.Sprintf("/spire.api.node.Node/%s", method)
 
-	// no peer context
-	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Agent SVID is required for this request")
-
-	// non-TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Agent SVID is required for this request")
-
-	// no verified chains on TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
-		AuthInfo: credentials.TLSInfo{},
-	}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Agent SVID is required for this request")
-
 	// no attested certificate with matching SPIFFE ID
-	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
-	// good certificate
 	s.attestAgent()
-	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().NoError(err)
-	actualCert, ok := getPeerCertificate(ctx)
-	s.Require().True(ok, "context has peer certificate")
-	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
+	s.testAuthorizeCallRequiringClientCert(peerCtx, fullMethod, "agent SVID is required for this request",
+		"Agent SVID is required for this request", peerCert)
 
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
@@ -1325,6 +1281,50 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+}
+
+func (s *HandlerSuite) TestFetchBundle() {
+	resp, err := s.attestedClient.FetchBundle(context.Background(), &node.FetchBundleRequest{})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().True(proto.Equal(s.fetchBundle(), resp.Bundle))
+}
+
+func (s *HandlerSuite) TestAuthorizeCallForFetchBundle() {
+	peerCtx := withPeerCert(context.Background(), s.workloadSVID)
+	peerCert := s.workloadSVID[0]
+	s.testAuthorizeCallRequiringClientCert(peerCtx, "/spire.api.node.Node/FetchBundle",
+		"client certificate required for this request",
+		"Client certificate required for this request", peerCert)
+}
+
+func (s *HandlerSuite) testAuthorizeCallRequiringClientCert(peerCtx context.Context, method, gprcStatusMsg, logMsg string, peerCert *x509.Certificate) {
+	// no peer context
+	ctx, err := s.handler.AuthorizeCall(context.Background(), method)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, gprcStatusMsg)
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(logMsg)
+
+	// non-TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), method)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, gprcStatusMsg)
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(logMsg)
+
+	// no verified chains on TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
+		AuthInfo: credentials.TLSInfo{},
+	}), method)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, gprcStatusMsg)
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(logMsg)
+
+	// good certificate
+	ctx, err = s.handler.AuthorizeCall(peerCtx, method)
+	s.Require().NoError(err)
+	actualCert, ok := getPeerCertificate(ctx)
+	s.Require().True(ok, "context has peer certificate")
+	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
 }
 
 func (s *HandlerSuite) addAttestor(config fakeservernodeattestor.Config) {

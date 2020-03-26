@@ -7,6 +7,8 @@
     - [AttestRequest](#spire.api.node.AttestRequest)
     - [AttestResponse](#spire.api.node.AttestResponse)
     - [Bundle](#spire.api.node.Bundle)
+    - [FetchBundleRequest](#spire.api.node.FetchBundleRequest)
+    - [FetchBundleResponse](#spire.api.node.FetchBundleResponse)
     - [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest)
     - [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse)
     - [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest)
@@ -83,6 +85,31 @@ Trust domain bundle
 | ----- | ---- | ----- | ----------- |
 | id | [string](#string) |  | bundle identifier, i.e. the SPIFFE ID for the trust domain |
 | ca_certs | [bytes](#bytes) |  | bundle data (ASN.1 encoded X.509 certificates) |
+
+
+
+
+
+
+<a name="spire.api.node.FetchBundleRequest"></a>
+
+### FetchBundleRequest
+
+
+
+
+
+
+
+<a name="spire.api.node.FetchBundleResponse"></a>
+
+### FetchBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
@@ -347,6 +374,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
 | FetchX509CASVID | [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest) | [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse) | Fetches an X509 CA SVID for a downstream SPIRE server. |
 | PushJWTKeyUpstream | [PushJWTKeyUpstreamRequest](#spire.api.node.PushJWTKeyUpstreamRequest) | [PushJWTKeyUpstreamResponse](#spire.api.node.PushJWTKeyUpstreamResponse) | PushJWTKeyUpstream pushes new public JWKs to upstream SPIRE Server, unless this is the root server, in which case it stores the JWK in its bundle. Returns an up-to-date list of the JWT signing keys stored in the bundle. |
+| FetchBundle | [FetchBundleRequest](#spire.api.node.FetchBundleRequest) | [FetchBundleResponse](#spire.api.node.FetchBundleResponse) | FetchBundle fetches the bundle of the local trust domain |
 
  
 
