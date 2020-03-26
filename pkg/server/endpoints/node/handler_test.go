@@ -27,7 +27,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -114,6 +113,10 @@ type HandlerSuite struct {
 }
 
 func (s *HandlerSuite) SetupTest() {
+	s.setupTest(nil)
+}
+
+func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.Config) {
 	s.clock = clock.NewMock(s.T())
 
 	log, logHook := test.NewNullLogger()
@@ -124,6 +127,14 @@ func (s *HandlerSuite) SetupTest() {
 	s.ds = fakedatastore.New()
 	s.catalog = fakeservercatalog.New()
 	s.catalog.SetDataStore(s.ds)
+	if upstreamAuthorityConfig != nil {
+		upstreamAuthority, _, uaDone := fakeupstreamauthority.Load(s.T(), *upstreamAuthorityConfig)
+		s.AppendCloser(uaDone)
+		s.catalog.SetUpstreamAuthority(fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			upstreamAuthority,
+		))
+	}
 
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock: s.clock,
@@ -1120,25 +1131,16 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
+	s.setupTest(&fakeupstreamauthority.Config{
+		TrustDomain: trustDomainID,
+	})
+
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
 	s.Require().NoError(err)
 	jwk := &common.PublicKey{
 		Kid:       "kid",
 		PkixBytes: pkixBytes,
 	}
-
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: trustDomainID,
-		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
-			UpstreamJwtKeys: []*common.PublicKey{jwk},
-		},
-	})
-	defer upDone()
-
-	s.catalog.SetUpstreamAuthority(
-		fakeservercatalog.UpstreamAuthority(
-			"fakeupstreamauthority",
-			upstreamAuthority))
 
 	s.attestAgent()
 
@@ -1161,15 +1163,10 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: trustDomainID,
+	s.setupTest(&fakeupstreamauthority.Config{
+		TrustDomain:           trustDomainID,
+		DisallowPublishJWTKey: true,
 	})
-	defer upDone()
-
-	s.catalog.SetUpstreamAuthority(
-		fakeservercatalog.UpstreamAuthority(
-			"fakeupstreamauthority",
-			upstreamAuthority))
 
 	s.attestAgent()
 
