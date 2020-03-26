@@ -26,6 +26,14 @@ message SpiffeID {
     string id = 1;
 }
 
+// A type that represents a CreateEntryIfNotExists response
+// If an entry already exists, the existing entry will be returned
+// and `existing` will be set to true.
+message CreateEntryIfNotExistsResponse {
+    spire.common.RegistrationEntry entry = 1;
+    bool preexisting = 2;
+}
+
 // A type used to update registration entries
 message UpdateEntryRequest {
     // Registration entry to update
@@ -185,6 +193,8 @@ message GetNodeSelectorsResponse {
 service Registration {
     // Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
     rpc CreateEntry(spire.common.RegistrationEntry) returns (RegistrationEntryID);
+    // Creates an entry in the Registration table if one like it doesn't already exist
+    rpc CreateEntryIfNotExists(spire.common.RegistrationEntry) returns (CreateEntryIfNotExistsResponse);
     // Deletes an entry and returns the deleted entry.
     rpc DeleteEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry);
     // Retrieve a specific registered entry.

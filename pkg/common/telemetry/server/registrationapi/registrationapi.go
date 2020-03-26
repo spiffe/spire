@@ -11,6 +11,12 @@ func StartCreateEntryCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Create)
 }
 
+// StartCreateEntryIfNotExistsCall return metric
+// for server's registration API, on creating an entry.
+func StartCreateEntryIfNotExistsCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.RegistrationAPI, telemetry.Entry, telemetry.CreateIfNotExists)
+}
+
 // StartCreateFedBundleCall return metric
 // for server's registration API, on creating a federated bundle
 func StartCreateFedBundleCall(m telemetry.Metrics) *telemetry.CallCounter {
