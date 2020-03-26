@@ -52,16 +52,16 @@ func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationE
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	log := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntry)
 
-	entry, preexisting, gErr := h.createRegistrationEntry(ctx, request)
-	if gErr != nil {
-		switch gErr.Code() {
+	entry, preexisting, err := h.createRegistrationEntry(ctx, request)
+	if err != nil {
+		switch status.Code(err) {
 		case codes.InvalidArgument:
-			log.WithError(gErr.Err()).Error("Request parameter validation error")
-			return nil, gErr.Err()
+			log.WithError(err).Error("Request parameter validation error")
 		default:
-			log.WithError(gErr.Err()).Error("Error trying to create entry")
-			return nil, gErr.Err()
+			log.WithError(err).Error("Error trying to create entry")
 		}
+
+		return nil, err
 	}
 
 	if preexisting {
@@ -78,16 +78,16 @@ func (h *Handler) CreateEntryIfNotExists(ctx context.Context, request *common.Re
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	log := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntryIfNotExists)
 
-	entry, preexisting, gErr := h.createRegistrationEntry(ctx, request)
-	if gErr != nil {
-		switch gErr.Code() {
+	entry, preexisting, err := h.createRegistrationEntry(ctx, request)
+	if err != nil {
+		switch status.Code(err) {
 		case codes.InvalidArgument:
-			log.WithError(gErr.Err()).Error("Request parameter validation error")
-			return nil, gErr.Err()
+			log.WithError(err).Error("Request parameter validation error")
 		default:
-			log.WithError(gErr.Err()).Error("Error trying to create entry")
-			return nil, gErr.Err()
+			log.WithError(err).Error("Error trying to create entry")
 		}
+
+		return nil, err
 	}
 
 	resp = &registration.CreateEntryIfNotExistsResponse{
@@ -786,17 +786,17 @@ func (h *Handler) getDataStore() datastore.DataStore {
 	return h.Catalog.GetDataStore()
 }
 
-func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *common.RegistrationEntry) (entry *common.RegistrationEntry, preexisting bool, gErr *status.Status) {
-	requestedEntry, err := h.prepareRegistrationEntry(requestedEntry, false)
+func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *common.RegistrationEntry) (entry *common.RegistrationEntry, preexisting bool, err error) {
+	requestedEntry, err = h.prepareRegistrationEntry(requestedEntry, false)
 	if err != nil {
-		return nil, false, status.New(codes.InvalidArgument, err.Error())
+		return nil, false, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	ds := h.getDataStore()
 
 	existingEntry, unique, err := h.isEntryUnique(ctx, ds, requestedEntry)
 	if err != nil {
-		return nil, false, status.Newf(codes.Internal, "error trying to create entry: %v", err)
+		return nil, false, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
 	if !unique {
@@ -807,7 +807,7 @@ func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *c
 		&datastore.CreateRegistrationEntryRequest{Entry: requestedEntry},
 	)
 	if err != nil {
-		return nil, false, status.Newf(codes.Internal, "error trying to create entry: %v", err)
+		return nil, false, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
 	return createResponse.Entry, false, nil
