@@ -52,35 +52,50 @@ func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationE
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	log := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntry)
 
-	request, err = h.prepareRegistrationEntry(request, false)
-	if err != nil {
-		err = status.Error(codes.InvalidArgument, err.Error())
-		log.WithError(err).Error("Request parameter validation error")
-		return nil, err
+	entry, preexisting, gErr := h.createRegistrationEntry(ctx, request)
+	if gErr != nil {
+		switch gErr.Code() {
+		case codes.InvalidArgument:
+			log.WithError(gErr.Err()).Error("Request parameter validation error")
+			return nil, gErr.Err()
+		default:
+			log.WithError(gErr.Err()).Error("Error trying to create entry")
+			return nil, gErr.Err()
+		}
 	}
 
-	ds := h.getDataStore()
-
-	unique, err := h.isEntryUnique(ctx, ds, request)
-	if err != nil {
-		log.WithError(err).Error("Error trying to create entry")
-		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
-	}
-
-	if !unique {
+	if preexisting {
 		log.Error("Entry already exists")
 		return nil, status.Error(codes.AlreadyExists, "entry already exists")
 	}
 
-	createResponse, err := ds.CreateRegistrationEntry(ctx,
-		&datastore.CreateRegistrationEntryRequest{Entry: request},
-	)
-	if err != nil {
-		log.WithError(err).Error("Error trying to create entry")
-		return nil, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
+	return &registration.RegistrationEntryID{Id: entry.EntryId}, nil
+}
+
+func (h *Handler) CreateEntryIfNotExists(ctx context.Context, request *common.RegistrationEntry) (resp *registration.CreateEntryIfNotExistsResponse, err error) {
+	counter := telemetry_registrationapi.StartCreateEntryIfNotExistsCall(h.Metrics)
+	defer counter.Done(&err)
+	telemetry_common.AddCallerID(counter, getCallerID(ctx))
+	log := h.Log.WithField(telemetry.Method, telemetry.CreateRegistrationEntryIfNotExists)
+
+	entry, preexisting, gErr := h.createRegistrationEntry(ctx, request)
+	if gErr != nil {
+		switch gErr.Code() {
+		case codes.InvalidArgument:
+			log.WithError(gErr.Err()).Error("Request parameter validation error")
+			return nil, gErr.Err()
+		default:
+			log.WithError(gErr.Err()).Error("Error trying to create entry")
+			return nil, gErr.Err()
+		}
 	}
 
-	return &registration.RegistrationEntryID{Id: createResponse.Entry.EntryId}, nil
+	resp = &registration.CreateEntryIfNotExistsResponse{
+		Entry:       entry,
+		Preexisting: preexisting,
+	}
+
+	return resp, nil
 }
 
 //DeleteEntry deletes an entry in the Registration table
@@ -739,7 +754,7 @@ func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (string, error) {
 	return spiffeID, nil
 }
 
-func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {
+func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	// First we get all the entries that matches the entry's spiffe id.
 	req := &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
@@ -755,16 +770,48 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 	}
 	res, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
 
-	return len(res.Entries) == 0, nil
+	existing := new(common.RegistrationEntry)
+	unique := len(res.Entries) == 0
+	if !unique {
+		existing = res.Entries[0]
+	}
+
+	return existing, unique, nil
 }
 
 func (h *Handler) getDataStore() datastore.DataStore {
 	return h.Catalog.GetDataStore()
 }
 
+func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *common.RegistrationEntry) (entry *common.RegistrationEntry, preexisting bool, gErr *status.Status) {
+	requestedEntry, err := h.prepareRegistrationEntry(requestedEntry, false)
+	if err != nil {
+		return nil, false, status.New(codes.InvalidArgument, err.Error())
+	}
+
+	ds := h.getDataStore()
+
+	existingEntry, unique, err := h.isEntryUnique(ctx, ds, requestedEntry)
+	if err != nil {
+		return nil, false, status.Newf(codes.Internal, "error trying to create entry: %v", err)
+	}
+
+	if !unique {
+		return existingEntry, true, nil
+	}
+
+	createResponse, err := ds.CreateRegistrationEntry(ctx,
+		&datastore.CreateRegistrationEntryRequest{Entry: requestedEntry},
+	)
+	if err != nil {
+		return nil, false, status.Newf(codes.Internal, "error trying to create entry: %v", err)
+	}
+
+	return createResponse.Entry, false, nil
+}
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
 	entry = cloneRegistrationEntry(entry)
 	if forUpdate && entry.EntryId == "" {

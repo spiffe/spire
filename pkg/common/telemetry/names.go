@@ -26,6 +26,10 @@ const (
 	// to add clarity
 	Create = "create"
 
+	// Create if not exists functionality related to creating some entity; should be used with
+	// other tags to add clarity
+	CreateIfNotExists = "create_if_not_exists"
+
 	// Delete functionality related to deleting some entity; should be used with other tags
 	// to add clarity
 	Delete = "delete"
@@ -441,6 +445,9 @@ const (
 
 	// CreateRegistrationEntry functionality related to creating a registration entry
 	CreateRegistrationEntry = "create_registration_entry"
+
+	// CreateRegistrationEntryIfNotExists functionality related to creating a registration entry
+	CreateRegistrationEntryIfNotExists = "create_registration_entry_if_not_exists"
 
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
