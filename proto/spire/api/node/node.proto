@@ -144,6 +144,12 @@ message PushJWTKeyUpstreamResponse {
     repeated spire.common.PublicKey jwt_signing_keys = 1;    
 }
 
+message FetchBundleRequest {}
+
+message FetchBundleResponse {
+     spire.common.Bundle bundle = 1;
+}
+
 service Node {
     // Attest the node, get base node SVID.
     rpc Attest(stream AttestRequest) returns (stream AttestResponse);
@@ -163,4 +169,7 @@ service Node {
     // is the root server, in which case it stores the JWK in its bundle. Returns an
     // up-to-date list of the JWT signing keys stored in the bundle.
     rpc PushJWTKeyUpstream(PushJWTKeyUpstreamRequest) returns (PushJWTKeyUpstreamResponse);
+
+    // FetchBundle fetches the bundle of the local trust domain
+    rpc FetchBundle(FetchBundleRequest) returns (FetchBundleResponse);
 }

@@ -523,6 +523,28 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 	}, nil
 }
 
+func (h *Handler) FetchBundle(ctx context.Context, req *node.FetchBundleRequest) (_ *node.FetchBundleResponse, err error) {
+	counter := telemetry_server.StartNodeAPIFetchBundleCall(h.c.Metrics)
+	defer counter.Done(&err)
+	log := h.c.Log.WithField(telemetry.Method, telemetry.FetchBundle)
+
+	_, ok := getPeerCertificate(ctx)
+	if !ok {
+		log.Error("Client certificate required for this request")
+		return nil, status.Error(codes.InvalidArgument, "client certificate required for this request")
+	}
+
+	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch bundle")
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &node.FetchBundleResponse{
+		Bundle: bundle,
+	}, nil
+}
+
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	switch fullMethod {
 	// no authn/authz is required for attestation
@@ -561,6 +583,14 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 
 		ctx = withPeerCertificate(ctx, peerCert)
 		ctx = withDownstreamEntry(ctx, entry)
+	case "/spire.api.node.Node/FetchBundle":
+		peerCert, err := getPeerCertificateFromRequestContext(ctx)
+		if err != nil {
+			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Client certificate required for this request")
+			return nil, status.Error(codes.Unauthenticated, "client certificate required for this request")
+		}
+
+		ctx = withPeerCertificate(ctx, peerCert)
 	// method not handled
 	default:
 		err := status.Errorf(codes.PermissionDenied, "authorization not implemented for method %q", fullMethod)
