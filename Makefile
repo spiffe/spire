@@ -481,7 +481,7 @@ mockgen: $(foreach x,$(mockgen_mocks),$(call mockgen-out,$x))
 dev-image:
 	$(E)docker build -t spire-dev -f Dockerfile.dev .
 
-dev-shell: | go-check
+dev-shell:
 	$(E)docker run --rm -v "$(call goenv,GOCACHE)":/root/.cache/go-build -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
 
 #############################################################################
