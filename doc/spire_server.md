@@ -43,6 +43,9 @@ The following table outlines the configuration options for SPIRE server. These m
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
+If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
+This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
+
 | Configuration               | Description                                                                | Default                       |
 |:----------------------------|:---------------------------------------------------------------------------|:------------------------------|
 | `bind_address`              | IP address or DNS name of the SPIRE server                                 | 0.0.0.0                       |
@@ -120,6 +123,7 @@ Most of the configuration file above options have identical command-line counter
 | `-bindAddress` | IP address or DNS name of the SPIRE server | |
 | `-config` | Path to a SPIRE config file | conf/server/server.conf |
 | `-dataDir` | Directory to store runtime data to | |
+| `-expandEnv` | Expand environment $VARIABLES in the config file | |
 | `-logFile` | File to write logs to | |
 | `-logFormat` | Format of logs, \<text\|json\> | |
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |

@@ -60,6 +60,7 @@ type agentConfig struct {
 	TrustDomain       string `hcl:"trust_domain"`
 
 	ConfigPath string
+	ExpandEnv  bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool               `hcl:"profiling_enabled"`
@@ -93,7 +94,7 @@ func (cmd *Command) Run(args []string) int {
 		return 1
 	}
 
-	fileInput, err := parseFile(cliInput.ConfigPath)
+	fileInput, err := parseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -144,7 +145,7 @@ func (*Command) Synopsis() string {
 	return "Runs the agent"
 }
 
-func parseFile(path string) (*config, error) {
+func parseFile(path string, expandEnv bool) (*config, error) {
 	c := &config{}
 
 	if path == "" {
@@ -152,7 +153,7 @@ func parseFile(path string) (*config, error) {
 	}
 
 	// Return a friendly error if the file is missing
-	data, err := ioutil.ReadFile(path)
+	byteData, err := ioutil.ReadFile(path)
 	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
@@ -166,8 +167,14 @@ func parseFile(path string) (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
 	}
+	data := string(byteData)
 
-	if err := hcl.Decode(&c, string(data)); err != nil {
+	// If envTemplate flag is passed, substitute $VARIABLES in configuration file
+	if expandEnv {
+		data = os.ExpandEnv(data)
+	}
+
+	if err := hcl.Decode(&c, data); err != nil {
 		return nil, fmt.Errorf("unable to decode configuration at %q: %v", path, err)
 	}
 
@@ -190,6 +197,7 @@ func parseFlags(args []string) (*agentConfig, error) {
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
+	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	err := flags.Parse(args)
 	if err != nil {
