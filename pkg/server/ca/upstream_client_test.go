@@ -169,7 +169,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 			// bad response is ignored.
 			ua.RotateX509CA()
 
-			err, msg := updater.WaitForError(t)
+			msg, err := updater.WaitForError(t)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.err)
 			require.Equal(t, msg, "Invalid MintX509CA bundle update response")
@@ -296,12 +296,12 @@ func (u *fakeBundleUpdater) OnError(err error, msg string) {
 	}
 }
 
-func (u *fakeBundleUpdater) WaitForError(t *testing.T) (err error, msg string) {
+func (u *fakeBundleUpdater) WaitForError(t *testing.T) (msg string, err error) {
 	select {
 	case <-time.After(time.Minute):
 		require.FailNow(t, "timed out waiting for JWT keys to be appended")
-		return nil, "" // unreachable
+		return "", nil // unreachable
 	case e := <-u.errorCh:
-		return e.err, e.msg
+		return e.msg, e.err
 	}
 }
