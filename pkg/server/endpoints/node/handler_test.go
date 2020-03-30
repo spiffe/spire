@@ -1122,12 +1122,12 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 			PkixBytes: pkixBytes,
 		},
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 2)
-	s.Assert().Equal("kid1", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Equal("kid2", resp.JwtSigningKeys[1].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 2)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 2)
+	s.Require().Equal("kid1", resp.JwtSigningKeys[0].Kid)
+	s.Require().Equal("kid2", resp.JwtSigningKeys[1].Kid)
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 2)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
@@ -1155,11 +1155,11 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
 		JwtKey: jwk,
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 1)
-	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 1)
+	s.Require().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Len(s.fetchBundle().JwtSigningKeys, 1)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
@@ -1187,11 +1187,11 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 			PkixBytes: pkixBytes,
 		},
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 1)
-	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 1)
+	s.Require().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Len(s.fetchBundle().JwtSigningKeys, 1)
 	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 		"by this server may have trouble communicating with workloads outside "+
 		"this cluster when using JWT-SVIDs.")

@@ -380,6 +380,10 @@ func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (
 		upstreamJWTKeys, err := m.upstreamClient.PublishJWTKey(publishCtx, jwtKey)
 		switch {
 		case status.Code(err) == codes.Unimplemented:
+			// JWT Key publishing is not supported by the upstream plugin.
+			// Issue a one-time warning and then fall through to the
+			// appendBundle call below as if an upstream client was not
+			// configured so the JWT key gets pushed into the local bundle.
 			m.jwtUnimplementedWarnOnce.Do(func() {
 				m.c.Log.WithField("plugin_name", m.upstreamPluginName).Warn("UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed " +
 					"by this server may have trouble communicating with workloads outside " +
@@ -387,8 +391,9 @@ func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (
 			})
 		case err != nil:
 			return nil, err
+		default:
+			return upstreamJWTKeys, nil
 		}
-		return upstreamJWTKeys, nil
 	}
 
 	resp, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey})
