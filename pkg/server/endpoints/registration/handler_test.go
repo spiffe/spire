@@ -310,7 +310,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 	}
 }
 
-func (s *HandlerSuite) TestCreateEntry() {
+func (s *HandlerSuite) TestCreateEntryAndCreateEntryIfNotExists() {
 	testCases := []struct {
 		Name  string
 		Entry *common.RegistrationEntry
@@ -336,6 +336,56 @@ func (s *HandlerSuite) TestCreateEntry() {
 			},
 			Err: "empty or only whitespace",
 		},
+	}
+
+	verifyEntry := func(entry *common.RegistrationEntry) {
+		storedEntry, err := s.ds.FetchRegistrationEntry(context.Background(), &datastore.FetchRegistrationEntryRequest{
+			EntryId: entry.EntryId,
+		})
+		s.Require().NoError(err)
+		s.Require().NotNil(storedEntry)
+		s.T().Logf("actual=%+v expected=%+v", storedEntry.Entry, entry)
+		s.Require().True(proto.Equal(storedEntry.Entry, entry))
+	}
+
+	for _, testCase := range testCases {
+		// Alias loop variable as it is used in the closures
+		testCase := testCase
+
+		s.T().Run("CreateEntry_"+testCase.Name, func(t *testing.T) {
+			resp, err := s.handler.CreateEntry(context.Background(), testCase.Entry)
+			if testCase.Err != "" {
+				requireErrorContains(t, err, testCase.Err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Id)
+
+			testCase.Entry.EntryId = resp.Id
+			verifyEntry(testCase.Entry)
+		})
+
+		s.T().Run("CreateEntryIfNotExists_"+testCase.Name, func(t *testing.T) {
+			resp, err := s.handler.CreateEntryIfNotExists(context.Background(), testCase.Entry)
+			if testCase.Err != "" {
+				requireErrorContains(t, err, testCase.Err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Entry)
+
+			testCase.Entry.EntryId = resp.Entry.EntryId
+			verifyEntry(testCase.Entry)
+		})
+	}
+}
+
+func (s *HandlerSuite) TestCreateEntry() {
+	testCases := []struct {
+		Name  string
+		Entry *common.RegistrationEntry
+		Err   string
+	}{
 		{
 			Name: "Success",
 			Entry: &common.RegistrationEntry{
@@ -376,6 +426,46 @@ func (s *HandlerSuite) TestCreateEntry() {
 			testCase.Entry.EntryId = entry.Entry.EntryId
 			t.Logf("actual=%+v expected=%+v", entry.Entry, testCase.Entry)
 			require.True(t, proto.Equal(entry.Entry, testCase.Entry))
+		})
+	}
+}
+
+func (s *HandlerSuite) TestCreateEntryIfNotExists() {
+	testCases := []struct {
+		Name        string
+		Entry       *common.RegistrationEntry
+		Preexisting bool
+	}{
+		{
+			Name: "Success",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+				DnsNames:  []string{"abcd.ef"},
+			},
+		},
+		{
+			Name: "SuccessWhenExists",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+			},
+			Preexisting: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase // alias loop variable as it is used in the closure
+		s.T().Run(testCase.Name, func(t *testing.T) {
+			resp, err := s.handler.CreateEntryIfNotExists(context.Background(), testCase.Entry)
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Entry)
+
+			require.Equal(t, testCase.Preexisting, resp.Preexisting)
+			require.Equal(t, testCase.Entry.ParentId, resp.Entry.ParentId)
+			require.Equal(t, testCase.Entry.SpiffeId, resp.Entry.SpiffeId)
 		})
 	}
 }

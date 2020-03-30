@@ -116,25 +116,27 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *Plugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (p *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+	ctx := stream.Context()
+
 	upstreamCA, upstreamCerts, err := p.reloadCA()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	cert, err := upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthority.MintX509CAResponse{
 		X509CaChain:       append([][]byte{cert.Raw}, upstreamCerts.certChain...),
 		UpstreamX509Roots: upstreamCerts.trustBundle,
-	}, nil
+	})
 }
 
-func (*Plugin) PublishJWTKey(ctx context.Context, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
+func (*Plugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {

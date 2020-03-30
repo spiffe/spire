@@ -26,4 +26,16 @@ func StartNodeAPIFetchX509CASVIDCall(m telemetry.Metrics) *telemetry.CallCounter
 	return telemetry.StartCall(m, telemetry.NodeAPI, telemetry.X509CASVID, telemetry.Fetch)
 }
 
+// StartNodeAPIPushJWTKeyUpstreamCall return metric for
+// the server's Node API, Push JWT Key Upstream.
+func StartNodeAPIPushJWTKeyUpstreamCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.NodeAPI, telemetry.JWTKey, telemetry.Push)
+}
+
+// StartNodeAPIFetchBundleCall return metric for
+// the server's Node API, Fetch the current bundle.
+func StartNodeAPIFetchBundleCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.NodeAPI, telemetry.FetchBundle, telemetry.Fetch)
+}
+
 // End Call Counters

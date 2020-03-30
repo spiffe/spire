@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -25,6 +26,7 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -215,7 +217,22 @@ func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
 	return errors.New("NOT IMPLEMENTED")
 }
 
+// PushJWTKeyUpstream fakes the real implementation (node endpoint) for testing purposes
 func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKeyUpstreamRequest) (*node_pb.PushJWTKeyUpstreamResponse, error) {
+	keys := []*common.PublicKey{
+		&common.PublicKey{
+			Kid: "kid-0",
+		},
+		req.JwtKey,
+	}
+
+	return &node_pb.PushJWTKeyUpstreamResponse{
+		JwtSigningKeys: keys,
+	}, nil
+}
+
+// FetchBundle is not implemented
+func (h *handler) FetchBundle(ctx context.Context, req *node_pb.FetchBundleRequest) (*node_pb.FetchBundleResponse, error) {
 	return nil, errors.New("NOT IMPLEMENTED")
 }
 
@@ -252,7 +269,7 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(t, err)
 
-	resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: csr})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
@@ -277,22 +294,38 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(t, err)
 
-		resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: csr})
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := m.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(t, err)
 	require.Nil(t, resp)
 }
 
 func TestSpirePlugin_PublishJWTKey(t *testing.T) {
-	m := New()
-	resp, err := m.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
-	require.Nil(t, resp)
-	require.EqualError(t, err, "rpc error: code = Unimplemented desc = upstreamauthority-spire: publishing upstream is unsupported")
+	server := testHandler{}
+	server.startTestServers(t)
+	defer server.stopTestServers()
+
+	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+	defer done()
+
+	// Assertions only checks that the keys contained in the handler response
+	// are forwarded by the plugin method.
+	resp, err := publishJWTKey(t, m, &upstreamauthority.PublishJWTKeyRequest{
+		JwtKey: &common.PublicKey{
+			Kid: "kid-1",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.Len(t, resp.UpstreamJwtKeys, 2)
+	assert.Equal(t, resp.UpstreamJwtKeys[0].Kid, "kid-0")
+	assert.Equal(t, resp.UpstreamJwtKeys[1].Kid, "kid-1")
 }
 
 func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
@@ -319,4 +352,42 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 		require.NoError(t, err)
 	}
 	return plugin, done
+}
+
+func mintX509CA(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stream, err := plugin.MintX509CA(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	// Get response and error to be returned
+	response, err := stream.Recv()
+	if err == nil {
+		// Verify stream is closed
+		_, eofErr := stream.Recv()
+		require.Equal(t, io.EOF, eofErr)
+	}
+
+	return response, err
+}
+
+func publishJWTKey(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stream, err := plugin.PublishJWTKey(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	// Get response and error to be returned
+	response, err := stream.Recv()
+	if err == nil {
+		// Verify stream is closed
+		_, eofErr := stream.Recv()
+		require.Equal(t, io.EOF, eofErr)
+	}
+
+	return response, err
 }

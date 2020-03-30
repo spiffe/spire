@@ -5,6 +5,7 @@
 
 - [registration.proto](#registration.proto)
     - [Bundle](#spire.api.registration.Bundle)
+    - [CreateEntryIfNotExistsResponse](#spire.api.registration.CreateEntryIfNotExistsResponse)
     - [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest)
     - [EvictAgentRequest](#spire.api.registration.EvictAgentRequest)
     - [EvictAgentResponse](#spire.api.registration.EvictAgentResponse)
@@ -54,6 +55,24 @@ CA Bundle of the server
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | bundle | [spire.common.Bundle](#spire.common.Bundle) |  | Common bundle format |
+
+
+
+
+
+
+<a name="spire.api.registration.CreateEntryIfNotExistsResponse"></a>
+
+### CreateEntryIfNotExistsResponse
+A type that represents a CreateEntryIfNotExists response
+If an entry already exists, the existing entry will be returned
+and `existing` will be set to true.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) |  |  |
+| preexisting | [bool](#bool) |  |  |
 
 
 
@@ -424,6 +443,7 @@ associated with the bundle (e.g. registration entries).
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | CreateEntry | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
+| CreateEntryIfNotExists | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | [CreateEntryIfNotExistsResponse](#spire.api.registration.CreateEntryIfNotExistsResponse) | Creates an entry in the Registration table if one like it doesn&#39;t already exist |
 | DeleteEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | Deletes an entry and returns the deleted entry. |
 | FetchEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | Retrieve a specific registered entry. |
 | FetchEntries | [.spire.common.Empty](#spire.common.Empty) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Retrieve all registered entries. |

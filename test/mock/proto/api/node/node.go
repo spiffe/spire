@@ -6,12 +6,11 @@ package mock_node
 
 import (
 	context "context"
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
 	node "github.com/spiffe/spire/proto/spire/api/node"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"
+	reflect "reflect"
 )
 
 // MockNodeClient is a mock of NodeClient interface
@@ -55,6 +54,26 @@ func (mr *MockNodeClientMockRecorder) Attest(arg0 interface{}, arg1 ...interface
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0}, arg1...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Attest", reflect.TypeOf((*MockNodeClient)(nil).Attest), varargs...)
+}
+
+// FetchBundle mocks base method
+func (m *MockNodeClient) FetchBundle(arg0 context.Context, arg1 *node.FetchBundleRequest, arg2 ...grpc.CallOption) (*node.FetchBundleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchBundle", varargs...)
+	ret0, _ := ret[0].(*node.FetchBundleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBundle indicates an expected call of FetchBundle
+func (mr *MockNodeClientMockRecorder) FetchBundle(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBundle", reflect.TypeOf((*MockNodeClient)(nil).FetchBundle), varargs...)
 }
 
 // FetchJWTSVID mocks base method
@@ -580,6 +599,21 @@ func (m *MockNodeServer) Attest(arg0 node.Node_AttestServer) error {
 func (mr *MockNodeServerMockRecorder) Attest(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Attest", reflect.TypeOf((*MockNodeServer)(nil).Attest), arg0)
+}
+
+// FetchBundle mocks base method
+func (m *MockNodeServer) FetchBundle(arg0 context.Context, arg1 *node.FetchBundleRequest) (*node.FetchBundleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBundle", arg0, arg1)
+	ret0, _ := ret[0].(*node.FetchBundleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBundle indicates an expected call of FetchBundle
+func (mr *MockNodeServerMockRecorder) FetchBundle(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBundle", reflect.TypeOf((*MockNodeServer)(nil).FetchBundle), arg0, arg1)
 }
 
 // FetchJWTSVID mocks base method

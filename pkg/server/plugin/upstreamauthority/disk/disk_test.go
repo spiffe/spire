@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -162,7 +163,7 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(err)
 
-	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
 	require.NoError(err)
 	require.NotNil(resp)
 
@@ -206,7 +207,7 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
 		require.NoError(err)
 		require.NotNil(resp)
 
@@ -250,7 +251,7 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
-	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
@@ -288,13 +289,13 @@ func (s *DiskSuite) TestSubmitInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
 		require.Error(err)
 		require.Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(err)
 	require.Nil(resp)
 }
@@ -308,7 +309,7 @@ func (s *DiskSuite) TestRace() {
 		// the results of these RPCs aren't important; the test is just trying
 		// to get a bunch of stuff happening at once.
 		_, _ = s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
-		_, _ = s.p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+		_, _ = s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
 	})
 }
 
@@ -332,7 +333,11 @@ func (s *DiskSuite) configureWithTTL(keyFilePath, certFilePath, deprecatedTTL st
 }
 
 func (s *DiskSuite) TestPublishJWTKey() {
-	resp, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	stream, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	s.Require().NoError(err)
+	s.Require().NotNil(stream)
+
+	resp, err := stream.Recv()
 	s.Require().Nil(resp)
 	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
 }
@@ -385,4 +390,23 @@ func TestInvalidConfigs(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.expectErrContains)
 		})
 	}
+}
+
+func (s *DiskSuite) mintX509CA(req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stream, err := s.p.MintX509CA(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(stream)
+
+	// Get response and error to be returned
+	response, err := stream.Recv()
+	if err == nil {
+		// Verify stream is closed
+		_, eofErr := stream.Recv()
+		s.Require().Equal(io.EOF, eofErr)
+	}
+
+	return response, err
 }

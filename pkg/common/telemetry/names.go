@@ -26,6 +26,10 @@ const (
 	// to add clarity
 	Create = "create"
 
+	// Create if not exists functionality related to creating some entity; should be used with
+	// other tags to add clarity
+	CreateIfNotExists = "create_if_not_exists"
+
 	// Delete functionality related to deleting some entity; should be used with other tags
 	// to add clarity
 	Delete = "delete"
@@ -45,6 +49,11 @@ const (
 	// Prune functionality related to pruning some entity(ies); should be used with other tags
 	// to add clarity
 	Prune = "prune"
+
+	// Push functionality related to pushing some entity to let a destination know
+	// that some source generated such entity; should be used with other tags
+	// to add clarity
+	Push = "push"
 
 	// Rotate functionality related to rotation of SVID; should be used with other tags
 	// to add clarity
@@ -437,6 +446,9 @@ const (
 	// CreateRegistrationEntry functionality related to creating a registration entry
 	CreateRegistrationEntry = "create_registration_entry"
 
+	// CreateRegistrationEntryIfNotExists functionality related to creating a registration entry
+	CreateRegistrationEntryIfNotExists = "create_registration_entry_if_not_exists"
+
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
 
@@ -509,6 +521,9 @@ const (
 
 	// NodeAPI functionality related to attested/attesting nodes (agents)
 	NodeAPI = "node_api"
+
+	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
+	PushJWTKeyUpstream = "push_jwtkey_upstream"
 
 	// RegistrationAPI functionality related to the registration api; should be used
 	// with other tags to add clarity

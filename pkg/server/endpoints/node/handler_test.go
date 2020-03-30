@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -26,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -35,6 +37,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -75,6 +78,14 @@ UIs5TNt4LXDawuZFFj2J7D1T9mehRANCAASEhjkDbIFdNaZ9EneJaSXKfLiBDqt2
 l37cUGNqRvIYDhSH/IJycqxLTtvHoYMHLSV9N5UHIFgPJ/30RCBQiH3t
 -----END PRIVATE KEY-----
 `))
+
+	jwtSigningKey, _ = pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGZx/yLVskGyXAyIT
+uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
+KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
+-----END PRIVATE KEY-----
+`))
 )
 
 func TestHandler(t *testing.T) {
@@ -98,6 +109,7 @@ type HandlerSuite struct {
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
 	downstreamSVID   []*x509.Certificate
+	workloadSVID     []*x509.Certificate
 	serverCA         *fakeserverca.CA
 }
 
@@ -124,6 +136,7 @@ func (s *HandlerSuite) SetupTest() {
 	serverSVID := s.makeSVID(serverID)
 	s.agentSVID = s.makeSVID(agentID)
 	s.downstreamSVID = s.makeSVID(downstreamID)
+	s.workloadSVID = s.makeSVID(workloadID)
 
 	s.metrics = fakemetrics.New()
 	s.expectedMetrics = fakemetrics.New()
@@ -135,6 +148,11 @@ func (s *HandlerSuite) SetupTest() {
 		ServerCA:    s.serverCA,
 		TrustDomain: *trustDomainURL,
 		Clock:       s.clock,
+		Manager: ca.NewManager(ca.ManagerConfig{
+			Catalog:     s.catalog,
+			TrustDomain: *trustDomainURL,
+			Log:         log,
+		}),
 	})
 	handler.limiter = s.limiter
 
@@ -1049,6 +1067,139 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 	s.Equal(s.clock.Now().Add(s.serverCA.JWTSVIDTTL()).Unix(), svid.ExpiresAt)
 }
 
+func (s *HandlerSuite) TestPushJWTKeyUpstreamWithoutUpstreamAuthority() {
+	preExistentJwtSigningKey, _ := pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgchJzydaeUKOV6IjL
+B/8CXIhS797GajySZWNNFRqM/jChRANCAATcHYgISDwxmf0fulS8NRaMqItrplrk
+UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
+-----END PRIVATE KEY-----`))
+	pkixBytes, err := x509.MarshalPKIXPublicKey(preExistentJwtSigningKey.Public())
+	s.Require().NoError(err)
+	// Append one JWK on the bundle, so it must be reported in the result of PushJWTKeyUpstream
+	// along with the JWK sent on the request.
+	_, err = s.ds.AppendBundle(context.Background(),
+		&datastore.AppendBundleRequest{
+			Bundle: &common.Bundle{
+				TrustDomainId: trustDomainID,
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						Kid:       "kid1",
+						PkixBytes: pkixBytes,
+					},
+				},
+			},
+		})
+	s.Require().NoError(err)
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 1)
+
+	pkixBytes, err = x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: &common.PublicKey{
+			Kid:       "kid2",
+			PkixBytes: pkixBytes,
+		},
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 2)
+	s.Assert().Equal("kid1", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Equal("kid2", resp.JwtSigningKeys[1].Kid)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 2)
+}
+
+func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+	jwk := &common.PublicKey{
+		Kid:       "kid",
+		PkixBytes: pkixBytes,
+	}
+
+	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+		TrustDomain: trustDomainID,
+		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
+			UpstreamJwtKeys: []*common.PublicKey{jwk},
+		},
+	})
+	defer upDone()
+
+	s.catalog.SetUpstreamAuthority(
+		fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			upstreamAuthority))
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 0)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: jwk,
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 1)
+	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+}
+
+func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
+	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+		TrustDomain: trustDomainID,
+	})
+	defer upDone()
+
+	s.catalog.SetUpstreamAuthority(
+		fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			upstreamAuthority))
+
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 0)
+
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
+	s.Require().NoError(err)
+
+	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
+		JwtKey: &common.PublicKey{
+			Kid:       "kid",
+			PkixBytes: pkixBytes,
+		},
+	})
+	s.Assert().NoError(err)
+	s.Assert().NotNil(resp)
+	s.Assert().Len(resp.JwtSigningKeys, 1)
+	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
+		"by this server may have trouble communicating with workloads outside "+
+		"this cluster when using JWT-SVIDs.")
+}
+
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
 	ctx, err := s.handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Foo")
 	s.Require().Error(err)
@@ -1078,33 +1229,13 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 
 	const fullMethod = "/spire.api.node.Node/FetchX509CASVID"
 
-	// no peer context
-	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Downstream SVID is required for this request")
-
-	// non-TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Downstream SVID is required for this request")
-
-	// no verified chains on TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
-		AuthInfo: credentials.TLSInfo{},
-	}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Downstream SVID is required for this request")
-
 	// no downstream registration entry
-	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Peer is not a valid downstream SPIRE server`)
 
-	// good certificate
+	// with downstream registration entry
 	downstreamEntry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   agentID,
 		SpiffeId:   downstreamID,
@@ -1112,14 +1243,12 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 	})
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.Require().NoError(err)
-
-	actualCert, ok := getPeerCertificate(ctx)
-	s.Require().True(ok, "context has peer certificate")
-	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
-
 	actualEntry, ok := getDownstreamEntry(ctx)
 	s.Require().True(ok, "context has downstream entry")
 	s.RequireProtoEqual(downstreamEntry, actualEntry)
+
+	s.testAuthorizeCallRequiringClientCert(peerCtx, fullMethod, "downstream SVID is required for this request",
+		"Downstream SVID is required for this request", peerCert)
 }
 
 func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
@@ -1128,39 +1257,15 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 	fullMethod := fmt.Sprintf("/spire.api.node.Node/%s", method)
 
-	// no peer context
-	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Agent SVID is required for this request")
-
-	// non-TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Agent SVID is required for this request")
-
-	// no verified chains on TLS peer context
-	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
-		AuthInfo: credentials.TLSInfo{},
-	}), fullMethod)
-	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
-	s.Require().Nil(ctx)
-	s.assertLastLogMessage("Agent SVID is required for this request")
-
 	// no attested certificate with matching SPIFFE ID
-	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
-	// good certificate
 	s.attestAgent()
-	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().NoError(err)
-	actualCert, ok := getPeerCertificate(ctx)
-	s.Require().True(ok, "context has peer certificate")
-	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
+	s.testAuthorizeCallRequiringClientCert(peerCtx, fullMethod, "agent SVID is required for this request",
+		"Agent SVID is required for this request", peerCert)
 
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
@@ -1176,6 +1281,50 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+}
+
+func (s *HandlerSuite) TestFetchBundle() {
+	resp, err := s.attestedClient.FetchBundle(context.Background(), &node.FetchBundleRequest{})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().True(proto.Equal(s.fetchBundle(), resp.Bundle))
+}
+
+func (s *HandlerSuite) TestAuthorizeCallForFetchBundle() {
+	peerCtx := withPeerCert(context.Background(), s.workloadSVID)
+	peerCert := s.workloadSVID[0]
+	s.testAuthorizeCallRequiringClientCert(peerCtx, "/spire.api.node.Node/FetchBundle",
+		"client certificate required for this request",
+		"Client certificate required for this request", peerCert)
+}
+
+func (s *HandlerSuite) testAuthorizeCallRequiringClientCert(peerCtx context.Context, method, gprcStatusMsg, logMsg string, peerCert *x509.Certificate) {
+	// no peer context
+	ctx, err := s.handler.AuthorizeCall(context.Background(), method)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, gprcStatusMsg)
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(logMsg)
+
+	// non-TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), method)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, gprcStatusMsg)
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(logMsg)
+
+	// no verified chains on TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
+		AuthInfo: credentials.TLSInfo{},
+	}), method)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, gprcStatusMsg)
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(logMsg)
+
+	// good certificate
+	ctx, err = s.handler.AuthorizeCall(peerCtx, method)
+	s.Require().NoError(err)
+	actualCert, ok := getPeerCertificate(ctx)
+	s.Require().True(ok, "context has peer certificate")
+	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
 }
 
 func (s *HandlerSuite) addAttestor(config fakeservernodeattestor.Config) {
@@ -1465,6 +1614,14 @@ func (s *HandlerSuite) requireErrorContains(err error, contains string) {
 	s.Require().Contains(err.Error(), contains)
 }
 
+func (s *HandlerSuite) assertLastLogLevelAndMessage(level logrus.Level, message string) {
+	entry := s.logHook.LastEntry()
+	if s.NotNil(entry) {
+		s.Equal(message, entry.Message)
+		s.Equal(level, entry.Level)
+	}
+}
+
 func (s *HandlerSuite) assertLastLogMessage(message string) {
 	entry := s.logHook.LastEntry()
 	if s.NotNil(entry) {
@@ -1512,6 +1669,14 @@ func (s *HandlerSuite) makeCSRs(entryID, spiffeID string) map[string][]byte {
 	csrs := make(map[string][]byte)
 	csrs[entryID] = s.makeCSR(spiffeID)
 	return csrs
+}
+
+func (s *HandlerSuite) fetchBundle() *common.Bundle {
+	r, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
+		TrustDomainId: trustDomainID,
+	})
+	s.Require().NoError(err)
+	return r.Bundle
 }
 
 type fakeLimiter struct {

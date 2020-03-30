@@ -6,7 +6,7 @@ services:
 language: go
 
 go:
-  - 1.14
+  - 1.13.9
 
 cache:
   directories:

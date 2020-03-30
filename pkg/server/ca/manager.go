@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/url"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -28,6 +29,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -42,6 +45,8 @@ const (
 
 	sevenDays              = 7 * 24 * time.Hour
 	activationThresholdCap = sevenDays
+
+	publishJWKTimeout = 5 * time.Second
 )
 
 type ManagedCA interface {
@@ -74,6 +79,9 @@ type Manager struct {
 	nextJWTKey    *jwtKeySlot
 
 	journal *Journal
+
+	// Used to log a warning only once when the UpstreamAuthority does not support JWT-SVIDs.
+	jwtUnimplementedWarnOnce sync.Once
 }
 
 func NewManager(c ManagerConfig) *Manager {
@@ -220,7 +228,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 		return err
 	}
 
-	if err := m.appendBundle(ctx, trustBundle, nil); err != nil {
+	if _, err := m.appendBundle(ctx, trustBundle, nil); err != nil {
 		return err
 	}
 
@@ -315,7 +323,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 		return err
 	}
 
-	if err := m.appendBundle(ctx, nil, publicKey); err != nil {
+	if _, err := m.PublishJWTKey(ctx, publicKey); err != nil {
 		return err
 	}
 
@@ -332,6 +340,64 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 		telemetry.Expiration: timeField(slot.jwtKey.NotAfter),
 	}).Info("JWT key prepared")
 	return nil
+}
+
+// PublishJWTKey publishes the passed JWK to the upstream server using the configured
+// UpstreamAuthority plugin, then appends to the bundle the JWKs returned by the upstream server,
+// and finally it returns the updated list of JWT keys contained in the bundle.
+//
+// The following cases may arise when calling this function:
+//
+// - The UpstreamAuthority plugin doesn't implement PublishJWTKey, in which case we receive an
+// Unimplemented error from the upstream server, and hence we log a one time warning about this,
+// append the passed JWK to the bundle, and return the updated list of JWT keys.
+//
+// - The UpstreamAuthority plugin returned an error, then we return the error.
+//
+// - There is no UpstreamAuthority plugin configured, then assumes we are the root server and
+// just appends the passed JWK to the bundle and returns the updated list of JWT keys.
+func (m *Manager) PublishJWTKey(ctx context.Context, publicKey *common.PublicKey) ([]*common.PublicKey, error) {
+	publicKeys := []*common.PublicKey{publicKey}
+	if upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority(); useUpstream {
+		publishCtx, cancel := context.WithTimeout(ctx, publishJWKTimeout)
+		defer cancel()
+		res, err := publishJWTKey(
+			publishCtx,
+			upstreamAuth,
+			&upstreamauthority.PublishJWTKeyRequest{
+				JwtKey: publicKey,
+			})
+
+		switch {
+		case status.Code(err) == codes.Unimplemented:
+			m.jwtUnimplementedWarnOnce.Do(func() {
+				m.c.Log.WithField("plugin_name", upstreamAuth.Name()).Warn("UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed " +
+					"by this server may have trouble communicating with workloads outside " +
+					"this cluster when using JWT-SVIDs.")
+			})
+		case err != nil:
+			return nil, err
+		default:
+			publicKeys = res.UpstreamJwtKeys
+		}
+	}
+
+	appendResp, err := m.appendBundle(ctx, nil, publicKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	return appendResp.Bundle.JwtSigningKeys, nil
+}
+
+func publishJWTKey(ctx context.Context, upstreamAuthority upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream, err := upstreamAuthority.PublishJWTKey(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return stream.Recv()
 }
 
 func (m *Manager) activateJWTKey() {
@@ -385,7 +451,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
+func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey) (*datastore.AppendBundleResponse, error) {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{
@@ -393,24 +459,20 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 		})
 	}
 
-	var jwtSigningKeys []*common.PublicKey
-	if jwtSigningKey != nil {
-		jwtSigningKeys = append(jwtSigningKeys, jwtSigningKey)
-	}
-
 	ds := m.c.Catalog.GetDataStore()
-	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+	res, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId:  m.c.TrustDomain.String(),
 			RootCas:        rootCAs,
 			JwtSigningKeys: jwtSigningKeys,
 		},
-	}); err != nil {
-		return err
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	m.bundleUpdated()
-	return nil
+	return res, nil
 }
 
 func (m *Manager) loadJournal(ctx context.Context) error {
@@ -925,7 +987,7 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		return nil, nil, err
 	}
 
-	resp, err := upstreamAuthority.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{
+	resp, err := mintX509CA(ctx, upstreamAuthority, &upstreamauthority.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: int32(caTTL / time.Second),
 	})
@@ -952,6 +1014,16 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		Certificate:   caChain[0],
 		UpstreamChain: upstreamChain,
 	}, trustBundle, nil
+}
+
+func mintX509CA(ctx context.Context, upstreamAuthority upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream, err := upstreamAuthority.MintX509CA(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return stream.Recv()
 }
 
 func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {

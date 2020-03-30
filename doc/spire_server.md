@@ -10,7 +10,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | KeyManager     | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations. |
 | NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
 | NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
-| UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. |
+| UpstreamAuthority     | Allows SPIRE server to integrate with existing PKI systems. |
 | Notifier       | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
 
 ## Built-in plugins
@@ -32,10 +32,10 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
 | Notifier   | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md) | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap. |
-| UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
-| UpstreamCA | [aws_pca](/doc/plugin_server_upstreamca_aws_pca.md) | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates. |
-| UpstreamCA | [awssecret](/doc/plugin_server_upstreamca_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
-| UpstreamCA | [spire](/doc/plugin_server_upstreamca_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
+| UpstreamAuthority | [disk](/doc/plugin_server_upstreamauthority_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
+| UpstreamAuthority | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md) | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates. |
+| UpstreamAuthority | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamAuthority | [spire](/doc/plugin_server_upstreamauthority_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
 ## Server configuration file
 
@@ -47,7 +47,7 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 |:----------------------------|:---------------------------------------------------------------------------|:------------------------------|
 | `bind_address`              | IP address or DNS name of the SPIRE server                                 | 0.0.0.0                       |
 | `bind_port`                 | HTTP Port number of the SPIRE server                                       | 8081                          |
-| `ca_key_type`               | The key type used for the server CA, \<rsa-2048|rsa-4096|ec-p256|ec-p384\> | ec-384 (X509) or ec-256 (JWT)   |
+| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\> | ec-384 (X509) or ec-256 (JWT)   |
 | `ca_subject`                | The Subject that CA certificates should use (see below)                    |                               |
 | `ca_ttl`                    | The default CA/signing key TTL                                             | 24h                           |
 | `data_dir`                  | A directory the server can use for its runtime                             |                               |

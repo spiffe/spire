@@ -12,8 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -30,18 +28,18 @@ func BuiltIn() catalog.Plugin {
 	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(New()))
 }
 
-type spirePlugin struct {
+type Plugin struct {
 	mtx sync.RWMutex
 
 	trustDomain url.URL
 	config      *Configuration
 }
 
-func New() upstreamauthority.Plugin {
-	return &spirePlugin{}
+func New() *Plugin {
+	return &Plugin{}
 }
 
-func (m *spirePlugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (m *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := Configuration{}
 
@@ -68,43 +66,63 @@ func (m *spirePlugin) Configure(ctx context.Context, req *plugin.ConfigureReques
 	return &plugin.ConfigureResponse{}, nil
 }
 
-func (m *spirePlugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (m *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func (m *spirePlugin) MintX509CA(ctx context.Context, request *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
+	ctx := stream.Context()
 
 	wCert, wKey, wBundle, err := m.getWorkloadSVID(ctx, m.config)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	conn, err := m.newNodeClientConn(ctx, wCert, wKey, wBundle)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	nodeClient := node.NewNodeClient(conn)
 	defer conn.Close()
 
 	certChain, bundle, err := m.submitCSRUpstreamCA(ctx, nodeClient, request.Csr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthority.MintX509CAResponse{
 		X509CaChain:       certsToRawCerts(certChain),
 		UpstreamX509Roots: certsToRawCerts(bundle.RootCAs()),
-	}, nil
+	})
 }
 
-func (m *spirePlugin) PublishJWTKey(ctx context.Context, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	return nil, makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
+func (m *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+	ctx := stream.Context()
 
-func makeError(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "upstreamauthority-spire: "+format, args...)
+	wCert, wKey, wBundle, err := m.getWorkloadSVID(ctx, m.config)
+	if err != nil {
+		return err
+	}
+
+	conn, err := m.newNodeClientConn(ctx, wCert, wKey, wBundle)
+	if err != nil {
+		return err
+	}
+	nodeClient := node.NewNodeClient(conn)
+	defer conn.Close()
+
+	resp, err := nodeClient.PushJWTKeyUpstream(ctx, &node.PushJWTKeyUpstreamRequest{JwtKey: req.JwtKey})
+	if err != nil {
+		return err
+	}
+
+	return stream.Send(&upstreamauthority.PublishJWTKeyResponse{
+		UpstreamJwtKeys: resp.JwtSigningKeys,
+	})
 }
 
 func certsToRawCerts(certs []*x509.Certificate) [][]byte {
