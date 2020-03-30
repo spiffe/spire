@@ -1175,3 +1175,27 @@ func TestHasExpectedTTLs(t *testing.T) {
 		})
 	}
 }
+
+func TestExpandEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("TEST_DATA_TRUST_DOMAIN", "example.org"))
+
+	cases := []struct {
+		expandEnv     bool
+		expectedValue string
+	}{
+		{
+			expandEnv:     true,
+			expectedValue: "example.org",
+		},
+		{
+			expandEnv:     false,
+			expectedValue: "$TEST_DATA_TRUST_DOMAIN",
+		},
+	}
+
+	for _, testCase := range cases {
+		c, err := parseFile("../../../../test/fixture/config/server_good_templated.conf", testCase.expandEnv)
+		require.NoError(t, err)
+		assert.Equal(t, testCase.expectedValue, c.Server.TrustDomain)
+	}
+}
