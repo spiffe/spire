@@ -50,7 +50,7 @@ This may be useful for templating configuration files, for example across differ
 |:----------------------------|:---------------------------------------------------------------------------|:------------------------------|
 | `bind_address`              | IP address or DNS name of the SPIRE server                                 | 0.0.0.0                       |
 | `bind_port`                 | HTTP Port number of the SPIRE server                                       | 8081                          |
-| `ca_key_type`               | The key type used for the server CA, \<rsa-2048|rsa-4096|ec-p256|ec-p384\> | ec-384 (X509) or ec-256 (JWT)   |
+| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\> | ec-384 (X509) or ec-256 (JWT)   |
 | `ca_subject`                | The Subject that CA certificates should use (see below)                    |                               |
 | `ca_ttl`                    | The default CA/signing key TTL                                             | 24h                           |
 | `data_dir`                  | A directory the server can use for its runtime                             |                               |

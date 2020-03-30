@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -244,7 +243,6 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 			c.delSelectorIndicesRecord(selRem, record)
 			notifySet.MergeSet(selRem)
 			delete(c.records, id)
-			telemetry_agent.IncrRegistrationEntryDeletedCounter(c.metrics, record.entry.SpiffeId)
 		}
 	}
 
@@ -256,13 +254,6 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 		clearStringSet(fedRem)
 
 		record, existingEntry := c.updateOrCreateRecord(newEntry)
-
-		// existingEntry is nil in case of a new registration entry
-		if existingEntry != nil {
-			telemetry_agent.IncrRegistrationEntryUpdatedCounter(c.metrics, record.entry.SpiffeId)
-		} else {
-			telemetry_agent.IncrRegistrationEntryCreatedCounter(c.metrics, record.entry.SpiffeId)
-		}
 
 		// Calculate the difference in selectors, add/remove the record
 		// from impacted selector indices, and add the selector diff to the
