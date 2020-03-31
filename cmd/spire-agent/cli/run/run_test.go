@@ -20,7 +20,7 @@ import (
 )
 
 func TestParseConfigGood(t *testing.T) {
-	c, err := parseFile("../../../../test/fixture/config/agent_good.conf")
+	c, err := parseFile("../../../../test/fixture/config/agent_good.conf", false)
 	require.NoError(t, err)
 	assert.Equal(t, c.Agent.DataDir, ".")
 	assert.Equal(t, c.Agent.LogLevel, "INFO")
@@ -771,7 +771,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 
-		c, err := parseFile(testCase.testFilePath)
+		c, err := parseFile(testCase.testFilePath, false)
 		require.NoError(t, err)
 
 		log, hook := test.NewNullLogger()
@@ -812,4 +812,28 @@ func TestLogOptions(t *testing.T) {
 	// JSON Formatter and output file should be set from above
 	require.IsType(t, &logrus.JSONFormatter{}, logger.Formatter)
 	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
+}
+
+func TestExpandEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("TEST_DATA_TRUST_DOMAIN", "example.org"))
+
+	cases := []struct {
+		expandEnv     bool
+		expectedValue string
+	}{
+		{
+			expandEnv:     true,
+			expectedValue: "example.org",
+		},
+		{
+			expandEnv:     false,
+			expectedValue: "$TEST_DATA_TRUST_DOMAIN",
+		},
+	}
+
+	for _, testCase := range cases {
+		c, err := parseFile("../../../../test/fixture/config/agent_good_templated.conf", testCase.expandEnv)
+		require.NoError(t, err)
+		assert.Equal(t, testCase.expectedValue, c.Agent.TrustDomain)
+	}
 }

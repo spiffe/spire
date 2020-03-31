@@ -43,22 +43,25 @@ The following table outlines the configuration options for SPIRE server. These m
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
-| Configuration               | Description                                                                | Default                       |
-|:----------------------------|:---------------------------------------------------------------------------|:------------------------------|
-| `bind_address`              | IP address or DNS name of the SPIRE server                                 | 0.0.0.0                       |
-| `bind_port`                 | HTTP Port number of the SPIRE server                                       | 8081                          |
-| `ca_key_type`               | The key type used for the server CA, \<rsa-2048|rsa-4096|ec-p256|ec-p384\> | ec-p256 (Both X509 and JWT)   |
-| `ca_subject`                | The Subject that CA certificates should use (see below)                    |                               |
-| `ca_ttl`                    | The default CA/signing key TTL                                             | 24h                           |
-| `data_dir`                  | A directory the server can use for its runtime                             |                               |
-| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                               |                               |
-| `log_file`                  | File to write logs to                                                      |                               |
-| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                        | INFO                          |
-| `log_format`                | Format of logs, \<text\|json\>                                             | text                          |
-| `registration_uds_path`     | Location to bind the registration API socket                               | /tmp/spire-registration.sock  |
-| `default_svid_ttl`          | The default SVID TTL                                                       | 1h                            |
-| `trust_domain`              | The trust domain that this server belongs to                               |                               |
-| `upstream_bundle`           | Include upstream CA certificates in the trust bundle                       | true                          |
+If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
+This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
+
+| Configuration               | Description                                                                   | Default                       |
+|:----------------------------|:------------------------------------------------------------------------------|:------------------------------|
+| `bind_address`              | IP address or DNS name of the SPIRE server                                    | 0.0.0.0                       |
+| `bind_port`                 | HTTP Port number of the SPIRE server                                          | 8081                          |
+| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\> | ec-p256 (Both X509 and JWT)   |
+| `ca_subject`                | The Subject that CA certificates should use (see below)                       |                               |
+| `ca_ttl`                    | The default CA/signing key TTL                                                | 24h                           |
+| `data_dir`                  | A directory the server can use for its runtime                                |                               |
+| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                  |                               |
+| `log_file`                  | File to write logs to                                                         |                               |
+| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                           | INFO                          |
+| `log_format`                | Format of logs, \<text\|json\>                                                | text                          |
+| `registration_uds_path`     | Location to bind the registration API socket                                  | /tmp/spire-registration.sock  |
+| `default_svid_ttl`          | The default SVID TTL                                                          | 1h                            |
+| `trust_domain`              | The trust domain that this server belongs to                                  |                               |
+| `upstream_bundle`           | Include upstream CA certificates in the trust bundle                          | true                          |
 
 | ca_subject Configuration    | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -120,6 +123,7 @@ Most of the configuration file above options have identical command-line counter
 | `-bindAddress` | IP address or DNS name of the SPIRE server | |
 | `-config` | Path to a SPIRE config file | conf/server/server.conf |
 | `-dataDir` | Directory to store runtime data to | |
+| `-expandEnv` | Expand environment $VARIABLES in the config file | |
 | `-logFile` | File to write logs to | |
 | `-logFormat` | Format of logs, \<text\|json\> | |
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
