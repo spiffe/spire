@@ -18,7 +18,7 @@ import (
 type BundleUpdater interface {
 	AppendX509Roots(ctx context.Context, roots []*x509.Certificate) error
 	AppendJWTKeys(ctx context.Context, keys []*common.PublicKey) ([]*common.PublicKey, error)
-	OnError(err error, msg string)
+	LogError(err error, msg string)
 }
 
 // UpstreamClientConfig is the configuration for an UpstreamClient. Each field
@@ -68,7 +68,7 @@ func (u *UpstreamClient) Close() error {
 // MintX509CA mints an X.509CA using the UpstreamAuthority. It maintains an
 // open stream to the UpstreamAuthority plugin to receive and append X.509 root
 // updates to the bundle. The stream remains open until another call to
-// PublishJWTKey happens or the client is closed.
+// MintX509CA happens or the client is closed.
 func (u *UpstreamClient) MintX509CA(ctx context.Context, csr []byte, ttl time.Duration) (_ []*x509.Certificate, err error) {
 	u.mintX509CAMtx.Lock()
 	defer u.mintX509CAMtx.Unlock()
@@ -134,10 +134,24 @@ func (u *UpstreamClient) PublishJWTKey(ctx context.Context, jwtKey *common.Publi
 
 	select {
 	case result := <-firstResultCh:
-		return result.jwtKeys, result.err
+		switch {
+		case result.err != nil:
+			return nil, result.err
+		case result.done:
+			// There isn't going to be any more responses on the stream because
+			// we're not participating in the upstream PKI so upstream bundle
+			// updates are inconsequential.
+			u.publishJWTKeyStream.Stop()
+		}
+		return result.jwtKeys, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// WaitUntilPublishJWTKeyStreamDone waits until the MintX509CA stream has stopped.
+func (u *UpstreamClient) WaitUntilPublishJWTKeyStreamDone(ctx context.Context) error {
+	return u.publishJWTKeyStream.WaitUntilStopped(ctx)
 }
 
 func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreamauthority.MintX509CARequest, firstResultCh chan<- mintX509CAResult) {
@@ -186,19 +200,19 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreama
 		resp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				u.c.BundleUpdater.OnError(err, "MintX509CA stream closed prematurely")
+				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming X.509 root updates prematurely. This could be a bug or misconfiguration in the plugin. Will retry later.")
 			}
 			return
 		}
 
 		x509Roots, err := parseMintX509CABundleUpdate(resp)
 		if err != nil {
-			u.c.BundleUpdater.OnError(err, "Invalid MintX509CA bundle update response")
+			u.c.BundleUpdater.LogError(err, "Failed to parse an X.509 root update from the upstream authority plugin. This is a bug in the plugin.")
 			continue
 		}
 
 		if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509Roots); err != nil {
-			u.c.BundleUpdater.OnError(err, "Failed to append upstream X.509 roots")
+			u.c.BundleUpdater.LogError(err, "Failed to store X.509 roots received by the upstream authority plugin.")
 			continue
 		}
 	}
@@ -220,25 +234,37 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 		return
 	}
 
+	if !u.c.UpstreamBundle {
+		// We have opted not to join the upstream PKI. This means there is no
+		// reason to continue monitoring for bundle updates, so update the
+		// bundle with the JWT key and return.
+		updatedKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, []*common.PublicKey{req.JwtKey})
+		if err != nil {
+			firstResultCh <- publishJWTKeyResult{err: err}
+			return
+		}
+		firstResultCh <- publishJWTKeyResult{jwtKeys: updatedKeys, done: true}
+		return
+	}
+
 	updatedKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, resp.UpstreamJwtKeys)
 	if err != nil {
 		firstResultCh <- publishJWTKeyResult{err: err}
 		return
 	}
-
 	firstResultCh <- publishJWTKeyResult{jwtKeys: updatedKeys}
 
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				u.c.BundleUpdater.OnError(err, "PublishJWTKey stream closed prematurely")
+				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming JWT key updates prematurely. This could be a bug or misconfiguration in the plugin. Will retry later.")
 			}
 			return
 		}
 
 		if _, err := u.c.BundleUpdater.AppendJWTKeys(ctx, resp.UpstreamJwtKeys); err != nil {
-			u.c.BundleUpdater.OnError(err, "Failed to append upstream JWT keys")
+			u.c.BundleUpdater.LogError(err, "Failed to store JWT keys received by the upstream authority plugin.")
 			continue
 		}
 	}
@@ -258,12 +284,9 @@ func parseMintX509CAFirstResponse(resp *upstreamauthority.MintX509CAResponse) ([
 	if len(x509CA) == 0 {
 		return nil, nil, errs.New("upstream authority returned empty X.509 CA chain")
 	}
-	x509Roots, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
+	x509Roots, err := parseX509Roots(resp.UpstreamX509Roots)
 	if err != nil {
-		return nil, nil, errs.New("malformed upstream X.509 roots: %v", err)
-	}
-	if len(x509Roots) == 0 {
-		return nil, nil, errs.New("upstream authority returned no upstream X.509 roots")
+		return nil, nil, err
 	}
 	return x509CA, x509Roots, nil
 }
@@ -272,7 +295,11 @@ func parseMintX509CABundleUpdate(resp *upstreamauthority.MintX509CAResponse) ([]
 	if len(resp.X509CaChain) > 0 {
 		return nil, errs.New("upstream authority returned an X.509 CA chain after the first response")
 	}
-	x509Roots, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
+	return parseX509Roots(resp.UpstreamX509Roots)
+}
+
+func parseX509Roots(rawX509Roots [][]byte) ([]*x509.Certificate, error) {
+	x509Roots, err := x509util.RawCertsToCertificates(rawX509Roots)
 	if err != nil {
 		return nil, errs.New("malformed upstream X.509 roots: %v", err)
 	}
@@ -285,6 +312,7 @@ func parseMintX509CABundleUpdate(resp *upstreamauthority.MintX509CAResponse) ([]
 type publishJWTKeyResult struct {
 	jwtKeys []*common.PublicKey
 	err     error
+	done    bool
 }
 
 // streamState manages the state for open streams to the plugin that are

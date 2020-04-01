@@ -883,7 +883,7 @@ func (u *bundleUpdater) AppendJWTKeys(ctx context.Context, keys []*common.Public
 	return bundle.JwtSigningKeys, nil
 }
 
-func (u *bundleUpdater) OnError(err error, msg string) {
+func (u *bundleUpdater) LogError(err error, msg string) {
 	u.log.WithError(err).Error(msg)
 }
 

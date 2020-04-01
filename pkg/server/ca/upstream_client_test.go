@@ -172,7 +172,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 			msg, err := updater.WaitForError(t)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.err)
-			require.Equal(t, msg, "Invalid MintX509CA bundle update response")
+			require.Equal(t, msg, "Failed to parse an X.509 root update from the upstream authority plugin. This is a bug in the plugin.")
 		})
 	}
 }
@@ -202,6 +202,39 @@ func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 	// for the bundle to receive the update.
 	ua.AppendJWTKey(key2)
 	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1, key2}, updater.WaitForAppendedJWTKeys(t))
+}
+
+func TestUpstreamClientPublishJWTKey_NoUpstreamBundle(t *testing.T) {
+	client, updater, ua, uaDone := setUpUpstreamClientTest(t, false, fakeupstreamauthority.Config{
+		TrustDomain: "example.org",
+	})
+	defer client.Close()
+	defer uaDone()
+
+	key1 := &common.PublicKey{
+		Kid: "KEY1",
+	}
+	key2 := &common.PublicKey{
+		Kid: "KEY2",
+	}
+
+	// Add key2 to the upstream authority so we can make sure our bundle does
+	// not end up with an upstream JWT key since we aren't participating in
+	// the upstream PKI.
+	ua.AppendJWTKey(key2)
+
+	// Publish the JWT keys and assert that the upstream key, key2, does not
+	// end up in the bundle.
+	jwtKeys, err := client.PublishJWTKey(context.Background(), key1)
+	require.NoError(t, err)
+	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1}, jwtKeys)
+	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1}, updater.WaitForAppendedJWTKeys(t))
+
+	// The stream should close down since we are not participating in the
+	// upstream PKI outside of getting our X.509 CA signed.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	require.NoError(t, client.WaitUntilPublishJWTKeyStreamDone(ctx))
 }
 
 func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
@@ -285,7 +318,7 @@ func (u *fakeBundleUpdater) WaitForAppendedJWTKeys(t *testing.T) []*common.Publi
 	}
 }
 
-func (u *fakeBundleUpdater) OnError(err error, msg string) {
+func (u *fakeBundleUpdater) LogError(err error, msg string) {
 	e := bundleUpdateErr{
 		err: err,
 		msg: msg,
@@ -299,7 +332,7 @@ func (u *fakeBundleUpdater) OnError(err error, msg string) {
 func (u *fakeBundleUpdater) WaitForError(t *testing.T) (msg string, err error) {
 	select {
 	case <-time.After(time.Minute):
-		require.FailNow(t, "timed out waiting for JWT keys to be appended")
+		require.FailNow(t, "timed out waiting for error to be logged")
 		return "", nil // unreachable
 	case e := <-u.errorCh:
 		return e.msg, e.err
