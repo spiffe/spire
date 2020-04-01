@@ -83,6 +83,10 @@ type RegisteredEntry struct {
 	Expiry int64 `gorm:"index"`
 	// (optional) DNS entries
 	DNSList []DNSName
+
+	// RevisionNumber is a counter that is incremented when the entry is
+	// updated.
+	RevisionNumber int64
 }
 
 // JoinToken holds a join token
