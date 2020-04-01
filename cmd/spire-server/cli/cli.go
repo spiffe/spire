@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/jwt"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	"github.com/spiffe/spire/cmd/spire-server/cli/token"
+	"github.com/spiffe/spire/cmd/spire-server/cli/validate"
 	"github.com/spiffe/spire/cmd/spire-server/cli/x509"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/version"
@@ -80,6 +81,9 @@ func (cc *CLI) Run(args []string) int {
 		},
 		"jwt mint": func() (cli.Command, error) {
 			return jwt.NewMintCommand(), nil
+		},
+		"validate": func() (cli.Command, error) {
+			return validate.NewValidateCommand(), nil
 		},
 	}
 

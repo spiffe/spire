@@ -144,7 +144,7 @@ func (cmd *Command) Run(args []string) int {
 
 	// Load and parse the config file using either the default
 	// path or CLI-specified value
-	fileInput, err := parseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
+	fileInput, err := ParseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -156,7 +156,7 @@ func (cmd *Command) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newServerConfig(input, cmd.LogOptions)
+	c, err := NewServerConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -186,7 +186,7 @@ func (*Command) Synopsis() string {
 	return "Runs the server"
 }
 
-func parseFile(path string, expandEnv bool) (*config, error) {
+func ParseFile(path string, expandEnv bool) (*config, error) {
 	c := &config{}
 
 	if path == "" {
@@ -268,7 +268,7 @@ func mergeInput(fileInput *config, cliInput *serverConfig) (*config, error) {
 	return c, nil
 }
 
-func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error) {
+func NewServerConfig(c *config, logOptions []log.Option) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {

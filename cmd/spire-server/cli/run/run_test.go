@@ -23,7 +23,7 @@ import (
 )
 
 func TestParseConfigGood(t *testing.T) {
-	c, err := parseFile("../../../../test/fixture/config/server_good.conf", false)
+	c, err := ParseFile("../../../../test/fixture/config/server_good.conf", false)
 	require.NoError(t, err)
 
 	// Check for server configurations
@@ -863,7 +863,7 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := newServerConfig(input, []log.Option{})
+			sc, err := NewServerConfig(input, []log.Option{})
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -1060,7 +1060,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 
-		c, err := parseFile(testCase.testFilePath, false)
+		c, err := ParseFile(testCase.testFilePath, false)
 		require.NoError(t, err)
 
 		log, hook := test.NewNullLogger()
@@ -1101,7 +1101,7 @@ func TestLogOptions(t *testing.T) {
 		log.WithOutputFile(fd.Name()),
 	}
 
-	agentConfig, err := newServerConfig(defaultValidConfig(), logOptions)
+	agentConfig, err := NewServerConfig(defaultValidConfig(), logOptions)
 	require.NoError(t, err)
 
 	logger := agentConfig.Log.(*log.Logger).Logger
@@ -1194,7 +1194,7 @@ func TestExpandEnv(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		c, err := parseFile("../../../../test/fixture/config/server_good_templated.conf", testCase.expandEnv)
+		c, err := ParseFile("../../../../test/fixture/config/server_good_templated.conf", testCase.expandEnv)
 		require.NoError(t, err)
 		assert.Equal(t, testCase.expectedValue, c.Server.TrustDomain)
 	}
