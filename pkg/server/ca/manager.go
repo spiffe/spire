@@ -92,7 +92,7 @@ func NewManager(c ManagerConfig) *Manager {
 		c.Clock = clock.New()
 	}
 	if c.X509CAKeyType == 0 {
-		c.X509CAKeyType = keymanager.KeyType_EC_P384
+		c.X509CAKeyType = keymanager.KeyType_EC_P256
 	}
 	if c.JWTKeyType == 0 {
 		c.JWTKeyType = keymanager.KeyType_EC_P256
