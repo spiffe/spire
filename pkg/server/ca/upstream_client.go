@@ -199,15 +199,17 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreama
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
+			// If the plugin does not support streaming bundle updates, it will
+			// complete the RPC normally. As such, io.EOF is expected.
 			if err != io.EOF {
-				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming X.509 root updates prematurely. This could be a bug or misconfiguration in the plugin. Will retry later.")
+				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming X.509 root updates prematurely. Please report this bug. Will retry later.")
 			}
 			return
 		}
 
 		x509Roots, err := parseMintX509CABundleUpdate(resp)
 		if err != nil {
-			u.c.BundleUpdater.LogError(err, "Failed to parse an X.509 root update from the upstream authority plugin. This is a bug in the plugin.")
+			u.c.BundleUpdater.LogError(err, "Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
 			continue
 		}
 
@@ -257,8 +259,10 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
+			// If the plugin does not support streaming bundle updates, it will
+			// complete the RPC normally. As such, io.EOF is expected.
 			if err != io.EOF {
-				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming JWT key updates prematurely. This could be a bug or misconfiguration in the plugin. Will retry later.")
+				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming JWT key updates prematurely. Please report this bug. Will retry later.")
 			}
 			return
 		}
