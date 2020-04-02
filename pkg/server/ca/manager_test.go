@@ -625,7 +625,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 	}{
 		{
 			name:        "self-signed with defaults",
-			checkX509CA: expectEC384,
+			checkX509CA: expectEC256,
 			checkJWTKey: expectEC256,
 		},
 		{
@@ -659,7 +659,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 		{
 			name:              "upstream-signed with defaults",
 			upstreamAuthority: upstreamAuthority,
-			checkX509CA:       expectEC384,
+			checkX509CA:       expectEC256,
 			checkJWTKey:       expectEC256,
 		},
 		{
