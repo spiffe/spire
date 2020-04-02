@@ -261,10 +261,27 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type UpstreamAuthorityClient interface {
-	// Mints an X.509 CA.
+	// Mints an X.509 CA and responds with the signed X.509 CA certificate
+	// chain and upstream X.509 roots. If supported by the implementation,
+	// subsequent responses on the stream contain upstream X.509 root updates,
+	// otherwise the RPC is completed after sending the initial response.
+	//
+	// Implementation note:
+	// The stream should be kept open open in the face of transient errors
+	// encountered while tracking changes to the upstream X.509 roots as SPIRE
+	// core will not reopen a closed stream until the next X.509 CA rotation.
 	MintX509CA(ctx context.Context, in *MintX509CARequest, opts ...grpc.CallOption) (UpstreamAuthority_MintX509CAClient, error)
-	// Publishes a JWT signing key upstream. This RPC is optional and should
-	// return NotImplemented if unsupported.
+	// Publishes a JWT signing key upstream and responds with the upstream JWT
+	// keys. If supported by the implementation, subsequent responses on the
+	// stream contain upstream JWT key updates, otherwise the RPC is completed
+	// after sending the initial response.
+	//
+	// This RPC is optional and will return NotImplemented if unsupported.
+	//
+	// Implementation note:
+	// The stream should be kept open open in the face of transient errors
+	// encountered while tracking changes to the upstream JWT keys as SPIRE
+	// core will not reopen a closed stream until the next JWT key rotation.
 	PublishJWTKey(ctx context.Context, in *PublishJWTKeyRequest, opts ...grpc.CallOption) (UpstreamAuthority_PublishJWTKeyClient, error)
 	// Standard SPIRE plugin RPCs
 	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
@@ -363,10 +380,27 @@ func (c *upstreamAuthorityClient) GetPluginInfo(ctx context.Context, in *plugin.
 
 // UpstreamAuthorityServer is the server API for UpstreamAuthority service.
 type UpstreamAuthorityServer interface {
-	// Mints an X.509 CA.
+	// Mints an X.509 CA and responds with the signed X.509 CA certificate
+	// chain and upstream X.509 roots. If supported by the implementation,
+	// subsequent responses on the stream contain upstream X.509 root updates,
+	// otherwise the RPC is completed after sending the initial response.
+	//
+	// Implementation note:
+	// The stream should be kept open open in the face of transient errors
+	// encountered while tracking changes to the upstream X.509 roots as SPIRE
+	// core will not reopen a closed stream until the next X.509 CA rotation.
 	MintX509CA(*MintX509CARequest, UpstreamAuthority_MintX509CAServer) error
-	// Publishes a JWT signing key upstream. This RPC is optional and should
-	// return NotImplemented if unsupported.
+	// Publishes a JWT signing key upstream and responds with the upstream JWT
+	// keys. If supported by the implementation, subsequent responses on the
+	// stream contain upstream JWT key updates, otherwise the RPC is completed
+	// after sending the initial response.
+	//
+	// This RPC is optional and will return NotImplemented if unsupported.
+	//
+	// Implementation note:
+	// The stream should be kept open open in the face of transient errors
+	// encountered while tracking changes to the upstream JWT keys as SPIRE
+	// core will not reopen a closed stream until the next JWT key rotation.
 	PublishJWTKey(*PublishJWTKeyRequest, UpstreamAuthority_PublishJWTKeyServer) error
 	// Standard SPIRE plugin RPCs
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
