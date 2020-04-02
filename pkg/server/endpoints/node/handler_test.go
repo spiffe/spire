@@ -27,7 +27,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -114,6 +113,10 @@ type HandlerSuite struct {
 }
 
 func (s *HandlerSuite) SetupTest() {
+	s.setupTest(nil)
+}
+
+func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.Config) {
 	s.clock = clock.NewMock(s.T())
 
 	log, logHook := test.NewNullLogger()
@@ -124,6 +127,14 @@ func (s *HandlerSuite) SetupTest() {
 	s.ds = fakedatastore.New()
 	s.catalog = fakeservercatalog.New()
 	s.catalog.SetDataStore(s.ds)
+	if upstreamAuthorityConfig != nil {
+		upstreamAuthority, _, uaDone := fakeupstreamauthority.Load(s.T(), *upstreamAuthorityConfig)
+		s.AppendCloser(uaDone)
+		s.catalog.SetUpstreamAuthority(fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			upstreamAuthority,
+		))
+	}
 
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock: s.clock,
@@ -1111,34 +1122,25 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 			PkixBytes: pkixBytes,
 		},
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 2)
-	s.Assert().Equal("kid1", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Equal("kid2", resp.JwtSigningKeys[1].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 2)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 2)
+	s.Require().Equal("kid1", resp.JwtSigningKeys[0].Kid)
+	s.Require().Equal("kid2", resp.JwtSigningKeys[1].Kid)
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 2)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
+	s.setupTest(&fakeupstreamauthority.Config{
+		TrustDomain: trustDomainID,
+	})
+
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
 	s.Require().NoError(err)
 	jwk := &common.PublicKey{
 		Kid:       "kid",
 		PkixBytes: pkixBytes,
 	}
-
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: trustDomainID,
-		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
-			UpstreamJwtKeys: []*common.PublicKey{jwk},
-		},
-	})
-	defer upDone()
-
-	s.catalog.SetUpstreamAuthority(
-		fakeservercatalog.UpstreamAuthority(
-			"fakeupstreamauthority",
-			upstreamAuthority))
 
 	s.attestAgent()
 
@@ -1153,23 +1155,18 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
 		JwtKey: jwk,
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 1)
-	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 1)
+	s.Require().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Len(s.fetchBundle().JwtSigningKeys, 1)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: trustDomainID,
+	s.setupTest(&fakeupstreamauthority.Config{
+		TrustDomain:           trustDomainID,
+		DisallowPublishJWTKey: true,
 	})
-	defer upDone()
-
-	s.catalog.SetUpstreamAuthority(
-		fakeservercatalog.UpstreamAuthority(
-			"fakeupstreamauthority",
-			upstreamAuthority))
 
 	s.attestAgent()
 
@@ -1190,11 +1187,11 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 			PkixBytes: pkixBytes,
 		},
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 1)
-	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 1)
+	s.Require().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Len(s.fetchBundle().JwtSigningKeys, 1)
 	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 		"by this server may have trouble communicating with workloads outside "+
 		"this cluster when using JWT-SVIDs.")

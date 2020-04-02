@@ -47,7 +47,7 @@ func (s *Suite) checkInit() {
 	}
 }
 
-func (s *Suite) appendCloser(closer func()) {
+func (s *Suite) AppendCloser(closer func()) {
 	s.checkInit()
 	s.closers = append(s.closers, closer)
 }
@@ -55,7 +55,7 @@ func (s *Suite) appendCloser(closer func()) {
 func (s *Suite) TempDir() string {
 	dir, err := ioutil.TempDir("", "spire-test-")
 	s.Require().NoError(err)
-	s.appendCloser(func() {
+	s.AppendCloser(func() {
 		os.RemoveAll(dir)
 	})
 	return dir
@@ -64,7 +64,7 @@ func (s *Suite) TempDir() string {
 func (s *Suite) LoadPlugin(builtin catalog.Plugin, x interface{}, opts ...PluginOption) {
 	s.T().Helper()
 	closer := LoadPlugin(s.T(), builtin, x, opts...)
-	s.appendCloser(closer)
+	s.AppendCloser(closer)
 }
 
 func (s *Suite) RequireErrorContains(err error, contains string) {

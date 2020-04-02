@@ -100,8 +100,14 @@
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| MintX509CA | [MintX509CARequest](#spire.server.upstreamauthority.MintX509CARequest) | [MintX509CAResponse](#spire.server.upstreamauthority.MintX509CAResponse) stream | Mints an X.509 CA. |
-| PublishJWTKey | [PublishJWTKeyRequest](#spire.server.upstreamauthority.PublishJWTKeyRequest) | [PublishJWTKeyResponse](#spire.server.upstreamauthority.PublishJWTKeyResponse) stream | Publishes a JWT signing key upstream. This RPC is optional and should return NotImplemented if unsupported. |
+| MintX509CA | [MintX509CARequest](#spire.server.upstreamauthority.MintX509CARequest) | [MintX509CAResponse](#spire.server.upstreamauthority.MintX509CAResponse) stream | Mints an X.509 CA and responds with the signed X.509 CA certificate chain and upstream X.509 roots. If supported by the implementation, subsequent responses on the stream contain upstream X.509 root updates, otherwise the RPC is completed after sending the initial response.
+
+Implementation note: The stream should be kept open open in the face of transient errors encountered while tracking changes to the upstream X.509 roots as SPIRE core will not reopen a closed stream until the next X.509 CA rotation. |
+| PublishJWTKey | [PublishJWTKeyRequest](#spire.server.upstreamauthority.PublishJWTKeyRequest) | [PublishJWTKeyResponse](#spire.server.upstreamauthority.PublishJWTKeyResponse) stream | Publishes a JWT signing key upstream and responds with the upstream JWT keys. If supported by the implementation, subsequent responses on the stream contain upstream JWT key updates, otherwise the RPC is completed after sending the initial response.
+
+This RPC is optional and will return NotImplemented if unsupported.
+
+Implementation note: The stream should be kept open open in the face of transient errors encountered while tracking changes to the upstream JWT keys as SPIRE core will not reopen a closed stream until the next JWT key rotation. |
 | Configure | [.spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [.spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureResponse) | Standard SPIRE plugin RPCs |
 | GetPluginInfo | [.spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [.spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) |  |
 

@@ -19,7 +19,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -148,7 +147,8 @@ func (s *ManagerSuite) TestSelfSigning() {
 
 func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: testTrustDomain,
+		TrustDomain:           testTrustDomain,
+		DisallowPublishJWTKey: true,
 	})
 	defer upDone()
 
@@ -177,7 +177,8 @@ func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: testTrustDomain,
+		TrustDomain:           testTrustDomain,
+		DisallowPublishJWTKey: true,
 	})
 	defer upDone()
 
@@ -188,14 +189,14 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(fakeUA.Root().Subject, x509CA.Certificate.Issuer)
+		s.Equal(fakeUA.X509Root().Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 1) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(fakeUA.Root())
+	s.requireBundleRootCAs(fakeUA.X509Root())
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
@@ -208,8 +209,9 @@ func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
 
 func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
 	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain:     testTrustDomain,
-		UseIntermediate: true,
+		TrustDomain:           testTrustDomain,
+		DisallowPublishJWTKey: true,
+		UseIntermediate:       true,
 	})
 	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority, true)
@@ -219,15 +221,15 @@ func (s *ManagerSuite) TestUpstreamIntermediateSignedWithUpstreamBundle() {
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
 	if s.NotNil(x509CA.Certificate) {
-		s.Equal(fakeUA.Intermediate().Subject, x509CA.Certificate.Issuer)
+		s.Equal(fakeUA.X509Intermediate().Subject, x509CA.Certificate.Issuer)
 	}
 	if s.Len(x509CA.UpstreamChain, 2) {
 		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
-		s.Equal(fakeUA.Intermediate(), x509CA.UpstreamChain[1])
+		s.Equal(fakeUA.X509Intermediate(), x509CA.UpstreamChain[1])
 	}
 
 	// The trust bundle should contain the upstream root
-	s.requireBundleRootCAs(fakeUA.Root())
+	s.requireBundleRootCAs(fakeUA.X509Root())
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	s.Equal(
@@ -242,31 +244,13 @@ func (s *ManagerSuite) TestUpstreamAuthorityWithPublishJWTKeyImplemented() {
 	bundle := s.createBundle()
 	s.Require().Len(bundle.JwtSigningKeys, 0)
 
-	jwtSigningKey, _ := pemutil.ParseSigner([]byte(`
------BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGZx/yLVskGyXAyIT
-uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
-KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
------END PRIVATE KEY-----
-`))
-	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
-	s.Require().NoError(err)
-	jwk := &common.PublicKey{
-		Kid:       "kid",
-		PkixBytes: pkixBytes,
-	}
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, ua, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
-		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
-			UpstreamJwtKeys: []*common.PublicKey{jwk},
-		},
 	})
 	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority, true)
 
-	bundle = s.fetchBundle()
-	s.Len(bundle.JwtSigningKeys, 1)
-	s.Equal("kid", bundle.JwtSigningKeys[0].Kid)
+	s.AssertProtoListEqual(ua.JWTKeys(), s.fetchBundle().JwtSigningKeys)
 	s.Equal(
 		0,
 		s.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
