@@ -24,6 +24,7 @@ type validateCommand struct {
 	env *common_cli.Env
 
 	configPath string
+	ExpandEnv  bool
 }
 
 func (c *validateCommand) Help() string {
@@ -55,11 +56,12 @@ func (c *validateCommand) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	fs.SetOutput(c.env.Stderr)
 	fs.StringVar(&c.configPath, "config", defaultConfigPath, "Path to a SPIRE server configuration file")
+	fs.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 	return fs.Parse(args)
 }
 
 func (c *validateCommand) run() error {
-	fileInput, err := run.ParseFile(c.configPath, false)
+	fileInput, err := run.ParseFile(c.configPath, c.ExpandEnv)
 	if err != nil {
 		return err
 	}

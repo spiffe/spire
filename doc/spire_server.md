@@ -285,6 +285,7 @@ Validates a SPIRE server configuration file.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-config`     | Path to a SPIRE server configuration file                          | server.conf    |
+| `-expandEnv`  | Expand environment $VARIABLES in the config file                   | false          |
 
 ### `spire-server experimental bundle show`
 
