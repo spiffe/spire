@@ -15,6 +15,7 @@ cat <<EOF >> docker-compose.yaml
   spire-server-${_version}:
     image: ${_registry}spire-server:${_version}
     hostname: spire-server
+    user: "${UID}"
     networks:
       our-network:
         aliases:
@@ -26,12 +27,7 @@ cat <<EOF >> docker-compose.yaml
   spire-agent-${_version}:
     image: ${_registry}spire-agent:${_version}
     hostname: spire-agent
-    # The 0.8.x SPIRE server does not have the tuned up rotation check intervals
-    # and can therefore not rotate the server SVID when the interval is small,
-    # causing the agent to fail the TLS handshake during bootstrapping and
-    # needs to be allowed to restart on failure. After 0.10.0 is released and
-    # the "old" version is 0.9.x+ we can remove this restart policy.
-    restart: on-failure
+    user: "${UID}"
     networks:
       - our-network
     volumes:
@@ -57,5 +53,3 @@ make-service "" latest-local
 while read -r version; do
   make-service gcr.io/spiffe-io/ "${version}"
 done < versions.txt
-
-cat docker-compose.yaml
