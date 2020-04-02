@@ -27,18 +27,15 @@ rotated.
 
 ### Maintenance
 
-#### After a SPIRE release
+When making a SPIRE release, the versions.txt should be updated to add the new
+version, ideally as part of the first commit after release that bumps the base
+version in pkg/common/version/version.go.
 
-The versions.txt should be updated to add the new version.
-
-#### Before a "Major" SPIRE Release
-
-When preparing to release a new "major" release (_minor_ release pre-1.0,
-_major_ release at and after 1.0), the versions.txt file should be updated to
-remove the "major"-2 versions, since we only support upgrading from one "major"
-build to the next. For example, if the versions.txt file contained all 0.8.x
-and 0.9.x versions, the 0.8.x versions should be removed as part of the 0.10.0
-release.
+When preparing to release a new "major" release (_minor_ release pre-1.0), the
+versions.txt file should be updated to remove the "major"-2 versions, since we
+only support upgrading from one "major" build to the next. For example, if the
+versions.txt file contained all 0.8.x and 0.9.x versions, the 0.8.x versions
+should be removed as part of the 0.10.0 release.
 
 ## Future considerations
 
