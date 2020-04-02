@@ -47,6 +47,8 @@ func (s *ValidateSuite) TestHelp() {
 	s.Equal(`Usage of validate:
   -config string
     	Path to a SPIRE server configuration file (default "server.conf")
+  -expandEnv
+    	Expand environment variables in SPIRE config file
 `, s.stderr.String(), "stderr")
 }
 
@@ -58,5 +60,7 @@ func (s *ValidateSuite) TestBadFlags() {
 Usage of validate:
   -config string
     	Path to a SPIRE server configuration file (default "server.conf")
+  -expandEnv
+    	Expand environment variables in SPIRE config file
 `, s.stderr.String(), "stderr")
 }
