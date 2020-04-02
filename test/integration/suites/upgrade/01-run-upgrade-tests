@@ -22,7 +22,7 @@ create-registration-entry() {
         /opt/spire/bin/spire-server entry create \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/workload" \
-        -selector "unix:uid:0" \
+        -selector "unix:uid:${UID}" \
         -ttl 0
 
     # Check at most 30 times (with one second in between) that the agent has
