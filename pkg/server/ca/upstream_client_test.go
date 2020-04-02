@@ -172,7 +172,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 			msg, err := updater.WaitForError(t)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.err)
-			require.Equal(t, msg, "Failed to parse an X.509 root update from the upstream authority plugin. This is a bug in the plugin.")
+			require.Equal(t, msg, "Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
 		})
 	}
 }
