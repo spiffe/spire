@@ -11,23 +11,31 @@ service Entry {
     // Lists entries.
     rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse);
 
-    // Gets an entry by ID. If the entry does not exist, NOT_FOUND is returned.
+    // Gets an entry. If the entry does not exist, NOT_FOUND is returned.
     rpc GetEntry(GetEntryRequest) returns (spire.types.Entry);
 
-    // Creates an entry. If an entry like it already exists, ALREADY_EXISTS is returned.
+    // Creates an entry. If a similar already exists, ALREADY_EXISTS is
+    // returned.  An entry is similar if it has the same spiffe_id, parent_id,
+    // and selectors.
     rpc CreateEntry(CreateEntryRequest) returns (spire.types.Entry);
 
-    // Creates one or more entries in a batch.
+    // Batch creates one or more entries.
     rpc BatchCreateEntry(BatchCreateEntryRequest) returns (BatchCreateEntryResponse);
 
-    // Updates an entry. If the entry ID does not exist, NOT_FOUND is returned.
+    // Creates an entry if a similar entry does not already exist. An entry is
+    // similar if it has the same spiffe_id, parent_id, and selectors.
+    rpc CreateEntryIfNotExists(CreateEntryIfNotExistsRequest) returns (CreateEntryIfNotExistsResponse);
+
+    // Updates an entry. If the entry does not exist, NOT_FOUND is returned.
     rpc UpdateEntry(UpdateEntryRequest) returns (spire.types.Entry);
 
-    // Deletes the entry identified by the request. If the entry does not exist,
-    // NOT_FOUND is returned.
+    // Batch updates one or more entries.
+    rpc BatchUpdateEntry(BatchUpdateEntryRequest) returns (BatchUpdateEntryResponse);
+
+    // Deletes an entry. If the entry does not exist, NOT_FOUND is returned.
     rpc DeleteEntry(DeleteEntryRequest) returns (google.protobuf.Empty);
 
-    // Deletes one or more entries identified by the request.
+    // Batch deletes one or more entries.
     rpc BatchDeleteEntry(BatchDeleteEntryRequest) returns (BatchDeleteEntryResponse);
 }
 
@@ -39,8 +47,6 @@ message ListEntriesRequest {
     }
 
     // Filters the entries returned in the response.
-    //
-    // TODO: How to document optional fields?
     Filter filter = 1;
 
     // Masks the entry fields returned in the response.
@@ -49,7 +55,8 @@ message ListEntriesRequest {
     // The maximum number of entries to return.
     int32 page_size = 3;
 
-    // The `next_page_token` value obtained from the previous `ListEntriesResponse` message, if any.
+    // The `next_page_token` value obtained from the previous
+    // `ListEntriesResponse` message, if any.
     string page_token = 4;
 }
 
@@ -57,31 +64,51 @@ message ListEntriesResponse {
     // The list of entries.
     repeated spire.types.Entry entries = 1;
 
-    // The token to use as the value for `page_token` in the next `ListEntriesRequest`.
+    // The token to use as the value for `page_token` in the next
+    // `ListEntriesRequest`.
     string next_page_token = 2;
 }
 
 message GetEntryRequest {
-    // ID of the entry to get.
+    // Required. ID of the entry to get.
     string id = 1;
 
     // Masks the entry fields returned in the response.
     spire.types.EntryMask mask = 2;
 }
 
-// TODO: Do we never need a response message? CreateEntryIfNotExists needed
-// one to tell the caller whether the record was preexisting or not.
-//
 message CreateEntryRequest {
-    // The entry to be created. The entry ID field is output only, and will be ignored here.
+    // Required. The entry to be created. The entry ID field is output only,
+    // and will be ignored here.
     spire.types.Entry entry = 1;
 
     // Masks the entry fields returned in the response.
     spire.types.EntryMask mask = 2;
 }
 
+message CreateEntryIfNotExistsRequest {
+    // Required. The entry to be created. The entry ID field is output only,
+    // and will be ignored here.
+    spire.types.Entry entry = 1;
+
+    // Masks the entry fields returned in the response.
+    spire.types.EntryMask mask = 2;
+}
+
+message CreateEntryIfNotExistsResponse {
+    // Either the preexisting or the newly created entry (see the preexisting
+    // field).
+    spire.types.Entry entry = 1;
+
+    // If true, entry is a preexisting entry. If false, entry is the newly
+    // created entry.
+    bool preexisting = 2;
+}
+
+
 message BatchCreateEntryRequest {
-    // The entries to be created. The entry ID field is output only, and will be ignored here.
+    // The entries to be created. The entry ID field is output only, and will
+    // be ignored here.
     repeated spire.types.Entry entries = 1;
 
     // Masks the entry fields returned in the response.
@@ -89,34 +116,81 @@ message BatchCreateEntryRequest {
 }
 
 message BatchCreateEntryResponse {
-    // The entries that were created.
-    repeated spire.types.Entry entries = 1;
+    message Result {
+        // The status of creating the entry.
+        google.rpc.Status status = 1;
 
-    // TODO: error map!
+        // The entry that was created. If the status is OK, it will be the
+        // entry that was created. If it the status is ALREADY_EXISTS, it will
+        // be the similar entry that already exists. See CreateEntryIfNotExists
+        // for details on what constitutes a similar entry. If the status is
+        // any other value, this field will not be set.
+        spire.types.Entry entry = 2;
+    }
+
+    // Result for each entry in the request.
+    repeated Result results = 1;
 }
 
 message UpdateEntryRequest {
-    // The updated entry.
+    // Required. The updated entry.
     spire.types.Entry entry = 1;
 
-    // Masks the entry fields returned in the response
-    spire.types.EntryMask mask = 3;
+    // An input mask indicating what entry fields should be updated.
+    spire.types.EntryMask input_mask = 2;
+
+    // An output mask indicating what entry fields are set in the response.
+    spire.types.EntryMask output_mask = 3;
+}
+
+message BatchUpdateEntryRequest {
+    // The entries to be updated. The entry ID field is output only, and will
+    // be ignored here.
+    repeated spire.types.Entry entries = 1;
+
+    // An input mask indicating what entry fields should be updated.
+    // TODO: should this be per-entry?
+    spire.types.EntryMask input_mask = 2;
+
+    // An output mask indicating what entry fields are set in the response.
+    // TODO: should this be per-entry?
+    spire.types.EntryMask output_mask = 3;
+}
+
+message BatchUpdateEntryResponse {
+    message Result {
+        // The status of creating the entry.
+        google.rpc.Status status = 1;
+
+        // The entry that was updated. If the status is OK, it will be the
+        // entry that was updated. If the status is any other value, this field
+        // will not be set.
+        spire.types.Entry entry = 2;
+    }
+
+    // Result for each entry in the request.
+    repeated Result results = 1;
 }
 
 message DeleteEntryRequest {
-    // ID of the entry to delete.
+    // Required. ID of the entry to delete.
     string id = 1;
 }
 
 message BatchDeleteEntryRequest {
     // IDs of the entries to delete.
-    repeated string id = 1;
+    repeated string ids = 1;
 }
 
 message BatchDeleteEntryResponse {
-    // Errors that occured while deleting the requested entries, if any, keyed
-    // by entry ID.
-    //
-    // TODO: will this broadly work?
-    map<string, google.rpc.Status> errors = 1;
+    message Result {
+        // The status of creating the entry.
+        google.rpc.Status status = 1;
+
+        // The ID of the entry that was deleted.
+        string id = 2;
+    }
+
+    // Result for each entry in the request.
+    repeated Result results = 1;
 }
