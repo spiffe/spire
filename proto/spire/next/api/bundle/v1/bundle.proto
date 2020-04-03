@@ -6,10 +6,36 @@ import "google/protobuf/empty.proto";
 import "spire/next/types/bundle.proto";
 
 service Bundle {
+    // Lists bundles.
     rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
+
+    // Gets a bundle. If the bundle does not exist, NOT_FOUND is returned.
     rpc GetBundle(GetBundleRequest) returns (spire.types.Bundle);
+
+    // Creates a bundle. If the bundle already exists, ALREADY_EXISTS is returned.
+    rpc CreateBundle(CreateBundleRequest) returns (spire.types.Bundle);
+
+    // Batch creates one or more bundles.
+    rpc BatchCreateBundle(BatchCreateBundleRequest) returns (BatchCreateBundleResponse);
+
+    // Updates a bundle. If the bundle does not exist, NOT_FOUND is returned.
+    rpc UpdateBundle(UpdateBundleRequest) returns (spire.types.Bundle);
+
+    // Batch updates one or more bundles.
+    rpc BatchUpdateBundle(BatchUpdateBundleRequest) returns (BatchUpdateBundleResponse);
+
+    // Sets a bundle, creating a new bundle if one doesn't already exist
+    // for the trust domain, or otherwise updating the existing bundle.
     rpc SetBundle(SetBundleRequest) returns (spire.types.Bundle);
+
+    // Batch upserts one or more bundles.
+    rpc BatchSetBundle(BatchSetBundleRequest) returns (BatchSetBundleResponse);
+
+    // Deletes a bundle. If the bundle does not exist, NOT_FOUND is returned.
     rpc DeleteBundle(DeleteBundleRequest) returns (google.protobuf.Empty);
+
+    // Batch deletes one or more bundles.
+    rpc BatchDeleteBundle(BatchDeleteBundleRequest) returns (BatchDeleteBundleResponse);
 }
 
 message ListBundlesRequest {
@@ -31,16 +57,129 @@ message ListBundlesResponse {
 message GetBundleRequest {
     // The trust domain of the bundle, e.g. example.org. If unset, the bundle
     // for the trust domain that the server belongs to is returned.
-    string trust_domain = 1;
+    which trust_domain = 1;
+}
+
+message CreateBundleRequest {
+    // Required. The bundle to create.
+    spire.types.Bundle bundle = 1;
+}
+
+message BatchCreateBundleRequest {
+    // The bundles to be created.
+    repeated spire.types.Bundle bundle = 1;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 2;
+}
+
+message BatchCreateBundleResponse {
+    message Result {
+        // The status of creating the bundle.
+        google.rpc.Status status = 1;
+
+        // The bundle that was created. This will be set if the status is OK.
+        spire.types.Bundle bundle = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
+}
+
+message UpdateBundleRequest {
+    // Required. The bundle to update.
+    spire.types.Bundle bundle = 1;
+
+    // An input mask indicating which bundle fields should be updated.
+    spire.types.BundleMask input_mask = 2;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 3;
+}
+
+message BatchUpdateBundleRequest {
+    // The bundles to be updated.
+    repeated spire.types.Bundle bundle = 1;
+
+    // An input mask indicating which bundle fields should be updated.
+    spire.types.BundleMask input_mask = 2;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 3;
+}
+
+message BatchUpdateBundleResponse {
+    message Result {
+        // The status of updating the bundle.
+        google.rpc.Status status = 1;
+
+        // The bundle that was updated. This will be set if the status is OK.
+        spire.types.Bundle bundle = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
 }
 
 message SetBundleRequest {
-    // Required. The bundle to set.
+    // Required. The bundle to create or update.
     spire.types.Bundle bundle = 1;
+
+    // An input mask indicating which bundle fields should be updated. If the
+    // bundle does not exist, the mask is ignored and the new bundle is created
+    // using all of the fields in bundle.
+    spire.types.BundleMask input_mask = 2;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 3;
+}
+
+message BatchSetBundleRequest {
+    // The bundles to be upserted.
+    repeated spire.types.Bundle bundle = 1;
+
+    // An input mask indicating which bundle fields should be updated. If the
+    // bundle does not exist, the mask is ignored and the new bundle is created
+    // using all of the fields in bundle.
+    spire.types.BundleMask input_mask = 2;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 3;
+}
+
+message BatchSetBundleResponse {
+    message Result {
+        // The status of upserting the bundle.
+        google.rpc.Status status = 1;
+
+        // The bundle that was upserted. This will be set if the status is OK.
+        spire.types.Bundle bundle = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
 }
 
 message DeleteBundleRequest {
     // Required. The trust domain of the bundle, e.g. example.org. It cannot
     // be the bundle for the trust domain the server belongs to.
     string trust_domain = 1;
+}
+
+message BatchDeleteBundleRequest {
+    // The trust domains of the bundles to be deleted.
+    repeated string trust_domains = 1;
+}
+
+message BatchDeleteBundleResponse {
+    message Result {
+        // The status of deleting the bundle.
+        google.rpc.Status status = 1;
+
+        // The trust domain of the bundle that was deleted.
+        string trust_domain = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
 }

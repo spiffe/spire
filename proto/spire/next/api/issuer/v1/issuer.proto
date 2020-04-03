@@ -8,25 +8,22 @@ import "spire/next/types/svid/jwtsvid.proto";
 import "spire/next/types/svid/x509svid.proto";
 
 service Issuer {
-    // AttestAgent attests the agent via node attestation, using a
-    // bidirectional stream to faciliate attestation methods that require
-    // challenge/response. 
+    // Attests the agent via node attestation, using a bidirectional stream to
+    // faciliate attestation methods that require challenge/response. 
     rpc AttestAgent(stream AttestAgentRequest) returns (stream AttestAgentResponse);
 
-    // RenewAgent renews the agent and returns a new X509-SVID using a
-    // bidirectional stream to facilitate two-phase commit of the renewal.
+    // Renews the agent and returns a new X509-SVID using a bidirectional
+    // stream to facilitate two-phase commit of the renewal.
     rpc RenewAgent(stream RenewAgentRequest) returns (stream RenewAgentResponse);
 
-    // NewX509SVID creates an X509-SVID. The caller must be authorized for the
-    // given registration entry.
+    // Creates an X509-SVID. The caller must be authorized for the given entry.
     rpc NewX509SVID(NewX509SVIDRequest) returns (NewX509SVIDResponse);
 
-    // NewJWTSVID creates an JWT-SVID. The caller must be authorized for the
-    // given registration entry.
+    // Creates an JWT-SVID. The caller must be authorized for the given entry.
     rpc NewJWTSVID(NewJWTSVIDRequest) returns (NewJWTSVIDResponse);
 
-    // NewDownstreamX509CA creates an X509 CA certificate appropriate for use
-    // by a downstream entity to mint X509-SVIDs.
+    // Creates an X509 CA certificate appropriate for use by a downstream
+    // entity to mint X509-SVIDs.
     rpc NewDownstreamX509CA(NewDownstreamX509CARequest) returns (NewDownstreamX509CAResponse);
 
     // Gets the entries the caller is authorized for.
@@ -35,10 +32,14 @@ service Issuer {
 
 message AttestAgentRequest {
     message Params {
+        // Required. The attestation data.
         spire.types.AttestationData data = 1;
+
+        // Required. The X509-SVID parameters.
         X509SVIDParams params = 2;
     }
 
+    // Required. The data for the step in the attestation flow.
     oneof step {
         // Attestation parameters. These are only sent in the initial request.
         Params params = 1;
@@ -67,6 +68,7 @@ message AttestAgentResponse {
 message RenewAgentRequest {
     message Ack {};
 
+    // Required. The data for the step in the renewal flow.
     oneof step {
         // Parameters for the X509-SVID
         X509SVIDParams params = 1;
@@ -84,10 +86,10 @@ message RenewAgentResponse {
 }
 
 message NewX509SVIDRequest {
-    // The registration entry ID for the identity being requested.
+    // Required. The entry ID for the identity being requested.
     string entry_id = 1;
 
-    // Parameters for the X509-SVID.
+    // Required. Parameters for the X509-SVID.
     X509SVIDParams params = 2;
 }
 
@@ -97,10 +99,10 @@ message NewX509SVIDResponse {
 }
 
 message NewJWTSVIDRequest {
-    // The unique ID of the identity being requested
-    string identity_uuid = 1;
+    // Required. The entry ID of the identity being requested
+    string entry_id = 1;
 
-    // Parameters for the JWT-SVID
+    // Required. Parameters for the JWT-SVID
     JWTSVIDParams params = 2;
 }
 
@@ -110,7 +112,8 @@ message NewJWTSVIDResponse {
 }
 
 message NewDownstreamX509CARequest {
-    // The public key of the downstream X509 CA to use in the new CA certificate.
+    // Required. The public key of the downstream X509 CA to use in the new CA
+    // certificate.
     bytes public_key = 1;
 }
 
@@ -124,19 +127,23 @@ message NewDownstreamX509CAResponse {
 }
 
 message GetAuthorizedEntriesRequest {
-    spire.types.EntryMask mask = 1;
+    // An output mask indicating which fields are set in the response.
+    spire.types.EntryMask output_mask = 1;
 }
 
 message GetAuthorizedEntriesResponse {
-    repeated spire.types.Entry entry = 1;
+    // The authorized entries.
+    repeated spire.types.Entry entries = 1;
 }
 
 // X509SVIDParams are the parameters the issuer needs to mint an X509-SVID
 message X509SVIDParams {
+    // Required. The public key of the X.509-SVID.
     bytes public_key = 1;
 }
 
 // JWTSVIDParams are the parameters the issuer needs to mint a JWT-SVID
 message JWTSVIDParams {
+    // Required. One or more JWT-SVID audiences.
     repeated string audience = 1;
 }

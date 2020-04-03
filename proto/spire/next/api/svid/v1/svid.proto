@@ -14,11 +14,12 @@ service SVID {
 }
 
 message MintX509SVIDRequest {
-    // SPIFFE ID of the X509-SVID
+    // Required. SPIFFE ID of the X509-SVID.
     string spiffe_id = 1;
 
-    // ASN.1 encoded CSR. The CSR is only used to convey the public key and
-    // prove possession of the private key. The rest of the CSR is ignored.
+    // Required. ASN.1 encoded CSR. The CSR is only used to convey the public
+    // key and prove possession of the private key. The rest of the CSR is
+    // ignored.
     bytes csr = 2;
 
     // TTL of the X509-SVID, in seconds. The server default will be used if
@@ -38,21 +39,21 @@ message MintX509SVIDResponse {
 }
 
 message MintJWTSVIDRequest {
-    // SPIFFE ID of the JWT-SVID
+    // Required. SPIFFE ID of the JWT-SVID.
     string spiffe_id = 1;
+
+    // Required. List of audience claims to include in the JWT-SVID. At least one must
+    // be set.
+    repeated string audience = 2;
 
     // TTL of the JWT-SVID, in seconds. The server default will be used if
     // unset. The TTL is advisory only. The actual lifetime of the JWT-SVID may
     // be lower depending on the remaining lifetime of the active SPIRE Server
     // CA.
-    int32 ttl = 2;
-
-    // List of audience claims to include in the JWT-SVID. At least one must
-    // be set.
-    repeated string audience = 3;
+    int32 ttl = 3;
 }
 
 message MintJWTSVIDResponse {
-    // The newly issued JWT-SVID
+    // The newly issued JWT-SVID.
     spire.types.svid.JWTSVID svid = 1;
 }

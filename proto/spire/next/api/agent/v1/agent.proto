@@ -11,7 +11,7 @@ service Agent {
     // Lists agents.
     rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
 
-    // Gets an agent by SPIFFE ID.
+    // Gets an agent.
     rpc GetAgent(GetAgentRequest) returns (spire.types.Agent);
 
     // Deletes an agent. The agent can come back into the trust domain through
@@ -29,7 +29,6 @@ service Agent {
 }
 
 message ListAgentsRequest {
-    // TODO: AND relationship
     message Filter {
         // Filters the agent by attestation type.
         string by_attestation_type = 1;
@@ -63,8 +62,8 @@ message GetAgentRequest {
     // Required. The SPIFFE ID of the agent.
     string id = 1;
 
-    // TODO:
-    spire.types.AgentMask mask = 2;
+    // An output mask indicating which agent fields are set in the response.
+    spire.types.AgentMask output_mask = 2;
 }
 
 message DeleteAgentRequest {
