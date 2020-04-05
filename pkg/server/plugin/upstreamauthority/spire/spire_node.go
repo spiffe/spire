@@ -17,7 +17,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
-func (m *Plugin) submitCSRUpstreamCA(ctx context.Context, nodeClient node.NodeClient, csr []byte) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+func submitCSRUpstreamCA(ctx context.Context, nodeClient node.NodeClient, csr []byte) ([]*x509.Certificate, *bundleutil.Bundle, error) {
 	resp, err := nodeClient.FetchX509CASVID(ctx, &node.FetchX509CASVIDRequest{
 		Csr: csr,
 	})
@@ -25,10 +25,10 @@ func (m *Plugin) submitCSRUpstreamCA(ctx context.Context, nodeClient node.NodeCl
 		return nil, nil, err
 	}
 
-	return m.getCertFromResponse(resp)
+	return getCertFromResponse(resp)
 }
 
-func (m *Plugin) getCertFromResponse(response *node.FetchX509CASVIDResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+func getCertFromResponse(response *node.FetchX509CASVIDResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
 	if response.Svid == nil {
 		return nil, nil, errors.New("response missing svid")
 	}

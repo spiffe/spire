@@ -5,14 +5,15 @@ import (
 	"errors"
 	"net"
 
+	"github.com/hashicorp/go-hclog"
 	proto "github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/api/workload"
+	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
-func (m *Plugin) getWorkloadSVID(ctx context.Context, config *Configuration) ([]byte, []byte, []byte, error) {
+func (m *Plugin) watchWorkloadSVID(ctx context.Context, workloadAPISocket string, ready chan struct{}) {
 	errorChan := make(chan error, 1)
-
-	wapiClient := m.newWorkloadAPIClient(config.WorkloadAPISocket)
+	wapiClient := m.newWorkloadAPIClient(workloadAPISocket)
 	updateChan := wapiClient.UpdateChan()
 	go func() {
 		err := wapiClient.Start()
@@ -20,17 +21,43 @@ func (m *Plugin) getWorkloadSVID(ctx context.Context, config *Configuration) ([]
 			errorChan <- err
 		}
 	}()
-
 	defer wapiClient.Stop()
 
+	firstDone := false
 	for {
 		select {
 		case svidResponse := <-updateChan:
-			return m.receiveUpdatedCerts(svidResponse)
+			wCert, wKey, wBundle, err := m.receiveUpdatedCerts(svidResponse)
+			if err != nil {
+				m.log.Error("cannot receive workload SVID update", "error", err)
+				continue
+			}
+
+			conn, err := m.newNodeClientConn(ctx, wCert, wKey, wBundle)
+			if err != nil {
+				m.log.Error("cannot create node client gRPC connection", "error", err)
+				continue
+			}
+
+			m.nodeMtx.Lock()
+			if m.conn != nil {
+				m.conn.Close()
+			}
+			m.conn = conn
+			m.nodeClient = node.NewNodeClient(m.conn)
+			m.nodeMtx.Unlock()
+
+			if !firstDone {
+				firstDone = true
+				close(ready)
+			}
+
 		case <-ctx.Done():
-			return nil, nil, nil, ctx.Err()
+			m.log.Debug("watch workload context done", "reason", ctx.Err())
+			return
+
 		case err := <-errorChan:
-			return nil, nil, nil, err
+			m.log.Error("workload API error", "error", err)
 		}
 	}
 }
@@ -51,6 +78,7 @@ func (m *Plugin) newWorkloadAPIClient(agentAddress string) workload.X509Client {
 	}
 	config := &workload.X509ClientConfig{
 		Addr: addr,
+		Log:  m.log.StandardLogger(&hclog.StandardLoggerOptions{}),
 	}
 	return workload.NewX509Client(config)
 }
