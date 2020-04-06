@@ -29,8 +29,8 @@ type WorkloadUpdate struct {
 	FederatedBundles map[string]*bundleutil.Bundle
 }
 
-// Update holds information for an update to the cache.
-type Update struct {
+// Update holds information for an entries update to the cache.
+type UpdateEntries struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by
 	// trust domain id.
 	Bundles map[string]*bundleutil.Bundle
@@ -38,7 +38,10 @@ type Update struct {
 	// RegistrationEntries is a set of ALL registration entries available to the
 	// agent, keyed by registration entry id.
 	RegistrationEntries map[string]*common.RegistrationEntry
+}
 
+// Update holds information for an SVIDs update to the cache.
+type UpdateSVIDs struct {
 	// X509SVIDs is a set of updated X509-SVIDs that should be merged into
 	// the cache, keyed by registration entry id.
 	X509SVIDs map[string]*X509SVID
@@ -174,7 +177,7 @@ func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscri
 	return sub
 }
 
-func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID)) {
+func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -280,12 +283,7 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 		// Determine if something related to this record changed outside of the
 		// selectors and if so, make sure subscribers for all entry selectors
 		// are notified.
-		svid, svidUpdated := update.X509SVIDs[newEntry.EntryId]
-		if svidUpdated {
-			record.svid = svid
-		}
-		metaUpdated := federatedBundlesChanged || svidUpdated
-		if metaUpdated {
+		if federatedBundlesChanged {
 			notifySet.Merge(newEntry.Selectors...)
 		}
 
@@ -298,14 +296,11 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 		//
 		// TODO: This is a bit verbose and could be trimmed in the future
 		// when the cache implementation has stabilized.
-		if len(selAdd) > 0 || len(selRem) > 0 || len(fedAdd) > 0 || len(fedRem) > 0 || svidUpdated {
+		if len(selAdd) > 0 || len(selRem) > 0 || len(fedAdd) > 0 || len(fedRem) > 0 {
 			log := c.log.WithFields(logrus.Fields{
 				telemetry.Entry:    newEntry.EntryId,
 				telemetry.SPIFFEID: newEntry.SpiffeId,
 			})
-			if svidUpdated {
-				log = log.WithField(telemetry.SVIDUpdated, svidUpdated)
-			}
 			if len(selAdd) > 0 {
 				log = log.WithField(telemetry.SelectorsAdded, len(selAdd))
 			}
@@ -335,6 +330,34 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 	} else {
 		c.notifyBySelectors(notifySet)
 	}
+}
+
+func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Allocate a set of selectors that
+	notifySet, selSetDone := allocSelectorSet()
+	defer selSetDone()
+
+	// Add/update records for registration entries in the update
+	for entryID, svid := range update.X509SVIDs {
+		record, existingEntry := c.records[entryID]
+		if !existingEntry {
+			c.log.WithField("entryID", entryID).Error("entry not found")
+			continue
+		}
+
+		record.svid = svid
+		notifySet.Merge(record.entry.Selectors...)
+		log := c.log.WithFields(logrus.Fields{
+			telemetry.Entry:    record.entry.EntryId,
+			telemetry.SPIFFEID: record.entry.SpiffeId,
+		})
+		log.Debug("SVID updated")
+	}
+
+	c.notifyBySelectors(notifySet)
 }
 
 func (c *Cache) updateOrCreateRecord(newEntry *common.RegistrationEntry) (*cacheRecord, *common.RegistrationEntry) {
