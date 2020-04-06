@@ -418,7 +418,7 @@ COMMIT;
 		COMMIT;
 		`,
 		// below this point is SPIRE Code version 0.9.X
-		// future v12 database entry, in which code_version string was added to migrations table
+		// v12 database entry, in which code_version string was added to migrations table
 		`
 		PRAGMA foreign_keys=OFF;
 		BEGIN TRANSACTION;
@@ -455,7 +455,39 @@ COMMIT;
 		INSERT INTO attested_node_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','spiffe://example.org/host','test','111','2018-12-19 15:26:58-07:00');
 		COMMIT;
 		`,
-		// future v13 database entry, in which the table 'attested_node_entries' gained two columns: 'new_serial_number' and 'new_expires_at'
+		// v13 database entry, in which the table 'attested_node_entries' gained two columns: 'new_serial_number' and 'new_expires_at'
+		`
+		PRAGMA foreign_keys=OFF;
+		BEGIN TRANSACTION;
+		CREATE TABLE IF NOT EXISTS "federated_registration_entries" ("bundle_id" integer,"registered_entry_id" integer, PRIMARY KEY ("bundle_id","registered_entry_id"));
+		CREATE TABLE IF NOT EXISTS "bundles" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"trust_domain" varchar(255) NOT NULL,"data" blob );
+		CREATE TABLE IF NOT EXISTS "attested_node_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"spiffe_id" varchar(255),"data_type" varchar(255),"serial_number" varchar(255),"expires_at" datetime );
+		CREATE TABLE IF NOT EXISTS "node_resolver_map_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"spiffe_id" varchar(255),"type" varchar(255),"value" varchar(255) );
+		CREATE TABLE IF NOT EXISTS "registered_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"entry_id" varchar(255),"spiffe_id" varchar(255),"parent_id" varchar(255),"ttl" integer, "admin" bool, "downstream" bool, "expiry" bigint);
+		INSERT INTO registered_entries VALUES(1,'2018-12-19 14:26:58.227869-07:00','2018-12-19 14:26:58.227869-07:00','f0373f87-a0f3-4c94-aa6a-a2f948bfc15a','spiffe://example.org/admin','spiffe://example.org/spire/agent/x509pop/e81aef2e9178db3db836a1a85d362ca5b2241631',3600, 0, 0, 0);
+		CREATE TABLE IF NOT EXISTS "join_tokens" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"token" varchar(255),"expiry" bigint );
+		CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
+		CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer,"code_version" varchar(255) );
+		INSERT INTO migrations VALUES(1,'2018-12-19 14:26:32.297244-07:00','2018-12-19 14:26:32.297244-07:00',12,'0.9.0');
+		CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
+		DELETE FROM sqlite_sequence;
+		INSERT INTO sqlite_sequence VALUES('migrations',1);
+		INSERT INTO sqlite_sequence VALUES('registered_entries',1);
+		CREATE UNIQUE INDEX uix_bundles_trust_domain ON "bundles"(trust_domain) ;
+		CREATE UNIQUE INDEX uix_attested_node_entries_spiffe_id ON "attested_node_entries"(spiffe_id) ;
+		CREATE UNIQUE INDEX idx_node_resolver_map ON "node_resolver_map_entries"(spiffe_id, "type", "value") ;
+		CREATE UNIQUE INDEX uix_registered_entries_entry_id ON "registered_entries"(entry_id) ;
+		CREATE UNIQUE INDEX uix_join_tokens_token ON "join_tokens"("token") ;
+		CREATE UNIQUE INDEX idx_selector_entry ON "selectors"(registered_entry_id, "type", "value") ;
+		CREATE UNIQUE INDEX idx_selectors_type_value ON "selectors"("type", "value") ;
+		CREATE UNIQUE INDEX idx_dns_entry ON "dns_names"(registered_entry_id, "value") ;
+		CREATE INDEX idx_registered_entries_spiffe_id ON "registered_entries"(spiffe_id) ;
+		CREATE INDEX idx_registered_entries_parent_id ON "registered_entries"(parent_id) ;
+		CREATE INDEX idx_registered_entries_expiry ON "registered_entries"(expiry) ;
+		CREATE INDEX idx_federated_registration_entries_registered_entry_id ON "federated_registration_entries"(registered_entry_id) ;
+		COMMIT;
+		`,
+		// future v14 database entry, in which the table 'registered_entries' gained a `revision_number` column
 	}
 )
 
