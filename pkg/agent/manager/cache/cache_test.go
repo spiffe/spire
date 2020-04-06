@@ -453,8 +453,10 @@ func TestCheckSVIDCallback(t *testing.T) {
 	// no calls because there are no registration entries
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles: makeBundles(bundleV2),
-	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) {
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
 		assert.Fail(t, "should not be called if there are no registration entries")
+
+		return false
 	})
 
 	foo := makeRegistrationEntryWithTTL("FOO", 60)
@@ -464,7 +466,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
-	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) {
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
 		callCount++
 		assert.Equal(t, "FOO", newEntry.EntryId)
 
@@ -472,6 +474,8 @@ func TestCheckSVIDCallback(t *testing.T) {
 		assert.Nil(t, existingEntry)
 		assert.Equal(t, foo, newEntry)
 		assert.Nil(t, svid)
+
+		return false
 	})
 	assert.Equal(t, 1, callCount)
 
@@ -487,12 +491,14 @@ func TestCheckSVIDCallback(t *testing.T) {
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
-	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) {
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
 		callCount++
 		assert.Equal(t, "FOO", newEntry.EntryId)
 		if assert.NotNil(t, svid) {
 			assert.Exactly(t, svids["FOO"], svid)
 		}
+
+		return false
 	})
 	assert.Equal(t, 1, callCount)
 }
