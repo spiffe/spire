@@ -14,10 +14,10 @@ message Agent {
     // The X509-SVID serial number.
     string x509svid_serial_number = 3;
 
-    // The X509-SVID expiration (seconds since unix epoch).
+    // The X509-SVID expiration (seconds since Unix epoch).
     int64 x509svid_expires_at = 4;
 
-    // The agent's selectors
+    // The selectors attributed to the agent during attestation.
     repeated spire.types.Selector selectors = 5;
 }
 

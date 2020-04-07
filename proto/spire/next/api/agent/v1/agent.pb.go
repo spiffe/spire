@@ -88,10 +88,12 @@ type ListAgentsRequest_Filter struct {
 	// Filters the agent by attestation type.
 	ByAttestationType string `protobuf:"bytes,1,opt,name=by_attestation_type,json=byAttestationType,proto3" json:"by_attestation_type,omitempty"`
 	// Filters the agent by a selector match.
-	BySelector           *types.SelectorMatch `protobuf:"bytes,2,opt,name=by_selector,json=bySelector,proto3" json:"by_selector,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
-	XXX_unrecognized     []byte               `json:"-"`
-	XXX_sizecache        int32                `json:"-"`
+	BySelector *types.SelectorMatch `protobuf:"bytes,2,opt,name=by_selector,json=bySelector,proto3" json:"by_selector,omitempty"`
+	// TODO:
+	Banned               bool     `protobuf:"varint,3,opt,name=banned,proto3" json:"banned,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ListAgentsRequest_Filter) Reset()         { *m = ListAgentsRequest_Filter{} }
@@ -131,6 +133,13 @@ func (m *ListAgentsRequest_Filter) GetBySelector() *types.SelectorMatch {
 		return m.BySelector
 	}
 	return nil
+}
+
+func (m *ListAgentsRequest_Filter) GetBanned() bool {
+	if m != nil {
+		return m.Banned
+	}
+	return false
 }
 
 type ListAgentsResponse struct {
@@ -184,10 +193,12 @@ func (m *ListAgentsResponse) GetNextPageToken() string {
 
 type GetAgentRequest struct {
 	// Required. The SPIFFE ID of the agent.
-	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// An output mask indicating which agent fields are set in the response.
+	OutputMask           *types.AgentMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *GetAgentRequest) Reset()         { *m = GetAgentRequest{} }
@@ -222,7 +233,14 @@ func (m *GetAgentRequest) GetId() string {
 	return ""
 }
 
-type EvictAgentRequest struct {
+func (m *GetAgentRequest) GetOutputMask() *types.AgentMask {
+	if m != nil {
+		return m.OutputMask
+	}
+	return nil
+}
+
+type DeleteAgentRequest struct {
 	// Required. The SPIFFE ID of the agent.
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -230,32 +248,32 @@ type EvictAgentRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *EvictAgentRequest) Reset()         { *m = EvictAgentRequest{} }
-func (m *EvictAgentRequest) String() string { return proto.CompactTextString(m) }
-func (*EvictAgentRequest) ProtoMessage()    {}
-func (*EvictAgentRequest) Descriptor() ([]byte, []int) {
+func (m *DeleteAgentRequest) Reset()         { *m = DeleteAgentRequest{} }
+func (m *DeleteAgentRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteAgentRequest) ProtoMessage()    {}
+func (*DeleteAgentRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_56ede974c0020f77, []int{3}
 }
 
-func (m *EvictAgentRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_EvictAgentRequest.Unmarshal(m, b)
+func (m *DeleteAgentRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteAgentRequest.Unmarshal(m, b)
 }
-func (m *EvictAgentRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_EvictAgentRequest.Marshal(b, m, deterministic)
+func (m *DeleteAgentRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteAgentRequest.Marshal(b, m, deterministic)
 }
-func (m *EvictAgentRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_EvictAgentRequest.Merge(m, src)
+func (m *DeleteAgentRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteAgentRequest.Merge(m, src)
 }
-func (m *EvictAgentRequest) XXX_Size() int {
-	return xxx_messageInfo_EvictAgentRequest.Size(m)
+func (m *DeleteAgentRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteAgentRequest.Size(m)
 }
-func (m *EvictAgentRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_EvictAgentRequest.DiscardUnknown(m)
+func (m *DeleteAgentRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteAgentRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_EvictAgentRequest proto.InternalMessageInfo
+var xxx_messageInfo_DeleteAgentRequest proto.InternalMessageInfo
 
-func (m *EvictAgentRequest) GetId() string {
+func (m *DeleteAgentRequest) GetId() string {
 	if m != nil {
 		return m.Id
 	}
@@ -302,144 +320,6 @@ func (m *BanAgentRequest) GetId() string {
 	return ""
 }
 
-type ListBannedAgentsRequest struct {
-	// The maximum number of items to return.
-	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// The next_page_token value returned from a previous List request, if any.
-	PageToken            string   `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ListBannedAgentsRequest) Reset()         { *m = ListBannedAgentsRequest{} }
-func (m *ListBannedAgentsRequest) String() string { return proto.CompactTextString(m) }
-func (*ListBannedAgentsRequest) ProtoMessage()    {}
-func (*ListBannedAgentsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_56ede974c0020f77, []int{5}
-}
-
-func (m *ListBannedAgentsRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListBannedAgentsRequest.Unmarshal(m, b)
-}
-func (m *ListBannedAgentsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListBannedAgentsRequest.Marshal(b, m, deterministic)
-}
-func (m *ListBannedAgentsRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListBannedAgentsRequest.Merge(m, src)
-}
-func (m *ListBannedAgentsRequest) XXX_Size() int {
-	return xxx_messageInfo_ListBannedAgentsRequest.Size(m)
-}
-func (m *ListBannedAgentsRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListBannedAgentsRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ListBannedAgentsRequest proto.InternalMessageInfo
-
-func (m *ListBannedAgentsRequest) GetPageSize() int32 {
-	if m != nil {
-		return m.PageSize
-	}
-	return 0
-}
-
-func (m *ListBannedAgentsRequest) GetPageToken() string {
-	if m != nil {
-		return m.PageToken
-	}
-	return ""
-}
-
-type ListBannedAgentsResponse struct {
-	// The IDs of the banned agents.
-	Ids []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
-	// The page token for the next request. Empty if there are no more results.
-	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ListBannedAgentsResponse) Reset()         { *m = ListBannedAgentsResponse{} }
-func (m *ListBannedAgentsResponse) String() string { return proto.CompactTextString(m) }
-func (*ListBannedAgentsResponse) ProtoMessage()    {}
-func (*ListBannedAgentsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_56ede974c0020f77, []int{6}
-}
-
-func (m *ListBannedAgentsResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListBannedAgentsResponse.Unmarshal(m, b)
-}
-func (m *ListBannedAgentsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListBannedAgentsResponse.Marshal(b, m, deterministic)
-}
-func (m *ListBannedAgentsResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListBannedAgentsResponse.Merge(m, src)
-}
-func (m *ListBannedAgentsResponse) XXX_Size() int {
-	return xxx_messageInfo_ListBannedAgentsResponse.Size(m)
-}
-func (m *ListBannedAgentsResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListBannedAgentsResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ListBannedAgentsResponse proto.InternalMessageInfo
-
-func (m *ListBannedAgentsResponse) GetIds() []string {
-	if m != nil {
-		return m.Ids
-	}
-	return nil
-}
-
-func (m *ListBannedAgentsResponse) GetNextPageToken() string {
-	if m != nil {
-		return m.NextPageToken
-	}
-	return ""
-}
-
-type PermitAgentRequest struct {
-	// Required. The SPIFFE ID of the agent.
-	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *PermitAgentRequest) Reset()         { *m = PermitAgentRequest{} }
-func (m *PermitAgentRequest) String() string { return proto.CompactTextString(m) }
-func (*PermitAgentRequest) ProtoMessage()    {}
-func (*PermitAgentRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_56ede974c0020f77, []int{7}
-}
-
-func (m *PermitAgentRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_PermitAgentRequest.Unmarshal(m, b)
-}
-func (m *PermitAgentRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_PermitAgentRequest.Marshal(b, m, deterministic)
-}
-func (m *PermitAgentRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PermitAgentRequest.Merge(m, src)
-}
-func (m *PermitAgentRequest) XXX_Size() int {
-	return xxx_messageInfo_PermitAgentRequest.Size(m)
-}
-func (m *PermitAgentRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_PermitAgentRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_PermitAgentRequest proto.InternalMessageInfo
-
-func (m *PermitAgentRequest) GetId() string {
-	if m != nil {
-		return m.Id
-	}
-	return ""
-}
-
 type CreateJoinTokenRequest struct {
 	// Required. How long until the token expires (in seconds).
 	Ttl int32 `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`
@@ -459,7 +339,7 @@ func (m *CreateJoinTokenRequest) Reset()         { *m = CreateJoinTokenRequest{}
 func (m *CreateJoinTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateJoinTokenRequest) ProtoMessage()    {}
 func (*CreateJoinTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_56ede974c0020f77, []int{8}
+	return fileDescriptor_56ede974c0020f77, []int{5}
 }
 
 func (m *CreateJoinTokenRequest) XXX_Unmarshal(b []byte) error {
@@ -506,57 +386,52 @@ func init() {
 	proto.RegisterType((*ListAgentsRequest_Filter)(nil), "spire.api.agent.v1.ListAgentsRequest.Filter")
 	proto.RegisterType((*ListAgentsResponse)(nil), "spire.api.agent.v1.ListAgentsResponse")
 	proto.RegisterType((*GetAgentRequest)(nil), "spire.api.agent.v1.GetAgentRequest")
-	proto.RegisterType((*EvictAgentRequest)(nil), "spire.api.agent.v1.EvictAgentRequest")
+	proto.RegisterType((*DeleteAgentRequest)(nil), "spire.api.agent.v1.DeleteAgentRequest")
 	proto.RegisterType((*BanAgentRequest)(nil), "spire.api.agent.v1.BanAgentRequest")
-	proto.RegisterType((*ListBannedAgentsRequest)(nil), "spire.api.agent.v1.ListBannedAgentsRequest")
-	proto.RegisterType((*ListBannedAgentsResponse)(nil), "spire.api.agent.v1.ListBannedAgentsResponse")
-	proto.RegisterType((*PermitAgentRequest)(nil), "spire.api.agent.v1.PermitAgentRequest")
 	proto.RegisterType((*CreateJoinTokenRequest)(nil), "spire.api.agent.v1.CreateJoinTokenRequest")
 }
 
 func init() { proto.RegisterFile("agent.proto", fileDescriptor_56ede974c0020f77) }
 
 var fileDescriptor_56ede974c0020f77 = []byte{
-	// 622 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x54, 0xdd, 0x6e, 0xd3, 0x4c,
-	0x10, 0x55, 0x92, 0x2f, 0xf9, 0x92, 0xb1, 0x20, 0xed, 0x82, 0x4a, 0x70, 0x41, 0xa4, 0x29, 0x54,
-	0x51, 0xa9, 0xd6, 0x6a, 0xb8, 0xac, 0xb8, 0x68, 0x4b, 0xa9, 0xf8, 0xa9, 0x54, 0xb9, 0xe9, 0x0d,
-	0xbd, 0xb0, 0xec, 0x78, 0x92, 0x2c, 0x24, 0xb6, 0xf1, 0x6e, 0x22, 0xdc, 0x67, 0xe0, 0xf1, 0x78,
-	0x20, 0xe4, 0x5d, 0x9b, 0xfc, 0xd8, 0x09, 0x91, 0xb8, 0x5b, 0xef, 0x9c, 0x99, 0x3d, 0x67, 0xe6,
-	0x78, 0x40, 0xb3, 0x07, 0xe8, 0x09, 0x1a, 0x84, 0xbe, 0xf0, 0x09, 0xe1, 0x01, 0x0b, 0x91, 0xda,
-	0x01, 0xa3, 0xea, 0x7a, 0x7a, 0xac, 0xef, 0x0e, 0x7c, 0x7f, 0x30, 0x42, 0x43, 0x22, 0x9c, 0x49,
-	0xdf, 0xc0, 0x71, 0x20, 0x22, 0x95, 0xa0, 0x3f, 0x93, 0x09, 0x86, 0x87, 0x3f, 0x84, 0x21, 0xa2,
-	0x00, 0xb9, 0x31, 0x57, 0x4e, 0xdf, 0xcb, 0x44, 0xbf, 0xfa, 0xcc, 0xb3, 0x84, 0xff, 0x0d, 0xbd,
-	0x04, 0xf2, 0x22, 0x03, 0xe1, 0x38, 0xc2, 0x9e, 0xf0, 0x43, 0x05, 0x68, 0xfd, 0x2c, 0xc2, 0xf6,
-	0x67, 0xc6, 0xc5, 0x69, 0x5c, 0x97, 0x9b, 0xf8, 0x7d, 0x82, 0x5c, 0x90, 0x77, 0x50, 0xe9, 0xb3,
-	0x91, 0xc0, 0xb0, 0x51, 0x68, 0x16, 0xda, 0x5a, 0xe7, 0x88, 0x66, 0x99, 0xd3, 0x4c, 0x1a, 0x7d,
-	0x2f, 0x73, 0xcc, 0x24, 0x97, 0xec, 0x42, 0x2d, 0xb0, 0x07, 0x68, 0x71, 0x76, 0x8f, 0x8d, 0x62,
-	0xb3, 0xd0, 0x2e, 0x9b, 0xd5, 0xf8, 0xe2, 0x86, 0xdd, 0x23, 0x79, 0x0e, 0x20, 0x83, 0x92, 0x6d,
-	0xa3, 0xd4, 0x2c, 0xb4, 0x6b, 0xa6, 0x84, 0x77, 0xe3, 0x0b, 0x7d, 0x02, 0x15, 0x55, 0x8d, 0x50,
-	0x78, 0xe4, 0x44, 0x96, 0x2d, 0x04, 0x72, 0x61, 0x0b, 0xe6, 0x7b, 0x56, 0x2c, 0x44, 0x12, 0xab,
-	0x99, 0xdb, 0x4e, 0x74, 0x3a, 0x8b, 0x74, 0xa3, 0x00, 0xc9, 0x09, 0x68, 0x4e, 0x64, 0xa5, 0x32,
-	0xe5, 0xbb, 0x5a, 0x47, 0x4f, 0x04, 0xc8, 0x1e, 0xd0, 0x9b, 0x24, 0x78, 0x65, 0x8b, 0xde, 0xd0,
-	0x04, 0x27, 0x4a, 0x2f, 0x5a, 0x43, 0x20, 0xf3, 0xb2, 0x78, 0xe0, 0x7b, 0x1c, 0xc9, 0x21, 0x54,
-	0xa4, 0x6a, 0xde, 0x28, 0x34, 0x4b, 0x6d, 0xad, 0x43, 0x16, 0xaa, 0x49, 0xb0, 0x99, 0x20, 0xc8,
-	0x01, 0xd4, 0xe3, 0x6e, 0x5b, 0x73, 0xe2, 0x8a, 0x92, 0xea, 0x83, 0xf8, 0xfa, 0x3a, 0x15, 0xd8,
-	0xda, 0x83, 0xfa, 0x25, 0xaa, 0x87, 0xd2, 0xae, 0x3f, 0x84, 0x22, 0x73, 0x13, 0x61, 0x45, 0xe6,
-	0xb6, 0xf6, 0x61, 0xfb, 0x62, 0xca, 0x7a, 0xeb, 0x41, 0x7b, 0x50, 0x3f, 0xb3, 0xbd, 0xb5, 0x90,
-	0x5b, 0x78, 0x12, 0x8b, 0x3a, 0xb3, 0x3d, 0x0f, 0xdd, 0xc5, 0x41, 0xff, 0xc3, 0x88, 0x5a, 0x5d,
-	0x68, 0x64, 0xcb, 0x26, 0x1d, 0xdb, 0x82, 0x12, 0x73, 0x55, 0xbb, 0x6a, 0x66, 0x7c, 0xdc, 0xb8,
-	0x2f, 0x2f, 0x81, 0x5c, 0x63, 0x38, 0x66, 0xeb, 0x55, 0xdf, 0xc1, 0xce, 0x79, 0x88, 0xb6, 0xc0,
-	0x8f, 0x3e, 0xf3, 0x64, 0x62, 0x8a, 0xdc, 0x82, 0x92, 0x10, 0x23, 0xc9, 0xb6, 0x6c, 0xc6, 0x47,
-	0xf2, 0x18, 0xca, 0xea, 0x3d, 0x95, 0xae, 0x3e, 0xc8, 0x53, 0xa8, 0xca, 0x89, 0x59, 0xcc, 0x4d,
-	0x88, 0xfc, 0x2f, 0xbf, 0x3f, 0xb8, 0x9d, 0x5f, 0xff, 0x41, 0x59, 0xbe, 0x4e, 0xee, 0x00, 0x66,
-	0x76, 0x20, 0xaf, 0x36, 0xfa, 0x0b, 0xf4, 0x83, 0xbf, 0xc1, 0x92, 0x1e, 0x9d, 0x43, 0x35, 0x75,
-	0x00, 0xd9, 0xcf, 0xcb, 0x59, 0xf2, 0x87, 0x9e, 0x63, 0x3b, 0xf2, 0x09, 0x60, 0xe6, 0x91, 0x7c,
-	0x86, 0x19, 0x0f, 0xe9, 0x3b, 0x54, 0x2d, 0x1d, 0x9a, 0x2e, 0x1d, 0x7a, 0x11, 0x2f, 0x1d, 0x72,
-	0x09, 0xd5, 0xd4, 0x4b, 0xf9, 0x8c, 0x96, 0x9c, 0xb6, 0xb2, 0xd0, 0x18, 0xb6, 0x96, 0xad, 0x41,
-	0x5e, 0xaf, 0x6a, 0x4b, 0x8e, 0x2f, 0xf5, 0xa3, 0xcd, 0xc0, 0x49, 0x27, 0xaf, 0x40, 0x9b, 0xf3,
-	0x0c, 0xc9, 0x1d, 0x40, 0xd6, 0x54, 0x2b, 0xd9, 0xdf, 0x42, 0x7d, 0xc9, 0x5c, 0xe4, 0x30, 0xaf,
-	0x64, 0xbe, 0x03, 0xf5, 0x9d, 0x85, 0x31, 0xfd, 0x09, 0x9f, 0xbd, 0xfd, 0x72, 0x32, 0x60, 0x62,
-	0x38, 0x71, 0x68, 0xcf, 0x1f, 0x1b, 0x3c, 0x60, 0xfd, 0x3e, 0x1a, 0x6a, 0x3f, 0x4b, 0x02, 0xc6,
-	0xdc, 0xae, 0xb6, 0x03, 0xa6, 0x56, 0xbd, 0x31, 0x3d, 0x3e, 0x91, 0x07, 0xa7, 0x22, 0x41, 0x6f,
-	0x7e, 0x07, 0x00, 0x00, 0xff, 0xff, 0xf5, 0x52, 0x15, 0x15, 0x52, 0x06, 0x00, 0x00,
+	// 586 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0x5d, 0x6f, 0xd3, 0x30,
+	0x14, 0x55, 0x5a, 0xb5, 0xb4, 0x37, 0x82, 0x32, 0x83, 0xaa, 0x92, 0x81, 0xe8, 0x0a, 0x4c, 0xd5,
+	0x84, 0x1c, 0xad, 0x3c, 0xf0, 0x50, 0xf1, 0xb0, 0x0f, 0x98, 0x40, 0x54, 0x42, 0xd9, 0x78, 0xd9,
+	0x1e, 0x22, 0xa7, 0xbd, 0x6d, 0x4d, 0xdb, 0x38, 0xd4, 0xee, 0x44, 0xf6, 0x1f, 0x78, 0xe7, 0x0f,
+	0xf0, 0x3f, 0x51, 0xec, 0x84, 0x75, 0x4d, 0x18, 0x7b, 0x8b, 0xef, 0x3d, 0xf7, 0xe3, 0x9c, 0x13,
+	0x1b, 0x6c, 0x36, 0xc1, 0x50, 0xd1, 0x68, 0x29, 0x94, 0x20, 0x44, 0x46, 0x7c, 0x89, 0x94, 0x45,
+	0x9c, 0x9a, 0xf0, 0xe5, 0xbe, 0xb3, 0x3d, 0x11, 0x62, 0x32, 0x47, 0x57, 0x23, 0x82, 0xd5, 0xd8,
+	0xc5, 0x45, 0xa4, 0x62, 0x53, 0xe0, 0x3c, 0xd5, 0x05, 0x6e, 0x88, 0x3f, 0x94, 0xab, 0xe2, 0x08,
+	0xa5, 0xbb, 0xd6, 0xce, 0xd9, 0xc9, 0x65, 0xbf, 0x09, 0x1e, 0xfa, 0x4a, 0xcc, 0x30, 0x4c, 0x21,
+	0xcf, 0x73, 0x10, 0x89, 0x73, 0x1c, 0x2a, 0xb1, 0x34, 0x80, 0xce, 0xef, 0x12, 0x6c, 0x7d, 0xe6,
+	0x52, 0x1d, 0x24, 0x7d, 0xa5, 0x87, 0xdf, 0x57, 0x28, 0x15, 0x39, 0x86, 0xea, 0x98, 0xcf, 0x15,
+	0x2e, 0x5b, 0x56, 0xdb, 0xea, 0xda, 0xbd, 0xd7, 0x34, 0xbf, 0x39, 0xcd, 0x95, 0xd1, 0x0f, 0xba,
+	0xc6, 0x4b, 0x6b, 0xc9, 0x36, 0xd4, 0x23, 0x36, 0x41, 0x5f, 0xf2, 0x2b, 0x6c, 0x95, 0xda, 0x56,
+	0xb7, 0xe2, 0xd5, 0x92, 0xc0, 0x29, 0xbf, 0x42, 0xf2, 0x0c, 0x40, 0x27, 0xf5, 0xb6, 0xad, 0x72,
+	0xdb, 0xea, 0xd6, 0x3d, 0x0d, 0x3f, 0x4b, 0x02, 0xce, 0x4f, 0x0b, 0xaa, 0xa6, 0x1d, 0xa1, 0xf0,
+	0x28, 0x88, 0x7d, 0xa6, 0x14, 0x4a, 0xc5, 0x14, 0x17, 0xa1, 0x9f, 0x30, 0xd1, 0x9b, 0xd5, 0xbd,
+	0xad, 0x20, 0x3e, 0xb8, 0xce, 0x9c, 0xc5, 0x11, 0x92, 0x3e, 0xd8, 0x41, 0xec, 0x67, 0x3c, 0xf5,
+	0x60, 0xbb, 0xe7, 0xa4, 0x0c, 0xb4, 0x08, 0xf4, 0x34, 0x4d, 0x0e, 0x98, 0x1a, 0x4e, 0x3d, 0x08,
+	0xe2, 0x2c, 0x40, 0x9a, 0x50, 0x0d, 0x58, 0x18, 0xe2, 0x48, 0xaf, 0x54, 0xf3, 0xd2, 0x53, 0x67,
+	0x0a, 0x64, 0x9d, 0xaf, 0x8c, 0x44, 0x28, 0x91, 0xec, 0x41, 0x55, 0xcb, 0x21, 0x5b, 0x56, 0xbb,
+	0xdc, 0xb5, 0x7b, 0xe4, 0xc6, 0x14, 0x0d, 0xf6, 0x52, 0x04, 0xd9, 0x85, 0x46, 0x62, 0x83, 0xbf,
+	0xc6, 0xba, 0xa4, 0x29, 0xdc, 0x4f, 0xc2, 0x5f, 0x32, 0xe6, 0x9d, 0x73, 0x68, 0x9c, 0xa0, 0x19,
+	0x94, 0xd9, 0xf1, 0x00, 0x4a, 0x7c, 0x94, 0x12, 0x2e, 0xf1, 0x11, 0x79, 0x0b, 0xb6, 0x58, 0xa9,
+	0x68, 0xa5, 0xfc, 0x05, 0x93, 0xb3, 0x94, 0x61, 0x33, 0x3f, 0x7b, 0xc0, 0xe4, 0xcc, 0x03, 0x03,
+	0x4d, 0xbe, 0x3b, 0x2f, 0x81, 0x1c, 0xe3, 0x1c, 0x15, 0xde, 0xd6, 0xbe, 0xb3, 0x03, 0x8d, 0x43,
+	0x16, 0xde, 0x0a, 0xb9, 0x80, 0xe6, 0xd1, 0x12, 0x99, 0xc2, 0x4f, 0x82, 0x87, 0x7a, 0xef, 0x0c,
+	0xf9, 0x10, 0xca, 0x4a, 0xcd, 0xb5, 0x7a, 0x15, 0x2f, 0xf9, 0x24, 0x8f, 0xa1, 0x62, 0xe8, 0x9a,
+	0x72, 0x73, 0x20, 0x4f, 0xa0, 0xa6, 0x85, 0xf1, 0xf9, 0x28, 0xd5, 0xe1, 0x9e, 0x3e, 0x7f, 0x1c,
+	0xf5, 0x7e, 0x95, 0xa1, 0xa2, 0xa7, 0x93, 0x0b, 0x80, 0x6b, 0xd5, 0xc9, 0xab, 0x3b, 0xfd, 0x85,
+	0xce, 0xee, 0xff, 0x60, 0xa9, 0x79, 0x47, 0x50, 0xcb, 0x84, 0x26, 0x2f, 0x8a, 0x6a, 0x36, 0x6c,
+	0x70, 0x0a, 0xdc, 0x25, 0x03, 0xb0, 0xd7, 0x14, 0x25, 0x85, 0xb3, 0xf3, 0x92, 0x3b, 0x4d, 0x6a,
+	0xae, 0x3d, 0xcd, 0xae, 0x3d, 0x7d, 0x9f, 0x5c, 0x7b, 0x72, 0x02, 0xb5, 0x4c, 0xfa, 0xe2, 0x9d,
+	0x36, 0x8c, 0xf9, 0x67, 0xa3, 0xaf, 0xd0, 0xd8, 0x30, 0x88, 0xec, 0x15, 0xf5, 0x2b, 0x76, 0xd1,
+	0xb9, 0xf9, 0x33, 0xfd, 0x4d, 0x1f, 0xbe, 0x3b, 0xef, 0x4f, 0xb8, 0x9a, 0xae, 0x02, 0x3a, 0x14,
+	0x0b, 0x57, 0x46, 0x7c, 0x3c, 0x46, 0xd7, 0xbc, 0x31, 0x7a, 0x01, 0x77, 0xed, 0xbd, 0x61, 0x11,
+	0x37, 0xcf, 0x95, 0x7b, 0xb9, 0xdf, 0xd7, 0x1f, 0x41, 0x55, 0x83, 0xde, 0xfc, 0x09, 0x00, 0x00,
+	0xff, 0xff, 0x4b, 0x90, 0x88, 0x97, 0x16, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -573,20 +448,15 @@ const _ = grpc.SupportPackageIsVersion4
 type AgentClient interface {
 	// Lists agents.
 	ListAgents(ctx context.Context, in *ListAgentsRequest, opts ...grpc.CallOption) (*ListAgentsResponse, error)
-	// Gets an agent by SPIFFE ID.
+	// Gets an agent.
 	GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*types.Agent, error)
-	// Evicts an agent. The agent can come back into the trust domain through
+	// Deletes an agent. The agent can come back into the trust domain through
 	// the Issuer AttestAgent RPC.
-	EvictAgent(ctx context.Context, in *EvictAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAgent(ctx context.Context, in *DeleteAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Bans an agent. This evicts the agent and prevents it from rejoining the
 	// trust domain through attestation until the ban is lifted via a call to
-	// PermitAgent.
+	// DeleteAgent.
 	BanAgent(ctx context.Context, in *BanAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Lists banned agents.
-	ListBannedAgents(ctx context.Context, in *ListBannedAgentsRequest, opts ...grpc.CallOption) (*ListBannedAgentsResponse, error)
-	// PermitAgent an agent. This lifts the ban on an agent so it can rejoin
-	// the trust domain through attestation.
-	PermitAgent(ctx context.Context, in *PermitAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Creates an agent join token. The token can be used during attestation to
 	// join the trust domain.
 	CreateJoinToken(ctx context.Context, in *CreateJoinTokenRequest, opts ...grpc.CallOption) (*types.JoinToken, error)
@@ -618,9 +488,9 @@ func (c *agentClient) GetAgent(ctx context.Context, in *GetAgentRequest, opts ..
 	return out, nil
 }
 
-func (c *agentClient) EvictAgent(ctx context.Context, in *EvictAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *agentClient) DeleteAgent(ctx context.Context, in *DeleteAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/spire.api.agent.v1.Agent/EvictAgent", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.agent.v1.Agent/DeleteAgent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -630,24 +500,6 @@ func (c *agentClient) EvictAgent(ctx context.Context, in *EvictAgentRequest, opt
 func (c *agentClient) BanAgent(ctx context.Context, in *BanAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/spire.api.agent.v1.Agent/BanAgent", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *agentClient) ListBannedAgents(ctx context.Context, in *ListBannedAgentsRequest, opts ...grpc.CallOption) (*ListBannedAgentsResponse, error) {
-	out := new(ListBannedAgentsResponse)
-	err := c.cc.Invoke(ctx, "/spire.api.agent.v1.Agent/ListBannedAgents", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *agentClient) PermitAgent(ctx context.Context, in *PermitAgentRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/spire.api.agent.v1.Agent/PermitAgent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -667,20 +519,15 @@ func (c *agentClient) CreateJoinToken(ctx context.Context, in *CreateJoinTokenRe
 type AgentServer interface {
 	// Lists agents.
 	ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error)
-	// Gets an agent by SPIFFE ID.
+	// Gets an agent.
 	GetAgent(context.Context, *GetAgentRequest) (*types.Agent, error)
-	// Evicts an agent. The agent can come back into the trust domain through
+	// Deletes an agent. The agent can come back into the trust domain through
 	// the Issuer AttestAgent RPC.
-	EvictAgent(context.Context, *EvictAgentRequest) (*empty.Empty, error)
+	DeleteAgent(context.Context, *DeleteAgentRequest) (*empty.Empty, error)
 	// Bans an agent. This evicts the agent and prevents it from rejoining the
 	// trust domain through attestation until the ban is lifted via a call to
-	// PermitAgent.
+	// DeleteAgent.
 	BanAgent(context.Context, *BanAgentRequest) (*empty.Empty, error)
-	// Lists banned agents.
-	ListBannedAgents(context.Context, *ListBannedAgentsRequest) (*ListBannedAgentsResponse, error)
-	// PermitAgent an agent. This lifts the ban on an agent so it can rejoin
-	// the trust domain through attestation.
-	PermitAgent(context.Context, *PermitAgentRequest) (*empty.Empty, error)
 	// Creates an agent join token. The token can be used during attestation to
 	// join the trust domain.
 	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*types.JoinToken, error)
@@ -696,17 +543,11 @@ func (*UnimplementedAgentServer) ListAgents(ctx context.Context, req *ListAgents
 func (*UnimplementedAgentServer) GetAgent(ctx context.Context, req *GetAgentRequest) (*types.Agent, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAgent not implemented")
 }
-func (*UnimplementedAgentServer) EvictAgent(ctx context.Context, req *EvictAgentRequest) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method EvictAgent not implemented")
+func (*UnimplementedAgentServer) DeleteAgent(ctx context.Context, req *DeleteAgentRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAgent not implemented")
 }
 func (*UnimplementedAgentServer) BanAgent(ctx context.Context, req *BanAgentRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BanAgent not implemented")
-}
-func (*UnimplementedAgentServer) ListBannedAgents(ctx context.Context, req *ListBannedAgentsRequest) (*ListBannedAgentsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListBannedAgents not implemented")
-}
-func (*UnimplementedAgentServer) PermitAgent(ctx context.Context, req *PermitAgentRequest) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PermitAgent not implemented")
 }
 func (*UnimplementedAgentServer) CreateJoinToken(ctx context.Context, req *CreateJoinTokenRequest) (*types.JoinToken, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateJoinToken not implemented")
@@ -752,20 +593,20 @@ func _Agent_GetAgent_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Agent_EvictAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EvictAgentRequest)
+func _Agent_DeleteAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAgentRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AgentServer).EvictAgent(ctx, in)
+		return srv.(AgentServer).DeleteAgent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.api.agent.v1.Agent/EvictAgent",
+		FullMethod: "/spire.api.agent.v1.Agent/DeleteAgent",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServer).EvictAgent(ctx, req.(*EvictAgentRequest))
+		return srv.(AgentServer).DeleteAgent(ctx, req.(*DeleteAgentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -784,42 +625,6 @@ func _Agent_BanAgent_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AgentServer).BanAgent(ctx, req.(*BanAgentRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Agent_ListBannedAgents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListBannedAgentsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServer).ListBannedAgents(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.api.agent.v1.Agent/ListBannedAgents",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServer).ListBannedAgents(ctx, req.(*ListBannedAgentsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Agent_PermitAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PermitAgentRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServer).PermitAgent(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.api.agent.v1.Agent/PermitAgent",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServer).PermitAgent(ctx, req.(*PermitAgentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -855,20 +660,12 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Agent_GetAgent_Handler,
 		},
 		{
-			MethodName: "EvictAgent",
-			Handler:    _Agent_EvictAgent_Handler,
+			MethodName: "DeleteAgent",
+			Handler:    _Agent_DeleteAgent_Handler,
 		},
 		{
 			MethodName: "BanAgent",
 			Handler:    _Agent_BanAgent_Handler,
-		},
-		{
-			MethodName: "ListBannedAgents",
-			Handler:    _Agent_ListBannedAgents_Handler,
-		},
-		{
-			MethodName: "PermitAgent",
-			Handler:    _Agent_PermitAgent_Handler,
 		},
 		{
 			MethodName: "CreateJoinToken",

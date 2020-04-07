@@ -5,12 +5,12 @@ option go_package = "github.com/spiffe/spire/proto/spire/v2/types/svid";
 // JWT SPIFFE Verifiable Identity Document. It contains the raw JWT token
 // as well as a few denormalized fields for convenience.
 message JWTSVID {
-    // JWT token
+    // The serialized JWT token.
     string token = 1;
 
-    // Expiration timestamp (seconds since Unix epoch)
+    // Expiration timestamp (seconds since Unix epoch).
     int64 expires_at = 2;
 
-    // Issuance timestamp (seconds since Unix epoch)
+    // Issuance timestamp (seconds since Unix epoch).
     int64 issued_at = 3;
 }

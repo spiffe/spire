@@ -41,7 +41,7 @@ message Entry {
     // certificates and publish JWT signing keys.
     bool downstream = 8;
 
-    // When the entry expires, in seconds since unix epoch.
+    // When the entry expires (seconds since Unix epoch).
     int64 expires_at = 9;
 
     // A list of DNS names associated with the identity described by this entry.
@@ -50,33 +50,33 @@ message Entry {
 
 // Field mask for Entry fields
 message EntryMask {
-    // id field mask
+    // id field mask.
     bool id = 6;
 
-    // spiffe_id field mask
+    // spiffe_id field mask.
     bool spiffe_id = 3;
 
-    // delegated_to field mask
+    // delegated_to field mask.
     bool delegated_to = 2;
 
-    // selectors field mask
+    // selectors field mask.
     bool selectors = 1;
 
-    // ttl field mask
+    // ttl field mask.
     bool ttl = 4;
 
-    // federates_with field mask
+    // federates_with field mask.
     bool federates_with = 5;
 
-    // admin field mask
+    // admin field mask.
     bool admin = 7;
 
-    // downstream field mask
+    // downstream field mask.
     bool downstream = 8;
 
-    // expires_at field mask
+    // expires_at field mask.
     bool expires_at = 9;
 
-    // dns_names field mask
+    // dns_names field mask.
     bool dns_names = 10;
 }

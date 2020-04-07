@@ -1,0 +1,11 @@
+syntax = "proto3";
+package spire.types;
+option go_package = "github.com/spiffe/spire/proto/spire/next/types";
+
+message Status {
+    // A status code, which should be an enum value of google.rpc.Code.
+    int32 code = 1;
+
+    // A developer-facing error message.
+    string message = 2;
+}

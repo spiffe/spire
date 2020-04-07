@@ -5,6 +5,7 @@ option go_package = "github.com/spiffe/spire/proto/spire/next/api/entry/v1;entry
 import "google/protobuf/empty.proto";
 import "spire/next/types/entry.proto";
 import "spire/next/types/selector.proto";
+import "spire/next/types/status.proto";
 
 // Manages registration entries stored by the SPIRE Server.
 service Entry {
@@ -118,7 +119,7 @@ message BatchCreateEntryRequest {
 message BatchCreateEntryResponse {
     message Result {
         // The status of creating the entry.
-        google.rpc.Status status = 1;
+        spire.types.Status status = 1;
 
         // The entry that was created. If the status is OK, it will be the
         // entry that was created. If it the status is ALREADY_EXISTS, it will
@@ -157,7 +158,7 @@ message BatchUpdateEntryRequest {
 message BatchUpdateEntryResponse {
     message Result {
         // The status of creating the entry.
-        google.rpc.Status status = 1;
+        spire.types.Status status = 1;
 
         // The entry that was updated. If the status is OK, it will be the
         // entry that was updated. If the status is any other value, this field
@@ -182,7 +183,7 @@ message BatchDeleteEntryRequest {
 message BatchDeleteEntryResponse {
     message Result {
         // The status of creating the entry.
-        google.rpc.Status status = 1;
+        spire.types.Status status = 1;
 
         // The ID of the entry that was deleted.
         string id = 2;

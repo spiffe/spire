@@ -23,7 +23,11 @@ const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 type SelectorMatch_MatchBehavior int32
 
 const (
-	SelectorMatch_MATCH_EXACT  SelectorMatch_MatchBehavior = 0
+	// Indicates that the selectors in this match are equal to the
+	// candidate selectors, independent of ordering.
+	SelectorMatch_MATCH_EXACT SelectorMatch_MatchBehavior = 0
+	// Indicates that the selectors in this match are a subset of the
+	// candidate selectors.
 	SelectorMatch_MATCH_SUBSET SelectorMatch_MatchBehavior = 1
 )
 
@@ -46,7 +50,10 @@ func (SelectorMatch_MatchBehavior) EnumDescriptor() ([]byte, []int) {
 }
 
 type Selector struct {
-	Type                 string   `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// The type of the selector. This is typically the name of the plugin that
+	// produces the selector.
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// The value of the selector.
 	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -93,7 +100,9 @@ func (m *Selector) GetValue() string {
 }
 
 type SelectorMatch struct {
-	Selectors            []*Selector                 `protobuf:"bytes,1,rep,name=selectors,proto3" json:"selectors,omitempty"`
+	// The set of selectors to match on.
+	Selectors []*Selector `protobuf:"bytes,1,rep,name=selectors,proto3" json:"selectors,omitempty"`
+	// How to match the selectors.
 	Match                SelectorMatch_MatchBehavior `protobuf:"varint,2,opt,name=match,proto3,enum=spire.types.SelectorMatch_MatchBehavior" json:"match,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
 	XXX_unrecognized     []byte                      `json:"-"`

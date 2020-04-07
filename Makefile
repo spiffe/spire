@@ -147,11 +147,16 @@ protos := \
 	proto/spire/next/api/entry/v1/entry.proto \
 	proto/spire/next/api/issuer/v1/issuer.proto \
 	proto/spire/next/api/svid/v1/svid.proto \
+	proto/spire/next/types/agent.proto \
 	proto/spire/next/types/attestation.proto \
+	proto/spire/next/types/bundle.proto \
 	proto/spire/next/types/entry.proto \
+	proto/spire/next/types/join_token.proto \
 	proto/spire/next/types/selector.proto \
+	proto/spire/next/types/status.proto \
 	proto/spire/next/types/svid/jwtsvid.proto \
 	proto/spire/next/types/svid/x509svid.proto \
+
 
 protodocs := \
 	proto/spire/agent/keymanager/README_pb.md \

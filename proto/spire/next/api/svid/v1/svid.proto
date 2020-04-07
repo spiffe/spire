@@ -17,9 +17,9 @@ message MintX509SVIDRequest {
     // Required. SPIFFE ID of the X509-SVID.
     string spiffe_id = 1;
 
-    // Required. ASN.1 encoded CSR. The CSR is only used to convey the public
-    // key and prove possession of the private key. The rest of the CSR is
-    // ignored.
+    // Required. ASN.1 DER encoded CSR. The CSR is only used to convey the
+    // public key and prove possession of the private key. The rest of the CSR
+    // is ignored.
     bytes csr = 2;
 
     // TTL of the X509-SVID, in seconds. The server default will be used if

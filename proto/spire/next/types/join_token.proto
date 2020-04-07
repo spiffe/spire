@@ -6,6 +6,6 @@ message JoinToken {
     // The value of the token.
     string value = 1;
 
-    // The token expiration (seconds since unix epoch).
+    // The token expiration (seconds since Unix epoch).
     int64 expires_at = 2;
 }

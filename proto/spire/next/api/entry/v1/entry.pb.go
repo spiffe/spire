@@ -27,12 +27,15 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type ListEntriesRequest struct {
-	// Filters the entries returned by the list operation.
+	// Filters the entries returned in the response.
 	Filter *ListEntriesRequest_Filter `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
-	// The maximum number of items to return.
-	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// The next_page_token value returned from a previous List request, if any.
-	PageToken            string   `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// An output mask indicating the entry fields set in the response.
+	OutputMask *types.EntryMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
+	// The maximum number of entries to return.
+	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// The `next_page_token` value obtained from the previous
+	// `ListEntriesResponse` message, if any.
+	PageToken            string   `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -66,6 +69,13 @@ var xxx_messageInfo_ListEntriesRequest proto.InternalMessageInfo
 func (m *ListEntriesRequest) GetFilter() *ListEntriesRequest_Filter {
 	if m != nil {
 		return m.Filter
+	}
+	return nil
+}
+
+func (m *ListEntriesRequest) GetOutputMask() *types.EntryMask {
+	if m != nil {
+		return m.OutputMask
 	}
 	return nil
 }
@@ -140,11 +150,14 @@ func (m *ListEntriesRequest_Filter) GetBySpiffeId() string {
 }
 
 type ListEntriesResponse struct {
-	Entries              []*types.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
-	NextPageToken        string         `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
+	// The list of entries.
+	Entries []*types.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	// The token to use as the value for `page_token` in the next
+	// `ListEntriesRequest`.
+	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ListEntriesResponse) Reset()         { *m = ListEntriesResponse{} }
@@ -187,10 +200,13 @@ func (m *ListEntriesResponse) GetNextPageToken() string {
 }
 
 type GetEntryRequest struct {
-	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	// Required. ID of the entry to get.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// An output mask indicating the entry fields set in the response.
+	OutputMask           *types.EntryMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *GetEntryRequest) Reset()         { *m = GetEntryRequest{} }
@@ -225,11 +241,22 @@ func (m *GetEntryRequest) GetId() string {
 	return ""
 }
 
+func (m *GetEntryRequest) GetOutputMask() *types.EntryMask {
+	if m != nil {
+		return m.OutputMask
+	}
+	return nil
+}
+
 type CreateEntryRequest struct {
-	Entry                *types.Entry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
-	XXX_unrecognized     []byte       `json:"-"`
-	XXX_sizecache        int32        `json:"-"`
+	// Required. The entry to be created. The entry ID field is output only,
+	// and will be ignored here.
+	Entry *types.Entry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
+	// An output mask indicating the entry fields set in the response.
+	OutputMask           *types.EntryMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *CreateEntryRequest) Reset()         { *m = CreateEntryRequest{} }
@@ -264,18 +291,130 @@ func (m *CreateEntryRequest) GetEntry() *types.Entry {
 	return nil
 }
 
+func (m *CreateEntryRequest) GetOutputMask() *types.EntryMask {
+	if m != nil {
+		return m.OutputMask
+	}
+	return nil
+}
+
+type CreateEntryIfNotExistsRequest struct {
+	// Required. The entry to be created. The entry ID field is output only,
+	// and will be ignored here.
+	Entry *types.Entry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
+	// An output mask indicating the entry fields set in the response.
+	OutputMask           *types.EntryMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *CreateEntryIfNotExistsRequest) Reset()         { *m = CreateEntryIfNotExistsRequest{} }
+func (m *CreateEntryIfNotExistsRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateEntryIfNotExistsRequest) ProtoMessage()    {}
+func (*CreateEntryIfNotExistsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{4}
+}
+
+func (m *CreateEntryIfNotExistsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateEntryIfNotExistsRequest.Unmarshal(m, b)
+}
+func (m *CreateEntryIfNotExistsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateEntryIfNotExistsRequest.Marshal(b, m, deterministic)
+}
+func (m *CreateEntryIfNotExistsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateEntryIfNotExistsRequest.Merge(m, src)
+}
+func (m *CreateEntryIfNotExistsRequest) XXX_Size() int {
+	return xxx_messageInfo_CreateEntryIfNotExistsRequest.Size(m)
+}
+func (m *CreateEntryIfNotExistsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateEntryIfNotExistsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateEntryIfNotExistsRequest proto.InternalMessageInfo
+
+func (m *CreateEntryIfNotExistsRequest) GetEntry() *types.Entry {
+	if m != nil {
+		return m.Entry
+	}
+	return nil
+}
+
+func (m *CreateEntryIfNotExistsRequest) GetOutputMask() *types.EntryMask {
+	if m != nil {
+		return m.OutputMask
+	}
+	return nil
+}
+
+type CreateEntryIfNotExistsResponse struct {
+	// Either the preexisting or the newly created entry (see the preexisting
+	// field).
+	Entry *types.Entry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
+	// If true, entry is a preexisting entry. If false, entry is the newly
+	// created entry.
+	Preexisting          bool     `protobuf:"varint,2,opt,name=preexisting,proto3" json:"preexisting,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateEntryIfNotExistsResponse) Reset()         { *m = CreateEntryIfNotExistsResponse{} }
+func (m *CreateEntryIfNotExistsResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateEntryIfNotExistsResponse) ProtoMessage()    {}
+func (*CreateEntryIfNotExistsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{5}
+}
+
+func (m *CreateEntryIfNotExistsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateEntryIfNotExistsResponse.Unmarshal(m, b)
+}
+func (m *CreateEntryIfNotExistsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateEntryIfNotExistsResponse.Marshal(b, m, deterministic)
+}
+func (m *CreateEntryIfNotExistsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateEntryIfNotExistsResponse.Merge(m, src)
+}
+func (m *CreateEntryIfNotExistsResponse) XXX_Size() int {
+	return xxx_messageInfo_CreateEntryIfNotExistsResponse.Size(m)
+}
+func (m *CreateEntryIfNotExistsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateEntryIfNotExistsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateEntryIfNotExistsResponse proto.InternalMessageInfo
+
+func (m *CreateEntryIfNotExistsResponse) GetEntry() *types.Entry {
+	if m != nil {
+		return m.Entry
+	}
+	return nil
+}
+
+func (m *CreateEntryIfNotExistsResponse) GetPreexisting() bool {
+	if m != nil {
+		return m.Preexisting
+	}
+	return false
+}
+
 type BatchCreateEntryRequest struct {
-	Entries              []*types.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
+	// The entries to be created. The entry ID field is output only, and will
+	// be ignored here.
+	Entries []*types.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	// An output mask indicating the entry fields set in the response.
+	OutputMask           *types.EntryMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *BatchCreateEntryRequest) Reset()         { *m = BatchCreateEntryRequest{} }
 func (m *BatchCreateEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchCreateEntryRequest) ProtoMessage()    {}
 func (*BatchCreateEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_daa6c5b6c627940f, []int{4}
+	return fileDescriptor_daa6c5b6c627940f, []int{6}
 }
 
 func (m *BatchCreateEntryRequest) XXX_Unmarshal(b []byte) error {
@@ -303,18 +442,26 @@ func (m *BatchCreateEntryRequest) GetEntries() []*types.Entry {
 	return nil
 }
 
+func (m *BatchCreateEntryRequest) GetOutputMask() *types.EntryMask {
+	if m != nil {
+		return m.OutputMask
+	}
+	return nil
+}
+
 type BatchCreateEntryResponse struct {
-	Entries              []*types.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
+	// Result for each entry in the request.
+	Results              []*BatchCreateEntryResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
+	XXX_unrecognized     []byte                             `json:"-"`
+	XXX_sizecache        int32                              `json:"-"`
 }
 
 func (m *BatchCreateEntryResponse) Reset()         { *m = BatchCreateEntryResponse{} }
 func (m *BatchCreateEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*BatchCreateEntryResponse) ProtoMessage()    {}
 func (*BatchCreateEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_daa6c5b6c627940f, []int{5}
+	return fileDescriptor_daa6c5b6c627940f, []int{7}
 }
 
 func (m *BatchCreateEntryResponse) XXX_Unmarshal(b []byte) error {
@@ -335,16 +482,73 @@ func (m *BatchCreateEntryResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_BatchCreateEntryResponse proto.InternalMessageInfo
 
-func (m *BatchCreateEntryResponse) GetEntries() []*types.Entry {
+func (m *BatchCreateEntryResponse) GetResults() []*BatchCreateEntryResponse_Result {
 	if m != nil {
-		return m.Entries
+		return m.Results
+	}
+	return nil
+}
+
+type BatchCreateEntryResponse_Result struct {
+	// The status of creating the entry.
+	Status *types.Status `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	// The entry that was created. If the status is OK, it will be the
+	// entry that was created. If it the status is ALREADY_EXISTS, it will
+	// be the similar entry that already exists. See CreateEntryIfNotExists
+	// for details on what constitutes a similar entry. If the status is
+	// any other value, this field will not be set.
+	Entry                *types.Entry `protobuf:"bytes,2,opt,name=entry,proto3" json:"entry,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *BatchCreateEntryResponse_Result) Reset()         { *m = BatchCreateEntryResponse_Result{} }
+func (m *BatchCreateEntryResponse_Result) String() string { return proto.CompactTextString(m) }
+func (*BatchCreateEntryResponse_Result) ProtoMessage()    {}
+func (*BatchCreateEntryResponse_Result) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{7, 0}
+}
+
+func (m *BatchCreateEntryResponse_Result) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_BatchCreateEntryResponse_Result.Unmarshal(m, b)
+}
+func (m *BatchCreateEntryResponse_Result) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_BatchCreateEntryResponse_Result.Marshal(b, m, deterministic)
+}
+func (m *BatchCreateEntryResponse_Result) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BatchCreateEntryResponse_Result.Merge(m, src)
+}
+func (m *BatchCreateEntryResponse_Result) XXX_Size() int {
+	return xxx_messageInfo_BatchCreateEntryResponse_Result.Size(m)
+}
+func (m *BatchCreateEntryResponse_Result) XXX_DiscardUnknown() {
+	xxx_messageInfo_BatchCreateEntryResponse_Result.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_BatchCreateEntryResponse_Result proto.InternalMessageInfo
+
+func (m *BatchCreateEntryResponse_Result) GetStatus() *types.Status {
+	if m != nil {
+		return m.Status
+	}
+	return nil
+}
+
+func (m *BatchCreateEntryResponse_Result) GetEntry() *types.Entry {
+	if m != nil {
+		return m.Entry
 	}
 	return nil
 }
 
 type UpdateEntryRequest struct {
-	Entry                *types.Entry     `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
-	Mask                 *types.EntryMask `protobuf:"bytes,2,opt,name=mask,proto3" json:"mask,omitempty"`
+	// Required. The updated entry.
+	Entry *types.Entry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
+	// An input mask indicating what entry fields should be updated.
+	InputMask *types.EntryMask `protobuf:"bytes,2,opt,name=input_mask,json=inputMask,proto3" json:"input_mask,omitempty"`
+	// An output mask indicating what entry fields are set in the response.
+	OutputMask           *types.EntryMask `protobuf:"bytes,3,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
 	XXX_unrecognized     []byte           `json:"-"`
 	XXX_sizecache        int32            `json:"-"`
@@ -354,7 +558,7 @@ func (m *UpdateEntryRequest) Reset()         { *m = UpdateEntryRequest{} }
 func (m *UpdateEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateEntryRequest) ProtoMessage()    {}
 func (*UpdateEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_daa6c5b6c627940f, []int{6}
+	return fileDescriptor_daa6c5b6c627940f, []int{8}
 }
 
 func (m *UpdateEntryRequest) XXX_Unmarshal(b []byte) error {
@@ -382,14 +586,171 @@ func (m *UpdateEntryRequest) GetEntry() *types.Entry {
 	return nil
 }
 
-func (m *UpdateEntryRequest) GetMask() *types.EntryMask {
+func (m *UpdateEntryRequest) GetInputMask() *types.EntryMask {
 	if m != nil {
-		return m.Mask
+		return m.InputMask
+	}
+	return nil
+}
+
+func (m *UpdateEntryRequest) GetOutputMask() *types.EntryMask {
+	if m != nil {
+		return m.OutputMask
+	}
+	return nil
+}
+
+type BatchUpdateEntryRequest struct {
+	// The entries to be updated.
+	Entries []*types.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	// An input mask indicating what entry fields should be updated.
+	InputMask *types.EntryMask `protobuf:"bytes,2,opt,name=input_mask,json=inputMask,proto3" json:"input_mask,omitempty"`
+	// An output mask indicating what entry fields are set in the response.
+	OutputMask           *types.EntryMask `protobuf:"bytes,3,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *BatchUpdateEntryRequest) Reset()         { *m = BatchUpdateEntryRequest{} }
+func (m *BatchUpdateEntryRequest) String() string { return proto.CompactTextString(m) }
+func (*BatchUpdateEntryRequest) ProtoMessage()    {}
+func (*BatchUpdateEntryRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{9}
+}
+
+func (m *BatchUpdateEntryRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_BatchUpdateEntryRequest.Unmarshal(m, b)
+}
+func (m *BatchUpdateEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_BatchUpdateEntryRequest.Marshal(b, m, deterministic)
+}
+func (m *BatchUpdateEntryRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BatchUpdateEntryRequest.Merge(m, src)
+}
+func (m *BatchUpdateEntryRequest) XXX_Size() int {
+	return xxx_messageInfo_BatchUpdateEntryRequest.Size(m)
+}
+func (m *BatchUpdateEntryRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_BatchUpdateEntryRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_BatchUpdateEntryRequest proto.InternalMessageInfo
+
+func (m *BatchUpdateEntryRequest) GetEntries() []*types.Entry {
+	if m != nil {
+		return m.Entries
+	}
+	return nil
+}
+
+func (m *BatchUpdateEntryRequest) GetInputMask() *types.EntryMask {
+	if m != nil {
+		return m.InputMask
+	}
+	return nil
+}
+
+func (m *BatchUpdateEntryRequest) GetOutputMask() *types.EntryMask {
+	if m != nil {
+		return m.OutputMask
+	}
+	return nil
+}
+
+type BatchUpdateEntryResponse struct {
+	// Result for each entry in the request.
+	Results              []*BatchUpdateEntryResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
+	XXX_unrecognized     []byte                             `json:"-"`
+	XXX_sizecache        int32                              `json:"-"`
+}
+
+func (m *BatchUpdateEntryResponse) Reset()         { *m = BatchUpdateEntryResponse{} }
+func (m *BatchUpdateEntryResponse) String() string { return proto.CompactTextString(m) }
+func (*BatchUpdateEntryResponse) ProtoMessage()    {}
+func (*BatchUpdateEntryResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{10}
+}
+
+func (m *BatchUpdateEntryResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_BatchUpdateEntryResponse.Unmarshal(m, b)
+}
+func (m *BatchUpdateEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_BatchUpdateEntryResponse.Marshal(b, m, deterministic)
+}
+func (m *BatchUpdateEntryResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BatchUpdateEntryResponse.Merge(m, src)
+}
+func (m *BatchUpdateEntryResponse) XXX_Size() int {
+	return xxx_messageInfo_BatchUpdateEntryResponse.Size(m)
+}
+func (m *BatchUpdateEntryResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_BatchUpdateEntryResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_BatchUpdateEntryResponse proto.InternalMessageInfo
+
+func (m *BatchUpdateEntryResponse) GetResults() []*BatchUpdateEntryResponse_Result {
+	if m != nil {
+		return m.Results
+	}
+	return nil
+}
+
+type BatchUpdateEntryResponse_Result struct {
+	// The status of creating the entry.
+	Status *types.Status `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	// The entry that was updated. If the status is OK, it will be the
+	// entry that was updated. If the status is any other value, this field
+	// will not be set.
+	Entry                *types.Entry `protobuf:"bytes,2,opt,name=entry,proto3" json:"entry,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *BatchUpdateEntryResponse_Result) Reset()         { *m = BatchUpdateEntryResponse_Result{} }
+func (m *BatchUpdateEntryResponse_Result) String() string { return proto.CompactTextString(m) }
+func (*BatchUpdateEntryResponse_Result) ProtoMessage()    {}
+func (*BatchUpdateEntryResponse_Result) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{10, 0}
+}
+
+func (m *BatchUpdateEntryResponse_Result) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_BatchUpdateEntryResponse_Result.Unmarshal(m, b)
+}
+func (m *BatchUpdateEntryResponse_Result) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_BatchUpdateEntryResponse_Result.Marshal(b, m, deterministic)
+}
+func (m *BatchUpdateEntryResponse_Result) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BatchUpdateEntryResponse_Result.Merge(m, src)
+}
+func (m *BatchUpdateEntryResponse_Result) XXX_Size() int {
+	return xxx_messageInfo_BatchUpdateEntryResponse_Result.Size(m)
+}
+func (m *BatchUpdateEntryResponse_Result) XXX_DiscardUnknown() {
+	xxx_messageInfo_BatchUpdateEntryResponse_Result.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_BatchUpdateEntryResponse_Result proto.InternalMessageInfo
+
+func (m *BatchUpdateEntryResponse_Result) GetStatus() *types.Status {
+	if m != nil {
+		return m.Status
+	}
+	return nil
+}
+
+func (m *BatchUpdateEntryResponse_Result) GetEntry() *types.Entry {
+	if m != nil {
+		return m.Entry
 	}
 	return nil
 }
 
 type DeleteEntryRequest struct {
+	// Required. ID of the entry to delete.
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -400,7 +761,7 @@ func (m *DeleteEntryRequest) Reset()         { *m = DeleteEntryRequest{} }
 func (m *DeleteEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteEntryRequest) ProtoMessage()    {}
 func (*DeleteEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_daa6c5b6c627940f, []int{7}
+	return fileDescriptor_daa6c5b6c627940f, []int{11}
 }
 
 func (m *DeleteEntryRequest) XXX_Unmarshal(b []byte) error {
@@ -429,7 +790,8 @@ func (m *DeleteEntryRequest) GetId() string {
 }
 
 type BatchDeleteEntryRequest struct {
-	Id                   []string `protobuf:"bytes,1,rep,name=id,proto3" json:"id,omitempty"`
+	// IDs of the entries to delete.
+	Ids                  []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -439,7 +801,7 @@ func (m *BatchDeleteEntryRequest) Reset()         { *m = BatchDeleteEntryRequest
 func (m *BatchDeleteEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchDeleteEntryRequest) ProtoMessage()    {}
 func (*BatchDeleteEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_daa6c5b6c627940f, []int{8}
+	return fileDescriptor_daa6c5b6c627940f, []int{12}
 }
 
 func (m *BatchDeleteEntryRequest) XXX_Unmarshal(b []byte) error {
@@ -460,11 +822,100 @@ func (m *BatchDeleteEntryRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_BatchDeleteEntryRequest proto.InternalMessageInfo
 
-func (m *BatchDeleteEntryRequest) GetId() []string {
+func (m *BatchDeleteEntryRequest) GetIds() []string {
+	if m != nil {
+		return m.Ids
+	}
+	return nil
+}
+
+type BatchDeleteEntryResponse struct {
+	// Result for each entry in the request.
+	Results              []*BatchDeleteEntryResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
+	XXX_unrecognized     []byte                             `json:"-"`
+	XXX_sizecache        int32                              `json:"-"`
+}
+
+func (m *BatchDeleteEntryResponse) Reset()         { *m = BatchDeleteEntryResponse{} }
+func (m *BatchDeleteEntryResponse) String() string { return proto.CompactTextString(m) }
+func (*BatchDeleteEntryResponse) ProtoMessage()    {}
+func (*BatchDeleteEntryResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{13}
+}
+
+func (m *BatchDeleteEntryResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_BatchDeleteEntryResponse.Unmarshal(m, b)
+}
+func (m *BatchDeleteEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_BatchDeleteEntryResponse.Marshal(b, m, deterministic)
+}
+func (m *BatchDeleteEntryResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BatchDeleteEntryResponse.Merge(m, src)
+}
+func (m *BatchDeleteEntryResponse) XXX_Size() int {
+	return xxx_messageInfo_BatchDeleteEntryResponse.Size(m)
+}
+func (m *BatchDeleteEntryResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_BatchDeleteEntryResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_BatchDeleteEntryResponse proto.InternalMessageInfo
+
+func (m *BatchDeleteEntryResponse) GetResults() []*BatchDeleteEntryResponse_Result {
+	if m != nil {
+		return m.Results
+	}
+	return nil
+}
+
+type BatchDeleteEntryResponse_Result struct {
+	// The status of creating the entry.
+	Status *types.Status `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	// The ID of the entry that was deleted.
+	Id                   string   `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *BatchDeleteEntryResponse_Result) Reset()         { *m = BatchDeleteEntryResponse_Result{} }
+func (m *BatchDeleteEntryResponse_Result) String() string { return proto.CompactTextString(m) }
+func (*BatchDeleteEntryResponse_Result) ProtoMessage()    {}
+func (*BatchDeleteEntryResponse_Result) Descriptor() ([]byte, []int) {
+	return fileDescriptor_daa6c5b6c627940f, []int{13, 0}
+}
+
+func (m *BatchDeleteEntryResponse_Result) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_BatchDeleteEntryResponse_Result.Unmarshal(m, b)
+}
+func (m *BatchDeleteEntryResponse_Result) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_BatchDeleteEntryResponse_Result.Marshal(b, m, deterministic)
+}
+func (m *BatchDeleteEntryResponse_Result) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BatchDeleteEntryResponse_Result.Merge(m, src)
+}
+func (m *BatchDeleteEntryResponse_Result) XXX_Size() int {
+	return xxx_messageInfo_BatchDeleteEntryResponse_Result.Size(m)
+}
+func (m *BatchDeleteEntryResponse_Result) XXX_DiscardUnknown() {
+	xxx_messageInfo_BatchDeleteEntryResponse_Result.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_BatchDeleteEntryResponse_Result proto.InternalMessageInfo
+
+func (m *BatchDeleteEntryResponse_Result) GetStatus() *types.Status {
+	if m != nil {
+		return m.Status
+	}
+	return nil
+}
+
+func (m *BatchDeleteEntryResponse_Result) GetId() string {
 	if m != nil {
 		return m.Id
 	}
-	return nil
+	return ""
 }
 
 func init() {
@@ -473,54 +924,77 @@ func init() {
 	proto.RegisterType((*ListEntriesResponse)(nil), "spire.api.entry.v1.ListEntriesResponse")
 	proto.RegisterType((*GetEntryRequest)(nil), "spire.api.entry.v1.GetEntryRequest")
 	proto.RegisterType((*CreateEntryRequest)(nil), "spire.api.entry.v1.CreateEntryRequest")
+	proto.RegisterType((*CreateEntryIfNotExistsRequest)(nil), "spire.api.entry.v1.CreateEntryIfNotExistsRequest")
+	proto.RegisterType((*CreateEntryIfNotExistsResponse)(nil), "spire.api.entry.v1.CreateEntryIfNotExistsResponse")
 	proto.RegisterType((*BatchCreateEntryRequest)(nil), "spire.api.entry.v1.BatchCreateEntryRequest")
 	proto.RegisterType((*BatchCreateEntryResponse)(nil), "spire.api.entry.v1.BatchCreateEntryResponse")
+	proto.RegisterType((*BatchCreateEntryResponse_Result)(nil), "spire.api.entry.v1.BatchCreateEntryResponse.Result")
 	proto.RegisterType((*UpdateEntryRequest)(nil), "spire.api.entry.v1.UpdateEntryRequest")
+	proto.RegisterType((*BatchUpdateEntryRequest)(nil), "spire.api.entry.v1.BatchUpdateEntryRequest")
+	proto.RegisterType((*BatchUpdateEntryResponse)(nil), "spire.api.entry.v1.BatchUpdateEntryResponse")
+	proto.RegisterType((*BatchUpdateEntryResponse_Result)(nil), "spire.api.entry.v1.BatchUpdateEntryResponse.Result")
 	proto.RegisterType((*DeleteEntryRequest)(nil), "spire.api.entry.v1.DeleteEntryRequest")
 	proto.RegisterType((*BatchDeleteEntryRequest)(nil), "spire.api.entry.v1.BatchDeleteEntryRequest")
+	proto.RegisterType((*BatchDeleteEntryResponse)(nil), "spire.api.entry.v1.BatchDeleteEntryResponse")
+	proto.RegisterType((*BatchDeleteEntryResponse_Result)(nil), "spire.api.entry.v1.BatchDeleteEntryResponse.Result")
 }
 
 func init() { proto.RegisterFile("entry.proto", fileDescriptor_daa6c5b6c627940f) }
 
 var fileDescriptor_daa6c5b6c627940f = []byte{
-	// 590 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x95, 0x5d, 0x6e, 0xd3, 0x40,
-	0x10, 0xc7, 0xe5, 0xa4, 0x0d, 0xcd, 0x18, 0x28, 0x5a, 0xa4, 0x12, 0xb9, 0x20, 0x82, 0x41, 0x25,
-	0x40, 0xb1, 0xd5, 0xf0, 0x58, 0x95, 0x87, 0x96, 0x50, 0x22, 0x11, 0xa9, 0x72, 0x40, 0x48, 0x3c,
-	0x10, 0xd9, 0xc9, 0x24, 0x5d, 0x92, 0xd8, 0x8b, 0x77, 0x53, 0xe1, 0x5e, 0x81, 0x73, 0x70, 0x28,
-	0x6e, 0x83, 0xbc, 0xbb, 0x46, 0x4e, 0xec, 0x42, 0xe8, 0x5b, 0x34, 0xfb, 0x9b, 0x8f, 0xff, 0xcc,
-	0x64, 0x0c, 0x26, 0x86, 0x22, 0x4e, 0x1c, 0x16, 0x47, 0x22, 0x22, 0x84, 0x33, 0x1a, 0xa3, 0xe3,
-	0x33, 0xea, 0x28, 0xf3, 0xc5, 0x81, 0xb5, 0x3b, 0x89, 0xa2, 0xc9, 0x0c, 0x5d, 0x49, 0x04, 0x8b,
-	0xb1, 0x8b, 0x73, 0x26, 0xb4, 0x83, 0x75, 0x5f, 0x3a, 0xb8, 0x21, 0x7e, 0x17, 0xae, 0x48, 0x18,
-	0x72, 0x37, 0x17, 0xce, 0x7a, 0x58, 0x78, 0xe5, 0x38, 0xc3, 0xa1, 0x88, 0x62, 0x05, 0xd8, 0x3f,
-	0x2b, 0x40, 0xde, 0x53, 0x2e, 0x3a, 0xa1, 0x88, 0x29, 0x72, 0x0f, 0xbf, 0x2d, 0x90, 0x0b, 0xd2,
-	0x81, 0xda, 0x98, 0xce, 0x04, 0xc6, 0x0d, 0xa3, 0x69, 0xb4, 0xcc, 0xf6, 0x4b, 0xa7, 0x58, 0x97,
-	0x53, 0xf4, 0x73, 0xde, 0x4a, 0x27, 0x4f, 0x3b, 0x93, 0x5d, 0xa8, 0x33, 0x7f, 0x82, 0x03, 0x4e,
-	0x2f, 0xb1, 0x51, 0x69, 0x1a, 0xad, 0x4d, 0x6f, 0x2b, 0x35, 0xf4, 0xe9, 0x25, 0x92, 0x07, 0x00,
-	0xf2, 0x51, 0x44, 0x53, 0x0c, 0x1b, 0xd5, 0xa6, 0xd1, 0xaa, 0x7b, 0x12, 0xff, 0x90, 0x1a, 0xac,
-	0x1f, 0x06, 0xd4, 0x54, 0x38, 0xd2, 0x84, 0x9b, 0x41, 0x32, 0x60, 0x7e, 0x8c, 0xa1, 0x18, 0xd0,
-	0x91, 0xac, 0xa9, 0xee, 0x41, 0x90, 0x9c, 0x49, 0x53, 0x77, 0x44, 0x8e, 0x24, 0x91, 0x69, 0xe3,
-	0x32, 0x97, 0xd9, 0xb6, 0x74, 0xd5, 0x52, 0xb9, 0xd3, 0xd7, 0xaf, 0x3d, 0x5f, 0x0c, 0xcf, 0x3d,
-	0x33, 0x48, 0x32, 0x03, 0xd7, 0x09, 0x38, 0xa3, 0xe3, 0x31, 0xa6, 0x09, 0xaa, 0x59, 0x82, 0xbe,
-	0x34, 0x75, 0x47, 0xf6, 0x14, 0xee, 0x2e, 0xc9, 0xe5, 0x2c, 0x0a, 0x39, 0x92, 0x7d, 0xb8, 0x81,
-	0xca, 0xd4, 0x30, 0x9a, 0xd5, 0x96, 0xd9, 0x26, 0x4b, 0x29, 0x53, 0x3c, 0xf1, 0x32, 0x84, 0xec,
-	0xc1, 0x76, 0x3a, 0x89, 0x41, 0x4e, 0x76, 0x45, 0x66, 0xba, 0x95, 0x9a, 0xcf, 0x32, 0xe9, 0xf6,
-	0x23, 0xd8, 0x3e, 0x45, 0xa1, 0x9c, 0xf5, 0x40, 0x6e, 0x43, 0xe5, 0x8f, 0xf0, 0x0a, 0x1d, 0xd9,
-	0xaf, 0x81, 0x9c, 0xc4, 0xe8, 0x0b, 0x5c, 0xa2, 0x5a, 0xb0, 0x29, 0xa7, 0xa3, 0xa7, 0x56, 0x56,
-	0x8c, 0x02, 0xec, 0x53, 0xb8, 0x77, 0x9c, 0xf6, 0xa1, 0x24, 0xc8, 0x7f, 0x69, 0xb2, 0xdf, 0x41,
-	0xa3, 0x18, 0xe8, 0x3a, 0xdd, 0xb1, 0xbf, 0x02, 0xf9, 0xc8, 0x46, 0xd7, 0x96, 0x44, 0x9e, 0xc3,
-	0xc6, 0xdc, 0xe7, 0x53, 0x3d, 0xfb, 0x9d, 0x22, 0xd8, 0xf3, 0xf9, 0xd4, 0x93, 0x8c, 0xfd, 0x04,
-	0xc8, 0x1b, 0x9c, 0xe1, 0x4a, 0xae, 0xd5, 0x26, 0x3f, 0xd3, 0x4d, 0xfa, 0x0b, 0x5a, 0x55, 0x68,
-	0xfb, 0xd7, 0x06, 0x6c, 0x4a, 0x80, 0x7c, 0x01, 0x33, 0xb7, 0x29, 0x64, 0x6f, 0xbd, 0x7f, 0x8e,
-	0xf5, 0xf4, 0x9f, 0x9c, 0x6e, 0xea, 0x09, 0x6c, 0x65, 0xcb, 0x41, 0x1e, 0x97, 0x39, 0xad, 0xac,
-	0x8e, 0x55, 0xd2, 0x32, 0xd2, 0x05, 0x33, 0x37, 0xb0, 0xf2, 0x22, 0x8b, 0xab, 0x51, 0x1a, 0x6a,
-	0x0e, 0x77, 0x56, 0x17, 0x80, 0xbc, 0x28, 0x8b, 0x77, 0xc5, 0xbe, 0x59, 0xfb, 0xeb, 0xc1, 0x5a,
-	0x7e, 0x17, 0xcc, 0xdc, 0x96, 0x94, 0x57, 0x5e, 0x5c, 0xa3, 0xd2, 0xca, 0x7b, 0x60, 0xe6, 0x26,
-	0x5b, 0x1e, 0xaa, 0x38, 0x7a, 0x6b, 0xc7, 0x51, 0xf7, 0xd8, 0xc9, 0xee, 0xb1, 0xd3, 0x49, 0xef,
-	0x31, 0xf9, 0xa4, 0x1b, 0x91, 0x8f, 0x79, 0x75, 0x23, 0xd6, 0x0f, 0x7c, 0x7c, 0xf4, 0xf9, 0x70,
-	0x42, 0xc5, 0xf9, 0x22, 0x70, 0x86, 0xd1, 0xdc, 0x55, 0x57, 0xca, 0x55, 0x87, 0x5d, 0x92, 0x6e,
-	0xee, 0xc8, 0xfb, 0x8c, 0xaa, 0x0f, 0x80, 0x7b, 0x71, 0x70, 0x28, 0x7f, 0x04, 0x35, 0x09, 0xbd,
-	0xfa, 0x1d, 0x00, 0x00, 0xff, 0xff, 0xe4, 0x0b, 0xb8, 0x54, 0x68, 0x06, 0x00, 0x00,
+	// 817 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x57, 0x41, 0x6f, 0xd3, 0x4a,
+	0x10, 0x96, 0x93, 0xd7, 0xb4, 0x19, 0xbf, 0xf7, 0x5a, 0x6d, 0xa5, 0xbe, 0xc8, 0x7d, 0x85, 0xc8,
+	0xa0, 0x12, 0x29, 0xc5, 0x56, 0x53, 0x21, 0x0e, 0x55, 0x2f, 0x2d, 0x01, 0x45, 0xa2, 0xa8, 0x72,
+	0xe1, 0xd2, 0x03, 0x91, 0xd3, 0x6c, 0xd2, 0x55, 0x12, 0xdb, 0x78, 0xd7, 0xa5, 0xe9, 0x05, 0xc4,
+	0x95, 0xff, 0x82, 0xb8, 0xf1, 0x1f, 0xf8, 0x11, 0xf0, 0x57, 0x90, 0x77, 0xd7, 0xc5, 0x89, 0xb7,
+	0xc4, 0xc9, 0xa1, 0x37, 0x6b, 0xf6, 0x9b, 0xd9, 0x6f, 0xbe, 0x9d, 0x9d, 0x1d, 0x83, 0x8e, 0x3d,
+	0x16, 0x8e, 0xad, 0x20, 0xf4, 0x99, 0x8f, 0x10, 0x0d, 0x48, 0x88, 0x2d, 0x37, 0x20, 0x96, 0x30,
+	0x5f, 0xee, 0x1a, 0x9b, 0x7d, 0xdf, 0xef, 0x0f, 0xb1, 0xcd, 0x11, 0x9d, 0xa8, 0x67, 0xe3, 0x51,
+	0xc0, 0xa4, 0x83, 0xf1, 0x3f, 0x77, 0xb0, 0x3d, 0x7c, 0xc5, 0x6c, 0x36, 0x0e, 0x30, 0xb5, 0x53,
+	0xe1, 0x8c, 0xfb, 0x99, 0x55, 0x8a, 0x87, 0xf8, 0x9c, 0xf9, 0xa1, 0x04, 0x6c, 0x65, 0x01, 0xcc,
+	0x65, 0x11, 0x15, 0xcb, 0xe6, 0x8f, 0x02, 0xa0, 0x97, 0x84, 0xb2, 0xa6, 0xc7, 0x42, 0x82, 0xa9,
+	0x83, 0xdf, 0x45, 0x98, 0x32, 0xd4, 0x84, 0x52, 0x8f, 0x0c, 0x19, 0x0e, 0x2b, 0x5a, 0x55, 0xab,
+	0xe9, 0x8d, 0xc7, 0x56, 0x96, 0xb6, 0x95, 0xf5, 0xb3, 0x9e, 0x73, 0x27, 0x47, 0x3a, 0xa3, 0xa7,
+	0xa0, 0xfb, 0x11, 0x0b, 0x22, 0xd6, 0x1e, 0xb9, 0x74, 0x50, 0x29, 0xf0, 0x58, 0x1b, 0x32, 0x16,
+	0x67, 0x63, 0xc5, 0x01, 0xc6, 0xc7, 0x2e, 0x1d, 0x38, 0x20, 0xa0, 0xf1, 0x37, 0xda, 0x84, 0x72,
+	0xe0, 0xf6, 0x71, 0x9b, 0x92, 0x6b, 0x5c, 0x29, 0x56, 0xb5, 0xda, 0x92, 0xb3, 0x12, 0x1b, 0x4e,
+	0xc9, 0x35, 0x46, 0x5b, 0x00, 0x7c, 0x91, 0xf9, 0x03, 0xec, 0x55, 0xfe, 0xaa, 0x6a, 0xb5, 0xb2,
+	0xc3, 0xe1, 0xaf, 0x63, 0x83, 0xf1, 0x59, 0x83, 0x92, 0xe0, 0x81, 0xaa, 0xf0, 0x77, 0x67, 0xdc,
+	0x0e, 0xdc, 0x10, 0x7b, 0xac, 0x4d, 0xba, 0x3c, 0x99, 0xb2, 0x03, 0x9d, 0xf1, 0x09, 0x37, 0xb5,
+	0xba, 0xe8, 0x80, 0x23, 0x12, 0xcd, 0xa8, 0xa4, 0x68, 0x4c, 0x50, 0x3c, 0x95, 0xab, 0xc7, 0x2e,
+	0x3b, 0xbf, 0x70, 0xf4, 0xce, 0x38, 0x31, 0x50, 0xb9, 0x01, 0x0d, 0x48, 0xaf, 0x87, 0xe3, 0x0d,
+	0x8a, 0xc9, 0x06, 0xa7, 0xdc, 0xd4, 0xea, 0x9a, 0x03, 0x58, 0x9f, 0xd0, 0x89, 0x06, 0xbe, 0x47,
+	0x31, 0xda, 0x81, 0x65, 0x2c, 0x4c, 0x15, 0xad, 0x5a, 0xac, 0xe9, 0x0d, 0x94, 0x55, 0xc5, 0x49,
+	0x20, 0x68, 0x1b, 0x56, 0xe3, 0x03, 0x6c, 0xa7, 0xd2, 0x2e, 0xf0, 0x9d, 0xfe, 0x89, 0xcd, 0x27,
+	0x49, 0xea, 0xe6, 0x19, 0xac, 0xbe, 0xc0, 0x4c, 0x38, 0xcb, 0x93, 0xfc, 0x17, 0x0a, 0x37, 0x89,
+	0x17, 0x48, 0x77, 0xe1, 0x23, 0x31, 0xdf, 0x03, 0x3a, 0x0a, 0xb1, 0xcb, 0xf0, 0x44, 0xf8, 0x1a,
+	0x2c, 0xf1, 0x7a, 0x90, 0x75, 0xa2, 0xca, 0x42, 0x00, 0x16, 0xdf, 0xf8, 0x93, 0x06, 0x5b, 0xa9,
+	0x9d, 0x5b, 0xbd, 0x57, 0x3e, 0x6b, 0x5e, 0x11, 0xca, 0xe8, 0x1d, 0x92, 0x18, 0xc2, 0xbd, 0xdb,
+	0x38, 0xc8, 0x13, 0xcd, 0x4f, 0xa2, 0x0a, 0x7a, 0x10, 0x62, 0x1c, 0xbb, 0x13, 0xaf, 0xcf, 0x49,
+	0xac, 0x38, 0x69, 0x93, 0xf9, 0x51, 0x83, 0xff, 0x0e, 0xe3, 0x6a, 0x53, 0x28, 0x3e, 0x5f, 0xe5,
+	0x2c, 0x9c, 0xf0, 0x77, 0x0d, 0x2a, 0x59, 0x0a, 0x32, 0xd7, 0x63, 0x58, 0x0e, 0x31, 0x8d, 0x86,
+	0x2c, 0xe1, 0xb0, 0xa7, 0xea, 0x0f, 0xb7, 0xb9, 0x5b, 0x0e, 0xf7, 0x75, 0x92, 0x18, 0x46, 0x1b,
+	0x4a, 0xc2, 0x84, 0xea, 0x50, 0x12, 0xed, 0x49, 0xaa, 0xb8, 0x3e, 0x79, 0x11, 0xf9, 0x92, 0x23,
+	0x21, 0xbf, 0x15, 0x2f, 0xcc, 0x50, 0xdc, 0xfc, 0xa2, 0x01, 0x7a, 0x13, 0x74, 0x17, 0x2f, 0xde,
+	0x27, 0x00, 0xc4, 0xcb, 0xa9, 0x62, 0x99, 0x23, 0x79, 0x1b, 0x9b, 0x52, 0xbf, 0x98, 0x5b, 0xfd,
+	0x6f, 0x49, 0x01, 0x28, 0x58, 0xcf, 0x57, 0x00, 0x77, 0xcd, 0xfc, 0xa6, 0x6e, 0x26, 0x98, 0xcf,
+	0x5f, 0x37, 0x0a, 0xf7, 0xbb, 0xaf, 0x9b, 0x87, 0x80, 0x9e, 0xe1, 0x21, 0x9e, 0x3a, 0x80, 0xa9,
+	0x96, 0x6a, 0xd6, 0xe5, 0x59, 0x29, 0xa0, 0x6b, 0x50, 0x24, 0x5d, 0x91, 0x6c, 0xd9, 0x89, 0x3f,
+	0xcd, 0xaf, 0x89, 0x3e, 0x13, 0xe8, 0xf9, 0xf5, 0x51, 0xb8, 0x67, 0xf4, 0x69, 0x2e, 0xa6, 0x8f,
+	0xc8, 0xaf, 0x90, 0xe4, 0xd7, 0xf8, 0x59, 0x82, 0x25, 0xbe, 0x11, 0x7a, 0x0b, 0x7a, 0xea, 0x31,
+	0x43, 0xdb, 0xf9, 0xa6, 0x02, 0xe3, 0xd1, 0x4c, 0x9c, 0xcc, 0xff, 0x08, 0x56, 0x92, 0xf7, 0x0b,
+	0x3d, 0x50, 0x39, 0x4d, 0xbd, 0x6e, 0x86, 0xe2, 0xec, 0x50, 0x0b, 0xf4, 0x54, 0xd3, 0x51, 0x93,
+	0xcc, 0xf6, 0x55, 0x65, 0xa8, 0x11, 0xac, 0x4d, 0x37, 0x31, 0x54, 0xcf, 0xd7, 0xea, 0x44, 0xd0,
+	0x9d, 0x79, 0xfa, 0x22, 0xfa, 0x00, 0x1b, 0xea, 0x47, 0x06, 0xed, 0xce, 0x48, 0x22, 0xfb, 0x28,
+	0x1a, 0x8d, 0x79, 0x5c, 0x24, 0x81, 0x16, 0xe8, 0xa9, 0x7b, 0xa7, 0x96, 0x2e, 0xdb, 0x91, 0xfe,
+	0x28, 0x5d, 0x3a, 0x5e, 0x3d, 0xdf, 0x6d, 0x9f, 0x25, 0x9d, 0xba, 0xb3, 0xe8, 0xa9, 0x1b, 0xa1,
+	0x66, 0x9e, 0xbd, 0x9f, 0xc6, 0x86, 0x25, 0x46, 0x6f, 0x2b, 0x19, 0xbd, 0xad, 0x66, 0x3c, 0x7a,
+	0xdf, 0xb0, 0x4f, 0xc7, 0xac, 0xe7, 0xbb, 0x8b, 0xb3, 0xd8, 0x2b, 0x2e, 0xee, 0xe1, 0xc1, 0xd9,
+	0x7e, 0x9f, 0xb0, 0x8b, 0xa8, 0x63, 0x9d, 0xfb, 0x23, 0x5b, 0x8c, 0x93, 0xb6, 0x18, 0xdc, 0x39,
+	0x31, 0x3b, 0x35, 0xc4, 0xbb, 0x01, 0x11, 0x7f, 0x00, 0xf6, 0xe5, 0xee, 0x3e, 0xff, 0xe8, 0x94,
+	0x38, 0x68, 0xef, 0x57, 0x00, 0x00, 0x00, 0xff, 0xff, 0x70, 0xd1, 0x43, 0x7a, 0x69, 0x0c, 0x00,
+	0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -537,19 +1011,25 @@ const _ = grpc.SupportPackageIsVersion4
 type EntryClient interface {
 	// Lists entries.
 	ListEntries(ctx context.Context, in *ListEntriesRequest, opts ...grpc.CallOption) (*ListEntriesResponse, error)
-	// Gets an entry by id.
+	// Gets an entry. If the entry does not exist, NOT_FOUND is returned.
 	GetEntry(ctx context.Context, in *GetEntryRequest, opts ...grpc.CallOption) (*types.Entry, error)
-	// Creates an entry.
+	// Creates an entry. If a similar already exists, ALREADY_EXISTS is
+	// returned.  An entry is similar if it has the same spiffe_id, parent_id,
+	// and selectors.
 	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*types.Entry, error)
-	// Creates one or more entries in a batch.
+	// Batch creates one or more entries.
 	BatchCreateEntry(ctx context.Context, in *BatchCreateEntryRequest, opts ...grpc.CallOption) (*BatchCreateEntryResponse, error)
-	// Updates an entry.
+	// Creates an entry if a similar entry does not already exist. An entry is
+	// similar if it has the same spiffe_id, parent_id, and selectors.
+	CreateEntryIfNotExists(ctx context.Context, in *CreateEntryIfNotExistsRequest, opts ...grpc.CallOption) (*CreateEntryIfNotExistsResponse, error)
+	// Updates an entry. If the entry does not exist, NOT_FOUND is returned.
 	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*types.Entry, error)
-	// Deletes the entry identified by the request. If the entry does not exist
-	// the call returns NOT_FOUND.
+	// Batch updates one or more entries.
+	BatchUpdateEntry(ctx context.Context, in *BatchUpdateEntryRequest, opts ...grpc.CallOption) (*BatchUpdateEntryResponse, error)
+	// Deletes an entry. If the entry does not exist, NOT_FOUND is returned.
 	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Deletes the entries identified by the request.
-	BatchDeleteEntry(ctx context.Context, in *BatchDeleteEntryRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// Batch deletes one or more entries.
+	BatchDeleteEntry(ctx context.Context, in *BatchDeleteEntryRequest, opts ...grpc.CallOption) (*BatchDeleteEntryResponse, error)
 }
 
 type entryClient struct {
@@ -596,9 +1076,27 @@ func (c *entryClient) BatchCreateEntry(ctx context.Context, in *BatchCreateEntry
 	return out, nil
 }
 
+func (c *entryClient) CreateEntryIfNotExists(ctx context.Context, in *CreateEntryIfNotExistsRequest, opts ...grpc.CallOption) (*CreateEntryIfNotExistsResponse, error) {
+	out := new(CreateEntryIfNotExistsResponse)
+	err := c.cc.Invoke(ctx, "/spire.api.entry.v1.Entry/CreateEntryIfNotExists", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *entryClient) UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*types.Entry, error) {
 	out := new(types.Entry)
 	err := c.cc.Invoke(ctx, "/spire.api.entry.v1.Entry/UpdateEntry", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *entryClient) BatchUpdateEntry(ctx context.Context, in *BatchUpdateEntryRequest, opts ...grpc.CallOption) (*BatchUpdateEntryResponse, error) {
+	out := new(BatchUpdateEntryResponse)
+	err := c.cc.Invoke(ctx, "/spire.api.entry.v1.Entry/BatchUpdateEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -614,8 +1112,8 @@ func (c *entryClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest, o
 	return out, nil
 }
 
-func (c *entryClient) BatchDeleteEntry(ctx context.Context, in *BatchDeleteEntryRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *entryClient) BatchDeleteEntry(ctx context.Context, in *BatchDeleteEntryRequest, opts ...grpc.CallOption) (*BatchDeleteEntryResponse, error) {
+	out := new(BatchDeleteEntryResponse)
 	err := c.cc.Invoke(ctx, "/spire.api.entry.v1.Entry/BatchDeleteEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -627,19 +1125,25 @@ func (c *entryClient) BatchDeleteEntry(ctx context.Context, in *BatchDeleteEntry
 type EntryServer interface {
 	// Lists entries.
 	ListEntries(context.Context, *ListEntriesRequest) (*ListEntriesResponse, error)
-	// Gets an entry by id.
+	// Gets an entry. If the entry does not exist, NOT_FOUND is returned.
 	GetEntry(context.Context, *GetEntryRequest) (*types.Entry, error)
-	// Creates an entry.
+	// Creates an entry. If a similar already exists, ALREADY_EXISTS is
+	// returned.  An entry is similar if it has the same spiffe_id, parent_id,
+	// and selectors.
 	CreateEntry(context.Context, *CreateEntryRequest) (*types.Entry, error)
-	// Creates one or more entries in a batch.
+	// Batch creates one or more entries.
 	BatchCreateEntry(context.Context, *BatchCreateEntryRequest) (*BatchCreateEntryResponse, error)
-	// Updates an entry.
+	// Creates an entry if a similar entry does not already exist. An entry is
+	// similar if it has the same spiffe_id, parent_id, and selectors.
+	CreateEntryIfNotExists(context.Context, *CreateEntryIfNotExistsRequest) (*CreateEntryIfNotExistsResponse, error)
+	// Updates an entry. If the entry does not exist, NOT_FOUND is returned.
 	UpdateEntry(context.Context, *UpdateEntryRequest) (*types.Entry, error)
-	// Deletes the entry identified by the request. If the entry does not exist
-	// the call returns NOT_FOUND.
+	// Batch updates one or more entries.
+	BatchUpdateEntry(context.Context, *BatchUpdateEntryRequest) (*BatchUpdateEntryResponse, error)
+	// Deletes an entry. If the entry does not exist, NOT_FOUND is returned.
 	DeleteEntry(context.Context, *DeleteEntryRequest) (*empty.Empty, error)
-	// Deletes the entries identified by the request.
-	BatchDeleteEntry(context.Context, *BatchDeleteEntryRequest) (*empty.Empty, error)
+	// Batch deletes one or more entries.
+	BatchDeleteEntry(context.Context, *BatchDeleteEntryRequest) (*BatchDeleteEntryResponse, error)
 }
 
 // UnimplementedEntryServer can be embedded to have forward compatible implementations.
@@ -658,13 +1162,19 @@ func (*UnimplementedEntryServer) CreateEntry(ctx context.Context, req *CreateEnt
 func (*UnimplementedEntryServer) BatchCreateEntry(ctx context.Context, req *BatchCreateEntryRequest) (*BatchCreateEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchCreateEntry not implemented")
 }
+func (*UnimplementedEntryServer) CreateEntryIfNotExists(ctx context.Context, req *CreateEntryIfNotExistsRequest) (*CreateEntryIfNotExistsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateEntryIfNotExists not implemented")
+}
 func (*UnimplementedEntryServer) UpdateEntry(ctx context.Context, req *UpdateEntryRequest) (*types.Entry, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateEntry not implemented")
+}
+func (*UnimplementedEntryServer) BatchUpdateEntry(ctx context.Context, req *BatchUpdateEntryRequest) (*BatchUpdateEntryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchUpdateEntry not implemented")
 }
 func (*UnimplementedEntryServer) DeleteEntry(ctx context.Context, req *DeleteEntryRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteEntry not implemented")
 }
-func (*UnimplementedEntryServer) BatchDeleteEntry(ctx context.Context, req *BatchDeleteEntryRequest) (*empty.Empty, error) {
+func (*UnimplementedEntryServer) BatchDeleteEntry(ctx context.Context, req *BatchDeleteEntryRequest) (*BatchDeleteEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchDeleteEntry not implemented")
 }
 
@@ -744,6 +1254,24 @@ func _Entry_BatchCreateEntry_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Entry_CreateEntryIfNotExists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEntryIfNotExistsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EntryServer).CreateEntryIfNotExists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.api.entry.v1.Entry/CreateEntryIfNotExists",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EntryServer).CreateEntryIfNotExists(ctx, req.(*CreateEntryIfNotExistsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Entry_UpdateEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateEntryRequest)
 	if err := dec(in); err != nil {
@@ -758,6 +1286,24 @@ func _Entry_UpdateEntry_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntryServer).UpdateEntry(ctx, req.(*UpdateEntryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Entry_BatchUpdateEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchUpdateEntryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EntryServer).BatchUpdateEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.api.entry.v1.Entry/BatchUpdateEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EntryServer).BatchUpdateEntry(ctx, req.(*BatchUpdateEntryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -819,8 +1365,16 @@ var _Entry_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Entry_BatchCreateEntry_Handler,
 		},
 		{
+			MethodName: "CreateEntryIfNotExists",
+			Handler:    _Entry_CreateEntryIfNotExists_Handler,
+		},
+		{
 			MethodName: "UpdateEntry",
 			Handler:    _Entry_UpdateEntry_Handler,
+		},
+		{
+			MethodName: "BatchUpdateEntry",
+			Handler:    _Entry_BatchUpdateEntry_Handler,
 		},
 		{
 			MethodName: "DeleteEntry",
