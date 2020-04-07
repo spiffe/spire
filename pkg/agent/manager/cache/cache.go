@@ -116,6 +116,14 @@ type Cache struct {
 	bundles map[string]*bundleutil.Bundle
 }
 
+// StaleEntry holds stale entries with SVIDs expiration time
+type StaleEntry struct {
+	// Entry stale registration entry
+	Entry *common.RegistrationEntry
+	// SVIDs expiration time
+	ExpiresAt time.Time
+}
+
 func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle, metrics telemetry.Metrics) *Cache {
 	return &Cache{
 		BundleCache:  NewBundleCache(trustDomainID, bundle),
@@ -182,6 +190,8 @@ func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscri
 	return sub
 }
 
+// UpdateEntries updates provided registration entries and bundles in cache, based in updates all subscribers are notified about updates.
+// In case checkSVID is provided, it is used to verify svid rotation, returning `true` in case it is marked as `stale`.
 func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID) bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -251,6 +261,8 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			c.delSelectorIndicesRecord(selRem, record)
 			notifySet.MergeSet(selRem)
 			delete(c.records, id)
+			// Remove stale entry since, registration entry is no longer on cache.
+			delete(c.staleEntries, id)
 		}
 	}
 
@@ -369,16 +381,15 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 }
 
 // GetStaleEntries obtains a list of stale entries
-func (c *Cache) GetStaleEntries() map[*common.RegistrationEntry]time.Time {
+func (c *Cache) GetStaleEntries() []*StaleEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	staleEntries := make(map[*common.RegistrationEntry]time.Time)
+	var staleEntries []*StaleEntry
 	for entryID := range c.staleEntries {
 		cachedEntry, ok := c.records[entryID]
 		if !ok {
-			c.log.WithField(telemetry.RegistrationID, entryID).Warn("stale entry not found")
-			// TODO: may we remove entry from stale?
+			c.log.WithField(telemetry.RegistrationID, entryID).Error("Stale marker found for unknown entry. Please fill a bug")
 			delete(c.staleEntries, entryID)
 			continue
 		}
@@ -387,7 +398,11 @@ func (c *Cache) GetStaleEntries() map[*common.RegistrationEntry]time.Time {
 		if cachedEntry.svid != nil {
 			expiresAt = cachedEntry.svid.Chain[0].NotAfter
 		}
-		staleEntries[cachedEntry.entry] = expiresAt
+
+		staleEntries = append(staleEntries, &StaleEntry{
+			Entry:     cachedEntry.entry,
+			ExpiresAt: expiresAt,
+		})
 	}
 
 	return staleEntries
