@@ -46,9 +46,7 @@ func (c *validateCommand) Run(args []string) int {
 		_ = c.env.ErrPrintf("SPIRE server configuration file is invalid: %v\n", err)
 		return 1
 	}
-	if err := c.env.Println("SPIRE server configuration file is valid."); err != nil {
-		return 1
-	}
+	_ = c.env.Println("SPIRE server configuration file is valid.")
 	return 0
 }
 
