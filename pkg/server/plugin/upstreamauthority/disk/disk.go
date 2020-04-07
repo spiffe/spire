@@ -34,7 +34,6 @@ func builtin(p *Plugin) catalog.Plugin {
 
 type Configuration struct {
 	trustDomain string
-	ttl         time.Duration
 
 	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
