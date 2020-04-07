@@ -478,6 +478,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 		return false
 	})
 	assert.Equal(t, 1, callCount)
+	assert.Empty(t, cache.staleEntries)
 
 	// called once for FOO with new SVID
 	callCount = 0
@@ -498,9 +499,69 @@ func TestCheckSVIDCallback(t *testing.T) {
 			assert.Exactly(t, svids["FOO"], svid)
 		}
 
-		return false
+		return true
 	})
 	assert.Equal(t, 1, callCount)
+	assert.Equal(t, map[string]bool{foo.EntryId: true}, cache.staleEntries)
+}
+
+func TestGetStaleEntries(t *testing.T) {
+	cache := newTestCache()
+
+	foo := makeRegistrationEntryWithTTL("FOO", 60)
+
+	// Create svid and entry but mark it as not update
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
+		return false
+	})
+	assert.Empty(t, cache.GetStaleEntries())
+
+	// Mark entry as stale but no SVID
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
+		return true
+	})
+	expectedEntries := []*StaleEntry{{Entry: cache.records[foo.EntryId].entry}}
+	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
+
+	// Create SVID for stale entry and update cache
+	svids := make(map[string]*X509SVID)
+	expiredAt := time.Now()
+	svids[foo.EntryId] = &X509SVID{
+		Chain: []*x509.Certificate{{NotAfter: expiredAt}},
+	}
+	cache.UpdateSVIDs(&UpdateSVIDs{
+		X509SVIDs: svids,
+	})
+	// Updating svids removes stale entries
+	assert.Empty(t, cache.GetStaleEntries())
+
+	// Update entry and mark it as stales
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
+		return true
+	})
+
+	expectedEntries = []*StaleEntry{{
+		Entry:     cache.records[foo.EntryId].entry,
+		ExpiresAt: expiredAt,
+	}}
+	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
+
+	// Remove registration entry
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles: makeBundles(bundleV2),
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
+		return true
+	})
+	assert.Empty(t, cache.GetStaleEntries())
 }
 
 func BenchmarkCacheGlobalNotification(b *testing.B) {
@@ -517,7 +578,6 @@ func BenchmarkCacheGlobalNotification(b *testing.B) {
 	updateEntries := &UpdateEntries{
 		Bundles:             bundlesV1,
 		RegistrationEntries: make(map[string]*common.RegistrationEntry, numEntries),
-		//X509SVIDs:           make(map[string]*X509SVID, numEntries),
 	}
 	for i := 0; i < numEntries; i++ {
 		entryID := fmt.Sprintf("00000000-0000-0000-0000-%012d", i)

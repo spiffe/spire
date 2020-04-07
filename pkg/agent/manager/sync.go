@@ -77,16 +77,16 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 
 	staleEntries := m.cache.GetStaleEntries()
 	if len(staleEntries) > 0 {
-		for staleEntry, expiresAt := range staleEntries {
+		for _, staleEntry := range staleEntries {
 			// we've exceeded the CSR limit, don't make any more CSRs
 			if len(csrs) >= node.CSRLimit {
 				break
 			}
 
 			csrs = append(csrs, csrRequest{
-				EntryID:              staleEntry.EntryId,
-				SpiffeID:             staleEntry.SpiffeId,
-				CurrentSVIDExpiresAt: expiresAt,
+				EntryID:              staleEntry.Entry.EntryId,
+				SpiffeID:             staleEntry.Entry.SpiffeId,
+				CurrentSVIDExpiresAt: staleEntry.ExpiresAt,
 			})
 		}
 
