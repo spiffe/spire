@@ -6,15 +6,16 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	w_pb "github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -52,6 +53,9 @@ var (
 type handler struct {
 	server *grpc.Server
 	addr   string
+
+	bundleMtx sync.RWMutex
+	bundle    common.Bundle
 }
 
 type whandler struct {
@@ -153,6 +157,8 @@ func (w *whandler) FetchJWTBundles(req *w_pb.JWTBundlesRequest, stream w_pb.Spif
 }
 
 func (h *handler) startNodeAPITestServer(t *testing.T) {
+	h.loadInitialBundle(t)
+
 	creds, err := credentials.NewServerTLSFromFile(serverCertFilePath, keyFilePath)
 	require.NoError(t, err)
 
@@ -165,6 +171,31 @@ func (h *handler) startNodeAPITestServer(t *testing.T) {
 	require.NoError(t, err)
 	h.addr = l.Addr().String()
 	go func() { _ = h.server.Serve(l) }()
+}
+
+func (h *handler) loadInitialBundle(t *testing.T) {
+	jwksBytes, err := ioutil.ReadFile("_test_data/keys/jwks.json")
+	require.NoError(t, err)
+	b, err := bundleutil.Unmarshal("spiffe://localhost", jwksBytes)
+	require.NoError(t, err)
+
+	caCert, err := pemutil.LoadCertificate(certFilePath)
+	require.NoError(t, err)
+	b.AppendRootCA(caCert)
+
+	h.setBundle(*b.Proto())
+}
+
+func (h *handler) getBundle() common.Bundle {
+	h.bundleMtx.RLock()
+	defer h.bundleMtx.RUnlock()
+	return h.bundle
+}
+
+func (h *handler) setBundle(b common.Bundle) {
+	h.bundleMtx.Lock()
+	defer h.bundleMtx.Unlock()
+	h.bundle = b
 }
 
 func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
@@ -219,21 +250,21 @@ func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
 
 // PushJWTKeyUpstream fakes the real implementation (node endpoint) for testing purposes
 func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKeyUpstreamRequest) (*node_pb.PushJWTKeyUpstreamResponse, error) {
-	keys := []*common.PublicKey{
-		&common.PublicKey{
-			Kid: "kid-0",
-		},
-		req.JwtKey,
-	}
+	h.bundleMtx.Lock()
+	defer h.bundleMtx.Unlock()
+
+	h.bundle.JwtSigningKeys = append(h.bundle.JwtSigningKeys, req.JwtKey)
 
 	return &node_pb.PushJWTKeyUpstreamResponse{
-		JwtSigningKeys: keys,
+		JwtSigningKeys: h.bundle.JwtSigningKeys,
 	}, nil
 }
 
-// FetchBundle is not implemented
 func (h *handler) FetchBundle(ctx context.Context, req *node_pb.FetchBundleRequest) (*node_pb.FetchBundleResponse, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
+	b := h.getBundle()
+	return &node_pb.FetchBundleResponse{
+		Bundle: &b,
+	}, nil
 }
 
 func TestSpirePlugin_Configure(t *testing.T) {
@@ -317,15 +348,16 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	// are forwarded by the plugin method.
 	resp, err := publishJWTKey(t, m, &upstreamauthority.PublishJWTKeyRequest{
 		JwtKey: &common.PublicKey{
-			Kid: "kid-1",
+			Kid: "kid-2",
 		},
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.UpstreamJwtKeys, 2)
-	assert.Equal(t, resp.UpstreamJwtKeys[0].Kid, "kid-0")
-	assert.Equal(t, resp.UpstreamJwtKeys[1].Kid, "kid-1")
+	require.Len(t, resp.UpstreamJwtKeys, 3)
+	assert.Equal(t, resp.UpstreamJwtKeys[0].Kid, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
+	assert.Equal(t, resp.UpstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
+	assert.Equal(t, resp.UpstreamJwtKeys[2].Kid, "kid-2")
 }
 
 func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
@@ -356,18 +388,17 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 
 func mintX509CA(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	stream, err := plugin.MintX509CA(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
 	// Get response and error to be returned
 	response, err := stream.Recv()
+	cancel()
 	if err == nil {
-		// Verify stream is closed
-		_, eofErr := stream.Recv()
-		require.Equal(t, io.EOF, eofErr)
+		// Verify stream was canceled
+		_, ctxErr := stream.Recv()
+		require.Contains(t, ctxErr.Error(), "rpc error: code = Canceled desc = context canceled")
 	}
 
 	return response, err
@@ -375,18 +406,17 @@ func mintX509CA(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *u
 
 func publishJWTKey(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	stream, err := plugin.PublishJWTKey(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
 	// Get response and error to be returned
 	response, err := stream.Recv()
+	cancel()
 	if err == nil {
 		// Verify stream is closed
-		_, eofErr := stream.Recv()
-		require.Equal(t, io.EOF, eofErr)
+		_, ctxErr := stream.Recv()
+		require.Contains(t, ctxErr.Error(), "rpc error: code = Canceled desc = context canceled")
 	}
 
 	return response, err

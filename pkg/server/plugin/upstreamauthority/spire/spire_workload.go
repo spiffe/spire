@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	proto "github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/api/workload"
-	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
 func (m *Plugin) watchWorkloadSVID(ctx context.Context, workloadAPISocket string, ready chan struct{}) {
@@ -29,23 +28,16 @@ func (m *Plugin) watchWorkloadSVID(ctx context.Context, workloadAPISocket string
 		case svidResponse := <-updateChan:
 			wCert, wKey, wBundle, err := m.receiveUpdatedCerts(svidResponse)
 			if err != nil {
-				m.log.Error("cannot receive workload SVID update", "error", err)
+				m.log.Error("Cannot receive workload SVID update", "error", err)
 				continue
 			}
 
 			conn, err := m.newNodeClientConn(ctx, wCert, wKey, wBundle)
 			if err != nil {
-				m.log.Error("cannot create node client gRPC connection", "error", err)
+				m.log.Error("Cannot create node client gRPC connection", "error", err)
 				continue
 			}
-
-			m.nodeMtx.Lock()
-			if m.conn != nil {
-				m.conn.Close()
-			}
-			m.conn = conn
-			m.nodeClient = node.NewNodeClient(m.conn)
-			m.nodeMtx.Unlock()
+			m.resetNodeClient(conn)
 
 			if !firstDone {
 				firstDone = true
@@ -53,11 +45,11 @@ func (m *Plugin) watchWorkloadSVID(ctx context.Context, workloadAPISocket string
 			}
 
 		case <-ctx.Done():
-			m.log.Debug("watch workload context done", "reason", ctx.Err())
+			m.log.Debug("Watch workload context done", "reason", ctx.Err())
 			return
 
 		case err := <-errorChan:
-			m.log.Error("workload API error", "error", err)
+			m.log.Error("Workload API error", "error", err)
 		}
 	}
 }
