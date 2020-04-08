@@ -2,7 +2,7 @@
 
 # Scalability
 
-A SPIRE deployment is composed of a number one or more SPIRE Servers that share a replicated datastore, and one or more SPIRE Agents. With only one SPIRE server per SPIRE deployment, the memory and CPU usage tends to grow proportionally with the number of workloads in the deployment. To support very large numbers of workloads and agents within a given trust domain (tens of thousands or hundreds of thousands of nodes), SPIRE Servers can be scaled horizontally. With multiple servers, the load is distributed. In addition to capacity, multiple SPIRE Servers can be configured for high availability.
+A SPIRE deployment is composed of a number one or more SPIRE Servers that share a replicated datastore, and one or more SPIRE Agents. With only one SPIRE server per SPIRE deployment, the memory and CPU usage tends to grow proportionally with the number of workloads in the deployment. To support very large numbers of workloads and agents within a given trust domain (tens of thousands or hundreds of thousands of nodes), the number of SPIRE Servers can be scaled horizontally. With multiple servers, the load is distributed. In addition to capacity, multiple SPIRE Servers can be configured for high availability.
 
 This table contains verified scalability of SPIRE deployments using a combination of number of workloads across a number of nodes (1 agent per node), and corresponding SPIRE Server sizing recommendations. These numbers are intended to serve as sample guidance, are not representative of upper bound scale limits nor configuration maximums. These numbers do not represent the theoretically possible SPIRE deployment scale.
 
