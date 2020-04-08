@@ -6,18 +6,18 @@ Known end users include:
 * ByteDance 
 * Pinterest 
 * Square
-* Uber.
+* Uber
 
 SPIFFE and SPIRE are being used by numerous other companies, both large and small, to build higher layer products and services. The list includes but is not limited to: 
 
-* Cisco, 
-* Decipher Technology Studios, 
-* F5 Networks, 
-* HashiCorp, 
-* Intel, 
-* Google, 
-* IBM, 
-* Tigera, 
+* Cisco 
+* Decipher Technology Studios 
+* F5 Networks 
+* HashiCorp 
+* Intel 
+* Google 
+* IBM 
+* Tigera 
 * VMware
 
 ## Ecosystem
