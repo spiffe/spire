@@ -2,9 +2,10 @@
 
 # Scalability
 
-A SPIRE deployment is composed of one or more SPIRE Servers (replicated with shared datastore) and one or more SPIRE Agents. On a single SPIRE server per SPIRE deployment, memory and CPU usage tends to grow proportionally with size/load on cluster. To support very large numbers of agents within a given trust domain (tens of thousands or hundreds of thousands of nodes), SPIRE servers can be scaled horizontally. With multiple servers, the load is distributed. In addition to capacity, the use of more than one SPIRE server also eliminates a single point of failure and attains high availability.
+A SPIRE deployment is composed of a number one or more SPIRE Servers that share a replicated datastore, and one or more SPIRE Agents. With only one SPIRE server per SPIRE deployment, the memory and CPU usage tends to grow proportionally with the number of workloads in the deployment. To support very large numbers of workloads and agents within a given trust domain (tens of thousands or hundreds of thousands of nodes), SPIRE Servers can be scaled horizontally. With multiple servers, the load is distributed. In addition to capacity, multiple SPIRE Servers can be configured for high availability.
 
 This table contains verified scalability of SPIRE deployments using a combination of number of workloads across a number of nodes (1 agent per node), and corresponding SPIRE Server sizing recommendations. These numbers are intended to serve as sample guidance, are not representative of upper bound scale limits nor configuration maximums. These numbers do not represent the theoretically possible SPIRE deployment scale.
+
 
 | ﻿Number of Workloads | 10 Agents                                             | 100 Agents                                            | 1000 Agents                                          | 5000 Agents                                           |
 |---------------------|------------------------------------------------------|------------------------------------------------------|------------------------------------------------------|------------------------------------------------------|
