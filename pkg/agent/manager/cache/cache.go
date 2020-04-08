@@ -190,8 +190,11 @@ func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscri
 	return sub
 }
 
-// UpdateEntries updates provided registration entries and bundles in cache, based in updates all subscribers are notified about updates.
-// In case checkSVID is provided, it is used to verify svid rotation, returning `true` in case it is marked as `stale`.
+// UpdateEntries updates the cache with the provided registration entries and bundles and
+// notifies impacted subscribers. The checkSVID callback, if provided, is used to determine
+// if the SVID for the entry is stale, or otherwise in need of rotation. Entries marked stale
+// through the checkSVID callback are returned from GetStaleEntries() until the SVID is
+// updated through a call to UpdateSVIDs.
 func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID) bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

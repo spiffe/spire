@@ -510,7 +510,7 @@ func TestGetStaleEntries(t *testing.T) {
 
 	foo := makeRegistrationEntryWithTTL("FOO", 60)
 
-	// Create svid and entry but mark it as not update
+	// Create entry but don't mark it stale
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
@@ -519,17 +519,18 @@ func TestGetStaleEntries(t *testing.T) {
 	})
 	assert.Empty(t, cache.GetStaleEntries())
 
-	// Mark entry as stale but no SVID
+	// Update entry and mark it as stale
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
 		return true
 	})
+	// Assert that the entry is returned as stale. The `ExpiresAt` field should be unset since there is no SVID.
 	expectedEntries := []*StaleEntry{{Entry: cache.records[foo.EntryId].entry}}
 	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
 
-	// Create SVID for stale entry and update cache
+	// Update the SVID for the stale entry
 	svids := make(map[string]*X509SVID)
 	expiredAt := time.Now()
 	svids[foo.EntryId] = &X509SVID{
@@ -538,10 +539,10 @@ func TestGetStaleEntries(t *testing.T) {
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: svids,
 	})
-	// Updating svids removes stale entries
+	// Assert that updating the SVID removes stale marker from entry
 	assert.Empty(t, cache.GetStaleEntries())
 
-	// Update entry and mark it as stales
+	// Update entry again and mark it as stale
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(foo),
@@ -549,13 +550,14 @@ func TestGetStaleEntries(t *testing.T) {
 		return true
 	})
 
+	// Assert that the entry again returns as stale. This time the `ExpiresAt` field should be populated with the expiration of the SVID.
 	expectedEntries = []*StaleEntry{{
 		Entry:     cache.records[foo.EntryId].entry,
 		ExpiresAt: expiredAt,
 	}}
 	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
 
-	// Remove registration entry
+	// Remove registration entry and assert that it is no longer returned as stale
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles: makeBundles(bundleV2),
 	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
