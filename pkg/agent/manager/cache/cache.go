@@ -392,7 +392,7 @@ func (c *Cache) GetStaleEntries() []*StaleEntry {
 	for entryID := range c.staleEntries {
 		cachedEntry, ok := c.records[entryID]
 		if !ok {
-			c.log.WithField(telemetry.RegistrationID, entryID).Error("Stale marker found for unknown entry. Please fill a bug")
+			c.log.WithField(telemetry.RegistrationID, entryID).Debug("Stale marker found for unknown entry. Please fill a bug")
 			delete(c.staleEntries, entryID)
 			continue
 		}
