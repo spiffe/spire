@@ -1,0 +1,118 @@
+#!/bin/bash
+
+start-old-server() {
+    log-info "bringing up $1 agent..."
+    docker-up "spire-server-$1"
+}
+
+bootstrap-agent() {
+    log-debug "bootstrapping $1 agent..."
+    docker-compose exec -T "spire-server-$1" \
+        /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+}
+
+start-old-agent() {
+    log-info "bringing up $1 agent..."
+    docker-up "spire-agent-$1"
+}
+
+create-registration-entry() {
+    log-debug "creating registration entry..."
+    docker-compose exec -T "spire-server-$1" \
+        /opt/spire/bin/spire-server entry create \
+        -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+        -spiffeID "spiffe://domain.test/workload" \
+        -selector "unix:uid:${UID}" \
+        -ttl 0
+
+    # Check at most 30 times (with one second in between) that the agent has
+    # successfully synced down the workload entry.
+    local _maxchecks=30
+    local _checkinterval=1
+    for ((i=1;i<=_maxchecks;i++)); do
+        log-info "checking for synced workload entry ($i of $_maxchecks max)..."
+        docker-compose logs "spire-agent-$1"
+        if docker-compose logs "spire-agent-$1" | grep "spiffe://domain.test/workload"; then
+            return
+        fi
+        sleep "${_checkinterval}"
+    done
+    fail-now "timed out waiting for agent to sync down entry"
+}
+
+check-old-agent-svid() {
+    log-info "checking X509-SVID on $1 agent..."
+        docker-compose exec -T "spire-agent-$1" \
+            /opt/spire/bin/spire-agent api fetch x509 \
+            -write /opt/test/before-server-upgrade || fail-now "SVID check failed"
+}
+
+upgrade-server() {
+    log-info "upgrading $1 server to latest..."
+    docker-stop "spire-server-$1"
+    docker-up spire-server-latest-local
+}
+
+check-old-agent-svid-after-upgrade() {
+    local _maxchecks=15
+    local _checkinterval=3
+
+    for ((i=1;i<=_maxchecks;i++)); do
+        log-info "checking X509-SVID after server upgrade ($i of $_maxchecks max)..."
+        docker-compose exec -T "spire-agent-$1" \
+            /opt/spire/bin/spire-agent api fetch x509 \
+            -write /opt/test/after-server-upgrade || fail-now "SVID check failed"
+        if ! cmp --silent svids/before-server-upgrade/svid.0.pem svids/after-server-upgrade/svid.0.pem; then
+            # SVID has rotated
+            return
+        fi
+        sleep "${_checkinterval}"
+    done
+    fail-now "timed out waiting for the SVID to rotate after upgrading the server"
+}
+
+upgrade-agent() {
+    log-info "upgrading $1 agent to latest..."
+    docker-stop "spire-agent-$1"
+    docker-up spire-agent-latest-local
+}
+
+check-new-agent-svid-after-upgrade() {
+    log-info "checking X509-SVID after agent upgrade..."
+    docker-compose exec -T spire-agent-latest-local \
+        /opt/spire/bin/spire-agent api fetch x509 \
+        -write /opt/test/after-agent-upgrade || fail-now "SVID check failed"
+
+    # SVIDs are cached in agent memory only. As the agent was restarted, there
+    # is no reason to believe that the SVID should compare the same. We'll do
+    # the comparison anyway as a sanity check.
+    if cmp --silent svids/after-server-upgrade/svid.0.pem svids/after-agent-upgrade/svid.0.pem; then
+        fail-now "SVID comparison failed unexpectedly after agent restart"
+    fi
+}
+
+_versions=$(cat versions.txt)
+for _version in ${_versions}; do
+    log-info "performing upgrade test for SPIRE ${_version}..."
+
+    # clean up data and dumped SVIDs
+    rm -rf shared/server-data/*
+    rm -rf shared/agent-data/*
+    rm -f svids/before-server-upgrade/*
+    rm -f svids/after-server-upgrade/*
+    rm -f svids/after-agent-upgrade/*
+
+    # run through upgrade test
+    start-old-server "${_version}"
+    bootstrap-agent "${_version}"
+    start-old-agent "${_version}"
+    create-registration-entry "${_version}"
+    check-old-agent-svid "${_version}"
+    upgrade-server "${_version}"
+    check-old-agent-svid-after-upgrade "${_version}"
+    upgrade-agent "${_version}"
+    check-new-agent-svid-after-upgrade "${_version}"
+
+    # bring everything down between versions
+    docker-down
+done

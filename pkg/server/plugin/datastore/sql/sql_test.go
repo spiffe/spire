@@ -2108,10 +2108,6 @@ func (s *PluginSuite) TestMigration() {
 				ConnectionString: fmt.Sprintf("file://%s", dbPath),
 			})
 			s.Require().NoError(err)
-			// Assert migration version is now 13
-			migration := Migration{}
-			db.First(&migration)
-			s.Require().Equal(13, migration.Version)
 
 			// Assert attested_node_entries tables gained the new columns
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
@@ -2131,6 +2127,8 @@ func (s *PluginSuite) TestMigration() {
 			// Assert the new fields are empty for pre-existing entries
 			s.Require().Empty(resp.Node.NewCertSerialNumber)
 			s.Require().Empty(resp.Node.NewCertNotAfter)
+		case 13:
+			s.Require().True(s.sqlPlugin.db.Dialect().HasColumn("registered_entries", "revision_number"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

@@ -7,3 +7,49 @@ mkdir -p test/after-server-upgrade
 mkdir -p test/after-agent-upgrade
 
 "${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+make-service() {
+    local _registry=$1
+    local _version=$2
+cat <<EOF >> docker-compose.yaml
+  spire-server-${_version}:
+    image: ${_registry}spire-server:${_version}
+    hostname: spire-server
+    user: "${UID}"
+    networks:
+      our-network:
+        aliases:
+          - spire-server
+    volumes:
+      - ./shared/server-data:/opt/spire/data
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  spire-agent-${_version}:
+    image: ${_registry}spire-agent:${_version}
+    hostname: spire-agent
+    user: "${UID}"
+    networks:
+      - our-network
+    volumes:
+      - ./shared/agent-data:/opt/spire/data
+      - ./conf/agent:/opt/spire/conf/agent
+      - ./test:/opt/test
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+EOF
+}
+
+#
+# Create the docker-compose.yaml with a spire-server and spire-agent for each
+# version we want to test against the latest
+#
+cat <<EOF > docker-compose.yaml
+version: '3'
+networks:
+  our-network: {}
+services:
+EOF
+
+make-service "" latest-local
+while read -r version; do
+  make-service gcr.io/spiffe-io/ "${version}"
+done < versions.txt
