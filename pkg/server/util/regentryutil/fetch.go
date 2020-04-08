@@ -3,6 +3,7 @@ package regentryutil
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -10,34 +11,51 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
+const cacheFetchEntriesTTL = 1 * time.Second
+
+func FetchRegistrationEntriesWithCache(ctx context.Context, dataStore datastore.DataStore, cache RegistrationEntriesCache, spiffeID string) ([]*common.RegistrationEntry, error) {
+	fetcher := newRegistrationEntryFetcher(dataStore, cache)
+	return fetcher.Fetch(ctx, spiffeID)
+}
+
 func FetchRegistrationEntries(ctx context.Context, dataStore datastore.DataStore, spiffeID string) ([]*common.RegistrationEntry, error) {
-	fetcher := newRegistrationEntryFetcher(dataStore)
+	fetcher := newRegistrationEntryFetcher(dataStore, &nullCache{})
 	return fetcher.Fetch(ctx, spiffeID)
 }
 
 type registrationEntryFetcher struct {
 	dataStore datastore.DataStore
+	cache     RegistrationEntriesCache
 }
 
-func newRegistrationEntryFetcher(dataStore datastore.DataStore) *registrationEntryFetcher {
+func newRegistrationEntryFetcher(dataStore datastore.DataStore, cache RegistrationEntriesCache) *registrationEntryFetcher {
 	return &registrationEntryFetcher{
 		dataStore: dataStore,
+		cache:     cache,
 	}
 }
 
 func (f *registrationEntryFetcher) Fetch(ctx context.Context, id string) ([]*common.RegistrationEntry, error) {
-	entries, err := f.fetch(ctx, id, make(map[string]bool))
+	var entries []*common.RegistrationEntry
+	var err error
+	visited := make(map[string]bool)
+	entries, err = f.fetch(ctx, id, visited, false)
 	if err != nil {
 		return nil, err
 	}
 	return util.DedupRegistrationEntries(entries), nil
 }
 
-func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited map[string]bool) ([]*common.RegistrationEntry, error) {
+func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited map[string]bool, shouldCache bool) ([]*common.RegistrationEntry, error) {
 	if visited[id] {
 		return nil, nil
 	}
 	visited[id] = true
+
+	cachedEntries, ok := f.cache.Get(id)
+	if ok {
+		return cachedEntries, nil
+	}
 
 	directEntries, err := f.directEntries(ctx, id)
 	if err != nil {
@@ -46,13 +64,16 @@ func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited
 
 	entries := directEntries
 	for _, directEntry := range directEntries {
-		descendantEntries, err := f.fetch(ctx, directEntry.SpiffeId, visited)
+		descendantEntries, err := f.fetch(ctx, directEntry.SpiffeId, visited, true)
 		if err != nil {
 			return nil, err
 		}
 		entries = append(entries, descendantEntries...)
 	}
 
+	if shouldCache {
+		f.cache.AddWithExpire(id, entries, cacheFetchEntriesTTL)
+	}
 	return entries, nil
 }
 
@@ -124,4 +145,14 @@ func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID s
 	}
 
 	return listResp.Entries, nil
+}
+
+type nullCache struct {
+}
+
+func (c *nullCache) Get(key string) ([]*common.RegistrationEntry, bool) {
+	return nil, false
+}
+
+func (c *nullCache) AddWithExpire(key string, value []*common.RegistrationEntry, expire time.Duration) {
 }

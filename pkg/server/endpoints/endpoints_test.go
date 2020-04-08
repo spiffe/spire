@@ -86,7 +86,7 @@ func (s *EndpointsTestSuite) TestCreateUDSServer() {
 }
 
 func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
-	s.Assert().NotPanics(func() { s.e.registerNodeAPI(s.e.createTCPServer(ctx)) })
+	s.Require().NoError(s.e.registerNodeAPI(s.e.createTCPServer(ctx)))
 }
 
 func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {

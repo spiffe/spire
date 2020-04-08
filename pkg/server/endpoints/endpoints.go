@@ -57,7 +57,10 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	tcpServer := e.createTCPServer(ctx)
 	udsServer := e.createUDSServer()
 
-	e.registerNodeAPI(tcpServer)
+	err := e.registerNodeAPI(tcpServer)
+	if err != nil {
+		return err
+	}
 	e.registerRegistrationAPI(tcpServer, udsServer)
 
 	tasks := []func(context.Context) error{
@@ -73,7 +76,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		tasks = append(tasks, bundleServer.Run)
 	}
 
-	err := util.RunTasks(ctx, tasks...)
+	err = util.RunTasks(ctx, tasks...)
 	if err == context.Canceled {
 		err = nil
 	}
@@ -140,8 +143,8 @@ func (e *Endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 
 // registerNodeAPI creates a Node API handler and registers it against
 // the provided gRPC server.
-func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) {
-	n := node.NewHandler(node.HandlerConfig{
+func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) error {
+	n, err := node.NewHandler(node.HandlerConfig{
 		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
 		Metrics:     e.c.Metrics,
 		Catalog:     e.c.Catalog,
@@ -151,7 +154,11 @@ func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 
 		AllowAgentlessNodeAttestors: e.c.AllowAgentlessNodeAttestors,
 	})
+	if err != nil {
+		return err
+	}
 	node_pb.RegisterNodeServer(tcpServer, n)
+	return nil
 }
 
 // registerRegistrationAPI creates a Registration API handler and registers
