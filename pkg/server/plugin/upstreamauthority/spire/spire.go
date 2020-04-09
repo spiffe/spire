@@ -39,6 +39,8 @@ func BuiltIn() catalog.Plugin {
 }
 
 type Plugin struct {
+	log hclog.Logger
+
 	mtx         sync.RWMutex
 	trustDomain url.URL
 	config      *Configuration
@@ -46,14 +48,13 @@ type Plugin struct {
 	nodeMtx    sync.RWMutex
 	nodeClient node.NodeClient
 	conn       *grpc.ClientConn
-	log        hclog.Logger
 
-	pollMtx                sync.RWMutex
+	pollMtx                sync.Mutex
 	stopPolling            context.CancelFunc
 	currentPollSubscribers uint64
 
 	bundleMtx     sync.RWMutex
-	bundleVersion uint
+	bundleVersion uint64
 	currentBundle common.Bundle
 }
 
@@ -209,7 +210,7 @@ func (m *Plugin) setBundleRootCAs(rootCAs []*common.Certificate) {
 	m.bundleVersion++
 }
 
-func (m *Plugin) getBundleVersion() uint {
+func (m *Plugin) getBundleVersion() uint64 {
 	m.bundleMtx.RLock()
 	defer m.bundleMtx.RUnlock()
 	return m.bundleVersion
