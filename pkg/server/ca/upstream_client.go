@@ -11,6 +11,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // BundleUpdater is the interface used by the UpstreamClient to append bundle
@@ -199,9 +201,14 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreama
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
-			// If the plugin does not support streaming bundle updates, it will
-			// complete the RPC normally. As such, io.EOF is expected.
-			if err != io.EOF {
+			switch {
+			case err == io.EOF:
+				// This is normal if the plugin does not support streaming
+				// bundle updates.
+			case status.Code(err) == codes.Canceled:
+				// This is normal. This client cancels this stream when opening
+				// a new stream.
+			default:
 				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming X.509 root updates prematurely. Please report this bug. Will retry later.")
 			}
 			return
