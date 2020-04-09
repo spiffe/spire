@@ -57,8 +57,10 @@ type client struct {
 	c        *Config
 	nodeConn *nodeConn
 	m        sync.Mutex
-	// Constructor to be used for testing purposes.
+	// Constructor used for testing purposes.
 	createNewNodeClient func(*grpc.ClientConn) node.NodeClient
+	// Constructor used for testing purposes.
+	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
 // New creates a new client struct with the configuration provided
@@ -245,6 +247,7 @@ func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 			}
 			return agentCert
 		},
+		dialContext: c.dialContext,
 	})
 }
 
