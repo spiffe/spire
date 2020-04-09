@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
@@ -27,7 +28,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -95,25 +96,30 @@ func TestHandler(t *testing.T) {
 type HandlerSuite struct {
 	spiretest.Suite
 
-	server           *grpc.Server
-	logHook          *test.Hook
-	limiter          *fakeLimiter
-	handler          *Handler
-	metrics          *fakemetrics.FakeMetrics
-	expectedMetrics  *fakemetrics.FakeMetrics
-	unattestedClient node.NodeClient
-	attestedClient   node.NodeClient
-	ds               *fakedatastore.DataStore
-	catalog          *fakeservercatalog.Catalog
-	clock            *clock.Mock
-	bundle           *common.Bundle
-	agentSVID        []*x509.Certificate
-	downstreamSVID   []*x509.Certificate
-	workloadSVID     []*x509.Certificate
-	serverCA         *fakeserverca.CA
+	server                        *grpc.Server
+	logHook                       *test.Hook
+	limiter                       *fakeLimiter
+	handler                       *Handler
+	metrics                       *fakemetrics.FakeMetrics
+	expectedMetrics               *fakemetrics.FakeMetrics
+	unattestedClient              node.NodeClient
+	attestedClient                node.NodeClient
+	ds                            *fakedatastore.DataStore
+	catalog                       *fakeservercatalog.Catalog
+	clock                         *clock.Mock
+	bundle                        *common.Bundle
+	agentSVID                     []*x509.Certificate
+	downstreamSVID                []*x509.Certificate
+	workloadSVID                  []*x509.Certificate
+	serverCA                      *fakeserverca.CA
+	fetchRegistrationEntriesCache *regentryutil.FetchRegistrationEntriesCache
 }
 
 func (s *HandlerSuite) SetupTest() {
+	s.setupTest(nil)
+}
+
+func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.Config) {
 	s.clock = clock.NewMock(s.T())
 
 	log, logHook := test.NewNullLogger()
@@ -124,6 +130,14 @@ func (s *HandlerSuite) SetupTest() {
 	s.ds = fakedatastore.New()
 	s.catalog = fakeservercatalog.New()
 	s.catalog.SetDataStore(s.ds)
+	if upstreamAuthorityConfig != nil {
+		upstreamAuthority, _, uaDone := fakeupstreamauthority.Load(s.T(), *upstreamAuthorityConfig)
+		s.AppendCloser(uaDone)
+		s.catalog.SetUpstreamAuthority(fakeservercatalog.UpstreamAuthority(
+			"fakeupstreamauthority",
+			upstreamAuthority,
+		))
+	}
 
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock: s.clock,
@@ -141,7 +155,7 @@ func (s *HandlerSuite) SetupTest() {
 	s.metrics = fakemetrics.New()
 	s.expectedMetrics = fakemetrics.New()
 
-	handler := NewHandler(HandlerConfig{
+	handler, err := NewHandler(HandlerConfig{
 		Log:         log,
 		Metrics:     s.metrics,
 		Catalog:     s.catalog,
@@ -154,7 +168,15 @@ func (s *HandlerSuite) SetupTest() {
 			Log:         log,
 		}),
 	})
+	s.Require().NoError(err)
 	handler.limiter = s.limiter
+	cache, err := lru.New(100)
+	s.Require().NoError(err)
+	s.fetchRegistrationEntriesCache = &regentryutil.FetchRegistrationEntriesCache{
+		Cache:   cache,
+		TimeNow: s.clock.Now,
+	}
+	handler.fetchRegistrationEntriesCache = s.fetchRegistrationEntriesCache
 
 	// Streaming methods and auth are easier to test from the client point of view.
 	// TODO: share the setup done by the "endpoints" code so these don't go out
@@ -661,6 +683,29 @@ func (s *HandlerSuite) TestFetchX509SVIDWithNoCSRs() {
 	s.Empty(upd.Svids)
 }
 
+func (s *HandlerSuite) TestFetchX509SVIDWithCache() {
+	s.attestAgent()
+	s.createBundle(otherDomainBundle)
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:      agentID,
+		SpiffeId:      workloadID,
+		FederatesWith: []string{otherDomainID},
+	})
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+
+	// agentId is not cached
+	_, ok := s.fetchRegistrationEntriesCache.Get(agentID)
+	s.Require().False(ok)
+
+	_, ok = s.fetchRegistrationEntriesCache.Get(workloadID)
+	s.Require().True(ok)
+
+	s.assertBundlesInUpdate(upd, otherDomainBundle)
+	s.Empty(upd.Svids)
+}
+
 func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSR() {
 	s.attestAgent()
 
@@ -1111,34 +1156,25 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 			PkixBytes: pkixBytes,
 		},
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 2)
-	s.Assert().Equal("kid1", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Equal("kid2", resp.JwtSigningKeys[1].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 2)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 2)
+	s.Require().Equal("kid1", resp.JwtSigningKeys[0].Kid)
+	s.Require().Equal("kid2", resp.JwtSigningKeys[1].Kid)
+	s.Require().Len(s.fetchBundle().JwtSigningKeys, 2)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
+	s.setupTest(&fakeupstreamauthority.Config{
+		TrustDomain: trustDomainID,
+	})
+
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
 	s.Require().NoError(err)
 	jwk := &common.PublicKey{
 		Kid:       "kid",
 		PkixBytes: pkixBytes,
 	}
-
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: trustDomainID,
-		PublishJWTKeyResponse: &upstreamauthority.PublishJWTKeyResponse{
-			UpstreamJwtKeys: []*common.PublicKey{jwk},
-		},
-	})
-	defer upDone()
-
-	s.catalog.SetUpstreamAuthority(
-		fakeservercatalog.UpstreamAuthority(
-			"fakeupstreamauthority",
-			upstreamAuthority))
 
 	s.attestAgent()
 
@@ -1153,23 +1189,18 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	resp, err := s.attestedClient.PushJWTKeyUpstream(context.Background(), &node.PushJWTKeyUpstreamRequest{
 		JwtKey: jwk,
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 1)
-	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 1)
+	s.Require().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Len(s.fetchBundle().JwtSigningKeys, 1)
 }
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
-	upstreamAuthority, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
-		TrustDomain: trustDomainID,
+	s.setupTest(&fakeupstreamauthority.Config{
+		TrustDomain:           trustDomainID,
+		DisallowPublishJWTKey: true,
 	})
-	defer upDone()
-
-	s.catalog.SetUpstreamAuthority(
-		fakeservercatalog.UpstreamAuthority(
-			"fakeupstreamauthority",
-			upstreamAuthority))
 
 	s.attestAgent()
 
@@ -1190,11 +1221,11 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 			PkixBytes: pkixBytes,
 		},
 	})
-	s.Assert().NoError(err)
-	s.Assert().NotNil(resp)
-	s.Assert().Len(resp.JwtSigningKeys, 1)
-	s.Assert().Equal("kid", resp.JwtSigningKeys[0].Kid)
-	s.Assert().Len(s.fetchBundle().JwtSigningKeys, 1)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Len(resp.JwtSigningKeys, 1)
+	s.Require().Equal("kid", resp.JwtSigningKeys[0].Kid)
+	s.Len(s.fetchBundle().JwtSigningKeys, 1)
 	s.assertLastLogLevelAndMessage(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
 		"by this server may have trouble communicating with workloads outside "+
 		"this cluster when using JWT-SVIDs.")

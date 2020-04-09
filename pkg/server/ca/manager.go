@@ -21,12 +21,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -70,8 +68,10 @@ type ManagerConfig struct {
 }
 
 type Manager struct {
-	c               ManagerConfig
-	bundleUpdatedCh chan struct{}
+	c                  ManagerConfig
+	bundleUpdatedCh    chan struct{}
+	upstreamClient     *UpstreamClient
+	upstreamPluginName string
 
 	currentX509CA *x509CASlot
 	nextX509CA    *x509CASlot
@@ -92,16 +92,32 @@ func NewManager(c ManagerConfig) *Manager {
 		c.Clock = clock.New()
 	}
 	if c.X509CAKeyType == 0 {
-		c.X509CAKeyType = keymanager.KeyType_EC_P384
+		c.X509CAKeyType = keymanager.KeyType_EC_P256
 	}
 	if c.JWTKeyType == 0 {
 		c.JWTKeyType = keymanager.KeyType_EC_P256
 	}
 
-	return &Manager{
+	m := &Manager{
 		c:               c,
 		bundleUpdatedCh: make(chan struct{}, 1),
 	}
+
+	if upstreamAuthority, ok := c.Catalog.GetUpstreamAuthority(); ok {
+		m.upstreamClient = NewUpstreamClient(UpstreamClientConfig{
+			UpstreamAuthority: upstreamAuthority,
+			BundleUpdater: &bundleUpdater{
+				log:           c.Log,
+				trustDomainID: c.TrustDomain.String(),
+				ds:            c.Catalog.GetDataStore(),
+				updated:       m.bundleUpdated,
+			},
+			UpstreamBundle: c.UpstreamBundle,
+		})
+		m.upstreamPluginName = upstreamAuthority.Name()
+	}
+
+	return m
 }
 
 func (m *Manager) Initialize(ctx context.Context) error {
@@ -115,6 +131,12 @@ func (m *Manager) Initialize(ctx context.Context) error {
 }
 
 func (m *Manager) Run(ctx context.Context) error {
+	// Shut down any open streams in the upstream client when the manager
+	// has finished running.
+	if m.upstreamClient != nil {
+		defer func() { _ = m.upstreamClient.Close() }()
+	}
+
 	if err := m.notifyBundleLoaded(ctx); err != nil {
 		return err
 	}
@@ -215,21 +237,22 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	}
 
 	var x509CA *X509CA
-	var trustBundle []*x509.Certificate
-	upstreamAuthority, useUpstream := m.c.Catalog.GetUpstreamAuthority()
-	if useUpstream {
-		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamAuthority, m.c.UpstreamBundle, m.c.CATTL)
+	if m.upstreamClient != nil {
+		x509CA, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, m.upstreamClient, m.c.UpstreamBundle, m.c.CATTL)
+		if err != nil {
+			return err
+		}
 	} else {
 		notBefore := now.Add(-backdate)
 		notAfter := now.Add(m.c.CATTL)
+		var trustBundle []*x509.Certificate
 		x509CA, trustBundle, err = SelfSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
-	}
-	if err != nil {
-		return err
-	}
-
-	if _, err := m.appendBundle(ctx, trustBundle, nil); err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+		if _, err := m.appendBundle(ctx, trustBundle, nil); err != nil {
+			return err
+		}
 	}
 
 	slot.issuedAt = now
@@ -243,7 +266,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 		telemetry.Slot:           slot.id,
 		telemetry.IssuedAt:       timeField(slot.issuedAt),
 		telemetry.Expiration:     timeField(slot.x509CA.Certificate.NotAfter),
-		telemetry.SelfSigned:     !useUpstream,
+		telemetry.SelfSigned:     m.upstreamClient == nil,
 		telemetry.UpstreamBundle: m.c.UpstreamBundle,
 	}).Info("X509 CA prepared")
 	return nil
@@ -356,48 +379,35 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 //
 // - There is no UpstreamAuthority plugin configured, then assumes we are the root server and
 // just appends the passed JWK to the bundle and returns the updated list of JWT keys.
-func (m *Manager) PublishJWTKey(ctx context.Context, publicKey *common.PublicKey) ([]*common.PublicKey, error) {
-	publicKeys := []*common.PublicKey{publicKey}
-	if upstreamAuth, useUpstream := m.c.Catalog.GetUpstreamAuthority(); useUpstream {
+func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error) {
+	if m.upstreamClient != nil {
 		publishCtx, cancel := context.WithTimeout(ctx, publishJWKTimeout)
 		defer cancel()
-		res, err := publishJWTKey(
-			publishCtx,
-			upstreamAuth,
-			&upstreamauthority.PublishJWTKeyRequest{
-				JwtKey: publicKey,
-			})
-
+		upstreamJWTKeys, err := m.upstreamClient.PublishJWTKey(publishCtx, jwtKey)
 		switch {
 		case status.Code(err) == codes.Unimplemented:
+			// JWT Key publishing is not supported by the upstream plugin.
+			// Issue a one-time warning and then fall through to the
+			// appendBundle call below as if an upstream client was not
+			// configured so the JWT key gets pushed into the local bundle.
 			m.jwtUnimplementedWarnOnce.Do(func() {
-				m.c.Log.WithField("plugin_name", upstreamAuth.Name()).Warn("UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed " +
+				m.c.Log.WithField("plugin_name", m.upstreamPluginName).Warn("UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed " +
 					"by this server may have trouble communicating with workloads outside " +
 					"this cluster when using JWT-SVIDs.")
 			})
 		case err != nil:
 			return nil, err
 		default:
-			publicKeys = res.UpstreamJwtKeys
+			return upstreamJWTKeys, nil
 		}
 	}
 
-	appendResp, err := m.appendBundle(ctx, nil, publicKeys)
+	resp, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey})
 	if err != nil {
 		return nil, err
 	}
 
-	return appendResp.Bundle.JwtSigningKeys, nil
-}
-
-func publishJWTKey(ctx context.Context, upstreamAuthority upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	stream, err := upstreamAuthority.PublishJWTKey(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return stream.Recv()
+	return resp.Bundle.JwtSigningKeys, nil
 }
 
 func (m *Manager) activateJWTKey() {
@@ -844,6 +854,56 @@ func (m *Manager) fetchOptionalBundle(ctx context.Context) (*common.Bundle, erro
 	return resp.Bundle, nil
 }
 
+type bundleUpdater struct {
+	log           logrus.FieldLogger
+	trustDomainID string
+	ds            datastore.DataStore
+	updated       func()
+}
+
+func (u *bundleUpdater) AppendX509Roots(ctx context.Context, roots []*x509.Certificate) error {
+	bundle := &common.Bundle{
+		TrustDomainId: u.trustDomainID,
+		RootCas:       make([]*common.Certificate, 0, len(roots)),
+	}
+
+	for _, root := range roots {
+		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
+			DerBytes: root.Raw,
+		})
+	}
+	if _, err := u.appendBundle(ctx, bundle); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *bundleUpdater) AppendJWTKeys(ctx context.Context, keys []*common.PublicKey) ([]*common.PublicKey, error) {
+	bundle, err := u.appendBundle(ctx, &common.Bundle{
+		TrustDomainId:  u.trustDomainID,
+		JwtSigningKeys: keys,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return bundle.JwtSigningKeys, nil
+}
+
+func (u *bundleUpdater) LogError(err error, msg string) {
+	u.log.WithError(err).Error(msg)
+}
+
+func (u *bundleUpdater) appendBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
+	resp, err := u.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: bundle,
+	})
+	if err != nil {
+		return nil, err
+	}
+	u.updated()
+	return resp.Bundle, nil
+}
+
 func x509CAKmKeyID(id string) string {
 	return fmt.Sprintf("x509-CA-%s", id)
 }
@@ -981,67 +1041,26 @@ func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain strin
 	}, trustBundle, nil
 }
 
-func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamAuthority upstreamauthority.UpstreamAuthority, upstreamBundle bool, caTTL time.Duration) (*X509CA, []*x509.Certificate, error) {
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamClient *UpstreamClient, upstreamBundle bool, caTTL time.Duration) (*X509CA, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	resp, err := mintX509CA(ctx, upstreamAuthority, &upstreamauthority.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: int32(caTTL / time.Second),
-	})
+	caChain, err := upstreamClient.MintX509CA(ctx, csr, caTTL)
 	if err != nil {
-		return nil, nil, errs.New("upstream CA failed with %v", err)
-	}
-
-	caChain, trustBundle, err := parseUpstreamAuthorityCSRResponse(resp)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var upstreamChain []*x509.Certificate
 	if upstreamBundle {
 		upstreamChain = caChain
-	} else {
-		// we don't want to join the upstream PKI. Use the server CA as the
-		// root, as if the upstreamCA was never configured.
-		trustBundle = caChain[:1]
 	}
-
 	return &X509CA{
 		Signer:        signer,
 		Certificate:   caChain[0],
 		UpstreamChain: upstreamChain,
-	}, trustBundle, nil
-}
-
-func mintX509CA(ctx context.Context, upstreamAuthority upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	stream, err := upstreamAuthority.MintX509CA(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return stream.Recv()
-}
-
-func parseUpstreamAuthorityCSRResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
-	certChain, err := x509util.RawCertsToCertificates(resp.X509CaChain)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(certChain) == 0 {
-		return nil, nil, errs.New("upstream CA returned an empty cert chain")
-	}
-	trustBundle, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(trustBundle) == 0 {
-		return nil, nil, errs.New("upstream CA returned an empty trust bundle")
-	}
-	return certChain, trustBundle, nil
+	}, nil
 }
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {

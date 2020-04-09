@@ -36,6 +36,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Number of agentIDs that can be cached
+const fetchSVIDCacheSize = 500_000
+
 type HandlerConfig struct {
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
@@ -53,18 +56,25 @@ type Handler struct {
 	c       HandlerConfig
 	limiter Limiter
 
-	dsCache *datastoreCache
+	dsCache                       *datastoreCache
+	fetchRegistrationEntriesCache *regentryutil.FetchRegistrationEntriesCache
 }
 
-func NewHandler(config HandlerConfig) *Handler {
+func NewHandler(config HandlerConfig) (*Handler, error) {
 	if config.Clock == nil {
 		config.Clock = clock.New()
 	}
-	return &Handler{
-		c:       config,
-		limiter: NewLimiter(config.Log),
-		dsCache: newDatastoreCache(config.Catalog.GetDataStore(), config.Clock),
+	fetchX509SVIDCache, err := regentryutil.NewFetchX509SVIDCache(fetchSVIDCacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("could not create cache: %v", err)
 	}
+
+	return &Handler{
+		c:                             config,
+		limiter:                       NewLimiter(config.Log),
+		dsCache:                       newDatastoreCache(config.Catalog.GetDataStore(), config.Clock),
+		fetchRegistrationEntriesCache: fetchX509SVIDCache,
+	}, nil
 }
 
 //Attest attests the node and gets the base node SVID.
@@ -278,7 +288,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), agentID)
+		regEntries, err := regentryutil.FetchRegistrationEntriesWithCache(ctx, h.c.Catalog.GetDataStore(), h.fetchRegistrationEntriesCache, agentID)
 		if err != nil {
 			log.WithError(err).Error("Failed to fetch agent registration entries")
 			return status.Error(codes.Internal, "failed to fetch agent registration entries")
