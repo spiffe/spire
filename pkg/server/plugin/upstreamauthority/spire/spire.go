@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -24,6 +25,8 @@ const (
 	upstreamPollFreq time.Duration = 5 * time.Second
 	internalPollFreq time.Duration = time.Second
 )
+
+var clk clock.Clock = clock.New()
 
 type Configuration struct {
 	ServerAddr        string `hcl:"server_address" json:"server_address"`
@@ -169,7 +172,7 @@ func (m *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stre
 }
 
 func (m *Plugin) pollBundleUpdates(ctx context.Context) {
-	ticker := time.NewTicker(upstreamPollFreq)
+	ticker := clk.Ticker(upstreamPollFreq)
 	defer ticker.Stop()
 	for {
 		err := m.fetchAndSetBundle(ctx)

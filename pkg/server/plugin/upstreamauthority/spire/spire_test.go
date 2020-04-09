@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	w_pb "github.com/spiffe/go-spiffe/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
@@ -48,7 +49,8 @@ const (
 )
 
 var (
-	ctx = context.Background()
+	ctx                   = context.Background()
+	mockClock *clock.Mock = clock.NewMock()
 )
 
 type handler struct {
@@ -375,6 +377,8 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 
 			// Update bundle to trigger another response
 			server.napiServer.appendRootCA(&common.Certificate{DerBytes: []byte("new-root-bytes")})
+			// Move clock forward to avoid slow down tests
+			mockClock.Add(upstreamPollFreq)
 
 			// Get bundle update
 			bundleUpdateResp, err := stream.Recv()
@@ -423,6 +427,8 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 
 	// Update bundle to trigger another response
 	server.napiServer.appendKey(&common.PublicKey{Kid: "kid-3"})
+	// Move clock forward to avoid slow down tests
+	mockClock.Add(upstreamPollFreq)
 
 	// Get bundle update
 	resp, err := stream.Recv()
@@ -462,5 +468,8 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 		done()
 		require.NoError(t, err)
 	}
+
+	clk = mockClock
+
 	return plugin, done
 }
