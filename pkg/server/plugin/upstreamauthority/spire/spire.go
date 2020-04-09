@@ -50,6 +50,7 @@ type Plugin struct {
 	currentPollSubscribers uint64
 
 	bundleMtx     sync.RWMutex
+	bundleVersion uint
 	currentBundle common.Bundle
 }
 
@@ -189,6 +190,26 @@ func (m *Plugin) getBundle() common.Bundle {
 	m.bundleMtx.RLock()
 	defer m.bundleMtx.RUnlock()
 	return m.currentBundle
+}
+
+func (m *Plugin) setBundleKeys(keys []*common.PublicKey) {
+	m.bundleMtx.Lock()
+	defer m.bundleMtx.Unlock()
+	m.currentBundle.JwtSigningKeys = keys
+	m.bundleVersion++
+}
+
+func (m *Plugin) setBundleRootCAs(rootCAs []*common.Certificate) {
+	m.bundleMtx.Lock()
+	defer m.bundleMtx.Unlock()
+	m.currentBundle.RootCas = rootCAs
+	m.bundleVersion++
+}
+
+func (m *Plugin) getBundleVersion() uint {
+	m.bundleMtx.RLock()
+	defer m.bundleMtx.RUnlock()
+	return m.bundleVersion
 }
 
 func (m *Plugin) subscribeToPolling(streamCtx context.Context) error {

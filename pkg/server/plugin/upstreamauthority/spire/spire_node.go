@@ -19,9 +19,6 @@ import (
 )
 
 func (m *Plugin) submitCSRUpstreamCA(ctx context.Context, csr []byte) ([]*x509.Certificate, error) {
-	m.bundleMtx.Lock()
-	defer m.bundleMtx.Unlock()
-
 	m.nodeMtx.RLock()
 	defer m.nodeMtx.RUnlock()
 
@@ -37,7 +34,7 @@ func (m *Plugin) submitCSRUpstreamCA(ctx context.Context, csr []byte) ([]*x509.C
 		return nil, err
 	}
 
-	m.currentBundle.RootCas = roots
+	m.setBundleRootCAs(roots)
 	return certChain, nil
 }
 
@@ -63,9 +60,6 @@ func getCertFromResponse(response *node.FetchX509CASVIDResponse) ([]*x509.Certif
 }
 
 func (m *Plugin) pushAndSetInitialKeys(ctx context.Context, key *common.PublicKey) error {
-	m.bundleMtx.Lock()
-	defer m.bundleMtx.Unlock()
-
 	m.nodeMtx.RLock()
 	defer m.nodeMtx.RUnlock()
 
@@ -74,23 +68,26 @@ func (m *Plugin) pushAndSetInitialKeys(ctx context.Context, key *common.PublicKe
 		return err
 	}
 
-	m.currentBundle.JwtSigningKeys = resp.JwtSigningKeys
+	m.setBundleKeys(resp.JwtSigningKeys)
 	return nil
 }
 
 func (m *Plugin) fetchAndSetBundle(ctx context.Context) error {
-	m.bundleMtx.Lock()
-	defer m.bundleMtx.Unlock()
-
 	m.nodeMtx.RLock()
 	defer m.nodeMtx.RUnlock()
 
+	preFetchCallVersion := m.getBundleVersion()
 	resp, err := m.nodeClient.FetchBundle(ctx, &node.FetchBundleRequest{})
 	if err != nil {
 		return err
 	}
 
-	m.currentBundle = *resp.Bundle
+	m.bundleMtx.Lock()
+	defer m.bundleMtx.Unlock()
+	if m.bundleVersion == preFetchCallVersion {
+		m.currentBundle = *resp.Bundle
+	}
+
 	return nil
 }
 
