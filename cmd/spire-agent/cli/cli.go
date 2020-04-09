@@ -7,6 +7,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-agent/cli/api"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/run"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/validate"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/version"
 )
@@ -39,6 +40,9 @@ func (cc *CLI) Run(args []string) int {
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil
+		},
+		"validate": func() (cli.Command, error) {
+			return validate.NewValidateCommand(), nil
 		},
 	}
 
