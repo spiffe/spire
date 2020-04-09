@@ -377,6 +377,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			server.napiServer.appendRootCA(&common.Certificate{DerBytes: []byte("new-root-bytes")})
 			// Move clock forward to avoid slow down tests
 			mockClock.Add(upstreamPollFreq)
+			mockClock.Add(internalPollFreq)
 
 			// Get bundle update
 			bundleUpdateResp, err := stream.Recv()
@@ -427,6 +428,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	server.napiServer.appendKey(&common.PublicKey{Kid: "kid-3"})
 	// Move clock forward to avoid slow down tests
 	mockClock.Add(upstreamPollFreq)
+	mockClock.Add(internalPollFreq)
 
 	// Get bundle update
 	resp, err := stream.Recv()
