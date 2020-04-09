@@ -266,9 +266,14 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
-			// If the plugin does not support streaming bundle updates, it will
-			// complete the RPC normally. As such, io.EOF is expected.
-			if err != io.EOF {
+			switch {
+			case err == io.EOF:
+				// This is normal if the plugin does not support streaming
+				// bundle updates.
+			case status.Code(err) == codes.Canceled:
+				// This is normal. This client cancels this stream when opening
+				// a new stream.
+			default:
 				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming JWT key updates prematurely. Please report this bug. Will retry later.")
 			}
 			return
