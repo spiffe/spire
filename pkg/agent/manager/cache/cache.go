@@ -385,8 +385,8 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 
 // GetStaleEntries obtains a list of stale entries
 func (c *Cache) GetStaleEntries() []*StaleEntry {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	var staleEntries []*StaleEntry
 	for entryID := range c.staleEntries {
