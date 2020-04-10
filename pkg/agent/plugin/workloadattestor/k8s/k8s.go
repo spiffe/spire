@@ -616,7 +616,7 @@ func getPodImages(pod *corev1.Pod) (string, string) {
 	sort.Strings(podRunningImages)
 	sort.Strings(podInitImages)
 
-	return strings.Join(podRunningImages[:], ","), strings.Join(podInitImages[:], ",")
+	return strings.Join(podRunningImages, ","), strings.Join(podInitImages, ",")
 }
 
 func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []*common.Selector {
