@@ -54,7 +54,7 @@ that can impact permission revocation.
 | k8s:pod-owner-uid   | The UID of the workload's pod owner |
 | k8s:pod-uid         | The UID of the workload's pod |
 | k8s:pod-name        | The name of the workload's pod |
-| k8s:pod-images      | List of images of container running in pod (sorted alphabetically) |
+| k8s:pod-images      | List of images of containers running in pod (sorted alphabetically) |
 | k8s:pod-init-images | List of images of all init containers (sorted alphabetically) |
 
 ## Examples
