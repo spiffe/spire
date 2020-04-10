@@ -47,8 +47,8 @@ var (
 	}
 )
 
-// config contains all available configurables, arranged by section
-type config struct {
+// Config contains all available configurables, arranged by section
+type Config struct {
 	Server       *serverConfig               `hcl:"server"`
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
@@ -144,7 +144,7 @@ func (cmd *Command) Run(args []string) int {
 
 	// Load and parse the config file using either the default
 	// path or CLI-specified value
-	fileInput, err := parseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
+	fileInput, err := ParseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -156,7 +156,7 @@ func (cmd *Command) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newServerConfig(input, cmd.LogOptions)
+	c, err := NewServerConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -186,8 +186,8 @@ func (*Command) Synopsis() string {
 	return "Runs the server"
 }
 
-func parseFile(path string, expandEnv bool) (*config, error) {
-	c := &config{}
+func ParseFile(path string, expandEnv bool) (*Config, error) {
+	c := &Config{}
 
 	if path == "" {
 		path = defaultConfigPath
@@ -246,8 +246,8 @@ func parseFlags(args []string) (*serverConfig, error) {
 	return c, nil
 }
 
-func mergeInput(fileInput *config, cliInput *serverConfig) (*config, error) {
-	c := &config{Server: &serverConfig{}}
+func mergeInput(fileInput *Config, cliInput *serverConfig) (*Config, error) {
+	c := &Config{Server: &serverConfig{}}
 
 	// Highest precedence first
 	err := mergo.Merge(c.Server, cliInput)
@@ -268,7 +268,7 @@ func mergeInput(fileInput *config, cliInput *serverConfig) (*config, error) {
 	return c, nil
 }
 
-func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error) {
+func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -416,7 +416,7 @@ func newServerConfig(c *config, logOptions []log.Option) (*server.Config, error)
 	return sc, nil
 }
 
-func validateConfig(c *config) error {
+func validateConfig(c *Config) error {
 	if c.Server == nil {
 		return errors.New("server section must be configured")
 	}
@@ -465,7 +465,7 @@ func validateConfig(c *config) error {
 	return nil
 }
 
-func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
+func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 	if len(c.UnusedKeys) != 0 {
 		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
 	}
@@ -535,8 +535,8 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 	}
 }
 
-func defaultConfig() *config {
-	return &config{
+func defaultConfig() *Config {
+	return &Config{
 		Server: &serverConfig{
 			BindAddress:         "0.0.0.0",
 			BindPort:            8081,

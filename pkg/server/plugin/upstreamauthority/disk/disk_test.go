@@ -226,16 +226,7 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 	testCSR()
 }
 
-func (s *DiskSuite) TestDeprecatedTTLUsedIfSet() {
-	err := s.configureWithTTL("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem", "10h")
-	s.Require().NoError(err)
-
-	// Submit CSR with 1 hour preferred TTL. The deprecated TTL configurable
-	// (10 hours) should take precedence.
-	s.testCSRTTL(3600, time.Hour*10)
-}
-
-func (s *DiskSuite) TestDeprecatedTTLUsesPreferredIfNoDeprecatedTTLSet() {
+func (s *DiskSuite) TestMintX509CAUsesPreferredTTLIfSet() {
 	err := s.configureWith("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
 	s.Require().NoError(err)
 
@@ -314,14 +305,9 @@ func (s *DiskSuite) TestRace() {
 }
 
 func (s *DiskSuite) configureWith(keyFilePath, certFilePath string) error {
-	return s.configureWithTTL(keyFilePath, certFilePath, "")
-}
-
-func (s *DiskSuite) configureWithTTL(keyFilePath, certFilePath, deprecatedTTL string) error {
 	config, err := json.Marshal(Configuration{
-		KeyFilePath:   keyFilePath,
-		CertFilePath:  certFilePath,
-		DeprecatedTTL: deprecatedTTL,
+		KeyFilePath:  keyFilePath,
+		CertFilePath: certFilePath,
 	})
 	s.Require().NoError(err)
 
@@ -365,16 +351,6 @@ func TestInvalidConfigs(t *testing.T) {
 		{
 			msg:               "no trust domain",
 			expectErrContains: "trust_domain is required",
-		},
-		{
-			msg:         "invalid ttl",
-			trustDomain: "trust.domain",
-			inputConfig: `{
-  "key_file_path": "path",
-  "cert_file_path": "path",
-  "ttl": "monday",
-}`,
-			expectErrContains: "invalid duration monday",
 		},
 	}
 

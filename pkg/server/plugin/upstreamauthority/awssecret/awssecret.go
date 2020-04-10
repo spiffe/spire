@@ -38,7 +38,6 @@ func builtin(p *Plugin) catalog.Plugin {
 }
 
 type Config struct {
-	DeprecatedTTL   string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	Region          string `hcl:"region" json:"region"`
 	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn"`
 	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn"`
@@ -79,7 +78,7 @@ func (m *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (m *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config, ttl, err := m.validateConfig(req)
+	config, err := m.validateConfig(req)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +104,6 @@ func (m *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		x509util.NewMemoryKeypair(cert, key),
 		req.GlobalConfig.TrustDomain,
 		x509svid.UpstreamCAOptions{
-			TTL:   ttl,
 			Clock: m.hooks.clock,
 		})
 
@@ -173,20 +171,20 @@ func fetchFromSecretsManager(ctx context.Context, config *Config, sm secretsMana
 	return key, cert, nil
 }
 
-func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, time.Duration, error) {
+func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, error) {
 	// Parse HCL config payload into config struct
 	config := new(Config)
 
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
-		return nil, -1, err
+		return nil, err
 	}
 
 	if req.GlobalConfig == nil {
-		return nil, -1, errors.New("global configuration is required")
+		return nil, errors.New("global configuration is required")
 	}
 
 	if req.GlobalConfig.TrustDomain == "" {
-		return nil, -1, errors.New("trust_domain is required")
+		return nil, errors.New("trust_domain is required")
 	}
 
 	// Set defaults from the environment
@@ -194,27 +192,17 @@ func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, time.Durati
 		config.SecurityToken = m.hooks.getenv("AWS_SESSION_TOKEN")
 	}
 
-	var ttl time.Duration
-	if config.DeprecatedTTL != "" {
-		var err error
-		ttl, err = time.ParseDuration(config.DeprecatedTTL)
-		if err != nil {
-			return nil, -1, fmt.Errorf("invalid TTL value: %v", err)
-		}
-		m.log.Warn("Using deprecated ttl configurable. Use the server ca_ttl configurable instead.")
-	}
-
 	switch {
 	case config.CertFileARN != "" && config.KeyFileARN != "":
 	case config.CertFileARN != "" && config.KeyFileARN == "":
-		return nil, -1, errors.New("configuration missing key ARN")
+		return nil, errors.New("configuration missing key ARN")
 	case config.CertFileARN == "" && config.KeyFileARN != "":
-		return nil, -1, errors.New("configuration missing cert ARN")
+		return nil, errors.New("configuration missing cert ARN")
 	case config.CertFileARN == "" && config.KeyFileARN == "":
-		return nil, -1, errors.New("configuration missing both cert ARN and key ARN")
+		return nil, errors.New("configuration missing both cert ARN and key ARN")
 	}
 
-	return config, ttl, nil
+	return config, nil
 }
 
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status

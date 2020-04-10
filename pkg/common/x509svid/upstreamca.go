@@ -17,7 +17,6 @@ const (
 
 type UpstreamCAOptions struct {
 	Backdate time.Duration
-	TTL      time.Duration
 	Clock    clock.Clock
 }
 
@@ -53,14 +52,9 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL t
 		return nil, err
 	}
 
-	// Prefer the CA TTL setting, if configured. Then fall back to the
-	// "preferred TTL in the request. Finally, if neither is set, use the
-	// default.
+	// Use the default TTL setting unless a preferred TTL is specified.
 	caTTL := DefaultUpstreamCATTL
-	switch {
-	case ca.options.TTL > 0:
-		caTTL = ca.options.TTL
-	case preferredTTL > 0:
+	if preferredTTL > 0 {
 		caTTL = preferredTTL
 	}
 
