@@ -2,19 +2,22 @@ package spireplugin
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	w_pb "github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -46,12 +49,16 @@ const (
 )
 
 var (
-	ctx = context.Background()
+	ctx                   = context.Background()
+	mockClock *clock.Mock = clock.NewMock()
 )
 
 type handler struct {
 	server *grpc.Server
 	addr   string
+
+	bundleMtx sync.RWMutex
+	bundle    common.Bundle
 }
 
 type whandler struct {
@@ -153,6 +160,8 @@ func (w *whandler) FetchJWTBundles(req *w_pb.JWTBundlesRequest, stream w_pb.Spif
 }
 
 func (h *handler) startNodeAPITestServer(t *testing.T) {
+	h.loadInitialBundle(t)
+
 	creds, err := credentials.NewServerTLSFromFile(serverCertFilePath, keyFilePath)
 	require.NoError(t, err)
 
@@ -165,6 +174,43 @@ func (h *handler) startNodeAPITestServer(t *testing.T) {
 	require.NoError(t, err)
 	h.addr = l.Addr().String()
 	go func() { _ = h.server.Serve(l) }()
+}
+
+func (h *handler) loadInitialBundle(t *testing.T) {
+	jwksBytes, err := ioutil.ReadFile("_test_data/keys/jwks.json")
+	require.NoError(t, err)
+	b, err := bundleutil.Unmarshal("spiffe://localhost", jwksBytes)
+	require.NoError(t, err)
+
+	caCert, err := pemutil.LoadCertificate(certFilePath)
+	require.NoError(t, err)
+	b.AppendRootCA(caCert)
+
+	h.setBundle(*b.Proto())
+}
+
+func (h *handler) appendKey(key *common.PublicKey) {
+	h.bundleMtx.Lock()
+	defer h.bundleMtx.Unlock()
+	h.bundle.JwtSigningKeys = append(h.bundle.JwtSigningKeys, key)
+}
+
+func (h *handler) appendRootCA(rootCA *common.Certificate) {
+	h.bundleMtx.Lock()
+	defer h.bundleMtx.Unlock()
+	h.bundle.RootCas = append(h.bundle.RootCas, rootCA)
+}
+
+func (h *handler) getBundle() common.Bundle {
+	h.bundleMtx.RLock()
+	defer h.bundleMtx.RUnlock()
+	return h.bundle
+}
+
+func (h *handler) setBundle(b common.Bundle) {
+	h.bundleMtx.Lock()
+	defer h.bundleMtx.Unlock()
+	h.bundle = b
 }
 
 func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
@@ -201,7 +247,7 @@ func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		Bundle: &common.Bundle{
 			TrustDomainId: "spiffe://localhost",
 			RootCas: []*common.Certificate{
-				{DerBytes: cert.Raw},
+				{DerBytes: caCert.Raw},
 			},
 		},
 	}, nil
@@ -217,21 +263,17 @@ func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
 
 // PushJWTKeyUpstream fakes the real implementation (node endpoint) for testing purposes
 func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKeyUpstreamRequest) (*node_pb.PushJWTKeyUpstreamResponse, error) {
-	keys := []*common.PublicKey{
-		&common.PublicKey{
-			Kid: "kid-0",
-		},
-		req.JwtKey,
-	}
-
+	h.appendKey(req.JwtKey)
 	return &node_pb.PushJWTKeyUpstreamResponse{
-		JwtSigningKeys: keys,
+		JwtSigningKeys: h.getBundle().JwtSigningKeys,
 	}, nil
 }
 
-// FetchBundle is not implemented
 func (h *handler) FetchBundle(ctx context.Context, req *node_pb.FetchBundleRequest) (*node_pb.FetchBundleResponse, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
+	b := h.getBundle()
+	return &node_pb.FetchBundleResponse{
+		Bundle: &b,
+	}, nil
 }
 
 func TestSpirePlugin_Configure(t *testing.T) {
@@ -255,75 +297,150 @@ func TestSpirePlugin_GetPluginInfo(t *testing.T) {
 	require.NotNil(t, res)
 }
 
-func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
-	server := testHandler{}
-	server.startTestServers(t)
-	defer server.stopTestServers()
-
-	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
-	defer done()
-
-	validSpiffeID := "spiffe://localhost"
-	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
-	require.NoError(t, err)
-
-	resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: csr})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-
-	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
-	require.NoError(t, err)
-
-	isEqual, err := cryptoutil.PublicKeyEqual(certs[0].PublicKey, pubKey)
-	require.NoError(t, err)
-	require.True(t, isEqual)
-}
-
-func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
-	server := testHandler{}
-	server.startTestServers(t)
-	defer server.stopTestServers()
-
-	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
-	defer done()
-
-	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
-	for _, invalidSpiffeID := range invalidSpiffeIDs {
-		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
-		require.NoError(t, err)
-
-		resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: csr})
-		require.Error(t, err)
-		require.Nil(t, resp)
+func TestSpirePlugin_MintX509CA(t *testing.T) {
+	cases := []struct {
+		name        string
+		getCSR      func() ([]byte, crypto.PublicKey)
+		expectedErr string
+	}{
+		{
+			name: "valid CSR",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				csr, pubKey, err := util.NewCSRTemplate("spiffe://localhost")
+				require.NoError(t, err)
+				return csr, pubKey
+			},
+		},
+		{
+			name: "invalid scheme",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				csr, pubKey, err := util.NewCSRTemplate("invalid://localhost")
+				require.NoError(t, err)
+				return csr, pubKey
+			},
+			expectedErr: `rpc error: code = Unknown desc = unable to sign CSR: "invalid://localhost" is not a valid trust domain SPIFFE ID: invalid scheme`,
+		},
+		{
+			name: "wrong trust domain",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				csr, pubKey, err := util.NewCSRTemplate("spiffe://not-trusted")
+				require.NoError(t, err)
+				return csr, pubKey
+			},
+			expectedErr: `rpc error: code = Unknown desc = unable to sign CSR: "spiffe://not-trusted" does not belong to trust domain "localhost"`,
+		},
+		{
+			name: "invalid CSR",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return []byte("invalid-csr"), nil
+			},
+			expectedErr: `rpc error: code = Unknown desc = unable to sign CSR: unable to parse CSR`,
+		},
 	}
 
-	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := mintX509CA(t, m, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
-	require.Error(t, err)
-	require.Nil(t, resp)
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			// Setup servers
+			server := testHandler{}
+			server.startTestServers(t)
+			defer server.stopTestServers()
+			p, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+			defer done()
+
+			// Send initial request and get stream
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			csr, pubKey := c.getCSR()
+			stream, err := p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+			require.NoError(t, err)
+			require.NotNil(t, stream)
+
+			// Get first response
+			firstResp, err := stream.Recv()
+			if c.expectedErr != "" {
+				require.Nil(t, firstResp)
+				require.Contains(t, err.Error(), c.expectedErr)
+				cancel()
+				return
+			}
+
+			require.NoError(t, err)
+			require.Len(t, firstResp.UpstreamX509Roots, 1)
+			certs, err := x509util.RawCertsToCertificates(firstResp.X509CaChain)
+			require.NoError(t, err)
+
+			isEqual, err := cryptoutil.PublicKeyEqual(certs[0].PublicKey, pubKey)
+			require.NoError(t, err)
+			require.True(t, isEqual)
+
+			// Update bundle to trigger another response
+			server.napiServer.appendRootCA(&common.Certificate{DerBytes: []byte("new-root-bytes")})
+			// Move clock forward to avoid slow down tests
+			mockClock.Add(upstreamPollFreq)
+
+			// Get bundle update
+			bundleUpdateResp, err := stream.Recv()
+			require.NoError(t, err)
+			require.Len(t, bundleUpdateResp.UpstreamX509Roots, 2)
+			require.Equal(t, bundleUpdateResp.UpstreamX509Roots[1], []byte("new-root-bytes"))
+			require.Nil(t, bundleUpdateResp.X509CaChain)
+
+			// Cancel ctx to stop getting updates
+			cancel()
+
+			// Verify stream is closed
+			resp, err := stream.Recv()
+			require.Contains(t, err.Error(), "rpc error: code = Canceled desc = context canceled")
+			require.Nil(t, resp)
+		})
+	}
 }
 
 func TestSpirePlugin_PublishJWTKey(t *testing.T) {
+	// Setup servers
 	server := testHandler{}
 	server.startTestServers(t)
 	defer server.stopTestServers()
-
-	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+	p, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
 	defer done()
 
-	// Assertions only checks that the keys contained in the handler response
-	// are forwarded by the plugin method.
-	resp, err := publishJWTKey(t, m, &upstreamauthority.PublishJWTKeyRequest{
+	// Send initial request and get stream
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	stream, err := p.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{
 		JwtKey: &common.PublicKey{
-			Kid: "kid-1",
+			Kid: "kid-2",
 		},
 	})
-
 	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Len(t, resp.UpstreamJwtKeys, 2)
-	assert.Equal(t, resp.UpstreamJwtKeys[0].Kid, "kid-0")
-	assert.Equal(t, resp.UpstreamJwtKeys[1].Kid, "kid-1")
+	require.NotNil(t, stream)
+
+	// Get first response
+	firstResp, err := stream.Recv()
+	require.NoError(t, err)
+	require.NotNil(t, firstResp)
+	require.Len(t, firstResp.UpstreamJwtKeys, 3)
+	assert.Equal(t, firstResp.UpstreamJwtKeys[0].Kid, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
+	assert.Equal(t, firstResp.UpstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
+	assert.Equal(t, firstResp.UpstreamJwtKeys[2].Kid, "kid-2")
+
+	// Update bundle to trigger another response
+	server.napiServer.appendKey(&common.PublicKey{Kid: "kid-3"})
+	// Move clock forward to avoid slow down tests
+	mockClock.Add(upstreamPollFreq)
+
+	// Get bundle update
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, resp.UpstreamJwtKeys, 4)
+	require.Equal(t, resp.UpstreamJwtKeys[3].Kid, "kid-3")
+
+	// Cancel ctx to stop getting updates
+	cancel()
+
+	// Verify stream is closed
+	resp, err = stream.Recv()
+	require.Nil(t, resp)
+	require.Contains(t, err.Error(), "rpc error: code = Canceled desc = context canceled")
 }
 
 func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
@@ -349,43 +466,8 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 		done()
 		require.NoError(t, err)
 	}
+
+	clk = mockClock
+
 	return plugin, done
-}
-
-func mintX509CA(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stream, err := plugin.MintX509CA(ctx, req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	// Get response and error to be returned
-	response, err := stream.Recv()
-	if err == nil {
-		// Verify stream is closed
-		_, eofErr := stream.Recv()
-		require.Equal(t, io.EOF, eofErr)
-	}
-
-	return response, err
-}
-
-func publishJWTKey(t *testing.T, plugin upstreamauthority.UpstreamAuthority, req *upstreamauthority.PublishJWTKeyRequest) (*upstreamauthority.PublishJWTKeyResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stream, err := plugin.PublishJWTKey(ctx, req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	// Get response and error to be returned
-	response, err := stream.Recv()
-	if err == nil {
-		// Verify stream is closed
-		_, eofErr := stream.Recv()
-		require.Equal(t, io.EOF, eofErr)
-	}
-
-	return response, err
 }
