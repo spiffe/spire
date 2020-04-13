@@ -379,6 +379,9 @@ const (
 	// to add clarity
 	JWTSVID = "jwt_svid"
 
+	// Limit tags a limit
+	Limit = "limit"
+
 	// Manager functionality related to a manager (such as CA manager); should be
 	// used with other tags to add clarity
 	Manager = "manager"
