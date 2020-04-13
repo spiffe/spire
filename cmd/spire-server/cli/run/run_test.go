@@ -70,12 +70,12 @@ func TestParseConfigGood(t *testing.T) {
 }
 
 func TestParseFlagsGood(t *testing.T) {
-	c, err := parseFlags([]string{
+	c, err := parseFlags("run", []string{
 		"-bindAddress=127.0.0.1",
 		"-registrationUDSPath=/tmp/flag.sock",
 		"-trustDomain=example.org",
 		"-logLevel=INFO",
-	})
+	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.RegistrationUDSPath, "/tmp/flag.sock")
