@@ -34,9 +34,7 @@ func builtin(p *Plugin) catalog.Plugin {
 
 type Configuration struct {
 	trustDomain string
-	ttl         time.Duration
 
-	DeprecatedTTL  string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
 	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
@@ -83,15 +81,6 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, errors.New("trust_domain is required")
-	}
-
-	if config.DeprecatedTTL != "" {
-		ttl, err := time.ParseDuration(config.DeprecatedTTL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid TTL value: %v", err)
-		}
-		config.ttl = ttl
-		p.log.Warn("Using deprecated ttl configurable. Use the server ca_ttl configurable instead.")
 	}
 
 	config.trustDomain = req.GlobalConfig.TrustDomain
@@ -230,7 +219,6 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 		x509util.NewMemoryKeypair(caCert, key),
 		config.trustDomain,
 		x509svid.UpstreamCAOptions{
-			TTL:   config.ttl,
 			Clock: p.clock,
 		},
 	), caCerts, nil
