@@ -23,7 +23,8 @@ type PCAClient interface {
 
 func newPCAClient(config *PCAPluginConfiguration) (PCAClient, error) {
 	awsConfig := &aws.Config{
-		Region: aws.String(config.Region),
+		Region:   aws.String(config.Region),
+		Endpoint: aws.String(config.Endpoint),
 	}
 
 	// Optional: Assuming role
