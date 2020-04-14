@@ -379,6 +379,9 @@ const (
 	// to add clarity
 	JWTSVID = "jwt_svid"
 
+	// Limit tags a limit
+	Limit = "limit"
+
 	// Manager functionality related to a manager (such as CA manager); should be
 	// used with other tags to add clarity
 	Manager = "manager"
@@ -461,6 +464,10 @@ const (
 	// FetchBundle functionality related to fetching a CA bundle
 	FetchBundle = "fetch_bundle"
 
+	// FetchEntriesUpdates functionality related to fetching entries updates; should be used
+	// with other tags to add clarity
+	FetchEntriesUpdates = "fetch_entries_updates"
+
 	// FetchFederatedBundle functionality related to fetching a federated bundle
 	FetchFederatedBundle = "fetch_federated_bundle"
 
@@ -479,9 +486,9 @@ const (
 	// FetchSecrets functionality related to fetching secrets
 	FetchSecrets = "fetch_secrets"
 
-	// FetchUpdates functionality related to fetching updates; should be used
+	// FetchSVIDsUpdates functionality related to fetching SVIDs updates; should be used
 	// with other tags to add clarity
-	FetchUpdates = "fetch_updates"
+	FetchSVIDsUpdates = "fetch_svids_updates"
 
 	// FetchX509CASVID functionality related to fetching an X509 SVID
 	FetchX509CASVID = "fetch_x509_ca_svid"

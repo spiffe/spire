@@ -111,7 +111,7 @@ func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream
 
 	rootCAs := []*common.Certificate{}
 	rawChain := certsToRawCerts(certChain)
-	ticker := time.NewTicker(internalPollFreq)
+	ticker := clk.Ticker(internalPollFreq)
 	defer ticker.Stop()
 	for {
 		newRootCAs := m.getBundle().RootCas
@@ -150,7 +150,7 @@ func (m *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stre
 	}
 
 	keys := []*common.PublicKey{}
-	ticker := time.NewTicker(internalPollFreq)
+	ticker := clk.Ticker(internalPollFreq)
 	defer ticker.Stop()
 	for {
 		newKeys := m.getBundle().JwtSigningKeys
