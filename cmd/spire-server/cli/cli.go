@@ -68,7 +68,7 @@ func (cc *CLI) Run(args []string) int {
 			return &entry.ShowCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return &run.Command{LogOptions: cc.LogOptions}, nil
+			return run.NewRunCommand(cc.LogOptions), nil
 		},
 		"token generate": func() (cli.Command, error) {
 			return &token.GenerateCLI{}, nil
