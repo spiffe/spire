@@ -1,0 +1,21 @@
+#!/bin/bash
+
+log-debug "creating intermediateA downstream registration entry..."
+docker-compose exec -T root-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint root/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/intermediateA" \
+    -selector "docker:label:org.integration.name:intermediateA" \
+    -downstream \
+    -ttl 3600
+check-synced-entry "root-agent" "spiffe://domain.test/intermediateA"
+
+log-debug "creating intermediateB downstream registration entry..."
+docker-compose exec -T root-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint root/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/intermediateB" \
+    -selector "docker:label:org.integration.name:intermediateB" \
+    -downstream \
+    -ttl 3600
+check-synced-entry "root-agent" "spiffe://domain.test/intermediateB"

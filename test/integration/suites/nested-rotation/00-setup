@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# create shared folder for root agent socket
+mkdir -p shared/rootSocket
+
+# create shared folder for intermediateA agent socket
+mkdir -p shared/intermediateASocket
+
+# create shared folder for intermediateB agent socket
+mkdir -p shared/intermediateBSocket
+
+# root certificates
+"${ROOTDIR}/setup/x509pop/setup.sh" root/server root/agent
+
+# intermediateA certificates
+"${ROOTDIR}/setup/x509pop/setup.sh" intermediateA/server intermediateA/agent
+
+# leafA certificates
+"${ROOTDIR}/setup/x509pop/setup.sh" leafA/server leafA/agent
+
+# intermediateB certificates
+"${ROOTDIR}/setup/x509pop/setup.sh" intermediateB/server intermediateB/agent
+
+# leafB certificates
+"${ROOTDIR}/setup/x509pop/setup.sh" leafB/server leafB/agent
+
+docker build --target nested-agent -t nested-agent .
