@@ -15,6 +15,8 @@ The plugin accepts the following configuration options:
 | config_map_key        | The key within the ConfigMap for the bundle | `bundle.crt`    |
 | kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. | |
 
+## Configuring Kubernetes
+
 The following actions are required to set up the plugin.
 
 - Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account
