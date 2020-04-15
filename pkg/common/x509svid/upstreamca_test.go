@@ -25,12 +25,11 @@ type UpstreamCASuite struct {
 func (s *UpstreamCASuite) SetupTest() {
 	s.clock = clock.NewMock(s.T())
 	s.caSuite.SetupTest()
-	s.configure(time.Hour)
+	s.configure()
 }
 
-func (s *UpstreamCASuite) configure(ttl time.Duration) {
+func (s *UpstreamCASuite) configure() {
 	s.upstreamCA = NewUpstreamCA(s.keypair, "example.org", UpstreamCAOptions{
-		TTL:   ttl,
 		Clock: s.clock,
 	})
 }
@@ -88,18 +87,14 @@ func (s *UpstreamCASuite) TestSignCSRSuccess() {
 }
 
 func (s *UpstreamCASuite) TestSignCSRCapsNotAfter() {
-	s.configure(3 * time.Hour)
-
 	csr := s.makeCSR("spiffe://example.org")
-	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, 0)
+	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, 3*time.Hour)
 	s.Require().NoError(err)
 
 	s.Require().Equal(s.caCert.NotAfter, cert.NotAfter)
 }
 
-func (s *UpstreamCASuite) TestSignCSRUsesPreferredTTLIfOptionsTTLUnset() {
-	s.configure(0)
-
+func (s *UpstreamCASuite) TestSignCSRUsesPreferredTTLIfSet() {
 	csr := s.makeCSR("spiffe://example.org")
 	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, time.Minute)
 	s.Require().NoError(err)
@@ -107,19 +102,7 @@ func (s *UpstreamCASuite) TestSignCSRUsesPreferredTTLIfOptionsTTLUnset() {
 	s.Require().Equal(s.clock.Now().Add(time.Minute).UTC(), cert.NotAfter)
 }
 
-func (s *UpstreamCASuite) TestSignCSRUsesOptionsTTLOverPreferredTTL() {
-	s.configure(time.Minute * 2)
-
-	csr := s.makeCSR("spiffe://example.org")
-	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, time.Minute)
-	s.Require().NoError(err)
-
-	s.Require().Equal(s.clock.Now().Add(2*time.Minute).UTC(), cert.NotAfter)
-}
-
-func (s *UpstreamCASuite) TestSignCSRUsesDefaultTTLIfOptionsAndPreferredTTLUnset() {
-	s.configure(0)
-
+func (s *UpstreamCASuite) TestSignCSRUsesDefaultTTLIfPreferredTTLUnset() {
 	csr := s.makeCSR("spiffe://example.org")
 	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, 0)
 	s.Require().NoError(err)

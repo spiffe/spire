@@ -232,9 +232,7 @@ func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	ca := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(caCert, caKey),
 		"localhost",
-		x509svid.UpstreamCAOptions{
-			TTL: 30 * time.Minute,
-		})
+		x509svid.UpstreamCAOptions{})
 
 	cert, err := ca.SignCSR(ctx, req.Csr, 0)
 	if err != nil {
@@ -379,6 +377,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			server.napiServer.appendRootCA(&common.Certificate{DerBytes: []byte("new-root-bytes")})
 			// Move clock forward to avoid slow down tests
 			mockClock.Add(upstreamPollFreq)
+			mockClock.Add(internalPollFreq)
 
 			// Get bundle update
 			bundleUpdateResp, err := stream.Recv()
@@ -429,6 +428,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	server.napiServer.appendKey(&common.PublicKey{Kid: "kid-3"})
 	// Move clock forward to avoid slow down tests
 	mockClock.Add(upstreamPollFreq)
+	mockClock.Add(internalPollFreq)
 
 	// Get bundle update
 	resp, err := stream.Recv()

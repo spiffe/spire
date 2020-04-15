@@ -23,7 +23,7 @@ import (
 )
 
 func TestParseConfigGood(t *testing.T) {
-	c, err := parseFile("../../../../test/fixture/config/server_good.conf", false)
+	c, err := ParseFile("../../../../test/fixture/config/server_good.conf", false)
 	require.NoError(t, err)
 
 	// Check for server configurations
@@ -70,12 +70,12 @@ func TestParseConfigGood(t *testing.T) {
 }
 
 func TestParseFlagsGood(t *testing.T) {
-	c, err := parseFlags([]string{
+	c, err := parseFlags("run", []string{
 		"-bindAddress=127.0.0.1",
 		"-registrationUDSPath=/tmp/flag.sock",
 		"-trustDomain=example.org",
 		"-logLevel=INFO",
-	})
+	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.RegistrationUDSPath, "/tmp/flag.sock")
@@ -86,107 +86,107 @@ func TestParseFlagsGood(t *testing.T) {
 func TestMergeInput(t *testing.T) {
 	cases := []struct {
 		msg       string
-		fileInput func(*config)
+		fileInput func(*Config)
 		cliInput  func(*serverConfig)
-		test      func(*testing.T, *config)
+		test      func(*testing.T, *Config)
 	}{
 		{
 			msg:       "bind_address should default to 0.0.0.0 if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "0.0.0.0", c.Server.BindAddress)
 			},
 		},
 		{
 			msg: "bind_address should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.BindAddress = "10.0.0.1"
 			},
 			cliInput: func(c *serverConfig) {
 				c.BindAddress = ""
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.1", c.Server.BindAddress)
 			},
 		},
 		{
 			msg: "bind_address should be configurable by CLI flag",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.BindAddress = ""
 			},
 			cliInput: func(c *serverConfig) {
 				c.BindAddress = "10.0.0.1"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.1", c.Server.BindAddress)
 			},
 		},
 		{
 			msg: "bind_address specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.BindAddress = "10.0.0.1"
 			},
 			cliInput: func(c *serverConfig) {
 				c.BindAddress = "10.0.0.2"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.2", c.Server.BindAddress)
 			},
 		},
 		{
 			msg:       "bind_port should default to 8081 if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 8081, c.Server.BindPort)
 			},
 		},
 		{
 			msg: "bind_port should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.BindPort = 1337
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Server.BindPort)
 			},
 		},
 		{
 			msg:       "bind_port should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				c.BindPort = 1337
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Server.BindPort)
 			},
 		},
 		{
 			msg: "bind_port specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.BindPort = 1336
 			},
 			cliInput: func(c *serverConfig) {
 				c.BindPort = 1337
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Server.BindPort)
 			},
 		},
 		{
 			msg: "ca_key_type should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "rsa-2048", c.Server.CAKeyType)
 			},
 		},
 		{
 			msg: "ca_subject should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.CASubject = &caSubjectConfig{
 					Country:      []string{"test-country"},
 					Organization: []string{"test-org"},
@@ -194,7 +194,7 @@ func TestMergeInput(t *testing.T) {
 				}
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, []string{"test-country"}, c.Server.CASubject.Country)
 				require.Equal(t, []string{"test-org"}, c.Server.CASubject.Organization)
 				require.Equal(t, "test-cn", c.Server.CASubject.CommonName)
@@ -202,297 +202,297 @@ func TestMergeInput(t *testing.T) {
 		},
 		{
 			msg: "ca_ttl should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.CATTL = "1h"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "1h", c.Server.CATTL)
 			},
 		},
 		{
 			msg: "data_dir should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.DataDir = "foo"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.DataDir)
 			},
 		},
 		{
 			msg:       "data_dir should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				c.DataDir = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.DataDir)
 			},
 		},
 		{
 			msg: "data_dir specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.DataDir = "foo"
 			},
 			cliInput: func(c *serverConfig) {
 				c.DataDir = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.DataDir)
 			},
 		},
 		{
 			msg: "jwt_issuer should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.JWTIssuer = "ISSUER"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "ISSUER", c.Server.JWTIssuer)
 			},
 		},
 		{
 			msg: "log_file should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.LogFile = "foo"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.LogFile)
 			},
 		},
 		{
 			msg:       "log_file should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				c.LogFile = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.LogFile)
 			},
 		},
 		{
 			msg: "log_file specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.LogFile = "foo"
 			},
 			cliInput: func(c *serverConfig) {
 				c.LogFile = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.LogFile)
 			},
 		},
 		{
 			msg:       "log_format should default to log.DefaultFormat if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, log.DefaultFormat, c.Server.LogFormat)
 			},
 		},
 		{
 			msg: "log_format should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.LogFormat = "JSON"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Server.LogFormat)
 			},
 		},
 		{
 			msg:       "log_format should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				c.LogFormat = "JSON"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Server.LogFormat)
 			},
 		},
 		{
 			msg: "log_format specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.LogFormat = "TEXT"
 			},
 			cliInput: func(c *serverConfig) {
 				c.LogFormat = "JSON"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Server.LogFormat)
 			},
 		},
 		{
 			msg:       "log_level should default to INFO if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "INFO", c.Server.LogLevel)
 			},
 		},
 		{
 			msg: "log_level should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.LogLevel = "DEBUG"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Server.LogLevel)
 			},
 		},
 		{
 			msg:       "log_level should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				c.LogLevel = "DEBUG"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Server.LogLevel)
 			},
 		},
 		{
 			msg: "log_level specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.LogLevel = "WARN"
 			},
 			cliInput: func(c *serverConfig) {
 				c.LogLevel = "DEBUG"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Server.LogLevel)
 			},
 		},
 		{
 			msg:       "registration_uds_path should default to /tmp/spire-registration.sock if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "/tmp/spire-registration.sock", c.Server.RegistrationUDSPath)
 			},
 		},
 		{
 			msg: "registration_uds_path should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.RegistrationUDSPath = "foo"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.RegistrationUDSPath)
 			},
 		},
 		{
 			msg:       "registration_uds_path should be configuable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				c.RegistrationUDSPath = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.RegistrationUDSPath)
 			},
 		},
 		{
 			msg: "registration_uds_path specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.RegistrationUDSPath = "foo"
 			},
 			cliInput: func(c *serverConfig) {
 				c.RegistrationUDSPath = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.RegistrationUDSPath)
 			},
 		},
 		{
 			msg: "deprecated svid_ttl should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.DeprecatedSVIDTTL = "1h"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "1h", c.Server.DeprecatedSVIDTTL)
 			},
 		},
 		{
 			msg: "default_svid_ttl should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1h"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "1h", c.Server.DefaultSVIDTTL)
 			},
 		},
 		{
 			msg:       "trust_domain should not have a default value",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "", c.Server.TrustDomain)
 			},
 		},
 		{
 			msg: "trust_domain should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.TrustDomain = "foo"
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.TrustDomain)
 			},
 		},
 		{
 			// TODO: should it really?
 			msg:       "trust_domain should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				c.TrustDomain = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.TrustDomain)
 			},
 		},
 		{
 			msg: "trust_domain specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Server.TrustDomain = "foo"
 			},
 			cliInput: func(c *serverConfig) {
 				c.TrustDomain = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.TrustDomain)
 			},
 		},
 		{
 			msg:       "upstream_bundle should be nil if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Nil(t, c.Server.UpstreamBundle)
 			},
 		},
 		{
 			msg: "upstream_bundle should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				value := true
 				c.Server.UpstreamBundle = &value
 			},
 			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.NotNil(t, c.Server.UpstreamBundle)
 				require.Equal(t, true, *c.Server.UpstreamBundle)
 			},
 		},
 		{
 			msg:       "upstream_bundle should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
 				value := true
 				c.UpstreamBundle = &value
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.NotNil(t, c.Server.UpstreamBundle)
 				require.Equal(t, true, *c.Server.UpstreamBundle)
 			},
@@ -500,13 +500,13 @@ func TestMergeInput(t *testing.T) {
 		//{
 		//      // TODO: This is currently unsupported
 		//	msg: "upstream_bundle specified by CLI flag should take precedence over file",
-		//	fileInput: func(c *config) {
+		//	fileInput: func(c *Config) {
 		//		c.Server.UpstreamBundle = true
 		//	},
 		//	cliInput: func(c *serverConfig) {
 		//		c.UpstreamBundle = false
 		//	},
-		//	test: func(t *testing.T, c *config) {
+		//	test: func(t *testing.T, c *Config) {
 		//		require.Equal(t, false, c.Server.UpstreamBundle)
 		//	},
 		//},
@@ -515,7 +515,7 @@ func TestMergeInput(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 
-		fileInput := &config{Server: &serverConfig{}}
+		fileInput := &Config{Server: &serverConfig{}}
 		cliInput := &serverConfig{}
 
 		testCase.fileInput(fileInput)
@@ -534,12 +534,12 @@ func TestNewServerConfig(t *testing.T) {
 	cases := []struct {
 		msg         string
 		expectError bool
-		input       func(*config)
+		input       func(*Config)
 		test        func(*testing.T, *server.Config)
 	}{
 		{
 			msg: "bind_address and bind_port should be correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.BindAddress = "192.168.1.1"
 				c.Server.BindPort = 1337
 			},
@@ -551,7 +551,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "invalid bind_address should return an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.BindAddress = "this-is-not-an-ip-address"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -560,7 +560,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "registration_uds_path should be correctly configured",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.RegistrationUDSPath = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -570,7 +570,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "data_dir should be correctly configured",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.DataDir = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -579,7 +579,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "trust_domain should be correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.TrustDomain = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -589,7 +589,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "invalid trust_domain should return an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.TrustDomain = "i'm invalid"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -598,7 +598,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "jwt_issuer is correctly configured",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.JWTIssuer = "ISSUER"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -607,7 +607,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "logger gets set correctly",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.LogLevel = "WARN"
 				c.Server.LogFormat = "TEXT"
 			},
@@ -621,7 +621,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "log_level and log_format are case insensitive",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.LogLevel = "wArN"
 				c.Server.LogFormat = "TeXt"
 			},
@@ -636,7 +636,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "invalid log_level returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.LogLevel = "not-a-valid-level"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -646,7 +646,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "invalid log_format returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.LogFormat = "not-a-valid-format"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -655,7 +655,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "upstream_bundle is configured correctly",
-			input: func(c *config) {
+			input: func(c *Config) {
 				value := false
 				c.Server.UpstreamBundle = &value
 			},
@@ -665,14 +665,14 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg:   "upstream_bundle default value must be 'true'",
-			input: func(c *config) {},
+			input: func(c *Config) {},
 			test: func(t *testing.T, c *server.Config) {
 				require.True(t, c.UpstreamBundle)
 			},
 		},
 		{
 			msg: "allow_agentless_node_attestors is configured correctly",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.Experimental.AllowAgentlessNodeAttestors = true
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -681,7 +681,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "bundle endpoint is parsed and configured correctly",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.Experimental.BundleEndpointEnabled = true
 				c.Server.Experimental.BundleEndpointAddress = "192.168.1.1"
 				c.Server.Experimental.BundleEndpointPort = 1337
@@ -694,7 +694,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "bundle federates with section is parsed and configured correctly",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.Experimental.FederatesWith = map[string]federatesWithConfig{
 					"spiffe://domain1.test": {
 						BundleEndpointAddress:  "192.168.1.1",
@@ -727,7 +727,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "using deprecated svid_ttl returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.DeprecatedSVIDTTL = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -736,7 +736,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "default_svid_ttl is correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -746,7 +746,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "invalid default_svid_ttl returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -755,7 +755,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "rsa-2048 ca_key_type is correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -764,7 +764,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "rsa-4096 ca_key_type is correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -773,7 +773,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "ec-p256 ca_key_type is correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -782,7 +782,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "ec-p384 ca_key_type is correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -792,7 +792,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "unsupported ca_key_type is rejected",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-1024"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -801,7 +801,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "ca_ttl is correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CATTL = "1h"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -811,7 +811,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg:         "invalid ca_ttl returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CATTL = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -820,7 +820,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "ca_subject is defaulted when unset",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CASubject = nil
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -829,7 +829,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "ca_subject is defaulted when set but empty",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CASubject = &caSubjectConfig{}
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -838,7 +838,7 @@ func TestNewServerConfig(t *testing.T) {
 		},
 		{
 			msg: "ca_subject is overridable",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Server.CASubject = &caSubjectConfig{
 					Organization: []string{"foo"},
 					Country:      []string{"us"},
@@ -863,7 +863,7 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := newServerConfig(input, []log.Option{})
+			sc, err := NewServerConfig(input, []log.Option{})
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -877,7 +877,7 @@ func TestNewServerConfig(t *testing.T) {
 
 // defaultValidConfig returns the bare minimum config required to
 // pass validation etc
-func defaultValidConfig() *config {
+func defaultValidConfig() *Config {
 	c := defaultConfig()
 
 	c.Server.DataDir = "."
@@ -891,54 +891,54 @@ func defaultValidConfig() *config {
 func TestValidateConfig(t *testing.T) {
 	testCases := []struct {
 		name        string
-		applyConf   func(*config)
+		applyConf   func(*Config)
 		expectedErr string
 	}{
 		{
 			name:        "server section must be configured",
-			applyConf:   func(c *config) { c.Server = nil },
+			applyConf:   func(c *Config) { c.Server = nil },
 			expectedErr: "server section must be configured",
 		},
 		{
 			name:        "bind_address must be configured",
-			applyConf:   func(c *config) { c.Server.BindAddress = "" },
+			applyConf:   func(c *Config) { c.Server.BindAddress = "" },
 			expectedErr: "bind_address and bind_port must be configured",
 		},
 		{
 			name:        "bind_port must be configured",
-			applyConf:   func(c *config) { c.Server.BindPort = 0 },
+			applyConf:   func(c *Config) { c.Server.BindPort = 0 },
 			expectedErr: "bind_address and bind_port must be configured",
 		},
 		{
 			name:        "registration_uds_path must be configured",
-			applyConf:   func(c *config) { c.Server.RegistrationUDSPath = "" },
+			applyConf:   func(c *Config) { c.Server.RegistrationUDSPath = "" },
 			expectedErr: "registration_uds_path must be configured",
 		},
 		{
 			name:        "trust_domain must be configured",
-			applyConf:   func(c *config) { c.Server.TrustDomain = "" },
+			applyConf:   func(c *Config) { c.Server.TrustDomain = "" },
 			expectedErr: "trust_domain must be configured",
 		},
 		{
 			name:        "data_dir must be configured",
-			applyConf:   func(c *config) { c.Server.DataDir = "" },
+			applyConf:   func(c *Config) { c.Server.DataDir = "" },
 			expectedErr: "data_dir must be configured",
 		},
 		{
 			name:        "plugins section must be configured",
-			applyConf:   func(c *config) { c.Plugins = nil },
+			applyConf:   func(c *Config) { c.Plugins = nil },
 			expectedErr: "plugins section must be configured",
 		},
 		{
 			name: "if ACME is used, bundle_endpoint_acme domain_name must be configured",
-			applyConf: func(c *config) {
+			applyConf: func(c *Config) {
 				c.Server.Experimental.BundleEndpointACME = &bundleEndpointACMEConfig{}
 			},
 			expectedErr: "bundle_endpoint_acme domain_name must be configured",
 		},
 		{
 			name: "if ACME is used, bundle_endpoint_acme email must be configured",
-			applyConf: func(c *config) {
+			applyConf: func(c *Config) {
 				c.Server.Experimental.BundleEndpointACME = &bundleEndpointACMEConfig{
 					DomainName: "domain-name",
 				}
@@ -947,7 +947,7 @@ func TestValidateConfig(t *testing.T) {
 		},
 		{
 			name: "if FederatesWith is used, bundle_endpoint_address must be configured",
-			applyConf: func(c *config) {
+			applyConf: func(c *Config) {
 				federatesWith := make(map[string]federatesWithConfig)
 				federatesWith["spiffe://domain.test"] = federatesWithConfig{}
 				c.Server.Experimental.FederatesWith = federatesWith
@@ -956,7 +956,7 @@ func TestValidateConfig(t *testing.T) {
 		},
 		{
 			name:        "deprecated configurable `svid_ttl` must not be set",
-			applyConf:   func(c *config) { c.Server.DeprecatedSVIDTTL = "1h" },
+			applyConf:   func(c *Config) { c.Server.DeprecatedSVIDTTL = "1h" },
 			expectedErr: `the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`,
 		},
 	}
@@ -1060,7 +1060,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 
-		c, err := parseFile(testCase.testFilePath, false)
+		c, err := ParseFile(testCase.testFilePath, false)
 		require.NoError(t, err)
 
 		log, hook := test.NewNullLogger()
@@ -1101,7 +1101,7 @@ func TestLogOptions(t *testing.T) {
 		log.WithOutputFile(fd.Name()),
 	}
 
-	agentConfig, err := newServerConfig(defaultValidConfig(), logOptions)
+	agentConfig, err := NewServerConfig(defaultValidConfig(), logOptions)
 	require.NoError(t, err)
 
 	logger := agentConfig.Log.(*log.Logger).Logger
@@ -1194,7 +1194,7 @@ func TestExpandEnv(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		c, err := parseFile("../../../../test/fixture/config/server_good_templated.conf", testCase.expandEnv)
+		c, err := ParseFile("../../../../test/fixture/config/server_good_templated.conf", testCase.expandEnv)
 		require.NoError(t, err)
 		assert.Equal(t, testCase.expectedValue, c.Server.TrustDomain)
 	}

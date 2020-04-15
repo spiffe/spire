@@ -9,7 +9,6 @@ The plugin accepts the following configuration options:
 
 | Configuration           | Description                                  |
 | ----------------------- | -------------------------------------------- |
-| ttl                     | The TTL for issued certificates (deprecated) |
 | region                  | AWS Region that the AWS Secrets Manager is running in |
 | cert_file_arn           | ARN of the "upstream" CA certificate         |
 | key_file_arn            | ARN of the "upstream" CA key file            |
@@ -17,10 +16,6 @@ The plugin accepts the following configuration options:
 | secret_access_key       | AWS secret access key                        |
 | secret_token            | AWS secret token                             |
 | assume_role_arn         | ARN of role to assume                        |
-
-The `ttl` configurable is deprecated. When unset, the plugin will use the
-preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
-configurable.
 
 Only the region, cert_file_arn, and key_file_arn must be configured. You optionally configure the remaining fields depending on how you choose to give SPIRE Server access to the ARNs.
 

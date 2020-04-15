@@ -182,6 +182,15 @@ Checks SPIRE agent's health.
 | `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
 | `-verbose` | Print verbose information | |
 
+### `spire-agent validate`
+
+Validates a SPIRE agent configuration file.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-config`     | Path to a SPIRE agent configuration file                           | agent.conf     |
+| `-expandEnv`  | Expand environment $VARIABLES in the config file                   | false          |
+
 ## Sample configuration file
 
 This section includes a sample configuration file for formatting and syntax reference
