@@ -1,6 +1,6 @@
 ## End users
 
-Known end users include: 
+Known end users with notable contributions to the project include: 
 
 * Bloomberg 
 * ByteDance 
@@ -52,9 +52,9 @@ https://youtu.be/30S0sKRxzjM
 * NGINX/F5 on how NGINX service mesh leverages SPIFFE and SPIRE
 https://youtu.be/plRkDK5xFpM
 
-## Adding a name or logo
+## Adding a name
 
-If you would like to add your name or logo to this file, add a PNG version of your logo to the docs/adopters directory in this repo and submit a pull request with your change. Name the image file something that reflects your company (e.g., if your company is called Acme, name the image acme.png). 
+If you would like to add your name to this file, submit a pull request with your change. 
 
 
 
