@@ -60,3 +60,20 @@ fingerprint() {
 	# `openssl sha1` on macOS and linux.
 	openssl x509 -in "$1" -outform DER | openssl sha1 -r | awk '{print $1}'
 }
+
+check-synced-entry() {
+  # Check at most 30 times (with one second in between) that the agent has
+  # successfully synced down the workload entry.
+  MAXCHECKS=30
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for synced entry ($i of $MAXCHECKS max)..."
+      docker-compose logs $1
+      if docker-compose logs $1 | grep "$2"; then
+          return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for agent to sync down entry"
+}

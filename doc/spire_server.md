@@ -278,6 +278,16 @@ Checks SPIRE server's health.
 | `-shallow` | Perform a less stringent health check | |
 | `-verbose` | Print verbose information | |
 
+### `spire-server validate`
+
+Validates a SPIRE server configuration file.  Arguments are the same as `spire-server run`.
+Typically, you may want at least:
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-config`     | Path to a SPIRE server configuration file                          | server.conf    |
+| `-expandEnv`  | Expand environment $VARIABLES in the config file                   | false          |
+
 ### `spire-server experimental bundle show`
 
 (Experimental) Displays the bundle for the trust domain of the server as a JWKS document

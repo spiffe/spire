@@ -131,6 +131,12 @@ func (m *Manager) Initialize(ctx context.Context) error {
 }
 
 func (m *Manager) Run(ctx context.Context) error {
+	// Shut down any open streams in the upstream client when the manager
+	// has finished running.
+	if m.upstreamClient != nil {
+		defer func() { _ = m.upstreamClient.Close() }()
+	}
+
 	if err := m.notifyBundleLoaded(ctx); err != nil {
 		return err
 	}
