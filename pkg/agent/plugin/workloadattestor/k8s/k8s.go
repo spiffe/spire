@@ -2,8 +2,10 @@ package k8s
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -595,32 +597,29 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 	return nil, containerNotInPod
 }
 
-func getPodImages(pod *corev1.Pod) (string, string) {
-	var podRunningImages []string
-	var podInitImages []string
-
-	// collect running containers
-	for _, status := range pod.Status.ContainerStatuses {
-		if status.State.Running == nil {
-			continue
-		}
-		podRunningImages = append(podRunningImages, status.ImageID)
+func getPodImagesHash(containerStatusArray []corev1.ContainerStatus) string {
+	if len(containerStatusArray) == 0 {
+		return ""
 	}
 
-	// collect init containers
-	for _, status := range pod.Status.InitContainerStatuses {
-		podInitImages = append(podInitImages, status.ImageID)
+	var podImages []string
+
+	// collect container images
+	for _, status := range containerStatusArray {
+		podImages = append(podImages, status.ImageID)
 	}
 
 	// sort alphabetically
-	sort.Strings(podRunningImages)
-	sort.Strings(podInitImages)
+	sort.Strings(podImages)
 
-	return strings.Join(podRunningImages, ","), strings.Join(podInitImages, ",")
+	hash := sha256.Sum256([]byte(strings.Join(podImages, ",")))
+	return hex.EncodeToString(hash[:])
 }
 
 func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []*common.Selector {
-	podImages, podInitImages := getPodImages(pod)
+	podImagesHash := getPodImagesHash(pod.Status.ContainerStatuses)
+	podInitImagesHash := getPodImagesHash(pod.Status.InitContainerStatuses)
+
 	selectors := []*common.Selector{
 		makeSelector("sa:%s", pod.Spec.ServiceAccountName),
 		makeSelector("ns:%s", pod.Namespace),
@@ -629,8 +628,8 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
 		makeSelector("container-image:%s", status.Image),
-		makeSelector("pod-images:%s", podImages),
-		makeSelector("pod-init-images:%s", podInitImages),
+		makeSelector("pod-images:%s", podImagesHash),
+		makeSelector("pod-init-images:%s", podInitImagesHash),
 	}
 
 	for k, v := range pod.Labels {
