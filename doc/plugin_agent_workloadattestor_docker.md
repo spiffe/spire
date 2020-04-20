@@ -43,5 +43,16 @@ spire-server entry create \
     -parentID spiffe://example.org/host \
     -spiffeID spiffe://example.org/host/foo \
     -selector docker:label:com.example.name:foo
-    -selector docker:label:com.example.env:prod
+    -selector docker:label:com.example.cluster:prod
+```
+
+### Environment variables
+
+Example of an environment variable selector for the variable `ENVIRONMENT`
+matching a value of `prod`:
+```
+spire-server entry create \
+    -parentID spiffe://example.org/host \
+    -spiffeID spiffe://example.org/host/foo \
+    -selector docker:env:ENVIRONMENT=prod
 ```
