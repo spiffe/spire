@@ -70,7 +70,7 @@ func New() *Plugin {
 type dockerPluginConfig struct {
 	// DockerSocketPath is the location of the docker daemon socket (default: "unix:///var/run/docker.sock" on unix).
 	DockerSocketPath string `hcl:"docker_socket_path"`
-	// DockerVersion is the API version of the docker daemon. If not specified, is negotiated by the client.
+	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
 	DockerVersion string `hcl:"docker_version"`
 	// CgroupPrefix (DEPRECATED) is the cgroup prefix to look for in the cgroup entries (default: "/docker").
 	CgroupPrefix string `hcl:"cgroup_prefix"`
