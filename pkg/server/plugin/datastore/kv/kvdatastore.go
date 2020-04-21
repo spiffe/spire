@@ -233,8 +233,25 @@ func (p *Plugin) FetchRegistrationEntry(ctx context.Context, req *datastore.Fetc
 	}
 }
 
-func (p *Plugin) ListRegistrationEntries(ctx context.Context,
-	req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func (p *Plugin) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	if req.Pagination != nil && req.Pagination.PageSize == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	}
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
+	}
+
+	type selectorKey struct {
+		Type  string
+		Value string
+	}
+	var selectorSet map[selectorKey]struct{}
+	if req.BySelectors != nil {
+		selectorSet = make(map[selectorKey]struct{})
+		for _, s := range req.BySelectors.Selectors {
+			selectorSet[selectorKey{Type: s.Type, Value: s.Value}] = struct{}{}
+		}
+	}
 
 	for {
 		resp, err := p.listRegistrationEntriesOnce(ctx, req)
@@ -242,35 +259,33 @@ func (p *Plugin) ListRegistrationEntries(ctx context.Context,
 			return nil, err
 		}
 
+		// Not filtering by selectors? return what we've got
 		if req.BySelectors == nil ||
-			len(req.BySelectors.Selectors) == 0 ||
-			req.BySelectors.Match != datastore.BySelectors_MATCH_SUBSET {
+			len(req.BySelectors.Selectors) == 0 {
 			return resp, nil
 		}
 
-		// Subset matching currently requires us to filter out all registration
-		// entries whose selectors aren't a subset of the provided set.
-		// TODO: we could probably push this into SQL with some fancy "group by"
-		// count filtering.
-		type selectorKey struct {
-			Type  string
-			Value string
-		}
-		set := make(map[selectorKey]struct{})
-		for _, s := range req.BySelectors.Selectors {
-			set[selectorKey{Type: s.Type, Value: s.Value}] = struct{}{}
-		}
-		filtered := make([]*common.RegistrationEntry, 0, len(resp.Entries))
-	entryLoop:
+		matching := make([]*common.RegistrationEntry, 0, len(resp.Entries))
 		for _, entry := range resp.Entries {
-			for _, s := range entry.Selectors {
-				if _, ok := set[selectorKey{Type: s.Type, Value: s.Value}]; !ok {
-					continue entryLoop
+			matches := true
+			switch req.BySelectors.Match {
+			case datastore.BySelectors_MATCH_SUBSET:
+				for _, s := range entry.Selectors {
+					if _, ok := selectorSet[selectorKey{Type: s.Type, Value: s.Value}]; !ok {
+						matches = false
+						break
+					}
 				}
+			case datastore.BySelectors_MATCH_EXACT:
+				// The listing currently contains all entries that have AT LEAST
+				// the provided selectors. We only want those that match exactly.
+				matches = len(entry.Selectors) == len(selectorSet)
 			}
-			filtered = append(filtered, entry)
+			if matches {
+				matching = append(matching, entry)
+			}
 		}
-		resp.Entries = filtered
+		resp.Entries = matching
 
 		if len(resp.Entries) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
 			return resp, nil
