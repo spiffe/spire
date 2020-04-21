@@ -110,7 +110,8 @@ desiring metrics should delegate counter, gauge, timer, etc. creation to such pa
 
 ### Count in Aggregate
 
-Event count metrics should aggregate where possible to reduce burden on Observability infrastructure.
+Event count metrics should aggregate where possible to reduce burden on metric sinks, infrastructure,
+and consumers.
 That is, instead of:
 
 ```
