@@ -108,6 +108,41 @@ As much as possible, label names should be constants defined in the `telemetry` 
 specific metrics should be centrally defined in the `telemetry` package or its subpackages. Functions
 desiring metrics should delegate counter, gauge, timer, etc. creation to such packages.
 
+### Count in Aggregate
+
+Event count metrics should aggregate where possible to reduce burden on Observability infrastructure.
+That is, instead of:
+
+```
+for ... {
+  if ... {
+    foo.Bar = X
+    telemetry.FooUpdatedCount(1)
+  } else {
+    telemetry.FooNotUpdatedCount(1)
+  }
+}
+```
+
+Change to this instead:
+
+```
+updateCount := 0
+notUpdatedCount := 0
+for ... {
+  if ... {
+    foo.Bar = X
+    updateCount++
+  } else {
+    notUpdatedCount++
+  }
+}
+telemetry.FooUpdatedCount(updateCount)
+telemetry.FooNotUpdatedCount(notUpdatedCount)
+```
+
+### Singular Labels
+
 Labels added to metrics must be singular only; that is:
 
 - the value of a metrics label must not be an array or slice, and a label of some name must only be added
