@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.10.0] - 2020-04-15
+## [0.10.0] - 2020-04-22
 - Added support for JWT-SVID in nested SPIRE topologies (#1388, #1394, #1396, #1406, #1409, #1410, #1411, #1415, #1416, #1417, #1423, #1440, #1455, #1458, #1469, #1476)
 - Reduced database load under certain configurations (#1439)
 - Agent now proactively rotates workload SVIDs in response to registration updates (#1441, #1477)
