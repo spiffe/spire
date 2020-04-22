@@ -13,8 +13,8 @@ TSC members do not track day-to-day activity in the SPIFFE/SPIRE projects, and t
 ### Maintainer Responsibility
 SPIRE maintainers adhere to the [requirements and responsibilities][2] set forth in the SPIFFE governance document. They further pledge the following:
 * To act in the best interest of the project at all times
-* To ensure that project development and direction is a function of real user need
-* To never take an important action in maintainer capacity with hesitation
+* To ensure that project development and direction is a function of community needs
+* To never take any action while hesitant that it is the right action to take
 * To fulfill the responsibilities outlined in this document and its dependents
 
 ### Number of Maintainers
@@ -32,7 +32,7 @@ Unseating a maintainer is an extraordinary circumstance. A process to do so is n
 The CNCF MUST be notified of any changes in maintainership via the CNCF Service Desk.
 
 #### Onboarding a New Maintainer
-New SPIRE maintainers participate in an onboarding period during which they fulfill all code review and issue management responsibilities that are required for their role. The length of this onboarding period is variable, and is considered complete once both the existing maintainers and the to-be-appointed maintainer are comfortable. This process MUST be completed prior to the individual in question being named an official SPIRE maintainer.
+New SPIRE maintainers participate in an onboarding period during which they fulfill all code review and issue management responsibilities that are required for their role. The length of this onboarding period is variable, and is considered complete once both the existing maintainers and the candidate maintainer are comfortable with the candidate's competency in the responsibilities of maintainership. This process MUST be completed prior to the candidate being named an official SPIRE maintainer.
 
 The onboarding period is intended to ensure that the to-be-appointed maintainer is able/willing to take on the time requirements, familiar with SPIRE core logic and concepts, understands the overall system architecture and interactions that comprise it, and is able to work well with both the existing maintainers and the community.
 
@@ -41,9 +41,9 @@ The SPIRE project abides by the same [change review process][3] as the SPIFFE pr
 
 The exact definition/difference between "major" and "minor" changes is left to maintainer's discretion. Changes to particularly sensitive areas like the agent's cache manager, or the server's CA, are always good candidates for additional review. If in doubt, always ask for another review.
 
-If there is a disagreement amongst maintainers over a contribution or proposal, a vote may be called in which a simple majority wins. If any maintainer feels that the result of this vote critically endangers the project or its users, they have the right to raise the matter to the SPIFFE TSC. If this occurs, the contribution or proposal in question MUST be frozen until the SPIFFE TSC has made a decision. Do not take this route lightly (see [General Governance](general-governance)).
+If there is a disagreement amongst maintainers over a contribution or proposal, a vote may be called in which a simple majority wins. If any maintainer feels that the result of this vote critically endangers the project or its users, they have the right to raise the matter to the SPIFFE TSC. If this occurs, the contribution or proposal in question MUST be frozen until the SPIFFE TSC has made a decision. Do not take this route lightly (see [General Governance](#general-governance)).
 
-### Experience Matters
+### Security and Usability
 SPIRE solves a complicated problem, and is developed and maintained by people with deep expertise. SPIRE maintainers must ensure that new features, log and error messages, documentation and naming choices, are all easily accessible by those who may not be very familiar with SPIFFE or authentication systems in general.
 
 Decisions should favor "secure by default" and "it just works" anywhere possible, and in that order. The number of configurables should be minimized as much as possible, especially in cases where it's believed that many users would need to invoke it, or when their values (and extremes) could significantly affect SPIRE performance, reliability, or security.
@@ -55,7 +55,7 @@ The SPIFFE [governance document][1], its section on [review process][3], and the
 
 While reviewing, SPIRE maintainers should ask questions similar to the following:
 * Do I clearly understand the use case that this change is addressing?
-* Is the proposed change disruptive to other use cases that are currently supported?
+* Is the proposed change break any current user's expectations of behavior (i.e. regression)?
 * Is it possible for this change to be misconfigured? If it is, what is the impact?
 * Does the proposed change adhere to the SPIRE [compatibility guarantee][5]?
 * What are the failure modes? Can SPIRE keep running?
@@ -83,7 +83,7 @@ The first two releases that a new maintainer performs must be performed under th
 
 SPIRE releases are authorized by its maintainers. When doing so, they should carefully consider the proposed release commit. Is there confidence that the changes included do not represent a compatibility concern? Have the affected codepaths been sufficiently exercised, be it by automated test suite or manual testing? Is the maintainer free of general hesitation in releasing this commit, particularly with regards to safety and security? If the answer to any of these questions is "no", then do not release.
 
-A simple majority vote is required to authorize a SPIRE release at a specific commit hash. If any maintainer feels that the result of this vote critically endangers the project or its users, they have the right to raise the matter to the SPIFFE TSC. If this occurs, the release in question MUST be frozen until the SPIFFE TSC has made a decision. Do not take this route lightly (see [General Governance](general-governance)).
+A simple majority vote is required to authorize a SPIRE release at a specific commit hash. If any maintainer feels that the result of this vote critically endangers the project or its users, they have the right to raise the matter to the SPIFFE TSC. If this occurs, the release in question MUST be frozen until the SPIFFE TSC has made a decision. Do not take this route lightly (see [General Governance](#general-governance)).
 
 #### Checklist
 This section summarizes the steps necessary to execute a SPIRE release. Unless explicitly stated, the below steps must be executed in order.
