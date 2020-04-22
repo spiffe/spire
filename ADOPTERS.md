@@ -33,7 +33,7 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 * [Knox](https://github.com/pinterest/knox)
 * [Consul](https://github.com/hashicorp/consul)
 * [Hamlet](https://github.com/vmware/hamlet)
-* [Athenz](https://github.com/zlabjp/athenz)
+* [Athenz](https://github.com/yahoo/athenz)
 
 ## Case Studies/User Stories
 
