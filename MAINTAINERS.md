@@ -55,7 +55,7 @@ The SPIFFE [governance document][1], its section on [review process][3], and the
 
 While reviewing, SPIRE maintainers should ask questions similar to the following:
 * Do I clearly understand the use case that this change is addressing?
-* Is the proposed change break any current user's expectations of behavior (i.e. regression)?
+* Does the proposed change break any current user's expectations of behavior (i.e. regression)?
 * Is it possible for this change to be misconfigured? If it is, what is the impact?
 * Does the proposed change adhere to the SPIRE [compatibility guarantee][5]?
 * What are the failure modes? Can SPIRE keep running?
