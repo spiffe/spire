@@ -70,7 +70,7 @@ func New() *Plugin {
 type dockerPluginConfig struct {
 	// DockerSocketPath is the location of the docker daemon socket (default: "unix:///var/run/docker.sock" on unix).
 	DockerSocketPath string `hcl:"docker_socket_path"`
-	// DockerVersion is the API version of the docker daemon (default: "1.40").
+	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
 	DockerVersion string `hcl:"docker_version"`
 	// CgroupPrefix (DEPRECATED) is the cgroup prefix to look for in the cgroup entries (default: "/docker").
 	CgroupPrefix string `hcl:"cgroup_prefix"`
@@ -171,8 +171,11 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	if config.DockerSocketPath != "" {
 		opts = append(opts, dockerclient.WithHost(config.DockerSocketPath))
 	}
-	if config.DockerVersion != "" {
+	switch {
+	case config.DockerVersion != "":
 		opts = append(opts, dockerclient.WithVersion(config.DockerVersion))
+	default:
+		opts = append(opts, dockerclient.WithAPIVersionNegotiation())
 	}
 	p.docker, err = dockerclient.NewClientWithOpts(opts...)
 	if err != nil {
