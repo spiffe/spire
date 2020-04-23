@@ -280,7 +280,8 @@ Checks SPIRE server's health.
 
 ### `spire-server validate`
 
-Validates a SPIRE server configuration file.
+Validates a SPIRE server configuration file.  Arguments are the same as `spire-server run`.
+Typically, you may want at least:
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|

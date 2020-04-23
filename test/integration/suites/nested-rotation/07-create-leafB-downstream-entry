@@ -1,0 +1,13 @@
+#!/bin/bash
+
+log-debug "creating leafB downstream registration entry..."
+# Create downstream registration entry on itermediateB for leafB-server
+docker-compose exec -T intermediateB-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint intermediateB/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/leafB" \
+    -selector "docker:label:org.integration.name:leafB" \
+    -downstream \
+    -ttl 90
+
+check-synced-entry "intermediateB-agent" "spiffe://domain.test/leafB"

@@ -43,6 +43,7 @@ func builtin(p *PCAPlugin) catalog.Plugin {
 // PCAPluginConfiguration provides configuration context for the plugin
 type PCAPluginConfiguration struct {
 	Region                  string `hcl:"region" json:"region"`
+	Endpoint                string `hcl:"endpoint" json:"endpoint"`
 	CertificateAuthorityARN string `hcl:"certificate_authority_arn" json:"certificate_authority_arn"`
 	SigningAlgorithm        string `hcl:"signing_algorithm" json:"signing_algorithm"`
 	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn"`

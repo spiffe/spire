@@ -1,0 +1,49 @@
+#!/bin/bash
+
+NUMCHECKS=15
+CHECKINTERVAL=6
+
+validateX509SVID() {
+  # Write svid on disk
+  docker-compose exec -u 1001 -T $1 \
+      /opt/spire/bin/spire-agent api fetch x509 \
+      -socketPath /opt/spire/sockets/workload_api.sock \
+      -write /tmp || fail-now "x509-SVID check failed"
+
+  # Copy SVID
+  docker cp $(docker-compose ps -q $1):/tmp/svid.0.pem - | docker cp - $(docker-compose ps -q $2):/opt/
+
+  docker-compose exec -u 1001 -T $2 \
+      /opt/spire/bin/spire-agent api fetch x509 \
+      -socketPath /opt/spire/sockets/workload_api.sock \
+      -write /tmp || fail-now "x509-SVID check failed"
+
+  docker-compose exec $2 openssl verify -verbose -CAfile /tmp/bundle.0.pem -untrusted /opt/svid.0.pem /opt/svid.0.pem
+}
+
+validateJWTSVID() {
+   # Fetch JWT-SVID and extract token
+  token=$(docker-compose exec -u 1001 -T $1 \
+      /opt/spire/bin/spire-agent api fetch jwt -audience testIt -socketPath /opt/spire/sockets/workload_api.sock | sed -n '2p') || fail-now "JWT-SVID check failed"
+
+  # Validate token
+  docker-compose exec -u 1001 -T $2 \
+      /opt/spire/bin/spire-agent api validate jwt -audience testIt  -svid "${token}" \
+        -socketPath /opt/spire/sockets/workload_api.sock
+}
+
+for ((i=1;i<=NUMCHECKS;i++)); do
+    log-info "checking intermediate X509-SVID ($i of $NUMCHECKS)..."
+    validateX509SVID "intermediateA-agent" "intermediateB-agent"
+
+    log-info "checking leaf X509-SVID ($i of $NUMCHECKS)..."
+    validateX509SVID "leafA-agent" "leafB-agent"
+
+    log-info "checking intermediate JWT-SVID ($i of $NUMCHECKS)..."
+    validateJWTSVID "intermediateA-agent" "intermediateB-agent"
+
+    log-info "checking leaf JWT-SVID ($i of $NUMCHECKS)..."
+    validateJWTSVID "leafA-agent" "leafB-agent"
+
+    sleep "${CHECKINTERVAL}"
+done

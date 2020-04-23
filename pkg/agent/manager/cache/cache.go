@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -29,8 +30,8 @@ type WorkloadUpdate struct {
 	FederatedBundles map[string]*bundleutil.Bundle
 }
 
-// Update holds information for an update to the cache.
-type Update struct {
+// Update holds information for an entries update to the cache.
+type UpdateEntries struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by
 	// trust domain id.
 	Bundles map[string]*bundleutil.Bundle
@@ -38,7 +39,10 @@ type Update struct {
 	// RegistrationEntries is a set of ALL registration entries available to the
 	// agent, keyed by registration entry id.
 	RegistrationEntries map[string]*common.RegistrationEntry
+}
 
+// Update holds information for an SVIDs update to the cache.
+type UpdateSVIDs struct {
 	// X509SVIDs is a set of updated X509-SVIDs that should be merged into
 	// the cache, keyed by registration entry id.
 	X509SVIDs map[string]*X509SVID
@@ -105,8 +109,19 @@ type Cache struct {
 	// selectors holds the selector indices, keyed by a selector key
 	selectors map[selector]*selectorIndex
 
+	// staleEntries holds stale registration entries
+	staleEntries map[string]bool
+
 	// bundles holds the trust bundles, keyed by trust domain id (i.e. "spiffe://domain.test")
 	bundles map[string]*bundleutil.Bundle
+}
+
+// StaleEntry holds stale entries with SVIDs expiration time
+type StaleEntry struct {
+	// Entry stale registration entry
+	Entry *common.RegistrationEntry
+	// SVIDs expiration time
+	ExpiresAt time.Time
 }
 
 func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle, metrics telemetry.Metrics) *Cache {
@@ -119,6 +134,7 @@ func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle, metrics t
 		trustDomainID: trustDomainID,
 		records:       make(map[string]*cacheRecord),
 		selectors:     make(map[selector]*selectorIndex),
+		staleEntries:  make(map[string]bool),
 		bundles: map[string]*bundleutil.Bundle{
 			trustDomainID: bundle,
 		},
@@ -174,7 +190,12 @@ func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscri
 	return sub
 }
 
-func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID)) {
+// UpdateEntries updates the cache with the provided registration entries and bundles and
+// notifies impacted subscribers. The checkSVID callback, if provided, is used to determine
+// if the SVID for the entry is stale, or otherwise in need of rotation. Entries marked stale
+// through the checkSVID callback are returned from GetStaleEntries() until the SVID is
+// updated through a call to UpdateSVIDs.
+func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID) bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -243,6 +264,8 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 			c.delSelectorIndicesRecord(selRem, record)
 			notifySet.MergeSet(selRem)
 			delete(c.records, id)
+			// Remove stale entry since, registration entry is no longer on cache.
+			delete(c.staleEntries, id)
 		}
 	}
 
@@ -280,32 +303,24 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 		// Determine if something related to this record changed outside of the
 		// selectors and if so, make sure subscribers for all entry selectors
 		// are notified.
-		svid, svidUpdated := update.X509SVIDs[newEntry.EntryId]
-		if svidUpdated {
-			record.svid = svid
-		}
-		metaUpdated := federatedBundlesChanged || svidUpdated
-		if metaUpdated {
+		if federatedBundlesChanged {
 			notifySet.Merge(newEntry.Selectors...)
 		}
 
 		// Invoke the svid checker callback for this record
-		if checkSVID != nil {
-			checkSVID(existingEntry, newEntry, record.svid)
+		if checkSVID != nil && checkSVID(existingEntry, newEntry, record.svid) {
+			c.staleEntries[newEntry.EntryId] = true
 		}
 
 		// Log all the details of the update to the DEBUG log
 		//
 		// TODO: This is a bit verbose and could be trimmed in the future
 		// when the cache implementation has stabilized.
-		if len(selAdd) > 0 || len(selRem) > 0 || len(fedAdd) > 0 || len(fedRem) > 0 || svidUpdated {
+		if len(selAdd) > 0 || len(selRem) > 0 || len(fedAdd) > 0 || len(fedRem) > 0 {
 			log := c.log.WithFields(logrus.Fields{
 				telemetry.Entry:    newEntry.EntryId,
 				telemetry.SPIFFEID: newEntry.SpiffeId,
 			})
-			if svidUpdated {
-				log = log.WithField(telemetry.SVIDUpdated, svidUpdated)
-			}
 			if len(selAdd) > 0 {
 				log = log.WithField(telemetry.SelectorsAdded, len(selAdd))
 			}
@@ -335,6 +350,65 @@ func (c *Cache) Update(update *Update, checkSVID func(*common.RegistrationEntry,
 	} else {
 		c.notifyBySelectors(notifySet)
 	}
+}
+
+func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Allocate a set of selectors that
+	notifySet, selSetDone := allocSelectorSet()
+	defer selSetDone()
+
+	// Add/update records for registration entries in the update
+	for entryID, svid := range update.X509SVIDs {
+		record, existingEntry := c.records[entryID]
+		if !existingEntry {
+			c.log.WithField(telemetry.RegistrationID, entryID).Error("entry not found")
+			continue
+		}
+
+		record.svid = svid
+		notifySet.Merge(record.entry.Selectors...)
+		log := c.log.WithFields(logrus.Fields{
+			telemetry.Entry:    record.entry.EntryId,
+			telemetry.SPIFFEID: record.entry.SpiffeId,
+		})
+		log.Debug("SVID updated")
+
+		// Registration entry is updated, remove it from stale map
+		delete(c.staleEntries, entryID)
+	}
+
+	c.notifyBySelectors(notifySet)
+}
+
+// GetStaleEntries obtains a list of stale entries
+func (c *Cache) GetStaleEntries() []*StaleEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var staleEntries []*StaleEntry
+	for entryID := range c.staleEntries {
+		cachedEntry, ok := c.records[entryID]
+		if !ok {
+			c.log.WithField(telemetry.RegistrationID, entryID).Debug("Stale marker found for unknown entry. Please fill a bug")
+			delete(c.staleEntries, entryID)
+			continue
+		}
+
+		var expiresAt time.Time
+		if cachedEntry.svid != nil {
+			expiresAt = cachedEntry.svid.Chain[0].NotAfter
+		}
+
+		staleEntries = append(staleEntries, &StaleEntry{
+			Entry:     cachedEntry.entry,
+			ExpiresAt: expiresAt,
+		})
+	}
+
+	return staleEntries
 }
 
 func (c *Cache) updateOrCreateRecord(newEntry *common.RegistrationEntry) (*cacheRecord, *common.RegistrationEntry) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -17,9 +18,10 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
+	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/cli"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -33,6 +35,8 @@ import (
 )
 
 const (
+	commandName = "run"
+
 	defaultConfigPath         = "conf/server/server.conf"
 	defaultSocketPath         = "/tmp/spire-registration.sock"
 	defaultLogLevel           = "INFO"
@@ -121,49 +125,68 @@ type federatesWithConfig struct {
 	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
+func NewRunCommand(logOptions []log.Option) cli.Command {
+	return newRunCommand(common_cli.DefaultEnv, logOptions)
+}
+
+func newRunCommand(env *common_cli.Env, logOptions []log.Option) *Command {
+	return &Command{
+		env:        env,
+		LogOptions: logOptions,
+	}
+}
+
 // Run Command struct
 type Command struct {
 	LogOptions []log.Option
+	env        *common_cli.Env
 }
 
-//Help prints the server cmd usage
-func (*Command) Help() string {
-	_, err := parseFlags([]string{"-h"})
+// Help prints the server cmd usage
+func (cmd *Command) Help() string {
+	return Help(commandName, cmd.env.Stderr)
+}
+
+// Help is a standalone function that prints a help message to writer.
+// It is used by both the run and validate commands, so they can share flag usage messages.
+func Help(name string, writer io.Writer) string {
+	_, err := parseFlags(name, []string{"-h"}, writer)
 	return err.Error()
 }
 
-// Run the SPIFFE Server
-func (cmd *Command) Run(args []string) int {
+func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer) (*server.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
-	cliInput, err := parseFlags(args)
+	cliInput, err := parseFlags(name, args, output)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return nil, err
 	}
 
 	// Load and parse the config file using either the default
 	// path or CLI-specified value
 	fileInput, err := ParseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return nil, err
 	}
 
 	input, err := mergeInput(fileInput, cliInput)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return nil, err
 	}
 
-	c, err := NewServerConfig(input, cmd.LogOptions)
+	return NewServerConfig(input, logOptions)
+}
+
+// Run the SPIFFE Server
+func (cmd *Command) Run(args []string) int {
+	c, err := LoadConfig(commandName, args, cmd.LogOptions, cmd.env.Stderr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(cmd.env.Stderr, err)
 		return 1
 	}
 
 	// Set umask before starting up the server
-	cli.SetUmask(c.Log)
+	common_cli.SetUmask(c.Log)
 
 	s := server.New(*c)
 
@@ -222,8 +245,9 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	return c, nil
 }
 
-func parseFlags(args []string) (*serverConfig, error) {
-	flags := flag.NewFlagSet("run", flag.ContinueOnError)
+func parseFlags(name string, args []string, output io.Writer) (*serverConfig, error) {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.SetOutput(output)
 	c := &serverConfig{}
 
 	flags.StringVar(&c.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
