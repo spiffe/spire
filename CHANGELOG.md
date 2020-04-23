@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.10.0] - 2020-04-22
+- Added support for JWT-SVID in nested SPIRE topologies (#1388, #1394, #1396, #1406, #1409, #1410, #1411, #1415, #1416, #1417, #1423, #1440, #1455, #1458, #1469, #1476)
+- Reduced database load under certain configurations (#1439)
+- Agent now proactively rotates workload SVIDs in response to registration updates (#1441, #1477)
+- Removed redundant telemetry counter in agent cache manager (#1445)
+- Added environment variable config templating support (#1453)
+- Added CreateEntryIfNotExists RPC to Registration API (#1464)
+- The X.509 CA key now defaults to EC P-256 instead of EC P-384 (#1468)
+- Added `validate` subcommand to the SPIRE Server and SPIRE Agent CLIs to validate the configuration file (#1471, #1489)
+- Removed deprecated `ttl` configurable from upstreamauthority plugins (#1482)
+- Fixed a bug which resulted in incorrect SHA for certain types of workloads (#1405)
+- OIDC Discovery Provider now supports listening on a Unix Domain Socket (#1408)
+- Fixed a bug that could lead to agent eviction if a crash occurred during agent SVID rotation (#1399)
+- The `upstream_bundle` configurable now defaults to true, and is marked as deprecated (#1404)
+- OIDC Discovery Provider and the Kubernetes Workload Registrar release binaries are now available via the `spire-extras` tarball (#1424)
+- Introduced new plugin type UpstreamAuthority, which supports both X509-SVID and JWT-SVID as well as the ability to push upstream changes into SPIRE Server (#1388, #1394, #1406, #1455)
+- AWS PCA, AWS Secrets, Disk and SPIRE UpstreamCA plugins have been ported to the UpstreamAuthority type (#1411, #1409, #1410, #1415)
+- Introduced a new RPC `PushJWTKeyUpstream` in the Node API for publishing JWT-SVID signing keys from downstream servers (#1416)
+- Introduced a new RPC `FetchBundle` in the Node API for fetching an up-to-date bundle (#1458)
+- AWS PCA UpstreamAuthority plugin endpoint is now configurable (#1498)
+- The UpstreamCA plugin type is now marked as deprecated in favor of the UpstreamAuthority plugin type (#1406)
+
 ## [0.9.3] - 2020-03-05
 - Significantly reduced the server's database load (#1350, #1355, #1397)
 - Improved consistency in SVID propagation time for some cases (#1352)
