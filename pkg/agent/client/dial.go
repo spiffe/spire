@@ -86,8 +86,14 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		grpc.WithBlock(),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial %v: %v", config.Address, err)
+	switch {
+	case err == nil:
+	case errors.Is(err, context.Canceled):
+		return nil, fmt.Errorf("failed to dial %s: canceled", config.Address)
+	case errors.Is(err, context.DeadlineExceeded):
+		return nil, fmt.Errorf("failed to dial %s: timed out", config.Address)
+	default:
+		return nil, fmt.Errorf("failed to dial %s: %v", config.Address, err)
 	}
 	return client, nil
 }
