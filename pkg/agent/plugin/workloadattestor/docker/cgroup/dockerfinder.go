@@ -12,7 +12,7 @@ const (
 	wildcardToken = "*"
 	// A regex expression that expresses wildcardToken
 	regexpWildcard = "[^\\/]*"
-	// A refex expression that matches non standard containerIDToken
+	// A regex expression that matches non standard containerIDToken
 	altContainerIDToken = "docker-<id>.scope"
 
 	// A token to match, and extract as a container ID, an entire path component in a
