@@ -12,12 +12,16 @@ const (
 	wildcardToken = "*"
 	// A regex expression that expresses wildcardToken
 	regexpWildcard = "[^\\/]*"
+	// A refex expression that matches non standard containerIDToken
+	altContainerIDToken = "docker-<id>.scope"
 
 	// A token to match, and extract as a container ID, an entire path component in a
 	// "/" delimited path
 	containerIDToken = "<id>"
 	// A regex expression that expresses containerIDToken
 	regexpContainerID = "([^\\/]*)"
+	// A regex expression that expresses non-standard containerIDToken
+	regexpAltContainerID = "docker-([0-9a-f]+).scope"
 	// index for slice returned by FindStringSubmatch
 	submatchIndex = 1
 )
@@ -38,6 +42,9 @@ func newContainerIDFinder(pattern string) (ContainerIDFinder, error) {
 		case containerIDToken:
 			idTokenCount++
 			elems[i] = regexpContainerID
+		case altContainerIDToken:
+			idTokenCount++
+			elems[i] = regexpAltContainerID
 		default:
 			elems[i] = regexp.QuoteMeta(e)
 		}
@@ -101,7 +108,7 @@ func (f *containerIDFinder) FindContainerID(cgroup string) (string, bool) {
 	if len(matches) == 0 {
 		return "", false
 	}
-	return matches[submatchIndex], true
+	return string(matches[submatchIndex]), true
 }
 
 type containerIDFinders struct {
