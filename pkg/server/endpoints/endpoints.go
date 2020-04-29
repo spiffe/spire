@@ -258,6 +258,8 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 
 			Certificates: certs,
 			ClientCAs:    roots,
+
+			MinVersion: tls.VersionTLS12,
 		}
 		return c, nil
 	}
