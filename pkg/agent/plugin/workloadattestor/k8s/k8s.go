@@ -2,10 +2,8 @@ package k8s
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -597,28 +595,25 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 	return nil, containerNotInPod
 }
 
-func getPodImagesHash(containerStatusArray []corev1.ContainerStatus) string {
-	if len(containerStatusArray) == 0 {
-		return ""
-	}
-
+func getPodImages(containerStatusArray []corev1.ContainerStatus) ([]string, string) {
+	podImagesCount := make(map[string]int)
 	var podImages []string
 
 	// collect container images
 	for _, status := range containerStatusArray {
-		podImages = append(podImages, status.ImageID)
+		podImagesCount[status.ImageID]++
 	}
 
-	// sort alphabetically
-	sort.Strings(podImages)
+	for image := range podImagesCount {
+		podImages = append(podImages, image+":count="+strconv.Itoa(podImagesCount[image]))
+	}
 
-	hash := sha256.Sum256([]byte(strings.Join(podImages, ",")))
-	return hex.EncodeToString(hash[:])
+	return podImages, strconv.Itoa(len(containerStatusArray))
 }
 
 func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []*common.Selector {
-	podImagesHash := getPodImagesHash(pod.Status.ContainerStatuses)
-	podInitImagesHash := getPodImagesHash(pod.Status.InitContainerStatuses)
+	podImages, podContainerCount := getPodImages(pod.Status.ContainerStatuses)
+	podInitImages, podInitContainerCount := getPodImages(pod.Status.InitContainerStatuses)
 
 	selectors := []*common.Selector{
 		makeSelector("sa:%s", pod.Spec.ServiceAccountName),
@@ -628,8 +623,14 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
 		makeSelector("container-image:%s", status.Image),
-		makeSelector("pod-images:%s", podImagesHash),
-		makeSelector("pod-init-images:%s", podInitImagesHash),
+		makeSelector("pod-container-count:%s", podContainerCount),
+		makeSelector("pod-init-container-count:%s", podInitContainerCount),
+	}
+	for _, podImage := range podImages {
+		selectors = append(selectors, makeSelector("pod-image:%s", podImage))
+	}
+	for _, podInitImage := range podInitImages {
+		selectors = append(selectors, makeSelector("pod-init-image:%s", podInitImage))
 	}
 
 	for k, v := range pod.Labels {
