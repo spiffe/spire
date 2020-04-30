@@ -164,6 +164,7 @@ func (s *EndpointsTestSuite) TestGetTLSConfig() {
 	s.Assert().Equal(tls.VerifyClientCertIfGiven, tlsConfig.ClientAuth)
 	s.Assert().Equal(certs, tlsConfig.Certificates)
 	s.Assert().Equal(pool, tlsConfig.ClientCAs)
+	s.Assert().EqualValues(tls.VersionTLS12, tlsConfig.MinVersion)
 }
 
 // configureBundle sets the bundle in the datastore, and returns the served
@@ -256,13 +257,14 @@ func (s *EndpointsTestSuite) TestClientCertificateVerification() {
 	// uses the supplied client certificate, if any. It gives up the 2 seconds
 	// for the server to start listening, which is generous. Any non-dial
 	// related errors (i.e. TLS handshake failures) are returned.
-	try := func(cert *tls.Certificate) error {
+	try := func(cert *tls.Certificate, maxVersion uint16) error {
 		tlsConfig := &tls.Config{
 			RootCAs: rootCAs,
 			// this override is just so we don't have to set up spiffe peer
 			// validation of the server by the client, which is outside the
 			// scope of this test.
 			ServerName: "just-for-validation",
+			MaxVersion: maxVersion,
 		}
 		if cert != nil {
 			tlsConfig.Certificates = append(tlsConfig.Certificates, *cert)
@@ -290,18 +292,46 @@ func (s *EndpointsTestSuite) TestClientCertificateVerification() {
 		return errors.New("unreachable")
 	}
 
-	err = try(nil)
-	s.Require().NoError(err, "client should be allowed if no cert presented")
-
-	err = try(&tls.Certificate{
-		Certificate: [][]byte{clientCert.Raw},
-		PrivateKey:  clientKey,
-	})
-	s.Require().NoError(err, "client should be allowed if proper cert presented")
-
-	err = try(&tls.Certificate{
-		Certificate: [][]byte{otherClientCert.Raw},
-		PrivateKey:  otherClientKey,
-	})
-	s.Require().Error(err, "client should NOT be allowed if cert presented is not trusted")
+	for _, test := range []struct {
+		msg        string
+		expectErr  bool
+		cert       tls.Certificate
+		maxVersion uint16
+	}{
+		{
+			msg: "client should be allowed if no cert presented",
+		},
+		{
+			msg: "client should be allowed if proper cert presented",
+			cert: tls.Certificate{
+				Certificate: [][]byte{clientCert.Raw},
+				PrivateKey:  clientKey,
+			},
+		},
+		{
+			msg:       "client should NOT be allowed if cert presented is not trusted",
+			expectErr: true,
+			cert: tls.Certificate{
+				Certificate: [][]byte{otherClientCert.Raw},
+				PrivateKey:  otherClientKey,
+			},
+		},
+		{
+			msg:        "TLS version 1.1 should be rejected",
+			expectErr:  true,
+			maxVersion: tls.VersionTLS11,
+		},
+		{
+			msg:        "TLS version 1.0 should be rejected",
+			expectErr:  true,
+			maxVersion: tls.VersionTLS10,
+		},
+	} {
+		err := try(&test.cert, test.maxVersion)
+		if test.expectErr {
+			s.Require().Error(err, test.msg)
+		} else {
+			s.Require().NoError(err, test.msg)
+		}
+	}
 }
