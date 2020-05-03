@@ -595,25 +595,19 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 	return nil, containerNotInPod
 }
 
-func getPodImages(containerStatusArray []corev1.ContainerStatus) ([]string, string) {
-	podImagesCount := make(map[string]int)
-	var podImages []string
+func getPodImages(containerStatusArray []corev1.ContainerStatus) map[string]bool {
+	podImages := make(map[string]bool)
 
 	// collect container images
 	for _, status := range containerStatusArray {
-		podImagesCount[status.ImageID]++
+		podImages[status.ImageID] = true
 	}
-
-	for image := range podImagesCount {
-		podImages = append(podImages, image+":count="+strconv.Itoa(podImagesCount[image]))
-	}
-
-	return podImages, strconv.Itoa(len(containerStatusArray))
+	return podImages
 }
 
 func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []*common.Selector {
-	podImages, podContainerCount := getPodImages(pod.Status.ContainerStatuses)
-	podInitImages, podInitContainerCount := getPodImages(pod.Status.InitContainerStatuses)
+	podImages := getPodImages(pod.Status.ContainerStatuses)
+	podInitImages := getPodImages(pod.Status.InitContainerStatuses)
 
 	selectors := []*common.Selector{
 		makeSelector("sa:%s", pod.Spec.ServiceAccountName),
@@ -623,13 +617,13 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
 		makeSelector("container-image:%s", status.Image),
-		makeSelector("pod-container-count:%s", podContainerCount),
-		makeSelector("pod-init-container-count:%s", podInitContainerCount),
+		makeSelector("pod-image-count:%s", strconv.Itoa(len(podImages))),
+		makeSelector("pod-init-image-count:%s", strconv.Itoa(len(podInitImages))),
 	}
-	for _, podImage := range podImages {
+	for podImage := range podImages {
 		selectors = append(selectors, makeSelector("pod-image:%s", podImage))
 	}
-	for _, podInitImage := range podInitImages {
+	for podInitImage := range podInitImages {
 		selectors = append(selectors, makeSelector("pod-init-image:%s", podInitImage))
 	}
 
