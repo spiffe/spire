@@ -555,7 +555,11 @@ func (h *Handler) FetchBundle(ctx context.Context, req *node.FetchBundleRequest)
 	}, nil
 }
 
-func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
+func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ context.Context, err error) {
+	counter := telemetry_server.StartNodeAPIAuthorizeCall(h.c.Metrics, fullMethod)
+	defer counter.Done(&err)
+	log := h.c.Log.WithField(telemetry.Method, fullMethod)
+
 	switch fullMethod {
 	// no authn/authz is required for attestation
 	case "/spire.api.node.Node/Attest":
@@ -565,13 +569,12 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		"/spire.api.node.Node/FetchJWTSVID":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
-			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Agent SVID is required for this request")
+			log.WithError(err).Error("Agent SVID is required for this request")
 			return nil, status.Error(codes.Unauthenticated, "agent SVID is required for this request")
 		}
 
 		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
-			h.c.Log.WithError(err).WithFields(logrus.Fields{
-				telemetry.Method:  fullMethod,
+		    log.WithError(err).WithFields(logrus.Fields{
 				telemetry.AgentID: tryGetSpiffeIDFromCert(peerCert),
 			}).Error("Agent is not attested or no longer valid")
 			return nil, status.Error(codes.PermissionDenied, "agent is not attested or no longer valid")
@@ -582,12 +585,12 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		"/spire.api.node.Node/PushJWTKeyUpstream":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
-			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Downstream SVID is required for this request")
+			log.WithError(err).Error("Downstream SVID is required for this request")
 			return nil, status.Error(codes.Unauthenticated, "downstream SVID is required for this request")
 		}
 		entry, err := h.validateDownstreamSVID(ctx, peerCert)
 		if err != nil {
-			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Peer is not a valid downstream SPIRE server")
+			log.WithError(err).Error("Peer is not a valid downstream SPIRE server")
 			return nil, status.Error(codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 		}
 
@@ -596,7 +599,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	case "/spire.api.node.Node/FetchBundle":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
-			h.c.Log.WithError(err).WithField(telemetry.Method, fullMethod).Error("Client certificate required for this request")
+			log.WithError(err).Error("Client certificate required for this request")
 			return nil, status.Error(codes.Unauthenticated, "client certificate required for this request")
 		}
 
@@ -604,7 +607,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	// method not handled
 	default:
 		err := status.Errorf(codes.PermissionDenied, "authorization not implemented for method %q", fullMethod)
-		h.c.Log.WithField(telemetry.Method, fullMethod).Error("Authorization not implemented for method")
+		log.Error("Authorization not implemented for method")
 		return nil, err
 	}
 
