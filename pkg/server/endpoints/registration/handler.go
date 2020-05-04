@@ -848,7 +848,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ conte
 
 	callerID, err := authorizeCaller(ctx, h.getDataStore())
 	if err != nil {
-	  log.WithError(err).Error("Failed to authorize caller")
+		log.WithError(err).Error("Failed to authorize caller")
 		return nil, err
 	}
 	if callerID != "" {

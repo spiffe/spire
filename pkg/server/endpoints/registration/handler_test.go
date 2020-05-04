@@ -1320,7 +1320,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 	catalog.SetDataStore(s.ds)
 	log, _ := test.NewNullLogger()
 	handler := &Handler{
-		Log: log,
+		Log:     log,
 		Catalog: catalog,
 		Metrics: telemetry.Blackhole{},
 	}

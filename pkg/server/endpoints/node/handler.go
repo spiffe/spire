@@ -574,7 +574,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ conte
 		}
 
 		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
-		    log.WithError(err).WithFields(logrus.Fields{
+			log.WithError(err).WithFields(logrus.Fields{
 				telemetry.AgentID: tryGetSpiffeIDFromCert(peerCert),
 			}).Error("Agent is not attested or no longer valid")
 			return nil, status.Error(codes.PermissionDenied, "agent is not attested or no longer valid")
