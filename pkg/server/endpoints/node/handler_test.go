@@ -1449,6 +1449,9 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, expectedSPI
 	defer expectedCounter.Done(nil)
 	telemetry_common.AddAttestorType(expectedCounter, req.AttestationData.Type)
 
+	authorizeCounter := telemetry_server.StartNodeAPIAuthorizeCall(s.expectedMetrics, "_spire_api_node_Node_Attest")
+	defer authorizeCounter.Done(nil)
+
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 	stream, err := s.unattestedClient.Attest(ctx)
@@ -1490,6 +1493,9 @@ func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, errorCode c
 	}
 	expectErr := status.Error(errorCode, "")
 	defer expectedCounter.Done(&expectErr)
+
+	authorizeCounter := telemetry_server.StartNodeAPIAuthorizeCall(s.expectedMetrics, "_spire_api_node_Node_Attest")
+	defer authorizeCounter.Done(nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
