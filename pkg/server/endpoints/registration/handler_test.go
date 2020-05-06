@@ -1319,7 +1319,11 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(s.ds)
 	log, _ := test.NewNullLogger()
-	handler := &Handler{Log: log, Catalog: catalog}
+	handler := &Handler{
+		Log:     log,
+		Catalog: catalog,
+		Metrics: telemetry.Blackhole{},
+	}
 
 	makeTLSPeer := func(spiffeID string) *peer.Peer {
 		cert := &x509.Certificate{}

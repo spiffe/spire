@@ -439,6 +439,8 @@ const (
 // Operation metric tags or labels that are typically a specific
 // operation or API
 const (
+	// AuthorizeCall functionality related to authorizing an incoming call
+	AuthorizeCall = "authorize_call"
 
 	// CreateFederatedBundle functionality related to creating a federated bundle
 	CreateFederatedBundle = "create_federated_bundle"
