@@ -332,11 +332,11 @@ func (p *Plugin) getContainerIDFromCGroups(pid int32) (string, error) {
 		}
 
 		parts := strings.Split(groupPath[idx:], "/")
-		if len(parts) < 5 {
+		if len(parts) < 4 {
 			log.Printf("Kube pod entry found, but without container id: %s", cgroup.GroupPath)
 			continue
 		}
-		id := strings.TrimSuffix(parts[4], ".scope")
+		id := strings.TrimSuffix(parts[len(parts)-1], ".scope")
 		// Trim the id of any container runtime prefixes. Ex "docker-" or "crio-"
 		dash := strings.Index(id, "-")
 		if dash > -1 {
