@@ -24,7 +24,7 @@ message Entry {
     // workload attestation.
     repeated spire.types.Selector selectors = 4;
 
-    // The time to live for identities issued for this entry.
+    // The time to live for identities issued for this entry (in seconds).
     int32 ttl = 5;
 
     // A list of trust domains the identity described by this entry federates

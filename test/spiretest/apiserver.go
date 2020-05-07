@@ -20,7 +20,10 @@ func NewAPIServer(t *testing.T, registerFn func(s *grpc.Server), contextFn func(
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
-	go server.Serve(listener)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
 
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
 	if err != nil {
@@ -31,6 +34,7 @@ func NewAPIServer(t *testing.T, registerFn func(s *grpc.Server), contextFn func(
 	done := func() {
 		assert.NoError(t, conn.Close())
 		server.Stop()
+		assert.NoError(t, <-errCh)
 	}
 	return conn, done
 }
