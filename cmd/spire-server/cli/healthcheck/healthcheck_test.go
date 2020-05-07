@@ -86,7 +86,7 @@ func (s *HealthCheckSuite) TestFailsIfBundleCannotBeFetchedVerbose() {
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Fetching bundle via Registration API...
 `, s.stdout.String(), "stdout")
-	s.Equal(`Failed to fetch bundle: rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = "transport: Error while dialing dial unix doesnotexist.sock: connect: no such file or directory"
+	s.Equal(`Failed to fetch bundle: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix doesnotexist.sock: connect: no such file or directory"
 Server is unhealthy: unable to fetch bundle
 `, s.stderr.String(), "stderr")
 }

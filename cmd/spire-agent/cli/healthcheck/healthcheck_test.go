@@ -81,7 +81,7 @@ func (s *HealthCheckSuite) TestFailsOnUnavailableVerbose() {
 	code := s.cmd.Run([]string{"--socketPath", "doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Contacting Workload API...
-Workload API returned rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = "transport: Error while dialing dial unix doesnotexist.sock: connect: no such file or directory"
+Workload API returned rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix doesnotexist.sock: connect: no such file or directory"
 `, s.stdout.String(), "stdout")
 	s.Equal("Agent is unavailable.\n", s.stderr.String(), "stderr")
 }
