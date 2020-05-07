@@ -35,7 +35,7 @@ type Entry struct {
 	// node attestation. Otherwise, these selectors represent those produced by
 	// workload attestation.
 	Selectors []*Selector `protobuf:"bytes,4,rep,name=selectors,proto3" json:"selectors,omitempty"`
-	// The time to live for identities issued for this entry.
+	// The time to live for identities issued for this entry (in seconds).
 	Ttl int32 `protobuf:"varint,5,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	// A list of trust domains the identity described by this entry federates
 	// with.
