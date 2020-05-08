@@ -44,16 +44,20 @@ that can impact permission revocation.
 
 | Selector | Value |
 | -------- | ----- |
-| k8s:ns              | The workload's namespace |
-| k8s:sa              | The workload's service account |
-| k8s:container-image | The image of the workload's container |
-| k8s:container-name  | The name of the workload's container |
-| k8s:node-name       | The name of the workload's node |
-| k8s:pod-label       | A label given to the the workload's pod |
-| k8s:pod-owner       | The name of the workload's pod owner |
-| k8s:pod-owner-uid   | The UID of the workload's pod owner |
-| k8s:pod-uid         | The UID of the workload's pod |
-| k8s:pod-name        | The name of the workload's pod |
+| k8s:ns                   | The workload's namespace |
+| k8s:sa                   | The workload's service account |
+| k8s:container-image      | The image of the workload's container |
+| k8s:container-name       | The name of the workload's container |
+| k8s:node-name            | The name of the workload's node |
+| k8s:pod-label            | A label given to the the workload's pod |
+| k8s:pod-owner            | The name of the workload's pod owner |
+| k8s:pod-owner-uid        | The UID of the workload's pod owner |
+| k8s:pod-uid              | The UID of the workload's pod |
+| k8s:pod-name             | The name of the workload's pod |
+| k8s:pod-image            | An image of a container in workload's pod |
+| k8s:pod-image-count      | The number of container images in workload's pod |
+| k8s:pod-init-image       | An image of an init container in workload's pod |
+| k8s:pod-init-image-count | The number of init container images in workload's pod |
 
 ## Examples
 

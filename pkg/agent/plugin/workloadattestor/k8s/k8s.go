@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -594,7 +595,20 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 	return nil, containerNotInPod
 }
 
+func getPodImages(containerStatusArray []corev1.ContainerStatus) map[string]bool {
+	podImages := make(map[string]bool)
+
+	// collect container images
+	for _, status := range containerStatusArray {
+		podImages[status.ImageID] = true
+	}
+	return podImages
+}
+
 func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []*common.Selector {
+	podImages := getPodImages(pod.Status.ContainerStatuses)
+	podInitImages := getPodImages(pod.Status.InitContainerStatuses)
+
 	selectors := []*common.Selector{
 		makeSelector("sa:%s", pod.Spec.ServiceAccountName),
 		makeSelector("ns:%s", pod.Namespace),
@@ -603,6 +617,14 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
 		makeSelector("container-image:%s", status.Image),
+		makeSelector("pod-image-count:%s", strconv.Itoa(len(podImages))),
+		makeSelector("pod-init-image-count:%s", strconv.Itoa(len(podInitImages))),
+	}
+	for podImage := range podImages {
+		selectors = append(selectors, makeSelector("pod-image:%s", podImage))
+	}
+	for podInitImage := range podInitImages {
+		selectors = append(selectors, makeSelector("pod-init-image:%s", podInitImage))
 	}
 
 	for k, v := range pod.Labels {
