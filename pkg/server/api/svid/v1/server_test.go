@@ -25,7 +25,8 @@ func TestMintX509SVID(t *testing.T) {
 	ctx := rpccontext.WithLogger(context.Background(), log)
 
 	fakeService := &FakeService{}
-	client := createClient(ctx, t, fakeService)
+	client, done := createClient(ctx, t, fakeService)
+	defer done()
 
 	spiffeID := spiffeid.Must("trust.domain", "workload1")
 
@@ -73,7 +74,7 @@ func (s *FakeService) MintX509SVID(ctx context.Context, csr *x509.CertificateReq
 	return s.svid, nil
 }
 
-func createClient(ctx context.Context, t *testing.T, fakeService *FakeService) svidpb.SVIDClient {
+func createClient(ctx context.Context, t *testing.T, fakeService *FakeService) (svidpb.SVIDClient, func()) {
 	registerFn := func(s *grpc.Server) {
 		svid.RegisterService(s, fakeService)
 	}
@@ -84,9 +85,5 @@ func createClient(ctx context.Context, t *testing.T, fakeService *FakeService) s
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 
-	t.Cleanup(func() {
-		done()
-	})
-
-	return svidpb.NewSVIDClient(conn)
+	return svidpb.NewSVIDClient(conn), done
 }

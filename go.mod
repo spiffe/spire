@@ -1,6 +1,6 @@
 module github.com/spiffe/spire
 
-go 1.14
+go 1.13
 
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
