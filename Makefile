@@ -140,6 +140,15 @@ protos := \
 	proto/spire/server/notifier/notifier.proto \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto \
 	proto/spire/server/upstreamca/upstreamca.proto \
+	proto/spire-next/api/server/svid/v1/svid.proto \
+	proto/spire-next/types/entry.proto \
+	proto/spire-next/types/jwtsvid.proto \
+	proto/spire-next/types/jwtsvid.proto \
+	proto/spire-next/types/selector.proto \
+	proto/spire-next/types/spiffeid.proto \
+	proto/spire-next/types/status.proto \
+	proto/spire-next/types/x509svid.proto \
+	proto/spire-next/types/x509svid.proto \
 	pkg/common/catalog/test/test.proto \
 	pkg/server/ca/journal.proto \
 

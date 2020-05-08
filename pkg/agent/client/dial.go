@@ -4,12 +4,19 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
+)
+
+const (
+	_defaultDialTimeout = 30 * time.Second
 )
 
 type DialServerConfig struct {
@@ -26,6 +33,9 @@ type DialServerConfig struct {
 	// GetAgentCertificate is an optional callback used to return the agent
 	// certificate to present to the server during the TLS handshake.
 	GetAgentCertificate func() *tls.Certificate
+
+	// dialContext is an optional constructor for the grpc client connection.
+	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
 func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn, error) {
@@ -65,9 +75,26 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		}
 	}
 
-	return grpc.DialContext(ctx, config.Address,
+	ctx, cancel := context.WithTimeout(ctx, _defaultDialTimeout)
+	defer cancel()
+
+	if config.dialContext == nil {
+		config.dialContext = grpc.DialContext
+	}
+	client, err := config.dialContext(ctx, config.Address,
 		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck
 		grpc.FailOnNonTempDialError(true),
+		grpc.WithBlock(),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
+	switch {
+	case err == nil:
+	case errors.Is(err, context.Canceled):
+		return nil, fmt.Errorf("failed to dial %s: canceled", config.Address)
+	case errors.Is(err, context.DeadlineExceeded):
+		return nil, fmt.Errorf("failed to dial %s: timed out", config.Address)
+	default:
+		return nil, fmt.Errorf("failed to dial %s: %v", config.Address, err)
+	}
+	return client, nil
 }

@@ -1,0 +1,37 @@
+#!/bin/bash
+
+log-debug "creating intermediateA workload registration entry..."
+docker-compose exec -T intermediateA-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint intermediateA/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/intermediateA/workload" \
+    -selector "unix:uid:1001" \
+    -ttl 0
+check-synced-entry "intermediateA-agent" "spiffe://domain.test/intermediateA/workload"
+
+log-debug "creating leafA workload registration entry..."
+docker-compose exec -T leafA-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint leafA/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/leafA/workload" \
+    -selector "unix:uid:1001" \
+    -ttl 0
+check-synced-entry "leafA-agent" "spiffe://domain.test/leafA/workload"
+
+log-debug "creating intermediateB workload registration entry..."
+docker-compose exec -T intermediateB-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint intermediateB/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/intermediateB/workload" \
+    -selector "unix:uid:1001" \
+    -ttl 0
+check-synced-entry "intermediateB-agent" "spiffe://domain.test/intermediateB/workload"
+
+log-debug "creating leafB workload registration entry..."
+docker-compose exec -T leafB-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint leafB/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/leafB/workload" \
+    -selector "unix:uid:1001" \
+    -ttl 0
+check-synced-entry "leafB-agent" "spiffe://domain.test/leafB/workload"

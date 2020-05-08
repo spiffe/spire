@@ -16,14 +16,9 @@ The plugin accepts the following configuration options:
 
 | Configuration   | Description                                          |
 | ----------------| ---------------------------------------------------- |
-| ttl             | The TTL for issued certificates (deprecated)         |
 | cert_file_path  | If SPIRE is using a self-signed CA, `cert_file_path` should specify the path to a a single PEM encoded certificate representing the upstream CA certificate. If not self-signed, `cert_file_path` should specify the path to a file that must contain one or more certificates necessary to establish a valid certificate chain up the root certificates defined in `bundle_file_path`. |
 | key_file_path   | Path to the "upstream" CA key file. Key files must contain a single PEM encoded key. The supported key types are EC (ASN.1 or PKCS8 encoded) or RSA (PKCS1 or PKCS8 encoded).|
 | bundle_file_path| If SPIRE is using a self-signed CA, `bundle_file_path` can be left unset. If not self-signed, then `bundle_file_path` should be the path to a file that must contain one or more certificates representing the upstream root certificates and the file at cert_file_path contains one or more certificates necessary to chain up the the root certificates in bundle_file_path (where the first certificate in cert_file_path is the upstream CA certificate). |
-
-The `ttl` configurable is deprecated. When unset, the plugin will use the
-preferred TTL from SPIRE server, corresponding to the SPIRE server `ca_ttl`
-configurable.
 
 The `disk` plugin is able to function as either a root CA, or join an existing PKI.
 

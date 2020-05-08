@@ -20,7 +20,7 @@ import (
 )
 
 func TestParseConfigGood(t *testing.T) {
-	c, err := parseFile("../../../../test/fixture/config/agent_good.conf", false)
+	c, err := ParseFile("../../../../test/fixture/config/agent_good.conf", false)
 	require.NoError(t, err)
 	assert.Equal(t, c.Agent.DataDir, ".")
 	assert.Equal(t, c.Agent.LogLevel, "INFO")
@@ -87,411 +87,411 @@ func TestParseFlagsGood(t *testing.T) {
 func TestMergeInput(t *testing.T) {
 	cases := []struct {
 		msg       string
-		fileInput func(*config)
+		fileInput func(*Config)
 		cliInput  func(*agentConfig)
-		test      func(*testing.T, *config)
+		test      func(*testing.T, *Config)
 	}{
 		{
 			msg: "data_dir should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.DataDir = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.DataDir)
 			},
 		},
 		{
 			msg:       "data_dir should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.DataDir = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.DataDir)
 			},
 		},
 		{
 			msg: "data_dir specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.DataDir = "foo"
 			},
 			cliInput: func(c *agentConfig) {
 				c.DataDir = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.DataDir)
 			},
 		},
 		{
 			msg: "enable_sds should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.EnableSDS = true
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Agent.EnableSDS)
 			},
 		},
 		{
 			msg:       "enable_sds should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.EnableSDS = true
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Agent.EnableSDS)
 			},
 		},
 		//{
 		//      // TODO: This is currently unsupported
 		//	msg: "enable_sds specified by CLI flag should take precedence over file",
-		//	fileInput: func(c *config) {
+		//	fileInput: func(c *Config) {
 		//		c.Agent.EnableSDS = true
 		//	},
 		//	cliInput: func(c *agentConfig) {
 		//		c.EnableSDS = false
 		//	},
-		//	test: func(t *testing.T, c *config) {
+		//	test: func(t *testing.T, c *Config) {
 		//		require.False(t, c.Agent.EnableSDS)
 		//	},
 		//},
 		{
 			msg: "insecure_bootstrap should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.InsecureBootstrap = true
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Agent.InsecureBootstrap)
 			},
 		},
 		{
 			msg: "join_token should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.JoinToken = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.JoinToken)
 			},
 		},
 		{
 			msg:       "join_token should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.JoinToken = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.JoinToken)
 			},
 		},
 		{
 			msg: "join_token specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.JoinToken = "foo"
 			},
 			cliInput: func(c *agentConfig) {
 				c.JoinToken = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.JoinToken)
 			},
 		},
 		{
 			msg: "log_file should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.LogFile = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.LogFile)
 			},
 		},
 		{
 			msg:       "log_file should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.LogFile = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.LogFile)
 			},
 		},
 		{
 			msg: "log_file specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.LogFile = "foo"
 			},
 			cliInput: func(c *agentConfig) {
 				c.LogFile = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.LogFile)
 			},
 		},
 		{
 			msg:       "log_format should default to log.DefaultFormat if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, log.DefaultFormat, c.Agent.LogFormat)
 			},
 		},
 		{
 			msg: "log_format should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.LogFormat = "JSON"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Agent.LogFormat)
 			},
 		},
 		{
 			msg:       "log_format should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.LogFormat = "JSON"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Agent.LogFormat)
 			},
 		},
 		{
 			msg: "log_format specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.LogFormat = "TEXT"
 			},
 			cliInput: func(c *agentConfig) {
 				c.LogFormat = "JSON"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Agent.LogFormat)
 			},
 		},
 		{
 			msg:       "log_level should default to INFO if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "INFO", c.Agent.LogLevel)
 			},
 		},
 		{
 			msg: "log_level should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.LogLevel = "DEBUG"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Agent.LogLevel)
 			},
 		},
 		{
 			msg:       "log_level should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.LogLevel = "DEBUG"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Agent.LogLevel)
 			},
 		},
 		{
 			msg: "log_level specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.LogLevel = "WARN"
 			},
 			cliInput: func(c *agentConfig) {
 				c.LogLevel = "DEBUG"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Agent.LogLevel)
 			},
 		},
 		{
 			msg:       "server_address should not have a default value",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "", c.Agent.ServerAddress)
 			},
 		},
 		{
 			msg: "server_address should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.ServerAddress = "10.0.0.1"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.1", c.Agent.ServerAddress)
 			},
 		},
 		{
 			msg:       "server_address should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.ServerAddress = "10.0.0.1"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.1", c.Agent.ServerAddress)
 			},
 		},
 		{
 			msg: "server_address specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.ServerAddress = "10.0.0.1"
 			},
 			cliInput: func(c *agentConfig) {
 				c.ServerAddress = "10.0.0.2"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.2", c.Agent.ServerAddress)
 			},
 		},
 		{
 			msg: "server_port should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.ServerPort = 1337
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Agent.ServerPort)
 			},
 		},
 		{
 			msg:       "server_port should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.ServerPort = 1337
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Agent.ServerPort)
 			},
 		},
 		{
 			msg: "server_port specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.ServerPort = 1336
 			},
 			cliInput: func(c *agentConfig) {
 				c.ServerPort = 1337
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Agent.ServerPort)
 			},
 		},
 		{
 			msg:       "socket_path should default to ./spire_api if not set",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "./spire_api", c.Agent.SocketPath)
 			},
 		},
 		{
 			msg: "socket_path should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.SocketPath = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.SocketPath)
 			},
 		},
 		{
 			msg:       "socket_path should be configuable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.SocketPath = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.SocketPath)
 			},
 		},
 		{
 			msg: "socket_path specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.SocketPath = "foo"
 			},
 			cliInput: func(c *agentConfig) {
 				c.SocketPath = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.SocketPath)
 			},
 		},
 		{
 			msg: "trust_bundle_path should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.TrustBundlePath = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.TrustBundlePath)
 			},
 		},
 		{
 			msg:       "trust_bundle_path should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.TrustBundlePath = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.TrustBundlePath)
 			},
 		},
 		{
 			msg: "trust_bundle_path specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.TrustBundlePath = "foo"
 			},
 			cliInput: func(c *agentConfig) {
 				c.TrustBundlePath = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.TrustBundlePath)
 			},
 		},
 		{
 			msg:       "trust_domain should not have a default value",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "", c.Agent.TrustDomain)
 			},
 		},
 		{
 			msg: "trust_domain should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.TrustDomain = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.TrustDomain)
 			},
 		},
 		{
 			// TODO: should it really?
 			msg:       "trust_domain should be configurable by CLI flag",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.TrustDomain = "foo"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.TrustDomain)
 			},
 		},
 		{
 			msg: "trust_domain specified by CLI flag should take precedence over file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.TrustDomain = "foo"
 			},
 			cliInput: func(c *agentConfig) {
 				c.TrustDomain = "bar"
 			},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.TrustDomain)
 			},
 		},
@@ -500,7 +500,7 @@ func TestMergeInput(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 
-		fileInput := &config{Agent: &agentConfig{}}
+		fileInput := &Config{Agent: &agentConfig{}}
 		cliInput := &agentConfig{}
 
 		testCase.fileInput(fileInput)
@@ -519,12 +519,12 @@ func TestNewAgentConfig(t *testing.T) {
 	cases := []struct {
 		msg         string
 		expectError bool
-		input       func(*config)
+		input       func(*Config)
 		test        func(*testing.T, *agent.Config)
 	}{
 		{
 			msg: "server_address and server_port should be correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.ServerAddress = "192.168.1.1"
 				c.Agent.ServerPort = 1337
 			},
@@ -534,7 +534,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "trust_domain should be correctly parsed",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.TrustDomain = "foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -544,7 +544,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg:         "invalid trust_domain should return an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.TrustDomain = "i'm invalid"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -553,7 +553,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "socket_path should be correctly configured",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.SocketPath = "foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -563,7 +563,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "insecure_bootsrap should be correctly set to false",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.InsecureBootstrap = false
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -572,7 +572,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "insecure_bootsrap should be correctly set to true",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.InsecureBootstrap = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -581,7 +581,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "join_token should be correctly configured",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.JoinToken = "foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -590,7 +590,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "data_dir should be correctly configured",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.DataDir = "foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -599,7 +599,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "enable_sds should be correctly configured",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.EnableSDS = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -608,7 +608,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "logger gets set correctly",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.LogLevel = "WARN"
 				c.Agent.LogFormat = "TEXT"
 			},
@@ -622,7 +622,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "log_level and log_format are case insensitive",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.LogLevel = "wArN"
 				c.Agent.LogFormat = "TeXt"
 			},
@@ -637,7 +637,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg:         "invalid log_level returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.LogLevel = "not-a-valid-level"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -647,7 +647,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg:         "invalid log_format returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.LogFormat = "not-a-valid-format"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -656,7 +656,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "sync_interval parses a duration",
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.Experimental.SyncInterval = "2s45ms"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -666,7 +666,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg:         "invalid sync_interval returns an error",
 			expectError: true,
-			input: func(c *config) {
+			input: func(c *Config) {
 				c.Agent.Experimental.SyncInterval = "moo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -683,7 +683,7 @@ func TestNewAgentConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			ac, err := newAgentConfig(input, []log.Option{})
+			ac, err := NewAgentConfig(input, []log.Option{})
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -697,7 +697,7 @@ func TestNewAgentConfig(t *testing.T) {
 
 // defaultValidConfig returns the bare minimum config required to
 // pass validation etc
-func defaultValidConfig() *config {
+func defaultValidConfig() *Config {
 	c := defaultConfig()
 
 	c.Agent.DataDir = "."
@@ -771,7 +771,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 
-		c, err := parseFile(testCase.testFilePath, false)
+		c, err := ParseFile(testCase.testFilePath, false)
 		require.NoError(t, err)
 
 		log, hook := test.NewNullLogger()
@@ -787,7 +787,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	}
 }
 
-// TestLogOptions verifies the log options given to newAgentConfig are applied, and are overridden
+// TestLogOptions verifies the log options given to NewAgentConfig are applied, and are overridden
 // by values from the config file
 func TestLogOptions(t *testing.T) {
 	fd, err := ioutil.TempFile("", "test")
@@ -801,7 +801,7 @@ func TestLogOptions(t *testing.T) {
 		log.WithOutputFile(fd.Name()),
 	}
 
-	agentConfig, err := newAgentConfig(defaultValidConfig(), logOptions)
+	agentConfig, err := NewAgentConfig(defaultValidConfig(), logOptions)
 	require.NoError(t, err)
 
 	logger := agentConfig.Log.(*log.Logger).Logger
@@ -832,7 +832,7 @@ func TestExpandEnv(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		c, err := parseFile("../../../../test/fixture/config/agent_good_templated.conf", testCase.expandEnv)
+		c, err := ParseFile("../../../../test/fixture/config/agent_good_templated.conf", testCase.expandEnv)
 		require.NoError(t, err)
 		assert.Equal(t, testCase.expectedValue, c.Agent.TrustDomain)
 	}

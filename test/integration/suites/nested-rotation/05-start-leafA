@@ -1,0 +1,11 @@
+#!/bin/bash
+
+log-debug "Starting leafA-server.."
+docker-up leafA-server
+
+log-debug "bootstrapping leafA agent..."
+docker-compose exec -T leafA-server \
+    /opt/spire/bin/spire-server bundle show > leafA/agent/bootstrap.crt
+
+log-debug "Starting leafA-agent..."
+docker-up leafA-agent
