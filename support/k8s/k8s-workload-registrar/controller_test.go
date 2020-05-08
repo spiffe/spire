@@ -285,8 +285,7 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 func TestPodSpiffeId(t *testing.T) {
 	for _, test := range []struct {
 		expectIgnorePod   bool
-		expectedSpiffeId  string
-		expectError       bool
+		expectedSpiffeID  string
 		configLabel       string
 		podLabel          string
 		configAnnotation  string
@@ -295,22 +294,22 @@ func TestPodSpiffeId(t *testing.T) {
 		podServiceAccount string
 	}{
 		{
-			expectedSpiffeId:  "spiffe://domain.test/ns/NS/sa/SA",
+			expectedSpiffeID:  "spiffe://domain.test/ns/NS/sa/SA",
 			podNamespace:      "NS",
 			podServiceAccount: "SA",
 		},
 		{
-			expectedSpiffeId: "spiffe://domain.test/LABEL",
+			expectedSpiffeID: "spiffe://domain.test/LABEL",
 			configLabel:      "spiffe.io/label",
 			podLabel:         "LABEL",
 		},
 		{
-			expectedSpiffeId: "spiffe://domain.test/ANNOTATION",
+			expectedSpiffeID: "spiffe://domain.test/ANNOTATION",
 			configAnnotation: "spiffe.io/annotation",
 			podAnnotation:    "ANNOTATION",
 		},
 		{
-			expectedSpiffeId: "spiffe://domain.test/LABEL",
+			expectedSpiffeID: "spiffe://domain.test/LABEL",
 			configLabel:      "spiffe.io/label",
 			podLabel:         "LABEL",
 		},
@@ -344,18 +343,14 @@ func TestPodSpiffeId(t *testing.T) {
 		}
 
 		// Test:
-		spiffeId, err := c.podSpiffeId(pod)
+		spiffeID := c.podSpiffeID(pod)
 
 		// Verify result:
-		if test.expectError {
-			require.Error(t, err)
-		} else if test.expectIgnorePod {
-			require.NoError(t, err)
-			require.Nil(t, spiffeId)
+		if test.expectIgnorePod {
+			require.Nil(t, spiffeID)
 		} else {
-			require.NoError(t, err)
-			require.NotNil(t, spiffeId)
-			require.Equal(t, test.expectedSpiffeId, *spiffeId)
+			require.NotNil(t, spiffeID)
+			require.Equal(t, test.expectedSpiffeID, *spiffeID)
 		}
 	}
 }

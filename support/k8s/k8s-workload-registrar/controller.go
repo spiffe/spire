@@ -104,17 +104,17 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 	return nil
 }
 
-// podSpiffeId returns the desired spiffe ID for the pod, or nil if it should be ignored
-func (c *Controller) podSpiffeId(pod *corev1.Pod) (*string, error) {
+// podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored
+func (c *Controller) podSpiffeID(pod *corev1.Pod) *string {
 	if c.c.PodLabel != "" {
 		// the controller has been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
-			spiffeId := c.makeID("%s", labelValue)
-			return &spiffeId, nil
+			spiffeID := c.makeID("%s", labelValue)
+			return &spiffeID
 		}
-		return nil, nil
+		return nil
 	}
 
 	if c.c.PodAnnotation != "" {
@@ -122,31 +122,28 @@ func (c *Controller) podSpiffeId(pod *corev1.Pod) (*string, error) {
 		// has that annotation, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if annotationValue, ok := pod.Annotations[c.c.PodAnnotation]; ok {
-			spiffeId := c.makeID("%s", annotationValue)
-			return &spiffeId, nil
+			spiffeID := c.makeID("%s", annotationValue)
+			return &spiffeID
 		}
-		return nil, nil
+		return nil
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
-	spiffeId := c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
-	return &spiffeId, nil
+	spiffeID := c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	return &spiffeID
 }
 
 func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
-	spiffeId, err := c.podSpiffeId(pod)
-	if err != nil {
-		return err
-	}
+	spiffeID := c.podSpiffeID(pod)
 	// If we have no spiffe ID for the pod, do nothing
-	if spiffeId == nil {
+	if spiffeID == nil {
 		return nil
 	}
 
 	return c.createEntry(ctx, &common.RegistrationEntry{
 		ParentId: c.nodeID(),
-		SpiffeId: *spiffeId,
+		SpiffeId: *spiffeID,
 		Selectors: []*common.Selector{
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),
