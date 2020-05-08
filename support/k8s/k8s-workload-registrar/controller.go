@@ -104,15 +104,17 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 	return nil
 }
 
-func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
+// podSpiffeId returns the desired spiffe ID for the pod, or nil if it should be ignored
+func (c *Controller) podSpiffeId(pod *corev1.Pod) (*string, error) {
 	if c.c.PodLabel != "" {
 		// the controller has been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
-			return c.createPodEntryByLabel(ctx, pod, labelValue)
+			spiffeId := c.makeID("%s", labelValue)
+			return &spiffeId, nil
 		}
-		return nil
+		return nil, nil
 	}
 
 	if c.c.PodAnnotation != "" {
@@ -120,42 +122,31 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		// has that annotation, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if annotationValue, ok := pod.Annotations[c.c.PodAnnotation]; ok {
-			return c.createPodEntryByAnnotation(ctx, pod, annotationValue)
+			spiffeId := c.makeID("%s", annotationValue)
+			return &spiffeId, nil
 		}
-		return nil
+		return nil, nil
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
-	return c.createPodEntryByServiceAccount(ctx, pod)
+	spiffeId := c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	return &spiffeId, nil
 }
 
-func (c *Controller) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod, labelValue string) error {
-	return c.createEntry(ctx, &common.RegistrationEntry{
-		ParentId: c.nodeID(),
-		SpiffeId: c.makeID("%s", labelValue),
-		Selectors: []*common.Selector{
-			namespaceSelector(pod.Namespace),
-			podNameSelector(pod.Name),
-		},
-	})
-}
+func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
+	spiffeId, err := c.podSpiffeId(pod)
+	if err != nil {
+		return err
+	}
+	// If we have no spiffe ID for the pod, do nothing
+	if spiffeId == nil {
+		return nil
+	}
 
-func (c *Controller) createPodEntryByAnnotation(ctx context.Context, pod *corev1.Pod, annotationValue string) error {
 	return c.createEntry(ctx, &common.RegistrationEntry{
 		ParentId: c.nodeID(),
-		SpiffeId: c.makeID("%s", annotationValue),
-		Selectors: []*common.Selector{
-			namespaceSelector(pod.Namespace),
-			podNameSelector(pod.Name),
-		},
-	})
-}
-
-func (c *Controller) createPodEntryByServiceAccount(ctx context.Context, pod *corev1.Pod) error {
-	return c.createEntry(ctx, &common.RegistrationEntry{
-		ParentId: c.nodeID(),
-		SpiffeId: c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName),
+		SpiffeId: *spiffeId,
 		Selectors: []*common.Selector{
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),

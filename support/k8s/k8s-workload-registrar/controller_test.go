@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	admv1beta1 "k8s.io/api/admission/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -279,6 +280,84 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 
 	// Assert that the registration entry for the pod was created
 	require.Len(t, r.GetEntries(), 0)
+}
+
+func TestPodSpiffeId(t *testing.T) {
+	for _, test := range []struct {
+		expectIgnorePod   bool
+		expectedSpiffeId  string
+		expectError       bool
+		configLabel       string
+		podLabel          string
+		configAnnotation  string
+		podAnnotation     string
+		podNamespace      string
+		podServiceAccount string
+	}{
+		{
+			expectedSpiffeId:  "spiffe://domain.test/ns/NS/sa/SA",
+			podNamespace:      "NS",
+			podServiceAccount: "SA",
+		},
+		{
+			expectedSpiffeId: "spiffe://domain.test/LABEL",
+			configLabel:      "spiffe.io/label",
+			podLabel:         "LABEL",
+		},
+		{
+			expectedSpiffeId: "spiffe://domain.test/ANNOTATION",
+			configAnnotation: "spiffe.io/annotation",
+			podAnnotation:    "ANNOTATION",
+		},
+		{
+			expectedSpiffeId: "spiffe://domain.test/LABEL",
+			configLabel:      "spiffe.io/label",
+			podLabel:         "LABEL",
+		},
+		{
+			configAnnotation: "someannotation",
+			expectIgnorePod:  true,
+		},
+		{
+			configLabel:     "somelabel",
+			expectIgnorePod: true,
+		},
+	} {
+		c, _ := newTestController(test.configLabel, test.configAnnotation)
+
+		// Set up pod:
+		pod := &corev1.Pod{
+			Spec: corev1.PodSpec{
+				ServiceAccountName: test.podServiceAccount,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:   test.podNamespace,
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+		}
+		if test.configLabel != "" && test.podLabel != "" {
+			pod.Labels[test.configLabel] = test.podLabel
+		}
+		if test.configAnnotation != "" && test.podAnnotation != "" {
+			pod.Annotations[test.configAnnotation] = test.podAnnotation
+		}
+
+		// Test:
+		spiffeId, err := c.podSpiffeId(pod)
+
+		// Verify result:
+		if test.expectError {
+			require.Error(t, err)
+		} else if test.expectIgnorePod {
+			require.NoError(t, err)
+			require.Nil(t, spiffeId)
+		} else {
+			require.NoError(t, err)
+			require.NotNil(t, spiffeId)
+			require.Equal(t, test.expectedSpiffeId, *spiffeId)
+		}
+	}
 }
 
 func TestControllerAnnotationBasedRegistration(t *testing.T) {
