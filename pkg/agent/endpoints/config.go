@@ -25,6 +25,9 @@ type Config struct {
 
 	// If true, an SDS server will be served over the UDS socket
 	EnableSDS bool
+
+	SDSDefaultResourceName string
+	SDSRootResourceName    string
 }
 
 func New(c *Config) *Endpoints {

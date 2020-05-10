@@ -46,18 +46,20 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir           string `hcl:"data_dir"`
-	EnableSDS         bool   `hcl:"enable_sds"`
-	InsecureBootstrap bool   `hcl:"insecure_bootstrap"`
-	JoinToken         string `hcl:"join_token"`
-	LogFile           string `hcl:"log_file"`
-	LogFormat         string `hcl:"log_format"`
-	LogLevel          string `hcl:"log_level"`
-	ServerAddress     string `hcl:"server_address"`
-	ServerPort        int    `hcl:"server_port"`
-	SocketPath        string `hcl:"socket_path"`
-	TrustBundlePath   string `hcl:"trust_bundle_path"`
-	TrustDomain       string `hcl:"trust_domain"`
+	DataDir                string `hcl:"data_dir"`
+	EnableSDS              bool   `hcl:"enable_sds"`
+	InsecureBootstrap      bool   `hcl:"insecure_bootstrap"`
+	JoinToken              string `hcl:"join_token"`
+	LogFile                string `hcl:"log_file"`
+	LogFormat              string `hcl:"log_format"`
+	LogLevel               string `hcl:"log_level"`
+	SDSDefaultResourceName string `hcl:"sds_default_resource_name"`
+	SDSRootResourceName    string `hcl:"sds_root_resource_name"`
+	ServerAddress          string `hcl:"server_address"`
+	ServerPort             int    `hcl:"server_port"`
+	SocketPath             string `hcl:"socket_path"`
+	TrustBundlePath        string `hcl:"trust_bundle_path"`
+	TrustDomain            string `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -196,6 +198,8 @@ func parseFlags(args []string) (*agentConfig, error) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
+	flags.StringVar(&c.SDSRootResourceName, "sdsRootResourceName", "", "SDS config name for root CA used for fetching root cert")
+	flags.StringVar(&c.SDSDefaultResourceName, "sdsDefaultResourceName", "", "SDS config name used for fetching normal key/cert")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -271,6 +275,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
+
+	ac.SDSDefaultResourceName = c.Agent.SDSDefaultResourceName
+	ac.SDSRootResourceName = c.Agent.SDSRootResourceName
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),

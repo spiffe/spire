@@ -207,12 +207,14 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 
 func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
 	config := &endpoints.Config{
-		BindAddr:  a.c.BindAddress,
-		Catalog:   cat,
-		Manager:   mgr,
-		Log:       a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
-		Metrics:   metrics,
-		EnableSDS: a.c.EnableSDS,
+		BindAddr:               a.c.BindAddress,
+		Catalog:                cat,
+		Manager:                mgr,
+		Log:                    a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Metrics:                metrics,
+		EnableSDS:              a.c.EnableSDS,
+		SDSDefaultResourceName: a.c.SDSDefaultResourceName,
+		SDSRootResourceName:    a.c.SDSRootResourceName,
 	}
 
 	return endpoints.New(config)

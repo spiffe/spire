@@ -22,6 +22,12 @@ type Config struct {
 	// If true, enables an Envoy SecretDiscoveryService server
 	EnableSDS bool
 
+	// SDS config name for root CA used for fetching root cert
+	SDSRootResourceName string
+
+	// SDS config name used for fetching normal key/cert
+	SDSDefaultResourceName string
+
 	// If true, the agent will bootstrap insecurely with the server
 	InsecureBootstrap bool
 
