@@ -36,10 +36,12 @@ type Manager interface {
 }
 
 type HandlerConfig struct {
-	Attestor attestor.Attestor
-	Manager  Manager
-	Metrics  telemetry.Metrics
-	Log      logrus.FieldLogger
+	Attestor               attestor.Attestor
+	Manager                Manager
+	Metrics                telemetry.Metrics
+	Log                    logrus.FieldLogger
+	SDSRootResourceName    string
+	SDSDefaultResourceName string
 }
 
 type Handler struct {
@@ -287,8 +289,10 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 
 	// TODO: verify the type url
 
-	if upd.Bundle != nil && (len(names) == 0 || names[upd.Bundle.TrustDomainID()]) {
-		validationContext, err := buildValidationContext(upd.Bundle)
+	_, rootCa := names[h.c.SDSRootResourceName]
+
+	if upd.Bundle != nil && (len(names) == 0 || rootCa || names[upd.Bundle.TrustDomainID()]) {
+		validationContext, err := buildValidationContext(upd.Bundle, rootCa, h.c.SDSRootResourceName)
 		if err != nil {
 			return nil, err
 		}
@@ -297,7 +301,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 
 	for _, federatedBundle := range upd.FederatedBundles {
 		if len(names) == 0 || names[federatedBundle.TrustDomainID()] {
-			validationContext, err := buildValidationContext(federatedBundle)
+			validationContext, err := buildValidationContext(federatedBundle, false, "")
 			if err != nil {
 				return nil, err
 			}
@@ -305,9 +309,10 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		}
 	}
 
+	_, defaultResource := names[h.c.SDSDefaultResourceName]
 	for _, identity := range upd.Identities {
-		if len(names) == 0 || names[identity.Entry.SpiffeId] {
-			tlsCertificate, err := buildTLSCertificate(identity)
+		if len(names) == 0 || defaultResource || names[identity.Entry.SpiffeId] {
+			tlsCertificate, err := buildTLSCertificate(identity, defaultResource, h.c.SDSDefaultResourceName)
 			if err != nil {
 				return nil, err
 			}
@@ -337,7 +342,15 @@ func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	return watcher, nil
 }
 
-func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
+func buildTLSCertificate(identity cache.Identity, defaultResource bool, defaultResourceName string) (*any.Any, error) {
+	var id string
+
+	if defaultResource {
+		id = defaultResourceName
+	} else {
+		id = identity.Entry.SpiffeId
+	}
+
 	keyPEM, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -346,7 +359,7 @@ func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
 	return ptypes.MarshalAny(&auth_v2.Secret{
-		Name: identity.Entry.SpiffeId,
+		Name: id,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
 				CertificateChain: &core_v2.DataSource{
@@ -364,10 +377,16 @@ func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle) (*any.Any, error) {
+func buildValidationContext(bundle *bundleutil.Bundle, rootCa bool, rootCaName string) (*any.Any, error) {
+	var id string
+	if rootCa {
+		id = rootCaName
+	} else {
+		id = bundle.TrustDomainID()
+	}
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
 	return ptypes.MarshalAny(&auth_v2.Secret{
-		Name: bundle.TrustDomainID(),
+		Name: id,
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{
 				TrustedCa: &core_v2.DataSource{
