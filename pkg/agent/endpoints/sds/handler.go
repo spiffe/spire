@@ -289,10 +289,10 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 
 	// TODO: verify the type url
 
-	_, rootCa := names[h.c.SDSRootResourceName]
+	_, rootCaResourceBool := names[h.c.SDSRootResourceName]
 
-	if upd.Bundle != nil && (len(names) == 0 || rootCa || names[upd.Bundle.TrustDomainID()]) {
-		validationContext, err := buildValidationContext(upd.Bundle, rootCa, h.c.SDSRootResourceName)
+	if upd.Bundle != nil && (len(names) == 0 || rootCaResourceBool || names[upd.Bundle.TrustDomainID()]) {
+		validationContext, err := buildValidationContext(upd.Bundle, rootCaResourceBool, h.c.SDSRootResourceName)
 		if err != nil {
 			return nil, err
 		}
@@ -309,10 +309,10 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		}
 	}
 
-	_, defaultResource := names[h.c.SDSDefaultResourceName]
+	_, defaultResourceBool := names[h.c.SDSDefaultResourceName]
 	for _, identity := range upd.Identities {
-		if len(names) == 0 || defaultResource || names[identity.Entry.SpiffeId] {
-			tlsCertificate, err := buildTLSCertificate(identity, defaultResource, h.c.SDSDefaultResourceName)
+		if len(names) == 0 || defaultResourceBool || names[identity.Entry.SpiffeId] {
+			tlsCertificate, err := buildTLSCertificate(identity, defaultResourceBool, h.c.SDSDefaultResourceName)
 			if err != nil {
 				return nil, err
 			}
@@ -342,10 +342,10 @@ func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	return watcher, nil
 }
 
-func buildTLSCertificate(identity cache.Identity, defaultResource bool, defaultResourceName string) (*any.Any, error) {
+func buildTLSCertificate(identity cache.Identity, defaultResourceBool bool, defaultResourceName string) (*any.Any, error) {
 	var id string
 
-	if defaultResource {
+	if defaultResourceBool {
 		id = defaultResourceName
 	} else {
 		id = identity.Entry.SpiffeId
@@ -377,10 +377,10 @@ func buildTLSCertificate(identity cache.Identity, defaultResource bool, defaultR
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle, rootCa bool, rootCaName string) (*any.Any, error) {
+func buildValidationContext(bundle *bundleutil.Bundle, rootCaResourceBool bool, rootCaResourceName string) (*any.Any, error) {
 	var id string
-	if rootCa {
-		id = rootCaName
+	if rootCaResourceBool {
+		id = rootCaResourceName
 	} else {
 		id = bundle.TrustDomainID()
 	}
