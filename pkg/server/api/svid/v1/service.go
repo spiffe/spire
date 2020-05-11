@@ -3,7 +3,6 @@ package svid
 import (
 	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	"regexp"
@@ -67,8 +66,8 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 	}
 
 	if !spiffeID.MemberOf(s.TrustDomain) {
-		log.Error("Invalid SPIFFE ID: not member of servers trust domain")
-		return nil, status.Error(codes.InvalidArgument, "invalid SPIFFE ID: not member of servers trust domain")
+		log.Error("Invalid SPIFFE ID: not member of the servers trust domain")
+		return nil, status.Error(codes.InvalidArgument, "invalid SPIFFE ID: not member of the servers trust domain")
 	}
 
 	for _, dnsName := range csr.DNSNames {
@@ -78,29 +77,23 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 		}
 	}
 
-	var subject *pkix.Name
-	if csr.Subject.String() != "" {
-		subject = &csr.Subject
-	}
-
 	svid, err := s.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
 		SpiffeID:  spiffeID.String(),
 		PublicKey: csr.PublicKey,
 		// SignX509SVID is taking care of of ttl comparation against bundle
 		TTL:     ttl,
 		DNSList: csr.DNSNames,
-		Subject: subject,
+		Subject: csr.Subject,
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to sign X.509 SVID")
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "failed to sign X509-SVID: %v", err)
 	}
 
-	// TODO: may I verify svid is not empty?
 	return &api.X509SVID{
 		ID:        spiffeID,
 		CertChain: svid,
-		ExpiresAt: svid[0].NotAfter.Local().UTC(),
+		ExpiresAt: svid[0].NotAfter.UTC(),
 	}, nil
 }
 

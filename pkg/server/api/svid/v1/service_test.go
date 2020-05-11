@@ -25,12 +25,12 @@ func TestServiceMintX509SVID(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	ctx := rpccontext.WithLogger(context.Background(), log)
 
-	spiffeID := spiffeid.Must("trust.domain", "workload1")
+	spiffeID := spiffeid.Must("example.org", "workload1")
 	dns := []string{"dns1", "dns2"}
 	ttl := time.Minute
 
 	// Create Service
-	trustDomain := spiffeid.RequireTrustDomainFromString("trust.domain")
+	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	fakeServerCA := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{Clock: clock})
 	service := svid.New(&svid.Config{
 		ServerCA:    fakeServerCA,

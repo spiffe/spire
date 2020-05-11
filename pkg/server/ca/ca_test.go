@@ -173,7 +173,7 @@ func (s *CATestSuite) TestSignX509SVIDMultipleDNS() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDWithSubject() {
-	subject := &pkix.Name{
+	subject := pkix.Name{
 		Organization: []string{"ORG"},
 		Country:      []string{"US", "EN"},
 		CommonName:   "Common Name",
@@ -184,16 +184,12 @@ func (s *CATestSuite) TestSignX509SVIDWithSubject() {
 		name     string
 		dns      []string
 		expected string
-		subject  *pkix.Name
+		subject  pkix.Name
 	}{
 		{
-			name:     "no subject",
-			expected: "O=SPIRE,C=US",
-			subject:  nil,
-		}, {
 			name:     "empty subject",
 			expected: "O=SPIRE,C=US",
-			subject:  &pkix.Name{},
+			subject:  pkix.Name{},
 		}, {
 			name:     "no subject but DNS",
 			dns:      dns,

@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -41,18 +42,13 @@ func (s server) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest)
 		return nil, err
 	}
 
-	svidChain := make([][]byte, 0, len(x509Svid.CertChain))
-	for _, cert := range x509Svid.CertChain {
-		svidChain = append(svidChain, cert.Raw)
-	}
-
 	return &svid.MintX509SVIDResponse{
 		Svid: &types.X509SVID{
 			Id: &types.SPIFFEID{
 				TrustDomain: x509Svid.ID.TrustDomain().String(),
 				Path:        x509Svid.ID.Path(),
 			},
-			CertChain: svidChain,
+			CertChain: x509util.RawCertsFromCertificates(x509Svid.CertChain),
 			ExpiresAt: x509Svid.ExpiresAt.Unix(),
 		},
 	}, nil

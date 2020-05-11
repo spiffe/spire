@@ -28,7 +28,7 @@ func TestMintX509SVID(t *testing.T) {
 	client, done := createClient(ctx, t, fakeService)
 	defer done()
 
-	spiffeID := spiffeid.Must("trust.domain", "workload1")
+	spiffeID := spiffeid.Must("example.org", "workload1")
 
 	// Create certificate request
 	key := testkey.NewEC256(t)
@@ -54,7 +54,7 @@ func TestMintX509SVID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, "trust.domain", resp.Svid.Id.TrustDomain)
+	require.Equal(t, "example.org", resp.Svid.Id.TrustDomain)
 	require.Equal(t, "/workload1", resp.Svid.Id.Path)
 	require.Equal(t, expiresAt.UTC().Unix(), resp.Svid.ExpiresAt)
 }
