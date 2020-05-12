@@ -23,10 +23,10 @@ type Config struct {
 	EnableSDS bool
 
 	// SDS default validation context resource name
-	SDSRootResourceName string
+	SDSDefaultValidationContextName string
 
 	// SDS default TLS certificate context resource name
-	SDSDefaultResourceName string
+	SDSDefaultTLSCertificateName string
 
 	// If true, the agent will bootstrap insecurely with the server
 	InsecureBootstrap bool

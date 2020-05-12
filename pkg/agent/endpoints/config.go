@@ -27,10 +27,10 @@ type Config struct {
 	EnableSDS bool
 
 	// SDS default validation context resource name
-	SDSDefaultResourceName string
+	SDSDefaultTLSCertificateName string
 
 	// SDS default TLS certificate context resource name
-	SDSRootResourceName    string
+	SDSDefaultValidationContextName string
 }
 
 func New(c *Config) *Endpoints {
