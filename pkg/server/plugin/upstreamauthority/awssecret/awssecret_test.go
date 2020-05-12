@@ -39,7 +39,7 @@ type Suite struct {
 
 func (as *Suite) SetupTest() {
 	as.clock = clock.NewMock(as.T())
-	as.plugin = as.newAWSUpstreamAuthority("")
+	as.plugin = as.newAWSUpstreamAuthority()
 }
 
 func (as *Suite) TestConfigureNoGlobal() {
@@ -91,7 +91,7 @@ func (as *Suite) Test_MintX509CAValidCSR() {
 	as.Require().True(isEqual)
 }
 
-func (as *Suite) Test_MintX509CAInvalidCSR() {
+func (as *Suite) TestMintX509CAInvalidCSR() {
 	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
 	for _, invalidSpiffeID := range invalidSpiffeIDs {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
@@ -108,16 +108,8 @@ func (as *Suite) Test_MintX509CAInvalidCSR() {
 	as.Require().Nil(resp)
 }
 
-func (as *Suite) TestDeprecatedTTLUsedIfSet() {
-	awsUpstreamAuthority := as.newAWSUpstreamAuthority("10h")
-
-	// Submit CSR with 1 hour preferred TTL. The deprecated TTL configurable
-	// (10 hours) should take precedence.
-	as.testCSRTTL(awsUpstreamAuthority, 3600, time.Hour*10)
-}
-
-func (as *Suite) TestDeprecatedTTLUsesPreferredIfNoDeprecatedTTLSet() {
-	awsUpstreamAuthority := as.newAWSUpstreamAuthority("")
+func (as *Suite) TestMintX509CAUsesPreferredTTLIfSet() {
+	awsUpstreamAuthority := as.newAWSUpstreamAuthority()
 
 	// If the preferred TTL is set, it should be used.
 	as.testCSRTTL(awsUpstreamAuthority, 3600, time.Hour)
@@ -146,7 +138,6 @@ func (as *Suite) TestFailConfiguration() {
 	config := Config{
 		KeyFileARN:      "",
 		CertFileARN:     "",
-		DeprecatedTTL:   "1h",
 		AccessKeyID:     "keyid",
 		Region:          "us-west-2",
 		SecretAccessKey: "accesskey",
@@ -172,11 +163,10 @@ func (as *Suite) TestAWSSecret_GetPluginInfo() {
 	as.Require().NotNil(res)
 }
 
-func (as *Suite) newAWSUpstreamAuthority(deprecatedTTL string) upstreamauthority.Plugin {
+func (as *Suite) newAWSUpstreamAuthority() upstreamauthority.Plugin {
 	config := Config{
 		KeyFileARN:      "key",
 		CertFileARN:     "cert",
-		DeprecatedTTL:   deprecatedTTL,
 		AccessKeyID:     "keyid",
 		SecretAccessKey: "accesskey",
 	}

@@ -7,11 +7,18 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
-// StartManagerFetchUpdatesCall returns metric for when agent's
-// synchronization manager fetching latest SVID information
+// StartManagerFetchEntriesUpdatesCall returns metric for when agent's
+// synchronization manager fetching latest entries information
 // from server
-func StartManagerFetchUpdatesCall(m telemetry.Metrics) *telemetry.CallCounter {
-	return telemetry.StartCall(m, telemetry.Manager, telemetry.Sync, telemetry.FetchUpdates)
+func StartManagerFetchEntriesUpdatesCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Manager, telemetry.Sync, telemetry.FetchEntriesUpdates)
+}
+
+// StartManagerFetchSVIDsUpdatesCall returns metric for when agent's
+// synchronization manager fetching latest SVIDs information
+// from server
+func StartManagerFetchSVIDsUpdatesCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Manager, telemetry.Sync, telemetry.FetchSVIDsUpdates)
 }
 
 // End Call Counters

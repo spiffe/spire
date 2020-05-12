@@ -29,7 +29,7 @@ require (
 	github.com/docker/docker v1.4.2-0.20191008235115-448db5a783a0
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/envoyproxy/go-control-plane v0.9.0
+	github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gofrs/uuid v3.2.0+incompatible
@@ -48,6 +48,8 @@ require (
 	github.com/jinzhu/gorm v1.9.9
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/onsi/ginkgo v1.8.0 // indirect
+	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -57,23 +59,24 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
+	github.com/spiffe/go-spiffe/v2 v2.0.0-alpha.2
 	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.5.1
 	github.com/uber-go/tally v3.3.12+incompatible
-	github.com/zeebo/errs v1.2.0
+	github.com/zeebo/errs v1.2.2
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
-	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
+	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
 	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	golang.org/x/tools v0.0.0-20190618163018-fdf1049a943a
+	golang.org/x/tools v0.0.0-20191127201027-ecd32218bd7f
 	google.golang.org/api v0.6.0
 	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
-	google.golang.org/grpc v1.24.0
+	google.golang.org/grpc v1.27.1
 	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/square/go-jose.v2 v2.3.1
+	gopkg.in/square/go-jose.v2 v2.4.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20190222213804-5cb15d344471

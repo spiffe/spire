@@ -840,11 +840,15 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	return entry, nil
 }
 
-func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
+func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ context.Context, err error) {
 	// For the time being, authorization is not per-method. In other words, all or nothing.
+	counter := telemetry_registrationapi.StartAuthorizeCall(h.Metrics, fullMethod)
+	defer counter.Done(&err)
+	log := h.Log.WithField(telemetry.Method, fullMethod)
+
 	callerID, err := authorizeCaller(ctx, h.getDataStore())
 	if err != nil {
-		h.Log.WithError(err).Error("Failed to authorize caller")
+		log.WithError(err).Error("Failed to authorize caller")
 		return nil, err
 	}
 	if callerID != "" {

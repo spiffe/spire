@@ -5,6 +5,14 @@ import "github.com/spiffe/spire/pkg/common/telemetry"
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
+// StartAuthorizeCall return metric for
+// the server's registration API, authorizing a call for the given method.
+func StartAuthorizeCall(m telemetry.Metrics, method string) *telemetry.CallCounter {
+	counter := telemetry.StartCall(m, telemetry.RegistrationAPI, telemetry.AuthorizeCall)
+	counter.AddLabel(telemetry.Method, method)
+	return counter
+}
+
 // StartCreateEntryCall return metric
 // for server's registration API, on creating an entry.
 func StartCreateEntryCall(m telemetry.Metrics) *telemetry.CallCounter {

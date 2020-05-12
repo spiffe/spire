@@ -2,6 +2,14 @@ package server
 
 import "github.com/spiffe/spire/pkg/common/telemetry"
 
+// StartNodeAPIAuthorizeCall return metric for
+// the server's Node API, authorizing a call for the given method.
+func StartNodeAPIAuthorizeCall(m telemetry.Metrics, method string) *telemetry.CallCounter {
+	counter := telemetry.StartCall(m, telemetry.NodeAPI, telemetry.AuthorizeCall)
+	counter.AddLabel(telemetry.Method, method)
+	return counter
+}
+
 // StartNodeAPIAttestCall return metric for
 // the server's Node API, Attestation of a node.
 func StartNodeAPIAttestCall(m telemetry.Metrics) *telemetry.CallCounter {

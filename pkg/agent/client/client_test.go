@@ -246,6 +246,17 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
 	assertNodeConnIsNil(t, client)
 }
 
+func TestNewNodeClientFailsDial(t *testing.T) {
+	client := newClient(&Config{
+		KeysAndBundle: keysAndBundle,
+	})
+	nodeClient, nodeConn, err := client.newNodeClient(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "dial tcp: missing address")
+	require.Nil(t, nodeClient)
+	require.Nil(t, nodeConn)
+}
+
 // Creates a sample client with mocked components for testing purposes
 func createClient(nodeClient *mock_node.MockNodeClient) *client {
 	client := newClient(&Config{
@@ -255,6 +266,10 @@ func createClient(nodeClient *mock_node.MockNodeClient) *client {
 	})
 	client.createNewNodeClient = func(conn *grpc.ClientConn) node.NodeClient {
 		return nodeClient
+	}
+	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		// make a normal grpc dial but without any of the provided options that may cause it to fail
+		return grpc.DialContext(ctx, addr, grpc.WithInsecure())
 	}
 	return client
 }

@@ -36,8 +36,8 @@ const (
 	defaultLogLevel = "INFO"
 )
 
-// config contains all available configurables, arranged by section
-type config struct {
+// Config contains all available configurables, arranged by section
+type Config struct {
 	Agent        *agentConfig                `hcl:"agent"`
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
@@ -96,7 +96,7 @@ func (cmd *Command) Run(args []string) int {
 		return 1
 	}
 
-	fileInput, err := parseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
+	fileInput, err := ParseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -108,7 +108,7 @@ func (cmd *Command) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newAgentConfig(input, cmd.LogOptions)
+	c, err := NewAgentConfig(input, cmd.LogOptions)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -147,8 +147,8 @@ func (*Command) Synopsis() string {
 	return "Runs the agent"
 }
 
-func parseFile(path string, expandEnv bool) (*config, error) {
-	c := &config{}
+func ParseFile(path string, expandEnv bool) (*Config, error) {
+	c := &Config{}
 
 	if path == "" {
 		path = defaultConfigPath
@@ -209,8 +209,8 @@ func parseFlags(args []string) (*agentConfig, error) {
 	return c, nil
 }
 
-func mergeInput(fileInput *config, cliInput *agentConfig) (*config, error) {
-	c := &config{Agent: &agentConfig{}}
+func mergeInput(fileInput *Config, cliInput *agentConfig) (*Config, error) {
+	c := &Config{Agent: &agentConfig{}}
 
 	// Highest precedence first
 	err := mergo.Merge(c.Agent, cliInput)
@@ -231,7 +231,7 @@ func mergeInput(fileInput *config, cliInput *agentConfig) (*config, error) {
 	return c, nil
 }
 
-func newAgentConfig(c *config, logOptions []log.Option) (*agent.Config, error) {
+func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac := &agent.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -307,7 +307,7 @@ func newAgentConfig(c *config, logOptions []log.Option) (*agent.Config, error) {
 	return ac, nil
 }
 
-func validateConfig(c *config) error {
+func validateConfig(c *Config) error {
 	if c.Agent == nil {
 		return errors.New("agent section must be configured")
 	}
@@ -335,7 +335,7 @@ func validateConfig(c *config) error {
 	return nil
 }
 
-func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
+func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 	if len(c.UnusedKeys) != 0 {
 		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
 	}
@@ -382,8 +382,8 @@ func warnOnUnknownConfig(c *config, l logrus.FieldLogger) {
 	}
 }
 
-func defaultConfig() *config {
-	return &config{
+func defaultConfig() *Config {
+	return &Config{
 		Agent: &agentConfig{
 			DataDir:    defaultDataDir,
 			LogLevel:   defaultLogLevel,

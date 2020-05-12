@@ -27,7 +27,7 @@ type csrRequest struct {
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize(ctx context.Context) (err error) {
-	update, err := m.fetchUpdates(ctx, nil)
+	update, err := m.fetchEntries(ctx)
 	if err != nil {
 		return err
 	}
@@ -39,8 +39,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	var csrs []csrRequest
 	var expiring int
 	var outdated int
-	m.cache.Update(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.X509SVID) {
-		var expiresAt time.Time
+	m.cache.UpdateEntries(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.X509SVID) bool {
 		switch {
 		case svid == nil:
 			// no SVID
@@ -51,8 +50,6 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 				telemetry.SPIFFEID:       newEntry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
 		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
-			// SVID has expired
-			expiresAt = svid.Chain[0].NotAfter
 			expiring++
 		case existingEntry != nil && !stringsEqual(existingEntry.DnsNames, newEntry.DnsNames):
 			// DNS Names have changed
@@ -62,39 +59,54 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 			outdated++
 		default:
 			// SVID is good
-			return
+			return false
 		}
-		// we've exceeded the CSR limit, don't make any more CSRs
-		if len(csrs) < node.CSRLimit {
+
+		return true
+	})
+
+	// TODO: this values are not real, we may remove
+	if expiring > 0 {
+		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, float32(expiring))
+		m.c.Log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
+	}
+	if outdated > 0 {
+		telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, float32(outdated))
+		m.c.Log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
+	}
+
+	staleEntries := m.cache.GetStaleEntries()
+	if len(staleEntries) > 0 {
+		m.c.Log.WithFields(logrus.Fields{
+			telemetry.Count: len(staleEntries),
+			telemetry.Limit: node.CSRLimit,
+		}).Debug("Renewing stale entries")
+		for _, staleEntry := range staleEntries {
+			// we've exceeded the CSR limit, don't make any more CSRs
+			if len(csrs) >= node.CSRLimit {
+				break
+			}
+
 			csrs = append(csrs, csrRequest{
-				EntryID:              newEntry.EntryId,
-				SpiffeID:             newEntry.SpiffeId,
-				CurrentSVIDExpiresAt: expiresAt,
+				EntryID:              staleEntry.Entry.EntryId,
+				SpiffeID:             staleEntry.Entry.SpiffeId,
+				CurrentSVIDExpiresAt: staleEntry.ExpiresAt,
 			})
 		}
-	})
-	if len(csrs) > 0 {
-		if expiring > 0 {
-			telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, float32(expiring))
-			m.c.Log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
-		}
-		if outdated > 0 {
-			telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, float32(outdated))
-			m.c.Log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
-		}
-		update, err := m.fetchUpdates(ctx, csrs)
+
+		update, err := m.fetchSVIDs(ctx, csrs)
 		if err != nil {
 			return err
 		}
 		// the values in `update` now belong to the cache. DO NOT MODIFY.
-		m.cache.Update(update, nil)
+		m.cache.UpdateSVIDs(update)
 	}
 	return nil
 }
 
-func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.Update, err error) {
+func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.UpdateSVIDs, err error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
-	counter := telemetry_agent.StartManagerFetchUpdatesCall(m.c.Metrics)
+	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
 
 	req := &node.FetchX509SVIDRequest{
@@ -128,11 +140,6 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		return nil, err
 	}
 
-	bundles, err := parseBundles(update.Bundles)
-	if err != nil {
-		return nil, err
-	}
-
 	byEntryID := make(map[string]*cache.X509SVID, len(update.SVIDs))
 	for entryID, svid := range update.SVIDs {
 		privateKey, ok := privateKeys[entryID]
@@ -149,10 +156,33 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		}
 	}
 
-	return &cache.Update{
+	return &cache.UpdateSVIDs{
+		X509SVIDs: byEntryID,
+	}, nil
+}
+
+func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, err error) {
+	// Put all the CSRs in an array to make just one call with all the CSRs.
+	counter := telemetry_agent.StartManagerFetchEntriesUpdatesCall(m.c.Metrics)
+	defer counter.Done(&err)
+
+	req := &node.FetchX509SVIDRequest{
+		Csrs: make(map[string][]byte),
+	}
+
+	update, err := m.client.FetchUpdates(ctx, req, false)
+	if err != nil {
+		return nil, err
+	}
+
+	bundles, err := parseBundles(update.Bundles)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cache.UpdateEntries{
 		Bundles:             bundles,
 		RegistrationEntries: update.Entries,
-		X509SVIDs:           byEntryID,
 	}, nil
 }
 
