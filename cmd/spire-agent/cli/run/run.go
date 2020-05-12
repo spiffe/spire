@@ -53,8 +53,8 @@ type agentConfig struct {
 	LogFile                         string `hcl:"log_file"`
 	LogFormat                       string `hcl:"log_format"`
 	LogLevel                        string `hcl:"log_level"`
-	SDSDefaultTLSCertificateName    string `hcl:"sds_default_resource_name"`
-	SDSDefaultValidationContextName string `hcl:"sds_root_resource_name"`
+	SDSDefaultTLSCertificateName    string `hcl:"sds_default_tls_certificate_name"`
+	SDSDefaultValidationContextName string `hcl:"sds_default_validation_context_name"`
 	ServerAddress                   string `hcl:"server_address"`
 	ServerPort                      int    `hcl:"server_port"`
 	SocketPath                      string `hcl:"socket_path"`
