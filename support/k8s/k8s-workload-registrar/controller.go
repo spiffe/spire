@@ -105,16 +105,15 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 }
 
 // podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored
-func (c *Controller) podSpiffeID(pod *corev1.Pod) *string {
+func (c *Controller) podSpiffeID(pod *corev1.Pod) string {
 	if c.c.PodLabel != "" {
 		// the controller has been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
-			spiffeID := c.makeID("%s", labelValue)
-			return &spiffeID
+			return c.makeID("%s", labelValue)
 		}
-		return nil
+		return ""
 	}
 
 	if c.c.PodAnnotation != "" {
@@ -122,28 +121,26 @@ func (c *Controller) podSpiffeID(pod *corev1.Pod) *string {
 		// has that annotation, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if annotationValue, ok := pod.Annotations[c.c.PodAnnotation]; ok {
-			spiffeID := c.makeID("%s", annotationValue)
-			return &spiffeID
+			return c.makeID("%s", annotationValue)
 		}
-		return nil
+		return ""
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
-	spiffeID := c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
-	return &spiffeID
+	return c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }
 
 func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
 	spiffeID := c.podSpiffeID(pod)
 	// If we have no spiffe ID for the pod, do nothing
-	if spiffeID == nil {
+	if spiffeID == "" {
 		return nil
 	}
 
 	return c.createEntry(ctx, &common.RegistrationEntry{
 		ParentId: c.nodeID(),
-		SpiffeId: *spiffeID,
+		SpiffeId: spiffeID,
 		Selectors: []*common.Selector{
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),

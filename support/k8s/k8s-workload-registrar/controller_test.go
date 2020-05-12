@@ -284,7 +284,6 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 
 func TestPodSpiffeId(t *testing.T) {
 	for _, test := range []struct {
-		expectIgnorePod   bool
 		expectedSpiffeID  string
 		configLabel       string
 		podLabel          string
@@ -315,11 +314,11 @@ func TestPodSpiffeId(t *testing.T) {
 		},
 		{
 			configAnnotation: "someannotation",
-			expectIgnorePod:  true,
+			expectedSpiffeID: "",
 		},
 		{
-			configLabel:     "somelabel",
-			expectIgnorePod: true,
+			configLabel:      "somelabel",
+			expectedSpiffeID: "",
 		},
 	} {
 		c, _ := newTestController(test.configLabel, test.configAnnotation)
@@ -346,12 +345,7 @@ func TestPodSpiffeId(t *testing.T) {
 		spiffeID := c.podSpiffeID(pod)
 
 		// Verify result:
-		if test.expectIgnorePod {
-			require.Nil(t, spiffeID)
-		} else {
-			require.NotNil(t, spiffeID)
-			require.Equal(t, test.expectedSpiffeID, *spiffeID)
-		}
+		require.Equal(t, test.expectedSpiffeID, spiffeID)
 	}
 }
 
