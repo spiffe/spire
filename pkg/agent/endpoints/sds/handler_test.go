@@ -45,6 +45,19 @@ var (
 		},
 	}
 
+	tdValidationContext2 = &auth_v2.Secret{
+		Name: "ROOTCA",
+		Type: &auth_v2.Secret_ValidationContext{
+			ValidationContext: &auth_v2.CertificateValidationContext{
+				TrustedCa: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
+					},
+				},
+			},
+		},
+	}
+
 	fedBundle = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{
 		Raw: []byte("FEDBUNDLE"),
 	})
@@ -201,6 +214,21 @@ func (s *HandlerSuite) TestStreamSecretsStreamTrustDomainBundleOnly() {
 	resp, err := stream.Recv()
 	s.Require().NoError(err)
 	s.requireSecrets(resp, tdValidationContext)
+}
+
+func (s *HandlerSuite) TestStreamSecretsStreamDefaultTrustDomainBundleOnly() {
+	stream, err := s.handler.StreamSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+
+	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
+		ResourceNames: []string{"ROOTCA"},
+	})
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireSecrets(resp, tdValidationContext2)
 }
 
 func (s *HandlerSuite) TestStreamSecretsStreamFederatedTrustDomainBundleOnly() {
