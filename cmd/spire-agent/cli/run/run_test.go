@@ -145,37 +145,37 @@ func TestMergeInput(t *testing.T) {
 		},
 		{
 			msg:       "sds_default_tls_certificate_name should not have a default value",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "", c.Agent.SDSDefaultTLSCertificateName)
 			},
 		},
 		{
 			msg: "sds_default_tls_certificate_name should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.SDSDefaultTLSCertificateName = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.SDSDefaultTLSCertificateName)
 			},
 		},
 		{
 			msg:       "sds_default_validation_context_name should not have a default value",
-			fileInput: func(c *config) {},
+			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "", c.Agent.SDSDefaultValidationContextName)
 			},
 		},
 		{
 			msg: "sds_default_validation_context_name should be configurable by file",
-			fileInput: func(c *config) {
+			fileInput: func(c *Config) {
 				c.Agent.SDSDefaultValidationContextName = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *config) {
+			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.SDSDefaultValidationContextName)
 			},
 		},
