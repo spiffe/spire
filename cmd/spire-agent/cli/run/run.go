@@ -46,20 +46,20 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir                string `hcl:"data_dir"`
-	EnableSDS              bool   `hcl:"enable_sds"`
-	InsecureBootstrap      bool   `hcl:"insecure_bootstrap"`
-	JoinToken              string `hcl:"join_token"`
-	LogFile                string `hcl:"log_file"`
-	LogFormat              string `hcl:"log_format"`
-	LogLevel               string `hcl:"log_level"`
-	SDSDefaultResourceName string `hcl:"sds_default_resource_name"`
-	SDSRootResourceName    string `hcl:"sds_root_resource_name"`
-	ServerAddress          string `hcl:"server_address"`
-	ServerPort             int    `hcl:"server_port"`
-	SocketPath             string `hcl:"socket_path"`
-	TrustBundlePath        string `hcl:"trust_bundle_path"`
-	TrustDomain            string `hcl:"trust_domain"`
+	DataDir                         string `hcl:"data_dir"`
+	EnableSDS                       bool   `hcl:"enable_sds"`
+	InsecureBootstrap               bool   `hcl:"insecure_bootstrap"`
+	JoinToken                       string `hcl:"join_token"`
+	LogFile                         string `hcl:"log_file"`
+	LogFormat                       string `hcl:"log_format"`
+	LogLevel                        string `hcl:"log_level"`
+	SDSDefaultTLSCertificateName    string `hcl:"sds_default_resource_name"`
+	SDSDefaultValidationContextName string `hcl:"sds_root_resource_name"`
+	ServerAddress                   string `hcl:"server_address"`
+	ServerPort                      int    `hcl:"server_port"`
+	SocketPath                      string `hcl:"socket_path"`
+	TrustBundlePath                 string `hcl:"trust_bundle_path"`
+	TrustDomain                     string `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -274,8 +274,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
 
-	ac.SDSDefaultResourceName = c.Agent.SDSDefaultResourceName
-	ac.SDSRootResourceName = c.Agent.SDSRootResourceName
+	ac.SDSDefaultTLSCertificateName = c.Agent.SDSDefaultTLSCertificateName
+	ac.SDSDefaultValidationContextName = c.Agent.SDSDefaultValidationContextName
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
