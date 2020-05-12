@@ -18,15 +18,34 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-func TestMintX509SVID(t *testing.T) {
-	log, _ := test.NewNullLogger()
-	ctx := rpccontext.WithLogger(context.Background(), log)
+const rawCert = `
+-----BEGIN CERTIFICATE-----
+MIICcDCCAdKgAwIBAgIBAjAKBggqhkjOPQQDBDAeMQswCQYDVQQGEwJVUzEPMA0G
+A1UEChMGU1BJRkZFMB4XDTE4MDIxMDAwMzY1NVoXDTE4MDIxMDAxMzY1NlowHTEL
+MAkGA1UEBhMCVVMxDjAMBgNVBAoTBVNQSVJFMIGbMBAGByqGSM49AgEGBSuBBAAj
+A4GGAAQBfav2iunAwzozmwg5lq30ltm/X3XeBgxhbsWu4Rv+I5B22urvR0jxGQM7
+TsquuQ/wpmJQgTgV9jnK/5fvl4GvhS8A+K2UXv6L3IlrHIcMG3VoQ+BeKo44Hwgu
+keu5GMUKAiEF33acNWUHp7U+Swxdxw+CwR9bNnIf0ZTfxlqSBaJGVIujgb4wgbsw
+DgYDVR0PAQH/BAQDAgOoMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAM
+BgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFPhG423HoTvTKNXTAi9TKsaQwpzPMFsG
+A1UdEQRUMFKGUHNwaWZmZTovL2V4YW1wbGUub3JnL3NwaXJlL2FnZW50L2pvaW5f
+dG9rZW4vMmNmMzUzOGMtNGY5Yy00NmMwLWE1MjYtMWNhNjc5YTkyNDkyMAoGCCqG
+SM49BAMEA4GLADCBhwJBLM2CaOSw8kzSBJUyAvg32PM1PhzsVEsGIzWS7b+hgKkJ
+NlnJx6MZ82eamOCsCdTVrXUV5cxO8kt2yTmYxF+ucu0CQgGVmL65pzg2E4YfCES/
+4th19FFMRiOTtNpI5j2/qLTptnanJ/rpqE0qsgA2AiSsnbnnW6B7Oa+oi7QDMOLw
+l6+bdA==
+-----END CERTIFICATE-----
+`
 
-	fakeService := &FakeService{}
-	client, done := createClient(ctx, t, fakeService)
-	defer done()
+func TestMintX509SVID(t *testing.T) {
+	ctx := context.Background()
+
+	c := setupTest(t)
+	defer c.close()
 
 	spiffeID := spiffeid.Must("example.org", "workload1")
 
@@ -39,51 +58,145 @@ func TestMintX509SVID(t *testing.T) {
 	csrRaw, err := x509.CreateCertificateRequest(rand.Reader, template, key)
 	require.NoError(t, err)
 
-	// Setup fake
-	expiresAt := time.Now()
-	fakeService.svid = &api.X509SVID{
-		ID:        spiffeID,
-		CertChain: []*x509.Certificate{},
-		ExpiresAt: expiresAt,
+	testCases := []struct {
+		name string
+
+		certChain  [][]byte
+		err        string
+		expiresAt  time.Time
+		code       codes.Code
+		msg        string
+		req        *svidpb.MintX509SVIDRequest
+		serviceErr string
+		spiffeID   spiffeid.ID
+	}{
+		{
+			name: "success",
+			certChain: [][]byte{
+				[]byte(rawCert),
+			},
+			expiresAt: time.Now().Add(time.Minute),
+			req: &svidpb.MintX509SVIDRequest{
+				Csr: csrRaw,
+				Ttl: 10,
+			},
+			spiffeID: spiffeID,
+		}, {
+			name: "empty CSR",
+			err:  "request missing CSR",
+			code: codes.InvalidArgument,
+			msg:  "Request missing CSR",
+			req: &svidpb.MintX509SVIDRequest{
+				Csr: []byte{},
+				Ttl: 10,
+			},
+		}, {
+			name: "invalid CSR",
+			err:  "invalid CSR: asn1: structure error: tags don't match",
+			code: codes.InvalidArgument,
+			msg:  "Invalid CSR",
+			req: &svidpb.MintX509SVIDRequest{
+				Csr: []byte("invalid CSR"),
+				Ttl: 10,
+			},
+		}, {
+			name: "service return error",
+			err:  "some error",
+			code: codes.Internal,
+			msg:  "Invalid CSR",
+			req: &svidpb.MintX509SVIDRequest{
+				Csr: csrRaw,
+				Ttl: 10,
+			},
+			serviceErr: "some error",
+		},
 	}
 
-	// Mint certificate request
-	resp, err := client.MintX509SVID(ctx, &svidpb.MintX509SVIDRequest{
-		Csr: csrRaw,
-		Ttl: 10,
-	})
-	require.NoError(t, err)
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			// Setup service
+			c.service.certChain = testCase.certChain
+			c.service.id = testCase.spiffeID
+			c.service.err = testCase.serviceErr
+			c.service.expiresAt = testCase.expiresAt
 
-	require.Equal(t, "example.org", resp.Svid.Id.TrustDomain)
-	require.Equal(t, "/workload1", resp.Svid.Id.Path)
-	require.Equal(t, expiresAt.UTC().Unix(), resp.Svid.ExpiresAt)
+			// Call mint
+			resp, err := c.svidClient.MintX509SVID(ctx, testCase.req)
+
+			// Verify expected error
+			if testCase.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, testCase.code, testCase.err)
+				require.Nil(t, resp)
+				require.Equal(t, testCase.msg, c.logHook.LastEntry().Message)
+
+				return
+			}
+
+			// Verify response
+			require.NoError(t, err)
+
+			require.Equal(t, testCase.spiffeID.TrustDomain().String(), resp.Svid.Id.TrustDomain)
+			require.Equal(t, testCase.spiffeID.Path(), resp.Svid.Id.Path)
+			require.Equal(t, testCase.expiresAt.UTC().Unix(), resp.Svid.ExpiresAt)
+			require.Equal(t, testCase.certChain, resp.Svid.CertChain)
+
+			c.logHook.Reset()
+		})
+	}
 }
 
 type FakeService struct {
 	svid.Service
 
-	svid *api.X509SVID
-	err  error
+	id        spiffeid.ID
+	certChain [][]byte
+	err       string
+	expiresAt time.Time
 }
 
-func (s *FakeService) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest, ttl time.Duration) (*api.X509SVID, error) {
-	if s.err != nil {
-		return nil, s.err
+func (s *FakeService) MintX509SVID(context.Context, *x509.CertificateRequest, time.Duration) (*api.X509SVID, error) {
+	if s.err != "" {
+		return nil, status.Errorf(codes.Internal, s.err)
 	}
 
-	return s.svid, nil
+	var certs []*x509.Certificate
+	for _, cert := range s.certChain {
+		certs = append(certs, &x509.Certificate{Raw: cert})
+	}
+	return &api.X509SVID{ID: s.id, CertChain: certs, ExpiresAt: s.expiresAt}, nil
 }
 
-func createClient(ctx context.Context, t *testing.T, fakeService *FakeService) (svidpb.SVIDClient, func()) {
+type testConfig struct {
+	svidClient svidpb.SVIDClient
+	service    *FakeService
+	logHook    *test.Hook
+	closeConn  func()
+}
+
+func (c *testConfig) close() {
+	c.closeConn()
+}
+
+func setupTest(t *testing.T) *testConfig {
+	fakeService := &FakeService{}
+	log, logHook := test.NewNullLogger()
 	registerFn := func(s *grpc.Server) {
 		svid.RegisterService(s, fakeService)
 	}
 
-	contextFn := func(context.Context) context.Context {
+	contextFn := func(ctx context.Context) context.Context {
+		ctx = rpccontext.WithLogger(ctx, log)
+
 		return ctx
 	}
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 
-	return svidpb.NewSVIDClient(conn), done
+	return &testConfig{
+		svidClient: svidpb.NewSVIDClient(conn),
+		closeConn:  done,
+		logHook:    logHook,
+		service:    fakeService,
+	}
 }
