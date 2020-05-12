@@ -143,6 +143,42 @@ func TestMergeInput(t *testing.T) {
 				require.True(t, c.Agent.EnableSDS)
 			},
 		},
+		{
+			msg:       "sds_default_tls_certificate_name should not have a default value",
+			fileInput: func(c *config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.Equal(t, "", c.Agent.SDSDefaultTLSCertificateName)
+			},
+		},
+		{
+			msg: "sds_default_tls_certificate_name should be configurable by file",
+			fileInput: func(c *config) {
+				c.Agent.SDSDefaultTLSCertificateName = "foo"
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.Equal(t, "foo", c.Agent.SDSDefaultTLSCertificateName)
+			},
+		},
+		{
+			msg:       "sds_default_validation_context_name should not have a default value",
+			fileInput: func(c *config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.Equal(t, "", c.Agent.SDSDefaultValidationContextName)
+			},
+		},
+		{
+			msg: "sds_default_validation_context_name should be configurable by file",
+			fileInput: func(c *config) {
+				c.Agent.SDSDefaultValidationContextName = "foo"
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *config) {
+				require.Equal(t, "foo", c.Agent.SDSDefaultValidationContextName)
+			},
+		},
 		//{
 		//      // TODO: This is currently unsupported
 		//	msg: "enable_sds specified by CLI flag should take precedence over file",
