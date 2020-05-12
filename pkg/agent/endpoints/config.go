@@ -26,7 +26,10 @@ type Config struct {
 	// If true, an SDS server will be served over the UDS socket
 	EnableSDS bool
 
+	// SDS default validation context resource name
 	SDSDefaultResourceName string
+
+	// SDS default TLS certificate context resource name
 	SDSRootResourceName    string
 }
 
