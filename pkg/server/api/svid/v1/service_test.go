@@ -13,8 +13,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/api/svid/v1"
-	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -23,17 +21,15 @@ import (
 )
 
 func TestServiceMintX509SVID(t *testing.T) {
-	clock := clock.NewMock(t)
 	// Add logger to context
 	log, logHook := test.NewNullLogger()
 	ctx := rpccontext.WithLogger(context.Background(), log)
 
 	spiffeID := spiffeid.Must("example.org", "workload1")
-	dns := []string{"dns1", "dns2"}
 
 	// Create Service
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
-	fakeServerCA := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{Clock: clock})
+	fakeServerCA := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
 	service := svid.New(svid.Config{
 		ServerCA:    fakeServerCA,
 		TrustDomain: trustDomain,
@@ -42,19 +38,20 @@ func TestServiceMintX509SVID(t *testing.T) {
 	key := testkey.NewEC256(t)
 	x509CA := fakeServerCA.X509CA()
 	now := fakeServerCA.Clock().Now().UTC()
+	expiredAt := now.Add(fakeServerCA.X509SVIDTTL())
 
 	testCases := []struct {
-		name      string
-		code      codes.Code
-		createCsr func(tb testing.TB) *x509.CertificateRequest
-		dns       []string
-		err       string
-		expiredAt time.Time
-		msg       string
-		spiffeID  spiffeid.ID
-		subject   string
-		ttl       time.Duration
-		x509CA    *ca.X509CA
+		name        string
+		code        codes.Code
+		createCsr   func(tb testing.TB) *x509.CertificateRequest
+		dns         []string
+		err         string
+		expiredAt   time.Time
+		msg         string
+		spiffeID    spiffeid.ID
+		subject     string
+		ttl         time.Duration
+		failMinting bool
 	}{
 		{
 			name: "success",
@@ -62,7 +59,62 @@ func TestServiceMintX509SVID(t *testing.T) {
 				template := &x509.CertificateRequest{
 					SignatureAlgorithm: x509.ECDSAWithSHA256,
 					URIs:               []*url.URL{spiffeID.URL()},
-					DNSNames:           dns,
+				}
+				return createCsr(t, template, key)
+			},
+			expiredAt: expiredAt,
+			spiffeID:  spiffeID,
+			subject:   "O=SPIRE,C=US",
+		}, {
+			name: "custom ttl",
+			createCsr: func(tb testing.TB) *x509.CertificateRequest {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs:               []*url.URL{spiffeID.URL()},
+				}
+				return createCsr(t, template, key)
+			},
+			expiredAt: now.Add(10 * time.Second),
+			spiffeID:  spiffeID,
+			subject:   "O=SPIRE,C=US",
+			ttl:       10 * time.Second,
+		}, {
+			name: "custom dns",
+			createCsr: func(tb testing.TB) *x509.CertificateRequest {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs:               []*url.URL{spiffeID.URL()},
+					DNSNames:           []string{"dns1", "dns2"},
+				}
+				return createCsr(t, template, key)
+			},
+			dns:       []string{"dns1", "dns2"},
+			expiredAt: expiredAt,
+			spiffeID:  spiffeID,
+			subject:   "CN=dns1,O=SPIRE,C=US",
+		}, {
+			name: "custom subject",
+			createCsr: func(tb testing.TB) *x509.CertificateRequest {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs:               []*url.URL{spiffeID.URL()},
+					Subject: pkix.Name{
+						Country:      []string{"US", "EN"},
+						Organization: []string{"ORG"},
+					},
+				}
+				return createCsr(t, template, key)
+			},
+			expiredAt: expiredAt,
+			spiffeID:  spiffeID,
+			subject:   "O=ORG,C=US+C=EN",
+		}, {
+			name: "custom subject and dns",
+			createCsr: func(tb testing.TB) *x509.CertificateRequest {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs:               []*url.URL{spiffeID.URL()},
+					DNSNames:           []string{"dns1", "dns2"},
 					Subject: pkix.Name{
 						Country:      []string{"US", "EN"},
 						Organization: []string{"ORG"},
@@ -71,24 +123,9 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return createCsr(t, template, key)
 			},
 			dns:       []string{"dns1", "dns2"},
-			expiredAt: now.Add(time.Minute),
+			expiredAt: expiredAt,
 			spiffeID:  spiffeID,
 			subject:   "CN=dns1,O=ORG,C=US+C=EN",
-			ttl:       time.Minute,
-			x509CA:    x509CA,
-		}, {
-			name: "default values",
-			createCsr: func(tb testing.TB) *x509.CertificateRequest {
-				template := &x509.CertificateRequest{
-					SignatureAlgorithm: x509.ECDSAWithSHA256,
-					URIs:               []*url.URL{spiffeID.URL()},
-				}
-				return createCsr(t, template, key)
-			},
-			expiredAt: now.Add(fakeServerCA.X509SVIDTTL()),
-			spiffeID:  spiffeID,
-			subject:   "O=SPIRE,C=US",
-			x509CA:    x509CA,
 		}, {
 			name: "invalid signature",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
@@ -100,7 +137,6 @@ func TestServiceMintX509SVID(t *testing.T) {
 			code: codes.InvalidArgument,
 			err:  "invalid CSR: signature verify failed",
 			msg:  "Invalid CSR: signature verify failed",
-			ttl:  time.Minute,
 		}, {
 			name: "no URIs",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
@@ -112,9 +148,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return createCsr(tb, template, key)
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: a valid URI is required",
-			msg:  "Invalid CSR: a valid URI is required",
-			ttl:  time.Minute,
+			err:  "invalid CSR: URI SAN is required",
+			msg:  "Invalid CSR: URI SAN is required",
 		}, {
 			name: "multiple URIs",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
@@ -129,9 +164,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return createCsr(tb, template, key)
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: a valid URI is required",
-			msg:  "Invalid CSR: a valid URI is required",
-			ttl:  time.Minute,
+			err:  "invalid CSR: only one URI SAN is expected",
+			msg:  "Invalid CSR: only one URI SAN is expected",
 		}, {
 			name: "invalid SPIFFE ID",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
@@ -145,9 +179,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return createCsr(tb, template, key)
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: a valid SPIFFE ID is expected: spiffeid: invalid scheme",
-			msg:  "Invalid CSR: a valid SPIFFE ID is expected",
-			ttl:  time.Minute,
+			err:  "invalid CSR: URI SAN is not a valid SPIFFE ID: spiffeid: invalid scheme",
+			msg:  "Invalid CSR: URI SAN is not a valid SPIFFE ID",
 		}, {
 			name: "different trust domain",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
@@ -161,9 +194,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return createCsr(tb, template, key)
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: SPIFFE ID is not member of the server trust domain",
-			msg:  "Invalid CSR: SPIFFE ID is not member of the server trust domain",
-			ttl:  time.Minute,
+			err:  "invalid CSR: SPIFFE ID is not a member of the server trust domain",
+			msg:  "Invalid CSR: SPIFFE ID is not a member of the server trust domain",
 		}, {
 			name: "invalid DNS",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
@@ -178,7 +210,6 @@ func TestServiceMintX509SVID(t *testing.T) {
 			code: codes.InvalidArgument,
 			err:  "invalid CSR: DNS name is not valid: label does not match regex: abc-",
 			msg:  "Invalid CSR: DNS name is not valid",
-			ttl:  time.Minute,
 		}, {
 			name: "serverCA fails",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
@@ -189,10 +220,10 @@ func TestServiceMintX509SVID(t *testing.T) {
 
 				return createCsr(tb, template, key)
 			},
-			code: codes.Internal,
-			err:  "failed to sign X509-SVID: X509 CA is not available for signing",
-			msg:  "Failed to sign X509-SVID",
-			ttl:  time.Minute,
+			code:        codes.Internal,
+			err:         "failed to sign X509-SVID: X509 CA is not available for signing",
+			failMinting: true,
+			msg:         "Failed to sign X509-SVID",
 		},
 	}
 
@@ -200,7 +231,10 @@ func TestServiceMintX509SVID(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			// Set x509CA used when signing SVID
-			fakeServerCA.CA.SetX509CA(testCase.x509CA)
+			fakeServerCA.CA.SetX509CA(x509CA)
+			if testCase.failMinting {
+				fakeServerCA.CA.SetX509CA(nil)
+			}
 
 			// Mint CSR
 			resp, err := service.MintX509SVID(ctx, testCase.createCsr(t), testCase.ttl)

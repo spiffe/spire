@@ -31,14 +31,14 @@ type Service interface {
 // New creates a new SVID service
 func New(config Config) Service {
 	return &service{
-		ServerCA:    config.ServerCA,
-		TrustDomain: config.TrustDomain,
+		ca: config.ServerCA,
+		td: config.TrustDomain,
 	}
 }
 
 type service struct {
-	ServerCA    ca.ServerCA
-	TrustDomain spiffeid.TrustDomain
+	ca ca.ServerCA
+	td spiffeid.TrustDomain
 }
 
 func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest, ttl time.Duration) (*api.X509SVID, error) {
@@ -49,20 +49,24 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
 	}
 
-	if len(csr.URIs) != 1 {
-		log.Error("Invalid CSR: a valid URI is required")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: a valid URI is required")
+	switch {
+	case len(csr.URIs) == 0:
+		log.Error("Invalid CSR: URI SAN is required")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: URI SAN is required")
+	case len(csr.URIs) > 1:
+		log.Error("Invalid CSR: only one URI SAN is expected")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: only one URI SAN is expected")
 	}
 
 	spiffeID, err := spiffeid.FromURI(csr.URIs[0])
 	if err != nil {
-		log.WithError(err).Error("Invalid CSR: a valid SPIFFE ID is expected")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: a valid SPIFFE ID is expected: %v", err)
+		log.WithError(err).Error("Invalid CSR: URI SAN is not a valid SPIFFE ID")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: URI SAN is not a valid SPIFFE ID: %v", err)
 	}
 
-	if !spiffeID.MemberOf(s.TrustDomain) {
-		log.Error("Invalid CSR: SPIFFE ID is not member of the server trust domain")
-		return nil, status.Error(codes.InvalidArgument, "invalid CSR: SPIFFE ID is not member of the server trust domain")
+	if !spiffeID.MemberOf(s.td) {
+		log.Error("Invalid CSR: SPIFFE ID is not a member of the server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "invalid CSR: SPIFFE ID is not a member of the server trust domain")
 	}
 
 	for _, dnsName := range csr.DNSNames {
@@ -72,7 +76,7 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 		}
 	}
 
-	svid, err := s.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+	svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
 		SpiffeID:  spiffeID.String(),
 		PublicKey: csr.PublicKey,
 		TTL:       ttl,

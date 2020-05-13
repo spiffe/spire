@@ -45,7 +45,7 @@ func TestMintX509SVID(t *testing.T) {
 	ctx := context.Background()
 
 	c := setupTest(t)
-	defer c.close()
+	defer c.Close()
 
 	spiffeID := spiffeid.Must("example.org", "workload1")
 
@@ -167,18 +167,18 @@ func (s *FakeService) MintX509SVID(context.Context, *x509.CertificateRequest, ti
 	return &api.X509SVID{ID: s.id, CertChain: certs, ExpiresAt: s.expiresAt}, nil
 }
 
-type testConfig struct {
+type serverTest struct {
 	svidClient svidpb.SVIDClient
 	service    *FakeService
 	logHook    *test.Hook
-	closeConn  func()
+	done       func()
 }
 
-func (c *testConfig) close() {
-	c.closeConn()
+func (c *serverTest) Close() {
+	c.done()
 }
 
-func setupTest(t *testing.T) *testConfig {
+func setupTest(t *testing.T) *serverTest {
 	fakeService := &FakeService{}
 	log, logHook := test.NewNullLogger()
 	registerFn := func(s *grpc.Server) {
@@ -193,9 +193,9 @@ func setupTest(t *testing.T) *testConfig {
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 
-	return &testConfig{
+	return &serverTest{
 		svidClient: svidpb.NewSVIDClient(conn),
-		closeConn:  done,
+		done:       done,
 		logHook:    logHook,
 		service:    fakeService,
 	}
