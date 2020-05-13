@@ -36,12 +36,12 @@ type Manager interface {
 }
 
 type HandlerConfig struct {
-	Attestor                        attestor.Attestor
-	Manager                         Manager
-	Metrics                         telemetry.Metrics
-	Log                             logrus.FieldLogger
-	SDSDefaultValidationContextName string
-	SDSDefaultTLSCertificateName    string
+	Attestor             attestor.Attestor
+	Manager              Manager
+	Metrics              telemetry.Metrics
+	Log                  logrus.FieldLogger
+	SDSDefaultBundleName string
+	SDSDefaultSVIDName   string
 }
 
 type Handler struct {
@@ -289,10 +289,10 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 
 	// TODO: verify the type url
 
-	_, rootCaResourceBool := names[h.c.SDSDefaultValidationContextName]
+	_, rootCaResourceBool := names[h.c.SDSDefaultBundleName]
 
 	if upd.Bundle != nil && (len(names) == 0 || rootCaResourceBool || names[upd.Bundle.TrustDomainID()]) {
-		validationContext, err := buildValidationContext(upd.Bundle, rootCaResourceBool, h.c.SDSDefaultValidationContextName)
+		validationContext, err := buildValidationContext(upd.Bundle, rootCaResourceBool, h.c.SDSDefaultBundleName)
 		if err != nil {
 			return nil, err
 		}
@@ -309,10 +309,10 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		}
 	}
 
-	_, defaultResourceBool := names[h.c.SDSDefaultTLSCertificateName]
+	_, defaultResourceBool := names[h.c.SDSDefaultSVIDName]
 	for _, identity := range upd.Identities {
 		if len(names) == 0 || defaultResourceBool || names[identity.Entry.SpiffeId] {
-			tlsCertificate, err := buildTLSCertificate(identity, defaultResourceBool, h.c.SDSDefaultTLSCertificateName)
+			tlsCertificate, err := buildTLSCertificate(identity, defaultResourceBool, h.c.SDSDefaultSVIDName)
 			if err != nil {
 				return nil, err
 			}

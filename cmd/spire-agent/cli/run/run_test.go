@@ -144,39 +144,39 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "sds_default_tls_certificate_name should not have a default value",
+			msg:       "sds_default_svid_name have a default value of default",
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "", c.Agent.SDSDefaultTLSCertificateName)
+				require.Equal(t, "default", c.Agent.SDSDefaultSVIDName)
 			},
 		},
 		{
-			msg: "sds_default_tls_certificate_name should be configurable by file",
+			msg: "sds_default_svid_name should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.SDSDefaultTLSCertificateName = "foo"
+				c.Agent.SDSDefaultSVIDName = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Agent.SDSDefaultTLSCertificateName)
+				require.Equal(t, "foo", c.Agent.SDSDefaultSVIDName)
 			},
 		},
 		{
-			msg:       "sds_default_validation_context_name should not have a default value",
+			msg:       "sds_default_bundle_name should default value of ROOTCA",
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "", c.Agent.SDSDefaultValidationContextName)
+				require.Equal(t, "ROOTCA", c.Agent.SDSDefaultBundleName)
 			},
 		},
 		{
-			msg: "sds_default_validation_context_name should be configurable by file",
+			msg: "sds_default_bundle_name should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.SDSDefaultValidationContextName = "foo"
+				c.Agent.SDSDefaultBundleName = "foo"
 			},
 			cliInput: func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Agent.SDSDefaultValidationContextName)
+				require.Equal(t, "foo", c.Agent.SDSDefaultBundleName)
 			},
 		},
 		//{

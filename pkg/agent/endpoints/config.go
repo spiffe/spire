@@ -26,11 +26,11 @@ type Config struct {
 	// If true, an SDS server will be served over the UDS socket
 	EnableSDS bool
 
-	// SDS default validation context resource name
-	SDSDefaultTLSCertificateName string
+	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
+	SDSDefaultSVIDName string
 
-	// SDS default TLS certificate context resource name
-	SDSDefaultValidationContextName string
+	// The Validation Context resource name to use for the default X.509 bundle with Envoy SDS
+	SDSDefaultBundleName string
 }
 
 func New(c *Config) *Endpoints {
