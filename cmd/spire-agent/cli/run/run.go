@@ -32,8 +32,10 @@ const (
 	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
-	defaultDataDir  = "."
-	defaultLogLevel = "INFO"
+	defaultDataDir              = "."
+	defaultLogLevel             = "INFO"
+	defaultSDSDefaultSVIDName   = "default"
+	defaultSDSDefaultBundleName = "ROOTCA"
 )
 
 // Config contains all available configurables, arranged by section
@@ -46,20 +48,20 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir                         string `hcl:"data_dir"`
-	EnableSDS                       bool   `hcl:"enable_sds"`
-	InsecureBootstrap               bool   `hcl:"insecure_bootstrap"`
-	JoinToken                       string `hcl:"join_token"`
-	LogFile                         string `hcl:"log_file"`
-	LogFormat                       string `hcl:"log_format"`
-	LogLevel                        string `hcl:"log_level"`
-	SDSDefaultTLSCertificateName    string `hcl:"sds_default_tls_certificate_name"`
-	SDSDefaultValidationContextName string `hcl:"sds_default_validation_context_name"`
-	ServerAddress                   string `hcl:"server_address"`
-	ServerPort                      int    `hcl:"server_port"`
-	SocketPath                      string `hcl:"socket_path"`
-	TrustBundlePath                 string `hcl:"trust_bundle_path"`
-	TrustDomain                     string `hcl:"trust_domain"`
+	DataDir              string `hcl:"data_dir"`
+	EnableSDS            bool   `hcl:"enable_sds"`
+	InsecureBootstrap    bool   `hcl:"insecure_bootstrap"`
+	JoinToken            string `hcl:"join_token"`
+	LogFile              string `hcl:"log_file"`
+	LogFormat            string `hcl:"log_format"`
+	LogLevel             string `hcl:"log_level"`
+	SDSDefaultSVIDName   string `hcl:"sds_default_svid_name"`
+	SDSDefaultBundleName string `hcl:"sds_default_bundle_name"`
+	ServerAddress        string `hcl:"server_address"`
+	ServerPort           int    `hcl:"server_port"`
+	SocketPath           string `hcl:"socket_path"`
+	TrustBundlePath      string `hcl:"trust_bundle_path"`
+	TrustDomain          string `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -274,8 +276,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
 
-	ac.SDSDefaultTLSCertificateName = c.Agent.SDSDefaultTLSCertificateName
-	ac.SDSDefaultValidationContextName = c.Agent.SDSDefaultValidationContextName
+	ac.SDSDefaultSVIDName = c.Agent.SDSDefaultSVIDName
+	ac.SDSDefaultBundleName = c.Agent.SDSDefaultBundleName
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
@@ -385,10 +387,12 @@ func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 func defaultConfig() *Config {
 	return &Config{
 		Agent: &agentConfig{
-			DataDir:    defaultDataDir,
-			LogLevel:   defaultLogLevel,
-			LogFormat:  log.DefaultFormat,
-			SocketPath: defaultSocketPath,
+			DataDir:              defaultDataDir,
+			LogLevel:             defaultLogLevel,
+			LogFormat:            log.DefaultFormat,
+			SocketPath:           defaultSocketPath,
+			SDSDefaultBundleName: defaultSDSDefaultBundleName,
+			SDSDefaultSVIDName:   defaultSDSDefaultSVIDName,
 		},
 	}
 }
