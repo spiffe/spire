@@ -42,7 +42,6 @@ const (
 	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 	defaultNodeNameEnv       = "MY_NODE_NAME"
 	defaultReloadInterval    = time.Minute
-	kubePodsPrefix           = "/kubepods"
 )
 
 type containerLookup int
