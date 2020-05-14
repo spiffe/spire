@@ -866,6 +866,56 @@ func (s *Suite) addCgroupsResponse(fixturePath string) {
 	s.Require().NoError(os.Symlink(filepath.Join(wd, fixturePath), cgroupPath))
 }
 
+func TestGetContainerIDFromCGroupPath(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		cgroupPath  string
+		containerID string
+	}{
+		{
+			name:        "without QOS",
+			cgroupPath:  "/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+		},
+		{
+			name:        "with QOS",
+			cgroupPath:  "/kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/34a2062fd26c805aa8cf814cdfe479322b791f80afb9ea4db02d50375df14b41",
+			containerID: "34a2062fd26c805aa8cf814cdfe479322b791f80afb9ea4db02d50375df14b41",
+		},
+		{
+			name:        "docker for desktop with QOS",
+			cgroupPath:  "/kubepods/kubepods/besteffort/pod6bd2a4d3-a55a-4450-b6fd-2a7ecc72c904/a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
+			containerID: "a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
+		},
+		{
+			name:        "kind with QOS",
+			cgroupPath:  "/docker/93529524695bb00d91c1f6dba692ea8d3550c3b94fb2463af7bc9ec82f992d26/kubepods/besteffort/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			containerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+		},
+		{
+			name:        "systemd with QOS",
+			cgroupPath:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope",
+			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+		},
+		{
+			name:       "not kubepods",
+			cgroupPath: "/something/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			containerID, ok := getContainerIDFromCGroupPath(tt.cgroupPath)
+			if tt.containerID == "" {
+				assert.False(t, ok)
+				assert.Empty(t, containerID)
+				return
+			}
+			assert.True(t, ok)
+			assert.Equal(t, tt.containerID, containerID)
+		})
+	}
+}
+
 type testFS string
 
 func (fs testFS) Open(path string) (io.ReadCloser, error) {
