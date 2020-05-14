@@ -283,7 +283,8 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 }
 
 func TestPodSpiffeId(t *testing.T) {
-	for _, test := range []struct {
+	for _, testCase := range []struct {
+		name              string
 		expectedSpiffeID  string
 		configLabel       string
 		podLabel          string
@@ -293,59 +294,62 @@ func TestPodSpiffeId(t *testing.T) {
 		podServiceAccount string
 	}{
 		{
+			name:              "using namespace and serviceaccount",
 			expectedSpiffeID:  "spiffe://domain.test/ns/NS/sa/SA",
 			podNamespace:      "NS",
 			podServiceAccount: "SA",
 		},
 		{
+			name:             "using label",
 			expectedSpiffeID: "spiffe://domain.test/LABEL",
 			configLabel:      "spiffe.io/label",
 			podLabel:         "LABEL",
 		},
 		{
+			name:             "using annotation",
 			expectedSpiffeID: "spiffe://domain.test/ANNOTATION",
 			configAnnotation: "spiffe.io/annotation",
 			podAnnotation:    "ANNOTATION",
 		},
 		{
-			expectedSpiffeID: "spiffe://domain.test/LABEL",
-			configLabel:      "spiffe.io/label",
-			podLabel:         "LABEL",
-		},
-		{
+			name:             "ignore unannotated",
 			configAnnotation: "someannotation",
 			expectedSpiffeID: "",
 		},
 		{
+			name:             "ignore unlabelled",
 			configLabel:      "somelabel",
 			expectedSpiffeID: "",
 		},
 	} {
-		c, _ := newTestController(test.configLabel, test.configAnnotation)
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			c, _ := newTestController(testCase.configLabel, testCase.configAnnotation)
 
-		// Set up pod:
-		pod := &corev1.Pod{
-			Spec: corev1.PodSpec{
-				ServiceAccountName: test.podServiceAccount,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:   test.podNamespace,
-				Labels:      map[string]string{},
-				Annotations: map[string]string{},
-			},
-		}
-		if test.configLabel != "" && test.podLabel != "" {
-			pod.Labels[test.configLabel] = test.podLabel
-		}
-		if test.configAnnotation != "" && test.podAnnotation != "" {
-			pod.Annotations[test.configAnnotation] = test.podAnnotation
-		}
+			// Set up pod:
+			pod := &corev1.Pod{
+				Spec: corev1.PodSpec{
+					ServiceAccountName: testCase.podServiceAccount,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   testCase.podNamespace,
+					Labels:      map[string]string{},
+					Annotations: map[string]string{},
+				},
+			}
+			if testCase.configLabel != "" && testCase.podLabel != "" {
+				pod.Labels[testCase.configLabel] = testCase.podLabel
+			}
+			if testCase.configAnnotation != "" && testCase.podAnnotation != "" {
+				pod.Annotations[testCase.configAnnotation] = testCase.podAnnotation
+			}
 
-		// Test:
-		spiffeID := c.podSpiffeID(pod)
+			// Test:
+			spiffeID := c.podSpiffeID(pod)
 
-		// Verify result:
-		require.Equal(t, test.expectedSpiffeID, spiffeID)
+			// Verify result:
+			require.Equal(t, testCase.expectedSpiffeID, spiffeID)
+		})
 	}
 }
 
