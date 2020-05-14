@@ -148,17 +148,19 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "default", c.Agent.SDSDefaultSVIDName)
+				require.Equal(t, "default", c.Agent.SDS.SDSDefaultSVIDName)
 			},
 		},
 		{
 			msg: "sds_default_svid_name should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.SDSDefaultSVIDName = "foo"
+				c.Agent.SDS = &sdsConfig{
+					SDSDefaultSVIDName: "foo",
+				}
 			},
 			cliInput: func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Agent.SDSDefaultSVIDName)
+				require.Equal(t, "foo", c.Agent.SDS.SDSDefaultSVIDName)
 			},
 		},
 		{
@@ -166,17 +168,19 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "ROOTCA", c.Agent.SDSDefaultBundleName)
+				require.Equal(t, "ROOTCA", c.Agent.SDS.SDSDefaultBundleName)
 			},
 		},
 		{
 			msg: "sds_default_bundle_name should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.SDSDefaultBundleName = "foo"
+				c.Agent.SDS = &sdsConfig{
+					SDSDefaultBundleName: "foo",
+				}
 			},
 			cliInput: func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Agent.SDSDefaultBundleName)
+				require.Equal(t, "foo", c.Agent.SDS.SDSDefaultBundleName)
 			},
 		},
 		//{

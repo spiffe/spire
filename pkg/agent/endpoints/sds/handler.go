@@ -284,23 +284,22 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 	// build a convenient set of names for lookups
 	names := make(map[string]bool)
 	for _, name := range req.ResourceNames {
-		names[name] = true
+		if name != "" {
+			names[name] = true
+		}
 	}
 
 	// TODO: verify the type url
-	_, defaultBundleNameBool := names[h.c.SDSDefaultBundleName]
-
-	if upd.Bundle != nil && (len(names) == 0 || defaultBundleNameBool || names[upd.Bundle.TrustDomainID()]) {
-		validationContext, err := buildValidationContext(upd.Bundle, defaultBundleNameBool, h.c.SDSDefaultBundleName)
-		if err != nil {
-			return nil, err
-		}
-		resp.Resources = append(resp.Resources, validationContext)
-	}
-
-	for _, federatedBundle := range upd.FederatedBundles {
-		if len(names) == 0 || names[federatedBundle.TrustDomainID()] {
-			validationContext, err := buildValidationContext(federatedBundle, false, "")
+	if upd.Bundle != nil {
+		switch {
+		case len(names) == 0 || names[upd.Bundle.TrustDomainID()]:
+			validationContext, err := buildValidationContext(upd.Bundle, "")
+			if err != nil {
+				return nil, err
+			}
+			resp.Resources = append(resp.Resources, validationContext)
+		case names[h.c.SDSDefaultBundleName]:
+			validationContext, err := buildValidationContext(upd.Bundle, h.c.SDSDefaultBundleName)
 			if err != nil {
 				return nil, err
 			}
@@ -308,10 +307,26 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		}
 	}
 
-	_, defaultSVIDNameBool := names[h.c.SDSDefaultSVIDName]
+	for _, federatedBundle := range upd.FederatedBundles {
+		if len(names) == 0 || names[federatedBundle.TrustDomainID()] {
+			validationContext, err := buildValidationContext(federatedBundle, "")
+			if err != nil {
+				return nil, err
+			}
+			resp.Resources = append(resp.Resources, validationContext)
+		}
+	}
+
 	for _, identity := range upd.Identities {
-		if len(names) == 0 || defaultSVIDNameBool || names[identity.Entry.SpiffeId] {
-			tlsCertificate, err := buildTLSCertificate(identity, defaultSVIDNameBool, h.c.SDSDefaultSVIDName)
+		switch {
+		case len(names) == 0 || names[identity.Entry.SpiffeId]:
+			tlsCertificate, err := buildTLSCertificate(identity, "")
+			if err != nil {
+				return nil, err
+			}
+			resp.Resources = append(resp.Resources, tlsCertificate)
+		case names[h.c.SDSDefaultSVIDName]:
+			tlsCertificate, err := buildTLSCertificate(identity, h.c.SDSDefaultSVIDName)
 			if err != nil {
 				return nil, err
 			}
@@ -341,13 +356,10 @@ func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	return watcher, nil
 }
 
-func buildTLSCertificate(identity cache.Identity, defaultSVIDNameBool bool, defaultSVIDName string) (*any.Any, error) {
-	var id string
-
-	if defaultSVIDNameBool {
-		id = defaultSVIDName
-	} else {
-		id = identity.Entry.SpiffeId
+func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.Any, error) {
+	name := identity.Entry.SpiffeId
+	if defaultSVIDName != "" {
+		name = defaultSVIDName
 	}
 
 	keyPEM, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
@@ -358,7 +370,7 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDNameBool bool, defa
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
 	return ptypes.MarshalAny(&auth_v2.Secret{
-		Name: id,
+		Name: name,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
 				CertificateChain: &core_v2.DataSource{
@@ -376,16 +388,14 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDNameBool bool, defa
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleNameBool bool, defaultBundleName string) (*any.Any, error) {
-	var id string
-	if defaultBundleNameBool {
-		id = defaultBundleName
-	} else {
-		id = bundle.TrustDomainID()
+func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string) (*any.Any, error) {
+	name := bundle.TrustDomainID()
+	if defaultBundleName != "" {
+		name = defaultBundleName
 	}
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
 	return ptypes.MarshalAny(&auth_v2.Secret{
-		Name: id,
+		Name: name,
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{
 				TrustedCa: &core_v2.DataSource{

@@ -48,20 +48,19 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir              string `hcl:"data_dir"`
-	EnableSDS            bool   `hcl:"enable_sds"`
-	InsecureBootstrap    bool   `hcl:"insecure_bootstrap"`
-	JoinToken            string `hcl:"join_token"`
-	LogFile              string `hcl:"log_file"`
-	LogFormat            string `hcl:"log_format"`
-	LogLevel             string `hcl:"log_level"`
-	SDSDefaultSVIDName   string `hcl:"sds_default_svid_name"`
-	SDSDefaultBundleName string `hcl:"sds_default_bundle_name"`
-	ServerAddress        string `hcl:"server_address"`
-	ServerPort           int    `hcl:"server_port"`
-	SocketPath           string `hcl:"socket_path"`
-	TrustBundlePath      string `hcl:"trust_bundle_path"`
-	TrustDomain          string `hcl:"trust_domain"`
+	DataDir           string     `hcl:"data_dir"`
+	EnableSDS         bool       `hcl:"enable_sds"`
+	InsecureBootstrap bool       `hcl:"insecure_bootstrap"`
+	JoinToken         string     `hcl:"join_token"`
+	LogFile           string     `hcl:"log_file"`
+	LogFormat         string     `hcl:"log_format"`
+	LogLevel          string     `hcl:"log_level"`
+	SDS               *sdsConfig `hcl:"sds"`
+	ServerAddress     string     `hcl:"server_address"`
+	ServerPort        int        `hcl:"server_port"`
+	SocketPath        string     `hcl:"socket_path"`
+	TrustBundlePath   string     `hcl:"trust_bundle_path"`
+	TrustDomain       string     `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -74,6 +73,11 @@ type agentConfig struct {
 	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
+}
+
+type sdsConfig struct {
+	SDSDefaultSVIDName   string `hcl:"sds_default_svid_name"`
+	SDSDefaultBundleName string `hcl:"sds_default_bundle_name"`
 }
 
 type experimentalConfig struct {
@@ -275,8 +279,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
-	ac.SDSDefaultSVIDName = c.Agent.SDSDefaultSVIDName
-	ac.SDSDefaultBundleName = c.Agent.SDSDefaultBundleName
+	ac.SDSDefaultSVIDName = c.Agent.SDS.SDSDefaultSVIDName
+	ac.SDSDefaultBundleName = c.Agent.SDS.SDSDefaultBundleName
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
@@ -386,12 +390,14 @@ func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 func defaultConfig() *Config {
 	return &Config{
 		Agent: &agentConfig{
-			DataDir:              defaultDataDir,
-			LogLevel:             defaultLogLevel,
-			LogFormat:            log.DefaultFormat,
-			SocketPath:           defaultSocketPath,
-			SDSDefaultBundleName: defaultSDSDefaultBundleName,
-			SDSDefaultSVIDName:   defaultSDSDefaultSVIDName,
+			DataDir:    defaultDataDir,
+			LogLevel:   defaultLogLevel,
+			LogFormat:  log.DefaultFormat,
+			SocketPath: defaultSocketPath,
+			SDS: &sdsConfig{
+				SDSDefaultBundleName: defaultSDSDefaultBundleName,
+				SDSDefaultSVIDName:   defaultSDSDefaultSVIDName,
+			},
 		},
 	}
 }
