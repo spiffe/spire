@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -866,6 +867,71 @@ func (s *Suite) addCgroupsResponse(fixturePath string) {
 	s.Require().NoError(os.Symlink(filepath.Join(wd, fixturePath), cgroupPath))
 }
 
+func TestGetContainerIDFromCGroups(t *testing.T) {
+	makeCGroups := func(groupPaths []string) []cgroups.Cgroup {
+		var out []cgroups.Cgroup
+		for _, groupPath := range groupPaths {
+			out = append(out, cgroups.Cgroup{
+				GroupPath: groupPath,
+			})
+		}
+		return out
+	}
+
+	for _, tt := range []struct {
+		name        string
+		cgroupPaths []string
+		containerID string
+		err         string
+	}{
+		{
+			name:        "no cgroups",
+			cgroupPaths: []string{},
+			containerID: "",
+			err:         "",
+		},
+		{
+			name: "no container ID in cgroups",
+			cgroupPaths: []string{
+				"/user.slice",
+			},
+			containerID: "",
+			err:         "",
+		},
+		{
+			name: "one container ID in cgroups",
+			cgroupPaths: []string{
+				"/user.slice",
+				"/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			},
+			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			err:         "",
+		},
+		{
+			name: "more than one container ID in cgroups",
+			cgroupPaths: []string{
+				"/user.slice",
+				"/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+				"/kubepods/kubepods/besteffort/pod6bd2a4d3-a55a-4450-b6fd-2a7ecc72c904/a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
+			},
+			containerID: "",
+			err:         "k8s: multiple container IDs found in cgroups (9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961, a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38)",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			containerID, err := getContainerIDFromCGroups(makeCGroups(tt.cgroupPaths))
+			if tt.err != "" {
+				assert.EqualError(t, err, tt.err)
+				assert.Empty(t, containerID)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.containerID, containerID)
+		})
+	}
+}
+
 func TestGetContainerIDFromCGroupPath(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
@@ -893,13 +959,29 @@ func TestGetContainerIDFromCGroupPath(t *testing.T) {
 			containerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
 		{
-			name:        "systemd with QOS",
+			name:        "systemd with QOS and container runtime",
 			cgroupPath:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope",
 			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
 		},
 		{
 			name:       "not kubepods",
 			cgroupPath: "/something/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+		},
+		{
+			name:       "just pod uid and container",
+			cgroupPath: "/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+		},
+		{
+			name:       "just container segment",
+			cgroupPath: "/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+		},
+		{
+			name:       "no container segment",
+			cgroupPath: "/kubepods/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80",
+		},
+		{
+			name:       "no pod uid segment",
+			cgroupPath: "/kubepods/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
 	} {
 		tt := tt

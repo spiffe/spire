@@ -322,14 +322,7 @@ func (p *Plugin) getContainerIDFromCGroups(pid int32) (string, error) {
 		return "", k8sErr.Wrap(err)
 	}
 
-	for _, cgroup := range cgroups {
-		containerID, ok := getContainerIDFromCGroupPath(cgroup.GroupPath)
-		if ok {
-			return containerID, nil
-		}
-	}
-
-	return "", nil
+	return getContainerIDFromCGroups(cgroups)
 }
 
 func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
@@ -536,6 +529,27 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	}
 
 	return out, nil
+}
+
+func getContainerIDFromCGroups(cgroups []cgroups.Cgroup) (string, error) {
+	var containerID string
+	for _, cgroup := range cgroups {
+		candidate, ok := getContainerIDFromCGroupPath(cgroup.GroupPath)
+		switch {
+		case !ok:
+			// Cgroup did not contain a container ID.
+			continue
+		case containerID == "":
+			// This is the first container ID found so far.
+			containerID = candidate
+		case containerID != candidate:
+			// More than one container ID found in the cgroups.
+			return "", k8sErr.New("multiple container IDs found in cgroups (%s, %s)",
+				containerID, candidate)
+		}
+	}
+
+	return containerID, nil
 }
 
 // containerIDRe is the regex used to parse out the container ID from a cgroup
