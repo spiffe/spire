@@ -1,0 +1,11 @@
+syntax = "proto3";
+package spire.types;
+option go_package = "github.com/spiffe/spire/proto/spire-next/types";
+
+message JoinToken {
+    // The value of the token.
+    string value = 1;
+
+    // The token expiration (seconds since Unix epoch).
+    int64 expires_at = 2;
+}

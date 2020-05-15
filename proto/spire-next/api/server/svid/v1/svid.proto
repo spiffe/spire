@@ -3,6 +3,7 @@ package spire.api.server.svid.v1;
 option go_package = "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1;svid";
 
 import "spire-next/types/jwtsvid.proto";
+import "spire-next/types/spiffeid.proto";
 import "spire-next/types/status.proto";
 import "spire-next/types/x509svid.proto";
 
@@ -58,7 +59,7 @@ message MintX509SVIDResponse {
 
 message MintJWTSVIDRequest {
     // Required. SPIFFE ID of the JWT-SVID.
-    string spiffe_id = 1;
+    spire.types.SPIFFEID id = 1;
 
     // Required. List of audience claims to include in the JWT-SVID. At least one must
     // be set.
