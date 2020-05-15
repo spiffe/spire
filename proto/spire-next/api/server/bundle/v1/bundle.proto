@@ -1,0 +1,179 @@
+syntax = "proto3";
+package spire.api.server.bundle.v1;
+option go_package = "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1;bundle";
+
+import "spire-next/types/bundle.proto";
+import "spire-next/types/status.proto";
+
+service Bundle {
+    // Gets the bundle for the trust domain of the server.
+    //
+    // The RPC does not require authentication.
+    rpc GetBundle(GetBundleRequest) returns (spire.types.Bundle);
+
+    // Append to the bundle. Items specified in the bundle in the request are
+    // appended to the existing bundle. If the bundle does not exist, NOT_FOUND
+    // is returned. This is the only RPC that can be used to update the
+    // bundle for the trust domain of the SPIRE server.
+    //
+    // The caller must be local or present an admin or downstream X509-SVID.
+    rpc AppendBundle(AppendBundleRequest) returns (spire.types.Bundle);
+
+    // Lists federated bundles.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc ListFederatedBundles(ListFederatedBundlesRequest) returns (ListFederatedBundlesResponse);
+
+    // Gets a federated bundle. If the bundle does not exist, NOT_FOUND is returned.
+    //
+    // The caller must be local or present an admin or an active agent X509-SVID.
+    rpc GetFederatedBundle(GetFederatedBundleRequest) returns (spire.types.Bundle);
+
+    // Batch creates one or more federated bundles.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc BatchCreateFederatedBundle(BatchCreateFederatedBundleRequest) returns (BatchCreateFederatedBundleResponse);
+
+    // Batch updates one or more federated bundles.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc BatchUpdateFederatedBundle(BatchUpdateFederatedBundleRequest) returns (BatchUpdateFederatedBundleResponse);
+
+    // Batch upserts one or more federated bundles.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc BatchSetFederatedBundle(BatchSetFederatedBundleRequest) returns (BatchSetFederatedBundleResponse);
+
+    // Batch deletes one or more federated bundles.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc BatchDeleteFederatedBundle(BatchDeleteFederatedBundleRequest) returns (BatchDeleteFederatedBundleResponse);
+}
+
+message GetBundleRequest {
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 1;
+}
+
+message AppendBundleRequest {
+    // Required. The bundle to append. Must be the bundle for the trust domain
+    // of the server.
+    spire.types.Bundle bundle = 1;
+
+    // An input mask indicating which bundle fields should be appended.
+    spire.types.BundleMask input_mask = 2;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 3;
+}
+
+message ListFederatedBundlesRequest {
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 1;
+
+    // The maximum number of items to return.
+    int32 page_size = 2;
+
+    // The next_page_token value returned from a previous List request, if any.
+    string page_token = 3;
+}
+
+message ListFederatedBundlesResponse {
+    // The bundles.
+    repeated spire.types.Bundle bundles = 1;
+
+    // The page token for the next request. Empty if there are no more results.
+    string next_page_token = 2;
+}
+
+message GetFederatedBundleRequest {
+    // Required. The trust domain of the bundle, e.g. example.org. If unset, the bundle
+    string trust_domain = 1;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 2;
+}
+
+message BatchCreateFederatedBundleRequest {
+    // The bundles to be created.
+    repeated spire.types.Bundle bundle = 1;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 2;
+}
+
+message BatchCreateFederatedBundleResponse {
+    message Result {
+        // The status of creating the bundle.
+        spire.types.Status status = 1;
+
+        // The bundle that was created. This will be set if the status is OK.
+        spire.types.Bundle bundle = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
+}
+
+message BatchUpdateFederatedBundleRequest {
+    // The bundles to be updated.
+    repeated spire.types.Bundle bundle = 1;
+
+    // An input mask indicating which bundle fields should be updated.
+    spire.types.BundleMask input_mask = 2;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 3;
+}
+
+message BatchUpdateFederatedBundleResponse {
+    message Result {
+        // The status of updating the bundle.
+        spire.types.Status status = 1;
+
+        // The bundle that was updated. This will be set if the status is OK.
+        spire.types.Bundle bundle = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
+}
+
+message BatchSetFederatedBundleRequest {
+    // The bundles to be upserted.
+    repeated spire.types.Bundle bundle = 1;
+
+    // An output mask indicating which bundle fields are set in the response.
+    spire.types.BundleMask output_mask = 2;
+}
+
+message BatchSetFederatedBundleResponse {
+    message Result {
+        // The status of upserting the bundle.
+        spire.types.Status status = 1;
+
+        // The bundle that was upserted. This will be set if the status is OK.
+        spire.types.Bundle bundle = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
+}
+
+message BatchDeleteFederatedBundleRequest {
+    // The trust domains of the bundles to be deleted.
+    repeated string trust_domains = 1;
+}
+
+message BatchDeleteFederatedBundleResponse {
+    message Result {
+        // The status of deleting the bundle.
+        spire.types.Status status = 1;
+
+        // The trust domain of the bundle that was deleted.
+        string trust_domain = 2;
+    }
+
+    // Result for each bundle in the request.
+    repeated Result results = 1;
+}
