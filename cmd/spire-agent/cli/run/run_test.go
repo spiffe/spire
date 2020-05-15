@@ -143,6 +143,46 @@ func TestMergeInput(t *testing.T) {
 				require.True(t, c.Agent.EnableSDS)
 			},
 		},
+		{
+			msg:       "default_svid_name have a default value of default",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "default", c.Agent.SDS.DefaultSVIDName)
+			},
+		},
+		{
+			msg: "default_svid_name should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.SDS = &sdsConfig{
+					DefaultSVIDName: "foo",
+				}
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.SDS.DefaultSVIDName)
+			},
+		},
+		{
+			msg:       "default_bundle_name should default value of ROOTCA",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "ROOTCA", c.Agent.SDS.DefaultBundleName)
+			},
+		},
+		{
+			msg: "default_bundle_name should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.SDS = &sdsConfig{
+					DefaultBundleName: "foo",
+				}
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.SDS.DefaultBundleName)
+			},
+		},
 		//{
 		//      // TODO: This is currently unsupported
 		//	msg: "enable_sds specified by CLI flag should take precedence over file",

@@ -32,8 +32,10 @@ const (
 	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
-	defaultDataDir  = "."
-	defaultLogLevel = "INFO"
+	defaultDataDir           = "."
+	defaultLogLevel          = "INFO"
+	defaultDefaultSVIDName   = "default"
+	defaultDefaultBundleName = "ROOTCA"
 )
 
 // Config contains all available configurables, arranged by section
@@ -46,18 +48,19 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir           string `hcl:"data_dir"`
-	EnableSDS         bool   `hcl:"enable_sds"`
-	InsecureBootstrap bool   `hcl:"insecure_bootstrap"`
-	JoinToken         string `hcl:"join_token"`
-	LogFile           string `hcl:"log_file"`
-	LogFormat         string `hcl:"log_format"`
-	LogLevel          string `hcl:"log_level"`
-	ServerAddress     string `hcl:"server_address"`
-	ServerPort        int    `hcl:"server_port"`
-	SocketPath        string `hcl:"socket_path"`
-	TrustBundlePath   string `hcl:"trust_bundle_path"`
-	TrustDomain       string `hcl:"trust_domain"`
+	DataDir           string     `hcl:"data_dir"`
+	EnableSDS         bool       `hcl:"enable_sds"`
+	InsecureBootstrap bool       `hcl:"insecure_bootstrap"`
+	JoinToken         string     `hcl:"join_token"`
+	LogFile           string     `hcl:"log_file"`
+	LogFormat         string     `hcl:"log_format"`
+	LogLevel          string     `hcl:"log_level"`
+	SDS               *sdsConfig `hcl:"sds"`
+	ServerAddress     string     `hcl:"server_address"`
+	ServerPort        int        `hcl:"server_port"`
+	SocketPath        string     `hcl:"socket_path"`
+	TrustBundlePath   string     `hcl:"trust_bundle_path"`
+	TrustDomain       string     `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -70,6 +73,11 @@ type agentConfig struct {
 	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
+}
+
+type sdsConfig struct {
+	DefaultSVIDName   string `hcl:"default_svid_name"`
+	DefaultBundleName string `hcl:"default_bundle_name"`
 }
 
 type experimentalConfig struct {
@@ -271,6 +279,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
+	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
+	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
@@ -384,6 +394,10 @@ func defaultConfig() *Config {
 			LogLevel:   defaultLogLevel,
 			LogFormat:  log.DefaultFormat,
 			SocketPath: defaultSocketPath,
+			SDS: &sdsConfig{
+				DefaultBundleName: defaultDefaultBundleName,
+				DefaultSVIDName:   defaultDefaultSVIDName,
+			},
 		},
 	}
 }
