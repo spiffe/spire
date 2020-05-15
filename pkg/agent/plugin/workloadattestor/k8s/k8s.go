@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,7 +42,6 @@ const (
 	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 	defaultNodeNameEnv       = "MY_NODE_NAME"
 	defaultReloadInterval    = time.Minute
-	kubePodsPrefix           = "/kubepods"
 )
 
 type containerLookup int
@@ -322,31 +322,7 @@ func (p *Plugin) getContainerIDFromCGroups(pid int32) (string, error) {
 		return "", k8sErr.Wrap(err)
 	}
 
-	for _, cgroup := range cgroups {
-		// We are only interested in kube pods entries. Example entries:
-		// 11:hugetlb:/kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
-		// 12:pids:/docker/8d461fa5765781bcf5f7eb192f101bc3103d4b932e26236f43feecfa20664f96/kubepods/besteffort/poddaa5c7ee-3484-4533-af39-3591564fd03e/aff34703e5e1f89443e9a1bffcc80f43f74d4808a2dd22c8f88c08547b323934
-		groupPath := cgroup.GroupPath
-		idx := strings.Index(groupPath, kubePodsPrefix)
-		if idx == -1 {
-			continue
-		}
-
-		parts := strings.Split(groupPath[idx:], "/")
-		if len(parts) < 5 {
-			log.Printf("Kube pod entry found, but without container id: %s", cgroup.GroupPath)
-			continue
-		}
-		id := strings.TrimSuffix(parts[4], ".scope")
-		// Trim the id of any container runtime prefixes. Ex "docker-" or "crio-"
-		dash := strings.Index(id, "-")
-		if dash > -1 {
-			id = id[dash+1:]
-		}
-		return id, nil
-	}
-
-	return "", nil
+	return getContainerIDFromCGroups(cgroups)
 }
 
 func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
@@ -553,6 +529,54 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	}
 
 	return out, nil
+}
+
+func getContainerIDFromCGroups(cgroups []cgroups.Cgroup) (string, error) {
+	var containerID string
+	for _, cgroup := range cgroups {
+		candidate, ok := getContainerIDFromCGroupPath(cgroup.GroupPath)
+		switch {
+		case !ok:
+			// Cgroup did not contain a container ID.
+			continue
+		case containerID == "":
+			// This is the first container ID found so far.
+			containerID = candidate
+		case containerID != candidate:
+			// More than one container ID found in the cgroups.
+			return "", k8sErr.New("multiple container IDs found in cgroups (%s, %s)",
+				containerID, candidate)
+		}
+	}
+
+	return containerID, nil
+}
+
+// containerIDRe is the regex used to parse out the container ID from a cgroup
+// name. This is the breakdown:
+// /kubepods(?:\.slice)?/
+//     The /kubepods path segment, not necessarily at the start of the path,
+//     optionally followed by the systemd slice suffix (e.g., ".slice") and
+//     ending with a trailing slash.
+// (?:[^/]*/){1,}
+//     One or more path segments with a trailing slash, e.g., the QOS setting,
+//     pod UID, etc.
+// (?:[^-]+-)?((?U)[^/]+)(?:\.scope)?$`)
+//     Base name with the container ID. Optionally starts with a container
+//     runtime prefix (e.g., "docker-") and optionally ends in the systemd
+//     scope suffix (e.g., ".scope").
+var containerIDRe = regexp.MustCompile(`/kubepods(?:\.slice)?/(?:[^/]+/){1,}(?:[^-]+-)?((?U)[^/]+)(?:\.scope)?$`)
+
+func getContainerIDFromCGroupPath(cgroupPath string) (string, bool) {
+	// We are only interested in kube pods entries, for example:
+	// - /kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
+	// - /docker/8d461fa5765781bcf5f7eb192f101bc3103d4b932e26236f43feecfa20664f96/kubepods/besteffort/poddaa5c7ee-3484-4533-af39-3591564fd03e/aff34703e5e1f89443e9a1bffcc80f43f74d4808a2dd22c8f88c08547b323934
+	// - /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope
+	matches := containerIDRe.FindStringSubmatch(cgroupPath)
+	if matches != nil {
+		return matches[1], true
+	}
+	return "", false
 }
 
 func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.ContainerStatus, containerLookup) {
