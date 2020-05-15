@@ -65,7 +65,7 @@ func TestParseConfigGood(t *testing.T) {
 }
 
 func TestParseFlagsGood(t *testing.T) {
-	c, err := parseFlags([]string{
+	c, err := parseFlags("run", []string{
 		"-dataDir=.",
 		"-logLevel=INFO",
 		"-serverAddress=127.0.0.1",
@@ -73,7 +73,7 @@ func TestParseFlagsGood(t *testing.T) {
 		"-socketPath=/tmp/agent.sock",
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
 		"-trustDomain=example.org",
-	})
+	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.DataDir, ".")
 	assert.Equal(t, c.LogLevel, "INFO")
