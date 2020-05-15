@@ -36,12 +36,12 @@ type Manager interface {
 }
 
 type HandlerConfig struct {
-	Attestor             attestor.Attestor
-	Manager              Manager
-	Metrics              telemetry.Metrics
-	Log                  logrus.FieldLogger
-	SDSDefaultBundleName string
-	SDSDefaultSVIDName   string
+	Attestor          attestor.Attestor
+	Manager           Manager
+	Metrics           telemetry.Metrics
+	Log               logrus.FieldLogger
+	DefaultBundleName string
+	DefaultSVIDName   string
 }
 
 type Handler struct {
@@ -298,8 +298,8 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 				return nil, err
 			}
 			resp.Resources = append(resp.Resources, validationContext)
-		case names[h.c.SDSDefaultBundleName]:
-			validationContext, err := buildValidationContext(upd.Bundle, h.c.SDSDefaultBundleName)
+		case names[h.c.DefaultBundleName]:
+			validationContext, err := buildValidationContext(upd.Bundle, h.c.DefaultBundleName)
 			if err != nil {
 				return nil, err
 			}
@@ -325,8 +325,8 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 				return nil, err
 			}
 			resp.Resources = append(resp.Resources, tlsCertificate)
-		case i == 0 && names[h.c.SDSDefaultSVIDName]:
-			tlsCertificate, err := buildTLSCertificate(identity, h.c.SDSDefaultSVIDName)
+		case i == 0 && names[h.c.DefaultSVIDName]:
+			tlsCertificate, err := buildTLSCertificate(identity, h.c.DefaultSVIDName)
 			if err != nil {
 				return nil, err
 			}

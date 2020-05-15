@@ -89,12 +89,12 @@ func (e *Endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 	})
 
 	h := sds.NewHandler(sds.HandlerConfig{
-		Attestor:             attestor,
-		Manager:              e.c.Manager,
-		Log:                  e.c.Log.WithField(telemetry.SubsystemName, telemetry.SDSAPI),
-		Metrics:              e.c.Metrics,
-		SDSDefaultSVIDName:   e.c.SDSDefaultSVIDName,
-		SDSDefaultBundleName: e.c.SDSDefaultBundleName,
+		Attestor:          attestor,
+		Manager:           e.c.Manager,
+		Log:               e.c.Log.WithField(telemetry.SubsystemName, telemetry.SDSAPI),
+		Metrics:           e.c.Metrics,
+		DefaultSVIDName:   e.c.DefaultSVIDName,
+		DefaultBundleName: e.c.DefaultBundleName,
 	})
 	sds_v2.RegisterSecretDiscoveryServiceServer(server, h)
 }

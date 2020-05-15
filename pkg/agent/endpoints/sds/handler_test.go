@@ -159,10 +159,10 @@ func (s *HandlerSuite) SetupTest() {
 	s.manager = NewFakeManager(s.T())
 	handler := NewHandler(HandlerConfig{
 		Log: log, Attestor: NewFakeAttestor(s.T()),
-		Metrics:              telemetry.Blackhole{},
-		Manager:              s.manager,
-		SDSDefaultSVIDName:   "default",
-		SDSDefaultBundleName: "ROOTCA",
+		Metrics:           telemetry.Blackhole{},
+		Manager:           s.manager,
+		DefaultSVIDName:   "default",
+		DefaultBundleName: "ROOTCA",
 	})
 
 	s.received = make(chan struct{})

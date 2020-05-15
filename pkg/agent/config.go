@@ -23,10 +23,10 @@ type Config struct {
 	EnableSDS bool
 
 	// The Validation Context resource name to use for the default X.509 bundle with Envoy SDS
-	SDSDefaultBundleName string
+	DefaultBundleName string
 
 	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
-	SDSDefaultSVIDName string
+	DefaultSVIDName string
 
 	// If true, the agent will bootstrap insecurely with the server
 	InsecureBootstrap bool

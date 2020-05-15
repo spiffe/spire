@@ -32,10 +32,10 @@ const (
 	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
-	defaultDataDir              = "."
-	defaultLogLevel             = "INFO"
-	defaultSDSDefaultSVIDName   = "default"
-	defaultSDSDefaultBundleName = "ROOTCA"
+	defaultDataDir           = "."
+	defaultLogLevel          = "INFO"
+	defaultDefaultSVIDName   = "default"
+	defaultDefaultBundleName = "ROOTCA"
 )
 
 // Config contains all available configurables, arranged by section
@@ -76,8 +76,8 @@ type agentConfig struct {
 }
 
 type sdsConfig struct {
-	SDSDefaultSVIDName   string `hcl:"sds_default_svid_name"`
-	SDSDefaultBundleName string `hcl:"sds_default_bundle_name"`
+	DefaultSVIDName   string `hcl:"default_svid_name"`
+	DefaultBundleName string `hcl:"default_bundle_name"`
 }
 
 type experimentalConfig struct {
@@ -279,8 +279,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
 	ac.EnableSDS = c.Agent.EnableSDS
-	ac.SDSDefaultSVIDName = c.Agent.SDS.SDSDefaultSVIDName
-	ac.SDSDefaultBundleName = c.Agent.SDS.SDSDefaultBundleName
+	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
+	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
@@ -395,8 +395,8 @@ func defaultConfig() *Config {
 			LogFormat:  log.DefaultFormat,
 			SocketPath: defaultSocketPath,
 			SDS: &sdsConfig{
-				SDSDefaultBundleName: defaultSDSDefaultBundleName,
-				SDSDefaultSVIDName:   defaultSDSDefaultSVIDName,
+				DefaultBundleName: defaultDefaultBundleName,
+				DefaultSVIDName:   defaultDefaultSVIDName,
 			},
 		},
 	}
