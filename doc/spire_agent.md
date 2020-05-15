@@ -54,8 +54,9 @@ This may be useful for templating configuration files, for example across differ
 | `sds`                     | Optional SDS configuration section                                    |                      |
 
 ### SDS Configuration
+
 | Configuration         | Description                                                                             | Default              |
-| --------------------- | --------------------------------------------------------------------------------------- | 
+| --------------------- | --------------------------------------------------------------------------------------- | -------------------- |
 | `default_svid_name`   | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS       | default              |
 | `default_bundle_name` | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS | ROOTCA               |
 
