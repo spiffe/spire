@@ -24,16 +24,36 @@ The configuration file is a **required** by the registrar. It contains
 | -------------------------- | --------| ---------| ----------------------------------------- | ------- |
 | `log_level`                | string  | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
 | `log_path`                 | string  | optional | Path on disk to write the log | |
-| `addr`                     | string  | required | Address to bind the HTTPS listener to | `":8443"` |
-| `cert_path`                | string  | required | Path on disk to the PEM-encoded server TLS certificate | `"cert.pem"` |
-| `key_path`                 | string  | required | Path on disk to the PEM-encoded server TLS key |  `"key.pem"` |
-| `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
-| `insecure_skip_client_verification` | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
 | `trust_domain`             | string  | required | Trust domain of the SPIRE server | |
 | `server_socket_path`       | string  | required | Path to the Unix domain socket of the SPIRE server | |
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string  | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string  | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
+| `mode`                     | string  | optional | How to run the registrar, either using a `"webhook"` or `"crd"`. See [Differences](#differences-between-webhook-and-crd-modes) for more details. | `"webhook"` |
+
+The following configuration directives are specific to `"webhook"` mode:
+
+| Key                        | Type    | Required? | Description                              | Default |
+| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
+| `addr`                     | string  | required | Address to bind the HTTPS listener to | `":8443"` |
+| `cert_path`                | string  | required | Path on disk to the PEM-encoded server TLS certificate | `"cert.pem"` |
+| `key_path`                 | string  | required | Path on disk to the PEM-encoded server TLS key |  `"key.pem"` |
+| `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
+| `insecure_skip_client_verification`  | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
+
+The following configuration directives are specific to `"crd"` mode:
+
+| Key                        | Type    | Required? | Description                              | Default |
+| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
+| `add_svc_dns_name`         | bool    | optional | Enable adding service names as SAN DNS names to endpoint pods | `true` |
+| `disabled_namespaces`      | []string| optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system"` |
+| `leader_election`          | bool    | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
+| `metrics_bind_addr`        | string  | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
+| `pod_controller`           | bool    | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
+| `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. Only needed if manually creating entries | `false` |
+| `webhook_cert_dir`         | string  | optional | Directory for certificates when enabling validating webhook. The certificate and key must be named tls.crt and tls.key. | `"/run/spire/serving-certs"` |
+| `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
+
 
 ### Example
 
@@ -43,6 +63,53 @@ trust_domain = "domain.test"
 server_socket_path = "/run/spire/sockets/registration.sock"
 cluster = "production"
 ```
+
+## CRD Mode Configuration
+
+The following configuration is required before `"crd"` mode can be used:
+
+1. The SPIFFE ID CRD needs to be applied: `kubectl apply -f mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml`
+1. The appropriate ClusterRole need to be applied. `kubectl apply -f mode-crd/config/crd_role.yaml`
+   * This creates a new ClusterRole named `spiffe-crd-role`
+1. The new ClusterRole needs a ClusterRoleBinding to the SPIRE Server ServiceAccount. Change the name of the ServiceAccount and then: `kubectl apply -f mode-crd/config/crd_role_binding.yaml` 
+   * This creates a new ClusterRoleBinding named `spiffe-crd-rolebinding`
+1. If you would like to manually create CRDs, then a validating webhook is needed to prevent misconfigurations: `kubectl apply -f mode-crd/config/webhook.yaml`
+   * This creates a new ValidatingWebhookConfiguration and Service, both named `k8s-workload-registrar`
+   * Make sure to add your CA Bundle to the ValidatingWebhookConfiguration where it says `<INSERT BASE64 CA BUNDLE HERE>`
+   * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
+
+
+### SPIFFE ID CRD Example
+A sample SPIFFE ID CRD is below:
+
+```
+apiVersion: spiffeid.spiffe.io/v1beta1
+kind: SpiffeID
+metadata:
+  name: my-spiffe-id
+  namespace: my-namespace
+spec:
+  dnsNames:
+  - my-dns-name
+  selector:
+    namespace: default
+    podName: my-pod-name
+  spiffeId: spiffe://example.org/my-spiffe-id
+  parentId: spiffe://example.org/spire/server
+```
+
+The supported selectors are:
+- arbitrary -- Arbitrary selectors
+- containerName -- Name of the container
+- containerImage -- Container image used
+- namespace -- Namespace to match for this SPIFFE ID
+- nodeName -- Node name to match for this SPIFFE ID
+- podLabel --  Pod label name/value to match for this SPIFFE ID
+- podName -- Pod name to match for this SPIFFE ID
+- podUID --  Pod UID to match for this SPIFFE ID
+- serviceAccount -- ServiceAccount to match for this SPIFFE ID
+
+Note: Specifying DNS Names is optional.
 
 ## Node Registration
 
@@ -159,3 +226,13 @@ provide indirect access to the SPIRE server registration API, albeit scoped. It
 is *NOT* recommended to skip client verification (via the
 `insecure_skip_client_verification` configurable) unless you fully understand
 the risks.
+
+## Differences between webhook and crd modes
+
+The main difference is that `"crd"` mode uses a SPIFFE ID custom resource definition(CRD) along with controllers, instead of a Validating Admission Webhook.
+
+- A namespace scoped SpiffeID CRD is defined. A controller watches for create, update, delete, etc. events and creates entries on the SPIRE Server accordingly.
+- An optional pod controller (`pod_controller`) watches for POD events and creates/deletes SpiffeID CRDs accordingly. The pod controller sets the pod as the owner of the SPIFFE ID CRD so it is automatically garbage collected if the POD is deleted. The pod controller adds the pod name as the first DNS name, which SPIRE adds as both a DNS SAN and the CN field on the SVID.
+- An optional endpoint controller (`add_svc_dns_name`) watches for endpoint events and adds the Service Name as a DNS SAN to the SVID for all pods that are endpoints of the service. A pod can be an endpoint of multiple services and as a result can have multiple Service Names added as DNS SANs. If a service is removed, the Service Name is removed from the SVID of all endpoint Pods. The format of the DNS SAN is `<service_name>.<namespace>.svc`
+- An option to disable namespaces from auto-generation (`disabled_namespaces`). By default `kube-system` is disabled for auto-generation.
+- Auto generated entries are parented to the node, rather than to a cluster-wide parent.
