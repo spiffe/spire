@@ -45,6 +45,19 @@ var (
 		},
 	}
 
+	tdValidationContext2 = &auth_v2.Secret{
+		Name: "ROOTCA",
+		Type: &auth_v2.Secret_ValidationContext{
+			ValidationContext: &auth_v2.CertificateValidationContext{
+				TrustedCa: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
+					},
+				},
+			},
+		},
+	}
+
 	fedBundle = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{
 		Raw: []byte("FEDBUNDLE"),
 	})
@@ -107,6 +120,24 @@ MC2hK9d8Z5ENZc9lFW48vObdcHcHdHvAaA8z2GM02pDkTt5pgUvRHlsf
 		},
 	}
 
+	workloadTLSCertificate3 = &auth_v2.Secret{
+		Name: "default",
+		Type: &auth_v2.Secret_TlsCertificate{
+			TlsCertificate: &auth_v2.TlsCertificate{
+				CertificateChain: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nV09SS0xPQUQx\n-----END CERTIFICATE-----\n"),
+					},
+				},
+				PrivateKey: &core_v2.DataSource{
+					Specifier: &core_v2.DataSource_InlineBytes{
+						InlineBytes: workloadKeyPEM,
+					},
+				},
+			},
+		},
+	}
+
 	workloadSelectors = cache.Selectors{{Type: "TYPE", Value: "VALUE"}}
 )
 
@@ -128,8 +159,10 @@ func (s *HandlerSuite) SetupTest() {
 	s.manager = NewFakeManager(s.T())
 	handler := NewHandler(HandlerConfig{
 		Log: log, Attestor: NewFakeAttestor(s.T()),
-		Metrics: telemetry.Blackhole{},
-		Manager: s.manager,
+		Metrics:           telemetry.Blackhole{},
+		Manager:           s.manager,
+		DefaultSVIDName:   "default",
+		DefaultBundleName: "ROOTCA",
 	})
 
 	s.received = make(chan struct{})
@@ -183,6 +216,21 @@ func (s *HandlerSuite) TestStreamSecretsStreamTrustDomainBundleOnly() {
 	s.requireSecrets(resp, tdValidationContext)
 }
 
+func (s *HandlerSuite) TestStreamSecretsStreamDefaultTrustDomainBundleOnly() {
+	stream, err := s.handler.StreamSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+
+	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
+		ResourceNames: []string{"ROOTCA"},
+	})
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireSecrets(resp, tdValidationContext2)
+}
+
 func (s *HandlerSuite) TestStreamSecretsStreamFederatedTrustDomainBundleOnly() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
@@ -211,6 +259,21 @@ func (s *HandlerSuite) TestStreamSecretsStreamTLSCertificateOnly() {
 	resp, err := stream.Recv()
 	s.Require().NoError(err)
 	s.requireSecrets(resp, workloadTLSCertificate1)
+}
+
+func (s *HandlerSuite) TestStreamSecretsStreamDefaultTLSCertificateOnly() {
+	stream, err := s.handler.StreamSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+
+	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
+		ResourceNames: []string{"default"},
+	})
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireSecrets(resp, workloadTLSCertificate3)
 }
 
 func (s *HandlerSuite) TestStreamSecretsUnknownResource() {

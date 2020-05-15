@@ -36,10 +36,12 @@ type Manager interface {
 }
 
 type HandlerConfig struct {
-	Attestor attestor.Attestor
-	Manager  Manager
-	Metrics  telemetry.Metrics
-	Log      logrus.FieldLogger
+	Attestor          attestor.Attestor
+	Manager           Manager
+	Metrics           telemetry.Metrics
+	Log               logrus.FieldLogger
+	DefaultBundleName string
+	DefaultSVIDName   string
 }
 
 type Handler struct {
@@ -282,22 +284,22 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 	// build a convenient set of names for lookups
 	names := make(map[string]bool)
 	for _, name := range req.ResourceNames {
-		names[name] = true
+		if name != "" {
+			names[name] = true
+		}
 	}
 
 	// TODO: verify the type url
-
-	if upd.Bundle != nil && (len(names) == 0 || names[upd.Bundle.TrustDomainID()]) {
-		validationContext, err := buildValidationContext(upd.Bundle)
-		if err != nil {
-			return nil, err
-		}
-		resp.Resources = append(resp.Resources, validationContext)
-	}
-
-	for _, federatedBundle := range upd.FederatedBundles {
-		if len(names) == 0 || names[federatedBundle.TrustDomainID()] {
-			validationContext, err := buildValidationContext(federatedBundle)
+	if upd.Bundle != nil {
+		switch {
+		case len(names) == 0 || names[upd.Bundle.TrustDomainID()]:
+			validationContext, err := buildValidationContext(upd.Bundle, "")
+			if err != nil {
+				return nil, err
+			}
+			resp.Resources = append(resp.Resources, validationContext)
+		case names[h.c.DefaultBundleName]:
+			validationContext, err := buildValidationContext(upd.Bundle, h.c.DefaultBundleName)
 			if err != nil {
 				return nil, err
 			}
@@ -305,9 +307,26 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		}
 	}
 
-	for _, identity := range upd.Identities {
-		if len(names) == 0 || names[identity.Entry.SpiffeId] {
-			tlsCertificate, err := buildTLSCertificate(identity)
+	for _, federatedBundle := range upd.FederatedBundles {
+		if len(names) == 0 || names[federatedBundle.TrustDomainID()] {
+			validationContext, err := buildValidationContext(federatedBundle, "")
+			if err != nil {
+				return nil, err
+			}
+			resp.Resources = append(resp.Resources, validationContext)
+		}
+	}
+
+	for i, identity := range upd.Identities {
+		switch {
+		case len(names) == 0 || names[identity.Entry.SpiffeId]:
+			tlsCertificate, err := buildTLSCertificate(identity, "")
+			if err != nil {
+				return nil, err
+			}
+			resp.Resources = append(resp.Resources, tlsCertificate)
+		case i == 0 && names[h.c.DefaultSVIDName]:
+			tlsCertificate, err := buildTLSCertificate(identity, h.c.DefaultSVIDName)
 			if err != nil {
 				return nil, err
 			}
@@ -337,7 +356,12 @@ func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	return watcher, nil
 }
 
-func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
+func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.Any, error) {
+	name := identity.Entry.SpiffeId
+	if defaultSVIDName != "" {
+		name = defaultSVIDName
+	}
+
 	keyPEM, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -346,7 +370,7 @@ func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
 	return ptypes.MarshalAny(&auth_v2.Secret{
-		Name: identity.Entry.SpiffeId,
+		Name: name,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
 				CertificateChain: &core_v2.DataSource{
@@ -364,10 +388,14 @@ func buildTLSCertificate(identity cache.Identity) (*any.Any, error) {
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle) (*any.Any, error) {
+func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string) (*any.Any, error) {
+	name := bundle.TrustDomainID()
+	if defaultBundleName != "" {
+		name = defaultBundleName
+	}
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
 	return ptypes.MarshalAny(&auth_v2.Secret{
-		Name: bundle.TrustDomainID(),
+		Name: name,
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{
 				TrustedCa: &core_v2.DataSource{
