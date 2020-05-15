@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	admv1beta1 "k8s.io/api/admission/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -279,6 +280,77 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 
 	// Assert that the registration entry for the pod was created
 	require.Len(t, r.GetEntries(), 0)
+}
+
+func TestPodSpiffeId(t *testing.T) {
+	for _, testCase := range []struct {
+		name              string
+		expectedSpiffeID  string
+		configLabel       string
+		podLabel          string
+		configAnnotation  string
+		podAnnotation     string
+		podNamespace      string
+		podServiceAccount string
+	}{
+		{
+			name:              "using namespace and serviceaccount",
+			expectedSpiffeID:  "spiffe://domain.test/ns/NS/sa/SA",
+			podNamespace:      "NS",
+			podServiceAccount: "SA",
+		},
+		{
+			name:             "using label",
+			expectedSpiffeID: "spiffe://domain.test/LABEL",
+			configLabel:      "spiffe.io/label",
+			podLabel:         "LABEL",
+		},
+		{
+			name:             "using annotation",
+			expectedSpiffeID: "spiffe://domain.test/ANNOTATION",
+			configAnnotation: "spiffe.io/annotation",
+			podAnnotation:    "ANNOTATION",
+		},
+		{
+			name:             "ignore unannotated",
+			configAnnotation: "someannotation",
+			expectedSpiffeID: "",
+		},
+		{
+			name:             "ignore unlabelled",
+			configLabel:      "somelabel",
+			expectedSpiffeID: "",
+		},
+	} {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			c, _ := newTestController(testCase.configLabel, testCase.configAnnotation)
+
+			// Set up pod:
+			pod := &corev1.Pod{
+				Spec: corev1.PodSpec{
+					ServiceAccountName: testCase.podServiceAccount,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   testCase.podNamespace,
+					Labels:      map[string]string{},
+					Annotations: map[string]string{},
+				},
+			}
+			if testCase.configLabel != "" && testCase.podLabel != "" {
+				pod.Labels[testCase.configLabel] = testCase.podLabel
+			}
+			if testCase.configAnnotation != "" && testCase.podAnnotation != "" {
+				pod.Annotations[testCase.configAnnotation] = testCase.podAnnotation
+			}
+
+			// Test:
+			spiffeID := c.podSpiffeID(pod)
+
+			// Verify result:
+			require.Equal(t, testCase.expectedSpiffeID, spiffeID)
+		})
+	}
 }
 
 func TestControllerAnnotationBasedRegistration(t *testing.T) {
