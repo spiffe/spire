@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -169,6 +170,58 @@ func (s *CATestSuite) TestSignX509SVIDMultipleDNS() {
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
 	s.Require().Equal(params.DNSList, svid[0].DNSNames)
 	s.Require().Equal("somehost1", svid[0].Subject.CommonName)
+}
+
+func (s *CATestSuite) TestSignX509SVIDWithSubject() {
+	subject := pkix.Name{
+		Organization: []string{"ORG"},
+		Country:      []string{"US", "EN"},
+		CommonName:   "Common Name",
+	}
+	dns := []string{"dns1", "dns2"}
+
+	testCases := []struct {
+		name     string
+		dns      []string
+		expected string
+		subject  pkix.Name
+	}{
+		{
+			name:     "empty subject",
+			expected: "O=SPIRE,C=US",
+			subject:  pkix.Name{},
+		}, {
+			name:     "no subject but DNS",
+			dns:      dns,
+			expected: "CN=dns1,O=SPIRE,C=US",
+		}, {
+			name:     "subject provided",
+			expected: "CN=Common Name,O=ORG,C=US+C=EN",
+			subject:  subject,
+		}, {
+			name:     "subject and dns",
+			dns:      dns,
+			expected: "CN=dns1,O=ORG,C=US+C=EN",
+			subject:  subject,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		s.T().Run(testCase.name, func(t *testing.T) {
+			params := s.createX509SVIDParams()
+			params.Subject = testCase.subject
+			params.DNSList = testCase.dns
+
+			svid, err := s.ca.SignX509SVID(ctx, params)
+			require.NoError(t, err)
+
+			require.Len(t, svid, 1)
+			cert := svid[0]
+			require.NotNil(t, cert)
+			require.Equal(t, testCase.expected, cert.Subject.String())
+		})
+	}
 }
 
 func (s *CATestSuite) TestSignX509SVIDReturnsChainIfIntermediate() {

@@ -77,6 +77,9 @@ type X509SVIDParams struct {
 	// DNSList is used to add DNS SAN's to the X509 SVID. The first entry
 	// is also added as the CN.
 	DNSList []string
+
+	// Subject of the SVID. Default subject is used if it is empty.
+	Subject pkix.Name
 }
 
 // X509CASVIDParams are parameters relevant to X509 CA SVID creation
@@ -246,6 +249,12 @@ func (ca *CA) signX509SVID(params X509SVIDParams, x509CA *X509CA) ([]*x509.Certi
 	if err != nil {
 		return nil, err
 	}
+
+	// In case subject is provided use it
+	if params.Subject.String() != "" {
+		template.Subject = params.Subject
+	}
+
 	// Explicitly set the AKI on the signed certificate, otherwise it won't be
 	// added if the subject and issuer match name match (however unlikely).
 	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
