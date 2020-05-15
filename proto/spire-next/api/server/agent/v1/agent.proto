@@ -128,7 +128,7 @@ message AttestAgentRequest {
 message AttestAgentResponse {
     message Result {
         // The agent X509-SVID.
-        spire.types.X509SVID identity = 1;
+        spire.types.X509SVID svid = 1;
     }
 
     oneof step {
@@ -150,8 +150,7 @@ message RenewAgentRequest {
         AgentX509SVIDParams params = 1;
 
         // An acknowledgement by the receiving end that it has received the
-        // renewed canonical identity SVID and will be using it in future
-        // requests.
+        // renewed SVID and will be using it in future requests.
         Ack ack = 2;
     }
 }
@@ -163,16 +162,16 @@ message RenewAgentResponse {
 
 message CreateJoinTokenRequest {
     // Required. How long until the token expires (in seconds).
-    int32 ttl = 3;
+    int32 ttl = 1;
 
     // An optional token value to use for the token. Must be unique. If unset,
     // the server will generate a value.
-    string token = 1;
+    string token = 2;
 
     // An optional SPIFFE ID to assign to the agent beyond that given by
     // join token attestation. If set, this results in an entry being created
     // that maps the attestation assigned agent ID to this ID.
-    spire.types.SPIFFEID agent_id = 2;
+    spire.types.SPIFFEID agent_id = 3;
 }
 
 message AgentX509SVIDParams {
