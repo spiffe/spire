@@ -48,19 +48,19 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir           string     `hcl:"data_dir"`
-	EnableSDS         bool       `hcl:"enable_sds"`
-	InsecureBootstrap bool       `hcl:"insecure_bootstrap"`
-	JoinToken         string     `hcl:"join_token"`
-	LogFile           string     `hcl:"log_file"`
-	LogFormat         string     `hcl:"log_format"`
-	LogLevel          string     `hcl:"log_level"`
-	SDS               *sdsConfig `hcl:"sds"`
-	ServerAddress     string     `hcl:"server_address"`
-	ServerPort        int        `hcl:"server_port"`
-	SocketPath        string     `hcl:"socket_path"`
-	TrustBundlePath   string     `hcl:"trust_bundle_path"`
-	TrustDomain       string     `hcl:"trust_domain"`
+	DataDir           string    `hcl:"data_dir"`
+	EnableSDS         bool      `hcl:"enable_sds"`
+	InsecureBootstrap bool      `hcl:"insecure_bootstrap"`
+	JoinToken         string    `hcl:"join_token"`
+	LogFile           string    `hcl:"log_file"`
+	LogFormat         string    `hcl:"log_format"`
+	LogLevel          string    `hcl:"log_level"`
+	SDS               sdsConfig `hcl:"sds"`
+	ServerAddress     string    `hcl:"server_address"`
+	ServerPort        int       `hcl:"server_port"`
+	SocketPath        string    `hcl:"socket_path"`
+	TrustBundlePath   string    `hcl:"trust_bundle_path"`
+	TrustDomain       string    `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -394,7 +394,7 @@ func defaultConfig() *Config {
 			LogLevel:   defaultLogLevel,
 			LogFormat:  log.DefaultFormat,
 			SocketPath: defaultSocketPath,
-			SDS: &sdsConfig{
+			SDS: sdsConfig{
 				DefaultBundleName: defaultDefaultBundleName,
 				DefaultSVIDName:   defaultDefaultSVIDName,
 			},
