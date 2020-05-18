@@ -66,7 +66,7 @@ func TestPerIPLimit(t *testing.T) {
 	// Once within burst size for 1.1.1.1
 	require.NoError(t, m.RateLimit(callerIPCtx("1.1.1.1"), 1))
 
-	// Twice withing burst size for 2.2.2.2
+	// Twice within burst size for 2.2.2.2
 	require.NoError(t, m.RateLimit(callerIPCtx("2.2.2.2"), 2))
 	require.NoError(t, m.RateLimit(callerIPCtx("2.2.2.2"), 3))
 
@@ -80,7 +80,6 @@ func TestPerIPLimit(t *testing.T) {
 		{ID: 2, Count: 2},
 		{ID: 2, Count: 3},
 	}, limiters.WaitNEvents)
-
 }
 
 func TestRateLimits(t *testing.T) {
@@ -217,11 +216,11 @@ type FakeLimiters struct {
 
 func NewFakeLimiters() *FakeLimiters {
 	ls := &FakeLimiters{}
-	newRawRateLimiter = ls.New
+	newRawRateLimiter = ls.newRawRateLimiter
 	return ls
 }
 
-func (ls *FakeLimiters) New(limit rate.Limit, burst int) rawRateLimiter {
+func (ls *FakeLimiters) newRawRateLimiter(limit rate.Limit, burst int) rawRateLimiter {
 	ls.Count++
 	return &fakeLimiter{
 		id:    ls.Count,
@@ -257,8 +256,7 @@ func (l *fakeLimiter) WaitN(ctx context.Context, count int) error {
 		// the rate package.
 		return errors.New("exceeding burst should have already been handled")
 	}
-	l.waitN(ctx, l.id, count)
-	return nil
+	return l.waitN(ctx, l.id, count)
 }
 
 func (l *fakeLimiter) Limit() rate.Limit {
