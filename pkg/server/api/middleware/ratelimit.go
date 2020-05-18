@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	// NewRateLimiter is used to create a new ratelimiter. It returns a limiter
+	// newRawRateLimiter is used to create a new ratelimiter. It returns a limiter
 	// from the standard rate package by default production.
 	newRawRateLimiter = func(limit rate.Limit, burst int) rawRateLimiter {
 		return rate.NewLimiter(limit, burst)
@@ -28,8 +28,8 @@ type rawRateLimiter interface {
 	Burst() int
 }
 
-// NoLimit returns a rate limiter does not rate limit. It is used to configure
-// methods that don't do rate limiting.
+// NoLimit returns a rate limiter that does not rate limit. It is used to
+// configure methods that don't do rate limiting.
 func NoLimit() api.RateLimiter {
 	return noopLimiter{}
 }
@@ -51,12 +51,15 @@ func PerIPLimit(limit int) api.RateLimiter {
 // WithRateLimits returns a middleware that performs rate limiting for the
 // group of methods descripted by the rateLimits map. It provides the
 // configured rate limiter to the method handlers via the request context. If
-// the middleware is invoked for a method is not described in the map, it will
-// fail the RPC with an INTERNAL error code, describing the RPC that was not
-// configured properly.  The middleware also encourages proper rate limiting by
-// logging errors if a handler fails to invoke the rate limiter provided on the
-// context when a limit has been configured or the handler invokes the rate
+// the middleware is invoked for a method that is not described in the map, it
+// will fail the RPC with an INTERNAL error code, describing the RPC that was
+// not configured properly. The middleware also encourages proper rate limiting
+// by logging errors if a handler fails to invoke the rate limiter provided on
+// the context when a limit has been configured or the handler invokes the rate
 // limiter when a no limit has been configured.
+//
+// WithRateLimits owns the passed rateLimits map and assumes it will not be
+// mutated after the method is called.
 //
 // The WithRateLimits middleware depends on the Logger and Authorization
 // middlewares.
@@ -122,6 +125,9 @@ func (lim *perIPLimiter) getLimiter(addr string) rawRateLimiter {
 		return limiter
 	}
 	lim.mtx.RUnlock()
+
+	// TODO: periodically purge unused limiters so the map does not grow
+	// unbounded.
 
 	lim.mtx.Lock()
 	defer lim.mtx.Unlock()
