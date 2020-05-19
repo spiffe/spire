@@ -2,15 +2,33 @@ package rpccontext
 
 import (
 	"context"
+	"net"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"google.golang.org/grpc/peer"
 )
 
 type callerIDKey struct{}
 type callerEntriesKey struct{}
 type attestedNodeKey struct{}
+
+func WithCallerAddr(ctx context.Context, addr net.Addr) context.Context {
+	p := new(peer.Peer)
+	if existing, ok := peer.FromContext(ctx); ok {
+		*p = *existing
+	}
+	p.Addr = addr
+	return peer.NewContext(ctx, p)
+}
+
+func CallerAddr(ctx context.Context) net.Addr {
+	if peer, ok := peer.FromContext(ctx); ok {
+		return peer.Addr
+	}
+	return nil
+}
 
 func WithCallerID(ctx context.Context, id spiffeid.ID) context.Context {
 	return context.WithValue(ctx, callerIDKey{}, id)
@@ -23,6 +41,10 @@ func CallerID(ctx context.Context) (spiffeid.ID, bool) {
 
 func WithCallerEntry(ctx context.Context, entry *types.Entry) context.Context {
 	return context.WithValue(ctx, callerEntriesKey{}, append(callerEntries(ctx), entry))
+}
+
+func WithCallerEntries(ctx context.Context, entries []*types.Entry) context.Context {
+	return context.WithValue(ctx, callerEntriesKey{}, append(callerEntries(ctx), entries...))
 }
 
 func CallerDownstreamEntries(ctx context.Context) []*types.Entry {

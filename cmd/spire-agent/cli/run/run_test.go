@@ -154,7 +154,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg: "default_svid_name should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.SDS = &sdsConfig{
+				c.Agent.SDS = sdsConfig{
 					DefaultSVIDName: "foo",
 				}
 			},
@@ -174,7 +174,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg: "default_bundle_name should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.SDS = &sdsConfig{
+				c.Agent.SDS = sdsConfig{
 					DefaultBundleName: "foo",
 				}
 			},
