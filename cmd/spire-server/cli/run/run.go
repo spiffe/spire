@@ -151,6 +151,7 @@ func (cmd *Command) Help() string {
 // It is used by both the run and validate commands, so they can share flag usage messages.
 func Help(name string, writer io.Writer) string {
 	_, err := parseFlags(name, []string{"-h"}, writer)
+	// Error is always present because -h is passed
 	return err.Error()
 }
 

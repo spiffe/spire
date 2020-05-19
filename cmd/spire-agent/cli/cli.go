@@ -36,7 +36,7 @@ func (cc *CLI) Run(args []string) int {
 			return &api.WatchCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return &run.Command{LogOptions: cc.LogOptions}, nil
+			return run.NewRunCommand(cc.LogOptions), nil
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil
