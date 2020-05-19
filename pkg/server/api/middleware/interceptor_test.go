@@ -16,11 +16,33 @@ var (
 	fakeStreamServerInfo = &grpc.StreamServerInfo{FullMethod: fakeMethodName}
 )
 
-func TestUnaryInterceptor(t *testing.T) {
-	t.Run("unary success", func(t *testing.T) {
-		m := new(fakeMiddleware)
+func TestInterceptors(t *testing.T) {
+	t.Run("unary", func(t *testing.T) {
+		testUnaryInterceptor(t, func(m middleware.Middleware) grpc.UnaryServerInterceptor {
+			unary, _ := middleware.Interceptors(m)
+			return unary
+		})
+	})
+	t.Run("stream", func(t *testing.T) {
+		testStreamInterceptor(t, func(m middleware.Middleware) grpc.StreamServerInterceptor {
+			_, stream := middleware.Interceptors(m)
+			return stream
+		})
+	})
+}
 
-		unary := middleware.UnaryInterceptor(m)
+func TestUnaryInterceptor(t *testing.T) {
+	testUnaryInterceptor(t, middleware.UnaryInterceptor)
+}
+
+func TestStreamInterceptor(t *testing.T) {
+	testStreamInterceptor(t, middleware.StreamInterceptor)
+}
+
+func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middleware) grpc.UnaryServerInterceptor) {
+	t.Run("success", func(t *testing.T) {
+		m := new(fakeMiddleware)
+		unary := makeInterceptor(m)
 		resp, err := unary(context.Background(), "request", fakeUnaryServerInfo,
 			func(ctx context.Context, req interface{}) (interface{}, error) {
 				// Assert that parameters were threaded correctly through
@@ -45,7 +67,7 @@ func TestUnaryInterceptor(t *testing.T) {
 		m := new(fakeMiddleware)
 		m.nextPreprocessErr = errFake
 
-		unary := middleware.UnaryInterceptor(m)
+		unary := makeInterceptor(m)
 		resp, err := unary(context.Background(), "request", fakeUnaryServerInfo,
 			func(ctx context.Context, req interface{}) (interface{}, error) {
 				// Since preprocess fails, the handler should not be invoked.
@@ -67,7 +89,7 @@ func TestUnaryInterceptor(t *testing.T) {
 	t.Run("handler failure", func(t *testing.T) {
 		m := new(fakeMiddleware)
 
-		unary := middleware.UnaryInterceptor(m)
+		unary := makeInterceptor(m)
 		resp, err := unary(context.Background(), "request", fakeUnaryServerInfo,
 			func(ctx context.Context, req interface{}) (interface{}, error) {
 				// Assert that parameters were threaded correctly through
@@ -89,11 +111,11 @@ func TestUnaryInterceptor(t *testing.T) {
 	})
 }
 
-func TestStreamInterceptor(t *testing.T) {
-	t.Run("stream success", func(t *testing.T) {
+func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middleware) grpc.StreamServerInterceptor) {
+	t.Run("success", func(t *testing.T) {
 		m := new(fakeMiddleware)
 
-		stream := middleware.StreamInterceptor(m)
+		stream := makeInterceptor(m)
 		err := stream("server", fakeServerStream{}, fakeStreamServerInfo,
 			func(srv interface{}, stream grpc.ServerStream) error {
 				// Assert that parameters were threaded correctly through
@@ -117,7 +139,7 @@ func TestStreamInterceptor(t *testing.T) {
 		m := new(fakeMiddleware)
 		m.nextPreprocessErr = errFake
 
-		stream := middleware.StreamInterceptor(m)
+		stream := makeInterceptor(m)
 		err := stream("server", fakeServerStream{}, fakeStreamServerInfo,
 			func(srv interface{}, stream grpc.ServerStream) error {
 				// Since preprocess fails, the handler should not be invoked.
@@ -138,7 +160,7 @@ func TestStreamInterceptor(t *testing.T) {
 	t.Run("handler failure", func(t *testing.T) {
 		m := new(fakeMiddleware)
 
-		stream := middleware.StreamInterceptor(m)
+		stream := makeInterceptor(m)
 		err := stream("server", fakeServerStream{}, fakeStreamServerInfo,
 			func(srv interface{}, stream grpc.ServerStream) error {
 				// Assert that parameters were threaded correctly through
