@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	svidpb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -146,18 +148,140 @@ func TestMintX509SVID(t *testing.T) {
 	}
 }
 
+func TestBatchNewX509SVID(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup Test
+	c := setupTest(t)
+	defer c.Close()
+
+	spiffeID := spiffeid.Must("example.org", "workload1")
+
+	// Create certificate request
+	key := testkey.NewEC256(t)
+	template := &x509.CertificateRequest{
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		URIs:               []*url.URL{spiffeID.URL()},
+	}
+	csrRaw, err := x509.CreateCertificateRequest(rand.Reader, template, key)
+	require.NoError(t, err)
+	csr, err := x509.ParseCertificateRequest(csrRaw)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name string
+
+		code           codes.Code
+		err            string
+		msg            string
+		params         []*svidpb.NewX509SVIDParams
+		rateLimiterErr error
+		req            []*svid.BatchNewX509SVIDRequest
+		resp           []*svid.BatchNewX509SVIDResponse
+		serviceErr     string
+	}{
+		{
+			name: "success",
+			params: []*svidpb.NewX509SVIDParams{
+				{
+					EntryId: "entry1",
+					Csr:     csrRaw,
+				},
+			},
+			req: []*svid.BatchNewX509SVIDRequest{
+				{
+					EntryID: "entry1",
+					Csr:     csr,
+				},
+			},
+			resp: []*svid.BatchNewX509SVIDResponse{
+				{
+					Svid: &api.X509SVID{
+						ID: spiffeID,
+						CertChain: []*x509.Certificate{
+							{Raw: []byte(rawCert)},
+						},
+						ExpiresAt: time.Now().Add(time.Minute),
+					},
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			// Configure service
+			c.service.batchRequest = testCase.req
+			c.service.batchResponse = testCase.resp
+			c.service.err = testCase.serviceErr
+
+			// Limiter expects count to be params length
+			c.rateLimiter.count = len(testCase.params)
+			c.rateLimiter.err = testCase.rateLimiterErr
+
+			// Call BatchNewX509SVID
+			resp, err := c.svidClient.BatchNewX509SVID(ctx, &svidpb.BatchNewX509SVIDRequest{
+				Params: testCase.params,
+			})
+			if testCase.err != "" {
+				require.Nil(t, resp)
+				spiretest.RequireGRPCStatusContains(t, err, testCase.code, testCase.err)
+				require.Equal(t, testCase.msg, c.logHook.LastEntry().Message)
+				require.EqualError(t, err, testCase.err)
+				return
+			}
+
+			// Validate response
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Len(t, resp.Results, len(testCase.resp))
+
+			for i, result := range resp.Results {
+				expected := testCase.resp[i]
+
+				switch {
+				case result.Status != nil:
+					expectedStatus, ok := status.FromError(expected.Err)
+					require.True(t, ok)
+
+					assert.Equal(t, expectedStatus.Code(), result.Status.Code)
+					assert.Equal(t, expectedStatus.Message(), result.Status.Message)
+					assert.Nil(t, result.Bundle)
+				default:
+					id := expected.Svid.ID
+					assert.Equal(t, id.TrustDomain().String(), result.Bundle.Id.TrustDomain)
+					assert.Equal(t, id.Path(), result.Bundle.Id.Path)
+					assert.Equal(t, expected.Svid.ExpiresAt.UTC().Unix(), result.Bundle.ExpiresAt)
+					var bundleCertChain [][]byte
+					for _, certChain := range expected.Svid.CertChain {
+						bundleCertChain = append(bundleCertChain, certChain.Raw)
+					}
+					assert.Equal(t, bundleCertChain, result.Bundle.CertChain)
+				}
+			}
+
+			c.logHook.Reset()
+		})
+	}
+}
+
 type FakeService struct {
 	svid.Service
 
-	id        spiffeid.ID
-	certChain [][]byte
-	err       string
-	expiresAt time.Time
+	tb            testing.TB
+	id            spiffeid.ID
+	certChain     [][]byte
+	code          codes.Code
+	batchRequest  []*svid.BatchNewX509SVIDRequest
+	batchResponse []*svid.BatchNewX509SVIDResponse
+	err           string
+	expiresAt     time.Time
 }
 
 func (s *FakeService) MintX509SVID(context.Context, *x509.CertificateRequest, time.Duration) (*api.X509SVID, error) {
 	if s.err != "" {
-		return nil, status.Errorf(codes.Internal, s.err)
+		return nil, status.Error(codes.Internal, s.err)
 	}
 
 	var certs []*x509.Certificate
@@ -167,11 +291,22 @@ func (s *FakeService) MintX509SVID(context.Context, *x509.CertificateRequest, ti
 	return &api.X509SVID{ID: s.id, CertChain: certs, ExpiresAt: s.expiresAt}, nil
 }
 
+func (s *FakeService) BatchNewX509SVID(ctx context.Context, req []*svid.BatchNewX509SVIDRequest) ([]*svid.BatchNewX509SVIDResponse, error) {
+	if s.err != "" {
+		return nil, status.Error(s.code, s.err)
+	}
+
+	require.Equal(s.tb, s.batchRequest, req)
+
+	return s.batchResponse, nil
+}
+
 type serverTest struct {
-	svidClient svidpb.SVIDClient
-	service    *FakeService
-	logHook    *test.Hook
-	done       func()
+	svidClient  svidpb.SVIDClient
+	service     *FakeService
+	logHook     *test.Hook
+	rateLimiter *fakeRateLimiter
+	done        func()
 }
 
 func (c *serverTest) Close() {
@@ -181,22 +316,37 @@ func (c *serverTest) Close() {
 func setupTest(t *testing.T) *serverTest {
 	fakeService := &FakeService{}
 	log, logHook := test.NewNullLogger()
+	rateLimiter := &fakeRateLimiter{}
 	registerFn := func(s *grpc.Server) {
 		svid.RegisterService(s, fakeService)
 	}
 
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
-
+		ctx = rpccontext.WithRateLimiter(ctx, rateLimiter)
 		return ctx
 	}
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 
 	return &serverTest{
-		svidClient: svidpb.NewSVIDClient(conn),
-		done:       done,
-		logHook:    logHook,
-		service:    fakeService,
+		svidClient:  svidpb.NewSVIDClient(conn),
+		done:        done,
+		logHook:     logHook,
+		rateLimiter: rateLimiter,
+		service:     fakeService,
 	}
+}
+
+type fakeRateLimiter struct {
+	count int
+	err   error
+}
+
+func (f *fakeRateLimiter) RateLimit(ctx context.Context, count int) error {
+	if f.count != count {
+		return fmt.Errorf("rate limiter got %d but expected %d", count, f.count)
+	}
+
+	return f.err
 }
