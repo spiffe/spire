@@ -43,24 +43,13 @@ func (s *ValidateSuite) TestSynopsis() {
 }
 
 func (s *ValidateSuite) TestHelp() {
-	s.Equal("", s.cmd.Help())
-	s.Equal(`Usage of validate:
-  -config string
-    	Path to a SPIRE agent configuration file (default "agent.conf")
-  -expandEnv
-    	Expand environment variables in SPIRE config file
-`, s.stderr.String(), "stderr")
+	s.Equal("flag: help requested", s.cmd.Help())
+	s.Contains(s.stderr.String(), "Usage of validate:", "stderr")
 }
 
 func (s *ValidateSuite) TestBadFlags() {
 	code := s.cmd.Run([]string{"-badflag"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal(`flag provided but not defined: -badflag
-Usage of validate:
-  -config string
-    	Path to a SPIRE agent configuration file (default "agent.conf")
-  -expandEnv
-    	Expand environment variables in SPIRE config file
-`, s.stderr.String(), "stderr")
+	s.Contains(s.stderr.String(), "flag provided but not defined: -badflag", "stderr")
 }
