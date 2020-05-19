@@ -2,8 +2,6 @@ package middleware
 
 import (
 	"context"
-
-	"google.golang.org/grpc"
 )
 
 type PreprocessFunc = func(ctx context.Context, methodName string) (context.Context, error)
@@ -11,7 +9,7 @@ type PostprocessFunc = func(ctx context.Context, methodName string, handlerInvok
 
 type Middleware interface {
 	// Preprocess is invoked before the gRPC handler is called. It returns a
-	// (possibly modified) context that is passed into the handler. The context
+	// (possibly modified) context that is passed into the handler, which
 	// should either be the context passed into the function or one derived
 	// from it. If the function returns an error, the gRPC method fails.
 	Preprocess(ctx context.Context, methodName string) (context.Context, error)
@@ -25,12 +23,14 @@ type Middleware interface {
 	Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error)
 }
 
+// Preprocess creates a middleware from a function that does preprocessing only.
 func Preprocess(fn PreprocessFunc) Middleware {
 	return funcs{
 		preprocess: fn,
 	}
 }
 
+// Postprocess creates a middleware from a function that does postprocessing only.
 func Postprocess(fn PostprocessFunc) Middleware {
 	return funcs{
 		postprocess: fn,
@@ -45,6 +45,9 @@ func Funcs(preprocess PreprocessFunc, postprocess PostprocessFunc) Middleware {
 	}
 }
 
+// Chain chains together a series of middleware. The middleware is called in
+// order during preprocessing and in reverse order for postprocessing. The
+// context returned by each Middleware during preprocessing is passed into subsequent middlewares
 func Chain(middleware ...Middleware) Middleware {
 	return middlewares(middleware)
 }
@@ -100,13 +103,4 @@ func (ms middlewares) Postprocess(ctx context.Context, methodName string, handle
 	for i := len(ms) - 1; i >= 0; i-- {
 		ms[i].Postprocess(ctx, methodName, handlerInvoked, rpcErr)
 	}
-}
-
-type serverStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (ss serverStream) Context() context.Context {
-	return ss.ctx
 }
