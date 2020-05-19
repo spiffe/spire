@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,6 +81,50 @@ func TestPerIPLimit(t *testing.T) {
 		{ID: 2, Count: 2},
 		{ID: 2, Count: 3},
 	}, limiters.WaitNEvents)
+}
+
+func TestPerIPLimitGC(t *testing.T) {
+	mockClk, restoreClk := setupClock(t)
+	defer restoreClk()
+
+	limiters := NewFakeLimiters()
+
+	m := PerIPLimit(2)
+
+	// Create limiters for both 1.1.1.1 and 2.2.2.2
+	require.NoError(t, m.RateLimit(callerIPCtx("1.1.1.1"), 1))
+	require.NoError(t, m.RateLimit(callerIPCtx("2.2.2.2"), 1))
+	require.Equal(t, 2, limiters.Count)
+
+	// Advance past the GC time and create for limiter for 3.3.3.3. This should
+	// move both 1.1.1.1 and 2.2.2.2 into the "previous" set. There should be
+	// three total limiters now.
+	mockClk.Add(gcInterval)
+	require.NoError(t, m.RateLimit(callerIPCtx("3.3.3.3"), 1))
+	require.Equal(t, 3, limiters.Count)
+
+	// Now use the 1.1.1.1 limiter. This should transition it into the
+	// "current" set. Assert that no new limiter is created.
+	require.NoError(t, m.RateLimit(callerIPCtx("1.1.1.1"), 1))
+	require.Equal(t, 3, limiters.Count)
+
+	// Advance to the next GC time. Create a limiter for 4.4.4.4. This should
+	// cause 2.2.2.2 to be removed. 1.1.1.1 and 3.3.3.3 will go into the
+	// "previous set".
+	mockClk.Add(gcInterval)
+	require.NoError(t, m.RateLimit(callerIPCtx("4.4.4.4"), 1))
+	require.Equal(t, 4, limiters.Count)
+
+	// Use all of the limiters but 2.2.2.2 and make sure the limiter count is stable.
+	require.NoError(t, m.RateLimit(callerIPCtx("1.1.1.1"), 1))
+	require.NoError(t, m.RateLimit(callerIPCtx("3.3.3.3"), 1))
+	require.NoError(t, m.RateLimit(callerIPCtx("4.4.4.4"), 1))
+	require.Equal(t, 4, limiters.Count)
+
+	// Now do 2.2.2.2. A new limiter will be created for 2.2.2.2, since the
+	// limiter for 2.2.2.2 was previously removed after the last GC period.
+	require.NoError(t, m.RateLimit(callerIPCtx("2.2.2.2"), 1))
+	require.Equal(t, 5, limiters.Count)
 }
 
 func TestRateLimits(t *testing.T) {
@@ -271,4 +316,13 @@ func callerIPCtx(ip string) context.Context {
 	return rpccontext.WithCallerAddr(context.Background(), &net.TCPAddr{
 		IP: net.ParseIP(ip),
 	})
+}
+
+func setupClock(t *testing.T) (*clock.Mock, func()) {
+	mockClk := clock.NewMock(t)
+	oldClk := clk
+	clk = mockClk
+	return mockClk, func() {
+		clk = oldClk
+	}
 }
