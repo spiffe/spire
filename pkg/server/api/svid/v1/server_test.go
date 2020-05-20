@@ -212,7 +212,7 @@ func TestMintJWTSVID(t *testing.T) {
 			// Call MintJWTSVID
 			resp, err := c.svidClient.MintJWTSVID(ctx, testCase.req)
 
-			// Verify expoected error
+			// Verify expected error
 			if testCase.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, testCase.code, testCase.err)
 				require.Nil(t, resp)
