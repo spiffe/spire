@@ -9,6 +9,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -64,6 +66,7 @@ type agentConfig struct {
 	ServerPort        int       `hcl:"server_port"`
 	SocketPath        string    `hcl:"socket_path"`
 	TrustBundlePath   string    `hcl:"trust_bundle_path"`
+	TrustBundleURL    string    `hcl:"trust_bundle_url"`
 	TrustDomain       string    `hcl:"trust_domain"`
 
 	ConfigPath string
@@ -234,6 +237,7 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
+	flags.StringVar(&c.TrustBundleURL, "trustBundleUrl", "", "URL to download the SPIRE server CA bundle")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -267,6 +271,56 @@ func mergeInput(fileInput *Config, cliInput *agentConfig) (*Config, error) {
 	return c, nil
 }
 
+func downloadTrustBundle(trustBundleURL string) ([]*x509.Certificate, error) {
+	// Download the trust bundle URL from the user specified URL
+	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
+	/* #nosec G107 */
+	resp, err := http.Get(trustBundleURL)
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %v", trustBundleURL, err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error downloading trust bundle: %s", resp.Status)
+	}
+	pemBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %v", trustBundleURL, err)
+	}
+
+	bundle, err := pemutil.ParseCertificates(pemBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return bundle, nil
+}
+
+func setupTrustBundle(ac *agent.Config, c *Config) error {
+	// Either download the turst bundle if TrustBundleURL is set, or read it
+	// from disk if TrustBundlePath is set
+	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
+
+	switch {
+	case c.Agent.TrustBundleURL != "":
+		bundle, err := downloadTrustBundle(c.Agent.TrustBundleURL)
+		if err != nil {
+			return err
+		}
+		ac.TrustBundle = bundle
+	case c.Agent.TrustBundlePath != "":
+		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
+		if err != nil {
+			return fmt.Errorf("could not parse trust bundle: %v", err)
+		}
+		ac.TrustBundle = bundle
+	}
+
+	return nil
+}
+
 func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac := &agent.Config{}
 
@@ -291,16 +345,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	}
 	ac.TrustDomain = *td
 
-	// Parse trust bundle
-	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
-	if c.Agent.TrustBundlePath != "" {
-		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse trust bundle: %s", err)
-		}
-		ac.TrustBundle = bundle
-	}
-
 	ac.BindAddress = &net.UnixAddr{
 		Name: c.Agent.SocketPath,
 		Net:  "unix",
@@ -322,6 +366,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
 	ac.Log = logger
+
+	err = setupTrustBundle(ac, c)
+	if err != nil {
+		return nil, err
+	}
 
 	ac.ProfilingEnabled = c.Agent.ProfilingEnabled
 	ac.ProfilingPort = c.Agent.ProfilingPort
@@ -359,10 +408,28 @@ func validateConfig(c *Config) error {
 		return errors.New("trust_domain must be configured")
 	}
 
-	if c.Agent.TrustBundlePath == "" && !c.Agent.InsecureBootstrap {
-		return errors.New("trust_bundle_path must be configured unless insecure_bootstrap is set")
+	// If trust_bundle_url is set, download the trust bundle using HTTP and parse it from memory
+	// If trust_bundle_path is set, parse the trust bundle file on disk
+	// Both cannot be set
+	// The trust bundle URL must start with HTTPS
+
+	if c.Agent.TrustBundlePath == "" && c.Agent.TrustBundleURL == "" && !c.Agent.InsecureBootstrap {
+		return errors.New("trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set")
 	}
 
+	if c.Agent.TrustBundleURL != "" && c.Agent.TrustBundlePath != "" {
+		return errors.New("only one of trust_bundle_url or trust_bundle_path can be specified, not both")
+	}
+
+	if c.Agent.TrustBundleURL != "" {
+		u, err := url.Parse(c.Agent.TrustBundleURL)
+		if err != nil {
+			return fmt.Errorf("unable to parse trust bundle URL: %v", err)
+		}
+		if u.Scheme != "https" {
+			return errors.New("trust bundle URL must start with https://")
+		}
+	}
 	if c.Plugins == nil {
 		return errors.New("plugins section must be configured")
 	}
