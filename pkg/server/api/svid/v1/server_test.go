@@ -186,7 +186,7 @@ func TestMintJWTSVID(t *testing.T) {
 		{
 			name:   "request missing SPIFFE ID",
 			err:    "request must specify SPIFFE ID",
-			logMsg: "Request must specify SPIFFE ID",
+			logMsg: "Failed to parse SPIFFE ID",
 			code:   codes.InvalidArgument,
 			req: &svidpb.MintJWTSVIDRequest{
 				Audience: []string{"audience1", "audience2"},
@@ -203,10 +203,10 @@ func TestMintJWTSVID(t *testing.T) {
 			},
 		},
 		{
-			name:   "request missing audience",
-			err:    "request must specify at least one audience",
-			logMsg: "Request must specify at least one audience",
-			code:   codes.InvalidArgument,
+			name:       "request missing audience",
+			err:        "request must specify at least one audience",
+			serviceErr: "request must specify at least one audience",
+			code:       codes.Internal,
 			req: &svidpb.MintJWTSVIDRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: spiffeID.TrustDomain().String(),
@@ -221,6 +221,7 @@ func TestMintJWTSVID(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			// Setup service
 			c.service.err = testCase.serviceErr
+			c.service.errCode = testCase.code
 			c.service.id = testCase.spiffeID
 			c.service.token = testCase.token
 			c.service.issuedAt = testCase.issuedAt
@@ -233,8 +234,9 @@ func TestMintJWTSVID(t *testing.T) {
 			if testCase.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, testCase.code, testCase.err)
 				require.Nil(t, resp)
-				require.Equal(t, testCase.logMsg, c.logHook.LastEntry().Message)
-
+				if testCase.logMsg != "" {
+					require.Equal(t, testCase.logMsg, c.logHook.LastEntry().Message)
+				}
 				return
 			}
 
@@ -251,40 +253,49 @@ func TestMintJWTSVID(t *testing.T) {
 	}
 }
 
-type FakeService struct {
+type fakeService struct {
 	svid.Service
-
 	id        spiffeid.ID
-	certChain [][]byte
 	err       string
+	errCode   codes.Code
 	expiresAt time.Time
-	issuedAt  time.Time
-	token     string
+
+	fakeServiceMintX509SVID
+	fakeServiceMintJWTSVID
 }
 
-func (s *FakeService) MintX509SVID(context.Context, *x509.CertificateRequest, time.Duration) (*api.X509SVID, error) {
+type fakeServiceMintX509SVID struct {
+	certChain [][]byte
+}
+
+type fakeServiceMintJWTSVID struct {
+	issuedAt time.Time
+	token    string
+}
+
+func (s *fakeService) MintX509SVID(context.Context, *x509.CertificateRequest, time.Duration) (*api.X509SVID, error) {
 	if s.err != "" {
 		return nil, status.Errorf(codes.Internal, s.err)
 	}
 
 	var certs []*x509.Certificate
-	for _, cert := range s.certChain {
+	for _, cert := range s.fakeServiceMintX509SVID.certChain {
 		certs = append(certs, &x509.Certificate{Raw: cert})
 	}
 	return &api.X509SVID{ID: s.id, CertChain: certs, ExpiresAt: s.expiresAt}, nil
 }
 
-func (s *FakeService) MintJWTSVID(ctx context.Context, id spiffeid.ID, audience []string, ttl time.Duration) (*api.JWTSVID, error) {
+func (s *fakeService) MintJWTSVID(ctx context.Context, id spiffeid.ID, audience []string, ttl time.Duration) (*api.JWTSVID, error) {
 	if s.err != "" {
-		return nil, status.Errorf(codes.Internal, s.err)
+		return nil, status.Errorf(s.errCode, s.err)
 	}
 
-	return &api.JWTSVID{ID: s.id, Token: s.token, ExpiresAt: s.expiresAt, IssuedAt: s.issuedAt}, nil
+	return &api.JWTSVID{ID: s.id, Token: s.fakeServiceMintJWTSVID.token, ExpiresAt: s.expiresAt, IssuedAt: s.fakeServiceMintJWTSVID.issuedAt}, nil
 }
 
 type serverTest struct {
 	svidClient svidpb.SVIDClient
-	service    *FakeService
+	service    *fakeService
 	logHook    *test.Hook
 	done       func()
 }
@@ -294,7 +305,7 @@ func (c *serverTest) Close() {
 }
 
 func setupTest(t *testing.T) *serverTest {
-	fakeService := &FakeService{}
+	fakeService := &fakeService{}
 	log, logHook := test.NewNullLogger()
 	registerFn := func(s *grpc.Server) {
 		svid.RegisterService(s, fakeService)

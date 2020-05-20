@@ -5,8 +5,8 @@ import (
 	"crypto/x509"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -58,19 +58,10 @@ func (s server) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest)
 func (s server) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest) (*svid.MintJWTSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 
-	if req.Id == nil {
-		log.Error("Request must specify SPIFFE ID")
-		return nil, status.Error(codes.InvalidArgument, "request must specify SPIFFE ID")
-	}
-	spiffeID, err := spiffeid.New(req.Id.TrustDomain, req.Id.Path)
+	spiffeID, err := api.IDFromProto(req.Id)
 	if err != nil {
 		log.WithError(err).Error("Failed to parse SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	if len(req.Audience) == 0 {
-		log.Error("Request must specify at least one audience")
-		return nil, status.Error(codes.InvalidArgument, "request must specify at least one audience")
 	}
 
 	jwtSVID, err := s.service.MintJWTSVID(ctx, spiffeID, req.Audience, time.Duration(req.Ttl)*time.Second)
