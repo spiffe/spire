@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	// Used manipulate time in unit tests
+	// Used to manipulate time in unit tests
 	clk = clock.New()
 )
 
