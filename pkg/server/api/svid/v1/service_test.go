@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 func TestServiceMintX509SVID(t *testing.T) {
@@ -264,6 +265,119 @@ func TestServiceMintX509SVID(t *testing.T) {
 			}
 			require.Equal(t, testCase.dns, svid.DNSNames)
 			require.Equal(t, testCase.subject, svid.Subject.String())
+		})
+	}
+}
+
+func TestServiceMintJWTSVID(t *testing.T) {
+	// Add logger to context
+	log, logHook := test.NewNullLogger()
+	ctx := rpccontext.WithLogger(context.Background(), log)
+
+	spiffeID := spiffeid.Must("example.org", "workload1")
+
+	// Create Service
+	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
+	fakeServerCA := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
+	service := svid.New(svid.Config{
+		ServerCA:    fakeServerCA,
+		TrustDomain: trustDomain,
+	})
+
+	jwtKey := fakeServerCA.JWTKey()
+	now := fakeServerCA.Clock().Now().UTC()
+	issuedAt := now
+	expiresAt := now.Add(fakeServerCA.JWTSVIDTTL())
+
+	testCases := []struct {
+		name string
+
+		code        codes.Code
+		err         string
+		logMsg      string
+		issuedAt    time.Time
+		expiresAt   time.Time
+		spiffeID    spiffeid.ID
+		ttl         time.Duration
+		failMinting bool
+		audience    []string
+	}{
+		{
+			name:      "success",
+			audience:  []string{"AUDIENCE"},
+			issuedAt:  issuedAt,
+			expiresAt: expiresAt,
+			spiffeID:  spiffeID,
+		},
+		{
+			name:      "success custom TTL",
+			audience:  []string{"AUDIENCE"},
+			ttl:       10 * time.Second,
+			issuedAt:  issuedAt,
+			expiresAt: now.Add(10 * time.Second),
+			spiffeID:  spiffeID,
+		},
+		{
+			name:     "invalid trust domain",
+			code:     codes.InvalidArgument,
+			audience: []string{"AUDIENCE"},
+			spiffeID: spiffeid.Must("invalid.test", "workload1"),
+			err:      `invalid SPIFFE ID: "spiffe://invalid.test/workload1" does not belong to trust domain "example.org"`,
+			logMsg:   `Invalid SPIFFE ID: "spiffe://invalid.test/workload1" does not belong to trust domain "example.org"`,
+		},
+		{
+			name:      "no audience",
+			code:      codes.InvalidArgument,
+			err:       "at least one audience is required",
+			logMsg:    "At least one audience is required",
+			issuedAt:  issuedAt,
+			expiresAt: expiresAt,
+			spiffeID:  spiffeID,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			fakeServerCA.CA.SetJWTKey(jwtKey)
+			if testCase.failMinting {
+				fakeServerCA.CA.SetJWTKey(nil)
+			}
+
+			resp, err := service.MintJWTSVID(ctx, testCase.spiffeID, testCase.audience, testCase.ttl)
+
+			// Check for expected errors
+			if testCase.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, testCase.code, testCase.err)
+				require.Nil(t, resp)
+				require.Equal(t, testCase.logMsg, logHook.LastEntry().Message)
+
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			// Verify response
+			require.NotEmpty(t, resp.Token)
+
+			token, err := jwt.ParseSigned(resp.Token)
+			require.NoError(t, err)
+
+			var claims jwt.Claims
+			err = token.UnsafeClaimsWithoutVerification(&claims)
+			require.NoError(t, err)
+
+			require.Equal(t, testCase.spiffeID.String(), claims.Subject)
+			require.Equal(t, jwt.Audience(testCase.audience), claims.Audience)
+			require.Equal(t, testCase.spiffeID, resp.ID)
+			require.NotNil(t, claims.Expiry)
+
+			expiry := time.Unix(int64(*claims.Expiry), 0).UTC()
+			if testCase.ttl == 0 {
+				require.Equal(t, now.Add(fakeServerCA.JWTSVIDTTL()), expiry)
+			} else {
+				require.Equal(t, testCase.expiresAt, expiry)
+			}
 		})
 	}
 }
