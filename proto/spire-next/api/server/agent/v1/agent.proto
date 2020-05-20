@@ -1,0 +1,182 @@
+syntax = "proto3";
+package spire.api.server.agent.v1;
+option go_package = "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1;agent";
+
+import "google/protobuf/empty.proto";
+import "spire-next/types/agent.proto";
+import "spire-next/types/attestation.proto";
+import "spire-next/types/jointoken.proto";
+import "spire-next/types/selector.proto";
+import "spire-next/types/spiffeid.proto";
+import "spire-next/types/x509svid.proto";
+
+service Agent {
+    // Lists agents.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+
+    // Gets an agent.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc GetAgent(GetAgentRequest) returns (spire.types.Agent);
+
+    // Deletes an agent. The agent can come back into the trust domain through
+    // the Issuer AttestAgent RPC.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc DeleteAgent(DeleteAgentRequest) returns (google.protobuf.Empty);
+
+    // Bans an agent. This evicts the agent and prevents it from rejoining the
+    // trust domain through attestation until the ban is lifted via a call to
+    // DeleteAgent.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc BanAgent(BanAgentRequest) returns (google.protobuf.Empty);
+
+    // Attests the agent via node attestation, using a bidirectional stream to
+    // faciliate attestation methods that require challenge/response.
+    //
+    // The caller is not authenticated.
+    rpc AttestAgent(stream AttestAgentRequest) returns (stream AttestAgentResponse);
+
+    // Renews the agent and returns a new X509-SVID using a bidirectional
+    // stream to facilitate two-phase commit of the renewal.
+    //
+    // The caller must present an active agent X509-SVID, i.e. the X509-SVID
+    // returned by the AttestAgent or the most recent RenewAgent call.
+    rpc RenewAgent(stream RenewAgentRequest) returns (stream RenewAgentResponse);
+
+    // Creates an agent join token. The token can be used with `join_token`
+    // attestation to join the trust domain.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc CreateJoinToken(CreateJoinTokenRequest) returns (spire.types.JoinToken);
+}
+
+message ListAgentsRequest {
+    message Filter {
+        // Filters agents to those matching the attestation type.
+        string by_attestation_type = 1;
+
+        // Filters agents to those satisfying the selector match.
+        spire.types.SelectorMatch by_selector_match = 2;
+
+        // Filters agents to those that are banned.
+        bool by_banned = 3;
+    }
+
+    // Filters the agents returned by the list operation.
+    Filter filter = 1;
+
+    // An output mask indicating which agent fields are set in the response.
+    spire.types.AgentMask output_mask = 2;
+
+    // The maximum number of items to return.
+    int32 page_size = 3;
+
+    // The next_page_token value returned from a previous List request, if any.
+    string page_token = 4;
+}
+
+message ListAgentsResponse {
+    // The agents.
+    repeated spire.types.Agent agents = 1;
+
+    // The page token for the next request. Empty if there are no more results.
+    string next_page_token = 2;
+}
+
+message GetAgentRequest {
+    // Required. The SPIFFE ID of the agent.
+    spire.types.SPIFFEID id = 1;
+
+    // An output mask indicating which agent fields are set in the response.
+    spire.types.AgentMask output_mask = 2;
+}
+
+message DeleteAgentRequest {
+    // Required. The SPIFFE ID of the agent.
+    spire.types.SPIFFEID id = 1;
+}
+
+message BanAgentRequest {
+    // Required. The SPIFFE ID of the agent.
+    spire.types.SPIFFEID id = 1;
+}
+
+message AttestAgentRequest {
+    message Params {
+        // Required. The attestation data.
+        spire.types.AttestationData data = 1;
+
+        // Required. The X509-SVID parameters.
+        AgentX509SVIDParams params = 2;
+    }
+
+    // Required. The data for the step in the attestation flow.
+    oneof step {
+        // Attestation parameters. These are only sent in the initial request.
+        Params params = 1;
+
+        // The response to a challenge issued by the attestor. Only sent in
+        // response to a challenge received by the issuer.
+        bytes challenge_response = 2;
+    }
+}
+
+message AttestAgentResponse {
+    message Result {
+        // The agent X509-SVID.
+        spire.types.X509SVID svid = 1;
+    }
+
+    oneof step {
+        // Attestation results. If set, attestation has completed.
+        Result result = 1;
+
+        // A challenge issued by the attestor. If set, the caller is expected
+        // to send another request on the stream with the challenge response.
+        bytes challenge = 2;
+    }
+}
+
+message RenewAgentRequest {
+    message Ack {};
+
+    // Required. The data for the step in the renewal flow.
+    oneof step {
+        // Parameters for the X509-SVID.
+        AgentX509SVIDParams params = 1;
+
+        // An acknowledgement by the receiving end that it has received the
+        // renewed SVID and will be using it in future requests.
+        Ack ack = 2;
+    }
+}
+
+message RenewAgentResponse {
+    // The renewed X509-SVID
+    spire.types.X509SVID svid = 1;
+}
+
+message CreateJoinTokenRequest {
+    // Required. How long until the token expires (in seconds).
+    int32 ttl = 1;
+
+    // An optional token value to use for the token. Must be unique. If unset,
+    // the server will generate a value.
+    string token = 2;
+
+    // An optional SPIFFE ID to assign to the agent beyond that given by
+    // join token attestation. If set, this results in an entry being created
+    // that maps the attestation assigned agent ID to this ID.
+    spire.types.SPIFFEID agent_id = 3;
+}
+
+message AgentX509SVIDParams {
+    // Required. The ASN.1 DER encoded Certificate Signing Request (CSR). The
+    // CSR is only used to convey the public key; other fields in the CSR are
+    // ignored. The agent X509-SVID attributes are determined by the server.
+    bytes csr = 1;
+}
