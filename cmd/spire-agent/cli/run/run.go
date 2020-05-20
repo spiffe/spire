@@ -6,8 +6,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,10 +18,11 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
+	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/cli"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -28,6 +32,8 @@ import (
 )
 
 const (
+	commandName = "run"
+
 	defaultConfigPath = "conf/agent/agent.conf"
 	defaultSocketPath = "./spire_api"
 
@@ -60,6 +66,7 @@ type agentConfig struct {
 	ServerPort        int       `hcl:"server_port"`
 	SocketPath        string    `hcl:"socket_path"`
 	TrustBundlePath   string    `hcl:"trust_bundle_path"`
+	TrustBundleURL    string    `hcl:"trust_bundle_url"`
 	TrustDomain       string    `hcl:"trust_domain"`
 
 	ConfigPath string
@@ -88,35 +95,60 @@ type experimentalConfig struct {
 
 type Command struct {
 	LogOptions []log.Option
+	env        *common_cli.Env
 }
 
-func (*Command) Help() string {
-	_, err := parseFlags([]string{"-h"})
+func NewRunCommand(logOptions []log.Option) cli.Command {
+	return newRunCommand(common_cli.DefaultEnv, logOptions)
+}
+
+func newRunCommand(env *common_cli.Env, logOptions []log.Option) *Command {
+	return &Command{
+		env:        env,
+		LogOptions: logOptions,
+	}
+}
+
+// Help prints the agent cmd usage
+func (cmd *Command) Help() string {
+	return Help(commandName, cmd.env.Stderr)
+}
+
+// Help is a standalone function that prints a help message to writer.
+// It is used by both the run and validate commands, so they can share flag usage messages.
+func Help(name string, writer io.Writer) string {
+	_, err := parseFlags(name, []string{"-h"}, writer)
+	// Error is always present because -h is passed
 	return err.Error()
 }
 
-func (cmd *Command) Run(args []string) int {
-	cliInput, err := parseFlags(args)
+func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer) (*agent.Config, error) {
+	// First parse the CLI flags so we can get the config
+	// file path, if set
+	cliInput, err := parseFlags(name, args, output)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return nil, err
 	}
 
+	// Load and parse the config file using either the default
+	// path or CLI-specified value
 	fileInput, err := ParseFile(cliInput.ConfigPath, cliInput.ExpandEnv)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return nil, err
 	}
 
 	input, err := mergeInput(fileInput, cliInput)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return nil, err
 	}
 
-	c, err := NewAgentConfig(input, cmd.LogOptions)
+	return NewAgentConfig(input, logOptions)
+}
+
+func (cmd *Command) Run(args []string) int {
+	c, err := LoadConfig(commandName, args, cmd.LogOptions, cmd.env.Stderr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(cmd.env.Stderr, err)
 		return 1
 	}
 
@@ -125,13 +157,13 @@ func (cmd *Command) Run(args []string) int {
 	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
 		c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(cmd.env.Stderr, err)
 			return 1
 		}
 	}
 
 	// Set umask before starting up the agent
-	cli.SetUmask(c.Log)
+	common_cli.SetUmask(c.Log)
 
 	a := agent.New(c)
 
@@ -189,8 +221,9 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	return c, nil
 }
 
-func parseFlags(args []string) (*agentConfig, error) {
-	flags := flag.NewFlagSet("run", flag.ContinueOnError)
+func parseFlags(name string, args []string, output io.Writer) (*agentConfig, error) {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.SetOutput(output)
 	c := &agentConfig{}
 
 	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
@@ -204,6 +237,7 @@ func parseFlags(args []string) (*agentConfig, error) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
+	flags.StringVar(&c.TrustBundleURL, "trustBundleUrl", "", "URL to download the SPIRE server CA bundle")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -237,6 +271,56 @@ func mergeInput(fileInput *Config, cliInput *agentConfig) (*Config, error) {
 	return c, nil
 }
 
+func downloadTrustBundle(trustBundleURL string) ([]*x509.Certificate, error) {
+	// Download the trust bundle URL from the user specified URL
+	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
+	/* #nosec G107 */
+	resp, err := http.Get(trustBundleURL)
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %v", trustBundleURL, err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error downloading trust bundle: %s", resp.Status)
+	}
+	pemBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %v", trustBundleURL, err)
+	}
+
+	bundle, err := pemutil.ParseCertificates(pemBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return bundle, nil
+}
+
+func setupTrustBundle(ac *agent.Config, c *Config) error {
+	// Either download the turst bundle if TrustBundleURL is set, or read it
+	// from disk if TrustBundlePath is set
+	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
+
+	switch {
+	case c.Agent.TrustBundleURL != "":
+		bundle, err := downloadTrustBundle(c.Agent.TrustBundleURL)
+		if err != nil {
+			return err
+		}
+		ac.TrustBundle = bundle
+	case c.Agent.TrustBundlePath != "":
+		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
+		if err != nil {
+			return fmt.Errorf("could not parse trust bundle: %v", err)
+		}
+		ac.TrustBundle = bundle
+	}
+
+	return nil
+}
+
 func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac := &agent.Config{}
 
@@ -261,16 +345,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	}
 	ac.TrustDomain = *td
 
-	// Parse trust bundle
-	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
-	if c.Agent.TrustBundlePath != "" {
-		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse trust bundle: %s", err)
-		}
-		ac.TrustBundle = bundle
-	}
-
 	ac.BindAddress = &net.UnixAddr{
 		Name: c.Agent.SocketPath,
 		Net:  "unix",
@@ -292,6 +366,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
 	ac.Log = logger
+
+	err = setupTrustBundle(ac, c)
+	if err != nil {
+		return nil, err
+	}
 
 	ac.ProfilingEnabled = c.Agent.ProfilingEnabled
 	ac.ProfilingPort = c.Agent.ProfilingPort
@@ -329,10 +408,28 @@ func validateConfig(c *Config) error {
 		return errors.New("trust_domain must be configured")
 	}
 
-	if c.Agent.TrustBundlePath == "" && !c.Agent.InsecureBootstrap {
-		return errors.New("trust_bundle_path must be configured unless insecure_bootstrap is set")
+	// If trust_bundle_url is set, download the trust bundle using HTTP and parse it from memory
+	// If trust_bundle_path is set, parse the trust bundle file on disk
+	// Both cannot be set
+	// The trust bundle URL must start with HTTPS
+
+	if c.Agent.TrustBundlePath == "" && c.Agent.TrustBundleURL == "" && !c.Agent.InsecureBootstrap {
+		return errors.New("trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set")
 	}
 
+	if c.Agent.TrustBundleURL != "" && c.Agent.TrustBundlePath != "" {
+		return errors.New("only one of trust_bundle_url or trust_bundle_path can be specified, not both")
+	}
+
+	if c.Agent.TrustBundleURL != "" {
+		u, err := url.Parse(c.Agent.TrustBundleURL)
+		if err != nil {
+			return fmt.Errorf("unable to parse trust bundle URL: %v", err)
+		}
+		if u.Scheme != "https" {
+			return errors.New("trust bundle URL must start with https://")
+		}
+	}
 	if c.Plugins == nil {
 		return errors.New("plugins section must be configured")
 	}

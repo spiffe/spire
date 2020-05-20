@@ -210,8 +210,8 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, methodName string
 
 	wrapper, ok := rateLimiter.(*rateLimiterWrapper)
 	if !ok {
-		// This shouldn't be the case unless Preprocess is broken and fails
-		// to wrap the rate limiter.
+		// This shouldn't be the case unless Preprocess is broken and fails to
+		// wrap the rate limiter.
 		rpccontext.Logger(ctx).WithField("method", methodName).Error("Rate limiting misconfigured; this is a bug")
 		return
 	}
