@@ -58,7 +58,11 @@ func (s server) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest)
 func (s server) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest) (*svid.MintJWTSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 
-	spiffeID, err := spiffeid.FromString(req.SpiffeId)
+	if req.Id == nil {
+		log.Error("Request must specify SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, "request must specify SPIFFE ID")
+	}
+	spiffeID, err := spiffeid.New(req.Id.TrustDomain, req.Id.Path)
 	if err != nil {
 		log.WithError(err).Error("Failed to parse SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())

@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/api/svid/v1"
 	svidpb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
+	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
@@ -174,17 +175,30 @@ func TestMintJWTSVID(t *testing.T) {
 			issuedAt:  time.Now(),
 			expiresAt: time.Now().Add(time.Minute),
 			req: &svidpb.MintJWTSVIDRequest{
-				SpiffeId: spiffeID.String(),
+				Id: &types.SPIFFEID{
+					TrustDomain: spiffeID.TrustDomain().String(),
+					Path:        spiffeID.Path(),
+				},
 				Audience: []string{"audience1", "audience2"},
 				Ttl:      60,
 			},
 		},
 		{
 			name:   "request missing SPIFFE ID",
-			err:    "spiffeid: ID is empty",
+			err:    "request must specify SPIFFE ID",
+			logMsg: "Request must specify SPIFFE ID",
+			code:   codes.InvalidArgument,
+			req: &svidpb.MintJWTSVIDRequest{
+				Audience: []string{"audience1", "audience2"},
+			},
+		},
+		{
+			name:   "request with empty SPIFFE ID",
+			err:    "spiffeid: trust domain is empty",
 			logMsg: "Failed to parse SPIFFE ID",
 			code:   codes.InvalidArgument,
 			req: &svidpb.MintJWTSVIDRequest{
+				Id:       &types.SPIFFEID{},
 				Audience: []string{"audience1", "audience2"},
 			},
 		},
@@ -194,7 +208,10 @@ func TestMintJWTSVID(t *testing.T) {
 			logMsg: "Request must specify at least one audience",
 			code:   codes.InvalidArgument,
 			req: &svidpb.MintJWTSVIDRequest{
-				SpiffeId: spiffeID.String(),
+				Id: &types.SPIFFEID{
+					TrustDomain: spiffeID.TrustDomain().String(),
+					Path:        spiffeID.Path(),
+				},
 			},
 		},
 	}
