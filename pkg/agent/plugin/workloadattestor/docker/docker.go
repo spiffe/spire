@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -28,10 +29,6 @@ const (
 	subselectorEnv     = "env"
 )
 
-var defaultContainerIDMatchers = []string{
-	"/docker/<id>",
-}
-
 func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
@@ -52,11 +49,6 @@ type Plugin struct {
 	mtx               *sync.RWMutex
 	retryer           *retryer
 	containerIDFinder cgroup.ContainerIDFinder
-	findContainerID   func(string) (string, bool)
-
-	// legacy ID extraction
-	cgroupPrefix         string
-	cgroupContainerIndex int
 }
 
 func New() *Plugin {
@@ -94,27 +86,13 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		return nil, err
 	}
 
-	var containerID string
-	var hasDockerEntries bool
-	for _, cgroup := range cgroupList {
-		// We are only interested in cgroup entries that match our desired pattern. Example entry:
-		// "10:perf_event:/docker/2235ebefd9babe0dde4df4e7c49708e24fb31fb851edea55c0ee29a18273cdf4"
-		id, ok := p.findContainerID(cgroup.GroupPath)
-		if !ok {
-			continue
-		}
-		hasDockerEntries = true
-		containerID = id
-		break
-	}
-
-	// Not a docker workload. Since it is expected that non-docker workloads will call the
-	// workload API, it is fine to return a response without any selectors.
-	if !hasDockerEntries {
+	containerID, err := getContainerIDFromCGroups(p.containerIDFinder, cgroupList)
+	switch {
+	case err != nil:
+		return nil, err
+	case containerID == "":
+		// Not a docker workload. Nothing more to do.
 		return &workloadattestor.AttestResponse{}, nil
-	}
-	if containerID == "" {
-		return nil, fmt.Errorf("workloadattestor/docker: a pattern matched, but no container id was found")
 	}
 
 	var container types.ContainerJSON
@@ -182,33 +160,28 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		return nil, err
 	}
 
-	if config.CgroupPrefix != "" || config.CgroupContainerIndex != nil {
+	switch {
+	case config.CgroupPrefix != "" || config.CgroupContainerIndex != nil:
 		if config.CgroupPrefix == "" || config.CgroupContainerIndex == nil {
 			return nil, errors.New("cgroup_prefix and cgroup_container_index must be specified together")
 		}
 		p.log.Warn("cgroup_prefix and cgroup_container_index are deprecated and will be removed in a future release")
 
-		p.cgroupPrefix = config.CgroupPrefix
-		// index 0 will always be "" as the prefix must start with /.
-		// We add 1 to the requested index to hide this from the user.
-		p.cgroupContainerIndex = *config.CgroupContainerIndex + 1
-
-		p.findContainerID = p.legacyExtractID
-
-		return &spi.ConfigureResponse{}, nil
+		p.containerIDFinder = &legacyContainerIDFinder{
+			log:          p.log,
+			cgroupPrefix: config.CgroupPrefix,
+			// index 0 will always be "" as the prefix must start with /.
+			// We add 1 to the requested index to hide this from the user.
+			cgroupContainerIndex: *config.CgroupContainerIndex + 1,
+		}
+	case len(config.ContainerIDCGroupMatchers) > 0:
+		p.containerIDFinder, err = cgroup.NewContainerIDFinder(config.ContainerIDCGroupMatchers)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		p.containerIDFinder = &defaultContainerIDFinder{}
 	}
-
-	matchers := config.ContainerIDCGroupMatchers
-	if len(matchers) == 0 {
-		matchers = defaultContainerIDMatchers
-	}
-
-	p.containerIDFinder, err = cgroup.NewContainerIDFinder(matchers)
-	if err != nil {
-		return nil, err
-	}
-
-	p.findContainerID = p.containerIDFinder.FindContainerID
 
 	return &spi.ConfigureResponse{}, nil
 }
@@ -217,17 +190,78 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *Plugin) legacyExtractID(cgroupPath string) (string, bool) {
-	if !strings.HasPrefix(cgroupPath, p.cgroupPrefix) {
+func getContainerIDFromCGroups(finder cgroup.ContainerIDFinder, cgroups []cgroups.Cgroup) (string, error) {
+	var hasDockerEntries bool
+	var containerID string
+	for _, cgroup := range cgroups {
+		candidate, ok := finder.FindContainerID(cgroup.GroupPath)
+		if !ok {
+			continue
+		}
+
+		hasDockerEntries = true
+
+		switch {
+		case containerID == "":
+			// This is the first container ID found so far.
+			containerID = candidate
+		case containerID != candidate:
+			// More than one container ID found in the cgroups.
+			return "", fmt.Errorf("workloadattestor/docker: multiple container IDs found in cgroups (%s, %s)",
+				containerID, candidate)
+		}
+	}
+
+	switch {
+	case !hasDockerEntries:
+		// Not a docker workload. Since it is expected that non-docker
+		// workloads will call the workload API, it is fine to return a
+		// response without a container ID.
+		return "", nil
+	case containerID == "":
+		// The "finder" found a container ID, but it was blank. This is a
+		// defensive measure against bad matcher patterns and shouldn't be
+		// possible with the default finder.
+		return "", fmt.Errorf("workloadattestor/docker: a pattern matched, but no container id was found")
+	default:
+		return containerID, nil
+	}
+}
+
+type legacyContainerIDFinder struct {
+	log                  hclog.Logger
+	cgroupPrefix         string
+	cgroupContainerIndex int
+}
+
+func (f *legacyContainerIDFinder) FindContainerID(cgroupPath string) (string, bool) {
+	if !strings.HasPrefix(cgroupPath, f.cgroupPrefix) {
 		return "", false
 	}
 
 	parts := strings.Split(cgroupPath, "/")
 
-	if len(parts) <= p.cgroupContainerIndex {
-		p.log.Warn("Docker entry found, but is missing the container id", telemetry.CGroupPath, cgroupPath)
+	if len(parts) <= f.cgroupContainerIndex {
+		f.log.Warn("Docker entry found, but is missing the container id", telemetry.CGroupPath, cgroupPath)
 		return "", false
 	}
 
-	return parts[p.cgroupContainerIndex], true
+	return parts[f.cgroupContainerIndex], true
+}
+
+// dockerCGroupRE extracts the docker container ID from a cgroup name. It is
+// broken up as follows:
+// - "docker" surrounded by punctuation (e.g. "/docker/" or "/docker-")
+// - followed optionally by some number of characters with trailing punctuation
+// - followed by a 64 hex-digit container ID
+var dockerCGroupRE = regexp.MustCompile(`[[:punct:]]docker[[:punct:]](?:.+[[:punct:]])?([[:xdigit:]]{64})`)
+
+type defaultContainerIDFinder struct{}
+
+func (f *defaultContainerIDFinder) FindContainerID(cgroupPath string) (string, bool) {
+	m := dockerCGroupRE.FindStringSubmatch(cgroupPath)
+	if m != nil {
+		return m[1], true
+	}
+	return "", false
 }
