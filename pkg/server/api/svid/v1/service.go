@@ -163,9 +163,25 @@ type BatchNewX509SVIDRequest struct {
 	Csr     *x509.CertificateRequest
 }
 
+// NewBatchNewX509SVIDRequest creates a new BatchNewX509SVIDRequest
+func NewBatchNewX509SVIDRequest(entryID string, csr *x509.CertificateRequest) *BatchNewX509SVIDRequest {
+	return &BatchNewX509SVIDRequest{
+		EntryID: entryID,
+		Csr:     csr,
+	}
+}
+
 type BatchNewX509SVIDResponse struct {
 	Svid *api.X509SVID
 	Err  error
+}
+
+// NewBatchNewX509SVIDResponse creates a new BatchNewX509SVIDResponse
+func NewBatchNewX509SVIDResponse(svid *api.X509SVID, err error) *BatchNewX509SVIDResponse {
+	return &BatchNewX509SVIDResponse{
+		Svid: svid,
+		Err:  err,
+	}
 }
 
 func (s *service) validateCSR(csr *x509.CertificateRequest, log logrus.FieldLogger) (spiffeID spiffeid.ID, err error) {

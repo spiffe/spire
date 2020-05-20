@@ -58,14 +58,14 @@ func (s server) MintJWTSVID(context.Context, *svid.MintJWTSVIDRequest) (*svid.Mi
 func (s server) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 
-	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
-		log.WithError(err).Error("Rejecting request due to certificate signing rate limiting")
-		return nil, status.Error(codes.ResourceExhausted, err.Error())
-	}
-
 	if len(req.Params) == 0 {
 		log.Error("Request missing parameters")
 		return nil, status.Error(codes.InvalidArgument, "request missing parameters")
+	}
+
+	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
+		log.WithError(err).Error("Rejecting request due to certificate signing rate limiting")
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
 	resp := &svid.BatchNewX509SVIDResponse{
@@ -119,13 +119,13 @@ func parseNewX509SVIDParams(svidParam *svid.NewX509SVIDParams, log logrus.FieldL
 		return nil, createStatus(codes.InvalidArgument, "invalid param: missing Entry ID")
 	case len(svidParam.Csr) == 0:
 		log.WithField(telemetry.RegistrationID, svidParam.EntryId).Error("Invalid param: missing CSR")
-		return nil, createStatus(codes.InvalidArgument, "invalid param: bundle %q: missing CSR", svidParam.EntryId)
+		return nil, createStatus(codes.InvalidArgument, "invalid param %q: missing CSR", svidParam.EntryId)
 	}
 
 	csr, err := x509.ParseCertificateRequest(svidParam.Csr)
 	if err != nil {
 		log.WithField(telemetry.RegistrationID, svidParam.EntryId).WithError(err).Errorf("Invalid Param: invalid CSR")
-		return nil, createStatus(codes.InvalidArgument, "invalid param: entry  %q: invalid CSR", svidParam.EntryId)
+		return nil, createStatus(codes.InvalidArgument, "invalid param %q: invalid CSR: %v", svidParam.EntryId, err)
 	}
 
 	return csr, nil
@@ -148,6 +148,9 @@ func createStatus(code codes.Code, format string, a ...interface{}) *types.Statu
 }
 
 func parseX509SVID(x509SVID *api.X509SVID) *types.X509SVID {
+	if x509SVID == nil {
+		return nil
+	}
 	return &types.X509SVID{
 		Id: &types.SPIFFEID{
 			TrustDomain: x509SVID.ID.TrustDomain().String(),

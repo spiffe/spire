@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/url"
 	"testing"
@@ -155,17 +156,27 @@ func TestBatchNewX509SVID(t *testing.T) {
 	c := setupTest(t)
 	defer c.Close()
 
-	spiffeID := spiffeid.Must("example.org", "workload1")
-
-	// Create certificate request
 	key := testkey.NewEC256(t)
+
+	// Create certficate requets
+	spiffeID := spiffeid.Must("example.org", "workload1")
 	template := &x509.CertificateRequest{
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
 		URIs:               []*url.URL{spiffeID.URL()},
 	}
-	csrRaw, err := x509.CreateCertificateRequest(rand.Reader, template, key)
+	csrRaw1, err := x509.CreateCertificateRequest(rand.Reader, template, key)
 	require.NoError(t, err)
-	csr, err := x509.ParseCertificateRequest(csrRaw)
+	csr1, err := x509.ParseCertificateRequest(csrRaw1)
+	require.NoError(t, err)
+
+	spiffeID2 := spiffeid.Must("example.org", "workload2")
+	template = &x509.CertificateRequest{
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		URIs:               []*url.URL{spiffeID2.URL()},
+	}
+	csrRaw2, err := x509.CreateCertificateRequest(rand.Reader, template, key)
+	require.NoError(t, err)
+	csr2, err := x509.ParseCertificateRequest(csrRaw2)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -177,33 +188,109 @@ func TestBatchNewX509SVID(t *testing.T) {
 		params         []*svidpb.NewX509SVIDParams
 		rateLimiterErr error
 		req            []*svid.BatchNewX509SVIDRequest
-		resp           []*svid.BatchNewX509SVIDResponse
+		serviceResp    []*svid.BatchNewX509SVIDResponse
 		serviceErr     string
 	}{
 		{
 			name: "success",
 			params: []*svidpb.NewX509SVIDParams{
-				{
-					EntryId: "entry1",
-					Csr:     csrRaw,
-				},
+				newX509SVIDParams("entry1", csrRaw1),
+				newX509SVIDParams("entry2", csrRaw2),
 			},
 			req: []*svid.BatchNewX509SVIDRequest{
+				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
+				svid.NewBatchNewX509SVIDRequest("entry2", csr2),
+			},
+			serviceResp: []*svid.BatchNewX509SVIDResponse{
 				{
-					EntryID: "entry1",
-					Csr:     csr,
+					Svid: newX509SVID(spiffeID, []*x509.Certificate{{Raw: []byte("Cert1")}}, time.Now().Add(time.Minute)),
+				},
+				{
+					Svid: newX509SVID(spiffeID2, []*x509.Certificate{{Raw: []byte("Cert2")}}, time.Now().Add(time.Minute)),
 				},
 			},
-			resp: []*svid.BatchNewX509SVIDResponse{
-				{
-					Svid: &api.X509SVID{
-						ID: spiffeID,
-						CertChain: []*x509.Certificate{
-							{Raw: []byte(rawCert)},
-						},
-						ExpiresAt: time.Now().Add(time.Minute),
-					},
-				},
+		},
+		{
+			name:           "fails rate limit",
+			rateLimiterErr: errors.New("some error"),
+			code:           codes.ResourceExhausted,
+			err:            "some error",
+			msg:            "Rejecting request due to certificate signing rate limiting",
+			params: []*svidpb.NewX509SVIDParams{
+				newX509SVIDParams("entry1", csrRaw1),
+			},
+		},
+		{
+			name:   "missing params",
+			code:   codes.InvalidArgument,
+			err:    "request missing parameters",
+			msg:    "Request missing parameters",
+			params: []*svidpb.NewX509SVIDParams{},
+		},
+		{
+			name: "missing Entry ID",
+			msg:  "Invalid param: missing Entry ID",
+			params: []*svidpb.NewX509SVIDParams{
+				newX509SVIDParams("", csrRaw1),
+			},
+			serviceResp: []*svid.BatchNewX509SVIDResponse{
+				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, "invalid param: missing Entry ID")),
+			},
+		},
+		{
+			name: "missing Csr",
+			msg:  "Invalid param: missing CSR",
+			params: []*svidpb.NewX509SVIDParams{
+				newX509SVIDParams("entry1", []byte{}),
+			},
+			serviceResp: []*svid.BatchNewX509SVIDResponse{
+				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, `invalid param "entry1": missing CSR`)),
+			},
+		},
+		{
+			name: "invalid Csr",
+			msg:  "Invalid param: invalid CSR",
+			params: []*svidpb.NewX509SVIDParams{
+				newX509SVIDParams("entry1", []byte("invalid CSR")),
+			},
+			serviceResp: []*svid.BatchNewX509SVIDResponse{
+				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, `invalid param "entry1": invalid CSR: asn1: structure error: tags don't match`)),
+			},
+		},
+		{
+			name: "service fails",
+			params: []*svidpb.NewX509SVIDParams{
+				newX509SVIDParams("entry1", csrRaw1),
+			},
+			code: codes.Internal,
+			err:  "some error",
+			req: []*svid.BatchNewX509SVIDRequest{
+				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
+			},
+			serviceErr: "some error",
+		},
+		{
+			name: "response with error",
+			params: []*svidpb.NewX509SVIDParams{
+				newX509SVIDParams("entry1", csrRaw1),
+			},
+			req: []*svid.BatchNewX509SVIDRequest{
+				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
+			},
+			serviceResp: []*svid.BatchNewX509SVIDResponse{
+				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, "some error")),
+			},
+		},
+		{
+			name: "response with non GRPC status",
+			params: []*svidpb.NewX509SVIDParams{
+				newX509SVIDParams("entry1", csrRaw1),
+			},
+			req: []*svid.BatchNewX509SVIDRequest{
+				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
+			},
+			serviceResp: []*svid.BatchNewX509SVIDResponse{
+				svid.NewBatchNewX509SVIDResponse(nil, errors.New("some error")),
 			},
 		},
 	}
@@ -213,7 +300,7 @@ func TestBatchNewX509SVID(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			// Configure service
 			c.service.batchRequest = testCase.req
-			c.service.batchResponse = testCase.resp
+			c.service.batchResponse = testCase.serviceResp
 			c.service.err = testCase.serviceErr
 
 			// Limiter expects count to be params length
@@ -227,26 +314,26 @@ func TestBatchNewX509SVID(t *testing.T) {
 			if testCase.err != "" {
 				require.Nil(t, resp)
 				spiretest.RequireGRPCStatusContains(t, err, testCase.code, testCase.err)
-				require.Equal(t, testCase.msg, c.logHook.LastEntry().Message)
-				require.EqualError(t, err, testCase.err)
+				if testCase.msg != "" {
+					require.Equal(t, testCase.msg, c.logHook.LastEntry().Message)
+				}
 				return
 			}
 
 			// Validate response
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			require.Len(t, resp.Results, len(testCase.resp))
+			require.Len(t, resp.Results, len(testCase.serviceResp))
 
 			for i, result := range resp.Results {
-				expected := testCase.resp[i]
+				expected := testCase.serviceResp[i]
 
 				switch {
 				case result.Status != nil:
-					expectedStatus, ok := status.FromError(expected.Err)
-					require.True(t, ok)
+					expectedStatus, _ := status.FromError(expected.Err)
 
-					assert.Equal(t, expectedStatus.Code(), result.Status.Code)
-					assert.Equal(t, expectedStatus.Message(), result.Status.Message)
+					assert.Equal(t, int32(expectedStatus.Code()), result.Status.Code)
+					assert.Contains(t, result.Status.Message, expectedStatus.Message())
 					assert.Nil(t, result.Bundle)
 				default:
 					id := expected.Svid.ID
@@ -266,13 +353,27 @@ func TestBatchNewX509SVID(t *testing.T) {
 	}
 }
 
+func newX509SVID(spiffeID spiffeid.ID, certChain []*x509.Certificate, expiresAt time.Time) *api.X509SVID {
+	return &api.X509SVID{
+		ID:        spiffeID,
+		CertChain: certChain,
+		ExpiresAt: expiresAt,
+	}
+}
+
+func newX509SVIDParams(entryID string, csr []byte) *svidpb.NewX509SVIDParams {
+	return &svidpb.NewX509SVIDParams{
+		EntryId: entryID,
+		Csr:     csr,
+	}
+}
+
 type FakeService struct {
 	svid.Service
 
 	tb            testing.TB
 	id            spiffeid.ID
 	certChain     [][]byte
-	code          codes.Code
 	batchRequest  []*svid.BatchNewX509SVIDRequest
 	batchResponse []*svid.BatchNewX509SVIDResponse
 	err           string
@@ -293,9 +394,12 @@ func (s *FakeService) MintX509SVID(context.Context, *x509.CertificateRequest, ti
 
 func (s *FakeService) BatchNewX509SVID(ctx context.Context, req []*svid.BatchNewX509SVIDRequest) ([]*svid.BatchNewX509SVIDResponse, error) {
 	if s.err != "" {
-		return nil, status.Error(s.code, s.err)
+		return nil, status.Error(codes.Internal, s.err)
 	}
 
+	if len(s.batchRequest) == 0 {
+		return []*svid.BatchNewX509SVIDResponse{}, nil
+	}
 	require.Equal(s.tb, s.batchRequest, req)
 
 	return s.batchResponse, nil
