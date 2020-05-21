@@ -3,6 +3,7 @@ package awspca
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"time"
@@ -48,6 +49,7 @@ type PCAPluginConfiguration struct {
 	SigningAlgorithm        string `hcl:"signing_algorithm" json:"signing_algorithm"`
 	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn"`
 	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn"`
+	BundleFilePath          string `hcl:"bundle_file_path" json:"bundle_file_path"`
 }
 
 // PCAPlugin is the main representation of this upstreamauthority plugin
@@ -58,6 +60,7 @@ type PCAPlugin struct {
 	certificateAuthorityArn string
 	signingAlgorithm        string
 	caSigningTemplateArn    string
+	trustBundle             []*x509.Certificate
 
 	hooks struct {
 		clock     clock.Clock
@@ -86,6 +89,13 @@ func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	config, err := m.validateConfig(req)
 	if err != nil {
 		return nil, err
+	}
+
+	if config.BundleFilePath != "" {
+		m.trustBundle, err = pemutil.LoadCertificates(config.BundleFilePath)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Create the client
@@ -216,6 +226,9 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 
 	// The last certificate returned from the chain is the bundle.
 	bundle := [][]byte{certChain[len(certChain)-1].Raw}
+	for _, upstream := range m.trustBundle {
+		bundle = append(bundle, upstream.Raw)
+	}
 
 	// All else comprises the chain (including the issued certificate)
 	chain := [][]byte{cert.Raw}
