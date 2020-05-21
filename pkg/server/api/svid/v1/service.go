@@ -3,7 +3,6 @@ package svid
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -69,7 +68,7 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 
 	if err := idutil.ValidateTrustDomainWorkload(spiffeID, s.td); err != nil {
 		log.Errorf("Invalid SPIFFE ID in CSR: %v", err)
-		return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("invalid SPIFFE ID in CSR: %v", err))
+		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID in CSR: %v", err)
 	}
 
 	for _, dnsName := range csr.DNSNames {
@@ -103,7 +102,7 @@ func (s *service) MintJWTSVID(ctx context.Context, id spiffeid.ID, audience []st
 
 	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
 		log.Errorf("Invalid SPIFFE ID: %v", err)
-		return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("invalid SPIFFE ID: %v", err))
+		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
 	}
 
 	if len(audience) == 0 {
