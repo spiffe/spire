@@ -148,7 +148,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			csrTemplate: &x509.CertificateRequest{
 				URIs: []*url.URL{
 					workloadID.URL(),
-					spiffeid.Must("examples.org", "workload2").URL(),
+					spiffeid.Must("example.org", "workload2").URL(),
 				},
 			},
 			code: codes.InvalidArgument,
