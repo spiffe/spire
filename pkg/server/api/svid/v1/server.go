@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -54,8 +55,30 @@ func (s server) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest)
 	}, nil
 }
 
-func (s server) MintJWTSVID(context.Context, *svid.MintJWTSVIDRequest) (*svid.MintJWTSVIDResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "not implemented")
+func (s server) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest) (*svid.MintJWTSVIDResponse, error) {
+	log := rpccontext.Logger(ctx)
+
+	spiffeID, err := api.IDFromProto(req.Id)
+	if err != nil {
+		log.WithError(err).Error("Failed to parse SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	jwtSVID, err := s.service.MintJWTSVID(ctx, spiffeID, req.Audience, time.Duration(req.Ttl)*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	return &svid.MintJWTSVIDResponse{
+		Svid: &types.JWTSVID{
+			Token: jwtSVID.Token,
+			Id: &types.SPIFFEID{
+				TrustDomain: jwtSVID.ID.TrustDomain().String(),
+				Path:        jwtSVID.ID.Path(),
+			}, ExpiresAt: jwtSVID.ExpiresAt.Unix(),
+			IssuedAt: jwtSVID.IssuedAt.Unix(),
+		},
+	}, nil
 }
 
 func (s server) BatchNewX509SVID(context.Context, *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
