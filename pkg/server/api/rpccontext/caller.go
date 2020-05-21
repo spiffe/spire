@@ -90,6 +90,10 @@ func CallerIsAgent(ctx context.Context) bool {
 	return ok
 }
 
+func CallerIsLocal(ctx context.Context) bool {
+	return CallerAddr(ctx).Network() == "unix"
+}
+
 func WithAttestedNode(ctx context.Context, attestedNode *common.AttestedNode) context.Context {
 	return context.WithValue(ctx, attestedNodeKey{}, attestedNode)
 }
