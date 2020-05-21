@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
@@ -66,9 +67,9 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: URI SAN is not a valid SPIFFE ID: %v", err)
 	}
 
-	if !spiffeID.MemberOf(s.td) {
-		log.Error("Invalid CSR: SPIFFE ID is not a member of the server trust domain")
-		return nil, status.Error(codes.InvalidArgument, "invalid CSR: SPIFFE ID is not a member of the server trust domain")
+	if err := idutil.ValidateTrustDomainWorkload(spiffeID, s.td); err != nil {
+		log.Errorf("Invalid SPIFFE ID in CSR: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("invalid SPIFFE ID in CSR: %v", err))
 	}
 
 	for _, dnsName := range csr.DNSNames {
@@ -100,9 +101,9 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 func (s *service) MintJWTSVID(ctx context.Context, id spiffeid.ID, audience []string, ttl time.Duration) (*api.JWTSVID, error) {
 	log := rpccontext.Logger(ctx)
 
-	if !id.MemberOf(s.td) {
-		log.Errorf("Invalid SPIFFE ID: %q does not belong to trust domain %q", id.String(), s.td)
-		return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("invalid SPIFFE ID: %q does not belong to trust domain %q", id.String(), s.td))
+	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
+		log.Errorf("Invalid SPIFFE ID: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("invalid SPIFFE ID: %v", err))
 	}
 
 	if len(audience) == 0 {

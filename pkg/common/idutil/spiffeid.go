@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 )
 
 type idType int
@@ -337,4 +339,21 @@ func ServerURI(trustDomain string) *url.URL {
 		Host:   trustDomain,
 		Path:   path.Join("spire", "server"),
 	}
+}
+
+// ValidateTrustDomainWorkload validates if the given SPIFFE ID
+// is a SPIFFE ID for a workload belonging to the specified
+// trust domain (e.g. spiffe://domain.test/workload)
+func ValidateTrustDomainWorkload(id spiffeid.ID, td spiffeid.TrustDomain) error {
+	if !id.MemberOf(td) {
+		return fmt.Errorf("%q does not belong to trust domain %q", id.String(), td.String())
+	}
+	if id.Path() == "" {
+		return fmt.Errorf("invalid workload SPIFFE ID %q: path is empty", id.String())
+	}
+	if isReservedPath(id.Path()) {
+		return fmt.Errorf(`%q is not a valid workload SPIFFE ID: invalid path: "/spire/*" namespace is reserved`, id.String())
+	}
+
+	return nil
 }

@@ -195,9 +195,25 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return createCsr(tb, template, key)
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: SPIFFE ID is not a member of the server trust domain",
-			msg:  "Invalid CSR: SPIFFE ID is not a member of the server trust domain",
+			err:  `invalid SPIFFE ID in CSR: "spiffe://another.org/workload1" does not belong to trust domain "example.org"`,
+			msg:  `Invalid SPIFFE ID in CSR: "spiffe://another.org/workload1" does not belong to trust domain "example.org"`,
 		}, {
+			name: "SPIFFE ID is not for a workload in the trust domain",
+			createCsr: func(tb testing.TB) *x509.CertificateRequest {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs: []*url.URL{
+						spiffeid.Must("example.org").URL(),
+					},
+				}
+
+				return createCsr(tb, template, key)
+			},
+			code: codes.InvalidArgument,
+			err:  `invalid SPIFFE ID in CSR: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
+			msg:  `Invalid SPIFFE ID in CSR: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
+		},
+		{
 			name: "invalid DNS",
 			createCsr: func(tb testing.TB) *x509.CertificateRequest {
 				template := &x509.CertificateRequest{
@@ -325,6 +341,13 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			err:      `invalid SPIFFE ID: "spiffe://invalid.test/workload1" does not belong to trust domain "example.org"`,
 			logMsg:   `Invalid SPIFFE ID: "spiffe://invalid.test/workload1" does not belong to trust domain "example.org"`,
 		},
+		{
+			name:     "SPIFFE ID is not for a workload in the trust domain",
+			code:     codes.InvalidArgument,
+			audience: []string{"AUDIENCE"},
+			spiffeID: spiffeid.Must("example.org"),
+			err:      `invalid SPIFFE ID: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
+			logMsg:   `Invalid SPIFFE ID: invalid workload SPIFFE ID "spiffe://example.org": path is empty`},
 		{
 			name:      "no audience",
 			code:      codes.InvalidArgument,
