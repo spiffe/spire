@@ -8,7 +8,7 @@ To support larger numbers of Agents and Workloads within a given deployment (ten
 
 ## SPIRE Servers in High Availability Mode
 
-When scaling the number of servers horizontally, be it for high availability or load distribution purposes, configure all servers in the deployment to share the same datastore (with the exception of Nested topology).
+Applicable to all topologies, when scaling the number of servers horizontally, be it for high availability or load distribution purposes, configure all servers in the deployment to share the same datastore (with the exception of Nested topology for sets of SPIRE Servers in different levels).
 
 The datastore is where SPIRE Server persists dynamic configuration information such as registration entries and identity mapping policies. SQLite is bundled with SPIRE Server and it is the default datastore. A number of compatible SQL databases are supported, as well as one plugin for Kubernetes using Kubernetes CRDs. When scaling SPIRE servers horizontally, choose a datastore that fits your requirements and configure all SPIRE servers to use the selected datastore. For details please refer to the datastore plugin configuration reference.
 
