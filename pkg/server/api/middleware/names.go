@@ -8,6 +8,12 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 )
 
+const (
+	// serverAPIPrefix is the prefix on the SPIRE server APIs full method names.
+	// We strip it out to keep things concise.
+	serverAPIPrefix = "/spire.api.server."
+)
+
 func withNames(ctx context.Context, fullMethod string) (context.Context, api.Names) {
 	names, ok := rpccontext.Names(ctx)
 	if !ok {
