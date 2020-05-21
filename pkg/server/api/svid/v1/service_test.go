@@ -9,20 +9,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/api/svid/v1"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestServiceMintX509SVID(t *testing.T) {
@@ -276,66 +277,74 @@ func TestServiceMintX509SVID(t *testing.T) {
 func TestServiceBatchNewX509SVID(t *testing.T) {
 	// Add logger to context
 	log, logHook := test.NewNullLogger()
-	ctx := rpccontext.WithLogger(context.Background(), log)
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("examples.org")
 	agentID := trustDomain.NewID("agent")
-	ctx = rpccontext.WithCallerID(ctx, agentID)
 
 	spiffeID := trustDomain.NewID("workload1")
 
-	// Create DS and init values
-	ds := fakedatastore.New()
+	ctx := context.Background()
+	entry1 := &types.Entry{
+		Id:       "entry1",
+		ParentId: api.SpiffeIDToProto(agentID),
+		SpiffeId: api.SpiffeIDToProto(spiffeID),
+	}
 
-	entry1, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId: agentID.String(),
-			SpiffeId: spiffeID.String(),
-		},
-	})
-	require.NoError(t, err)
+	spiffeIDDns := trustDomain.NewID("dns")
+	entryDns := &types.Entry{
+		Id:       "entryDns",
+		ParentId: api.SpiffeIDToProto(agentID),
+		SpiffeId: api.SpiffeIDToProto(spiffeIDDns),
+		DnsNames: []string{"entryDNS1", "entryDNS2"},
+	}
+
+	spiffeIDTtl := trustDomain.NewID("ttl")
+	entryTtl := &types.Entry{
+		Id:       "entryTtl",
+		ParentId: api.SpiffeIDToProto(agentID),
+		SpiffeId: api.SpiffeIDToProto(spiffeIDTtl),
+		Ttl:      10,
+	}
 
 	// Create Service
 	fakeServerCA := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
-	service := svid.New(svid.Config{
-		DataStore:   ds,
-		ServerCA:    fakeServerCA,
-		TrustDomain: trustDomain,
-	})
 
 	key := testkey.NewEC256(t)
 	x509CA := fakeServerCA.X509CA()
 	now := fakeServerCA.Clock().Now().UTC()
 	expiredAt := now.Add(fakeServerCA.X509SVIDTTL())
 
+	template := &x509.CertificateRequest{
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		URIs:               []*url.URL{spiffeID.URL()},
+	}
+	csr := createCsr(t, template, key)
+
 	testCases := []struct {
 		name         string
 		code         codes.Code
-		createReq    func(tb testing.TB) []*svid.BatchNewX509SVIDRequest
+		createReq    func(tb testing.TB) []*svid.X509SVIDParams
 		err          string
+		expectLogs   []spiretest.LogEntry
 		failCallerID bool
 		failMinting  bool
-		msg          string
-		resp         []*svid.BatchNewX509SVIDResponse
+		fetcherErr   string
+		resp         []*svid.X509SVIDResult
 	}{
 		{
 			name: "success",
-			createReq: func(tb testing.TB) []*svid.BatchNewX509SVIDRequest {
-				template := &x509.CertificateRequest{
-					SignatureAlgorithm: x509.ECDSAWithSHA256,
-					URIs:               []*url.URL{spiffeID.URL()},
-				}
-
-				return []*svid.BatchNewX509SVIDRequest{
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				return []*svid.X509SVIDParams{
 					{
-						EntryID: entry1.Entry.EntryId,
-						Csr:     createCsr(t, template, key),
+						EntryID: entry1.Id,
+						Csr:     csr,
 					},
 				}
 			},
-			resp: []*svid.BatchNewX509SVIDResponse{
+			resp: []*svid.X509SVIDResult{
 				{
 					Svid: &api.X509SVID{
+
 						ID:        spiffeID,
 						ExpiresAt: expiredAt,
 						CertChain: []*x509.Certificate{
@@ -352,22 +361,275 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "entry ttl",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs:               []*url.URL{spiffeIDTtl.URL()},
+				}
+				return []*svid.X509SVIDParams{
+					{
+						EntryID: entryTtl.Id,
+						Csr:     createCsr(t, template, key),
+					},
+				}
+			},
+			resp: []*svid.X509SVIDResult{
+				{
+					Svid: &api.X509SVID{
+
+						ID:        spiffeIDTtl,
+						ExpiresAt: now.Add(10 * time.Second),
+						CertChain: []*x509.Certificate{
+							{
+								URIs:     []*url.URL{spiffeIDTtl.URL()},
+								NotAfter: now.Add(10 * time.Second),
+								Subject: pkix.Name{
+									Country:      []string{"US"},
+									Organization: []string{"SPIRE"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "entry DNS",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs:               []*url.URL{spiffeIDDns.URL()},
+				}
+				return []*svid.X509SVIDParams{
+					{
+						EntryID: entryDns.Id,
+						Csr:     createCsr(t, template, key),
+					},
+				}
+			},
+			resp: []*svid.X509SVIDResult{
+				{
+					Svid: &api.X509SVID{
+
+						ID:        spiffeIDDns,
+						ExpiresAt: expiredAt,
+						CertChain: []*x509.Certificate{
+							{
+								URIs:     []*url.URL{spiffeIDDns.URL()},
+								NotAfter: expiredAt,
+								DNSNames: entryDns.DnsNames,
+								Subject: pkix.Name{
+									CommonName:   entryDns.DnsNames[0],
+									Country:      []string{"US"},
+									Organization: []string{"SPIRE"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "subject is not updated from CSR",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				template := &x509.CertificateRequest{
+					SignatureAlgorithm: x509.ECDSAWithSHA256,
+					URIs:               []*url.URL{spiffeID.URL()},
+					Subject: pkix.Name{
+						Country:      []string{"US", "EN"},
+						Organization: []string{"ORG"},
+					},
+				}
+				return []*svid.X509SVIDParams{
+					{
+						EntryID: entry1.Id,
+						Csr:     createCsr(t, template, key),
+					},
+				}
+			},
+			resp: []*svid.X509SVIDResult{
+				{
+					Svid: &api.X509SVID{
+
+						ID:        spiffeID,
+						ExpiresAt: expiredAt,
+						CertChain: []*x509.Certificate{
+							{
+								URIs:     []*url.URL{spiffeID.URL()},
+								NotAfter: expiredAt,
+								Subject: pkix.Name{
+									Country:      []string{"US"},
+									Organization: []string{"SPIRE"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "missing CallerID",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				return []*svid.X509SVIDParams{}
+			},
+			code: codes.Internal,
+			err:  "callerID is required",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "CallerID is required",
+					Data:	 logrus.Fields{},
+				},
+			},
+			failCallerID: true,
+		},
+		{
+			name: "fetcher fails",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				return []*svid.X509SVIDParams{
+					{
+						EntryID: entry1.Id,
+						Csr:     csr,
+					},
+				}
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch registration entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = some error",
+					},
+				},
+			},
+			code:       codes.Internal,
+			err:        "failed to fetch registration entries",
+			fetcherErr: "some error",
+		},
+		{
+			name: "entry not found",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				return []*svid.X509SVIDParams{
+					{
+						EntryID: "invalid ID",
+						Csr:     csr,
+					},
+				}
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid registration entry: not found",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "invalid ID",
+					},
+				},
+			},
+			resp: []*svid.X509SVIDResult{
+				{
+					Err: status.Error(codes.InvalidArgument, `invalid entry id: "invalid ID" not found`),
+				},
+			},
+		},
+		{
+			name: "invalid signature",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				return []*svid.X509SVIDParams{
+					{
+						EntryID: entry1.Id,
+						Csr:     template},
+				}
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid CSR: signature verify failed",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: entry1.Id,
+						logrus.ErrorKey:          "x509: cannot verify signature: algorithm unimplemented",
+					},
+				},
+			},
+			resp: []*svid.X509SVIDResult{
+				{
+					Err: status.Error(codes.InvalidArgument, "invalid CSR: signature verify failed"),
+				},
+			},
+		},
+		{
+			name: "signing fails",
+			createReq: func(tb testing.TB) []*svid.X509SVIDParams {
+				return []*svid.X509SVIDParams{
+					{
+						EntryID: entry1.Id,
+						Csr:     csr,
+					},
+				}
+			},
+			failMinting: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to sign X509-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: entry1.Id,
+						logrus.ErrorKey:          "X509 CA is not available for signing",
+						telemetry.SPIFFEID:       spiffeID.String(),
+					},
+				},
+			},
+			resp: []*svid.X509SVIDResult{
+				{
+					Err: status.Error(codes.Internal, "failed to sign X509-SVID: X509 CA is not available for signing"),
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
+			logHook.Reset()
+
 			// Set x509CA used when signing SVID
 			fakeServerCA.CA.SetX509CA(x509CA)
 			if testCase.failMinting {
 				fakeServerCA.CA.SetX509CA(nil)
 			}
 
+			ctx := rpccontext.WithLogger(ctx, log)
+			// Add caller to context
+			if !testCase.failCallerID {
+				ctx = rpccontext.WithCallerID(ctx, agentID)
+			}
+
+			service := svid.New(svid.Config{
+				EntryFetcher: svid.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+					if testCase.fetcherErr != "" {
+						return nil, status.Error(codes.Internal, testCase.fetcherErr)
+					}
+
+					caller, ok := rpccontext.CallerID(ctx)
+					require.True(t, ok)
+
+					require.Equal(t, caller, agentID)
+
+					return []*types.Entry{
+						entry1,
+						entryTtl,
+						entryDns,
+					}, nil
+				}),
+				ServerCA:    fakeServerCA,
+				TrustDomain: trustDomain,
+			})
 			resp, err := service.BatchNewX509SVID(ctx, testCase.createReq(t))
 			if testCase.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, testCase.code, testCase.err)
 				require.Nil(t, resp)
-				require.Equal(t, testCase.msg, logHook.LastEntry().Message)
+				spiretest.AssertLogs(t, logHook.AllEntries(), testCase.expectLogs)
 
 				return
 			}
@@ -378,12 +640,15 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			for i, r := range resp {
 				expected := testCase.resp[i]
 
-				assert.Equal(t, expected.Err, r.Err)
-				if expected.Svid == nil {
+				if expected.Err != nil {
 					require.Nil(t, r.Svid)
+					assert.Equal(t, expected.Err, r.Err)
+					spiretest.AssertLogs(t, logHook.AllEntries(), testCase.expectLogs)
+
 					return
 				}
 				require.NotNil(t, r.Svid)
+				require.NoError(t, r.Err)
 				assert.Equal(t, expected.Svid.ID, r.Svid.ID)
 				assert.Equal(t, expected.Svid.ExpiresAt, r.Svid.ExpiresAt)
 

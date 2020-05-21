@@ -158,7 +158,7 @@ func TestBatchNewX509SVID(t *testing.T) {
 
 	key := testkey.NewEC256(t)
 
-	// Create certficate requets
+	// Create certificate request
 	spiffeID := spiffeid.Must("example.org", "workload1")
 	template := &x509.CertificateRequest{
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
@@ -187,8 +187,8 @@ func TestBatchNewX509SVID(t *testing.T) {
 		msg            string
 		params         []*svidpb.NewX509SVIDParams
 		rateLimiterErr error
-		req            []*svid.BatchNewX509SVIDRequest
-		serviceResp    []*svid.BatchNewX509SVIDResponse
+		req            []*svid.X509SVIDParams
+		serviceResp    []*svid.X509SVIDResult
 		serviceErr     string
 	}{
 		{
@@ -197,11 +197,11 @@ func TestBatchNewX509SVID(t *testing.T) {
 				newX509SVIDParams("entry1", csrRaw1),
 				newX509SVIDParams("entry2", csrRaw2),
 			},
-			req: []*svid.BatchNewX509SVIDRequest{
-				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
-				svid.NewBatchNewX509SVIDRequest("entry2", csr2),
+			req: []*svid.X509SVIDParams{
+				svid.NewX509SVIDParams("entry1", csr1),
+				svid.NewX509SVIDParams("entry2", csr2),
 			},
-			serviceResp: []*svid.BatchNewX509SVIDResponse{
+			serviceResp: []*svid.X509SVIDResult{
 				{
 					Svid: newX509SVID(spiffeID, []*x509.Certificate{{Raw: []byte("Cert1")}}, time.Now().Add(time.Minute)),
 				},
@@ -212,8 +212,8 @@ func TestBatchNewX509SVID(t *testing.T) {
 		},
 		{
 			name:           "fails rate limit",
-			rateLimiterErr: errors.New("some error"),
-			code:           codes.ResourceExhausted,
+			rateLimiterErr: status.Error(codes.Internal, "some error"),
+			code:           codes.Internal,
 			err:            "some error",
 			msg:            "Rejecting request due to certificate signing rate limiting",
 			params: []*svidpb.NewX509SVIDParams{
@@ -233,8 +233,8 @@ func TestBatchNewX509SVID(t *testing.T) {
 			params: []*svidpb.NewX509SVIDParams{
 				newX509SVIDParams("", csrRaw1),
 			},
-			serviceResp: []*svid.BatchNewX509SVIDResponse{
-				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, "invalid param: missing Entry ID")),
+			serviceResp: []*svid.X509SVIDResult{
+				svid.NewX509SVIDResult(nil, status.Error(codes.InvalidArgument, "invalid param: missing Entry ID")),
 			},
 		},
 		{
@@ -243,8 +243,8 @@ func TestBatchNewX509SVID(t *testing.T) {
 			params: []*svidpb.NewX509SVIDParams{
 				newX509SVIDParams("entry1", []byte{}),
 			},
-			serviceResp: []*svid.BatchNewX509SVIDResponse{
-				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, `invalid param "entry1": missing CSR`)),
+			serviceResp: []*svid.X509SVIDResult{
+				svid.NewX509SVIDResult(nil, status.Error(codes.InvalidArgument, `invalid param "entry1": missing CSR`)),
 			},
 		},
 		{
@@ -253,8 +253,8 @@ func TestBatchNewX509SVID(t *testing.T) {
 			params: []*svidpb.NewX509SVIDParams{
 				newX509SVIDParams("entry1", []byte("invalid CSR")),
 			},
-			serviceResp: []*svid.BatchNewX509SVIDResponse{
-				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, `invalid param "entry1": invalid CSR: asn1: structure error: tags don't match`)),
+			serviceResp: []*svid.X509SVIDResult{
+				svid.NewX509SVIDResult(nil, status.Error(codes.InvalidArgument, `invalid param "entry1": invalid CSR: asn1: structure error: tags don't match`)),
 			},
 		},
 		{
@@ -264,8 +264,8 @@ func TestBatchNewX509SVID(t *testing.T) {
 			},
 			code: codes.Internal,
 			err:  "some error",
-			req: []*svid.BatchNewX509SVIDRequest{
-				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
+			req: []*svid.X509SVIDParams{
+				svid.NewX509SVIDParams("entry1", csr1),
 			},
 			serviceErr: "some error",
 		},
@@ -274,11 +274,11 @@ func TestBatchNewX509SVID(t *testing.T) {
 			params: []*svidpb.NewX509SVIDParams{
 				newX509SVIDParams("entry1", csrRaw1),
 			},
-			req: []*svid.BatchNewX509SVIDRequest{
-				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
+			req: []*svid.X509SVIDParams{
+				svid.NewX509SVIDParams("entry1", csr1),
 			},
-			serviceResp: []*svid.BatchNewX509SVIDResponse{
-				svid.NewBatchNewX509SVIDResponse(nil, status.Error(codes.InvalidArgument, "some error")),
+			serviceResp: []*svid.X509SVIDResult{
+				svid.NewX509SVIDResult(nil, status.Error(codes.InvalidArgument, "some error")),
 			},
 		},
 		{
@@ -286,11 +286,11 @@ func TestBatchNewX509SVID(t *testing.T) {
 			params: []*svidpb.NewX509SVIDParams{
 				newX509SVIDParams("entry1", csrRaw1),
 			},
-			req: []*svid.BatchNewX509SVIDRequest{
-				svid.NewBatchNewX509SVIDRequest("entry1", csr1),
+			req: []*svid.X509SVIDParams{
+				svid.NewX509SVIDParams("entry1", csr1),
 			},
-			serviceResp: []*svid.BatchNewX509SVIDResponse{
-				svid.NewBatchNewX509SVIDResponse(nil, errors.New("some error")),
+			serviceResp: []*svid.X509SVIDResult{
+				svid.NewX509SVIDResult(nil, errors.New("some error")),
 			},
 		},
 	}
@@ -374,8 +374,8 @@ type FakeService struct {
 	tb            testing.TB
 	id            spiffeid.ID
 	certChain     [][]byte
-	batchRequest  []*svid.BatchNewX509SVIDRequest
-	batchResponse []*svid.BatchNewX509SVIDResponse
+	batchRequest  []*svid.X509SVIDParams
+	batchResponse []*svid.X509SVIDResult
 	err           string
 	expiresAt     time.Time
 }
@@ -392,13 +392,13 @@ func (s *FakeService) MintX509SVID(context.Context, *x509.CertificateRequest, ti
 	return &api.X509SVID{ID: s.id, CertChain: certs, ExpiresAt: s.expiresAt}, nil
 }
 
-func (s *FakeService) BatchNewX509SVID(ctx context.Context, req []*svid.BatchNewX509SVIDRequest) ([]*svid.BatchNewX509SVIDResponse, error) {
+func (s *FakeService) BatchNewX509SVID(ctx context.Context, req []*svid.X509SVIDParams) ([]*svid.X509SVIDResult, error) {
 	if s.err != "" {
 		return nil, status.Error(codes.Internal, s.err)
 	}
 
 	if len(s.batchRequest) == 0 {
-		return []*svid.BatchNewX509SVIDResponse{}, nil
+		return []*svid.X509SVIDResult{}, nil
 	}
 	require.Equal(s.tb, s.batchRequest, req)
 

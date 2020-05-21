@@ -3,12 +3,11 @@ package svid
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
@@ -47,7 +46,7 @@ func (s server) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest)
 	}
 
 	return &svid.MintX509SVIDResponse{
-		Svid: parseX509SVID(x509Svid),
+		Svid: x509Svid.ToProto(),
 	}, nil
 }
 
@@ -57,6 +56,7 @@ func (s server) MintJWTSVID(context.Context, *svid.MintJWTSVIDRequest) (*svid.Mi
 
 func (s server) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
+	var logErrorOnce sync.Once
 
 	if len(req.Params) == 0 {
 		log.Error("Request missing parameters")
@@ -65,22 +65,24 @@ func (s server) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVID
 
 	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
 		log.WithError(err).Error("Rejecting request due to certificate signing rate limiting")
-		return nil, status.Error(codes.ResourceExhausted, err.Error())
+		return nil, err
 	}
 
-	resp := &svid.BatchNewX509SVIDResponse{
-		Results: []*svid.BatchNewX509SVIDResponse_Result{},
-	}
+	resp := &svid.BatchNewX509SVIDResponse{}
 
 	// Parse and validate params
-	var entries []*BatchNewX509SVIDRequest
+	var entries []*X509SVIDParams
 	for _, svidParam := range req.Params {
-		csr, status := parseNewX509SVIDParams(svidParam, log)
+		csr, err := parseNewX509SVIDParams(svidParam)
 		switch {
-		case status != nil:
-			resp.Results = append(resp.Results, &svid.BatchNewX509SVIDResponse_Result{Status: status})
+		case err != nil:
+			logErrorOnce.Do(func() {
+				log.Error("Request has invalid arguments")
+			})
+
+			resp.Results = append(resp.Results, &svid.BatchNewX509SVIDResponse_Result{Status: api.CreateStatus(codes.InvalidArgument, err.Error())})
 		default:
-			entries = append(entries, &BatchNewX509SVIDRequest{
+			entries = append(entries, &X509SVIDParams{
 				EntryID: svidParam.EntryId,
 				Csr:     csr,
 			})
@@ -93,18 +95,9 @@ func (s server) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVID
 	}
 
 	for _, bundle := range bundles {
-		var typeStatus *types.Status
-		if bundle.Err != nil {
-			// Parse error into grpc status, if status fails to parse it will return an status with `Unknown` status code
-			bundleStatus, ok := status.FromError(bundle.Err)
-			if !ok {
-				log.WithError(bundle.Err).Debug("unable to parse error into GRPC status")
-			}
-			typeStatus = createStatus(bundleStatus.Code(), bundleStatus.Message())
-		}
 		resp.Results = append(resp.Results, &svid.BatchNewX509SVIDResponse_Result{
-			Status: typeStatus,
-			Bundle: parseX509SVID(bundle.Svid),
+			Status: api.StatusFromError(bundle.Err),
+			Bundle: x509SVIDToProto(bundle.Svid),
 		})
 	}
 
@@ -112,20 +105,17 @@ func (s server) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVID
 }
 
 // parseNewX509SVIDParams validates and parse provided NewX509SVIDParams
-func parseNewX509SVIDParams(svidParam *svid.NewX509SVIDParams, log logrus.FieldLogger) (*x509.CertificateRequest, *types.Status) {
+func parseNewX509SVIDParams(svidParam *svid.NewX509SVIDParams) (*x509.CertificateRequest, error) {
 	switch {
 	case svidParam.EntryId == "":
-		log.Error("Invalid param: missing Entry ID")
-		return nil, createStatus(codes.InvalidArgument, "invalid param: missing Entry ID")
+		return nil, errors.New("invalid param: missing Entry ID")
 	case len(svidParam.Csr) == 0:
-		log.WithField(telemetry.RegistrationID, svidParam.EntryId).Error("Invalid param: missing CSR")
-		return nil, createStatus(codes.InvalidArgument, "invalid param %q: missing CSR", svidParam.EntryId)
+		return nil, fmt.Errorf("invalid param %q: missing CSR", svidParam.EntryId)
 	}
 
 	csr, err := x509.ParseCertificateRequest(svidParam.Csr)
 	if err != nil {
-		log.WithField(telemetry.RegistrationID, svidParam.EntryId).WithError(err).Errorf("Invalid Param: invalid CSR")
-		return nil, createStatus(codes.InvalidArgument, "invalid param %q: invalid CSR: %v", svidParam.EntryId, err)
+		return nil, fmt.Errorf("invalid param %q: invalid CSR: %v", svidParam.EntryId, err)
 	}
 
 	return csr, nil
@@ -139,24 +129,10 @@ func (s server) NewDownstreamX509CA(context.Context, *svid.NewDownstreamX509CARe
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
-// createStatus creates an Status
-func createStatus(code codes.Code, format string, a ...interface{}) *types.Status {
-	return &types.Status{
-		Code:    int32(code),
-		Message: fmt.Sprintf(format, a...),
-	}
-}
-
-func parseX509SVID(x509SVID *api.X509SVID) *types.X509SVID {
-	if x509SVID == nil {
+func x509SVIDToProto(s *api.X509SVID) *types.X509SVID {
+	if s == nil {
 		return nil
 	}
-	return &types.X509SVID{
-		Id: &types.SPIFFEID{
-			TrustDomain: x509SVID.ID.TrustDomain().String(),
-			Path:        x509SVID.ID.Path(),
-		},
-		CertChain: x509util.RawCertsFromCertificates(x509SVID.CertChain),
-		ExpiresAt: x509SVID.ExpiresAt.Unix(),
-	}
+
+	return s.ToProto()
 }
