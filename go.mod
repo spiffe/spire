@@ -59,7 +59,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
-	github.com/spiffe/go-spiffe/v2 v2.0.0-alpha.2
+	github.com/spiffe/go-spiffe/v2 v2.0.0-alpha.4
 	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
 	github.com/stretchr/testify v1.5.1
 	github.com/uber-go/tally v3.3.12+incompatible
