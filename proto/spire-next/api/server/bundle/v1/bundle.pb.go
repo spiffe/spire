@@ -232,7 +232,7 @@ func (m *ListFederatedBundlesResponse) GetNextPageToken() string {
 }
 
 type GetFederatedBundleRequest struct {
-	// Required. The trust domain of the bundle (e.g., "example.org").
+	// Required. The trust domain name of the bundle (e.g., "example.org").
 	TrustDomain string `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
 	// An output mask indicating which bundle fields are set in the response.
 	OutputMask           *types.BundleMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
