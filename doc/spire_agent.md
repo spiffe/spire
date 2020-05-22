@@ -258,12 +258,16 @@ SPIRE agent has support for the [Envoy](https://envoyproxy.io) [Secret Discovery
 SDS is served over the same Unix domain socket as the Workload API. Envoy processes connecting to SDS are attested as workloads.
 
 [`auth.TlsCertificate`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#envoy-api-msg-auth-tlscertificate)
-resources containing X.509-SVIDs can be fetched using the SPIFFE ID of the workload as the resource name (e.g. `spiffe://example.org/database`). Alternatively, if
-requesting the default `auth.TlsCertificate`, the default name "default" may be used. The default name is configurable.
+resources containing X509-SVIDs can be fetched using the SPIFFE ID of the workload as the resource name
+(e.g. `spiffe://example.org/database`). Alternatively, if the default name "default" is used, the `auth.TlsCertificate`
+containing the default X509-SVID for the workload (i.e. Envoy) is fetched.
+The default name is configurable (see `default_svid_name` under [SDS Configuration](#sds-configuration)).
 
 [`auth.CertificateValidationContext`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#auth-certificatevalidationcontext)
-resources containing trusted CA certificates can be fetched using the SPIFFE ID of the desired trust domain as the resource name (e.g. `spiffe://example.org`). Alternatively, if
-requesting the `auth.CertificateValidationContext` for the agent's trust domain, the default name "ROOTCA" may be used. The default name is configurable.
+resources containing trusted CA certificates can be fetched using the SPIFFE ID of the desired trust domain as the
+resource name (e.g. `spiffe://example.org`). Alternatively, if the default name "ROOTCA" is requested, the
+`auth.CertificateValidationContext` containing the trusted CA certificates for the agent's trust domain is fetched.
+The default name is configurable (see `default_bundle_name` under [SDS Configuration](#sds-configuration)).
 
 ## Further reading
 
