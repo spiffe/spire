@@ -8,8 +8,8 @@ import (
 )
 
 // WithLogger returns logging middleware that provides a per-rpc logger with
-// some initial fields set. If unset, it also provides name metadata on
-// to the handler context.
+// some initial fields set. If unset, it also provides name metadata to the
+// handler context.
 func WithLogger(log logrus.FieldLogger) Middleware {
 	return Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
 		ctx, names := withNames(ctx, fullMethod)

@@ -187,7 +187,7 @@ type rateLimitsMiddleware struct {
 func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
 	rateLimiter, ok := i.limiters[fullMethod]
 	if !ok {
-		rpccontext.Logger(ctx).WithField("method", fullMethod).Error("Rate limiting misconfigured; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiting misconfigured; this is a bug")
 		return nil, status.Errorf(codes.Internal, "rate limiting misconfigured for RPC %q", fullMethod)
 	}
 	return rpccontext.WithRateLimiter(ctx, &rateLimiterWrapper{rateLimiter: rateLimiter}), nil
@@ -204,7 +204,7 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string
 	if !ok {
 		// This shouldn't be the case unless Preprocess is broken and fails to
 		// inject the rate limiter into the context.
-		rpccontext.Logger(ctx).WithField("method", fullMethod).Error("Rate limiting misconfigured; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiting misconfigured; this is a bug")
 		return
 	}
 
@@ -212,7 +212,7 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string
 	if !ok {
 		// This shouldn't be the case unless Preprocess is broken and fails to
 		// wrap the rate limiter.
-		rpccontext.Logger(ctx).WithField("method", fullMethod).Error("Rate limiting misconfigured; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiting misconfigured; this is a bug")
 		return
 	}
 
@@ -222,14 +222,14 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string
 	switch {
 	case !noop && !used:
 		// The limiter was non-noop and went unused by the handler. This is a bug.
-		rpccontext.Logger(ctx).WithField("method", fullMethod).Error("Rate limiter went unused; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiter went unused; this is a bug")
 	case !noop && used:
 		// The limiter was non-noop and was used. All is well.
 	case noop && !used:
 		// The limiter was noop and was not used. All is well.
 	case noop && used:
 		// The limiter was noop and was used. This is a bug.
-		rpccontext.Logger(ctx).WithField("method", fullMethod).Error("Rate limiter used unexpectedly; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiter used unexpectedly; this is a bug")
 	}
 }
 
