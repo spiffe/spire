@@ -192,23 +192,27 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "enable_sds should be configurable by file",
+			msg: "deprecated enable_sds should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.EnableSDS = true
+				enableSDS := true
+				c.Agent.DeprecatedEnableSDS = &enableSDS
 			},
 			cliInput: func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.True(t, c.Agent.EnableSDS)
+				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
+				require.True(t, *c.Agent.DeprecatedEnableSDS)
 			},
 		},
 		{
-			msg:       "enable_sds should be configurable by CLI flag",
+			msg:       "deprecated enable_sds should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
-				c.EnableSDS = true
+				enableSDS := true
+				c.DeprecatedEnableSDS = &enableSDS
 			},
 			test: func(t *testing.T, c *Config) {
-				require.True(t, c.Agent.EnableSDS)
+				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
+				require.True(t, *c.Agent.DeprecatedEnableSDS)
 			},
 		},
 		{
@@ -251,19 +255,6 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "foo", c.Agent.SDS.DefaultBundleName)
 			},
 		},
-		//{
-		//      // TODO: This is currently unsupported
-		//	msg: "enable_sds specified by CLI flag should take precedence over file",
-		//	fileInput: func(c *Config) {
-		//		c.Agent.EnableSDS = true
-		//	},
-		//	cliInput: func(c *agentConfig) {
-		//		c.EnableSDS = false
-		//	},
-		//	test: func(t *testing.T, c *Config) {
-		//		require.False(t, c.Agent.EnableSDS)
-		//	},
-		//},
 		{
 			msg: "insecure_bootstrap should be configurable by file",
 			fileInput: func(c *Config) {
@@ -716,12 +707,12 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "enable_sds should be correctly configured",
+			msg: "enable_sds should not prevent agent configuration",
 			input: func(c *Config) {
-				c.Agent.EnableSDS = true
+				enableSDS := true
+				c.Agent.DeprecatedEnableSDS = &enableSDS
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.True(t, c.EnableSDS)
 			},
 		},
 		{

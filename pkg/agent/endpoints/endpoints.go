@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 
 	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
-	"github.com/sirupsen/logrus"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sds"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
@@ -16,8 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	workload_pb "github.com/spiffe/go-spiffe/proto/spiffe/workload"
 )
@@ -34,13 +30,10 @@ type Endpoints struct {
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	server := grpc.NewServer(
 		grpc.Creds(peertracker.NewCredentials()),
-		grpc.UnknownServiceHandler(UnknownServiceHandler(e.c.Log)),
 	)
 
 	e.registerWorkloadAPI(server)
-	if e.c.EnableSDS {
-		e.registerSecretDiscoveryService(server)
-	}
+	e.registerSecretDiscoveryService(server)
 
 	l, err := e.createUDSListener()
 	if err != nil {
@@ -112,20 +105,4 @@ func (e *Endpoints) createUDSListener() (net.Listener, error) {
 		return nil, fmt.Errorf("unable to change UDS permissions: %v", err)
 	}
 	return l, nil
-}
-
-func UnknownServiceHandler(log logrus.FieldLogger) grpc.StreamHandler {
-	const sdsMethodPrefix = "/envoy.service.discovery.v2.SecretDiscoveryService/"
-	logged := false
-	return func(srv interface{}, stream grpc.ServerStream) error {
-		method, ok := grpc.MethodFromServerStream(stream)
-		if ok && strings.HasPrefix(method, sdsMethodPrefix) {
-			if !logged {
-				log.Warn("Incoming RPC for Envoy SDS but it is not enabled (via `enable_sds` configurable)")
-				logged = true
-			}
-			return status.Error(codes.Unimplemented, "Envoy SDS support has not been enabled on the agent (see `enable_sds` configurable)")
-		}
-		return status.Errorf(codes.Unimplemented, "unknown method %s", method)
-	}
 }
