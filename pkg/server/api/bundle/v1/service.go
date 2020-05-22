@@ -8,6 +8,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,6 +26,7 @@ type service struct {
 
 type Config struct {
 	ds datastore.DataStore
+	td spiffeid.TrustDomain
 }
 
 func (s service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
@@ -47,34 +49,19 @@ func (s service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederate
 		return nil, status.Errorf(codes.PermissionDenied, "the caller must be local or present an admin or an active agent X509-SVID")
 	}
 
-	callerID, ok := rpccontext.CallerID(ctx)
-	if !ok {
-		log.Error("Cannot get SPIFFE ID from caller")
-		return nil, status.Error(codes.Internal, "cannot get SPIFFE ID from caller")
-	}
-
-	reqTrustDomainID, err := spiffeid.FromString(req.TrustDomain)
+	td, err := spiffeid.TrustDomainFromString(req.TrustDomain)
 	if err != nil {
 		log.Errorf("Trust domain argument is not a valid SPIFFE ID: %q", req.TrustDomain)
 		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not a valid SPIFFE ID: %q", req.TrustDomain)
 	}
 
-	if reqTrustDomainID.Empty() {
-		log.Error("Trust domain argument is empty")
-		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is empty")
-	}
-
-	if reqTrustDomainID.Path() != "" {
-		log.Warnf("Using a full SPIFFE ID as trust domain argument, path section will be ignored: %q", reqTrustDomainID.String())
-	}
-
-	if callerID.MemberOf(reqTrustDomainID.TrustDomain()) {
-		log.Errorf("%q is your own trust domain, use GetBundle RPC instead", reqTrustDomainID.TrustDomain())
-		return nil, status.Errorf(codes.InvalidArgument, "%q is your own trust domain, use GetBundle RPC instead", reqTrustDomainID.TrustDomain())
+	if s.c.td.Compare(td) != 0 {
+		log.Errorf("%q is this server own trust domain, use GetBundle RPC instead", td.String())
+		return nil, status.Errorf(codes.InvalidArgument, "%q is this server own trust domain, use GetBundle RPC instead", td.String())
 	}
 
 	dsResp, err := s.c.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: req.TrustDomain,
+		TrustDomainId: td.IDString(),
 	})
 	if err != nil {
 		log.Errorf("Failed to fetch bundle: %v", err)
@@ -86,44 +73,7 @@ func (s service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederate
 		return nil, status.Errorf(codes.NotFound, "bundle for %q not found", req.TrustDomain)
 	}
 
-	resp := &types.Bundle{}
-	if req.OutputMask.TrustDomainId {
-		resp.TrustDomainId.TrustDomain = dsResp.Bundle.TrustDomainId
-	}
-
-	if req.OutputMask.RefreshHint {
-		resp.RefreshHint = dsResp.Bundle.RefreshHint
-	}
-
-	if req.OutputMask.SequenceNumber {
-		//TODO: Where do we get the sequence number from?
-		// There is not a `dsResp.Bundle.SequenceNumber` field
-		resp.SequenceNumber = 0
-	}
-
-	if req.OutputMask.X509Authorities {
-		authorities := []*types.X509Certificate{}
-		for _, rootCA := range dsResp.Bundle.RootCas {
-			authorities = append(authorities, &types.X509Certificate{
-				Asn1: rootCA.DerBytes,
-			})
-		}
-		resp.X509Authorities = authorities
-	}
-
-	if req.OutputMask.JwtAuthorities {
-		authorities := []*types.JWTKey{}
-		for _, JWTSigningKey := range dsResp.Bundle.JwtSigningKeys {
-			authorities = append(authorities, &types.JWTKey{
-				PublicKey: JWTSigningKey.PkixBytes,
-				KeyId:     JWTSigningKey.Kid,
-				ExpiresAt: JWTSigningKey.NotAfter,
-			})
-		}
-		resp.JwtAuthorities = authorities
-	}
-
-	return resp, nil
+	return applyMask(dsResp.Bundle, req.OutputMask), nil
 }
 
 func (s service) BatchCreateFederatedBundle(ctx context.Context, req *bundle.BatchCreateFederatedBundleRequest) (*bundle.BatchCreateFederatedBundleResponse, error) {
@@ -140,4 +90,44 @@ func (s service) BatchSetFederatedBundle(ctx context.Context, req *bundle.BatchS
 
 func (s service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchDeleteFederatedBundle not implemented")
+}
+
+func applyMask(b *common.Bundle, mask *types.BundleMask) *types.Bundle {
+	out := &types.Bundle{}
+	if mask.TrustDomainId {
+		out.TrustDomainId.TrustDomain = b.TrustDomainId
+	}
+
+	if mask.RefreshHint {
+		out.RefreshHint = b.RefreshHint
+	}
+
+	if mask.SequenceNumber {
+		//TODO: filter sequence numbers when SPIRE supports them
+		out.SequenceNumber = 0
+	}
+
+	if mask.X509Authorities {
+		authorities := []*types.X509Certificate{}
+		for _, rootCA := range b.RootCas {
+			authorities = append(authorities, &types.X509Certificate{
+				Asn1: rootCA.DerBytes,
+			})
+		}
+		out.X509Authorities = authorities
+	}
+
+	if mask.JwtAuthorities {
+		authorities := []*types.JWTKey{}
+		for _, JWTSigningKey := range b.JwtSigningKeys {
+			authorities = append(authorities, &types.JWTKey{
+				PublicKey: JWTSigningKey.PkixBytes,
+				KeyId:     JWTSigningKey.Kid,
+				ExpiresAt: JWTSigningKey.NotAfter,
+			})
+		}
+		out.JwtAuthorities = authorities
+	}
+
+	return out
 }
