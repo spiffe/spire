@@ -232,7 +232,7 @@ func (m *ListFederatedBundlesResponse) GetNextPageToken() string {
 }
 
 type GetFederatedBundleRequest struct {
-	// Required. The trust domain of the bundle, e.g. example.org. If unset, the bundle
+	// Required. The trust domain of the bundle (e.g., "example.org").
 	TrustDomain string `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
 	// An output mask indicating which bundle fields are set in the response.
 	OutputMask           *types.BundleMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
@@ -710,7 +710,7 @@ func (m *BatchSetFederatedBundleResponse_Result) GetBundle() *types.Bundle {
 }
 
 type BatchDeleteFederatedBundleRequest struct {
-	// The trust domains of the bundles to be deleted.
+	// The trust domain names (e.g., "example.org") of the bundles to delete.
 	TrustDomains         []string `protobuf:"bytes,1,rep,name=trust_domains,json=trustDomains,proto3" json:"trust_domains,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -792,7 +792,8 @@ func (m *BatchDeleteFederatedBundleResponse) GetResults() []*BatchDeleteFederate
 type BatchDeleteFederatedBundleResponse_Result struct {
 	// The status of deleting the bundle.
 	Status *types.Status `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	// The trust domain of the bundle that was deleted.
+	// The trust domain name (e.g., "example.org") of the bundle that was
+	// deleted.
 	TrustDomain          string   `protobuf:"bytes,2,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
