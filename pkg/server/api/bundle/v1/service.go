@@ -15,33 +15,43 @@ import (
 )
 
 // RegisterService registers the bundle service on the gRPC server.
-func RegisterService(s *grpc.Server, c *Config) {
-	srv := service{c: c}
-	bundle.RegisterBundleServer(s, srv)
+func RegisterService(s *grpc.Server, service *Service) {
+	bundle.RegisterBundleServer(s, service)
 }
 
-type service struct {
-	c *Config
-}
-
+// Config is the service configuration
 type Config struct {
+	Datastore   datastore.DataStore
+	TrustDomain spiffeid.TrustDomain
+}
+
+// New creates a new bundle service
+func New(config Config) *Service {
+	return &Service{
+		ds: config.Datastore,
+		td: config.TrustDomain,
+	}
+}
+
+// Service implements the v1 bundle service
+type Service struct {
 	ds datastore.DataStore
 	td spiffeid.TrustDomain
 }
 
-func (s service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
+func (s *Service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBundle not implemented")
 }
 
-func (s service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequest) (*types.Bundle, error) {
+func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequest) (*types.Bundle, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AppendBundle not implemented")
 }
 
-func (s service) ListFederatedBundles(ctx context.Context, req *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
+func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListFederatedBundles not implemented")
 }
 
-func (s service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
+func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx).WithField("RPC", "GetFedertedBundle")
 
 	if !(rpccontext.CallerIsLocal(ctx) || rpccontext.CallerIsAdmin(ctx) || rpccontext.CallerIsAgent(ctx)) {
@@ -55,12 +65,12 @@ func (s service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederate
 		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not a valid SPIFFE ID: %q", req.TrustDomain)
 	}
 
-	if s.c.td.Compare(td) != 0 {
+	if s.td.Compare(td) != 0 {
 		log.Errorf("%q is this server own trust domain, use GetBundle RPC instead", td.String())
 		return nil, status.Errorf(codes.InvalidArgument, "%q is this server own trust domain, use GetBundle RPC instead", td.String())
 	}
 
-	dsResp, err := s.c.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: td.IDString(),
 	})
 	if err != nil {
@@ -76,19 +86,19 @@ func (s service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederate
 	return applyMask(dsResp.Bundle, req.OutputMask), nil
 }
 
-func (s service) BatchCreateFederatedBundle(ctx context.Context, req *bundle.BatchCreateFederatedBundleRequest) (*bundle.BatchCreateFederatedBundleResponse, error) {
+func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundle.BatchCreateFederatedBundleRequest) (*bundle.BatchCreateFederatedBundleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchCreateFederatedBundle not implemented")
 }
 
-func (s service) BatchUpdateFederatedBundle(ctx context.Context, req *bundle.BatchUpdateFederatedBundleRequest) (*bundle.BatchUpdateFederatedBundleResponse, error) {
+func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundle.BatchUpdateFederatedBundleRequest) (*bundle.BatchUpdateFederatedBundleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchUpdateFederatedBundle not implemented")
 }
 
-func (s service) BatchSetFederatedBundle(ctx context.Context, req *bundle.BatchSetFederatedBundleRequest) (*bundle.BatchSetFederatedBundleResponse, error) {
+func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.BatchSetFederatedBundleRequest) (*bundle.BatchSetFederatedBundleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchSetFederatedBundle not implemented")
 }
 
-func (s service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {
+func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchDeleteFederatedBundle not implemented")
 }
 
