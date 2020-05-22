@@ -143,8 +143,8 @@ func (s *service) newX509SVID(ctx context.Context, req *X509SVIDParams, typeEntr
 	spiffeID, err := api.SpiffeIDFromProto(entry.SpiffeId)
 	if err != nil {
 		// It may never happens, it is not possible to add invalid SPIFFE IDs on datastore
-		log.WithError(err).Error("Invalid Spiffe ID")
-		return nil, status.Error(codes.Internal, "invalid Spiffe ID")
+		log.WithError(err).Error("Invalid SPIFFE ID")
+		return nil, status.Error(codes.Internal, "invalid SPIFFE ID")
 	}
 	log = log.WithField(telemetry.SPIFFEID, spiffeID.String())
 
