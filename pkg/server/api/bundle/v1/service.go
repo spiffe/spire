@@ -83,7 +83,13 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederat
 		return nil, status.Errorf(codes.NotFound, "bundle for %q not found", req.TrustDomain)
 	}
 
-	return applyMask(dsResp.Bundle, req.OutputMask), nil
+	b, err := applyMask(dsResp.Bundle, req.OutputMask)
+	if err != nil {
+		log.Errorf("Failed to apply mask: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to apply mask: %v", err)
+	}
+
+	return b, nil
 }
 
 func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundle.BatchCreateFederatedBundleRequest) (*bundle.BatchCreateFederatedBundleResponse, error) {
@@ -102,10 +108,15 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.Ba
 	return nil, status.Errorf(codes.Unimplemented, "method BatchDeleteFederatedBundle not implemented")
 }
 
-func applyMask(b *common.Bundle, mask *types.BundleMask) *types.Bundle {
+func applyMask(b *common.Bundle, mask *types.BundleMask) (*types.Bundle, error) {
 	out := &types.Bundle{}
-	if mask.TrustDomainId {
-		out.TrustDomainId.TrustDomain = b.TrustDomainId
+	if mask.TrustDomain {
+		td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
+		if err != nil {
+			return nil, err
+		}
+
+		out.TrustDomain = td.String()
 	}
 
 	if mask.RefreshHint {
@@ -139,5 +150,5 @@ func applyMask(b *common.Bundle, mask *types.BundleMask) *types.Bundle {
 		out.JwtAuthorities = authorities
 	}
 
-	return out
+	return out, nil
 }
