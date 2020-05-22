@@ -66,11 +66,6 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFede
 func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx)
 
-	if !(rpccontext.CallerIsLocal(ctx) || rpccontext.CallerIsAdmin(ctx) || rpccontext.CallerIsAgent(ctx)) {
-		log.Errorf("Permission denied: the caller must be local or present an admin or an active agent X509-SVID")
-		return nil, status.Errorf(codes.PermissionDenied, "the caller must be local or present an admin or an active agent X509-SVID")
-	}
-
 	td, err := spiffeid.TrustDomainFromString(req.TrustDomain)
 	if err != nil {
 		log.Errorf("Trust domain argument is not a valid SPIFFE ID: %q", req.TrustDomain)
