@@ -156,9 +156,6 @@ func TestRateLimits(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Rate limiting misconfigured; this is a bug",
-					Data: logrus.Fields{
-						"method": "/fake.Service/Whoopsie",
-					},
 				},
 			},
 		},
@@ -170,9 +167,6 @@ func TestRateLimits(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Rate limiter went unused; this is a bug",
-					Data: logrus.Fields{
-						"method": "/fake.Service/WithLimit",
-					},
 				},
 			},
 		},
@@ -192,9 +186,6 @@ func TestRateLimits(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Rate limiter used unexpectedly; this is a bug",
-					Data: logrus.Fields{
-						"method": "/fake.Service/NoLimit",
-					},
 				},
 			},
 		},

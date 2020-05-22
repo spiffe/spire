@@ -27,8 +27,8 @@ message Entry {
     // The time to live for identities issued for this entry (in seconds).
     int32 ttl = 5;
 
-    // A list of trust domains the identity described by this entry federates
-    // with.
+    // The names of trust domains the identity described by this entry
+    // federates with.
     repeated string federates_with = 6;
 
     // Whether or not the identity described by this entry is an administrative
