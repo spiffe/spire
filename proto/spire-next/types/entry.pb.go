@@ -37,8 +37,8 @@ type Entry struct {
 	Selectors []*Selector `protobuf:"bytes,4,rep,name=selectors,proto3" json:"selectors,omitempty"`
 	// The time to live for identities issued for this entry (in seconds).
 	Ttl int32 `protobuf:"varint,5,opt,name=ttl,proto3" json:"ttl,omitempty"`
-	// A list of trust domains the identity described by this entry federates
-	// with.
+	// The names of trust domains the identity described by this entry
+	// federates with.
 	FederatesWith []string `protobuf:"bytes,6,rep,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
 	// Whether or not the identity described by this entry is an administrative
 	// workload. Administrative workloads are granted additional access to
