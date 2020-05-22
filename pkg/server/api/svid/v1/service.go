@@ -12,9 +12,17 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
+	"github.com/spiffe/spire/proto/spire-next/types"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// RegisterService registers the service on the gRPC server.
+func RegisterService(s *grpc.Server, service *Service) {
+	svid.RegisterSVIDServer(s, service)
+}
 
 // Config is the service configuration
 type Config struct {
@@ -22,29 +30,33 @@ type Config struct {
 	TrustDomain spiffeid.TrustDomain
 }
 
-// Service is the SVID service interface
-type Service interface {
-	MintX509SVID(ctx context.Context, csr *x509.CertificateRequest, ttl time.Duration) (*api.X509SVID, error)
-	MintJWTSVID(ctx context.Context, id spiffeid.ID, audience []string, ttl time.Duration) (*api.JWTSVID, error)
-	NewX509SVID(ctx context.Context, entryID string, csr *x509.CertificateRequest) (*api.X509SVID, error)
-	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*api.JWTSVID, error)
-}
-
 // New creates a new SVID service
-func New(config Config) Service {
-	return &service{
+func New(config Config) *Service {
+	return &Service{
 		ca: config.ServerCA,
 		td: config.TrustDomain,
 	}
 }
 
-type service struct {
+// Service implements the v1 SVID service
+type Service struct {
 	ca ca.ServerCA
 	td spiffeid.TrustDomain
 }
 
-func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest, ttl time.Duration) (*api.X509SVID, error) {
+func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest) (*svid.MintX509SVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
+
+	if len(req.Csr) == 0 {
+		log.Error("Request missing CSR")
+		return nil, status.Errorf(codes.InvalidArgument, "request missing CSR")
+	}
+
+	csr, err := x509.ParseCertificateRequest(req.Csr)
+	if err != nil {
+		log.WithError(err).Error("Malformed CSR")
+		return nil, status.Errorf(codes.InvalidArgument, "malformed CSR: %v", err)
+	}
 
 	if err := csr.CheckSignature(); err != nil {
 		log.WithError(err).Error("Invalid CSR: signature verify failed")
@@ -60,13 +72,13 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: only one URI SAN is expected")
 	}
 
-	spiffeID, err := spiffeid.FromURI(csr.URIs[0])
+	id, err := spiffeid.FromURI(csr.URIs[0])
 	if err != nil {
 		log.WithError(err).Error("Invalid CSR: URI SAN is not a valid SPIFFE ID")
 		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: URI SAN is not a valid SPIFFE ID: %v", err)
 	}
 
-	if err := idutil.ValidateTrustDomainWorkload(spiffeID, s.td); err != nil {
+	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
 		log.Errorf("Invalid SPIFFE ID in CSR: %v", err)
 		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID in CSR: %v", err)
 	}
@@ -78,10 +90,10 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 		}
 	}
 
-	svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  spiffeID.String(),
+	x509SVID, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  id.String(),
 		PublicKey: csr.PublicKey,
-		TTL:       ttl,
+		TTL:       time.Duration(req.Ttl) * time.Second,
 		DNSList:   csr.DNSNames,
 		Subject:   csr.Subject,
 	})
@@ -90,30 +102,38 @@ func (s *service) MintX509SVID(ctx context.Context, csr *x509.CertificateRequest
 		return nil, status.Errorf(codes.Internal, "failed to sign X509-SVID: %v", err)
 	}
 
-	return &api.X509SVID{
-		ID:        spiffeID,
-		CertChain: svid,
-		ExpiresAt: svid[0].NotAfter.UTC(),
+	return &svid.MintX509SVIDResponse{
+		Svid: &types.X509SVID{
+			Id:        api.ProtoFromID(id),
+			CertChain: x509util.RawCertsFromCertificates(x509SVID),
+			ExpiresAt: x509SVID[0].NotAfter.Unix(),
+		},
 	}, nil
 }
 
-func (s *service) MintJWTSVID(ctx context.Context, id spiffeid.ID, audience []string, ttl time.Duration) (*api.JWTSVID, error) {
+func (s *Service) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest) (*svid.MintJWTSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
+
+	id, err := api.IDFromProto(req.Id)
+	if err != nil {
+		log.WithError(err).Error("Failed to parse SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 
 	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
 		log.Errorf("Invalid SPIFFE ID: %v", err)
 		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
 	}
 
-	if len(audience) == 0 {
+	if len(req.Audience) == 0 {
 		log.Error("At least one audience is required")
 		return nil, status.Error(codes.InvalidArgument, "at least one audience is required")
 	}
 
 	token, err := s.ca.SignJWTSVID(ctx, ca.JWTSVIDParams{
 		SpiffeID: id.String(),
-		TTL:      ttl,
-		Audience: audience,
+		TTL:      time.Duration(req.Ttl) * time.Second,
+		Audience: req.Audience,
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to sign JWT-SVID")
@@ -126,18 +146,24 @@ func (s *service) MintJWTSVID(ctx context.Context, id spiffeid.ID, audience []st
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return &api.JWTSVID{
-		ID:        id,
-		Token:     token,
-		ExpiresAt: expiresAt,
-		IssuedAt:  issuedAt,
+	return &svid.MintJWTSVIDResponse{
+		Svid: &types.JWTSVID{
+			Token:     token,
+			Id:        api.ProtoFromID(id),
+			ExpiresAt: expiresAt.Unix(),
+			IssuedAt:  issuedAt.Unix(),
+		},
 	}, nil
 }
 
-func (s *service) NewX509SVID(ctx context.Context, entryID string, csr *x509.CertificateRequest) (*api.X509SVID, error) {
+func (s *Service) BatchNewX509SVID(context.Context, *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
-func (s *service) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*api.JWTSVID, error) {
+func (s *Service) NewJWTSVID(context.Context, *svid.NewJWTSVIDRequest) (*svid.NewJWTSVIDResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (s *Service) NewDownstreamX509CA(context.Context, *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
