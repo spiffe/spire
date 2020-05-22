@@ -87,7 +87,7 @@ message ListFederatedBundlesResponse {
 }
 
 message GetFederatedBundleRequest {
-    // Required. The trust domain of the bundle, e.g. example.org. If unset, the bundle
+    // Required. The trust domain name of the bundle (e.g., "example.org").
     string trust_domain = 1;
 
     // An output mask indicating which bundle fields are set in the response.
@@ -161,7 +161,7 @@ message BatchSetFederatedBundleResponse {
 }
 
 message BatchDeleteFederatedBundleRequest {
-    // The trust domains of the bundles to be deleted.
+    // The trust domain names (e.g., "example.org") of the bundles to delete.
     repeated string trust_domains = 1;
 }
 
@@ -170,7 +170,8 @@ message BatchDeleteFederatedBundleResponse {
         // The status of deleting the bundle.
         spire.types.Status status = 1;
 
-        // The trust domain of the bundle that was deleted.
+        // The trust domain name (e.g., "example.org") of the bundle that was
+        // deleted.
         string trust_domain = 2;
     }
 
