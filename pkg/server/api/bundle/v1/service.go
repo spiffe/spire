@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -65,7 +66,7 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederat
 		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not a valid SPIFFE ID: %q", req.TrustDomain)
 	}
 
-	if s.td.Compare(td) != 0 {
+	if s.td.Compare(td) == 0 {
 		log.Errorf("%q is this server own trust domain, use GetBundle RPC instead", td.String())
 		return nil, status.Errorf(codes.InvalidArgument, "%q is this server own trust domain, use GetBundle RPC instead", td.String())
 	}
@@ -109,13 +110,16 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.Ba
 }
 
 func applyMask(b *common.Bundle, mask *types.BundleMask) (*types.Bundle, error) {
+	if mask == nil {
+		return nil, errors.New("'OutputMask' is nil")
+	}
+
 	out := &types.Bundle{}
 	if mask.TrustDomain {
 		td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
 		if err != nil {
 			return nil, err
 		}
-
 		out.TrustDomain = td.String()
 	}
 

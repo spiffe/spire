@@ -91,7 +91,21 @@ func CallerIsAgent(ctx context.Context) bool {
 }
 
 func CallerIsLocal(ctx context.Context) bool {
-	return CallerAddr(ctx).Network() == "unix"
+	addr := CallerAddr(ctx)
+	if addr == nil {
+		return false
+	}
+
+	switch addr.Network() {
+	case "unix":
+		return true
+	case "unixgram":
+		return true
+	case "unixpacket":
+		return true
+	default:
+		return false
+	}
 }
 
 func WithAttestedNode(ctx context.Context, attestedNode *common.AttestedNode) context.Context {
