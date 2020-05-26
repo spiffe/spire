@@ -3,7 +3,9 @@ package bundle
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
@@ -81,7 +83,55 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJW
 }
 
 func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListFederatedBundles not implemented")
+	log := rpccontext.Logger(ctx)
+
+	listReq := &datastore.ListBundlesRequest{}
+
+	// Set pagination parameters
+	if req.PageSize > 0 {
+		listReq.Pagination = &datastore.Pagination{
+			PageSize: req.PageSize,
+			Token:    req.PageToken,
+		}
+	}
+
+	dsResp, err := s.ds.ListBundles(ctx, listReq)
+	if err != nil {
+		log.WithError(err).Error("Failed to list bundles")
+		return nil, status.Errorf(codes.Internal, "failed to list bundles: %v", err)
+	}
+
+	resp := &bundle.ListFederatedBundlesResponse{}
+
+	if dsResp.Pagination != nil {
+		resp.NextPageToken = dsResp.Pagination.Token
+	}
+
+	for _, dsBundle := range dsResp.Bundles {
+		td, err := spiffeid.TrustDomainFromString(dsBundle.TrustDomainId)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				logrus.ErrorKey:         err,
+				telemetry.TrustDomainID: dsBundle.TrustDomainId,
+			}).Errorf("Bundle has an invalid trust domain ID")
+			return nil, status.Errorf(codes.Internal, "bundle has an invalid trust domain ID: %q", dsBundle.TrustDomainId)
+		}
+
+		// Filter server bundle
+		if s.td.Compare(td) == 0 {
+			continue
+		}
+
+		b, err := applyMask(dsBundle, req.OutputMask)
+		if err != nil {
+			log.WithError(err).Error("Failed to apply mask")
+			return nil, status.Errorf(codes.Internal, "failed to apply mask: %v", err)
+		}
+
+		resp.Bundles = append(resp.Bundles, b)
+	}
+
+	return resp, nil
 }
 
 func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
@@ -155,12 +205,11 @@ func applyMask(b *common.Bundle, mask *types.BundleMask) (*types.Bundle, error) 
 	}
 
 	if mask.SequenceNumber {
-		//TODO: filter sequence numbers when SPIRE supports them
 		out.SequenceNumber = 0
 	}
 
 	if mask.X509Authorities {
-		authorities := []*types.X509Certificate{}
+		var authorities []*types.X509Certificate
 		for _, rootCA := range b.RootCas {
 			authorities = append(authorities, &types.X509Certificate{
 				Asn1: rootCA.DerBytes,
@@ -170,7 +219,7 @@ func applyMask(b *common.Bundle, mask *types.BundleMask) (*types.Bundle, error) 
 	}
 
 	if mask.JwtAuthorities {
-		authorities := []*types.JWTKey{}
+		var authorities []*types.JWTKey
 		for _, JWTSigningKey := range b.JwtSigningKeys {
 			authorities = append(authorities, &types.JWTKey{
 				PublicKey: JWTSigningKey.PkixBytes,
