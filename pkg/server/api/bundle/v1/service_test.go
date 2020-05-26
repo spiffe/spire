@@ -80,53 +80,35 @@ func TestGetFederatedBundle(t *testing.T) {
 			logMsg:      `Bundle for "another-example.org" not found`,
 		},
 		{
-			name:        "Output mask is nil",
-			isAdmin:     true,
-			trustDomain: "another-example.org",
-			setBundle:   true,
-			err:         `'OutputMask' is nil`,
-			logMsg:      `'OutputMask' is nil`,
-		},
-		{
-			name:        "Get federated bundle succeeds using all flags in true",
+			name:        "Get federated bundle do not returns fields filtered by mask",
 			isAdmin:     true,
 			trustDomain: "another-example.org",
 			setBundle:   true,
 			outputMask: &types.BundleMask{
-				TrustDomain:     true,
-				RefreshHint:     true,
-				SequenceNumber:  true,
-				X509Authorities: true,
-				JwtAuthorities:  true,
+				TrustDomain:     false,
+				RefreshHint:     false,
+				SequenceNumber:  false,
+				X509Authorities: false,
+				JwtAuthorities:  false,
 			},
-		},
-		{
-			name:        "Get federated bundle succeeds using all flags in false",
-			isAdmin:     true,
-			trustDomain: "another-example.org",
-			setBundle:   true,
-			outputMask:  &types.BundleMask{},
 		},
 		{
 			name:        "Get federated bundle succeeds for admin workloads",
 			isAdmin:     true,
 			trustDomain: "another-example.org",
 			setBundle:   true,
-			outputMask:  &types.BundleMask{},
 		},
 		{
 			name:        "Get federated bundle succeeds for local workloads",
 			isLocal:     true,
 			trustDomain: "another-example.org",
 			setBundle:   true,
-			outputMask:  &types.BundleMask{},
 		},
 		{
 			name:        "Get federated bundle succeeds for agent workload",
 			isAgent:     true,
 			trustDomain: "another-example.org",
 			setBundle:   true,
-			outputMask:  &types.BundleMask{},
 		},
 	} {
 		tt := tt
@@ -160,19 +142,19 @@ func TestGetFederatedBundle(t *testing.T) {
 }
 
 func assertBundleWithMask(t *testing.T, expected *common.Bundle, actual *types.Bundle, m *types.BundleMask) {
-	if m.TrustDomain {
+	if m == nil || m.TrustDomain {
 		require.Equal(t, spiffeid.RequireTrustDomainFromString(expected.TrustDomainId).String(), actual.TrustDomain)
 	} else {
 		require.Zero(t, actual.TrustDomain)
 	}
 
-	if m.RefreshHint {
+	if m == nil || m.RefreshHint {
 		require.Equal(t, expected.RefreshHint, actual.RefreshHint)
 	} else {
 		require.Zero(t, actual.RefreshHint)
 	}
 
-	if m.JwtAuthorities {
+	if m == nil || m.JwtAuthorities {
 		require.Equal(t, len(expected.JwtSigningKeys), len(actual.JwtAuthorities))
 		require.Equal(t, expected.JwtSigningKeys[0].Kid, actual.JwtAuthorities[0].KeyId)
 		require.Equal(t, expected.JwtSigningKeys[0].NotAfter, actual.JwtAuthorities[0].ExpiresAt)
@@ -181,7 +163,7 @@ func assertBundleWithMask(t *testing.T, expected *common.Bundle, actual *types.B
 		require.Zero(t, actual.RefreshHint)
 	}
 
-	if m.X509Authorities {
+	if m == nil || m.X509Authorities {
 		require.Equal(t, len(expected.RootCas), len(actual.X509Authorities))
 		require.Equal(t, expected.RootCas[0].DerBytes, actual.X509Authorities[0].Asn1)
 	} else {

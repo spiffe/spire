@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"context"
-	"errors"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -14,6 +13,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var defaultMask = &types.BundleMask{
+	TrustDomain:     true,
+	RefreshHint:     true,
+	SequenceNumber:  true,
+	X509Authorities: true,
+	JwtAuthorities:  true,
+}
 
 // RegisterService registers the bundle service on the gRPC server.
 func RegisterService(s *grpc.Server, service *Service) {
@@ -53,7 +60,7 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFede
 }
 
 func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
-	log := rpccontext.Logger(ctx).WithField("RPC", "GetFedertedBundle")
+	log := rpccontext.Logger(ctx)
 
 	if !(rpccontext.CallerIsLocal(ctx) || rpccontext.CallerIsAdmin(ctx) || rpccontext.CallerIsAgent(ctx)) {
 		log.Errorf("Permission denied: the caller must be local or present an admin or an active agent X509-SVID")
@@ -111,7 +118,7 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.Ba
 
 func applyMask(b *common.Bundle, mask *types.BundleMask) (*types.Bundle, error) {
 	if mask == nil {
-		return nil, errors.New("'OutputMask' is nil")
+		mask = defaultMask
 	}
 
 	out := &types.Bundle{}
