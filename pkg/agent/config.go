@@ -19,9 +19,6 @@ type Config struct {
 	// Directory to store runtime data
 	DataDir string
 
-	// If true, enables an Envoy SecretDiscoveryService server
-	EnableSDS bool
-
 	// The Validation Context resource name to use for the default X.509 bundle with Envoy SDS
 	DefaultBundleName string
 

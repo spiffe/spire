@@ -54,20 +54,20 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir           string    `hcl:"data_dir"`
-	EnableSDS         bool      `hcl:"enable_sds"`
-	InsecureBootstrap bool      `hcl:"insecure_bootstrap"`
-	JoinToken         string    `hcl:"join_token"`
-	LogFile           string    `hcl:"log_file"`
-	LogFormat         string    `hcl:"log_format"`
-	LogLevel          string    `hcl:"log_level"`
-	SDS               sdsConfig `hcl:"sds"`
-	ServerAddress     string    `hcl:"server_address"`
-	ServerPort        int       `hcl:"server_port"`
-	SocketPath        string    `hcl:"socket_path"`
-	TrustBundlePath   string    `hcl:"trust_bundle_path"`
-	TrustBundleURL    string    `hcl:"trust_bundle_url"`
-	TrustDomain       string    `hcl:"trust_domain"`
+	DataDir             string    `hcl:"data_dir"`
+	DeprecatedEnableSDS *bool     `hcl:"enable_sds"`
+	InsecureBootstrap   bool      `hcl:"insecure_bootstrap"`
+	JoinToken           string    `hcl:"join_token"`
+	LogFile             string    `hcl:"log_file"`
+	LogFormat           string    `hcl:"log_format"`
+	LogLevel            string    `hcl:"log_level"`
+	SDS                 sdsConfig `hcl:"sds"`
+	ServerAddress       string    `hcl:"server_address"`
+	ServerPort          int       `hcl:"server_port"`
+	SocketPath          string    `hcl:"socket_path"`
+	TrustBundlePath     string    `hcl:"trust_bundle_path"`
+	TrustBundleURL      string    `hcl:"trust_bundle_url"`
+	TrustDomain         string    `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -352,7 +352,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
-	ac.EnableSDS = c.Agent.EnableSDS
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
 
@@ -380,6 +379,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry
 	ac.HealthChecks = c.HealthChecks
+
+	// TODO: remove deprecated configurable in 0.12.0
+	if c.Agent.DeprecatedEnableSDS != nil {
+		ac.Log.Warn("SDS support is now always on. The enable_sds configurable is ignored and should be removed.")
+	}
 
 	// Warn if we detect unknown config options. We need a logger to do this. In
 	// the future, we can move from warning to bailing out (once folks have had
