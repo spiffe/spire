@@ -55,6 +55,10 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 	return nil, status.Errorf(codes.Unimplemented, "method AppendBundle not implemented")
 }
 
+func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PublishJWTAuthority not implemented")
+}
+
 func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListFederatedBundles not implemented")
 }
