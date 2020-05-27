@@ -3,26 +3,26 @@ package rpccontext
 import (
 	"context"
 
+	"github.com/spiffe/spire/pkg/server/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type rateLimiterKey struct{}
 
-type RateLimiter struct {
-	Used bool
-}
-
-func WithRateLimiter(ctx context.Context, limiter *RateLimiter) context.Context {
+func WithRateLimiter(ctx context.Context, limiter api.RateLimiter) context.Context {
 	return context.WithValue(ctx, rateLimiterKey{}, limiter)
 }
 
+func RateLimiter(ctx context.Context) (api.RateLimiter, bool) {
+	value, ok := ctx.Value(rateLimiterKey{}).(api.RateLimiter)
+	return value, ok
+}
+
 func RateLimit(ctx context.Context, count int) error {
-	limiter, ok := ctx.Value(rateLimiterKey{}).(*RateLimiter)
+	limiter, ok := RateLimiter(ctx)
 	if !ok {
-		return status.Errorf(codes.ResourceExhausted, "rate limiting not configured")
+		return status.Errorf(codes.Internal, "rate limiter unavailable")
 	}
-	limiter.Used = true
-	// TODO: actually to rate limiting
-	return nil
+	return limiter.RateLimit(ctx, count)
 }
