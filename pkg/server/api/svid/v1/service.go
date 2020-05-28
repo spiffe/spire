@@ -127,47 +127,13 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 }
 
 func (s *Service) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest) (*svid.MintJWTSVIDResponse, error) {
-	log := rpccontext.Logger(ctx)
-
-	id, err := api.IDFromProto(req.Id)
+	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
 	if err != nil {
-		log.WithError(err).Error("Failed to parse SPIFFE ID")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
-		log.Errorf("Invalid SPIFFE ID: %v", err)
-		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
-	}
-
-	if len(req.Audience) == 0 {
-		log.Error("At least one audience is required")
-		return nil, status.Error(codes.InvalidArgument, "at least one audience is required")
-	}
-
-	token, err := s.ca.SignJWTSVID(ctx, ca.JWTSVIDParams{
-		SpiffeID: id.String(),
-		TTL:      time.Duration(req.Ttl) * time.Second,
-		Audience: req.Audience,
-	})
-	if err != nil {
-		log.WithError(err).Error("Failed to sign JWT-SVID")
-		return nil, status.Errorf(codes.Internal, "failed to sign JWT-SVID: %v", err)
-	}
-
-	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
-	if err != nil {
-		log.WithError(err).Error("Failed to get JWT-SVID expiry")
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, err
 	}
 
 	return &svid.MintJWTSVIDResponse{
-		Svid: &types.JWTSVID{
-			Token:     token,
-			Id:        api.ProtoFromID(id),
-			ExpiresAt: expiresAt.Unix(),
-			IssuedAt:  issuedAt.Unix(),
-		},
+		Svid: jwtsvid,
 	}, nil
 }
 
@@ -283,8 +249,84 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 	}, nil
 }
 
-func (s *Service) NewJWTSVID(context.Context, *svid.NewJWTSVIDRequest) (*svid.NewJWTSVIDResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "not implemented")
+func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) (*types.JWTSVID, error) {
+	log := rpccontext.Logger(ctx)
+
+	id, err := api.IDFromProto(protoID)
+	if err != nil {
+		log.WithError(err).Error("Failed to parse SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
+		log.Errorf("Invalid SPIFFE ID: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, id.String())
+
+	if len(audience) == 0 {
+		log.Error("At least one audience is required")
+		return nil, status.Error(codes.InvalidArgument, "at least one audience is required")
+	}
+
+	token, err := s.ca.SignJWTSVID(ctx, ca.JWTSVIDParams{
+		SpiffeID: id.String(),
+		TTL:      time.Duration(ttl) * time.Second,
+		Audience: audience,
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to sign JWT-SVID")
+		return nil, status.Errorf(codes.Internal, "failed to sign JWT-SVID: %v", err)
+	}
+
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	if err != nil {
+		log.WithError(err).Error("Failed to get JWT-SVID expiry")
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &types.JWTSVID{
+		Token:     token,
+		Id:        api.ProtoFromID(id),
+		ExpiresAt: expiresAt.Unix(),
+		IssuedAt:  issuedAt.Unix(),
+	}, nil
+}
+
+func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (resp *svid.NewJWTSVIDResponse, err error) {
+	log := rpccontext.Logger(ctx)
+
+	if len(req.Audience) == 0 {
+		log.Error("At least one audience is required")
+		return nil, status.Error(codes.InvalidArgument, "at least one audience is required")
+	}
+
+	if err := rpccontext.RateLimit(ctx, 1); err != nil {
+		log.WithError(err).Error("Rejecting request due to JWT signing request rate limiting")
+		return nil, err
+	}
+
+	// Fetch authorized entries
+	entriesMap, err := s.fetchEntries(ctx, log)
+	if err != nil {
+		return nil, err
+	}
+
+	entry, ok := entriesMap[req.EntryId]
+	if !ok {
+		log.Error("Invalid request: entry not found")
+		return nil, status.Error(codes.NotFound, "entry not found or not authorized")
+	}
+
+	jwtsvid, err := s.mintJWTSVID(ctx, entry.SpiffeId, req.Audience, entry.Ttl)
+	if err != nil {
+		return nil, err
+	}
+
+	return &svid.NewJWTSVIDResponse{
+		Svid: jwtsvid,
+	}, nil
 }
 
 func (s *Service) NewDownstreamX509CA(context.Context, *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
