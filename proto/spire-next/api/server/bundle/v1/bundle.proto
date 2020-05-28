@@ -16,8 +16,18 @@ service Bundle {
     // is returned. This is the only RPC that can be used to update the
     // bundle for the trust domain of the SPIRE server.
     //
-    // The caller must be local or present an admin or downstream X509-SVID.
+    // The caller must be local or present an admin X509-SVID.
     rpc AppendBundle(AppendBundleRequest) returns (spire.types.Bundle);
+
+    // Publishes a downstream JWT authority to the SPIRE server. If the server
+    // is itself a downstream server (i.e. configured with an UpstreamAuthority
+    // plugin), the JWT authority is published further upstream using the
+    // UpstreamAuthority plugin. If the server is not a downstream server, or
+    // if the UpstreamAuthority does not support publishing JWT authorities,
+    // the server appends the JWT authority to its own bundle.
+    //
+    // The caller must present a downstream X509-SVID.
+    rpc PublishJWTAuthority(PublishJWTAuthorityRequest) returns (PublishJWTAuthorityResponse);
 
     // Lists federated bundles.
     //
@@ -65,6 +75,16 @@ message AppendBundleRequest {
 
     // An output mask indicating which bundle fields are set in the response.
     spire.types.BundleMask output_mask = 3;
+}
+
+message PublishJWTAuthorityRequest {
+    // Required. The JWT authority to publish.
+    spire.types.JWTKey jwt_authority = 1;
+}
+
+message PublishJWTAuthorityResponse {
+    // The JWT authorities for the trust domain.
+    repeated spire.types.JWTKey jwt_authorities = 1;
 }
 
 message ListFederatedBundlesRequest {

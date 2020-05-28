@@ -5,9 +5,11 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -24,16 +26,28 @@ func RegisterService(s *grpc.Server, service *Service) {
 	svid.RegisterSVIDServer(s, service)
 }
 
+type AuthorizedEntryFetcher interface {
+	FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error)
+}
+
+type AuthorizedEntryFetcherFunc func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error)
+
+func (fn AuthorizedEntryFetcherFunc) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+	return fn(ctx, agentID)
+}
+
 // Config is the service configuration
 type Config struct {
-	ServerCA    ca.ServerCA
-	TrustDomain spiffeid.TrustDomain
+	EntryFetcher AuthorizedEntryFetcher
+	ServerCA     ca.ServerCA
+	TrustDomain  spiffeid.TrustDomain
 }
 
 // New creates a new SVID service
 func New(config Config) *Service {
 	return &Service{
 		ca: config.ServerCA,
+		ef: config.EntryFetcher,
 		td: config.TrustDomain,
 	}
 }
@@ -41,6 +55,7 @@ func New(config Config) *Service {
 // Service implements the v1 SVID service
 type Service struct {
 	ca ca.ServerCA
+	ef AuthorizedEntryFetcher
 	td spiffeid.TrustDomain
 }
 
@@ -156,8 +171,116 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest)
 	}, nil
 }
 
-func (s *Service) BatchNewX509SVID(context.Context, *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "not implemented")
+func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
+	log := rpccontext.Logger(ctx)
+
+	if len(req.Params) == 0 {
+		log.Error("Request missing parameters")
+		return nil, status.Error(codes.InvalidArgument, "request missing parameters")
+	}
+
+	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
+		log.WithError(err).Error("Rejecting request due to certificate signing rate limiting")
+		return nil, err
+	}
+
+	// Fetch authorized entries
+	entriesMap, err := s.fetchEntries(ctx, log)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &svid.BatchNewX509SVIDResponse{}
+	for _, svidParam := range req.Params {
+		//  Create new SVID
+		bundle, err := s.newX509SVID(ctx, svidParam, entriesMap)
+		resp.Results = append(resp.Results, &svid.BatchNewX509SVIDResponse_Result{
+			Bundle: bundle,
+			Status: api.StatusFromError(err),
+		})
+	}
+
+	return resp, nil
+}
+
+// fetchEntries fetches authorized entries using caller ID from context
+func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map[string]*types.Entry, error) {
+	callerID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		log.Error("Caller ID missing from request context")
+		return nil, status.Error(codes.Internal, "caller ID missing from request context")
+	}
+
+	entries, err := s.ef.FetchAuthorizedEntries(ctx, callerID)
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch registration entries")
+		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
+	}
+
+	entriesMap := make(map[string]*types.Entry)
+	for _, entry := range entries {
+		entriesMap[entry.Id] = entry
+	}
+
+	return entriesMap, nil
+}
+
+// newX509SVID creates an X509-SVID using data from registration entry and key from CSR
+func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams, typeEntries map[string]*types.Entry) (*types.X509SVID, error) {
+	log := rpccontext.Logger(ctx)
+
+	switch {
+	case param.EntryId == "":
+		log.Error("Invalid request: missing entry ID")
+		return nil, status.Error(codes.InvalidArgument, "missing entry ID")
+	case len(param.Csr) == 0:
+		log.Error("Invalid request: missing CSR")
+		return nil, status.Error(codes.InvalidArgument, "missing CSR")
+	}
+
+	log = log.WithField(telemetry.RegistrationID, param.EntryId)
+
+	entry, ok := typeEntries[param.EntryId]
+	if !ok {
+		log.Error("Invalid request: entry not found or not authorized")
+		return nil, status.Error(codes.NotFound, "entry not found or not authorized")
+	}
+
+	csr, err := x509.ParseCertificateRequest(param.Csr)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: malformed CSR")
+		return nil, status.Errorf(codes.InvalidArgument, "malformed CSR: %v", err)
+	}
+
+	if err := csr.CheckSignature(); err != nil {
+		log.WithError(err).Error("Invalid request: invalid CSR signature")
+		return nil, status.Error(codes.InvalidArgument, "invalid CSR signature")
+	}
+
+	spiffeID, err := api.IDFromProto(entry.SpiffeId)
+	if err != nil {
+		// This shouldn't be the case unless there is invalid data in the datastore
+		log.WithError(err).Error("Entry has malformed SPIFFE ID")
+		return nil, status.Error(codes.Internal, "entry has malformed SPIFFE ID")
+	}
+	log = log.WithField(telemetry.SPIFFEID, spiffeID.String())
+
+	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  spiffeID.String(),
+		PublicKey: csr.PublicKey,
+		DNSList:   entry.DnsNames,
+		TTL:       time.Duration(entry.Ttl) * time.Second,
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to sign X509-SVID")
+		return nil, status.Errorf(codes.Internal, "failed to sign X509-SVID: %v", err)
+	}
+
+	return &types.X509SVID{
+		Id:        entry.SpiffeId,
+		CertChain: x509util.RawCertsFromCertificates(x509Svid),
+		ExpiresAt: x509Svid[0].NotAfter.UTC().Unix(),
+	}, nil
 }
 
 func (s *Service) NewJWTSVID(context.Context, *svid.NewJWTSVIDRequest) (*svid.NewJWTSVIDResponse, error) {

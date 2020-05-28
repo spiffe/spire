@@ -5,29 +5,37 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/api/svid/v1"
 	svidpb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
+	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 var (
 	testKey    = testkey.MustEC256()
-	workloadID = spiffeid.Must("example.org", "workload1")
+	td         = spiffeid.RequireTrustDomainFromString("example.org")
+	agentID    = td.NewID("agent")
+	workloadID = td.NewID("workload1")
 )
 
 func TestServiceMintX509SVID(t *testing.T) {
@@ -397,11 +405,413 @@ func TestServiceMintJWTSVID(t *testing.T) {
 	}
 }
 
+func TestServiceBatchNewX509SVID(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	workloadEntry := &types.Entry{
+		Id:       "workload",
+		ParentId: api.ProtoFromID(agentID),
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "workload1"},
+	}
+	dnsEntry := &types.Entry{
+		Id:       "dns",
+		ParentId: api.ProtoFromID(agentID),
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "dns"},
+		DnsNames: []string{"entryDNS1", "entryDNS2"},
+	}
+	ttlEntry := &types.Entry{
+		Id:       "ttl",
+		ParentId: api.ProtoFromID(agentID),
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "ttl"},
+		Ttl:      10,
+	}
+	invalidEntry := &types.Entry{
+		Id:       "invalid",
+		ParentId: api.ProtoFromID(agentID),
+	}
+	test.ef.entries = []*types.Entry{workloadEntry, dnsEntry, ttlEntry, invalidEntry}
+
+	x509CA := test.ca.X509CA()
+	now := test.ca.Clock().Now().UTC()
+
+	_, invalidCsrErr := x509.ParseCertificateRequest([]byte{1, 2, 3})
+	require.Error(t, invalidCsrErr)
+
+	type expectResult struct {
+		entry  *types.Entry
+		status *types.Status
+	}
+
+	for _, tt := range []struct {
+		name           string
+		code           codes.Code
+		reqs           []string
+		err            string
+		expectLogs     []spiretest.LogEntry
+		expectResults  []*expectResult
+		failSigning    bool
+		failCallerID   bool
+		fetcherErr     string
+		mutateCSR      func([]byte) []byte
+		rateLimiterErr error
+	}{
+		{
+			name: "success",
+			reqs: []string{workloadEntry.Id},
+			expectResults: []*expectResult{
+				{
+					entry: workloadEntry,
+				},
+			},
+		}, {
+			name: "custom ttl",
+			reqs: []string{ttlEntry.Id},
+			expectResults: []*expectResult{
+				{
+					entry: ttlEntry,
+				},
+			},
+		}, {
+			name: "custom dns",
+			reqs: []string{dnsEntry.Id},
+			expectResults: []*expectResult{
+				{
+					entry: dnsEntry,
+				},
+			},
+		}, {
+			name: "keep request order",
+			reqs: []string{workloadEntry.Id, invalidEntry.Id, dnsEntry.Id},
+			expectResults: []*expectResult{
+				{
+					entry: workloadEntry,
+				},
+				{
+					status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "entry has malformed SPIFFE ID",
+					},
+				},
+				{
+					entry: dnsEntry,
+				},
+			},
+		}, {
+			name: "no caller id",
+			reqs: []string{workloadEntry.Id},
+			code: codes.Internal,
+			err:  "caller ID missing from request context",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Caller ID missing from request context",
+				},
+			},
+			failCallerID: true,
+		}, {
+			name: "no parameters",
+			reqs: []string{},
+			code: codes.InvalidArgument,
+			err:  "request missing parameters",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Request missing parameters",
+				},
+			},
+		}, {
+			name: "rate limit fails",
+			reqs: []string{workloadEntry.Id},
+			code: codes.Internal,
+			err:  "rate limit error",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Rejecting request due to certificate signing rate limiting",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = rate limit error",
+					},
+				},
+			},
+			rateLimiterErr: status.Error(codes.Internal, "rate limit error"),
+		}, {
+			name:       "fetch entries fails",
+			reqs:       []string{workloadEntry.Id},
+			code:       codes.Internal,
+			err:        "failed to fetch registration entries",
+			fetcherErr: "fetcher fails",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch registration entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = fetcher fails",
+					},
+				},
+			},
+		}, {
+			name: "missing entry ID",
+			reqs: []string{""},
+			expectResults: []*expectResult{
+				{
+					status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "missing entry ID",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: missing entry ID",
+				},
+			},
+		}, {
+			name: "missing CSR",
+			reqs: []string{workloadEntry.Id},
+			expectResults: []*expectResult{
+				{
+					status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: `missing CSR`,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: missing CSR",
+				},
+			},
+			mutateCSR: func([]byte) []byte {
+				return []byte{}
+			},
+		}, {
+			name: "entry not found",
+			reqs: []string{"invalid entry"},
+			expectResults: []*expectResult{
+				{
+					status: &types.Status{
+						Code:    int32(codes.NotFound),
+						Message: "entry not found or not authorized",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: entry not found or not authorized",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "invalid entry",
+					},
+				},
+			},
+		}, {
+			name: "malformed CSR",
+			reqs: []string{workloadEntry.Id},
+			expectResults: []*expectResult{
+				{
+					status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "malformed CSR: asn1:",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: malformed CSR",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "workload",
+						logrus.ErrorKey:          invalidCsrErr.Error(),
+					},
+				},
+			},
+			mutateCSR: func([]byte) []byte {
+				return []byte{1, 2, 3}
+			},
+		}, {
+			name: "invalid signature",
+			reqs: []string{workloadEntry.Id},
+			expectResults: []*expectResult{
+				{
+					status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "invalid CSR signature",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid CSR signature",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "workload",
+						logrus.ErrorKey:          "x509: ECDSA verification failure",
+					},
+				},
+			},
+			mutateCSR: func(csr []byte) []byte {
+				// 4 bytes from the end should be back far enough to be in the
+				// signature bytes.
+				csr[len(csr)-4]++
+				return csr
+			},
+		}, {
+			name: "malformed SPIFFE ID",
+			reqs: []string{invalidEntry.Id},
+			expectResults: []*expectResult{
+				{
+					status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "entry has malformed SPIFFE ID",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Entry has malformed SPIFFE ID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "invalid",
+						logrus.ErrorKey:          "request must specify SPIFFE ID",
+					},
+				},
+			},
+		}, {
+			name: "signing fails",
+			reqs: []string{workloadEntry.Id},
+			expectResults: []*expectResult{
+				{
+					status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to sign X509-SVID: X509 CA is not available for signing",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to sign X509-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "workload",
+						logrus.ErrorKey:          "X509 CA is not available for signing",
+						telemetry.SPIFFEID:       workloadID.String(),
+					},
+				},
+			},
+			failSigning: true,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+
+			// Set x509CA used when signing SVID
+			test.ca.SetX509CA(x509CA)
+			if tt.failSigning {
+				test.ca.SetX509CA(nil)
+			}
+			ctx := context.Background()
+
+			test.rateLimiter.count = len(tt.reqs)
+			test.rateLimiter.err = tt.rateLimiterErr
+
+			test.withCallerID = !tt.failCallerID
+			test.ef.err = tt.fetcherErr
+
+			var params []*svidpb.NewX509SVIDParams
+			for _, entryID := range tt.reqs {
+				// Create CSR
+				csr := createCSR(t, &x509.CertificateRequest{})
+				if tt.mutateCSR != nil {
+					csr = tt.mutateCSR(csr)
+				}
+				params = append(params, &svidpb.NewX509SVIDParams{
+					EntryId: entryID,
+					Csr:     csr,
+				})
+			}
+
+			// Batch svids
+			resp, err := test.client.BatchNewX509SVID(ctx, &svidpb.BatchNewX509SVIDRequest{
+				Params: params,
+			})
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.NotEmpty(t, resp.Results)
+
+			for i, result := range resp.Results {
+				expect := tt.expectResults[i]
+
+				if expect.status != nil {
+					require.Nil(t, result.Bundle)
+					require.Equal(t, expect.status.Code, result.Status.Code)
+					require.Contains(t, result.Status.Message, expect.status.Message)
+
+					if tt.expectLogs != nil {
+						spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+					}
+					continue
+				}
+
+				require.NotNil(t, result.Bundle)
+
+				entry := expect.entry
+
+				require.Equal(t, entry.SpiffeId.TrustDomain, result.Bundle.Id.TrustDomain)
+				require.Equal(t, entry.SpiffeId.Path, result.Bundle.Id.Path)
+
+				certChain, err := x509util.RawCertsToCertificates(result.Bundle.CertChain)
+				require.NoError(t, err)
+				require.NotEmpty(t, certChain)
+				svid := certChain[0]
+
+				entryID := spiffeid.Must(entry.SpiffeId.TrustDomain, entry.SpiffeId.Path)
+				require.Equal(t, []*url.URL{entryID.URL()}, svid.URIs)
+
+				// Use entry ttl when defined
+				ttl := test.ca.X509SVIDTTL()
+				if entry.Ttl != 0 {
+					ttl = time.Duration(entry.Ttl) * time.Second
+				}
+				expiresAt := now.Add(ttl)
+
+				require.Equal(t, expiresAt, svid.NotAfter)
+				require.Equal(t, expiresAt.UTC().Unix(), result.Bundle.ExpiresAt)
+
+				require.Equal(t, entry.DnsNames, svid.DNSNames)
+
+				expectedSubject := &pkix.Name{Country: []string{"US"}, Organization: []string{"SPIRE"}}
+				if len(entry.DnsNames) > 0 {
+					name := entry.DnsNames[0]
+
+					expectedSubject.CommonName = name
+					require.Equal(t, name, svid.Subject.CommonName)
+				}
+
+				require.Equal(t, expectedSubject.String(), svid.Subject.String())
+			}
+		})
+	}
+}
+
 type serviceTest struct {
-	client  svidpb.SVIDClient
-	ca      *fakeserverca.CA
-	logHook *test.Hook
-	done    func()
+	client       svidpb.SVIDClient
+	ef           *entryFetcher
+	ca           *fakeserverca.CA
+	logHook      *test.Hook
+	rateLimiter  *fakeRateLimiter
+	withCallerID bool
+	done         func()
 }
 
 func (c *serviceTest) Cleanup() {
@@ -411,9 +821,12 @@ func (c *serviceTest) Cleanup() {
 func setupServiceTest(t *testing.T) *serviceTest {
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
+	ef := &entryFetcher{}
+	rateLimiter := &fakeRateLimiter{}
 	service := svid.New(svid.Config{
-		ServerCA:    ca,
-		TrustDomain: trustDomain,
+		EntryFetcher: ef,
+		ServerCA:     ca,
+		TrustDomain:  trustDomain,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -421,23 +834,67 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		svid.RegisterService(s, service)
 	}
 
+	test := &serviceTest{
+		ca:          ca,
+		ef:          ef,
+		logHook:     logHook,
+		rateLimiter: rateLimiter,
+	}
+
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
+		ctx = rpccontext.WithRateLimiter(ctx, rateLimiter)
+		if test.withCallerID {
+			ctx = rpccontext.WithCallerID(ctx, agentID)
+		}
 		return ctx
 	}
 
+	// Set create client and add to test
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
+	test.client = svidpb.NewSVIDClient(conn)
+	test.done = done
 
-	return &serviceTest{
-		client:  svidpb.NewSVIDClient(conn),
-		ca:      ca,
-		logHook: logHook,
-		done:    done,
-	}
+	return test
 }
 
 func createCSR(tb testing.TB, template *x509.CertificateRequest) []byte {
 	csr, err := x509.CreateCertificateRequest(rand.Reader, template, testKey)
 	require.NoError(tb, err)
 	return csr
+}
+
+type entryFetcher struct {
+	err     string
+	entries []*types.Entry
+}
+
+func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+	if f.err != "" {
+		return nil, status.Error(codes.Internal, f.err)
+	}
+
+	caller, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		return nil, errors.New("no caller ID on context")
+	}
+
+	if caller != agentID {
+		return nil, fmt.Errorf("provided caller id is different to expected")
+	}
+
+	return f.entries, nil
+}
+
+type fakeRateLimiter struct {
+	count int
+	err   error
+}
+
+func (f *fakeRateLimiter) RateLimit(ctx context.Context, count int) error {
+	if f.count != count {
+		return fmt.Errorf("rate limiter got %d but expected %d", count, f.count)
+	}
+
+	return f.err
 }
