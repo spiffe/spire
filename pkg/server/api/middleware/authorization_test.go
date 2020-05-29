@@ -117,11 +117,11 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			fullMethod: "/some.Service/WhatInTheWorld",
 			peer:       unixPeer,
 			expectCode: codes.Internal,
-			expectMsg:  `authorization misconfigured for "/some.Service/WhatInTheWorld"`,
+			expectMsg:  `authorization misconfigured for "/some.Service/WhatInTheWorld" (method not registered)`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Authorization misconfigured; this is a bug",
+					Message: "Authorization misconfigured (method not registered); this is a bug",
 				},
 			},
 		},
