@@ -188,7 +188,7 @@ func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string)
 	rateLimiter, ok := i.limiters[fullMethod]
 	if !ok {
 		rpccontext.Logger(ctx).Error("Rate limiting misconfigured; this is a bug")
-		return nil, status.Errorf(codes.Internal, "rate limiting misconfigured for RPC %q", fullMethod)
+		return nil, status.Errorf(codes.Internal, "rate limiting misconfigured for %q", fullMethod)
 	}
 	return rpccontext.WithRateLimiter(ctx, &rateLimiterWrapper{rateLimiter: rateLimiter}), nil
 }

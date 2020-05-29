@@ -61,11 +61,6 @@ func TestGetFederatedBundle(t *testing.T) {
 		setBundle   bool
 	}{
 		{
-			name:   "No SVID presented",
-			err:    "the caller must be local or present an admin or an active agent X509-SVID",
-			logMsg: "Permission denied: the caller must be local or present an admin or an active agent X509-SVID",
-		},
-		{
 			name:    "Trust domain is empty",
 			isAdmin: true,
 			err:     `trust domain argument is not a valid SPIFFE ID: ""`,
@@ -285,10 +280,10 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.isAdmin {
-			ctx = rpccontext.WithCallerEntry(ctx, &types.Entry{Admin: true})
+			ctx = rpccontext.WithCallerAdminEntries(ctx, []*types.Entry{{Admin: true}})
 		}
 		if test.isAgent {
-			ctx = rpccontext.WithAttestedNode(ctx, &common.AttestedNode{})
+			ctx = rpccontext.WithAgentCaller(ctx)
 		}
 		if test.isLocal {
 			ctx = rpccontext.WithCallerAddr(ctx, &net.UnixAddr{
