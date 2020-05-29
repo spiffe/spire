@@ -297,11 +297,6 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (resp *svid.NewJWTSVIDResponse, err error) {
 	log := rpccontext.Logger(ctx)
 
-	if len(req.Audience) == 0 {
-		log.Error("At least one audience is required")
-		return nil, status.Error(codes.InvalidArgument, "at least one audience is required")
-	}
-
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
 		log.WithError(err).Error("Rejecting request due to JWT signing request rate limiting")
 		return nil, err
