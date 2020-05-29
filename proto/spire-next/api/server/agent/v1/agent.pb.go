@@ -31,9 +31,10 @@ type ListAgentsRequest struct {
 	Filter *ListAgentsRequest_Filter `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
 	// An output mask indicating which agent fields are set in the response.
 	OutputMask *types.AgentMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
-	// The maximum number of items to return.
+	// The maximum number of results to return. The server may further
+	// constrain this value, or if zero, choose its own.
 	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// The next_page_token value returned from a previous List request, if any.
+	// The next_page_token value returned from a previous request, if any.
 	PageToken            string   `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -155,6 +156,8 @@ type ListAgentsResponse struct {
 	// The agents.
 	Agents []*types.Agent `protobuf:"bytes,1,rep,name=agents,proto3" json:"agents,omitempty"`
 	// The page token for the next request. Empty if there are no more results.
+	// This field should be checked by clients even when a page_size was not
+	// requested, since the server may choose its own (see page_size).
 	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

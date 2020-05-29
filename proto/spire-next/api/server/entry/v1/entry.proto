@@ -54,11 +54,11 @@ message ListEntriesRequest {
     // An output mask indicating the entry fields set in the response.
     spire.types.EntryMask output_mask = 2;
 
-    // The maximum number of entries to return.
+    // The maximum number of results to return. The server may further
+    // constrain this value, or if zero, choose its own.
     int32 page_size = 3;
 
-    // The `next_page_token` value obtained from the previous
-    // `ListEntriesResponse` message, if any.
+    // The next_page_token value returned from a previous request, if any.
     string page_token = 4;
 }
 
@@ -66,8 +66,9 @@ message ListEntriesResponse {
     // The list of entries.
     repeated spire.types.Entry entries = 1;
 
-    // The token to use as the value for `page_token` in the next
-    // `ListEntriesRequest`.
+    // The page token for the next request. Empty if there are no more results.
+    // This field should be checked by clients even when a page_size was not
+    // requested, since the server may choose its own (see page_size).
     string next_page_token = 2;
 }
 
