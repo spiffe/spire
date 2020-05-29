@@ -2,11 +2,17 @@ package bundle_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
+	"time"
 
+	"google.golang.org/grpc/codes"
+
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -19,31 +25,34 @@ import (
 	"google.golang.org/grpc"
 )
 
-var tdBundle = &common.Bundle{
-	TrustDomainId: "spiffe://example.org",
-	RefreshHint:   60,
-	RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-0")}},
-	JwtSigningKeys: []*common.PublicKey{
-		{
-			Kid:       "key-id-0",
-			NotAfter:  1590514224,
-			PkixBytes: []byte("key-bytes-0"),
+var (
+	ctx         = context.Background()
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+	tdBundle    = &common.Bundle{
+		TrustDomainId: "spiffe://example.org",
+		RefreshHint:   60,
+		RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-0")}},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       "key-id-0",
+				NotAfter:  1590514224,
+				PkixBytes: []byte("key-bytes-0"),
+			},
 		},
-	},
-}
-
-var federatedBundle = &common.Bundle{
-	TrustDomainId: "spiffe://another-example.org",
-	RefreshHint:   60,
-	RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-1")}},
-	JwtSigningKeys: []*common.PublicKey{
-		{
-			Kid:       "key-id-1",
-			NotAfter:  1590514224,
-			PkixBytes: []byte("key-bytes-1"),
+	}
+	federatedBundle = &common.Bundle{
+		TrustDomainId: "spiffe://another-example.org",
+		RefreshHint:   60,
+		RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-1")}},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       "key-id-1",
+				NotAfter:  1590514224,
+				PkixBytes: []byte("key-bytes-1"),
+			},
 		},
-	},
-}
+	}
+)
 
 func TestGetFederatedBundle(t *testing.T) {
 	test := setupServiceTest(t)
@@ -206,6 +215,149 @@ func TestGetBundle(t *testing.T) {
 	}
 }
 
+func TestListFederatedBundles(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	_ = createBundle(t, test, trustDomain.String())
+
+	td1 := spiffeid.RequireTrustDomainFromString("td1.org")
+	b1 := createBundle(t, test, td1.String())
+
+	td2 := spiffeid.RequireTrustDomainFromString("td2.org")
+	b2 := createBundle(t, test, td2.String())
+
+	td3 := spiffeid.RequireTrustDomainFromString("td3.org")
+	b3 := createBundle(t, test, td3.String())
+
+	for _, tt := range []struct {
+		name          string
+		code          codes.Code
+		err           string
+		expectBundles []*common.Bundle
+		expectLogs    []spiretest.LogEntry
+		expectToken   string
+		isInvalidTD   bool
+		outputMask    *types.BundleMask
+		pageSize      int32
+		pageToken     string
+	}{
+		{
+			name:          "no returns fields filtered by mask",
+			expectBundles: []*common.Bundle{b1, b2, b3},
+			outputMask: &types.BundleMask{
+				TrustDomain:     false,
+				RefreshHint:     false,
+				SequenceNumber:  false,
+				X509Authorities: false,
+				JwtAuthorities:  false,
+			},
+		},
+		{
+			name:          "get only trust domains",
+			expectBundles: []*common.Bundle{b1, b2, b3},
+			outputMask: &types.BundleMask{
+				TrustDomain: true,
+			},
+		},
+		{
+			name: "get first page",
+			// Returns only one element because server bundle is the first element
+			// returned by datastore, and we filter resutls on service
+			expectBundles: []*common.Bundle{b1},
+			expectToken:   td1.String(),
+			pageSize:      2,
+		},
+		{
+			name:          "get second page",
+			expectBundles: []*common.Bundle{b2, b3},
+			expectToken:   td3.String(),
+			pageSize:      2,
+			pageToken:     td1.String(),
+		},
+		{
+			name:          "get third page",
+			expectBundles: []*common.Bundle{},
+			expectToken:   "",
+			pageSize:      2,
+			pageToken:     td3.String(),
+		},
+		{
+			name: "datastore returns invalid trust domain",
+			code: codes.Internal,
+			err:  `bundle has an invalid trust domain ID: "invalid TD"`,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Bundle has an invalid trust domain ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://invalid TD: invalid character " " in host name`,
+						telemetry.TrustDomainID: "invalid TD",
+					},
+				},
+			},
+			isInvalidTD: true,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+
+			// Create an invalid bundle to test mask failing
+			if tt.isInvalidTD {
+				invalidBundle := createBundle(t, test, "invalid TD")
+				defer func() {
+					_, _ = test.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
+						TrustDomainId: invalidBundle.TrustDomainId,
+					})
+				}()
+			}
+
+			resp, err := test.client.ListFederatedBundles(ctx, &bundlepb.ListFederatedBundlesRequest{
+				OutputMask: tt.outputMask,
+				PageSize:   tt.pageSize,
+				PageToken:  tt.pageToken,
+			})
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			require.Equal(t, tt.expectToken, resp.NextPageToken)
+			require.Len(t, resp.Bundles, len(tt.expectBundles))
+
+			for i, b := range resp.Bundles {
+				assertBundleWithMask(t, tt.expectBundles[i], b, tt.outputMask)
+			}
+		})
+	}
+}
+
+func createBundle(t *testing.T, test *serviceTest, td string) *common.Bundle {
+	b := &common.Bundle{
+		TrustDomainId: td,
+		RefreshHint:   60,
+		RootCas:       []*common.Certificate{{DerBytes: []byte(fmt.Sprintf("cert-bytes-%s", td))}},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       fmt.Sprintf("key-id-%s", td),
+				NotAfter:  time.Now().Add(time.Minute).Unix(),
+				PkixBytes: []byte(fmt.Sprintf("key-bytes-%s", td)),
+			},
+		},
+	}
+	test.setBundle(t, b)
+
+	return b
+}
+
 func assertBundleWithMask(t *testing.T, expected *common.Bundle, actual *types.Bundle, m *types.BundleMask) {
 	if m == nil || m.TrustDomain {
 		require.Equal(t, spiffeid.RequireTrustDomainFromString(expected.TrustDomainId).String(), actual.TrustDomain)
@@ -260,7 +412,6 @@ func (c *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	ds := fakedatastore.New()
 	service := bundle.New(bundle.Config{
 		Datastore:   ds,

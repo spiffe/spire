@@ -192,6 +192,37 @@ func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesR
 	sort.Strings(keys)
 
 	resp := new(datastore.ListBundlesResponse)
+
+	p := req.Pagination
+	// in case pagination is defined and page size greater than zero apply pagination
+	if p != nil && p.PageSize > 0 {
+		// as default start in first position
+		init := 0
+
+		// If token is defined set index of initial element
+		if p.Token != "" {
+			init = sort.StringSlice(keys).Search(p.Token) + 1
+		}
+
+		// set end as initial element + page size, if end is greater to entries size use length as end
+		length := len(keys)
+		end := init + int(p.PageSize)
+		if end > length {
+			end = length
+		}
+
+		// create a new array with paged bundles
+		keys = keys[init:end]
+		if len(keys) > 0 {
+			lastIndex := len(keys) - 1
+			// change token to latests bundle key
+			resp.Pagination = &datastore.Pagination{
+				PageSize: p.PageSize,
+				Token:    keys[lastIndex],
+			}
+		}
+	}
+
 	for _, key := range keys {
 		resp.Bundles = append(resp.Bundles, cloneBundle(s.bundles[key]))
 	}
