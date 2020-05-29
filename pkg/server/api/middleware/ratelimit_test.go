@@ -151,7 +151,7 @@ func TestRateLimits(t *testing.T) {
 			name:       "RPC fails if method not configured for rate limiting",
 			method:     "/fake.Service/Whoopsie",
 			expectCode: codes.Internal,
-			expectMsg:  `rate limiting misconfigured for RPC "/fake.Service/Whoopsie"`,
+			expectMsg:  `rate limiting misconfigured for "/fake.Service/Whoopsie"`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,

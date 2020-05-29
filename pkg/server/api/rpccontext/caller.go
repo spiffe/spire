@@ -61,7 +61,7 @@ func CallerDownstreamEntries(ctx context.Context) ([]*types.Entry, bool) {
 	return entries, ok
 }
 
-// WithCallerDownstreamEntries returns a context with the given entries.
+// WithCallerAdminEntries returns a context with the given entries.
 func WithCallerAdminEntries(ctx context.Context, entries []*types.Entry) context.Context {
 	return context.WithValue(ctx, callerAdminEntriesKey{}, entries)
 }

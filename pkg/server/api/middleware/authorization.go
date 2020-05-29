@@ -10,8 +10,8 @@ import (
 )
 
 type Authorizer interface {
-	// Name returns the name the authorizer. The value may be included in logs
-	// and messages returned to callers on authorization failure.
+	// Name returns the name of the authorizer. The value may be included in
+	// logs and messages returned to callers on authorization failure.
 	Name() string
 
 	// AuthorizeCaller is called by the authorization middleware to determine
@@ -52,7 +52,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	authorizer, ok := m.authorizers[methodName]
 	if !ok {
 		rpccontext.Logger(ctx).Error("Authorization misconfigured; this is a bug")
-		return nil, status.Errorf(codes.Internal, "authorization misconfigured")
+		return nil, status.Errorf(codes.Internal, "authorization misconfigured for %q", methodName)
 	}
 	return authorizer.AuthorizeCaller(ctx)
 }
