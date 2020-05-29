@@ -25,7 +25,7 @@ func (fn EntryFetcherFunc) FetchEntries(ctx context.Context, id spiffeid.ID) ([]
 
 type callerEntriesKey struct{}
 
-// WithCallerEntries returns a the caller entries retrieved using the given
+// WithCallerEntries returns the caller entries retrieved using the given
 // fetcher. If the context already has the caller entries, they are returned
 // without re-fetching. This reduces entry fetching in the face of multiple
 // authorizers.
