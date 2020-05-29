@@ -38,11 +38,11 @@ func TestAnyOfAuthorizer(t *testing.T) {
 		{
 			name:       "no authorizers",
 			expectCode: codes.Internal,
-			expectMsg:  "authorization misconfigured",
+			expectMsg:  "authorization misconfigured (no authorizers)",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Authorization misconfigured; this is a bug",
+					Message: "Authorization misconfigured (no authorizers); this is a bug",
 				},
 			},
 		},
