@@ -33,16 +33,15 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 	hc := health.New()
 
 	var server *http.Server
-	// Start HTTP server if address is configured
-	address := config.getAddress()
-	if address != nil {
+	// Start HTTP server if ListenerEnabled is true
+	if config.ListenerEnabled {
 		handler := http.NewServeMux()
 
 		handler.HandleFunc(config.getReadyPath(), handlers.NewJSONHandlerFunc(hc, nil))
 		handler.HandleFunc(config.getLivePath(), live)
 
 		server = &http.Server{
-			Addr:    *address,
+			Addr:    config.getAddress(),
 			Handler: handler,
 		}
 	}
@@ -74,7 +73,7 @@ func (c *Checker) ListenAndServe(ctx context.Context) error {
 	}
 
 	var wg sync.WaitGroup
-	if c.server != nil {
+	if c.config.ListenerEnabled {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
