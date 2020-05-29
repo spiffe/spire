@@ -48,7 +48,28 @@ type Service struct {
 }
 
 func (s *Service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBundle not implemented")
+	log := rpccontext.Logger(ctx)
+
+	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: s.td.IDString(),
+	})
+	if err != nil {
+		log.Errorf("Failed to fetch bundle: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch bundle: %v", err)
+	}
+
+	if dsResp.Bundle == nil {
+		log.Error("Bundle not found")
+		return nil, status.Error(codes.NotFound, "bundle not found")
+	}
+
+	b, err := applyMask(dsResp.Bundle, req.OutputMask)
+	if err != nil {
+		log.Errorf("Failed to apply mask: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to apply mask: %v", err)
+	}
+
+	return b, nil
 }
 
 func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequest) (*types.Bundle, error) {
