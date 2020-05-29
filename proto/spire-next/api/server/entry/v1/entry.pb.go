@@ -30,10 +30,10 @@ type ListEntriesRequest struct {
 	Filter *ListEntriesRequest_Filter `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
 	// An output mask indicating the entry fields set in the response.
 	OutputMask *types.EntryMask `protobuf:"bytes,2,opt,name=output_mask,json=outputMask,proto3" json:"output_mask,omitempty"`
-	// The maximum number of entries to return.
+	// The maximum number of results to return. The server may further
+	// constrain this value, or if zero, choose its own.
 	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// The `next_page_token` value obtained from the previous
-	// `ListEntriesResponse` message, if any.
+	// The next_page_token value returned from a previous request, if any.
 	PageToken            string   `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -151,8 +151,9 @@ func (m *ListEntriesRequest_Filter) GetBySelectors() *types.SelectorMatch {
 type ListEntriesResponse struct {
 	// The list of entries.
 	Entries []*types.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
-	// The token to use as the value for `page_token` in the next
-	// `ListEntriesRequest`.
+	// The page token for the next request. Empty if there are no more results.
+	// This field should be checked by clients even when a page_size was not
+	// requested, since the server may choose its own (see page_size).
 	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
