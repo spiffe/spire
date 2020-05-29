@@ -19,15 +19,28 @@ import (
 	"google.golang.org/grpc"
 )
 
-var bundle1 = &common.Bundle{
+var tdBundle = &common.Bundle{
+	TrustDomainId: "spiffe://example.org",
+	RefreshHint:   60,
+	RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-0")}},
+	JwtSigningKeys: []*common.PublicKey{
+		{
+			Kid:       "key-id-0",
+			NotAfter:  1590514224,
+			PkixBytes: []byte("key-bytes-0"),
+		},
+	},
+}
+
+var federatedBundle = &common.Bundle{
 	TrustDomainId: "spiffe://another-example.org",
 	RefreshHint:   60,
-	RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
+	RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-1")}},
 	JwtSigningKeys: []*common.PublicKey{
 		{
 			Kid:       "key-id-1",
 			NotAfter:  1590514224,
-			PkixBytes: []byte("key-bytes"),
+			PkixBytes: []byte("key-bytes-1"),
 		},
 	},
 }
@@ -47,11 +60,6 @@ func TestGetFederatedBundle(t *testing.T) {
 		isLocal     bool
 		setBundle   bool
 	}{
-		{
-			name:   "No SVID presented",
-			err:    "the caller must be local or present an admin or an active agent X509-SVID",
-			logMsg: "Permission denied: the caller must be local or present an admin or an active agent X509-SVID",
-		},
 		{
 			name:    "Trust domain is empty",
 			isAdmin: true,
@@ -118,7 +126,7 @@ func TestGetFederatedBundle(t *testing.T) {
 			test.isLocal = tt.isLocal
 
 			if tt.setBundle {
-				test.setBundle(t, bundle1)
+				test.setBundle(t, federatedBundle)
 			}
 
 			b, err := test.client.GetFederatedBundle(context.Background(), &bundlepb.GetFederatedBundleRequest{
@@ -136,7 +144,64 @@ func TestGetFederatedBundle(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, b)
-			assertBundleWithMask(t, bundle1, b, tt.outputMask)
+			assertBundleWithMask(t, federatedBundle, b, tt.outputMask)
+		})
+	}
+}
+
+func TestGetBundle(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		err        string
+		logMsg     string
+		outputMask *types.BundleMask
+		setBundle  bool
+	}{
+		{
+			name:      "Get bundle returns bundle",
+			setBundle: true,
+		},
+		{
+			name:   "Bundle not found",
+			err:    `bundle not found`,
+			logMsg: `Bundle not found`,
+		},
+		{
+			name:      "Get bundle does not return fields filtered by mask",
+			setBundle: true,
+			outputMask: &types.BundleMask{
+				TrustDomain:     false,
+				RefreshHint:     false,
+				SequenceNumber:  false,
+				X509Authorities: false,
+				JwtAuthorities:  false,
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			if tt.setBundle {
+				test.setBundle(t, tdBundle)
+			}
+
+			b, err := test.client.GetBundle(context.Background(), &bundlepb.GetBundleRequest{
+				OutputMask: tt.outputMask,
+			})
+
+			if tt.err != "" {
+				require.Nil(t, b)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.err)
+				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, b)
+			assertBundleWithMask(t, tdBundle, b, tt.outputMask)
 		})
 	}
 }
@@ -215,10 +280,10 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.isAdmin {
-			ctx = rpccontext.WithCallerEntry(ctx, &types.Entry{Admin: true})
+			ctx = rpccontext.WithCallerAdminEntries(ctx, []*types.Entry{{Admin: true}})
 		}
 		if test.isAgent {
-			ctx = rpccontext.WithAttestedNode(ctx, &common.AttestedNode{})
+			ctx = rpccontext.WithAgentCaller(ctx)
 		}
 		if test.isLocal {
 			ctx = rpccontext.WithCallerAddr(ctx, &net.UnixAddr{
