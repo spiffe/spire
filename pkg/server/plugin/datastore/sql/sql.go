@@ -226,7 +226,7 @@ func (ds *Plugin) ListBundles(ctx context.Context, req *datastore.ListBundlesReq
 	defer callCounter.Done(&err)
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listBundles(tx)
+		resp, err = listBundles(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -893,13 +893,37 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 }
 
 // listBundles can be used to fetch all existing bundles.
-func listBundles(tx *gorm.DB) (*datastore.ListBundlesResponse, error) {
+func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
+	if req.Pagination != nil && req.Pagination.PageSize == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	}
+
+	p := req.Pagination
+	var err error
+	if p != nil {
+		tx, err = applyPagination(p, tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var bundles []Bundle
 	if err := tx.Find(&bundles).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.ListBundlesResponse{}
+	if p != nil {
+		p.Token = ""
+		// Set token only if page size is the same than bundles len
+		if len(bundles) > 0 {
+			lastEntry := bundles[len(bundles)-1]
+			p.Token = fmt.Sprint(lastEntry.ID)
+		}
+	}
+
+	resp := &datastore.ListBundlesResponse{
+		Pagination: p,
+	}
 	for _, model := range bundles {
 		model := model // alias the loop variable since we pass it by reference below
 		bundle, err := modelToBundle(&model)
