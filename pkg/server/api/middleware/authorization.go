@@ -51,8 +51,8 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 
 	authorizer, ok := m.authorizers[methodName]
 	if !ok {
-		rpccontext.Logger(ctx).Error("Authorization misconfigured; this is a bug")
-		return nil, status.Errorf(codes.Internal, "authorization misconfigured for %q", methodName)
+		rpccontext.Logger(ctx).Error("Authorization misconfigured (method not registered); this is a bug")
+		return nil, status.Errorf(codes.Internal, "authorization misconfigured for %q (method not registered)", methodName)
 	}
 	return authorizer.AuthorizeCaller(ctx)
 }

@@ -339,9 +339,10 @@ func TestServiceMintJWTSVID(t *testing.T) {
 		},
 		{
 			name:        "fails minting",
-			code:        codes.InvalidArgument,
-			err:         "at least one audience is required",
-			logMsg:      "At least one audience is required",
+			code:        codes.Internal,
+			audience:    []string{"AUDIENCE"},
+			err:         "failed to sign JWT-SVID: JWT key is not available for signing",
+			logMsg:      "Failed to sign JWT-SVID",
 			failMinting: true,
 			expiresAt:   expiresAt,
 			id:          workloadID,
@@ -351,7 +352,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			test.ca.SetJWTKey(jwtKey)
 			if tt.failMinting {
-				test.ca.CA.SetJWTKey(nil)
+				test.ca.SetJWTKey(nil)
 			}
 
 			resp, err := test.client.MintJWTSVID(context.Background(), &svidpb.MintJWTSVIDRequest{
@@ -370,37 +371,153 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+
+			// Verify response
+			verifyJWTSVIDResponse(t, resp.Svid, tt.id, tt.audience, issuedAt, tt.expiresAt, expiresAt, tt.ttl)
+		})
+	}
+}
+
+func TestServiceNewJWTSVID(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	entry := &types.Entry{
+		Id:       "agent-entry-id",
+		ParentId: api.ProtoFromID(agentID),
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
+	}
+	entryWithTTL := &types.Entry{
+		Id:       "agent-entry-ttl-id",
+		ParentId: api.ProtoFromID(agentID),
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-ttl"},
+		Ttl:      10,
+	}
+	invalidEntry := &types.Entry{
+		Id:       "invalid-entry",
+		ParentId: api.ProtoFromID(agentID),
+		SpiffeId: &types.SPIFFEID{},
+	}
+
+	test.ef.entries = []*types.Entry{entry, entryWithTTL, invalidEntry}
+	jwtKey := test.ca.JWTKey()
+	now := test.ca.Clock().Now().UTC()
+
+	issuedAt := now
+	expiresAt := now.Add(test.ca.JWTSVIDTTL())
+
+	for _, tt := range []struct {
+		name string
+
+		code           codes.Code
+		err            string
+		logMsg         string
+		expiresAt      time.Time
+		entry          *types.Entry
+		failMinting    bool
+		failCallerID   bool
+		audience       []string
+		rateLimiterErr error
+	}{
+		{
+			name:      "success",
+			audience:  []string{"AUDIENCE"},
+			entry:     entry,
+			expiresAt: expiresAt,
+		},
+		{
+			name:      "success custom TTL",
+			audience:  []string{"AUDIENCE"},
+			entry:     entryWithTTL,
+			expiresAt: now.Add(10 * time.Second),
+		},
+		{
+			name:     "no SPIFFE ID",
+			code:     codes.InvalidArgument,
+			audience: []string{"AUDIENCE"},
+			entry:    invalidEntry,
+			err:      "spiffeid: trust domain is empty",
+			logMsg:   "Failed to parse SPIFFE ID",
+		},
+		{
+			name:   "no audience",
+			code:   codes.InvalidArgument,
+			err:    "at least one audience is required",
+			logMsg: "At least one audience is required",
+			entry:  entry,
+		},
+		{
+			name:         "no caller id",
+			code:         codes.Internal,
+			audience:     []string{"AUDIENCE"},
+			err:          "caller ID missing from request context",
+			logMsg:       "Caller ID missing from request context",
+			entry:        entry,
+			failCallerID: true,
+		},
+		{
+			name:           "rate limit fails",
+			code:           codes.Internal,
+			audience:       []string{"AUDIENCE"},
+			entry:          entry,
+			err:            "rate limit error",
+			logMsg:         "Rejecting request due to JWT signing request rate limiting",
+			rateLimiterErr: status.Error(codes.Internal, "rate limit error"),
+		},
+		{
+			name:     "entry not found",
+			code:     codes.NotFound,
+			audience: []string{"AUDIENCE"},
+			entry:    &types.Entry{Id: "non-existent-entry"},
+			err:      "entry not found or not authorized",
+			logMsg:   "Invalid request: entry not found",
+		},
+		{
+			name:        "fails minting",
+			code:        codes.Internal,
+			audience:    []string{"AUDIENCE"},
+			entry:       entry,
+			err:         "failed to sign JWT-SVID: JWT key is not available for signing",
+			logMsg:      "Failed to sign JWT-SVID",
+			failMinting: true,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.ca.SetJWTKey(jwtKey)
+			if tt.failMinting {
+				test.ca.SetJWTKey(nil)
+			}
+
+			test.rateLimiter.count = 1
+			test.rateLimiter.err = tt.rateLimiterErr
+			test.withCallerID = !tt.failCallerID
+
+			resp, err := test.client.NewJWTSVID(context.Background(), &svidpb.NewJWTSVIDRequest{
+				EntryId:  tt.entry.Id,
+				Audience: tt.audience,
+			})
+
+			// Check for expected errors
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				require.Equal(t, tt.logMsg, test.logHook.LastEntry().Message)
+
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
 			require.NotNil(t, resp.Svid)
 
 			// Verify response
-			require.NotEmpty(t, resp.Svid.Token)
-
-			token, err := jwt.ParseSigned(resp.Svid.Token)
-			require.NoError(t, err)
-
-			var claims jwt.Claims
-			err = token.UnsafeClaimsWithoutVerification(&claims)
-			require.NoError(t, err)
-
-			id, err := api.IDFromProto(resp.Svid.Id)
-			require.NoError(t, err)
-			require.Equal(t, tt.id, id)
-			require.Equal(t, tt.id.String(), claims.Subject)
-
-			require.Equal(t, jwt.Audience(tt.audience), claims.Audience)
-
-			require.NotNil(t, claims.IssuedAt)
-			require.Equal(t, issuedAt.Unix(), resp.Svid.IssuedAt)
-			require.Equal(t, issuedAt.Unix(), int64(*claims.IssuedAt))
-
-			require.NotNil(t, claims.Expiry)
-			if tt.ttl == 0 {
-				require.Equal(t, expiresAt.Unix(), resp.Svid.ExpiresAt)
-				require.Equal(t, expiresAt.Unix(), int64(*claims.Expiry))
-			} else {
-				require.Equal(t, tt.expiresAt.Unix(), resp.Svid.ExpiresAt)
-				require.Equal(t, tt.expiresAt.Unix(), int64(*claims.Expiry))
-			}
+			verifyJWTSVIDResponse(t, resp.Svid,
+				spiffeid.Must(tt.entry.SpiffeId.TrustDomain, tt.entry.SpiffeId.Path),
+				tt.audience,
+				issuedAt,
+				tt.expiresAt,
+				expiresAt,
+				time.Duration(tt.entry.Ttl)*time.Second)
 		})
 	}
 }
@@ -862,6 +979,38 @@ func createCSR(tb testing.TB, template *x509.CertificateRequest) []byte {
 	csr, err := x509.CreateCertificateRequest(rand.Reader, template, testKey)
 	require.NoError(tb, err)
 	return csr
+}
+
+func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID, audience []string, issuedAt, expiresAt, defaultExpiresAt time.Time, ttl time.Duration) {
+	require.NotNil(t, jwtsvid)
+	require.NotEmpty(t, jwtsvid.Token)
+
+	token, err := jwt.ParseSigned(jwtsvid.Token)
+	require.NoError(t, err)
+
+	var claims jwt.Claims
+	err = token.UnsafeClaimsWithoutVerification(&claims)
+	require.NoError(t, err)
+
+	jwtsvidID, err := api.IDFromProto(jwtsvid.Id)
+	require.NoError(t, err)
+	require.Equal(t, id, jwtsvidID)
+	require.Equal(t, id.String(), claims.Subject)
+
+	require.Equal(t, jwt.Audience(audience), claims.Audience)
+
+	require.NotNil(t, claims.IssuedAt)
+	require.Equal(t, issuedAt.Unix(), jwtsvid.IssuedAt)
+	require.Equal(t, issuedAt.Unix(), int64(*claims.IssuedAt))
+
+	require.NotNil(t, claims.Expiry)
+	if ttl == 0 {
+		require.Equal(t, defaultExpiresAt.Unix(), jwtsvid.ExpiresAt)
+		require.Equal(t, defaultExpiresAt.Unix(), int64(*claims.Expiry))
+	} else {
+		require.Equal(t, expiresAt.Unix(), jwtsvid.ExpiresAt)
+		require.Equal(t, expiresAt.Unix(), int64(*claims.Expiry))
+	}
 }
 
 type entryFetcher struct {
