@@ -2,15 +2,18 @@
 
 A SPIRE deployment has the capacity to be changed in size or scale to accommodate a growing amount of workloads. A SPIRE deployment is composed of a number of one or more SPIRE Servers that share a replicated datastore, or conversely, a set of SPIRE servers in the same trust domain, and at least one SPIRE Agent, but typically more than one.
 
-Deployments range in size. A single SPIRE Server may accommodate a number of Agents and Workload Registration entries. A scale sizing consideration is that with one SPIRE Server per SPIRE deployment, the memory and CPU consumption tends to grow proportionally to the number of Workloads in the deployment. A single SPIRE Server also represents a single point of failure.
+Deployments range in size. A single SPIRE Server may accommodate a number of Agents and Workload Registration entries. A scale sizing consideration is that the memory and CPU consumption of SPIRE Server instances tends to grow proportionally to the number of Workload Registration entries in a deployment due to the number of operations involved in managing and issuing identities corresponding to those entries, . A single instance of a SPIRE Server also represents a single point of failure.
 
-To support larger numbers of Agents and Workloads within a given deployment (tens of thousands or hundreds of thousands of nodes), the number of SPIRE Servers can be scaled horizontally. With multiple servers, the load is distributed. In addition to additional capacity, the use of more than one SPIRE Servers eliminates single points of failure to achieve high availability.
+To support larger numbers of Agents and Workloads within a given deployment (tens of thousands or hundreds of thousands of nodes), the number of SPIRE Servers can be scaled horizontally. With multiple servers, the amount of computational work that a SPIRE Server performs is distributed between all SPIRE Server instances. In addition to additional capacity, the use of more than one SPIRE Server instance eliminates single points of failure to achieve high availability.
 
 ## SPIRE Servers in High Availability Mode
 
-Applicable to all topologies, when scaling the number of servers horizontally, be it for high availability or load distribution purposes, configure all servers in the deployment to share the same datastore (with the exception of Nested topology for sets of SPIRE Servers in different levels).
+![Diagram of High Availability]
+(https://github.com/spiffe/spire/tree/master/doc/images/ha_mode.png)
 
-The datastore is where SPIRE Server persists dynamic configuration information such as registration entries and identity mapping policies. SQLite is bundled with SPIRE Server and it is the default datastore. A number of compatible SQL databases are supported, as well as one plugin for Kubernetes using Kubernetes CRDs. When scaling SPIRE servers horizontally, choose a datastore that fits your requirements and configure all SPIRE servers to use the selected datastore. For details please refer to the datastore plugin configuration reference.
+To scale the SPIRE Server horizontally, be it for high availability or load distribution purposes, configure all servers in same trust domain to read and write to the same shared datastore.
+
+The datastore is where SPIRE Server persists dynamic configuration information such as registration entries and identity mapping policies. SQLite is bundled with SPIRE Server and it is the default datastore. A number of compatible SQL databases are supported, as well as one plugin for Kubernetes using Kubernetes CRDs. When scaling SPIRE servers horizontally, choose a datastore that fits your requirements and configure all SPIRE servers to use the selected datastore. For details please refer to the [datastore plugin configuration reference](https://github.com/spiffe/spire/blob/master/doc/plugin_server_datastore_sql.md).
 
 In High Availability mode, each server maintains its own Certificate Authority, which may be either self-signed certificates or an intermediate certificate off of a shared root authority (i.e. when configured with an UpstreamAuthority).
 
@@ -26,11 +29,18 @@ Factors such as administrative domain boundaries, number of workloads, availabil
 
 ## Single Trust Domain
 
+![Diagram of Single Trust Domain]
+(https://github.com/spiffe/spire/tree/master/doc/images/single_trust_domain.png)
+
 A single trust domain is best suited for individual environments or environments that share similar characteristics within an administrative domain. The primary motivation for a single overarching trust domain is to issue identities from a single Certificate Authority, as it reduces the number of SPIRE Servers in distinct deployments to manage.
 
 However, when deploying a single SPIRE trust domain to span regions, platforms, and cloud provider environments, there is a level of complexity associated with managing a shared datastore across geographically dispersed locations or across cloud provider boundaries. Under these circumstances when a deployment grows to span multiple environments, a solution to address the use of a shared datastore over a single trust domain is to configure SPIRE Servers in a nested topology.
 
 ## Nested SPIRE
+
+
+![Diagram of Nested SPIRE]
+(https://github.com/spiffe/spire/tree/master/doc/images/nested_spire.png)
 
 Nested SPIRE allows SPIRE Servers to be “chained” together, and for all servers to still issue identities in the same trust domain, meaning all Workloads identified in the same trust domain are issued identity documents that can be verified against the root keys of the trust domain.
 
@@ -46,6 +56,9 @@ Complementary to scaling SPIRE Servers horizontally for high availability and lo
 
 ## Federated SPIRE
 
+![Diagram of Federated SPIRE]
+(https://github.com/spiffe/spire/tree/master/doc/images/federated_spire.png)
+
 Deployments may require multiple roots of trust: perhaps because an organization has different organizational divisions with different administrators, or because they have separate staging and production environments that occasionally need to communicate.
 
 Another use case is SPIFFE interoperability between organizations, such as between a cloud provider and its customers.
@@ -58,11 +71,17 @@ For additional detail on how this is achieved, refer to the following SPIFFE spe
 
 ## Federation with "SPIFFE-Compatible" Systems
 
-SPIFFE identity issuers can federation with each other, enabling Workloads in separate domains to securely authenticate and communicate. Much like Federation between SPIRE deployments, SPIFFE Federation is used to enable federation between SPIFFE-compatible systems, say between a SPIRE deployment and an Istio service mesh, or an Istio service mesh running in one cluster in one datacenter to another Istio service mesh running elsewhere.
+![Diagram of Federated with SPIFFE-Compatible Systems]
+(https://github.com/spiffe/spire/tree/master/doc/images/spiffe_compatible.png)
+
+SPIFFE identity issuers can federate with other SPIFFE identity issuers that expose an implementation of the SPIFFE Federation API, enabling Workloads in federated domains to securely authenticate and communicate. Much like federation between SPIRE deployments, SPIFFE Federation is used to enable federation between SPIFFE-compatible systems, say between a SPIRE deployment and an Istio service mesh, or an Istio service mesh running in one cluster in one datacenter to another Istio service mesh running elsewhere.
 
 For example, in current Istio, all applications on the service mesh are in the same trust domain thus share a common root of trust. There may be more than one service mesh, or applications in the service mesh communicating to external services that need to be authenticated. The use of Federation enables SPIFFE-compatible systems such as multiple Istio service meshes to securely establish trust for secure cross-mesh and off-mesh communications.
 
 ## Federation with OIDC-Provider Systems
+
+![Diagram of Federated with SPIFFE-Compatible Systems]
+(https://github.com/spiffe/spire/tree/master/doc/images/oidc_federation.png)
 
 SPIRE has a feature to programmatically authenticate on behalf of identified workloads to remote systems such as public cloud provider services and secret stores that are OIDC-Federation compatible.  For example, in the case of Amazon Web Services, a SPIRE identified workload can authenticate and communicate with an AWS S3 Bucket, an AWS RDS instance, or AWS CodePipeline.
 
