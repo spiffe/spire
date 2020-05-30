@@ -8,7 +8,7 @@ To support larger numbers of Agents and Workloads within a given deployment (ten
 
 ## SPIRE Servers in High Availability Mode
 
-![Diagram of High Availability](https://github.com/spiffe/spire/tree/master/doc/images/ha_mode.png)
+![Diagram of High Availability](/doc/images/ha_mode.png)
 
 To scale the SPIRE Server horizontally, be it for high availability or load distribution purposes, configure all servers in same trust domain to read and write to the same shared datastore.
 
@@ -28,7 +28,7 @@ Factors such as administrative domain boundaries, number of workloads, availabil
 
 ## Single Trust Domain
 
-![Diagram of Single Trust Domain](https://github.com/spiffe/spire/tree/master/doc/images/single_trust_domain.png)
+![Diagram of Single Trust Domain](/doc/images/single_trust_domain.png)
 
 A single trust domain is best suited for individual environments or environments that share similar characteristics within an administrative domain. The primary motivation for a single overarching trust domain is to issue identities from a single Certificate Authority, as it reduces the number of SPIRE Servers in distinct deployments to manage.
 
@@ -37,7 +37,7 @@ However, when deploying a single SPIRE trust domain to span regions, platforms, 
 ## Nested SPIRE
 
 
-![Diagram of Nested SPIRE](https://github.com/spiffe/spire/tree/master/doc/images/nested_spire.png)
+![Diagram of Nested SPIRE](/doc/images/nested_spire.png)
 
 Nested SPIRE allows SPIRE Servers to be “chained” together, and for all servers to still issue identities in the same trust domain, meaning all Workloads identified in the same trust domain are issued identity documents that can be verified against the root keys of the trust domain.
 
@@ -53,7 +53,7 @@ Complementary to scaling SPIRE Servers horizontally for high availability and lo
 
 ## Federated SPIRE
 
-![Diagram of Federated SPIRE](https://github.com/spiffe/spire/tree/master/doc/images/federated_spire.png)
+![Diagram of Federated SPIRE](/doc/images/federated_spire.png)
 
 Deployments may require multiple roots of trust: perhaps because an organization has different organizational divisions with different administrators, or because they have separate staging and production environments that occasionally need to communicate.
 
@@ -67,7 +67,7 @@ For additional detail on how this is achieved, refer to the following SPIFFE spe
 
 ## Federation with "SPIFFE-Compatible" Systems
 
-![Diagram of Federated with SPIFFE-Compatible Systems](https://github.com/spiffe/spire/tree/master/doc/images/spiffe_compatible.png)
+![Diagram of Federated with SPIFFE-Compatible Systems](/doc/images/spiffe_compatible.png)
 
 SPIFFE identity issuers can federate with other SPIFFE identity issuers that expose an implementation of the SPIFFE Federation API, enabling Workloads in federated domains to securely authenticate and communicate. Much like federation between SPIRE deployments, SPIFFE Federation is used to enable federation between SPIFFE-compatible systems, say between a SPIRE deployment and an Istio service mesh, or an Istio service mesh running in one cluster in one datacenter to another Istio service mesh running elsewhere.
 
@@ -75,7 +75,7 @@ For example, in current Istio, all applications on the service mesh are in the s
 
 ## Federation with OIDC-Provider Systems
 
-![Diagram of Federated with SPIFFE-Compatible Systems](https://github.com/spiffe/spire/tree/master/doc/images/oidc_federation.png)
+![Diagram of Federated with SPIFFE-Compatible Systems](/doc/images/oidc_federation.png)
 
 SPIRE has a feature to programmatically authenticate on behalf of identified workloads to remote systems such as public cloud provider services and secret stores that are OIDC-Federation compatible.  For example, in the case of Amazon Web Services, a SPIRE identified workload can authenticate and communicate with an AWS S3 Bucket, an AWS RDS instance, or AWS CodePipeline.
 
