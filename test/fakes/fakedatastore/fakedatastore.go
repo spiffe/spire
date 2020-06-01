@@ -143,6 +143,10 @@ func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundl
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
 		return nil, ErrNoSuchBundle
