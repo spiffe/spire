@@ -46,6 +46,9 @@ type DataStore struct {
 
 	// relates bundles with entries that federate with them
 	bundleEntries map[string]map[string]bool
+
+	// expect error when calling functions
+	expectErr error
 }
 
 var _ datastore.DataStore = (*DataStore)(nil)
@@ -118,6 +121,10 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	bundle := req.Bundle
 
 	if existingBundle, ok := s.bundles[bundle.TrustDomainId]; ok {
@@ -168,6 +175,9 @@ func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundl
 func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
@@ -617,6 +627,10 @@ func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoi
 	}
 
 	return &datastore.PruneJoinTokensResponse{}, nil
+}
+
+func (s *DataStore) SetError(err error) {
+	s.expectErr = err
 }
 
 func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
