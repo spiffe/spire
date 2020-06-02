@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -713,6 +714,166 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 	}
 }
 
+func TestPublishJWTAuthority(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
+	require.NoError(t, err)
+	expiresAt := time.Now().Unix()
+	jwtKey1 := &types.JWTKey{
+		ExpiresAt: expiresAt,
+		KeyId:     "key1",
+		PublicKey: pkixBytes,
+	}
+
+	_, expectedJWTErr := x509.ParsePKIXPublicKey([]byte("malformed key"))
+	require.Error(t, expectedJWTErr)
+
+	for _, tt := range []struct {
+		name string
+
+		code           codes.Code
+		err            string
+		expectLogs     []spiretest.LogEntry
+		resultKeys     []*types.JWTKey
+		fakeErr        error
+		fakeExpectKey  *common.PublicKey
+		jwtKey         *types.JWTKey
+		rateLimiterErr error
+	}{
+		{
+			name:   "success",
+			jwtKey: jwtKey1,
+			fakeExpectKey: &common.PublicKey{
+				PkixBytes: pkixBytes,
+				Kid:       "key1",
+				NotAfter:  expiresAt,
+			},
+			resultKeys: []*types.JWTKey{
+				{
+					ExpiresAt: expiresAt,
+					KeyId:     "key1",
+					PublicKey: pkixBytes,
+				},
+			},
+		},
+		{
+			name:           "rate limit fails",
+			jwtKey:         jwtKey1,
+			rateLimiterErr: status.Error(codes.Internal, "limit error"),
+			code:           codes.Internal,
+			err:            "limit error",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Rejecting request due to key publishing rate limiting",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = limit error",
+					},
+				},
+			},
+		},
+		{
+			name: "missing JWT authority",
+			code: codes.InvalidArgument,
+			err:  "missing JWT authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: missing JWT authority",
+				},
+			},
+		},
+		{
+			name: "malformed key",
+			code: codes.InvalidArgument,
+			err:  "invalid JWT authority: asn1:",
+			jwtKey: &types.JWTKey{
+				ExpiresAt: expiresAt,
+				KeyId:     "key1",
+				PublicKey: []byte("malformed key"),
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid JWT authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey: expectedJWTErr.Error(),
+					},
+				},
+			},
+		},
+		{
+			name: "missing key ID",
+			code: codes.InvalidArgument,
+			err:  "invalid JWT authority: missing key ID",
+			jwtKey: &types.JWTKey{
+				ExpiresAt: expiresAt,
+				PublicKey: jwtKey1.PublicKey,
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid JWT authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "missing key ID",
+					},
+				},
+			},
+		},
+		{
+			name:    "fail to publish",
+			code:    codes.Internal,
+			err:     "failed to publish JWT key: publish error",
+			fakeErr: errors.New("publish error"),
+			jwtKey:  jwtKey1,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to publish JWT key",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "publish error",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+
+			// Setup fake
+			test.up.t = t
+			test.up.err = tt.fakeErr
+			test.up.expectKey = tt.fakeExpectKey
+
+			// Setup rate limiter
+			test.rateLimiter.count = 1
+			test.rateLimiter.err = tt.rateLimiterErr
+
+			resp, err := test.client.PublishJWTAuthority(ctx, &bundlepb.PublishJWTAuthorityRequest{
+				JwtAuthority: tt.jwtKey,
+			})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if err != nil {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			spiretest.RequireProtoEqual(t, &bundlepb.PublishJWTAuthorityResponse{
+				JwtAuthorities: tt.resultKeys,
+			}, resp)
+		})
+	}
+}
+
 func TestListFederatedBundles(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
@@ -1122,13 +1283,15 @@ func (c *serviceTest) setBundle(t *testing.T, b *common.Bundle) {
 }
 
 type serviceTest struct {
-	client  bundlepb.BundleClient
-	ds      *fakedatastore.DataStore
-	logHook *test.Hook
-	done    func()
-	isAdmin bool
-	isAgent bool
-	isLocal bool
+	client      bundlepb.BundleClient
+	ds          *fakedatastore.DataStore
+	logHook     *test.Hook
+	up          *fakeUpstreamPublisher
+	rateLimiter *fakeRateLimiter
+	done        func()
+	isAdmin     bool
+	isAgent     bool
+	isLocal     bool
 }
 
 func (c *serviceTest) Cleanup() {
@@ -1137,9 +1300,12 @@ func (c *serviceTest) Cleanup() {
 
 func setupServiceTest(t *testing.T) *serviceTest {
 	ds := fakedatastore.New()
+	up := new(fakeUpstreamPublisher)
+	rateLimiter := new(fakeRateLimiter)
 	service := bundle.New(bundle.Config{
-		Datastore:   ds,
-		TrustDomain: serverTrustDomain,
+		Datastore:         ds,
+		TrustDomain:       serverTrustDomain,
+		UpstreamPublisher: up,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -1148,8 +1314,10 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	}
 
 	test := &serviceTest{
-		ds:      ds,
-		logHook: logHook,
+		ds:          ds,
+		logHook:     logHook,
+		up:          up,
+		rateLimiter: rateLimiter,
 	}
 
 	contextFn := func(ctx context.Context) context.Context {
@@ -1166,6 +1334,8 @@ func setupServiceTest(t *testing.T) *serviceTest {
 				Name: "addr.sock",
 			})
 		}
+
+		ctx = rpccontext.WithRateLimiter(ctx, rateLimiter)
 		return ctx
 	}
 
@@ -1224,4 +1394,33 @@ func clearDSBundles(t *testing.T, ds datastore.DataStore) {
 		})
 		require.NoError(t, err)
 	}
+}
+
+type fakeUpstreamPublisher struct {
+	t         testing.TB
+	err       error
+	expectKey *common.PublicKey
+}
+
+func (f *fakeUpstreamPublisher) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	spiretest.AssertProtoEqual(f.t, f.expectKey, jwtKey)
+
+	return []*common.PublicKey{jwtKey}, nil
+}
+
+type fakeRateLimiter struct {
+	count int
+	err   error
+}
+
+func (f *fakeRateLimiter) RateLimit(ctx context.Context, count int) error {
+	if f.count != count {
+		return fmt.Errorf("rate limiter got %d but expected %d", count, f.count)
+	}
+
+	return f.err
 }
