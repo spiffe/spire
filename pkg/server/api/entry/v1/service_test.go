@@ -34,12 +34,13 @@ func TestGetEntry(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
 
-	test.createBundles(t)
+	// Create fedeated bundles, that we use on "FederatesWith"
+	test.createFederatedBundles(t)
 
 	parent := td.NewID("foo")
 	entry1SpiffeID := td.NewID("bar")
 	expiresAt := time.Now().Unix()
-	entry1, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+	goodEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &common.RegistrationEntry{
 			ParentId: parent.String(),
 			SpiffeId: entry1SpiffeID.String(),
@@ -83,9 +84,9 @@ func TestGetEntry(t *testing.T) {
 	}{
 		{
 			name:    "success",
-			entryID: entry1.Entry.EntryId,
+			entryID: goodEntry.Entry.EntryId,
 			expectEntry: &types.Entry{
-				Id:       entry1.Entry.EntryId,
+				Id:       goodEntry.Entry.EntryId,
 				ParentId: api.ProtoFromID(parent),
 				SpiffeId: api.ProtoFromID(entry1SpiffeID),
 			},
@@ -97,9 +98,9 @@ func TestGetEntry(t *testing.T) {
 		},
 		{
 			name:    "no outputMask",
-			entryID: entry1.Entry.EntryId,
+			entryID: goodEntry.Entry.EntryId,
 			expectEntry: &types.Entry{
-				Id:       entry1.Entry.EntryId,
+				Id:       goodEntry.Entry.EntryId,
 				ParentId: api.ProtoFromID(parent),
 				SpiffeId: api.ProtoFromID(entry1SpiffeID),
 				Ttl:      60,
@@ -116,32 +117,32 @@ func TestGetEntry(t *testing.T) {
 		},
 		{
 			name:        "outputMask all false",
-			entryID:     entry1.Entry.EntryId,
+			entryID:     goodEntry.Entry.EntryId,
 			expectEntry: &types.Entry{},
 			outputMask:  &types.EntryMask{},
 		},
 		{
 			name: "missing ID",
 			code: codes.InvalidArgument,
-			err:  "missing Id",
+			err:  "missing ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: missing Id",
+					Message: "Invalid request: missing ID",
 				},
 			},
 		},
 		{
 			name:    "fetch fails",
 			code:    codes.Internal,
-			entryID: entry1.Entry.EntryId,
+			entryID: goodEntry.Entry.EntryId,
 			err:     "failed to fetch entry: ds error",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to fetch entry",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: entry1.Entry.EntryId,
+						telemetry.RegistrationID: goodEntry.Entry.EntryId,
 						logrus.ErrorKey:          "ds error",
 					},
 				},
@@ -167,11 +168,11 @@ func TestGetEntry(t *testing.T) {
 			name:    "malformed entry",
 			code:    codes.Internal,
 			entryID: malformedEntry.Entry.EntryId,
-			err:     "failed to convert Entry: spiffeid: invalid scheme",
+			err:     "failed to convert entry: spiffeid: invalid scheme",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to convert Entry",
+					Message: "Failed to convert entry",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: malformedEntry.Entry.EntryId,
 						logrus.ErrorKey:          "spiffeid: invalid scheme",
@@ -215,20 +216,8 @@ func (s *serviceTest) Cleanup() {
 	s.done()
 }
 
-func (s *serviceTest) createBundles(t *testing.T) {
+func (s *serviceTest) createFederatedBundles(t *testing.T) {
 	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId: td.IDString(),
-			RootCas: []*common.Certificate{
-				{
-					DerBytes: []byte("bundle"),
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId: federatedTd.IDString(),
 			RootCas: []*common.Certificate{

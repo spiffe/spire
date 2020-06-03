@@ -44,8 +44,8 @@ func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*ty
 	log := rpccontext.Logger(ctx)
 
 	if req.Id == "" {
-		log.Error("Invalid request: missing Id")
-		return nil, status.Error(codes.InvalidArgument, "missing Id")
+		log.Error("Invalid request: missing ID")
+		return nil, status.Error(codes.InvalidArgument, "missing ID")
 	}
 	log = log.WithField(telemetry.RegistrationID, req.Id)
 	dsResp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
@@ -63,8 +63,8 @@ func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*ty
 
 	entry, err := api.RegistrationEntryToProto(dsResp.Entry)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert Entry")
-		return nil, status.Errorf(codes.Internal, "failed to convert Entry: %v", err)
+		log.WithError(err).Error("Failed to convert entry")
+		return nil, status.Errorf(codes.Internal, "failed to convert entry: %v", err)
 	}
 	applyMask(entry, req.OutputMask)
 
