@@ -27,10 +27,12 @@ message FetchBundleResponse {
 }
 
 message ListBundlesRequest {
+    Pagination pagination = 1;
 }
 
 message ListBundlesResponse {
     repeated spire.common.Bundle bundles = 1;
+    Pagination pagination = 2;
 }
 
 message UpdateBundleRequest {

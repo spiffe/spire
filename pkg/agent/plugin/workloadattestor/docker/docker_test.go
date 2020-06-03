@@ -175,6 +175,25 @@ cgroup_container_index = 1`,
 			cfg: `cgroup_prefix = "/docker"
 cgroup_container_index = 2`,
 		},
+		{
+			desc:     "RHEL docker cgroups",
+			cgroups:  "4:devices:/system.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
+			hasMatch: true,
+		},
+		{
+			desc:     "docker for desktop",
+			cgroups:  "6:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/system.slice/containerd.service",
+			hasMatch: true,
+		},
+		{
+			desc:      "more than one id",
+			cgroups:   testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
+			expectErr: "multiple container IDs found in cgroups",
+		},
+		{
+			desc:    "default finder does not match cgroup missing docker prefix",
+			cgroups: "4:devices:/system.slice/41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
+		},
 	}
 
 	for _, tt := range tests {
@@ -350,8 +369,11 @@ cgroup_container_index = 2
 
 		_, err := doConfigure(t, p, cfg)
 		require.NoError(t, err)
-		require.Equal(t, "/docker2", p.cgroupPrefix)
-		require.Equal(t, 3, p.cgroupContainerIndex)
+		require.Equal(t, &legacyContainerIDFinder{
+			log:                  p.log,
+			cgroupPrefix:         "/docker2",
+			cgroupContainerIndex: 3,
+		}, p.containerIDFinder)
 	})
 	t.Run("bad matcher", func(t *testing.T) {
 		p := New()
@@ -393,15 +415,12 @@ container_id_cgroup_matchers = [
 }
 
 func TestDockerConfigDefault(t *testing.T) {
-	defaultFinder, err := cgroup.NewContainerIDFinder(defaultContainerIDMatchers)
-	require.NoError(t, err)
-
 	p := newTestPlugin(t)
 
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
 	require.Equal(t, "1.41", p.docker.(*dockerclient.Client).ClientVersion())
-	require.Equal(t, defaultFinder, p.containerIDFinder)
+	require.Equal(t, &defaultContainerIDFinder{}, p.containerIDFinder)
 }
 
 func doAttest(t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {

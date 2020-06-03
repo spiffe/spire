@@ -569,6 +569,11 @@
 
 
 
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
+
+
 
 
 
@@ -582,6 +587,7 @@
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | bundles | [spire.common.Bundle](#spire.common.Bundle) | repeated |  |
+| pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
 

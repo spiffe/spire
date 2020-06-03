@@ -2,104 +2,107 @@ package rpccontext
 
 import (
 	"context"
+	"crypto/x509"
 	"net"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire-next/types"
-	"github.com/spiffe/spire/proto/spire/common"
-	"google.golang.org/grpc/peer"
 )
 
+type callerAddrKey struct{}
 type callerIDKey struct{}
-type callerEntriesKey struct{}
-type attestedNodeKey struct{}
+type callerX509SVIDKey struct{}
+type callerAdminEntriesKey struct{}
+type callerDownstreamEntriesKey struct{}
+type callerLocalTagKey struct{}
+type callerAgentTagKey struct{}
 
+// WithCallerAddr returns a context with the given address.
 func WithCallerAddr(ctx context.Context, addr net.Addr) context.Context {
-	p := new(peer.Peer)
-	if existing, ok := peer.FromContext(ctx); ok {
-		*p = *existing
-	}
-	p.Addr = addr
-	return peer.NewContext(ctx, p)
+	return context.WithValue(ctx, callerAddrKey{}, addr)
 }
 
+// CallerAddr returns the caller address.
 func CallerAddr(ctx context.Context) net.Addr {
-	if peer, ok := peer.FromContext(ctx); ok {
-		return peer.Addr
-	}
-	return nil
+	return ctx.Value(callerAddrKey{}).(net.Addr)
 }
 
+// WithCallerID returns a context with the given ID.
 func WithCallerID(ctx context.Context, id spiffeid.ID) context.Context {
 	return context.WithValue(ctx, callerIDKey{}, id)
 }
 
+// CallerID returns the caller ID, if available.
 func CallerID(ctx context.Context) (spiffeid.ID, bool) {
 	id, ok := ctx.Value(callerIDKey{}).(spiffeid.ID)
 	return id, ok
 }
 
-func WithCallerEntry(ctx context.Context, entry *types.Entry) context.Context {
-	return context.WithValue(ctx, callerEntriesKey{}, append(callerEntries(ctx), entry))
+// WithCallerX509SVID returns a context with the given X509SVID.
+func WithCallerX509SVID(ctx context.Context, x509SVID *x509.Certificate) context.Context {
+	return context.WithValue(ctx, callerX509SVIDKey{}, x509SVID)
 }
 
-func WithCallerEntries(ctx context.Context, entries []*types.Entry) context.Context {
-	return context.WithValue(ctx, callerEntriesKey{}, append(callerEntries(ctx), entries...))
+// CallerX509SVID returns the caller X509SVID, if available.
+func CallerX509SVID(ctx context.Context) (*x509.Certificate, bool) {
+	x509SVID, ok := ctx.Value(callerX509SVIDKey{}).(*x509.Certificate)
+	return x509SVID, ok
 }
 
-func CallerDownstreamEntries(ctx context.Context) []*types.Entry {
-	var out []*types.Entry
-	for _, entry := range callerEntries(ctx) {
-		if entry.Downstream {
-			out = append(out, entry)
-		}
-	}
-	return out
+// WithCallerDownstreamEntries returns a context with the given entries.
+func WithCallerDownstreamEntries(ctx context.Context, entries []*types.Entry) context.Context {
+	return context.WithValue(ctx, callerDownstreamEntriesKey{}, entries)
 }
 
-func CallerAdminEntries(ctx context.Context) []*types.Entry {
-	var out []*types.Entry
-	for _, entry := range callerEntries(ctx) {
-		if entry.Admin {
-			out = append(out, entry)
-		}
-	}
-	return out
+// CallerDownstreamEntries returns the downstream entries for the caller. If the caller is not
+// a downstream caller, it returns false.
+func CallerDownstreamEntries(ctx context.Context) ([]*types.Entry, bool) {
+	entries, ok := ctx.Value(callerDownstreamEntriesKey{}).([]*types.Entry)
+	return entries, ok
 }
 
+// WithCallerAdminEntries returns a context with the given entries.
+func WithCallerAdminEntries(ctx context.Context, entries []*types.Entry) context.Context {
+	return context.WithValue(ctx, callerAdminEntriesKey{}, entries)
+}
+
+// CallerAdminEntries returns the admin entries for the caller. If the caller
+// is not an admin caller, it returns false.
+func CallerAdminEntries(ctx context.Context) ([]*types.Entry, bool) {
+	entries, ok := ctx.Value(callerAdminEntriesKey{}).([]*types.Entry)
+	return entries, ok
+}
+
+// CallerIsDownstream returns true if the caller is a downstream caller.
 func CallerIsDownstream(ctx context.Context) bool {
-	for _, entry := range callerEntries(ctx) {
-		if entry.Downstream {
-			return true
-		}
-	}
-	return false
-}
-
-func CallerIsAdmin(ctx context.Context) bool {
-	for _, entry := range callerEntries(ctx) {
-		if entry.Admin {
-			return true
-		}
-	}
-	return false
-}
-
-func CallerIsAgent(ctx context.Context) bool {
-	_, ok := ctx.Value(attestedNodeKey{}).(*common.AttestedNode)
+	_, ok := CallerDownstreamEntries(ctx)
 	return ok
 }
 
-func WithAttestedNode(ctx context.Context, attestedNode *common.AttestedNode) context.Context {
-	return context.WithValue(ctx, attestedNodeKey{}, attestedNode)
+// CallerIsAdmin returns true if the caller is an admin caller.
+func CallerIsAdmin(ctx context.Context) bool {
+	_, ok := CallerAdminEntries(ctx)
+	return ok
 }
 
-func AttestedNode(ctx context.Context) (*common.AttestedNode, bool) {
-	attestedNode, ok := ctx.Value(attestedNodeKey{}).(*common.AttestedNode)
-	return attestedNode, ok
+// WithLocalCaller returns a context whether the caller is tagged as local.
+func WithLocalCaller(ctx context.Context) context.Context {
+	return context.WithValue(ctx, callerLocalTagKey{}, struct{}{})
 }
 
-func callerEntries(ctx context.Context) []*types.Entry {
-	entries, _ := ctx.Value(callerEntriesKey{}).([]*types.Entry)
-	return entries
+// CallerIsLocal returns true if the caller is local.
+func CallerIsLocal(ctx context.Context) bool {
+	_, ok := ctx.Value(callerLocalTagKey{}).(struct{})
+	return ok
+}
+
+// WithAgentCaller returns a context whether the caller is tagged as an agent.
+func WithAgentCaller(ctx context.Context) context.Context {
+	return context.WithValue(ctx, callerAgentTagKey{}, struct{}{})
+}
+
+// CallerIsAgent returns true if the caller is an agent.
+func CallerIsAgent(ctx context.Context) bool {
+	_, ok := ctx.Value(callerAgentTagKey{}).(struct{})
+	return ok
 }
