@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/api/node"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -137,6 +138,17 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest)
 	}, nil
 }
 
+func (s *Service) NewDownstreamX509CA(context.Context, *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
+	downstreamCA, err := s.newDownstreamX509CA(ctx, req.Id, req.Audience, req.Ttl)
+	if err != nil {
+		return nil, err
+	}
+
+	return &svid.newDownstreamX509CA{
+		Svid: downstreamCA,
+	}, nil
+}
+
 func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -190,6 +202,8 @@ func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map
 
 	return entriesMap, nil
 }
+
+
 
 // newX509SVID creates an X509-SVID using data from registration entry and key from CSR
 func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams, typeEntries map[string]*types.Entry) (*types.X509SVID, error) {
@@ -324,6 +338,92 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (
 	}, nil
 }
 
-func (s *Service) NewDownstreamX509CA(context.Context, *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "not implemented")
+// Fetch the downstream entry associated with the caller spiffe ID
+func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*common.RegistrationEntry, error) {
+	ds := h.c.Catalog.GetDataStore()
+	response, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		BySpiffeId: &wrappers.StringValue{
+			Value: callerID,
+		},
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range response.Entries {
+		if (entry.SpiffeId == callerID) && (entry.Downstream) {
+			return entry, nil
+		}
+	}
+
+	h.c.Log.WithField(telemetry.CallerID, callerID).Error("Unauthorized downstream workload")
+	return nil, errors.New("unauthorized downstream workload")
+}
+
+func (s *Service) NewDownstreamX509CA(context.Context ctx, *svid.NewDownstreamX509CARequest req) (*svid.NewDownstreamX509CAResponse, error) {
+	counter := telemetry_server.StartNodeAPIFetchX509CASVIDCall(h.c.Metrics)
+	defer counter.Done(&err)
+	log := h.c.Log.WithField(telemetry.Method, telemetry.FetchX509CASVID)
+
+	peerCert, ok := getPeerCertificate(ctx)
+	if !ok {
+		log.Error("Downstream SVID is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream SVID is required for this request")
+	}
+
+	entry, ok := getDownstreamEntry(req.EntryId)
+	if !ok {
+		log.Error("Downstream entry is required for this request")
+		return nil, status.Error(codes.InvalidArgument, "downstream entry is required for this request")
+	}
+
+	if err := rpccontext.RateLimit(ctx, 1); err != nil {
+		log.WithError(err).Error("Rejecting request due to JWT signing request rate limiting")
+		return nil, err
+	}
+
+	downstreamID, err := getSpiffeIDFromCert(peerCert)
+	if err != nil {
+		log.WithError(err).Error("Failed to get SPIFFE ID from certificate")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	sourceAddress := "unknown"
+	if peerAddress, ok := getPeerAddress(ctx); ok {
+		sourceAddress = peerAddress.String()
+	}
+
+	signLog := log.WithFields(logrus.Fields{
+		telemetry.CallerID: downstreamID,
+		telemetry.Address:  sourceAddress,
+	})
+
+	csr, err := h.parseX509CACSR(req.Csr)
+	if err != nil {
+		log.WithError(err).Error("Failed to parse X.509 CA certificate signing request")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	signLog.Debug("Signing downstream CA SVID")
+	svid, err := c.ServerCA.SignX509CASVID(ctx, paramsD(ctx, ca.X509CASVIDParams{
+		SpiffeID:  csr.SpiffeID,
+		PublicKey: csr.PublicKey,
+		TTL:       time.Duration(entry.Ttl) * time.Second,
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to sign downstream CA SVID")
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch bundle")
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &node.FetchX509CASVIDResponse{
+		Svid:   svid,
+		Bundle: bundle,
+	}, nil
 }

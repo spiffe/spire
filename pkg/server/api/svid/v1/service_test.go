@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/scytaleio/scytale/controller/scytale/old/spire/proto/common"
+	"github.com/scytaleio/scytale/controller/scytale/old/spire/proto/server/datastore"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -1046,4 +1048,151 @@ func (f *fakeRateLimiter) RateLimit(ctx context.Context, count int) error {
 	}
 
 	return f.err
+}
+
+func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
+	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp.Entry)
+	return resp.Entry
+}
+
+func TestNewDownstreamX509CA(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	x509CA := test.ca.X509CA()
+	now := test.ca.Clock().Now().UTC()
+	expiredAt := now.Add(test.ca.X509SVIDTTL())
+
+	for _, tt := range []struct {
+		name        string
+		code        codes.Code
+		csrTemplate *x509.CertificateRequest
+		dns         []string
+		err         string
+		expiredAt   time.Time
+		msg         string
+		subject     string
+		ttl         time.Duration
+		failMinting bool
+		mutateCSR   func([]byte) []byte
+	}{
+		{
+			name: "success",
+			csrTemplate: &x509.CertificateRequest{
+				URIs: []*url.URL{workloadID.URL()},
+			},
+			expiredAt: expiredAt,
+			subject:   "O=SPIRE,C=US",
+		},
+		{
+			name: "custom ttl",
+			csrTemplate: &x509.CertificateRequest{
+				URIs: []*url.URL{workloadID.URL()},
+			},
+			expiredAt: now.Add(10 * time.Second),
+			subject:   "O=SPIRE,C=US",
+			ttl:       10 * time.Second,
+		},
+		{
+			name: "custom dns",
+			csrTemplate: &x509.CertificateRequest{
+				URIs:     []*url.URL{workloadID.URL()},
+				DNSNames: []string{"dns1", "dns2"},
+			},
+			dns:       []string{"dns1", "dns2"},
+			expiredAt: expiredAt,
+			subject:   "CN=dns1,O=SPIRE,C=US",
+		},
+		{
+			name: "custom subject",
+			csrTemplate: &x509.CertificateRequest{
+				URIs: []*url.URL{workloadID.URL()},
+				Subject: pkix.Name{
+					Country:      []string{"US", "EN"},
+					Organization: []string{"ORG"},
+				},
+			},
+			expiredAt: expiredAt,
+			subject:   "O=ORG,C=US+C=EN",
+		},
+		{
+			name: "custom subject and dns",
+			csrTemplate: &x509.CertificateRequest{
+				URIs:     []*url.URL{workloadID.URL()},
+				DNSNames: []string{"dns1", "dns2"},
+				Subject: pkix.Name{
+					Country:      []string{"US", "EN"},
+					Organization: []string{"ORG"},
+				},
+			},
+			dns:       []string{"dns1", "dns2"},
+			expiredAt: expiredAt,
+			subject:   "CN=dns1,O=ORG,C=US+C=EN",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			s.createRegistrationEntry(&common.RegistrationEntry{
+				ParentId:   trustDomainID,
+				SpiffeId:   agentID,
+				Downstream: true,
+				// add a DNS name. we'll assert it does not influence the CA certificate.
+				DnsNames: []string{"ca-dns1"},
+			})
+
+			// Set x509CA used when signing SVID
+			test.ca.SetX509CA(x509CA)
+			if tt.failMinting {
+				test.ca.SetX509CA(nil)
+			}
+
+			// Create CSR
+			var csr []byte
+			if tt.csrTemplate != nil {
+				csr = createCSR(t, tt.csrTemplate)
+			}
+			if tt.mutateCSR != nil {
+				csr = tt.mutateCSR(csr)
+			}
+
+			// Mint CSR
+			resp, err := test.client.TestNewDownstreamX509CA(context.Background(), &svidpb.NewDownstreamX509CARequest{
+				EntryId: 1,
+				Csr:     csr,
+			})
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				require.Equal(t, tt.msg, test.logHook.LastEntry().Message)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.NotNil(t, resp.Svid)
+
+			certChain, err := x509util.RawCertsToCertificates(resp.Svid.CertChain)
+			require.NoError(t, err)
+			require.NotEmpty(t, certChain)
+			svid := certChain[0]
+
+			id, err := api.IDFromProto(resp.Svid.Id)
+			require.NoError(t, err)
+
+			require.Equal(t, workloadID, id)
+			require.Equal(t, []*url.URL{workloadID.URL()}, svid.URIs)
+
+			require.Equal(t, tt.expiredAt.Unix(), resp.Svid.ExpiresAt)
+			require.Equal(t, tt.expiredAt, svid.NotAfter)
+
+			if len(tt.dns) > 0 {
+				require.Equal(t, tt.dns[0], svid.Subject.CommonName)
+			}
+			require.Equal(t, tt.dns, svid.DNSNames)
+			require.Equal(t, tt.subject, svid.Subject.String())
+		})
+	}
 }
