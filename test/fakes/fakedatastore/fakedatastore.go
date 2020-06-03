@@ -400,6 +400,10 @@ func (s *DataStore) FetchRegistrationEntry(ctx context.Context, req *datastore.F
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	resp := new(datastore.FetchRegistrationEntryResponse)
 	entry, ok := s.registrationEntries[req.EntryId]
 	if !ok {

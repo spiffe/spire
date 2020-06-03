@@ -3,6 +3,9 @@ package entry
 import (
 	"context"
 
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -38,7 +41,34 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 }
 
 func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*types.Entry, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetEntry not implemented")
+	log := rpccontext.Logger(ctx)
+
+	if req.Id == "" {
+		log.Error("Invalid request: missing ID")
+		return nil, status.Error(codes.InvalidArgument, "missing ID")
+	}
+	log = log.WithField(telemetry.RegistrationID, req.Id)
+	dsResp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
+		EntryId: req.Id,
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch entry")
+		return nil, status.Errorf(codes.Internal, "failed to fetch entry: %v", err)
+	}
+
+	if dsResp.Entry == nil {
+		log.Error("Entry not found")
+		return nil, status.Error(codes.NotFound, "entry not found")
+	}
+
+	entry, err := api.RegistrationEntryToProto(dsResp.Entry)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert entry")
+		return nil, status.Errorf(codes.Internal, "failed to convert entry: %v", err)
+	}
+	applyMask(entry, req.OutputMask)
+
+	return entry, nil
 }
 
 func (s *Service) BatchCreateEntry(ctx context.Context, req *entry.BatchCreateEntryRequest) (*entry.BatchCreateEntryResponse, error) {
