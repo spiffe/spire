@@ -2,8 +2,13 @@ package bundle
 
 import (
 	"context"
+	"crypto/x509"
+	"errors"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
@@ -13,14 +18,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-var defaultMask = &types.BundleMask{
-	TrustDomain:     true,
-	RefreshHint:     true,
-	SequenceNumber:  true,
-	X509Authorities: true,
-	JwtAuthorities:  true,
-}
 
 // RegisterService registers the bundle service on the gRPC server.
 func RegisterService(s *grpc.Server, service *Service) {
@@ -48,11 +45,133 @@ type Service struct {
 }
 
 func (s *Service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBundle not implemented")
+	log := rpccontext.Logger(ctx)
+
+	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: s.td.IDString(),
+	})
+	if err != nil {
+		log.Errorf("Failed to fetch bundle: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch bundle: %v", err)
+	}
+
+	if dsResp.Bundle == nil {
+		log.Error("Bundle not found")
+		return nil, status.Error(codes.NotFound, "bundle not found")
+	}
+
+	bundle, err := api.BundleToProto(dsResp.Bundle)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return nil, status.Errorf(codes.Internal, "failed to convert bundle: %v", err)
+	}
+
+	applyBundleMask(bundle, req.OutputMask)
+	return bundle, nil
 }
 
 func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequest) (*types.Bundle, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AppendBundle not implemented")
+	log := rpccontext.Logger(ctx)
+
+	if req.Bundle == nil {
+		log.Error("Invalid request: missing bundle")
+		return nil, status.Error(codes.InvalidArgument, "missing bundle")
+	}
+
+	td, err := spiffeid.TrustDomainFromString(req.Bundle.TrustDomain)
+	if err != nil {
+		log.WithError(err).Errorf("Invalid request: trust domain argument is not a valid SPIFFE ID: %q", req.Bundle.TrustDomain)
+		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not a valid SPIFFE ID: %q", req.Bundle.TrustDomain)
+	}
+
+	if s.td.Compare(td) != 0 {
+		log.Error("Invalid request: only the trust domain of the server can be appended")
+		return nil, status.Error(codes.InvalidArgument, "only the trust domain of the server can be appended")
+	}
+
+	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: s.td.String(),
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch server bundle")
+		return nil, status.Errorf(codes.Internal, "failed to fetch server bundle: %v", err)
+	}
+
+	if dsResp.Bundle == nil {
+		log.Error("Failed to fetch server bundle: not found")
+		return nil, status.Errorf(codes.NotFound, "failed to fetch server bundle: not found")
+	}
+
+	applyBundleMask(req.Bundle, req.InputMask)
+
+	rootCAs, err := parseX509Authorities(req.Bundle.X509Authorities)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: invalid X509 authority")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid X509 authority: %v", err)
+	}
+
+	jwtKeys, err := parseJWTAuthorities(req.Bundle.JwtAuthorities)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: invalid JWT authority")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid JWT authority: %v", err)
+	}
+
+	resp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: &common.Bundle{
+			TrustDomainId:  td.String(),
+			JwtSigningKeys: jwtKeys,
+			RootCas:        rootCAs,
+		},
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to append bundle")
+		return nil, status.Errorf(codes.Internal, "failed to append bundle: %v", err)
+	}
+
+	bundle, err := api.BundleToProto(resp.Bundle)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return nil, status.Errorf(codes.Internal, "failed to convert bundle: %v", err)
+	}
+
+	applyBundleMask(bundle, req.OutputMask)
+	return bundle, nil
+}
+
+func parseX509Authorities(certs []*types.X509Certificate) ([]*common.Certificate, error) {
+	var rootCAs []*common.Certificate
+	for _, rootCA := range certs {
+		if _, err := x509.ParseCertificates(rootCA.Asn1); err != nil {
+			return nil, err
+		}
+
+		rootCAs = append(rootCAs, &common.Certificate{
+			DerBytes: rootCA.Asn1,
+		})
+	}
+
+	return rootCAs, nil
+}
+
+func parseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
+	var jwtKeys []*common.PublicKey
+	for _, key := range keys {
+		if _, err := x509.ParsePKIXPublicKey(key.PublicKey); err != nil {
+			return nil, err
+		}
+
+		if key.KeyId == "" {
+			return nil, errors.New("missing KeyId")
+		}
+
+		jwtKeys = append(jwtKeys, &common.PublicKey{
+			PkixBytes: key.PublicKey,
+			Kid:       key.KeyId,
+			NotAfter:  key.ExpiresAt,
+		})
+	}
+
+	return jwtKeys, nil
 }
 
 func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
@@ -60,16 +179,60 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJW
 }
 
 func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListFederatedBundles not implemented")
+	log := rpccontext.Logger(ctx)
+
+	listReq := &datastore.ListBundlesRequest{}
+
+	// Set pagination parameters
+	if req.PageSize > 0 {
+		listReq.Pagination = &datastore.Pagination{
+			PageSize: req.PageSize,
+			Token:    req.PageToken,
+		}
+	}
+
+	dsResp, err := s.ds.ListBundles(ctx, listReq)
+	if err != nil {
+		log.WithError(err).Error("Failed to list bundles")
+		return nil, status.Errorf(codes.Internal, "failed to list bundles: %v", err)
+	}
+
+	resp := &bundle.ListFederatedBundlesResponse{}
+
+	if dsResp.Pagination != nil {
+		resp.NextPageToken = dsResp.Pagination.Token
+	}
+
+	for _, dsBundle := range dsResp.Bundles {
+		td, err := spiffeid.TrustDomainFromString(dsBundle.TrustDomainId)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				logrus.ErrorKey:         err,
+				telemetry.TrustDomainID: dsBundle.TrustDomainId,
+			}).Errorf("Bundle has an invalid trust domain ID")
+			return nil, status.Errorf(codes.Internal, "bundle has an invalid trust domain ID: %q", dsBundle.TrustDomainId)
+		}
+
+		// Filter server bundle
+		if s.td.Compare(td) == 0 {
+			continue
+		}
+
+		b, err := api.BundleToProto(dsBundle)
+		if err != nil {
+			log.WithError(err).Error("Failed to convert bundle")
+			return nil, status.Errorf(codes.Internal, "failed to convert bundle: %v", err)
+		}
+		applyBundleMask(b, req.OutputMask)
+
+		resp.Bundles = append(resp.Bundles, b)
+	}
+
+	return resp, nil
 }
 
 func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx)
-
-	if !(rpccontext.CallerIsLocal(ctx) || rpccontext.CallerIsAdmin(ctx) || rpccontext.CallerIsAgent(ctx)) {
-		log.Errorf("Permission denied: the caller must be local or present an admin or an active agent X509-SVID")
-		return nil, status.Errorf(codes.PermissionDenied, "the caller must be local or present an admin or an active agent X509-SVID")
-	}
 
 	td, err := spiffeid.TrustDomainFromString(req.TrustDomain)
 	if err != nil {
@@ -95,12 +258,13 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederat
 		return nil, status.Errorf(codes.NotFound, "bundle for %q not found", req.TrustDomain)
 	}
 
-	b, err := applyMask(dsResp.Bundle, req.OutputMask)
+	b, err := api.BundleToProto(dsResp.Bundle)
 	if err != nil {
-		log.Errorf("Failed to apply mask: %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to apply mask: %v", err)
+		log.WithError(err).Error("Failed to convert bundle")
+		return nil, status.Errorf(codes.Internal, "failed to convert bundle: %v", err)
 	}
 
+	applyBundleMask(b, req.OutputMask)
 	return b, nil
 }
 
@@ -120,50 +284,28 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.Ba
 	return nil, status.Errorf(codes.Unimplemented, "method BatchDeleteFederatedBundle not implemented")
 }
 
-func applyMask(b *common.Bundle, mask *types.BundleMask) (*types.Bundle, error) {
+func applyBundleMask(b *types.Bundle, mask *types.BundleMask) {
 	if mask == nil {
-		mask = defaultMask
+		return
 	}
 
-	out := &types.Bundle{}
-	if mask.TrustDomain {
-		td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
-		if err != nil {
-			return nil, err
-		}
-		out.TrustDomain = td.String()
+	if !mask.RefreshHint {
+		b.RefreshHint = 0
 	}
 
-	if mask.RefreshHint {
-		out.RefreshHint = b.RefreshHint
+	if !mask.SequenceNumber {
+		b.SequenceNumber = 0
 	}
 
-	if mask.SequenceNumber {
-		//TODO: filter sequence numbers when SPIRE supports them
-		out.SequenceNumber = 0
+	if !mask.TrustDomain {
+		b.TrustDomain = ""
 	}
 
-	if mask.X509Authorities {
-		authorities := []*types.X509Certificate{}
-		for _, rootCA := range b.RootCas {
-			authorities = append(authorities, &types.X509Certificate{
-				Asn1: rootCA.DerBytes,
-			})
-		}
-		out.X509Authorities = authorities
+	if !mask.X509Authorities {
+		b.X509Authorities = nil
 	}
 
-	if mask.JwtAuthorities {
-		authorities := []*types.JWTKey{}
-		for _, JWTSigningKey := range b.JwtSigningKeys {
-			authorities = append(authorities, &types.JWTKey{
-				PublicKey: JWTSigningKey.PkixBytes,
-				KeyId:     JWTSigningKey.Kid,
-				ExpiresAt: JWTSigningKey.NotAfter,
-			})
-		}
-		out.JwtAuthorities = authorities
+	if !mask.JwtAuthorities {
+		b.JwtAuthorities = nil
 	}
-
-	return out, nil
 }

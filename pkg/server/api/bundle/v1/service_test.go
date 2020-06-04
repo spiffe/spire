@@ -2,11 +2,20 @@ package bundle_test
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/base64"
+	"errors"
+	"fmt"
 	"net"
 	"testing"
+	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/spiffetest"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -17,20 +26,37 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 )
 
-var bundle1 = &common.Bundle{
-	TrustDomainId: "spiffe://another-example.org",
-	RefreshHint:   60,
-	RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
-	JwtSigningKeys: []*common.PublicKey{
-		{
-			Kid:       "key-id-1",
-			NotAfter:  1590514224,
-			PkixBytes: []byte("key-bytes"),
+var (
+	ctx      = context.Background()
+	td       = spiffeid.RequireTrustDomainFromString("example.org")
+	tdBundle = &common.Bundle{
+		TrustDomainId: "spiffe://example.org",
+		RefreshHint:   60,
+		RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-0")}},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       "key-id-0",
+				NotAfter:  1590514224,
+				PkixBytes: []byte("key-bytes-0"),
+			},
 		},
-	},
-}
+	}
+	federatedBundle = &common.Bundle{
+		TrustDomainId: "spiffe://another-example.org",
+		RefreshHint:   60,
+		RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes-1")}},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       "key-id-1",
+				NotAfter:  1590514224,
+				PkixBytes: []byte("key-bytes-1"),
+			},
+		},
+	}
+)
 
 func TestGetFederatedBundle(t *testing.T) {
 	test := setupServiceTest(t)
@@ -47,11 +73,6 @@ func TestGetFederatedBundle(t *testing.T) {
 		isLocal     bool
 		setBundle   bool
 	}{
-		{
-			name:   "No SVID presented",
-			err:    "the caller must be local or present an admin or an active agent X509-SVID",
-			logMsg: "Permission denied: the caller must be local or present an admin or an active agent X509-SVID",
-		},
 		{
 			name:    "Trust domain is empty",
 			isAdmin: true,
@@ -118,7 +139,7 @@ func TestGetFederatedBundle(t *testing.T) {
 			test.isLocal = tt.isLocal
 
 			if tt.setBundle {
-				test.setBundle(t, bundle1)
+				test.setBundle(t, federatedBundle)
 			}
 
 			b, err := test.client.GetFederatedBundle(context.Background(), &bundlepb.GetFederatedBundleRequest{
@@ -136,9 +157,541 @@ func TestGetFederatedBundle(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, b)
-			assertBundleWithMask(t, bundle1, b, tt.outputMask)
+			assertBundleWithMask(t, federatedBundle, b, tt.outputMask)
 		})
 	}
+}
+
+func TestGetBundle(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		err        string
+		logMsg     string
+		outputMask *types.BundleMask
+		setBundle  bool
+	}{
+		{
+			name:      "Get bundle returns bundle",
+			setBundle: true,
+		},
+		{
+			name:   "Bundle not found",
+			err:    `bundle not found`,
+			logMsg: `Bundle not found`,
+		},
+		{
+			name:      "Get bundle does not return fields filtered by mask",
+			setBundle: true,
+			outputMask: &types.BundleMask{
+				TrustDomain:     false,
+				RefreshHint:     false,
+				SequenceNumber:  false,
+				X509Authorities: false,
+				JwtAuthorities:  false,
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			if tt.setBundle {
+				test.setBundle(t, tdBundle)
+			}
+
+			b, err := test.client.GetBundle(context.Background(), &bundlepb.GetBundleRequest{
+				OutputMask: tt.outputMask,
+			})
+
+			if tt.err != "" {
+				require.Nil(t, b)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.err)
+				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, b)
+			assertBundleWithMask(t, tdBundle, b, tt.outputMask)
+		})
+	}
+}
+
+func TestAppendBundle(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	ca := spiffetest.NewCA(t)
+	rootCA := ca.Roots()[0]
+
+	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
+	require.NoError(t, err)
+
+	sb := &common.Bundle{
+		TrustDomainId: td.String(),
+		RefreshHint:   60,
+		RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       "key-id-1",
+				NotAfter:  1590514224,
+				PkixBytes: pkixBytes,
+			},
+		},
+	}
+
+	defaultBundle, err := api.BundleToProto(sb)
+	require.NoError(t, err)
+	expiresAt := time.Now().Add(time.Minute).Unix()
+	jwtKey2 := &types.JWTKey{
+		PublicKey: pkixBytes,
+		KeyId:     "key-id-2",
+		ExpiresAt: expiresAt,
+	}
+	x509Cert := &types.X509Certificate{
+		Asn1: rootCA.Raw,
+	}
+	_, expectedX509Err := x509.ParseCertificates([]byte("malformed"))
+	require.Error(t, expectedX509Err)
+
+	_, expectedJWTErr := x509.ParsePKIXPublicKey([]byte("malformed"))
+	require.Error(t, expectedJWTErr)
+
+	for _, tt := range []struct {
+		name string
+
+		trustDomain  string
+		bundle       *types.Bundle
+		code         codes.Code
+		dsError      error
+		err          string
+		expectBundle *types.Bundle
+		expectLogs   []spiretest.LogEntry
+		invalidEntry bool
+		noBundle     bool
+		inputMask    *types.BundleMask
+		outputMask   *types.BundleMask
+	}{
+		{
+			name: "no input or output mask defined",
+			bundle: &types.Bundle{
+				TrustDomain: td.String(),
+				X509Authorities: []*types.X509Certificate{
+					x509Cert,
+				},
+				JwtAuthorities: []*types.JWTKey{jwtKey2},
+				// SequenceNumber and refresh hint are ignored.
+				SequenceNumber: 10,
+				RefreshHint:    20,
+			},
+			expectBundle: &types.Bundle{
+				TrustDomain:     defaultBundle.TrustDomain,
+				RefreshHint:     defaultBundle.RefreshHint,
+				JwtAuthorities:  append(defaultBundle.JwtAuthorities, jwtKey2),
+				SequenceNumber:  defaultBundle.SequenceNumber,
+				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
+			},
+		},
+		{
+			name: "output mask defined",
+			bundle: &types.Bundle{
+				TrustDomain:     td.String(),
+				X509Authorities: []*types.X509Certificate{x509Cert},
+				JwtAuthorities:  []*types.JWTKey{jwtKey2},
+			},
+			expectBundle: &types.Bundle{
+				TrustDomain:     defaultBundle.TrustDomain,
+				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
+			},
+			outputMask: &types.BundleMask{
+				TrustDomain:     true,
+				X509Authorities: true,
+			},
+		},
+		{
+			name: "inputMask defined",
+			bundle: &types.Bundle{
+				TrustDomain:     td.String(),
+				X509Authorities: []*types.X509Certificate{x509Cert},
+				JwtAuthorities:  []*types.JWTKey{jwtKey2},
+			},
+			expectBundle: &types.Bundle{
+				TrustDomain:     defaultBundle.TrustDomain,
+				RefreshHint:     defaultBundle.RefreshHint,
+				JwtAuthorities:  defaultBundle.JwtAuthorities,
+				SequenceNumber:  defaultBundle.SequenceNumber,
+				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
+			},
+			inputMask: &types.BundleMask{
+				X509Authorities: true,
+			},
+		},
+		{
+			name: "input mask all false",
+			bundle: &types.Bundle{
+				TrustDomain:     td.String(),
+				X509Authorities: []*types.X509Certificate{x509Cert},
+				JwtAuthorities:  []*types.JWTKey{jwtKey2},
+			},
+			expectBundle: defaultBundle,
+			inputMask: &types.BundleMask{
+				X509Authorities: false,
+				JwtAuthorities:  false,
+				RefreshHint:     false,
+				SequenceNumber:  false,
+				TrustDomain:     false,
+			},
+		},
+		{
+			name: "output mask all false",
+			bundle: &types.Bundle{
+				TrustDomain:     td.String(),
+				X509Authorities: []*types.X509Certificate{x509Cert},
+				JwtAuthorities:  []*types.JWTKey{jwtKey2},
+			},
+			expectBundle: &types.Bundle{},
+			outputMask: &types.BundleMask{
+				X509Authorities: false,
+				JwtAuthorities:  false,
+				RefreshHint:     false,
+				SequenceNumber:  false,
+				TrustDomain:     false,
+			},
+		},
+		{
+			name: "no bundle",
+			code: codes.InvalidArgument,
+			err:  "missing bundle",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: missing bundle",
+				},
+			},
+		},
+		{
+			name: "malformed trust domain",
+			bundle: &types.Bundle{
+				TrustDomain: "malformed id",
+			},
+			code: codes.InvalidArgument,
+			err:  `trust domain argument is not a valid SPIFFE ID: "malformed id"`,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: `Invalid request: trust domain argument is not a valid SPIFFE ID: "malformed id"`,
+					Data: logrus.Fields{
+						logrus.ErrorKey: `spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`,
+					},
+				},
+			},
+		},
+		{
+			name: "no allowed trust domain",
+			bundle: &types.Bundle{
+				TrustDomain: spiffeid.RequireTrustDomainFromString("another.org").String(),
+			},
+			code: codes.InvalidArgument,
+			err:  "only the trust domain of the server can be appended",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: only the trust domain of the server can be appended",
+				},
+			},
+		},
+		{
+			name: "malformed X509 authority",
+			bundle: &types.Bundle{
+				TrustDomain: td.String(),
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: []byte("malformed"),
+					},
+				},
+			},
+			code: codes.InvalidArgument,
+			err:  `invalid X509 authority: asn1:`,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid X509 authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey: expectedX509Err.Error(),
+					},
+				},
+			},
+		},
+		{
+			name: "malformed JWT authority",
+			bundle: &types.Bundle{
+				TrustDomain: td.String(),
+				JwtAuthorities: []*types.JWTKey{
+					{
+						PublicKey: []byte("malformed"),
+						ExpiresAt: expiresAt,
+						KeyId:     "kid2",
+					},
+				},
+			},
+			code: codes.InvalidArgument,
+			err:  "invalid JWT authority: asn1:",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid JWT authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey: expectedJWTErr.Error(),
+					},
+				},
+			},
+		},
+		{
+			name: "invalid keyID jwt authority",
+			bundle: &types.Bundle{
+				TrustDomain: td.String(),
+				JwtAuthorities: []*types.JWTKey{
+					{
+						PublicKey: jwtKey2.PublicKey,
+						KeyId:     "",
+					},
+				},
+			},
+			code: codes.InvalidArgument,
+			err:  "invalid JWT authority: missing KeyId",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid JWT authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "missing KeyId",
+					},
+				},
+			},
+		},
+		{
+			name: "datasource fails",
+			bundle: &types.Bundle{
+				TrustDomain:     td.String(),
+				X509Authorities: []*types.X509Certificate{x509Cert},
+			},
+			code:    codes.Internal,
+			dsError: errors.New("some error"),
+			err:     "failed to fetch server bundle: some error",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch server bundle",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "some error",
+					},
+				},
+			},
+		},
+		{
+			name: "server bundle not found",
+			bundle: &types.Bundle{
+				TrustDomain:     td.String(),
+				X509Authorities: []*types.X509Certificate{x509Cert},
+			},
+			code: codes.NotFound,
+			err:  "failed to fetch server bundle: not found",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch server bundle: not found",
+				},
+			},
+			noBundle: true,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+			test.setBundle(t, sb)
+
+			if tt.noBundle {
+				_, err := test.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
+					TrustDomainId: td.String(),
+				})
+				require.NoError(t, err)
+			}
+
+			test.ds.SetError(tt.dsError)
+
+			if tt.invalidEntry {
+				_, err := test.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+					Bundle: &common.Bundle{
+						TrustDomainId: "malformed",
+					},
+				})
+				require.NoError(t, err)
+			}
+			resp, err := test.client.AppendBundle(context.Background(), &bundlepb.AppendBundleRequest{
+				Bundle:     tt.bundle,
+				InputMask:  tt.inputMask,
+				OutputMask: tt.outputMask,
+			})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			spiretest.AssertProtoEqual(t, tt.expectBundle, resp)
+		})
+	}
+}
+
+func TestListFederatedBundles(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	_ = createBundle(t, test, td.String())
+
+	td1 := spiffeid.RequireTrustDomainFromString("td1.org")
+	b1 := createBundle(t, test, td1.String())
+
+	td2 := spiffeid.RequireTrustDomainFromString("td2.org")
+	b2 := createBundle(t, test, td2.String())
+
+	td3 := spiffeid.RequireTrustDomainFromString("td3.org")
+	b3 := createBundle(t, test, td3.String())
+
+	for _, tt := range []struct {
+		name          string
+		code          codes.Code
+		err           string
+		expectBundles []*common.Bundle
+		expectLogs    []spiretest.LogEntry
+		expectToken   string
+		isInvalidTD   bool
+		outputMask    *types.BundleMask
+		pageSize      int32
+		pageToken     string
+	}{
+		{
+			name:          "no returns fields filtered by mask",
+			expectBundles: []*common.Bundle{b1, b2, b3},
+			outputMask: &types.BundleMask{
+				TrustDomain:     false,
+				RefreshHint:     false,
+				SequenceNumber:  false,
+				X509Authorities: false,
+				JwtAuthorities:  false,
+			},
+		},
+		{
+			name:          "get only trust domains",
+			expectBundles: []*common.Bundle{b1, b2, b3},
+			outputMask: &types.BundleMask{
+				TrustDomain: true,
+			},
+		},
+		{
+			name: "get first page",
+			// Returns only one element because server bundle is the first element
+			// returned by datastore, and we filter resutls on service
+			expectBundles: []*common.Bundle{b1},
+			expectToken:   td1.String(),
+			pageSize:      2,
+		},
+		{
+			name:          "get second page",
+			expectBundles: []*common.Bundle{b2, b3},
+			expectToken:   td3.String(),
+			pageSize:      2,
+			pageToken:     td1.String(),
+		},
+		{
+			name:          "get third page",
+			expectBundles: []*common.Bundle{},
+			expectToken:   "",
+			pageSize:      2,
+			pageToken:     td3.String(),
+		},
+		{
+			name: "datastore returns invalid trust domain",
+			code: codes.Internal,
+			err:  `bundle has an invalid trust domain ID: "invalid TD"`,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Bundle has an invalid trust domain ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://invalid TD: invalid character " " in host name`,
+						telemetry.TrustDomainID: "invalid TD",
+					},
+				},
+			},
+			isInvalidTD: true,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+
+			// Create an invalid bundle to test mask failing
+			if tt.isInvalidTD {
+				invalidBundle := createBundle(t, test, "invalid TD")
+				defer func() {
+					_, _ = test.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
+						TrustDomainId: invalidBundle.TrustDomainId,
+					})
+				}()
+			}
+
+			resp, err := test.client.ListFederatedBundles(ctx, &bundlepb.ListFederatedBundlesRequest{
+				OutputMask: tt.outputMask,
+				PageSize:   tt.pageSize,
+				PageToken:  tt.pageToken,
+			})
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			require.Equal(t, tt.expectToken, resp.NextPageToken)
+			require.Len(t, resp.Bundles, len(tt.expectBundles))
+
+			for i, b := range resp.Bundles {
+				assertBundleWithMask(t, tt.expectBundles[i], b, tt.outputMask)
+			}
+		})
+	}
+}
+
+func createBundle(t *testing.T, test *serviceTest, td string) *common.Bundle {
+	b := &common.Bundle{
+		TrustDomainId: td,
+		RefreshHint:   60,
+		RootCas:       []*common.Certificate{{DerBytes: []byte(fmt.Sprintf("cert-bytes-%s", td))}},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       fmt.Sprintf("key-id-%s", td),
+				NotAfter:  time.Now().Add(time.Minute).Unix(),
+				PkixBytes: []byte(fmt.Sprintf("key-bytes-%s", td)),
+			},
+		},
+	}
+	test.setBundle(t, b)
+
+	return b
 }
 
 func assertBundleWithMask(t *testing.T, expected *common.Bundle, actual *types.Bundle, m *types.BundleMask) {
@@ -182,7 +735,7 @@ func (c *serviceTest) setBundle(t *testing.T, b *common.Bundle) {
 
 type serviceTest struct {
 	client  bundlepb.BundleClient
-	ds      datastore.DataStore
+	ds      *fakedatastore.DataStore
 	logHook *test.Hook
 	done    func()
 	isAdmin bool
@@ -195,11 +748,10 @@ func (c *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	ds := fakedatastore.New()
 	service := bundle.New(bundle.Config{
 		Datastore:   ds,
-		TrustDomain: trustDomain,
+		TrustDomain: td,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -215,10 +767,10 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.isAdmin {
-			ctx = rpccontext.WithCallerEntry(ctx, &types.Entry{Admin: true})
+			ctx = rpccontext.WithCallerAdminEntries(ctx, []*types.Entry{{Admin: true}})
 		}
 		if test.isAgent {
-			ctx = rpccontext.WithAttestedNode(ctx, &common.AttestedNode{})
+			ctx = rpccontext.WithAgentCaller(ctx)
 		}
 		if test.isLocal {
 			ctx = rpccontext.WithCallerAddr(ctx, &net.UnixAddr{

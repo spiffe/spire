@@ -46,6 +46,9 @@ type DataStore struct {
 
 	// relates bundles with entries that federate with them
 	bundleEntries map[string]map[string]bool
+
+	// expect error when calling functions
+	expectErr error
 }
 
 var _ datastore.DataStore = (*DataStore)(nil)
@@ -118,6 +121,10 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	bundle := req.Bundle
 
 	if existingBundle, ok := s.bundles[bundle.TrustDomainId]; ok {
@@ -168,6 +175,9 @@ func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundl
 func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
@@ -192,6 +202,37 @@ func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesR
 	sort.Strings(keys)
 
 	resp := new(datastore.ListBundlesResponse)
+
+	p := req.Pagination
+	// in case pagination is defined and page size greater than zero apply pagination
+	if p != nil && p.PageSize > 0 {
+		// as default start in first position
+		init := 0
+
+		// If token is defined set index of initial element
+		if p.Token != "" {
+			init = sort.StringSlice(keys).Search(p.Token) + 1
+		}
+
+		// set end as initial element + page size, if end is greater to entries size use length as end
+		length := len(keys)
+		end := init + int(p.PageSize)
+		if end > length {
+			end = length
+		}
+
+		// create a new array with paged bundles
+		keys = keys[init:end]
+		if len(keys) > 0 {
+			lastIndex := len(keys) - 1
+			// change token to latests bundle key
+			resp.Pagination = &datastore.Pagination{
+				PageSize: p.PageSize,
+				Token:    keys[lastIndex],
+			}
+		}
+	}
+
 	for _, key := range keys {
 		resp.Bundles = append(resp.Bundles, cloneBundle(s.bundles[key]))
 	}
@@ -358,6 +399,10 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context, req *datastore.
 func (s *DataStore) FetchRegistrationEntry(ctx context.Context, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	resp := new(datastore.FetchRegistrationEntryResponse)
 	entry, ok := s.registrationEntries[req.EntryId]
@@ -586,6 +631,10 @@ func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoi
 	}
 
 	return &datastore.PruneJoinTokensResponse{}, nil
+}
+
+func (s *DataStore) SetError(err error) {
+	s.expectErr = err
 }
 
 func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
