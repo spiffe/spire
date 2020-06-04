@@ -898,7 +898,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	ds := fakedatastore.New(t)
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	service := agent.New(agent.Config{
-		Datastore:   ds,
+		DataStore:   ds,
 		TrustDomain: td,
 	})
 

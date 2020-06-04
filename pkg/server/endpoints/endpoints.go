@@ -1,7 +1,6 @@
 package endpoints
 
 import (
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -15,15 +14,19 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/pkg/server/endpoints/node"
-	"github.com/spiffe/spire/pkg/server/endpoints/registration"
+	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	datastore_pb "github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/svid"
+	agentv1_pb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
+	bundlev1_pb "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
+	entryv1_pb "github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
+	svidv1_pb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 )
@@ -43,7 +46,46 @@ type Server interface {
 }
 
 type Endpoints struct {
-	c *Config
+	TCPAddr             *net.TCPAddr
+	UDSAddr             *net.UnixAddr
+	SVIDObserver        svid.Observer
+	TrustDomain         spiffeid.TrustDomain
+	DataStore           datastore.DataStore
+	RegistrationServer  registration_pb.RegistrationServer
+	NodeServer          node_pb.NodeServer
+	BundleServer        Server
+	ExperimentalServers *ExperimentalServers
+	Log                 logrus.FieldLogger
+	Metrics             telemetry.Metrics
+}
+
+type ExperimentalServers struct {
+	AgentServer  agentv1_pb.AgentServer
+	BundleServer bundlev1_pb.BundleServer
+	EntryServer  entryv1_pb.EntryServer
+	SVIDServer   svidv1_pb.SVIDServer
+}
+
+// New creates new endpoints struct
+func New(c Config) (*Endpoints, error) {
+	nodeHandler, err := c.makeNodeHandler()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Endpoints{
+		TCPAddr:             c.TCPAddr,
+		UDSAddr:             c.UDSAddr,
+		SVIDObserver:        c.SVIDObserver,
+		TrustDomain:         c.TrustDomain,
+		DataStore:           c.Catalog.GetDataStore(),
+		RegistrationServer:  c.makeRegistrationHandler(),
+		NodeServer:          nodeHandler,
+		BundleServer:        c.maybeMakeBundleServer(),
+		ExperimentalServers: c.maybeMakeExperimentalServers(),
+		Log:                 c.Log,
+		Metrics:             c.Metrics,
+	}, nil
 }
 
 // ListenAndServe starts all endpoint servers and blocks until the context
@@ -51,15 +93,27 @@ type Endpoints struct {
 // canceled, the function returns nil. Otherwise, the error from the failed
 // server is returned.
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
-	e.c.Log.Debug("Initializing API endpoints")
-	tcpServer := e.createTCPServer(ctx)
-	udsServer := e.createUDSServer()
+	e.Log.Debug("Initializing API endpoints")
 
-	err := e.registerNodeAPI(tcpServer)
-	if err != nil {
-		return err
+	unaryInterceptor, streamInterceptor := e.makeInterceptors()
+
+	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
+	udsServer := e.createUDSServer(unaryInterceptor, streamInterceptor)
+
+	node_pb.RegisterNodeServer(tcpServer, e.NodeServer)
+	registration_pb.RegisterRegistrationServer(tcpServer, e.RegistrationServer)
+	registration_pb.RegisterRegistrationServer(udsServer, e.RegistrationServer)
+
+	if ss := e.ExperimentalServers; ss != nil {
+		agentv1_pb.RegisterAgentServer(tcpServer, ss.AgentServer)
+		agentv1_pb.RegisterAgentServer(udsServer, ss.AgentServer)
+		bundlev1_pb.RegisterBundleServer(tcpServer, ss.BundleServer)
+		bundlev1_pb.RegisterBundleServer(udsServer, ss.BundleServer)
+		entryv1_pb.RegisterEntryServer(tcpServer, ss.EntryServer)
+		entryv1_pb.RegisterEntryServer(udsServer, ss.EntryServer)
+		svidv1_pb.RegisterSVIDServer(tcpServer, ss.SVIDServer)
+		svidv1_pb.RegisterSVIDServer(udsServer, ss.SVIDServer)
 	}
-	e.registerRegistrationAPI(tcpServer, udsServer)
 
 	tasks := []func(context.Context) error{
 		func(ctx context.Context) error {
@@ -70,25 +124,25 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		},
 	}
 
-	if bundleServer, enabled := e.createBundleEndpointServer(); enabled {
-		tasks = append(tasks, bundleServer.Run)
+	if e.BundleServer != nil {
+		tasks = append(tasks, e.BundleServer.ListenAndServe)
 	}
 
-	err = util.RunTasks(ctx, tasks...)
+	err := util.RunTasks(ctx, tasks...)
 	if err == context.Canceled {
 		err = nil
 	}
 	return err
 }
 
-func (e *Endpoints) createTCPServer(ctx context.Context) *grpc.Server {
+func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
 	tlsConfig := &tls.Config{
 		GetConfigForClient: e.getTLSConfig(ctx),
 	}
 
 	return grpc.NewServer(
-		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
-		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionAge: defaultMaxConnectionAge,
@@ -96,120 +150,43 @@ func (e *Endpoints) createTCPServer(ctx context.Context) *grpc.Server {
 	)
 }
 
-func (e *Endpoints) createUDSServer() *grpc.Server {
+func (e *Endpoints) createUDSServer(unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
 	return grpc.NewServer(
-		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
-		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
 		grpc.Creds(auth.UntrackedUDSCredentials()))
-}
-
-func (e *Endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
-	if e.c.BundleEndpoint.Address == nil {
-		return nil, false
-	}
-	e.c.Log.WithField("addr", e.c.BundleEndpoint.Address).Info("Serving bundle endpoint")
-
-	var serverAuth bundle.ServerAuth
-	if e.c.BundleEndpoint.ACME != nil {
-		serverAuth = bundle.ACMEAuth(e.c.Log.WithField(telemetry.SubsystemName, "bundle_acme"), e.c.Catalog.GetKeyManager(), *e.c.BundleEndpoint.ACME)
-	} else {
-		serverAuth = bundle.SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
-			state := e.c.SVIDObserver.State()
-			return state.SVID, state.Key, nil
-		})
-	}
-
-	ds := e.c.Catalog.GetDataStore()
-	return bundle.NewServer(bundle.ServerConfig{
-		Log:     e.c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
-		Address: e.c.BundleEndpoint.Address.String(),
-		Getter: bundle.GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
-			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-				TrustDomainId: e.c.TrustDomain.String(),
-			})
-			if err != nil {
-				return nil, err
-			}
-			if resp.Bundle == nil {
-				return nil, errors.New("trust domain bundle not found")
-			}
-			return bundleutil.BundleFromProto(resp.Bundle)
-		}),
-		ServerAuth: serverAuth,
-	}), true
-}
-
-// registerNodeAPI creates a Node API handler and registers it against
-// the provided gRPC server.
-func (e *Endpoints) registerNodeAPI(tcpServer *grpc.Server) error {
-	n, err := node.NewHandler(node.HandlerConfig{
-		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
-		Metrics:     e.c.Metrics,
-		Catalog:     e.c.Catalog,
-		TrustDomain: e.c.TrustDomain,
-		ServerCA:    e.c.ServerCA,
-		Manager:     e.c.Manager,
-
-		AllowAgentlessNodeAttestors: e.c.AllowAgentlessNodeAttestors,
-	})
-	if err != nil {
-		return err
-	}
-	node_pb.RegisterNodeServer(tcpServer, n)
-	return nil
-}
-
-// registerRegistrationAPI creates a Registration API handler and registers
-// it against the provided gRPC.
-func (e *Endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
-	r := &registration.Handler{
-		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
-		Metrics:     e.c.Metrics,
-		Catalog:     e.c.Catalog,
-		TrustDomain: e.c.TrustDomain,
-		ServerCA:    e.c.ServerCA,
-	}
-
-	registration_pb.RegisterRegistrationServer(tcpServer, r)
-	registration_pb.RegisterRegistrationServer(udpServer, r)
 }
 
 // runTCPServer will start the server and block until it exits or we are dying.
 func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error {
-	l, err := net.Listen(e.c.TCPAddr.Network(), e.c.TCPAddr.String())
+	l, err := net.Listen(e.TCPAddr.Network(), e.TCPAddr.String())
 	if err != nil {
 		return err
 	}
 	defer l.Close()
 
-	if e.c.GRPCHook != nil {
-		err := e.c.GRPCHook(server)
-		if err != nil {
-			return fmt.Errorf("call grpc hook: %v", err)
-		}
-	}
-
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting TCP server")
+	e.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting TCP server")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err = <-errChan:
+		e.Log.WithError(err).Error("TCP server stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.c.Log.Info("Stopping TCP server")
+		e.Log.Info("Stopping TCP server")
 		server.Stop()
 		<-errChan
-		e.c.Log.Info("TCP server has stopped.")
+		e.Log.Info("TCP server has stopped.")
 		return nil
 	}
 }
 
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
-	os.Remove(e.c.UDSAddr.String())
-	l, err := net.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
+	os.Remove(e.UDSAddr.String())
+	l, err := net.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
 	if err != nil {
 		return err
 	}
@@ -217,23 +194,24 @@ func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 
 	// Restrict access to the UDS to processes running as the same user or
 	// group as the server.
-	if err := os.Chmod(e.c.UDSAddr.String(), 0770); err != nil {
+	if err := os.Chmod(e.UDSAddr.String(), 0770); err != nil {
 		return err
 	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting UDS server")
+	e.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting UDS server")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err := <-errChan:
+		e.Log.WithError(err).Error("UDS server stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.c.Log.Info("Stopping UDS server")
+		e.Log.Info("Stopping UDS server")
 		server.Stop()
 		<-errChan
-		e.c.Log.Info("UDS server has stopped.")
+		e.Log.Info("UDS server has stopped.")
 		return nil
 	}
 }
@@ -243,11 +221,11 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 		certs, roots, err := e.getCerts(ctx)
 		if err != nil {
-			e.c.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr().String()).Error("Could not generate TLS config for gRPC client")
+			e.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr().String()).Error("Could not generate TLS config for gRPC client")
 			return nil, err
 		}
 
-		c := &tls.Config{
+		return &tls.Config{
 			// When bootstrapping, the agent does not yet have
 			// an SVID. In order to include the bootstrap endpoint
 			// in the same server as the rest of the Node API,
@@ -258,18 +236,15 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 			ClientCAs:    roots,
 
 			MinVersion: tls.VersionTLS12,
-		}
-		return c, nil
+		}, nil
 	}
 }
 
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
 func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	ds := e.c.Catalog.GetDataStore()
-
-	resp, err := ds.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{
-		TrustDomainId: e.c.TrustDomain.String(),
+	resp, err := e.DataStore.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{
+		TrustDomainId: e.TrustDomain.IDString(),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
@@ -292,7 +267,7 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 		caPool.AddCert(c)
 	}
 
-	svidState := e.c.SVIDObserver.State()
+	svidState := e.SVIDObserver.State()
 
 	certChain := [][]byte{}
 	for _, cert := range svidState.SVID {
@@ -305,4 +280,17 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 	}
 
 	return []tls.Certificate{tlsCert}, caPool, nil
+}
+
+func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+	oldUnary, oldStream := auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall
+	if e.ExperimentalServers == nil {
+		return oldUnary, oldStream
+	}
+
+	log := e.Log.WithField(telemetry.SubsystemName, "api")
+
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore))
+
+	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }

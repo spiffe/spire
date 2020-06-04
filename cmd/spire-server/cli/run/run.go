@@ -100,6 +100,8 @@ type experimentalConfig struct {
 	DeprecatedBundleEndpointACME    *bundleEndpointACMEConfig                `hcl:"bundle_endpoint_acme"`
 	DeprecatedFederatesWith         map[string]deprecatedFederatesWithConfig `hcl:"federates_with"`
 
+	EnableAPI bool `hcl:"enable_api"`
+
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -402,6 +404,10 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 			}
 		}
 		sc.Federation.FederatesWith = federatesWith
+	}
+	if c.Server.Experimental.EnableAPI {
+		sc.Experimental.EnableAPI = true
+		sc.Log.Info("Experimental API enabled")
 	}
 
 	sc.ProfilingEnabled = c.Server.ProfilingEnabled

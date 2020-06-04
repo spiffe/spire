@@ -26,13 +26,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 // Config is the service configuration
 type Config struct {
 	EntryFetcher api.AuthorizedEntryFetcher
-	Datastore    datastore.DataStore
+	DataStore    datastore.DataStore
 }
 
 // New creates a new entry service
 func New(config Config) *Service {
 	return &Service{
-		ds: config.Datastore,
+		ds: config.DataStore,
 		ef: config.EntryFetcher,
 	}
 }
