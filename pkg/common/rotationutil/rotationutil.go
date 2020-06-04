@@ -15,7 +15,7 @@ func ShouldRotateX509(now time.Time, cert *x509.Certificate) bool {
 
 // X509Expired returns true if the given X509 cert has expired
 func X509Expired(now time.Time, cert *x509.Certificate) bool {
-	return !now.Before(cert.NotAfter)
+	return now.After(cert.NotAfter)
 }
 
 // JWTSVIDExpiresSoon determines if the given JWT SVID should be rotated
