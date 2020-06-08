@@ -75,6 +75,7 @@ func (r *rotator) runRotation(ctx context.Context) error {
 					// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
 					return fmt.Errorf("current SVID has already expired and rotation failed: %v", err)
 				}
+			} else {
 				r.backoff.Reset()
 			}
 		}
