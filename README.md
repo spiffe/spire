@@ -37,7 +37,7 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 
 ## Integrate with SPIRE
 
-- See [Extend SPIRE](https://spiffe.io/spire/docs/extending/) to learn about the SPIRE highly extensible plugin framework.
+- See [Extend SPIRE](https://spiffe.io/spire/docs/extending/) to learn about the highly extensible SPIRE plugin framework.
 - Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/master/v2), [Java](https://github.com/spiffe/java-spiffe/tree/v2-api) and [C++](https://github.com/spiffe/c-spiffe) languages. As a reference, see [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/).
 - SPIRE provides an implementation of the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS) for use with [Envoy Proxy](https://envoyproxy.io).  SDS can be used to transparently install and rotate TLS certificates and trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) the [Using SPIRE with Envoy](https://spiffe.io/spire/docs/envoy/) documentation for more information.
 
