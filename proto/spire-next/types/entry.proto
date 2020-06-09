@@ -51,24 +51,30 @@ message Entry {
 
 // Field mask for Entry fields
 message EntryMask {
-    // id field mask
-    bool id = 1;
     // spiffe_id field mask
     bool spiffe_id = 2;
+
     // parent_id field mask
     bool parent_id = 3;
+
     // selectors field mask
     bool selectors = 4;
+
     // ttl field mask
     bool ttl = 5;
+
     // federates_with field mask
     bool federates_with = 6;
+
     // admin field mask
     bool admin = 7;
+
     // downstream field mask
     bool downstream = 8;
+
     // expires_at field mask
     bool expires_at = 9;
+
     // dns_names field mask
     bool dns_names = 10;
 }

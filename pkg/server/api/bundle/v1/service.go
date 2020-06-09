@@ -335,10 +335,6 @@ func applyBundleMask(b *types.Bundle, mask *types.BundleMask) {
 		b.SequenceNumber = 0
 	}
 
-	if !mask.TrustDomain {
-		b.TrustDomain = ""
-	}
-
 	if !mask.X509Authorities {
 		b.X509Authorities = nil
 	}

@@ -26,10 +26,18 @@ message Agent {
 }
 
 message AgentMask {
-    bool id = 1;
+    // attestation_type field mask
     bool attestation_type = 2;
+
+    // x509svid_serial_number field mask
     bool x509svid_serial_number = 3;
+
+    // x509svid_expires_at field mask
     bool x509svid_expires_at = 4;
+
+    // selectors field mask
     bool selectors = 5;
+
+    // banned field mask
     bool banned = 6;
 }

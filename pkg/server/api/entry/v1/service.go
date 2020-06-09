@@ -135,10 +135,6 @@ func applyMask(e *types.Entry, mask *types.EntryMask) { //nolint: unused,deadcod
 		return
 	}
 
-	if !mask.Id {
-		e.Id = ""
-	}
-
 	if !mask.SpiffeId {
 		e.SpiffeId = nil
 	}

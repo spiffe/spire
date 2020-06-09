@@ -106,7 +106,6 @@ func TestGetFederatedBundle(t *testing.T) {
 			trustDomain: "another-example.org",
 			setBundle:   true,
 			outputMask: &types.BundleMask{
-				TrustDomain:     false,
 				RefreshHint:     false,
 				SequenceNumber:  false,
 				X509Authorities: false,
@@ -183,7 +182,6 @@ func TestGetBundle(t *testing.T) {
 			name:      "Get bundle does not return fields filtered by mask",
 			setBundle: true,
 			outputMask: &types.BundleMask{
-				TrustDomain:     false,
 				RefreshHint:     false,
 				SequenceNumber:  false,
 				X509Authorities: false,
@@ -303,7 +301,6 @@ func TestAppendBundle(t *testing.T) {
 				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
 			},
 			outputMask: &types.BundleMask{
-				TrustDomain:     true,
 				X509Authorities: true,
 			},
 		},
@@ -338,7 +335,6 @@ func TestAppendBundle(t *testing.T) {
 				JwtAuthorities:  false,
 				RefreshHint:     false,
 				SequenceNumber:  false,
-				TrustDomain:     false,
 			},
 		},
 		{
@@ -348,13 +344,12 @@ func TestAppendBundle(t *testing.T) {
 				X509Authorities: []*types.X509Certificate{x509Cert},
 				JwtAuthorities:  []*types.JWTKey{jwtKey2},
 			},
-			expectBundle: &types.Bundle{},
+			expectBundle: &types.Bundle{TrustDomain: td.String()},
 			outputMask: &types.BundleMask{
 				X509Authorities: false,
 				JwtAuthorities:  false,
 				RefreshHint:     false,
 				SequenceNumber:  false,
-				TrustDomain:     false,
 			},
 		},
 		{
@@ -731,7 +726,6 @@ func TestListFederatedBundles(t *testing.T) {
 			name:          "no returns fields filtered by mask",
 			expectBundles: []*common.Bundle{b1, b2, b3},
 			outputMask: &types.BundleMask{
-				TrustDomain:     false,
 				RefreshHint:     false,
 				SequenceNumber:  false,
 				X509Authorities: false,
@@ -741,9 +735,7 @@ func TestListFederatedBundles(t *testing.T) {
 		{
 			name:          "get only trust domains",
 			expectBundles: []*common.Bundle{b1, b2, b3},
-			outputMask: &types.BundleMask{
-				TrustDomain: true,
-			},
+			outputMask:    &types.BundleMask{},
 		},
 		{
 			name: "get first page",
@@ -844,11 +836,7 @@ func createBundle(t *testing.T, test *serviceTest, td string) *common.Bundle {
 }
 
 func assertBundleWithMask(t *testing.T, expected *common.Bundle, actual *types.Bundle, m *types.BundleMask) {
-	if m == nil || m.TrustDomain {
-		require.Equal(t, spiffeid.RequireTrustDomainFromString(expected.TrustDomainId).String(), actual.TrustDomain)
-	} else {
-		require.Zero(t, actual.TrustDomain)
-	}
+	require.Equal(t, spiffeid.RequireTrustDomainFromString(expected.TrustDomainId).String(), actual.TrustDomain)
 
 	if m == nil || m.RefreshHint {
 		require.Equal(t, expected.RefreshHint, actual.RefreshHint)
