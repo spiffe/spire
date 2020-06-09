@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"google.golang.org/grpc"
@@ -41,6 +42,7 @@ type Config struct {
 	EntryFetcher AuthorizedEntryFetcher
 	ServerCA     ca.ServerCA
 	TrustDomain  spiffeid.TrustDomain
+	DataStore    datastore.DataStore
 }
 
 // New creates a new SVID service
@@ -49,6 +51,7 @@ func New(config Config) *Service {
 		ca: config.ServerCA,
 		ef: config.EntryFetcher,
 		td: config.TrustDomain,
+		ds: config.DataStore,
 	}
 }
 
@@ -57,6 +60,7 @@ type Service struct {
 	ca ca.ServerCA
 	ef AuthorizedEntryFetcher
 	td spiffeid.TrustDomain
+	ds datastore.DataStore
 }
 
 func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest) (*svid.MintX509SVIDResponse, error) {
@@ -324,6 +328,74 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (
 	}, nil
 }
 
-func (s *Service) NewDownstreamX509CA(context.Context, *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "not implemented")
+func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
+	log := rpccontext.Logger(ctx)
+
+	if err := rpccontext.RateLimit(ctx, 1); err != nil {
+		log.WithError(err).Error("Rejecting request due to downstream CA signing rate limit")
+		return nil, err
+	}
+
+	downstreamEntries, isDownstream := rpccontext.CallerDownstreamEntries(ctx)
+	if !isDownstream {
+		log.Error("Caller is not a downstream workload")
+		return nil, status.Error(codes.Internal, "caller is not a downstream workload")
+	}
+
+	entry := downstreamEntries[0]
+
+	csr, err := parseAndCheckCSR(ctx, req.Csr)
+	if err != nil {
+		return nil, err
+	}
+
+	x509CASvid, err := s.ca.SignX509CASVID(ctx, ca.X509CASVIDParams{
+		SpiffeID:  s.td.IDString(),
+		PublicKey: csr.PublicKey,
+		TTL:       time.Duration(entry.Ttl) * time.Second,
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to sign downstream X.509 CA")
+		return nil, status.Errorf(codes.Internal, "failed to sign downstream X.509 CA: %v", err)
+	}
+
+	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: s.td.IDString(),
+	})
+	if err != nil {
+		log.Errorf("Failed to fetch bundle: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch bundle: %v", err)
+	}
+
+	if dsResp.Bundle == nil {
+		log.Error("Bundle not found")
+		return nil, status.Error(codes.Internal, "bundle not found")
+	}
+
+	rawRootCerts := make([][]byte, 0, len(dsResp.Bundle.RootCas))
+	for _, cert := range dsResp.Bundle.RootCas {
+		rawRootCerts = append(rawRootCerts, cert.DerBytes)
+	}
+
+	return &svid.NewDownstreamX509CAResponse{
+		CaCertChain:     x509util.RawCertsFromCertificates(x509CASvid),
+		X509Authorities: rawRootCerts,
+	}, nil
+}
+
+func parseAndCheckCSR(ctx context.Context, csrBytes []byte) (*x509.CertificateRequest, error) {
+	log := rpccontext.Logger(ctx)
+
+	csr, err := x509.ParseCertificateRequest(csrBytes)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: malformed CSR")
+		return nil, status.Errorf(codes.InvalidArgument, "malformed CSR: %v", err)
+	}
+
+	if err := csr.CheckSignature(); err != nil {
+		log.WithError(err).Error("Invalid request: invalid CSR signature")
+		return nil, status.Error(codes.InvalidArgument, "invalid CSR signature")
+	}
+
+	return csr, nil
 }
