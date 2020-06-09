@@ -80,7 +80,50 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEn
 }
 
 func (s *Service) BatchDeleteEntry(ctx context.Context, req *entry.BatchDeleteEntryRequest) (*entry.BatchDeleteEntryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method BatchDeleteEntry not implemented")
+	var results []*entry.BatchDeleteEntryResponse_Result
+	for _, id := range req.Ids {
+		results = append(results, s.deleteEntry(ctx, id))
+	}
+
+	return &entry.BatchDeleteEntryResponse{
+		Results: results,
+	}, nil
+}
+
+func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDeleteEntryResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	if id == "" {
+		log.Error("Invalid request: missing entry ID")
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.CreateStatus(codes.InvalidArgument, "missing entry ID"),
+		}
+	}
+
+	log = log.WithField(telemetry.RegistrationID, id)
+
+	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
+		EntryId: id,
+	})
+	switch status.Code(err) {
+	case codes.OK:
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.OK(),
+		}
+	case codes.NotFound:
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.StatusFromError(err),
+		}
+	default:
+		log.WithError(err).Error("Failed to delete entry")
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.CreateStatus(codes.Internal, "failed to delete entry: %v", err),
+		}
+	}
 }
 
 func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthorizedEntriesRequest) (*entry.GetAuthorizedEntriesResponse, error) {

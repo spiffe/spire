@@ -552,6 +552,10 @@ func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, req *datastore.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	registrationEntry, ok := s.registrationEntries[req.EntryId]
 	if !ok {
 		return nil, ErrNoSuchRegistrationEntry
