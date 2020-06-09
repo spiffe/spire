@@ -59,7 +59,7 @@ https://github.com/spiffe/spiffe.
 
 ### Security Assessments
 
-The [CNCF Special Interest Group for Security]([https://github.com/cncf/sig-security](https://github.com/cncf/sig-security)) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following links contain summary reports as well as the threat modeling material produced as part of the asssessment processes:
+The [CNCF Special Interest Group for Security]([https://github.com/cncf/sig-security](https://github.com/cncf/sig-security)) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following links contain summary reports as well as the threat modeling material produced as part of the assessment:
 
 - [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.scytale.io/scrutinizing-spire-security-9c82ba542019)
 - [SIG Security SPIFFE/SPIRE Security Assessment Summary](https://github.com/cncf/sig-security/tree/master/assessments/projects/spiffe-spire)
