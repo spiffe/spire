@@ -22,7 +22,7 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 
 ## Get SPIRE
 
-- Pre-built releases of SPIRE can be found at [https://github.com/spiffe/spire/releases](https://github.com/spiffe/spire/releases). These releases contain both SPIRE Server and SPIRE Agent binaries plus the officially supported plugins.
+- Pre-built releases of SPIRE can be found at [https://github.com/spiffe/spire/releases](https://github.com/spiffe/spire/releases). These releases contain both SPIRE Server and SPIRE Agent binaries.
 - Alternatively, you can [build SPIRE from source](/CONTRIBUTING.md).
 
 ## Learn about SPIRE
