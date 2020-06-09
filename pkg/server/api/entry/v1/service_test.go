@@ -92,7 +92,6 @@ func TestGetEntry(t *testing.T) {
 				SpiffeId: api.ProtoFromID(entry1SpiffeID),
 			},
 			outputMask: &types.EntryMask{
-				Id:       true,
 				ParentId: true,
 				SpiffeId: true,
 			},
@@ -119,7 +118,7 @@ func TestGetEntry(t *testing.T) {
 		{
 			name:        "outputMask all false",
 			entryID:     goodEntry.Entry.EntryId,
-			expectEntry: &types.Entry{},
+			expectEntry: &types.Entry{Id: goodEntry.Entry.EntryId},
 			outputMask:  &types.EntryMask{},
 		},
 		{
