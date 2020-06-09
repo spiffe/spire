@@ -29,7 +29,6 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 
 - Before trying SPIRE, it is recommended to become familiar with its [architecture](https://spiffe.io/spire/) and design goals.
 - Once ready to get started, see [Getting Started Guides](https://spiffe.io/spire/try/).
-- The [SPIRE Server](https://github.com/spiffe/spire/blob/master/doc/spire_server.md) and [SPIRE Agent](https://github.com/spiffe/spire/blob/master/doc/spire_agent.md) reference guides covers in more detail the specific configuration options and plugins available.
 - There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) repository.
 - Check [ADOPTERS.md](./ADOPTERS.md) for a list of production SPIRE adopters, a view of the ecosystem, and use cases.
 - See the [SPIRE Roadmap](https://github.com/spiffe/spire/wiki/Roadmap) for a list of planned features and enhancements.
