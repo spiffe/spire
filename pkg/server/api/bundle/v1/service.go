@@ -159,7 +159,6 @@ func parseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
 		if _, err := x509.ParsePKIXPublicKey(key.PublicKey); err != nil {
 			return nil, err
 		}
-
 		if key.KeyId == "" {
 			return nil, errors.New("missing KeyId")
 		}
@@ -283,11 +282,7 @@ func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.Batch
 func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {
 	var results []*bundle.BatchDeleteFederatedBundleResponse_Result
 	for _, trustDomain := range req.TrustDomains {
-		err := s.deleteFederatedBundle(ctx, trustDomain)
-		results = append(results, &bundle.BatchDeleteFederatedBundleResponse_Result{
-			Status:      api.StatusFromError(err),
-			TrustDomain: trustDomain,
-		})
+		results = append(results, s.deleteFederatedBundle(ctx, trustDomain))
 	}
 
 	return &bundle.BatchDeleteFederatedBundleResponse{
@@ -295,18 +290,24 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.Ba
 	}, nil
 }
 
-func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string) error {
+func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string) *bundle.BatchDeleteFederatedBundleResponse_Result {
 	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, trustDomain)
 
 	td, err := spiffeid.TrustDomainFromString(trustDomain)
 	if err != nil {
 		log.WithError(err).Error("Invalid request: malformed trust domain")
-		return status.Errorf(codes.InvalidArgument, "malformed trust domain: %v", err)
+		return &bundle.BatchDeleteFederatedBundleResponse_Result{
+			Status:      api.CreateStatus(codes.InvalidArgument, "malformed trust domain: %v", err),
+			TrustDomain: trustDomain,
+		}
 	}
 
 	if s.td.Compare(td) == 0 {
 		log.Error("Invalid request: removing the bundle for the server trust domain is not allowed")
-		return status.Error(codes.InvalidArgument, "removing the bundle for the server trust domain is not allowed")
+		return &bundle.BatchDeleteFederatedBundleResponse_Result{
+			TrustDomain: trustDomain,
+			Status:      api.CreateStatus(codes.InvalidArgument, "removing the bundle for the server trust domain is not allowed"),
+		}
 	}
 
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
@@ -314,12 +315,24 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string)
 		// TODO: what mode must we use here?
 		Mode: datastore.DeleteBundleRequest_RESTRICT,
 	})
-	if err != nil {
+	switch status.Code(err) {
+	case codes.OK:
+		return &bundle.BatchDeleteFederatedBundleResponse_Result{
+			Status:      api.OK(),
+			TrustDomain: trustDomain,
+		}
+	case codes.NotFound:
+		return &bundle.BatchDeleteFederatedBundleResponse_Result{
+			Status:      api.StatusFromError(err),
+			TrustDomain: trustDomain,
+		}
+	default:
 		log.WithError(err).Error("Failed to delete federated bundle")
-		return status.Errorf(codes.Internal, "failed to delete federated bundle: %v", err)
+		return &bundle.BatchDeleteFederatedBundleResponse_Result{
+			TrustDomain: trustDomain,
+			Status:      api.CreateStatus(codes.Internal, "failed to delete federated bundle: %v", err),
+		}
 	}
-
-	return nil
 }
 
 func applyBundleMask(b *types.Bundle, mask *types.BundleMask) {

@@ -567,8 +567,8 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		{
 			name: "remove multiple bundles",
 			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
-				{TrustDomain: td1.String()},
-				{TrustDomain: td2.String()},
+				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td1.String()},
+				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td2.String()},
 			},
 			expectDSBundles: []string{td.String(), td3.String()},
 			trustDomains:    []string{td1.String(), td2.String()},
@@ -624,6 +624,20 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			},
 			expectDSBundles: dsBundles,
 			trustDomains:    []string{td.String()},
+		},
+		{
+			name: "bundle not found",
+			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.NotFound),
+						Message: "no such bundle",
+					},
+					TrustDomain: "notfound.org",
+				},
+			},
+			expectDSBundles: dsBundles,
+			trustDomains:    []string{"notfound.org"},
 		},
 		{
 			name: "failed to delete",
