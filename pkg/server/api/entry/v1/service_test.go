@@ -13,10 +13,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	entrypb "github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -31,16 +31,17 @@ var (
 )
 
 func TestGetEntry(t *testing.T) {
-	test := setupServiceTest(t)
+	ds := fakedatastore.New()
+	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
 
 	// Create fedeated bundles, that we use on "FederatesWith"
-	test.createFederatedBundles(t)
+	createFederatedBundles(t, test.ds)
 
 	parent := td.NewID("foo")
 	entry1SpiffeID := td.NewID("bar")
 	expiresAt := time.Now().Unix()
-	goodEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+	goodEntry, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &common.RegistrationEntry{
 			ParentId: parent.String(),
 			SpiffeId: entry1SpiffeID.String(),
@@ -60,7 +61,7 @@ func TestGetEntry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	malformedEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+	malformedEntry, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &common.RegistrationEntry{
 			ParentId: parent.String(),
 			SpiffeId: "malformed id",
@@ -184,7 +185,7 @@ func TestGetEntry(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
-			test.ds.SetError(tt.dsError)
+			ds.SetError(tt.dsError)
 
 			resp, err := test.client.GetEntry(ctx, &entrypb.GetEntryRequest{
 				Id:         tt.entryID,
@@ -205,19 +206,180 @@ func TestGetEntry(t *testing.T) {
 	}
 }
 
-type serviceTest struct {
-	client  entrypb.EntryClient
-	done    func()
-	ds      *fakedatastore.DataStore
-	logHook *test.Hook
+func TestBatchDeleteEntry(t *testing.T) {
+	expiresAt := time.Now().Unix()
+	parentID := td.NewID("host").String()
+
+	fooSpiffeID := td.NewID("foo").String()
+	fooEntry := &common.RegistrationEntry{
+		ParentId:    parentID,
+		SpiffeId:    fooSpiffeID,
+		EntryExpiry: expiresAt,
+	}
+	barSpiffeID := td.NewID("bar").String()
+	barEntry := &common.RegistrationEntry{
+		ParentId:    parentID,
+		SpiffeId:    barSpiffeID,
+		EntryExpiry: expiresAt,
+	}
+	bazSpiffeID := td.NewID("baz").String()
+	baz := &common.RegistrationEntry{
+		ParentId:    parentID,
+		SpiffeId:    bazSpiffeID,
+		EntryExpiry: expiresAt,
+	}
+
+	dsEntries := []string{barSpiffeID, bazSpiffeID, fooSpiffeID}
+
+	for _, tt := range []struct {
+		name         string
+		dsError      error
+		expectDs     []string
+		expectResult func(map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry)
+		ids          func(map[string]*common.RegistrationEntry) []string
+	}{
+		{
+			name:     "delete multiple entries",
+			expectDs: []string{bazSpiffeID},
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				var results []*entrypb.BatchDeleteEntryResponse_Result
+				results = append(results, &entrypb.BatchDeleteEntryResponse_Result{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Id:     m[fooSpiffeID].EntryId,
+				})
+				results = append(results, &entrypb.BatchDeleteEntryResponse_Result{
+					Status: &types.Status{
+						Code:    int32(codes.NotFound),
+						Message: "no such registration entry",
+					},
+					Id: "not found",
+				})
+				results = append(results, &entrypb.BatchDeleteEntryResponse_Result{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Id:     m[barSpiffeID].EntryId,
+				})
+
+				return results, nil
+			},
+			ids: func(m map[string]*common.RegistrationEntry) []string {
+				return []string{m[fooSpiffeID].EntryId, "not found", m[barSpiffeID].EntryId}
+			},
+		},
+		{
+			name:     "no entries to delete",
+			expectDs: dsEntries,
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entrypb.BatchDeleteEntryResponse_Result{}, nil
+			},
+			ids: func(m map[string]*common.RegistrationEntry) []string {
+				return []string{}
+			},
+		},
+		{
+			name:     "missing entry ID",
+			expectDs: dsEntries,
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entrypb.BatchDeleteEntryResponse_Result{
+						{
+							Status: &types.Status{
+								Code:    int32(codes.InvalidArgument),
+								Message: "missing entry ID",
+							},
+						},
+					}, []spiretest.LogEntry{
+						{
+							Level:   logrus.ErrorLevel,
+							Message: "Invalid request: missing entry ID",
+						},
+					}
+			},
+			ids: func(m map[string]*common.RegistrationEntry) []string {
+				return []string{""}
+			},
+		},
+		{
+			name:     "fail to delete entry",
+			dsError:  errors.New("some error"),
+			expectDs: dsEntries,
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entrypb.BatchDeleteEntryResponse_Result{
+						{
+							Status: &types.Status{
+								Code:    int32(codes.Internal),
+								Message: "failed to delete entry: some error",
+							},
+							Id: m[fooSpiffeID].EntryId,
+						},
+					}, []spiretest.LogEntry{
+						{
+							Level:   logrus.ErrorLevel,
+							Message: "Failed to delete entry",
+							Data: logrus.Fields{
+								telemetry.RegistrationID: m[fooSpiffeID].EntryId,
+								logrus.ErrorKey:          "some error",
+							},
+						},
+					}
+			},
+			ids: func(m map[string]*common.RegistrationEntry) []string {
+				return []string{m[fooSpiffeID].EntryId}
+			},
+		},
+		{
+			name:     "entry not found",
+			expectDs: dsEntries,
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entrypb.BatchDeleteEntryResponse_Result{
+					{
+						Status: &types.Status{
+							Code:    int32(codes.NotFound),
+							Message: "no such registration entry",
+						},
+						Id: "invalid id",
+					},
+				}, nil
+			},
+			ids: func(m map[string]*common.RegistrationEntry) []string {
+				return []string{"invalid id"}
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ds := fakedatastore.New()
+			ds.SetError(tt.dsError)
+			test := setupServiceTest(t, ds)
+			defer test.Cleanup()
+
+			// Create entries
+			entriesMap := createTestEntries(t, ds, fooEntry, barEntry, baz)
+
+			resp, err := test.client.BatchDeleteEntry(ctx, &entrypb.BatchDeleteEntryRequest{
+				Ids: tt.ids(entriesMap),
+			})
+			require.NoError(t, err)
+
+			expectResults, expectLogs := tt.expectResult(entriesMap)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), expectLogs)
+			spiretest.AssertProtoEqual(t, &entrypb.BatchDeleteEntryResponse{
+				Results: expectResults,
+			}, resp)
+
+			// Validate DS contains expected entries
+			listEntries, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+			require.NoError(t, err)
+
+			var spiffeIDs []string
+			for _, e := range listEntries.Entries {
+				spiffeIDs = append(spiffeIDs, e.SpiffeId)
+			}
+			require.Equal(t, tt.expectDs, spiffeIDs)
+		})
+	}
 }
 
-func (s *serviceTest) Cleanup() {
-	s.done()
-}
-
-func (s *serviceTest) createFederatedBundles(t *testing.T) {
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
+	_, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId: federatedTd.IDString(),
 			RootCas: []*common.Certificate{
@@ -230,8 +392,33 @@ func (s *serviceTest) createFederatedBundles(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func setupServiceTest(t *testing.T) *serviceTest {
-	ds := fakedatastore.New()
+func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.RegistrationEntry) map[string]*common.RegistrationEntry {
+	entriesMap := make(map[string]*common.RegistrationEntry)
+
+	for _, e := range entry {
+		resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+			Entry: e,
+		})
+		require.NoError(t, err)
+
+		entriesMap[resp.Entry.SpiffeId] = resp.Entry
+	}
+
+	return entriesMap
+}
+
+type serviceTest struct {
+	client  entrypb.EntryClient
+	done    func()
+	ds      datastore.DataStore
+	logHook *test.Hook
+}
+
+func (s *serviceTest) Cleanup() {
+	s.done()
+}
+
+func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	service := entry.New(entry.Config{
 		Datastore: ds,
 	})

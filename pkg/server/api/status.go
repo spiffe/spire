@@ -25,3 +25,7 @@ func StatusFromError(err error) *types.Status {
 	s, _ := status.FromError(err)
 	return CreateStatus(s.Code(), s.Message())
 }
+
+func OK() *types.Status {
+	return CreateStatus(codes.OK, codes.OK.String())
+}
