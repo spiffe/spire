@@ -296,7 +296,75 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 }
 
 func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundle.BatchUpdateFederatedBundleRequest) (*bundle.BatchUpdateFederatedBundleResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BatchUpdateFederatedBundle not implemented")
+	var results []*bundle.BatchUpdateFederatedBundleResponse_Result
+	for _, b := range req.Bundle {
+		results = append(results, s.updateFederatedBundle(ctx, b, req.InputMask, req.OutputMask))
+	}
+
+	return &bundle.BatchUpdateFederatedBundleResponse{
+		Results: results,
+	}, nil
+}
+
+func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, inputMask, outputMask *types.BundleMask) *bundle.BatchUpdateFederatedBundleResponse_Result {
+	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, b.TrustDomain)
+
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
+		return &bundle.BatchUpdateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %q", b.TrustDomain),
+		}
+	}
+
+	if s.td.Compare(td) == 0 {
+		log.Error("Invalid request: updating a federated bundle for the server's own trust domain is not allowed")
+		return &bundle.BatchUpdateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "updating a federated bundle for the server's own trust domain (%s) s not allowed", td.String()),
+		}
+	}
+
+	dsBundle, err := api.ProtoToBundle(b)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return &bundle.BatchUpdateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+		}
+	}
+	resp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+		Bundle:    dsBundle,
+		InputMask: api.ProtoToBundleMask(inputMask),
+	})
+
+	switch status.Code(err) {
+	case codes.OK:
+	case codes.NotFound:
+		log.WithError(err).Error("Bundle not found")
+		return &bundle.BatchUpdateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.NotFound, "bundle not found"),
+		}
+	default:
+		log.WithError(err).Error("Unable to update bundle")
+		return &bundle.BatchUpdateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "unable to update bundle: %v", err),
+		}
+	}
+
+	protoBundle, err := api.BundleToProto(resp.Bundle)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return &bundle.BatchUpdateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+		}
+	}
+
+	applyBundleMask(protoBundle, outputMask)
+
+	log.Info("Bundle updated successfully")
+	return &bundle.BatchUpdateFederatedBundleResponse_Result{
+		Status: api.CreateStatus(codes.OK, "bundle updated successfully for trust domain: %q", td.String()),
+		Bundle: protoBundle,
+	}
 }
 
 func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.BatchSetFederatedBundleRequest) (*bundle.BatchSetFederatedBundleResponse, error) {

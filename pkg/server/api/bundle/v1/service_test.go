@@ -1079,6 +1079,242 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 	}
 }
 
+func TestBatchUpdateFederatedBundle(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	_, expectedX509Err := x509.ParseCertificates([]byte("malformed"))
+	require.Error(t, expectedX509Err)
+
+	for _, tt := range []struct {
+		name              string
+		bundlesToUpdate   []*types.Bundle
+		preExistentBundle *common.Bundle
+		inputMask         *types.BundleMask
+		outputMask        *types.BundleMask
+		expectedResults   []*bundlepb.BatchCreateFederatedBundleResponse_Result
+		expectedLogMsgs   []spiretest.LogEntry
+		dsError           error
+	}{
+		{
+			name:              "Update succeeds with nil masks",
+			preExistentBundle: &common.Bundle{TrustDomainId: federatedTrustDomain.IDString()},
+			bundlesToUpdate: []*types.Bundle{
+				makeValidBundle(t, federatedTrustDomain),
+			},
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{
+					Status: api.CreateStatus(codes.OK, `bundle updated successfully for trust domain: "another-example.org"`),
+					Bundle: makeValidBundle(t, federatedTrustDomain),
+				},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: `Bundle updated successfully`,
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "another-example.org",
+					},
+				},
+			},
+		},
+		{
+			name:              "Only values set in input mask are updated",
+			preExistentBundle: &common.Bundle{TrustDomainId: federatedTrustDomain.IDString()},
+			bundlesToUpdate:   []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
+			inputMask: &types.BundleMask{
+				RefreshHint: true,
+			},
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{
+					Status: api.CreateStatus(codes.OK, `bundle updated successfully for trust domain: "another-example.org"`),
+					Bundle: &types.Bundle{
+						TrustDomain: federatedTrustDomain.String(),
+						RefreshHint: makeValidBundle(t, federatedTrustDomain).RefreshHint,
+					},
+				},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: `Bundle updated successfully`,
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "another-example.org",
+					},
+				},
+			},
+		},
+		{
+			name:              "Only values set in output mask are included in the response",
+			preExistentBundle: &common.Bundle{TrustDomainId: federatedTrustDomain.IDString()},
+			bundlesToUpdate:   []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
+			outputMask: &types.BundleMask{
+				RefreshHint: true,
+			},
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{
+					Status: api.CreateStatus(codes.OK, `bundle updated successfully for trust domain: "another-example.org"`),
+					Bundle: &types.Bundle{
+						TrustDomain: federatedTrustDomain.String(),
+						RefreshHint: makeValidBundle(t, federatedTrustDomain).RefreshHint,
+					},
+				},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: `Bundle updated successfully`,
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "another-example.org",
+					},
+				},
+			},
+		},
+		{
+			name:            "Update succeeds if the request has no bundles",
+			bundlesToUpdate: []*types.Bundle{},
+		},
+		{
+			name: "Update fails if trust domain is not a valid SPIFFE ID",
+			bundlesToUpdate: []*types.Bundle{
+				func() *types.Bundle {
+					b := makeValidBundle(t, federatedTrustDomain)
+					b.TrustDomain = "//notvalid"
+					return b
+				}(),
+			},
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: "//notvalid"`)},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: `Invalid request: trust domain argument is not valid`,
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "//notvalid",
+						logrus.ErrorKey:         "spiffeid: trust domain is empty",
+					},
+				},
+			},
+		},
+		{
+			name: "Update fails if trust domain is server trust domain",
+			bundlesToUpdate: []*types.Bundle{
+				func() *types.Bundle {
+					b := makeValidBundle(t, federatedTrustDomain)
+					b.TrustDomain = "example.org"
+					return b
+				}(),
+			},
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{Status: api.CreateStatus(codes.InvalidArgument, `updating a federated bundle for the server's own trust domain (example.org) s not allowed`)},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: `Invalid request: updating a federated bundle for the server's own trust domain is not allowed`,
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "example.org",
+					},
+				},
+			},
+		},
+		{
+			name:            "Update fails if bundle does not exists",
+			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{
+					Status: api.CreateStatus(codes.NotFound, "bundle not found"),
+				},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Bundle not found",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "another-example.org",
+						logrus.ErrorKey:         "rpc error: code = NotFound desc = no such bundle",
+					},
+				},
+			},
+		},
+		{
+			name:            "Update datastore query fails",
+			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
+			dsError:         errors.New("datastore error"),
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{Status: api.CreateStatus(codes.Internal, `unable to update bundle: datastore error`)},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Unable to update bundle",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "another-example.org",
+						logrus.ErrorKey:         "datastore error",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid bundle provided",
+			bundlesToUpdate: []*types.Bundle{
+				{
+					TrustDomain: federatedTrustDomain.String(),
+					X509Authorities: []*types.X509Certificate{
+						{
+							Asn1: []byte("malformed"),
+						},
+					},
+				},
+			},
+			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+				{Status: api.CreateStatus(codes.Internal, fmt.Sprintf("failed to convert bundle: unable to parse X.509 authority: %v", expectedX509Err))},
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to convert bundle",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "another-example.org",
+						logrus.ErrorKey:         fmt.Sprintf("unable to parse X.509 authority: %v", expectedX509Err),
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+			clearDSBundles(t, test.ds)
+
+			if tt.preExistentBundle != nil {
+				_, err := test.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+					Bundle: tt.preExistentBundle,
+				})
+				require.NoError(t, err)
+			}
+
+			test.ds.SetError(tt.dsError)
+
+			resp, err := test.client.BatchUpdateFederatedBundle(context.Background(), &bundlepb.BatchUpdateFederatedBundleRequest{
+				Bundle:     tt.bundlesToUpdate,
+				InputMask:  tt.inputMask,
+				OutputMask: tt.outputMask,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogMsgs)
+
+			require.Equal(t, len(tt.expectedResults), len(resp.Results))
+			for i, result := range resp.Results {
+				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Status, result.Status)
+				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Bundle, result.Bundle)
+			}
+		})
+	}
+}
+
 func assertCommonBundleWithMask(t *testing.T, expected *common.Bundle, actual *types.Bundle, m *types.BundleMask) {
 	exp, err := api.BundleToProto(expected)
 	require.NoError(t, err)
