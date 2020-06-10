@@ -35,6 +35,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | UpstreamAuthority | [disk](/doc/plugin_server_upstreamauthority_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md) | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamAuthority | [vault](/doc/plugin_server_upstreamauthority_vault.md) | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [spire](/doc/plugin_server_upstreamauthority_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
 ## Server configuration file
