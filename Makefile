@@ -355,7 +355,6 @@ oidc-discovery-provider-image: Dockerfile
 tidy: | go-check
 	$(E)$(go) mod tidy
 	$(E)cd proto/spire; $(go) mod tidy
-	$(E)cd tools/external; $(go) mod tidy
 
 tidy-check:
 ifneq ($(git_dirty),)
