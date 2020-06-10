@@ -26,6 +26,7 @@ func StatusFromError(err error) *types.Status {
 	return CreateStatus(s.Code(), s.Message())
 }
 
+// OK creates a success proto status
 func OK() *types.Status {
 	return CreateStatus(codes.OK, codes.OK.String())
 }

@@ -884,6 +884,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 					}
 					continue
 				}
+				spiretest.AssertProtoEqual(t, &types.Status{Code: int32(codes.OK), Message: "OK"}, result.Status)
 
 				require.NotNil(t, result.Bundle)
 
