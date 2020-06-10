@@ -2,8 +2,6 @@ package bundle
 
 import (
 	"context"
-	"crypto/x509"
-	"errors"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -104,23 +102,17 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 
 	applyBundleMask(req.Bundle, req.InputMask)
 
-	rootCAs, err := parseX509Authorities(req.Bundle.X509Authorities)
+	dsBundle, err := api.ProtoToBundle(req.Bundle)
 	if err != nil {
-		log.WithError(err).Error("Invalid request: invalid X509 authority")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid X509 authority: %v", err)
-	}
-
-	jwtKeys, err := parseJWTAuthorities(req.Bundle.JwtAuthorities)
-	if err != nil {
-		log.WithError(err).Error("Invalid request: invalid JWT authority")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid JWT authority: %v", err)
+		log.WithError(err).Error("Failed to convert bundle")
+		return nil, status.Errorf(codes.Internal, "failed to convert bundle: %v", err)
 	}
 
 	resp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId:  td.String(),
-			JwtSigningKeys: jwtKeys,
-			RootCas:        rootCAs,
+			JwtSigningKeys: dsBundle.JwtSigningKeys,
+			RootCas:        dsBundle.RootCas,
 		},
 	})
 	if err != nil {
@@ -136,41 +128,6 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 
 	applyBundleMask(bundle, req.OutputMask)
 	return bundle, nil
-}
-
-func parseX509Authorities(certs []*types.X509Certificate) ([]*common.Certificate, error) {
-	var rootCAs []*common.Certificate
-	for _, rootCA := range certs {
-		if _, err := x509.ParseCertificates(rootCA.Asn1); err != nil {
-			return nil, err
-		}
-
-		rootCAs = append(rootCAs, &common.Certificate{
-			DerBytes: rootCA.Asn1,
-		})
-	}
-
-	return rootCAs, nil
-}
-
-func parseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
-	var jwtKeys []*common.PublicKey
-	for _, key := range keys {
-		if _, err := x509.ParsePKIXPublicKey(key.PublicKey); err != nil {
-			return nil, err
-		}
-		if key.KeyId == "" {
-			return nil, errors.New("missing KeyId")
-		}
-
-		jwtKeys = append(jwtKeys, &common.PublicKey{
-			PkixBytes: key.PublicKey,
-			Kid:       key.KeyId,
-			NotAfter:  key.ExpiresAt,
-		})
-	}
-
-	return jwtKeys, nil
 }
 
 func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
@@ -208,7 +165,7 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFede
 			log.WithFields(logrus.Fields{
 				logrus.ErrorKey:         err,
 				telemetry.TrustDomainID: dsBundle.TrustDomainId,
-			}).Errorf("Bundle has an invalid trust domain ID")
+			}).Error("Bundle has an invalid trust domain ID")
 			return nil, status.Errorf(codes.Internal, "bundle has an invalid trust domain ID: %q", dsBundle.TrustDomainId)
 		}
 
@@ -223,7 +180,6 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFede
 			return nil, status.Errorf(codes.Internal, "failed to convert bundle: %v", err)
 		}
 		applyBundleMask(b, req.OutputMask)
-
 		resp.Bundles = append(resp.Bundles, b)
 	}
 
@@ -264,11 +220,79 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederat
 	}
 
 	applyBundleMask(b, req.OutputMask)
+
 	return b, nil
 }
 
 func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundle.BatchCreateFederatedBundleRequest) (*bundle.BatchCreateFederatedBundleResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BatchCreateFederatedBundle not implemented")
+	var results []*bundle.BatchCreateFederatedBundleResponse_Result
+	for _, b := range req.Bundle {
+		results = append(results, s.createFederatedBundle(ctx, b, req.OutputMask))
+	}
+
+	return &bundle.BatchCreateFederatedBundleResponse{
+		Results: results,
+	}, nil
+}
+
+func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, outputMask *types.BundleMask) *bundle.BatchCreateFederatedBundleResponse_Result {
+	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, b.TrustDomain)
+
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
+		return &bundle.BatchCreateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %q", b.TrustDomain),
+		}
+	}
+
+	if s.td.Compare(td) == 0 {
+		log.Error("Invalid request: creating a federated bundle for the server's own trust domain is not allowed")
+		return &bundle.BatchCreateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "creating a federated bundle for the server's own trust domain (%s) s not allowed", td.String()),
+		}
+	}
+
+	dsBundle, err := api.ProtoToBundle(b)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return &bundle.BatchCreateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+		}
+	}
+	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: dsBundle,
+	})
+
+	switch status.Code(err) {
+	case codes.OK:
+	case codes.AlreadyExists:
+		log.WithError(err).Error("Bundle already exists")
+		return &bundle.BatchCreateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.AlreadyExists, "bundle already exists"),
+		}
+	default:
+		log.WithError(err).Error("Unable to create bundle")
+		return &bundle.BatchCreateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "unable to create bundle: %v", err),
+		}
+	}
+
+	protoBundle, err := api.BundleToProto(resp.Bundle)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return &bundle.BatchCreateFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+		}
+	}
+
+	applyBundleMask(protoBundle, outputMask)
+
+	log.Info("Bundle created successfully")
+	return &bundle.BatchCreateFederatedBundleResponse_Result{
+		Status: api.CreateStatus(codes.OK, "bundle created successfully for trust domain: %q", td.String()),
+		Bundle: protoBundle,
+	}
 }
 
 func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundle.BatchUpdateFederatedBundleRequest) (*bundle.BatchUpdateFederatedBundleResponse, error) {
