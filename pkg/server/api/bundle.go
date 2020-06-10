@@ -1,7 +1,9 @@
 package api
 
 import (
+	"crypto/x509"
 	"errors"
+	"fmt"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -39,4 +41,70 @@ func BundleToProto(b *common.Bundle) (*types.Bundle, error) {
 		X509Authorities: x509Authorities,
 		JwtAuthorities:  jwtAuthorities,
 	}, nil
+}
+
+func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
+	if b == nil {
+		return nil, errors.New("no bundle provided")
+	}
+
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	rootCas, err := parseX509Authorities(b.X509Authorities)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse X.509 authority: %v", err)
+	}
+
+	jwtSigningKeys, err := parseJWTAuthorities(b.JwtAuthorities)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse JWT authority: %v", err)
+	}
+
+	commonBundle := &common.Bundle{
+		TrustDomainId:  td.IDString(),
+		RefreshHint:    b.RefreshHint,
+		RootCas:        rootCas,
+		JwtSigningKeys: jwtSigningKeys,
+	}
+
+	return commonBundle, nil
+}
+
+func parseX509Authorities(certs []*types.X509Certificate) ([]*common.Certificate, error) {
+	var rootCAs []*common.Certificate
+	for _, rootCA := range certs {
+		if _, err := x509.ParseCertificates(rootCA.Asn1); err != nil {
+			return nil, err
+		}
+
+		rootCAs = append(rootCAs, &common.Certificate{
+			DerBytes: rootCA.Asn1,
+		})
+	}
+
+	return rootCAs, nil
+}
+
+func parseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
+	var jwtKeys []*common.PublicKey
+	for _, key := range keys {
+		if _, err := x509.ParsePKIXPublicKey(key.PublicKey); err != nil {
+			return nil, err
+		}
+
+		if key.KeyId == "" {
+			return nil, errors.New("missing key ID")
+		}
+
+		jwtKeys = append(jwtKeys, &common.PublicKey{
+			PkixBytes: key.PublicKey,
+			Kid:       key.KeyId,
+			NotAfter:  key.ExpiresAt,
+		})
+	}
+
+	return jwtKeys, nil
 }
