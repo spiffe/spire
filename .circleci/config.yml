@@ -2,11 +2,16 @@ version: 2.1
 orbs:
   go: circleci/go@0.2.0
   aws-s3: circleci/aws-s3@1.0.12
+ parameters:
+   go-version:
+     default: 1.13.9
+     description: The Go version.
+     type: string
 jobs:
   # cache-go-modules caches the go modules
   cache-go-modules:
     docker:
-      - image: circleci/golang:1.13.7
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
     steps:
       - checkout
       - restore_cache:
@@ -29,7 +34,7 @@ jobs:
   # lint-protogen lints the plugin stubs
   lint-plugingen:
     docker:
-      - image: circleci/golang:1.13.7
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
     steps:
       - checkout
       - restore_cache:
@@ -40,7 +45,7 @@ jobs:
   # runs unit tests and builds artifacts
   build-and-unit-test:
     docker:
-      - image: circleci/golang:1.13.7
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
     steps:
       - checkout
       - restore_cache:
@@ -58,7 +63,7 @@ jobs:
   # docker-images builds the docker images
   docker-images:
     docker:
-      - image: circleci/golang:1.13.7
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
     steps:
       - checkout
       - setup_remote_docker
@@ -80,7 +85,7 @@ jobs:
       - run: sudo rm -rf /usr/local/go
       # Install go
       - go/install:
-          version: 1.13.7
+          version: << pipeline.parameters.go-version >>
       # Load up the cached docker images from the build step
       - attach_workspace:
           at: /tmp/workspace
@@ -97,7 +102,7 @@ jobs:
   # publish-artifacts publishes build artifacts and docker images
   publish-artifacts:
     docker:
-      - image: circleci/golang:1.13.7
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
     steps:
       # Load up the cached docker images and artifacts
       - setup_remote_docker
