@@ -455,8 +455,8 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			name:         "no caller id",
 			code:         codes.Internal,
 			audience:     []string{"AUDIENCE"},
-			err:          "caller ID missing from request context",
-			logMsg:       "Caller ID missing from request context",
+			err:          "failed to fetch registration entries: no caller ID on context",
+			logMsg:       "Failed to fetch registration entries",
 			entry:        entry,
 			failCallerID: true,
 		},
@@ -623,11 +623,14 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			name: "no caller id",
 			reqs: []string{workloadEntry.Id},
 			code: codes.Internal,
-			err:  "caller ID missing from request context",
+			err:  "failed to fetch registration entries: no caller ID on context",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Caller ID missing from request context",
+					Message: "Failed to fetch registration entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "no caller ID on context",
+					},
 				},
 			},
 			failCallerID: true,
@@ -1185,7 +1188,7 @@ type entryFetcher struct {
 	entries []*types.Entry
 }
 
-func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context) ([]*types.Entry, error) {
 	if f.err != "" {
 		return nil, status.Error(codes.Internal, f.err)
 	}

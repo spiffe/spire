@@ -23,19 +23,22 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	Datastore datastore.DataStore
+	EntryFetcher api.AuthorizedEntryFetcher
+	Datastore    datastore.DataStore
 }
 
 // New creates a new entry service
 func New(config Config) *Service {
 	return &Service{
 		ds: config.Datastore,
+		ef: config.EntryFetcher,
 	}
 }
 
 // Service implements the v1 entry service
 type Service struct {
 	ds datastore.DataStore
+	ef api.AuthorizedEntryFetcher
 }
 
 func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
@@ -206,7 +209,24 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDelete
 }
 
 func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthorizedEntriesRequest) (*entry.GetAuthorizedEntriesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAuthorizedEntries not implemented")
+	log := rpccontext.Logger(ctx)
+
+	entriesMap, err := api.FetchAuthEntries(ctx, log, s.ef)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []*types.Entry
+	for _, entry := range entriesMap {
+		applyMask(entry, req.OutputMask)
+		entries = append(entries, entry)
+	}
+
+	resp := &entry.GetAuthorizedEntriesResponse{
+		Entries: entries,
+	}
+
+	return resp, nil
 }
 
 func applyMask(e *types.Entry, mask *types.EntryMask) { //nolint: unused,deadcode
