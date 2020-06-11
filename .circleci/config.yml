@@ -1,0 +1,188 @@
+version: 2.1
+orbs:
+  go: circleci/go@0.2.0
+  aws-s3: circleci/aws-s3@1.0.12
+jobs:
+  # cache-go-modules caches the go modules
+  cache-go-modules:
+    docker:
+      - image: circleci/golang:1.13.7
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: go mod download
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+
+  # lint-protogen lints the compiled protobufs
+  lint-protogen:
+    # Compiling the protobufs uses docker
+    machine: true
+    steps:
+      - checkout
+      - run: make protogen-check
+
+  # lint-protogen lints the plugin stubs
+  lint-plugingen:
+    docker:
+      - image: circleci/golang:1.13.7
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: make plugingen-check
+
+  # runs unit tests and builds artifacts
+  build-and-unit-test:
+    docker:
+      - image: circleci/golang:1.13.7
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: .circleci/run-unit-tests.sh
+      - run: make artifact
+      - run: .circleci/build-release.sh
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts/*
+            - releases/*
+
+  # docker-images builds the docker images
+  docker-images:
+    docker:
+      - image: circleci/golang:1.13.7
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run: make images
+      - run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local | gzip > images.tar.gz
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - images.tar.gz
+
+  # integration-test runs the integration test suite in parallel
+  integration-test:
+    # Run in the machine executor since we have to execute a bunch of
+    # docker containers to do the tests
+    machine: true
+    parallelism: 4
+    steps:
+      # Remove whatever version of go is in the default machine executor image
+      - run: sudo rm -rf /usr/local/go
+      # Install go
+      - go/install:
+          version: 1.13.7
+      # Load up the cached docker images from the build step
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: zcat /tmp/workspace/images.tar.gz | docker load
+      # Checkout source code
+      - checkout
+      # Run all of the suites in parallel
+      - run:
+          name: Execute test suites
+          command: |
+            echo $(circleci tests glob "test/integration/suites/*" | circleci tests split)
+            circleci tests glob "test/integration/suites/*" | circleci tests split | xargs -n1 test/integration/test-one.sh
+
+  # publish-artifacts publishes build artifacts and docker images
+  publish-artifacts:
+    docker:
+      - image: circleci/golang:1.13.7
+    steps:
+      # Load up the cached docker images and artifacts
+      - setup_remote_docker
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: zcat /tmp/workspace/images.tar.gz | docker load
+      - checkout
+      - run: .circleci/publish-images.sh
+      - aws-s3/sync:
+          from: /tmp/workspace/artifacts
+          to: 's3://scytale-artifacts/spire'
+          arguments: |
+            --acl public-read
+          overwrite: true
+
+  # publish-github-release
+  publish-github-release:
+    docker:
+      - image: cibuilds/github:0.10
+    steps:
+      # Load up the cached docker images and artifacts
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: "Publish release on GitHub"
+          command: |
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} /tmp/workspace/releases/
+
+workflows:
+  version: 2
+  all:
+    jobs:
+      - cache-go-modules:
+          filters:  # required since publish jobs have tag filters and depend on this (indirectly)
+            tags:
+              only: /.*/
+      - lint-protogen:
+          filters:  # required since publish jobs have tag filters and depend on this
+            tags:
+              only: /.*/
+      - lint-plugingen:
+          filters:  # required since publish jobs have tag filters and depend on this
+            tags:
+              only: /.*/
+          requires:
+            - cache-go-modules
+      - build-and-unit-test:
+          filters:  # required since publish jobs have tag filters and depend on this
+            tags:
+              only: /.*/
+          requires:
+            - cache-go-modules
+      - docker-images:
+          filters:  # required since publish jobs have tag filters and depend on this (indirectly)
+            tags:
+              only: /.*/
+      - integration-test:
+          filters:  # required since publish jobs have tag filters and depend on this
+            tags:
+              only: /.*/
+          requires:
+            - docker-images
+      - publish-artifacts:
+          requires:
+            - lint-protogen
+            - lint-plugingen
+            - build-and-unit-test
+            - integration-test
+          # artifacts should only be published for master and version tagged commits
+          filters:
+            tags:
+              only:
+                - /^v[0-9]+(\.[0-9]+)*$/
+            branches:
+              only:
+                - master
+      - publish-github-release:
+          requires:
+            - lint-protogen
+            - lint-plugingen
+            - build-and-unit-test
+            - integration-test
+          # github release should only happen on version tagged commits
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+            branches:
+              ignore: /.*/
