@@ -31,6 +31,34 @@ func TestShouldRotateX509(t *testing.T) {
 	assert.True(t, ShouldRotateX509(mockClk.Now(), badCert))
 }
 
+func TestX509Expired(t *testing.T) {
+	// Cert that's valid for 1hr
+	mockClk := clock.NewMock(t)
+	temp, err := util.NewSVIDTemplate(mockClk, "spiffe://example.org/test")
+	require.NoError(t, err)
+	goodCert, _, err := util.SelfSign(temp)
+	require.NoError(t, err)
+
+	// Cert is brand new
+	assert.False(t, X509Expired(mockClk.Now(), goodCert))
+
+	// Cert that's almost expired
+	temp.NotBefore = mockClk.Now().Add(-1 * time.Hour)
+	temp.NotAfter = mockClk.Now()
+	stillGoodCert, _, err := util.SelfSign(temp)
+	require.NoError(t, err)
+
+	assert.False(t, X509Expired(mockClk.Now(), stillGoodCert))
+
+	// Cert that's just expired
+	temp.NotBefore = mockClk.Now().Add(-1 * time.Hour)
+	temp.NotAfter = mockClk.Now().Add(-1 * time.Nanosecond)
+	justBadCert, _, err := util.SelfSign(temp)
+	require.NoError(t, err)
+
+	assert.True(t, X509Expired(mockClk.Now(), justBadCert))
+}
+
 func TestJWTSVIDExpiresSoon(t *testing.T) {
 	// JWT that's valid for 1hr
 	mockClk := clock.NewMock(t)

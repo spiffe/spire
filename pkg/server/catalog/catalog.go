@@ -35,6 +35,7 @@ import (
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
+	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
@@ -44,6 +45,7 @@ var (
 		"awssecret": true,
 		"disk":      true,
 		"spire":     true,
+		"vault":     true,
 	}
 
 	builtIns = []catalog.Plugin{
@@ -67,6 +69,7 @@ var (
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		up_disk.BuiltIn(),
+		up_vault.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),

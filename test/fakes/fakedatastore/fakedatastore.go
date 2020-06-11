@@ -2,7 +2,6 @@ package fakedatastore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -23,11 +22,9 @@ import (
 )
 
 var (
-	// TODO: The following errors should be grpc/status errors with the AlreadyExists code. #992
-
-	ErrBundleAlreadyExists       = errors.New("bundle already exists")
-	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
-	ErrTokenAlreadyExists        = errors.New("token already exists")
+	ErrBundleAlreadyExists       = status.Error(codes.AlreadyExists, "bundle already exists")
+	ErrAttestedNodeAlreadyExists = status.Error(codes.AlreadyExists, "attested node entry already exists")
+	ErrTokenAlreadyExists        = status.Error(codes.AlreadyExists, "token already exists")
 
 	ErrNoSuchBundle            = status.Error(codes.NotFound, "no such bundle")
 	ErrNoSuchAttestedNode      = status.Error(codes.NotFound, "no such attested node entry")
@@ -68,6 +65,10 @@ func New() *DataStore {
 func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle := req.Bundle
 
@@ -142,6 +143,10 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
@@ -547,6 +552,10 @@ func (s *DataStore) UpdateRegistrationEntry(ctx context.Context, req *datastore.
 func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	registrationEntry, ok := s.registrationEntries[req.EntryId]
 	if !ok {

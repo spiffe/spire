@@ -31,10 +31,12 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeResolver | [aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
+| Notifier   | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md) | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage. |
 | Notifier   | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md) | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap. |
 | UpstreamAuthority | [disk](/doc/plugin_server_upstreamauthority_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md) | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamAuthority | [vault](/doc/plugin_server_upstreamauthority_vault.md) | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [spire](/doc/plugin_server_upstreamauthority_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
 ## Server configuration file
@@ -100,7 +102,7 @@ Please see the [Telemetry Configuration](./telemetry_config.md) guide for more i
 
 ## Health check configuration
 
-The server can expose additional endpoint that can be used for health checking. It is enabled by setting `listener_enabled = true`. Currently it exposes 2 paths: one for liveness (is server up) and one for readiness (is server ready to serve requests). By default, health checking endpoint will listen on localhost:80, unless configured otherwise.
+The server can expose an additional endpoint that can be used for health checking. It is enabled by setting `listener_enabled = true`. Currently it exposes 2 paths: one for liveness (is server up?) and one for readiness (is server ready to serve requests?). By default, health checking endpoint will listen on localhost:80, unless configured otherwise.
 
 ```hcl
 health_checks {

@@ -3,12 +3,14 @@ package entry
 import (
 	"context"
 
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -72,7 +74,84 @@ func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*ty
 }
 
 func (s *Service) BatchCreateEntry(ctx context.Context, req *entry.BatchCreateEntryRequest) (*entry.BatchCreateEntryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method BatchCreateEntry not implemented")
+	var results []*entry.BatchCreateEntryResponse_Result
+	for _, eachEntry := range req.Entries {
+		results = append(results, s.createEntry(ctx, eachEntry, req.OutputMask))
+	}
+
+	return &entry.BatchCreateEntryResponse{
+		Results: results,
+	}, nil
+}
+
+func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *types.EntryMask) *entry.BatchCreateEntryResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	cEntry, err := api.ProtoToRegistrationEntry(e)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: failed to convert entry")
+		return &entry.BatchCreateEntryResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert entry: %v", err),
+		}
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
+
+	// Validates that there is no similar entry
+	if isUniqueStatus := s.isEntryUnique(ctx, cEntry); isUniqueStatus != nil {
+		return &entry.BatchCreateEntryResponse_Result{
+			Status: isUniqueStatus,
+		}
+	}
+
+	// Create entry
+	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: cEntry,
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to create entry")
+		return &entry.BatchCreateEntryResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to create entry: %v", err),
+		}
+	}
+
+	tEntry, err := api.RegistrationEntryToProto(resp.Entry)
+	if err != nil {
+		log.WithError(err).Error("Unable to convert registration entry")
+		return &entry.BatchCreateEntryResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "unable to convert registration entry: %v", err),
+		}
+	}
+
+	applyMask(tEntry, outputMask)
+
+	return &entry.BatchCreateEntryResponse_Result{
+		Status: api.OK(),
+		Entry:  tEntry,
+	}
+}
+
+func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry) *types.Status {
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		BySpiffeId: &wrappers.StringValue{
+			Value: e.SpiffeId,
+		},
+		ByParentId: &wrappers.StringValue{
+			Value: e.ParentId,
+		},
+		BySelectors: &datastore.BySelectors{
+			Match:     datastore.BySelectors_MATCH_EXACT,
+			Selectors: e.Selectors,
+		},
+	})
+	if err != nil {
+		return api.CreateStatus(codes.Internal, "failed to list entries: %v", err)
+	}
+	if len(resp.Entries) != 0 {
+		return api.CreateStatus(codes.AlreadyExists, "entry already exists")
+	}
+
+	return nil
 }
 
 func (s *Service) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEntryRequest) (*entry.BatchUpdateEntryResponse, error) {
@@ -80,7 +159,50 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEn
 }
 
 func (s *Service) BatchDeleteEntry(ctx context.Context, req *entry.BatchDeleteEntryRequest) (*entry.BatchDeleteEntryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method BatchDeleteEntry not implemented")
+	var results []*entry.BatchDeleteEntryResponse_Result
+	for _, id := range req.Ids {
+		results = append(results, s.deleteEntry(ctx, id))
+	}
+
+	return &entry.BatchDeleteEntryResponse{
+		Results: results,
+	}, nil
+}
+
+func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDeleteEntryResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	if id == "" {
+		log.Error("Invalid request: missing entry ID")
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.CreateStatus(codes.InvalidArgument, "missing entry ID"),
+		}
+	}
+
+	log = log.WithField(telemetry.RegistrationID, id)
+
+	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
+		EntryId: id,
+	})
+	switch status.Code(err) {
+	case codes.OK:
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.OK(),
+		}
+	case codes.NotFound:
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.StatusFromError(err),
+		}
+	default:
+		log.WithError(err).Error("Failed to delete entry")
+		return &entry.BatchDeleteEntryResponse_Result{
+			Id:     id,
+			Status: api.CreateStatus(codes.Internal, "failed to delete entry: %v", err),
+		}
+	}
 }
 
 func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthorizedEntriesRequest) (*entry.GetAuthorizedEntriesResponse, error) {
@@ -90,10 +212,6 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthor
 func applyMask(e *types.Entry, mask *types.EntryMask) { //nolint: unused,deadcode
 	if mask == nil {
 		return
-	}
-
-	if !mask.Id {
-		e.Id = ""
 	}
 
 	if !mask.SpiffeId {

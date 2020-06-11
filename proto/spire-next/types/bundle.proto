@@ -39,9 +39,6 @@ message JWTKey {
 }
 
 message BundleMask {
-    // trust_domain field mask.
-    bool trust_domain = 1;
-
     // x509_authorities field mask.
     bool x509_authorities = 2;
 
