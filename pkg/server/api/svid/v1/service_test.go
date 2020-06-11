@@ -14,17 +14,22 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/api/svid/v1"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	svidpb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -879,6 +884,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 					}
 					continue
 				}
+				spiretest.AssertProtoEqual(t, &types.Status{Code: int32(codes.OK), Message: "OK"}, result.Status)
 
 				require.NotNil(t, result.Bundle)
 
@@ -921,10 +927,162 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 	}
 }
 
+func TestNewDownstreamX509CA(t *testing.T) {
+	type downstreamCaTest struct {
+		name           string
+		err            string
+		failSigning    bool
+		failDataStore  bool
+		rateLimiterErr error
+		entry          *types.Entry
+		csr            []byte
+		csrTemplate    *x509.CertificateRequest
+		code           codes.Code
+		fetcherErr     string
+	}
+
+	downstreamEntry1 := &types.Entry{
+		Id:         "downstreamCA1",
+		ParentId:   api.ProtoFromID(agentID),
+		SpiffeId:   &types.SPIFFEID{TrustDomain: "example.org", Path: ""},
+		Downstream: true,
+	}
+
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	x509CA := test.ca.X509CA()
+
+	for _, tt := range []downstreamCaTest{
+		{
+			name:           "Malformed CSR",
+			rateLimiterErr: nil,
+			err:            "malformed CSR: asn1: structure error",
+			failSigning:    false,
+			csr:            []byte{1, 2, 3},
+			code:           codes.InvalidArgument,
+			fetcherErr:     "",
+			entry:          downstreamEntry1,
+		},
+		{
+			name:           "Rate Limiter Err",
+			rateLimiterErr: status.Error(codes.Internal, "rate limit error"),
+			err:            "rate limit error",
+			failSigning:    false,
+			csr:            []byte{1, 2, 3},
+			code:           codes.Internal,
+			fetcherErr:     "",
+			entry:          downstreamEntry1,
+		},
+		{
+			name:           "Unauthorized",
+			rateLimiterErr: nil,
+			err:            "caller is not a downstream workload",
+			failSigning:    false,
+			csr:            []byte{1, 2, 3},
+			code:           codes.Internal,
+			fetcherErr:     "",
+			entry:          nil,
+		},
+		{
+			name:           "Fail Data Store",
+			rateLimiterErr: nil,
+			err:            "bundle not found",
+			failSigning:    false,
+			csrTemplate:    &x509.CertificateRequest{},
+			code:           codes.Internal,
+			fetcherErr:     "",
+			entry:          downstreamEntry1,
+			failDataStore:  true,
+		},
+		{
+			name:           "Successful CA Request",
+			rateLimiterErr: nil,
+			err:            "",
+			failSigning:    false,
+			failDataStore:  false,
+			csrTemplate: &x509.CertificateRequest{
+				URIs: []*url.URL{workloadID.URL()},
+			},
+			fetcherErr: "",
+			entry:      downstreamEntry1,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+			test.ef.err = tt.fetcherErr
+			if !tt.failDataStore {
+				_, err := test.ds.AppendBundle(context.Background(), &datastore.AppendBundleRequest{
+					Bundle: &common.Bundle{
+						// The SPIFFE ID of the bundle in the datastore needs to match the SPIFFE ID
+						// provided by the client
+						TrustDomainId: td.IDString(),
+						RootCas: []*common.Certificate{
+							{DerBytes: []byte("RootCa1")},
+						},
+					},
+				})
+				require.NoError(t, err)
+			} else {
+				_, err := test.ds.DeleteBundle(context.Background(),
+					&datastore.DeleteBundleRequest{TrustDomainId: td.IDString()},
+				)
+				require.NoError(t, err)
+			}
+
+			test.withCallerID = true
+			test.rateLimiter.count = 1
+			test.rateLimiter.err = tt.rateLimiterErr
+
+			test.ca.SetX509CA(x509CA)
+			if tt.failSigning {
+				test.ca.SetX509CA(nil)
+			}
+
+			csr := tt.csr
+			if tt.csrTemplate != nil {
+				csr = createCSR(t, tt.csrTemplate)
+			}
+
+			ctx := context.Background()
+
+			if tt.entry != nil {
+				test.downstream.entries = []*types.Entry{tt.entry}
+			} else {
+				test.downstream.entries = nil
+			}
+
+			resp, err := test.client.NewDownstreamX509CA(ctx, &svidpb.NewDownstreamX509CARequest{
+				Csr: csr,
+			})
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotEmpty(t, resp.CaCertChain)
+				require.NotEmpty(t, resp.X509Authorities)
+
+				certChain, err := x509util.RawCertsToCertificates(resp.CaCertChain)
+				require.NoError(t, err)
+				require.NotEmpty(t, certChain)
+				require.NotEmpty(t, certChain[0].URIs)
+				require.Equal(t, certChain[0].URIs[0].String(), td.IDString())
+
+				require.Equal(t, string(resp.X509Authorities[0]), "RootCa1")
+			}
+		})
+	}
+}
+
 type serviceTest struct {
 	client       svidpb.SVIDClient
-	ef           *entryFetcher
+	ef           *entryFetcher // Stores entries explicitly fetched using FetchAuthorizedEntries
+	downstream   *entryFetcher // Stores Downstream entries which end up in the context
 	ca           *fakeserverca.CA
+	ds           *fakedatastore.DataStore
 	logHook      *test.Hook
 	rateLimiter  *fakeRateLimiter
 	withCallerID bool
@@ -939,11 +1097,15 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
 	ef := &entryFetcher{}
+	downstream := &entryFetcher{}
+	ds := fakedatastore.New()
+
 	rateLimiter := &fakeRateLimiter{}
 	service := svid.New(svid.Config{
 		EntryFetcher: ef,
 		ServerCA:     ca,
 		TrustDomain:  trustDomain,
+		DataStore:    ds,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -954,6 +1116,8 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	test := &serviceTest{
 		ca:          ca,
 		ef:          ef,
+		downstream:  downstream,
+		ds:          ds,
 		logHook:     logHook,
 		rateLimiter: rateLimiter,
 	}
@@ -963,6 +1127,9 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		ctx = rpccontext.WithRateLimiter(ctx, rateLimiter)
 		if test.withCallerID {
 			ctx = rpccontext.WithCallerID(ctx, agentID)
+		}
+		if test.downstream.entries != nil {
+			ctx = rpccontext.WithCallerDownstreamEntries(ctx, downstream.entries)
 		}
 		return ctx
 	}

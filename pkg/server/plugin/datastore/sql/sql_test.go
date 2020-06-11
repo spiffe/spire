@@ -1619,6 +1619,13 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	s.Require().Len(entriesResp.Entries, 1)
 
 	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
+
+	// Delete again must fails with Not Found
+	expectedCallCounter = ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
+	delRes, err = s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
+	expectedCallCounter.Done(nil)
+	s.Require().EqualError(err, "rpc error: code = NotFound desc = datastore-sql: record not found")
+	s.Require().Nil(delRes)
 }
 
 func (s *PluginSuite) TestListParentIDEntries() {

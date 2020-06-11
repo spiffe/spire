@@ -2,7 +2,6 @@ package fakedatastore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -23,11 +22,9 @@ import (
 )
 
 var (
-	// TODO: The following errors should be grpc/status errors with the AlreadyExists code. #992
-
-	ErrBundleAlreadyExists       = errors.New("bundle already exists")
-	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
-	ErrTokenAlreadyExists        = errors.New("token already exists")
+	ErrBundleAlreadyExists       = status.Error(codes.AlreadyExists, "bundle already exists")
+	ErrAttestedNodeAlreadyExists = status.Error(codes.AlreadyExists, "attested node entry already exists")
+	ErrTokenAlreadyExists        = status.Error(codes.AlreadyExists, "token already exists")
 
 	ErrNoSuchBundle            = status.Error(codes.NotFound, "no such bundle")
 	ErrNoSuchAttestedNode      = status.Error(codes.NotFound, "no such attested node entry")
@@ -46,6 +43,9 @@ type DataStore struct {
 
 	// relates bundles with entries that federate with them
 	bundleEntries map[string]map[string]bool
+
+	// expect error when calling functions
+	expectErr error
 }
 
 var _ datastore.DataStore = (*DataStore)(nil)
@@ -65,6 +65,10 @@ func New() *DataStore {
 func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle := req.Bundle
 
@@ -118,6 +122,10 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	bundle := req.Bundle
 
 	if existingBundle, ok := s.bundles[bundle.TrustDomainId]; ok {
@@ -135,6 +143,10 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
@@ -168,6 +180,9 @@ func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundl
 func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
@@ -390,6 +405,10 @@ func (s *DataStore) FetchRegistrationEntry(ctx context.Context, req *datastore.F
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	resp := new(datastore.FetchRegistrationEntryResponse)
 	entry, ok := s.registrationEntries[req.EntryId]
 	if !ok {
@@ -534,6 +553,10 @@ func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, req *datastore.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	registrationEntry, ok := s.registrationEntries[req.EntryId]
 	if !ok {
 		return nil, ErrNoSuchRegistrationEntry
@@ -617,6 +640,10 @@ func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoi
 	}
 
 	return &datastore.PruneJoinTokensResponse{}, nil
+}
+
+func (s *DataStore) SetError(err error) {
+	s.expectErr = err
 }
 
 func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
