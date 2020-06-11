@@ -174,29 +174,29 @@ workflows:
               only: /.*/
           requires:
             - docker-images
-      - publish-artifacts:
-          requires:
-            - lint-protogen
-            - lint-plugingen
-            - build-and-unit-test
-            - integration-test
-          # artifacts should only be published for master and version tagged commits
-          filters:
-            tags:
-              only:
-                - /^v[0-9]+(\.[0-9]+)*$/
-            branches:
-              only:
-                - master
-      - publish-github-release:
-          requires:
-            - lint-protogen
-            - lint-plugingen
-            - build-and-unit-test
-            - integration-test
-          # github release should only happen on version tagged commits
-          filters:
-            tags:
-              only: /^v[0-9]+(\.[0-9]+)*$/
-            branches:
-              ignore: /.*/
+#      - publish-artifacts:
+#          requires:
+#            - lint-protogen
+#            - lint-plugingen
+#            - build-and-unit-test
+#            - integration-test
+#          # artifacts should only be published for master and version tagged commits
+#          filters:
+#            tags:
+#              only:
+#                - /^v[0-9]+(\.[0-9]+)*$/
+#            branches:
+#              only:
+#                - master
+#      - publish-github-release:
+#          requires:
+#            - lint-protogen
+#            - lint-plugingen
+#            - build-and-unit-test
+#            - integration-test
+#          # github release should only happen on version tagged commits
+#          filters:
+#            tags:
+#              only: /^v[0-9]+(\.[0-9]+)*$/
+#            branches:
+#              ignore: /.*/
