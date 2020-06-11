@@ -61,14 +61,16 @@ func TestListEntries(t *testing.T) {
 	}
 	badRegEntry := &common.RegistrationEntry{
 		ParentId: parentID.String(),
-		SpiffeId: "malformed id",
+		SpiffeId: "zzz://malformed id",
 		Selectors: []*common.Selector{
 			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
 		},
 	}
 
 	// setup
-	test := setupServiceTest(t)
+	ds := fakedatastore.New()
+	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
 
 	childEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
@@ -110,18 +112,20 @@ func TestListEntries(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name                string
-		err                 string
-		dsError             error
-		expectNextPageToken bool
-		expectedEntries     []*types.Entry
-		request             *entrypb.ListEntriesRequest
+		name                  string
+		err                   string
+		code                  codes.Code
+		logMsg                string
+		dsError               error
+		expectedNextPageToken string
+		expectedEntries       []*types.Entry
+		request               *entrypb.ListEntriesRequest
 	}{
 		{
-			name:                "happy path",
-			expectNextPageToken: true,
+			name: "happy path",
 			expectedEntries: []*types.Entry{
 				{
+					Id:       childEntry.Entry.EntryId,
 					SpiffeId: protoChildID,
 				},
 			},
@@ -129,7 +133,6 @@ func TestListEntries(t *testing.T) {
 				OutputMask: &types.EntryMask{
 					SpiffeId: true,
 				},
-				PageSize: 10,
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySpiffeId: protoChildID,
 					ByParentId: protoParentID,
@@ -145,14 +148,9 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:            "empty request",
+			logMsg:          "Failed to convert entry: ",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request:         &entrypb.ListEntriesRequest{},
-		},
-		{
-			name:    "ds error",
-			err:     "failed to list entries: ds error",
-			dsError: errors.New("ds error"),
-			request: &entrypb.ListEntriesRequest{},
 		},
 		{
 			name:            "ByParentId",
@@ -212,8 +210,26 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name: "bad ByParentId",
-			err:  "ByParentId argument is not a valid SPIFFE ID: trust_domain:\"http://example.org\" path:\"/bad\"",
+			name:                  "PageSize",
+			expectedEntries:       []*types.Entry{expectedChild},
+			expectedNextPageToken: childEntry.Entry.EntryId,
+			request: &entrypb.ListEntriesRequest{
+				PageSize: 1,
+			},
+		},
+		{
+			name:    "ds error",
+			err:     "failed to list entries: ds error",
+			code:    codes.Internal,
+			logMsg:  "Failed to list entries",
+			dsError: errors.New("ds error"),
+			request: &entrypb.ListEntriesRequest{},
+		},
+		{
+			name:   "bad ByParentId",
+			err:    "failed to build request: malformed ByParentId: spiffeid: invalid scheme",
+			code:   codes.InvalidArgument,
+			logMsg: "Invalid request",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					ByParentId: badID,
@@ -221,8 +237,10 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name: "bad BySpiffeId",
-			err:  "BySpiffeId argument is not a valid SPIFFE ID: trust_domain:\"http://example.org\" path:\"/bad\"",
+			name:   "bad BySpiffeId",
+			err:    "failed to build request: malformed BySpiffeId: spiffeid: invalid scheme",
+			code:   codes.InvalidArgument,
+			logMsg: "Invalid request",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySpiffeId: badID,
@@ -232,7 +250,7 @@ func TestListEntries(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test.ds.SetError(tt.dsError)
+			ds.SetError(tt.dsError)
 
 			// exercise
 			entries, err := test.client.ListEntries(context.Background(), tt.request)
@@ -241,17 +259,16 @@ func TestListEntries(t *testing.T) {
 			if tt.err != "" {
 				require.Nil(t, entries)
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.err)
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, entries)
 			spiretest.AssertProtoListEqual(t, tt.expectedEntries, entries.Entries)
-			if tt.expectNextPageToken {
-				require.NotEmpty(t, entries.NextPageToken)
-			} else {
-				require.Empty(t, entries.NextPageToken)
+			assert.Equal(t, tt.expectedNextPageToken, entries.NextPageToken)
+			if tt.logMsg != "" {
+				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
 			}
 		})
 	}
@@ -946,6 +963,7 @@ func TestBatchDeleteEntry(t *testing.T) {
 			}, resp)
 
 			// Validate DS contains expected entries
+			ds.SetError(nil)
 			listEntries, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 			require.NoError(t, err)
 

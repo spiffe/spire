@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -45,13 +44,13 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 
 	listReq, err := buildListEntriesRequest(req)
 	if err != nil {
-		log.WithError(err).Error("Failed to build ListEntriesRequest")
-		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+		log.WithError(err).Error("Invalid request")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to build request: %v", err)
 	}
 
 	dsResp, err := s.ds.ListRegistrationEntries(ctx, listReq)
 	if err != nil {
-		log.WithError(err).Error("Failed to list registration entries")
+		log.WithError(err).Error("Failed to list entries")
 		return nil, status.Errorf(codes.Internal, "failed to list entries: %v", err)
 	}
 
@@ -63,7 +62,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 	for _, regEntry := range dsResp.Entries {
 		entry, err := api.RegistrationEntryToProto(regEntry)
 		if err != nil {
-			log.WithError(err).Errorf("Failed to convert entry: %v", regEntry)
+			log.WithError(err).Errorf("Failed to convert entry: %q", regEntry.EntryId)
 			continue
 		}
 		applyMask(entry, req.OutputMask)
@@ -240,7 +239,7 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthor
 	return nil, status.Error(codes.Unimplemented, "method GetAuthorizedEntries not implemented")
 }
 
-func applyMask(e *types.Entry, mask *types.EntryMask) { //nolint: unused,deadcode
+func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if mask == nil {
 		return
 	}
@@ -292,51 +291,38 @@ func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegi
 		}
 	}
 
-	if req.Filter == nil {
-		return listReq, nil
-	}
-
-	if req.Filter.ByParentId != nil {
-		var err error
-		listReq.ByParentId, err = spiffeIDToStringValue(req.Filter.ByParentId)
-		if err != nil {
-			return nil, fmt.Errorf("ByParentId argument is not a valid SPIFFE ID: %s", req.Filter.ByParentId) //nolint: golint
-		}
-	}
-
-	if req.Filter.BySpiffeId != nil {
-		var err error
-		listReq.BySpiffeId, err = spiffeIDToStringValue(req.Filter.BySpiffeId)
-		if err != nil {
-			return nil, fmt.Errorf("BySpiffeId argument is not a valid SPIFFE ID: %s", req.Filter.BySpiffeId) //nolint: golint
-		}
-	}
-
-	if req.Filter.BySelectors != nil {
-		dsSelectors := []*common.Selector{}
-		for _, reqSelector := range req.Filter.BySelectors.Selectors {
-			s := &common.Selector{
-				Type:  reqSelector.Type,
-				Value: reqSelector.Value,
+	if req.Filter != nil {
+		if req.Filter.ByParentId != nil {
+			var err error
+			listReq.ByParentId, err = api.StringValueFromProto(req.Filter.ByParentId)
+			if err != nil {
+				return nil, fmt.Errorf("malformed ByParentId: %v", err)
 			}
-			dsSelectors = append(dsSelectors, s)
 		}
-		listReq.BySelectors = &datastore.BySelectors{
-			Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
-			Selectors: dsSelectors,
+
+		if req.Filter.BySpiffeId != nil {
+			var err error
+			listReq.BySpiffeId, err = api.StringValueFromProto(req.Filter.BySpiffeId)
+			if err != nil {
+				return nil, fmt.Errorf("malformed BySpiffeId: %v", err)
+			}
+		}
+
+		if req.Filter.BySelectors != nil {
+			var dsSelectors []*common.Selector
+			for _, reqSelector := range req.Filter.BySelectors.Selectors {
+				s := &common.Selector{
+					Type:  reqSelector.Type,
+					Value: reqSelector.Value,
+				}
+				dsSelectors = append(dsSelectors, s)
+			}
+			listReq.BySelectors = &datastore.BySelectors{
+				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
+				Selectors: dsSelectors,
+			}
 		}
 	}
 
 	return listReq, nil
-}
-
-func spiffeIDToStringValue(spiffeID *types.SPIFFEID) (*wrappers.StringValue, error) {
-	ID, err := spiffeid.New(spiffeID.TrustDomain, spiffeID.Path)
-	if err != nil {
-		return nil, err
-	}
-
-	return &wrappers.StringValue{
-		Value: ID.String(),
-	}, nil
 }
