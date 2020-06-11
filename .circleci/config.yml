@@ -2,13 +2,19 @@ version: 2.1
 orbs:
   go: circleci/go@1.2.0
   aws-s3: circleci/aws-s3@1.0.15
- parameters:
-   go-version:
-     default: 1.13.9
-     description: The Go version.
-     type: string
-   resource-class:
-     default: small
+parameters:
+  go-version:
+    default: 1.13.9
+    description: The Go version.
+    type: string
+  resource-class:
+    default: small
+    description: Resource class for CircleCI instance and containers.
+    type: string
+  xcode-version:
+    default: 11.5.0
+    description: The XCode version.
+    type: string
 jobs:
   # cache-go-modules caches the go modules
   cache-go-modules:
@@ -46,9 +52,30 @@ jobs:
       - run: make plugingen-check
 
   # runs unit tests and builds artifacts
-  build-and-unit-test:
+  build-and-unit-test-linux:
     docker:
       - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: medium
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run:
+          command: .circleci/run-unit-tests.sh
+          environment:
+            GOPARALLEL: "2"
+      - run: make artifact
+      - run: .circleci/build-release.sh
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts/*
+            - releases/*
+
+  build-and-unit-test-macosx:
+    macos:
+      xcode: << pipeline.parameters.xcode-version >>
     resource_class: medium
     steps:
       - checkout
@@ -160,12 +187,16 @@ workflows:
               only: /.*/
           requires:
             - cache-go-modules
-      - build-and-unit-test:
+      - build-and-unit-test-linux:
           filters:  # required since publish jobs have tag filters and depend on this
             tags:
               only: /.*/
           requires:
             - cache-go-modules
+      - build-and-unit-test-macosx:
+          filters:  # required since publish jobs have tag filters and depend on this
+            tags:
+              only: /.*/
       - docker-images:
           filters:  # required since publish jobs have tag filters and depend on this (indirectly)
             tags:
