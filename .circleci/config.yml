@@ -12,6 +12,7 @@ jobs:
   cache-go-modules:
     docker:
       - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: small
     steps:
       - checkout
       - restore_cache:
@@ -25,8 +26,7 @@ jobs:
 
   # lint-protogen lints the compiled protobufs
   lint-protogen:
-    # Compiling the protobufs uses docker
-    machine: true
+    resource_class: small
     steps:
       - checkout
       - run: make protogen-check
@@ -35,6 +35,7 @@ jobs:
   lint-plugingen:
     docker:
       - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: small
     steps:
       - checkout
       - restore_cache:
@@ -46,12 +47,16 @@ jobs:
   build-and-unit-test:
     docker:
       - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: medium
     steps:
       - checkout
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: .circleci/run-unit-tests.sh
+      - run:
+          command: .circleci/run-unit-tests.sh
+          environment:
+            GOPARALLEL: "2"
       - run: make artifact
       - run: .circleci/build-release.sh
       - persist_to_workspace:
@@ -64,6 +69,7 @@ jobs:
   docker-images:
     docker:
       - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: small
     steps:
       - checkout
       - setup_remote_docker
@@ -79,7 +85,8 @@ jobs:
     # Run in the machine executor since we have to execute a bunch of
     # docker containers to do the tests
     machine: true
-    parallelism: 4
+    parallelism: 2
+    resource_class: medium
     steps:
       # Remove whatever version of go is in the default machine executor image
       - run: sudo rm -rf /usr/local/go
@@ -103,6 +110,7 @@ jobs:
   publish-artifacts:
     docker:
       - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: small
     steps:
       # Load up the cached docker images and artifacts
       - setup_remote_docker
@@ -122,6 +130,7 @@ jobs:
   publish-github-release:
     docker:
       - image: cibuilds/github:0.10
+    resource_class: small
     steps:
       # Load up the cached docker images and artifacts
       - attach_workspace:
