@@ -2,7 +2,6 @@ package fakedatastore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -23,11 +22,9 @@ import (
 )
 
 var (
-	// TODO: The following errors should be grpc/status errors with the AlreadyExists code. #992
-
-	ErrBundleAlreadyExists       = errors.New("bundle already exists")
-	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
-	ErrTokenAlreadyExists        = errors.New("token already exists")
+	ErrBundleAlreadyExists       = status.Error(codes.AlreadyExists, "bundle already exists")
+	ErrAttestedNodeAlreadyExists = status.Error(codes.AlreadyExists, "attested node entry already exists")
+	ErrTokenAlreadyExists        = status.Error(codes.AlreadyExists, "token already exists")
 
 	ErrNoSuchBundle            = status.Error(codes.NotFound, "no such bundle")
 	ErrNoSuchAttestedNode      = status.Error(codes.NotFound, "no such attested node entry")
@@ -68,6 +65,10 @@ func New() *DataStore {
 func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	bundle := req.Bundle
 
