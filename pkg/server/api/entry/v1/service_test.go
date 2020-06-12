@@ -3,7 +3,6 @@ package entry_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -20,12 +19,12 @@ import (
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakeentryfetcher"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var (
@@ -34,11 +33,6 @@ var (
 	federatedTd = spiffeid.RequireTrustDomainFromString("domain1.org")
 	agentID     = spiffeid.RequireFromString("spiffe://example.org/agent")
 )
-
-type entryFetcher struct {
-	err     string
-	entries []*types.Entry
-}
 
 func TestGetEntry(t *testing.T) {
 	ds := fakedatastore.New()
@@ -781,23 +775,30 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		DnsNames:  []string{"dns3", "dns4"},
 	}
 
-	test.ef.entries = []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)}
 	for _, tt := range []struct {
-		name          string
-		code          codes.Code
-		fetcherErr    string
-		err           string
-		expectEntries []*types.Entry
-		expectLogs    []spiretest.LogEntry
-		outputMask    *types.EntryMask
-		failCallerID  bool
+		name           string
+		code           codes.Code
+		fetcherErr     string
+		err            string
+		fetcherEntries []*types.Entry
+		expectEntries  []*types.Entry
+		expectLogs     []spiretest.LogEntry
+		outputMask     *types.EntryMask
+		failCallerID   bool
 	}{
 		{
-			name:          "success",
-			expectEntries: []*types.Entry{&entry1, &entry2},
+			name:           "success",
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			expectEntries:  []*types.Entry{&entry1, &entry2},
 		},
 		{
-			name: "success with output mask",
+			name:           "success, no entries",
+			fetcherEntries: []*types.Entry{},
+			expectEntries:  []*types.Entry{},
+		},
+		{
+			name:           "success with output mask",
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
 			expectEntries: []*types.Entry{
 				{
 					Id:        entry1.Id,
@@ -816,6 +817,34 @@ func TestGetAuthorizedEntries(t *testing.T) {
 				SpiffeId:  true,
 				ParentId:  true,
 				Selectors: true,
+			},
+		},
+		{
+			name:           "success with output mask all false",
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			expectEntries: []*types.Entry{
+				{
+					Id: entry1.Id,
+				},
+				{
+					Id: entry2.Id,
+				},
+			},
+			outputMask: &types.EntryMask{},
+		},
+		{
+			name:         "no caller id",
+			err:          "failed to fetch registration entries",
+			code:         codes.Internal,
+			failCallerID: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch registration entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "missing caller ID",
+					},
+				},
 			},
 		},
 		{
@@ -838,7 +867,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			test.withCallerID = !tt.failCallerID
-			test.ef.err = tt.fetcherErr
+			test.ef.Entries = tt.fetcherEntries
+			test.ef.Err = tt.fetcherErr
 			resp, err := test.client.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{
 				OutputMask: tt.outputMask,
 			})
@@ -858,23 +888,6 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			spiretest.AssertProtoEqual(t, expectResponse, resp)
 		})
 	}
-}
-
-func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context) ([]*types.Entry, error) {
-	if f.err != "" {
-		return nil, status.Error(codes.Internal, f.err)
-	}
-
-	caller, ok := rpccontext.CallerID(ctx)
-	if !ok {
-		return nil, errors.New("caller ID missing from request context")
-	}
-
-	if caller != agentID {
-		return nil, fmt.Errorf("provided caller id is different to expected")
-	}
-
-	return f.entries, nil
 }
 
 func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
@@ -908,7 +921,7 @@ func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.Re
 
 type serviceTest struct {
 	client       entrypb.EntryClient
-	ef           *entryFetcher
+	ef           *fakeentryfetcher.EntryFetcher
 	done         func()
 	ds           datastore.DataStore
 	logHook      *test.Hook
@@ -920,7 +933,7 @@ func (s *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
-	ef := &entryFetcher{}
+	ef := &fakeentryfetcher.EntryFetcher{}
 	service := entry.New(entry.Config{
 		Datastore:    ds,
 		EntryFetcher: ef,

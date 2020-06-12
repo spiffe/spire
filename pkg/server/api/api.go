@@ -30,11 +30,18 @@ func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 	}
 }
 
+// AuthorizedEntryFetcher is the interface to fetch authorized entries
 type AuthorizedEntryFetcher interface {
+	// FetchAuthorizedEntries fetches the entries that the caller
+	// that is extracted from the context is authorized for
 	FetchAuthorizedEntries(ctx context.Context) ([]*types.Entry, error)
 }
 
-// FetchAuthEntries fetches authorized entries using caller ID from context
+// FetchAuthEntries fetches authorized entries using the provided
+// implementation of the AuthorizedEntryFetcher interface.
+// The provided implementation of that interface must ensure that
+// the authorized entries are fetched from the caller that
+// is obtained from the context.
 func FetchAuthEntries(ctx context.Context, log logrus.FieldLogger, ef AuthorizedEntryFetcher) (map[string]*types.Entry, error) {
 	entries, err := ef.FetchAuthorizedEntries(ctx)
 	if err != nil {

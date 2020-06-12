@@ -3,25 +3,20 @@ package api_test
 import (
 	"context"
 	"testing"
-	"time"
+
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/spiffe/spire/test/fakes/fakeentryfetcher"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
-
-type entryFetcher struct {
-	err     string
-	entries []*types.Entry
-}
 
 func TestIDFromProto(t *testing.T) {
 	testCases := []struct {
@@ -64,56 +59,24 @@ func TestIDFromProto(t *testing.T) {
 	}
 }
 
-func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context) ([]*types.Entry, error) {
-	if f.err != "" {
-		return nil, status.Error(codes.Internal, f.err)
-	}
-
-	return f.entries, nil
-}
-
 func TestFetchAuthEntries(t *testing.T) {
-	ef := &entryFetcher{}
+	ef := &fakeentryfetcher.EntryFetcher{}
 	log, logHook := test.NewNullLogger()
-
-	ctx := context.Background()
 
 	entry1 := types.Entry{
 		Id:       "entry-1",
 		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 		Ttl:      60,
-		Selectors: []*types.Selector{
-			{Type: "unix", Value: "uid:1000"},
-			{Type: "unix", Value: "gid:1000"},
-		},
-		FederatesWith: []string{
-			"spiffe://domain1.com",
-			"spiffe://domain2.com",
-		},
-		Admin:      true,
-		ExpiresAt:  time.Now().Add(30 * time.Second).Unix(),
-		DnsNames:   []string{"dns1", "dns2"},
-		Downstream: true,
 	}
 	entry2 := types.Entry{
 		Id:       "entry-2",
 		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/baz"},
 		Ttl:      3600,
-		Selectors: []*types.Selector{
-			{Type: "unix", Value: "uid:1001"},
-			{Type: "unix", Value: "gid:1001"},
-		},
-		FederatesWith: []string{
-			"spiffe://domain3.com",
-			"spiffe://domain4.com",
-		},
-		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
-		DnsNames:  []string{"dns3", "dns4"},
 	}
 
-	ef.entries = []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)}
+	ef.Entries = []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)}
 	for _, tt := range []struct {
 		name          string
 		fetcherErr    string
@@ -125,6 +88,19 @@ func TestFetchAuthEntries(t *testing.T) {
 		{
 			name:          "success",
 			expectEntries: map[string]*types.Entry{entry1.Id: &entry1, entry2.Id: &entry2},
+		},
+		{
+			name: "no caller id",
+			err:  "rpc error: code = Internal desc = failed to fetch registration entries: missing caller ID",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch registration entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "missing caller ID",
+					},
+				},
+			}, failCallerID: true,
 		},
 		{
 			name:       "fetcher error",
@@ -144,7 +120,11 @@ func TestFetchAuthEntries(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			logHook.Reset()
-			ef.err = tt.fetcherErr
+			ef.Err = tt.fetcherErr
+			ctx := context.Background()
+			if !tt.failCallerID {
+				ctx = rpccontext.WithCallerID(ctx, spiffeid.RequireFromString("spiffe://example.org/agent"))
+			}
 			entriesMap, err := api.FetchAuthEntries(ctx, log, ef)
 
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
