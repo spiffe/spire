@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -201,6 +202,360 @@ func TestGetEntry(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			spiretest.AssertProtoEqual(t, tt.expectEntry, resp)
+		})
+	}
+}
+
+func TestBatchCreateEntry(t *testing.T) {
+	entryParentID := td.NewID("foo")
+	entrySpiffeID := td.NewID("bar")
+	expiresAt := time.Now().Unix()
+
+	defaultEntry := &common.RegistrationEntry{
+		ParentId: entryParentID.String(),
+		SpiffeId: entrySpiffeID.String(),
+		Ttl:      60,
+		Selectors: []*common.Selector{
+			{Type: "unix", Value: "gid:1000"},
+			{Type: "unix", Value: "uid:1000"},
+		},
+		Admin:         true,
+		DnsNames:      []string{"dns1", "dns2"},
+		Downstream:    true,
+		EntryExpiry:   expiresAt,
+		FederatesWith: []string{federatedTd.IDString()},
+	}
+
+	// Create a test entry
+	testEntry := &types.Entry{
+		Id:       "entry1",
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "host"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "workload"},
+		Selectors: []*types.Selector{
+			{Type: "type", Value: "value1"},
+			{Type: "type", Value: "value2"},
+		},
+		Admin:         true,
+		DnsNames:      []string{"dns1"},
+		Downstream:    true,
+		ExpiresAt:     expiresAt,
+		FederatesWith: []string{"domain1.org"},
+		Ttl:           60,
+	}
+	// Registration entry for test entry
+	testDSEntry := &common.RegistrationEntry{
+		EntryId:  "entry1",
+		ParentId: "spiffe://example.org/host",
+		SpiffeId: "spiffe://example.org/workload",
+		Selectors: []*common.Selector{
+			{Type: "type", Value: "value1"},
+			{Type: "type", Value: "value2"},
+		},
+		Admin:         true,
+		DnsNames:      []string{"dns1"},
+		Downstream:    true,
+		EntryExpiry:   expiresAt,
+		FederatesWith: []string{"spiffe://domain1.org"},
+		Ttl:           60,
+	}
+
+	for _, tt := range []struct {
+		name          string
+		expectLogs    []spiretest.LogEntry
+		expectResults []*entrypb.BatchCreateEntryResponse_Result
+		expectStatus  *types.Status
+		outputMask    *types.EntryMask
+		reqEntries    []*types.Entry
+
+		// fake ds configurations
+		dsError         error
+		dsResults       map[string]*common.RegistrationEntry
+		expectDsEntries map[string]*common.RegistrationEntry
+	}{
+		{
+			name: "multiple entries",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: failed to convert entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "invalid DNS name: empty or only whitespace",
+					},
+				},
+			},
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:       "entry1",
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					},
+				},
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid DNS name: empty or only whitespace",
+					},
+				},
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:       "entry2",
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload2"},
+					},
+				},
+			},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+				SpiffeId: true,
+			},
+			reqEntries: []*types.Entry{
+				testEntry,
+				{
+					ParentId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "agent",
+					},
+					SpiffeId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/malformed",
+					},
+					DnsNames: []string{""},
+				}, {
+					Id: "entry2",
+					ParentId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "agent",
+					},
+					SpiffeId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/workload2",
+					},
+				},
+			},
+			expectDsEntries: map[string]*common.RegistrationEntry{
+				"entry1": testDSEntry,
+				"entry2": {EntryId: "entry2", ParentId: "spiffe://example.org/agent", SpiffeId: "spiffe://example.org/workload2"},
+			},
+		},
+		{
+			name: "no output mask",
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:       "entry1",
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+						Selectors: []*types.Selector{
+							{Type: "type", Value: "value1"},
+							{Type: "type", Value: "value2"},
+						},
+						Admin:         true,
+						DnsNames:      []string{"dns1"},
+						Downstream:    true,
+						ExpiresAt:     expiresAt,
+						FederatesWith: []string{"spiffe://domain1.org"},
+						Ttl:           60,
+					},
+				},
+			},
+			reqEntries:      []*types.Entry{testEntry},
+			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
+		},
+		{
+			name: "output mask all false",
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id: "entry1",
+					},
+				},
+			},
+			outputMask:      &types.EntryMask{},
+			reqEntries:      []*types.Entry{testEntry},
+			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
+		},
+		{
+			name:          "no entries to add",
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{},
+			reqEntries:    []*types.Entry{},
+		},
+		{
+			name: "create with same parent ID and spiffe ID but different selectors",
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:       "entry1",
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+					},
+				},
+			},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+				SpiffeId: true,
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id:       "entry1",
+					ParentId: api.ProtoFromID(entryParentID),
+					SpiffeId: api.ProtoFromID(entrySpiffeID),
+					Ttl:      60,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+					},
+				},
+			},
+			expectDsEntries: map[string]*common.RegistrationEntry{
+				"entry1": {
+					EntryId:  "entry1",
+					ParentId: "spiffe://example.org/foo",
+					SpiffeId: "spiffe://example.org/bar",
+					Ttl:      60,
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value1"},
+					},
+				},
+			},
+		},
+		{
+			name: "fails creating similar entry",
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.AlreadyExists),
+						Message: "entry already exists",
+					},
+				},
+			},
+			reqEntries: []*types.Entry{
+				{
+					ParentId: api.ProtoFromID(entryParentID),
+					SpiffeId: api.ProtoFromID(entrySpiffeID),
+					Ttl:      20,
+					Admin:    false,
+					Selectors: []*types.Selector{
+						{Type: "unix", Value: "gid:1000"},
+						{Type: "unix", Value: "uid:1000"},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid entry",
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: failed to convert entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "invalid parent ID: spiffeid: trust domain is empty",
+					},
+				},
+			},
+			reqEntries: []*types.Entry{
+				{
+					ParentId: &types.SPIFFEID{TrustDomain: "", Path: "path"},
+				},
+			},
+		},
+		{
+			name: "fail creating entry",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to create entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "creating error",
+						telemetry.SPIFFEID: "spiffe://example.org/workload",
+					},
+				},
+			},
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to create entry: creating error",
+					},
+				},
+			},
+
+			reqEntries:      []*types.Entry{testEntry},
+			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
+			dsError:         errors.New("creating error"),
+			dsResults:       map[string]*common.RegistrationEntry{"entry1": nil},
+		},
+		{
+			name: "ds returns malformed entry",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Unable to convert registration entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "spiffeid: invalid scheme",
+						telemetry.SPIFFEID: "spiffe://example.org/workload",
+					},
+				},
+			},
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "unable to convert registration entry: spiffeid: invalid scheme",
+					},
+				},
+			},
+
+			reqEntries:      []*types.Entry{testEntry},
+			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
+			dsResults: map[string]*common.RegistrationEntry{"entry1": {
+				ParentId: "spiffe://example.org/path",
+				SpiffeId: "invalid id",
+			}},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ds := newFakeDS()
+
+			test := setupServiceTest(t, ds)
+			defer test.Cleanup()
+
+			// Create fedeated bundles, that we use on "FederatesWith"
+			createFederatedBundles(t, ds)
+			_ = createTestEntries(t, ds, defaultEntry)
+
+			// Setup fake
+			ds.customCreate = true
+			ds.t = t
+			ds.expectEntries = tt.expectDsEntries
+			ds.results = tt.dsResults
+			ds.err = tt.dsError
+
+			// Batch create entry
+			resp, err := test.client.BatchCreateEntry(ctx, &entrypb.BatchCreateEntryRequest{
+				Entries:    tt.reqEntries,
+				OutputMask: tt.outputMask,
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			spiretest.AssertProtoEqual(t, &entrypb.BatchCreateEntryResponse{
+				Results: tt.expectResults,
+			}, resp)
 		})
 	}
 }
@@ -442,4 +797,53 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	test.client = entrypb.NewEntryClient(conn)
 
 	return test
+}
+
+type fakeDS struct {
+	*fakedatastore.DataStore
+
+	t             *testing.T
+	customCreate  bool
+	err           error
+	expectEntries map[string]*common.RegistrationEntry
+	results       map[string]*common.RegistrationEntry
+}
+
+func newFakeDS() *fakeDS {
+	return &fakeDS{
+		DataStore:     fakedatastore.New(),
+		expectEntries: make(map[string]*common.RegistrationEntry),
+		results:       make(map[string]*common.RegistrationEntry),
+	}
+}
+
+func (f *fakeDS) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
+	if !f.customCreate {
+		return f.DataStore.CreateRegistrationEntry(ctx, req)
+	}
+
+	if f.err != nil {
+		return nil, f.err
+	}
+	entryID := req.Entry.EntryId
+
+	expect, ok := f.expectEntries[entryID]
+	assert.True(f.t, ok, "no expect entry found")
+
+	// Validate we get expected entry
+	spiretest.AssertProtoEqual(f.t, expect, req.Entry)
+
+	// Return expect when no custom result configured
+	if len(f.results) == 0 {
+		return &datastore.CreateRegistrationEntryResponse{
+			Entry: expect,
+		}, nil
+	}
+
+	res, ok := f.results[entryID]
+	assert.True(f.t, ok, "no result found")
+
+	return &datastore.CreateRegistrationEntryResponse{
+		Entry: res,
+	}, nil
 }
