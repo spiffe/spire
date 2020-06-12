@@ -732,7 +732,7 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 	if req.InputMask == nil {
 		model.Data = newModel.Data
 	} else {
-		model.Data, newBundle, err = updateBundleWithMask(model, newBundle, req.InputMask)
+		model.Data, newBundle, err = applyBundleMask(model, newBundle, req.InputMask)
 		if err != nil {
 			return nil, sqlError.Wrap(err)
 		}
@@ -747,7 +747,7 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 	}, nil
 }
 
-func updateBundleWithMask(model *Bundle, newBundle *common.Bundle, inputMask *common.BundleMask) ([]byte, *common.Bundle, error) {
+func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.BundleMask) ([]byte, *common.Bundle, error) {
 	bundle, err := modelToBundle(model)
 	if err != nil {
 		return nil, nil, err

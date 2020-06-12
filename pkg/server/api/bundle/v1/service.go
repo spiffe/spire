@@ -76,10 +76,12 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 		return nil, status.Error(codes.InvalidArgument, "missing bundle")
 	}
 
+	log = log.WithField(telemetry.TrustDomainID, req.Bundle.TrustDomain)
+
 	td, err := spiffeid.TrustDomainFromString(req.Bundle.TrustDomain)
 	if err != nil {
-		log.WithError(err).Errorf("Invalid request: trust domain argument is not a valid SPIFFE ID: %q", req.Bundle.TrustDomain)
-		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not a valid SPIFFE ID: %q", req.Bundle.TrustDomain)
+		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
+		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not valid: %v", err)
 	}
 
 	if s.td.Compare(td) != 0 {
@@ -104,8 +106,8 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 
 	dsBundle, err := api.ProtoToBundle(req.Bundle)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert bundle")
-		return nil, status.Errorf(codes.Internal, "failed to convert bundle: %v", err)
+		log.WithError(err).Error("Invalid request: failed to convert bundle")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to convert bundle: %v", err)
 	}
 
 	resp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
@@ -187,29 +189,29 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFede
 }
 
 func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
-	log := rpccontext.Logger(ctx)
+	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, req.TrustDomain)
 
 	td, err := spiffeid.TrustDomainFromString(req.TrustDomain)
 	if err != nil {
-		log.Errorf("Trust domain argument is not a valid SPIFFE ID: %q", req.TrustDomain)
-		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not a valid SPIFFE ID: %q", req.TrustDomain)
+		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
+		return nil, status.Errorf(codes.InvalidArgument, "trust domain argument is not valid: %v", err)
 	}
 
 	if s.td.Compare(td) == 0 {
-		log.Errorf("%q is this server own trust domain, use GetBundle RPC instead", td.String())
-		return nil, status.Errorf(codes.InvalidArgument, "%q is this server own trust domain, use GetBundle RPC instead", td.String())
+		log.Error("Invalid request: getting a federated bundle for the server's own trust domain is not allowed")
+		return nil, status.Errorf(codes.InvalidArgument, "getting a federated bundle for the server's own trust domain (%s) s not allowed", td.String())
 	}
 
 	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: td.IDString(),
 	})
 	if err != nil {
-		log.Errorf("Failed to fetch bundle: %v", err)
+		log.WithError(err).Error("Failed to fetch bundle")
 		return nil, status.Errorf(codes.Internal, "failed to fetch bundle: %v", err)
 	}
 
 	if dsResp.Bundle == nil {
-		log.Errorf("Bundle for %q not found", req.TrustDomain)
+		log.Error("Bundle not found")
 		return nil, status.Errorf(codes.NotFound, "bundle for %q not found", req.TrustDomain)
 	}
 
@@ -242,7 +244,7 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 	if err != nil {
 		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
 		return &bundle.BatchCreateFederatedBundleResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %q", b.TrustDomain),
+			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %v", err),
 		}
 	}
 
@@ -255,9 +257,9 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 
 	dsBundle, err := api.ProtoToBundle(b)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert bundle")
+		log.WithError(err).Error("Invalid request: failed to convert bundle")
 		return &bundle.BatchCreateFederatedBundleResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert bundle: %v", err),
 		}
 	}
 	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
@@ -288,7 +290,7 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 
 	applyBundleMask(protoBundle, outputMask)
 
-	log.Info("Bundle created successfully")
+	log.Debug("Bundle created successfully")
 	return &bundle.BatchCreateFederatedBundleResponse_Result{
 		Status: api.CreateStatus(codes.OK, "bundle created successfully for trust domain: %q", td.String()),
 		Bundle: protoBundle,
@@ -313,7 +315,7 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 	if err != nil {
 		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
 		return &bundle.BatchUpdateFederatedBundleResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %q", b.TrustDomain),
+			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %v", err),
 		}
 	}
 
@@ -326,9 +328,9 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 
 	dsBundle, err := api.ProtoToBundle(b)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert bundle")
+		log.WithError(err).Error("Invalid request: failed to convert bundle")
 		return &bundle.BatchUpdateFederatedBundleResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert bundle: %v", err),
 		}
 	}
 	resp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
@@ -341,7 +343,7 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 	case codes.NotFound:
 		log.WithError(err).Error("Bundle not found")
 		return &bundle.BatchUpdateFederatedBundleResponse_Result{
-			Status: api.CreateStatus(codes.NotFound, "bundle not found"),
+			Status: api.CreateStatus(codes.NotFound, "bundle not found: %v", err),
 		}
 	default:
 		log.WithError(err).Error("Unable to update bundle")
@@ -360,7 +362,7 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 
 	applyBundleMask(protoBundle, outputMask)
 
-	log.Info("Bundle updated successfully")
+	log.Debug("Bundle updated successfully")
 	return &bundle.BatchUpdateFederatedBundleResponse_Result{
 		Status: api.CreateStatus(codes.OK, "bundle updated successfully for trust domain: %q", td.String()),
 		Bundle: protoBundle,
@@ -387,9 +389,9 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string)
 
 	td, err := spiffeid.TrustDomainFromString(trustDomain)
 	if err != nil {
-		log.WithError(err).Error("Invalid request: malformed trust domain")
+		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
 		return &bundle.BatchDeleteFederatedBundleResponse_Result{
-			Status:      api.CreateStatus(codes.InvalidArgument, "malformed trust domain: %v", err),
+			Status:      api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %v", err),
 			TrustDomain: trustDomain,
 		}
 	}
