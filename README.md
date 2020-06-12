@@ -32,7 +32,7 @@ SPIRE was adopted by the [Cloud Native Computing Foundation](https://cncf.io) (C
 - There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) repository.
 - Check [ADOPTERS.md](./ADOPTERS.md) for a list of production SPIRE adopters, a view of the ecosystem, and use cases.
 - See the [SPIRE Roadmap](https://github.com/spiffe/spire/wiki/Roadmap) for a list of planned features and enhancements.
-- Join Slack. If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions are the [SPIFFE Slack channels](https://slack.spiffe.io/).
+- [Join](https://slack.spiffe.io/) the SPIFFE community on Slack. If you have any questions about how SPIRE works, or how to get it up and running, the best places to ask questions are the [SPIFFE Slack channels](https://spiffe.slack.com).
 
 ## Integrate with SPIRE
 
