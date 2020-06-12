@@ -729,6 +729,7 @@ func TestBatchDeleteEntry(t *testing.T) {
 			}, resp)
 
 			// Validate DS contains expected entries
+			ds.SetError(nil)
 			listEntries, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 			require.NoError(t, err)
 

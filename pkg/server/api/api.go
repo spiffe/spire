@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -47,4 +48,17 @@ func FetchAuthEntries(ctx context.Context, log logrus.FieldLogger, ef Authorized
 	}
 
 	return entriesMap, nil
+}
+
+// StringValueFromSPIFFEID converts a SPIFFE ID from the given spiffeid.ID to
+// *wrappers.StringValue
+func StringValueFromSPIFFEID(spiffeID *types.SPIFFEID) (*wrappers.StringValue, error) {
+	ID, err := IDFromProto(spiffeID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &wrappers.StringValue{
+		Value: ID.String(),
+	}, nil
 }

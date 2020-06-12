@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -80,21 +79,9 @@ func ProtoToRegistrationEntry(e *types.Entry) (*common.RegistrationEntry, error)
 		e.FederatesWith[i] = td.IDString()
 	}
 
-	var selectors []*common.Selector
-	for _, s := range e.Selectors {
-		switch {
-		case s.Type == "":
-			return nil, errors.New("missing selector type")
-		case strings.Contains(s.Type, ":"):
-			return nil, errors.New("selector type contains ':'")
-		case s.Value == "":
-			return nil, errors.New("missing selector value")
-		}
-
-		selectors = append(selectors, &common.Selector{
-			Type:  s.Type,
-			Value: s.Value,
-		})
+	selectors, err := SelectorsFromProto(e.Selectors)
+	if err != nil {
+		return nil, err
 	}
 
 	return &common.RegistrationEntry{

@@ -983,9 +983,15 @@ func TestGetContainerIDFromCGroupPath(t *testing.T) {
 			name:       "no pod uid segment",
 			cgroupPath: "/kubepods/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
+		{
+			name:        "cri-containerd",
+			cgroupPath:  "/kubepods-besteffort-pod72f7f152_440c_66ac_9084_e0fc1d8a910c.slice:cri-containerd:b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
+			containerID: "b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Logf("cgroup path=%s", tt.cgroupPath)
 			containerID, ok := getContainerIDFromCGroupPath(tt.cgroupPath)
 			if tt.containerID == "" {
 				assert.False(t, ok)

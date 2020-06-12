@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -155,6 +156,42 @@ func TestFetchAuthEntries(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.expectEntries, entriesMap)
+		})
+	}
+}
+
+func TestStringValueFromSPIFFEID(t *testing.T) {
+	testCases := []struct {
+		name     string
+		protoID  *types.SPIFFEID
+		expected *wrappers.StringValue
+		err      string
+	}{
+		{
+			name: "valid SPIFFE ID",
+			protoID: &types.SPIFFEID{
+				TrustDomain: "example.test",
+				Path:        "workload",
+			},
+			expected: &wrappers.StringValue{
+				Value: "spiffe://example.test/workload",
+			},
+		},
+		{
+			name: "invalid SPIFFE ID",
+			err:  "request must specify SPIFFE ID",
+		},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			stringValue, err := api.StringValueFromSPIFFEID(testCase.protoID)
+			if testCase.err != "" {
+				require.EqualError(t, err, testCase.err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, testCase.expected, stringValue)
 		})
 	}
 }

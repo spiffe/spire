@@ -423,6 +423,10 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	// add the registration entries to the map
 	entriesSet := make(map[string]*common.RegistrationEntry)
 	for _, entry := range s.registrationEntries {
