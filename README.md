@@ -6,19 +6,19 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/spiffe/spire)](https://goreportcard.com/report/github.com/spiffe/spire)
 [![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
 
-SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a toolchain of APIs for establishing trust between software systems across a wide variety of hosting platforms. Concretely, SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/master/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them.  This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token. Or for a workload to securely authenticate to a secret store, a database, or a cloud provider service.
+SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a toolchain of APIs for establishing trust between software systems across a wide variety of hosting platforms. SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/master/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them.  This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token. SPIRE can also enable workloads to securely authenticate to a secret store, a database, or a cloud provider service.
 
 
 - [Get SPIRE](#get-spire)
 - [Learn about SPIRE](#learn-about-spire)
 - [Integrate with SPIRE](#integrate-about-spire)
-- [Contribute to SPIRE](contribute-to-spire)
-- [Further Reading](further-reading)
-- [Security](security)
+- [Contribute to SPIRE](#contribute-to-spire)
+- [Further Reading](#further-reading)
+- [Security](#security)
 
 
 
-SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF) as a sandbox level project. If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF. For details read the CNCF [announcement](https://www.cncf.io/blog/2018/03/29/cncf-to-host-the-spiffe-project/).
+SPIRE was adopted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF) as a [sandbox-level project in 2018](https://www.cncf.io/blog/2018/03/29/cncf-to-host-the-spiffe-project/). If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF.
 
 ## Get SPIRE
 
@@ -27,18 +27,18 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 
 ## Learn about SPIRE
 
-- Before trying SPIRE, it is recommended to become familiar with its [architecture](https://spiffe.io/spire/) and design goals.
-- Once ready to get started, see [Getting Started Guides](https://spiffe.io/spire/try/).
+- Before trying SPIRE, it's a good idea to learn about its [architecture](https://spiffe.io/spire/) and design goals.
+- Once ready to get started, see the [Quickstart Guides](https://spiffe.io/spire/try/) for Kubernetes, Linux, and MacOS.
 - There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) repository.
 - Check [ADOPTERS.md](./ADOPTERS.md) for a list of production SPIRE adopters, a view of the ecosystem, and use cases.
 - See the [SPIRE Roadmap](https://github.com/spiffe/spire/wiki/Roadmap) for a list of planned features and enhancements.
-- Join Slack. If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIFFE Slack Organization](https://slack.spiffe.io/).
+- [Join](https://slack.spiffe.io/) the SPIFFE community on Slack. If you have any questions about how SPIRE works, or how to get it up and running, the best places to ask questions are the [SPIFFE Slack channels](https://spiffe.slack.com).
 
 ## Integrate with SPIRE
 
 - See [Extend SPIRE](https://spiffe.io/spire/docs/extending/) to learn about the highly extensible SPIRE plugin framework.
-- Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/master/v2), [Java](https://github.com/spiffe/java-spiffe/tree/v2-api) and [C++](https://github.com/spiffe/c-spiffe) languages. As a reference, see [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/).
-- SPIRE provides an implementation of the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS) for use with [Envoy Proxy](https://envoyproxy.io).  SDS can be used to transparently install and rotate TLS certificates and trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) the [Using SPIRE with Envoy](https://spiffe.io/spire/docs/envoy/) documentation for more information.
+- Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/master/v2), [Java](https://github.com/spiffe/java-spiffe/tree/v2-api) and [C++](https://github.com/spiffe/c-spiffe) languages. See [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/) for code samples.
+- SPIRE provides an implementation of the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS) for use with [Envoy Proxy](https://envoyproxy.io).  SDS can be used to transparently install and rotate TLS certificates and trust bundles in Envoy. See [Using SPIRE with Envoy](https://spiffe.io/spire/docs/envoy/) for more information.
 
 ## Contribute to SPIRE
 
@@ -58,11 +58,11 @@ https://github.com/spiffe/spiffe.
 
 ### Security Assessments
 
-The [CNCF Special Interest Group for Security]([https://github.com/cncf/sig-security](https://github.com/cncf/sig-security)) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following links contain summary reports as well as the threat modeling material produced as part of the assessment:
+The [CNCF Special Interest Group for Security]([https://github.com/cncf/sig-security](https://github.com/cncf/sig-security)) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following documents contain summary reports as well as the threat modeling material produced as part of the assessment:
 
 - [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.scytale.io/scrutinizing-spire-security-9c82ba542019)
-- [SIG Security SPIFFE/SPIRE Security Assessment Summary](https://github.com/cncf/sig-security/tree/master/assessments/projects/spiffe-spire)
-- [SIG Security SPIFFE/SPIRE Security Assessment Document](https://github.com/cncf/sig-security/blob/master/assessments/projects/spiffe-spire/self-assessment.md)
+- [SIG-Security SPIFFE/SPIRE Security Assessment: summary](https://github.com/cncf/sig-security/tree/master/assessments/projects/spiffe-spire)
+- [SIG-Security SPIFFE/SPIRE Security Assessment: full document](https://github.com/cncf/sig-security/blob/master/assessments/projects/spiffe-spire/self-assessment.md)
 
 ### Reporting Security Vulnerabilities
 
