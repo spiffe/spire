@@ -247,6 +247,21 @@ func TestListEntries(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "bad BySelectors",
+			err:    "failed to build request: malformed BySelectors: missing selector type",
+			code:   codes.InvalidArgument,
+			logMsg: "Invalid request",
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					BySelectors: &types.SelectorMatch{
+						Selectors: []*types.Selector{
+							{Type: "", Value: "uid:1000"},
+						},
+					},
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {

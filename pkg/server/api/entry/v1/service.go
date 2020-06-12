@@ -294,7 +294,7 @@ func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegi
 	if req.Filter != nil {
 		if req.Filter.ByParentId != nil {
 			var err error
-			listReq.ByParentId, err = api.StringValueFromProto(req.Filter.ByParentId)
+			listReq.ByParentId, err = api.StringValueFromSPIFFEID(req.Filter.ByParentId)
 			if err != nil {
 				return nil, fmt.Errorf("malformed ByParentId: %v", err)
 			}
@@ -302,21 +302,18 @@ func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegi
 
 		if req.Filter.BySpiffeId != nil {
 			var err error
-			listReq.BySpiffeId, err = api.StringValueFromProto(req.Filter.BySpiffeId)
+			listReq.BySpiffeId, err = api.StringValueFromSPIFFEID(req.Filter.BySpiffeId)
 			if err != nil {
 				return nil, fmt.Errorf("malformed BySpiffeId: %v", err)
 			}
 		}
 
 		if req.Filter.BySelectors != nil {
-			var dsSelectors []*common.Selector
-			for _, reqSelector := range req.Filter.BySelectors.Selectors {
-				s := &common.Selector{
-					Type:  reqSelector.Type,
-					Value: reqSelector.Value,
-				}
-				dsSelectors = append(dsSelectors, s)
+			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
+			if err != nil {
+				return nil, fmt.Errorf("malformed BySelectors: %v", err)
 			}
+
 			listReq.BySelectors = &datastore.BySelectors{
 				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
 				Selectors: dsSelectors,

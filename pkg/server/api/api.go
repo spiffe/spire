@@ -26,9 +26,9 @@ func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 	}
 }
 
-// StringValueFromProto converts a SPIFFE ID from the given spiffeid.ID to
+// StringValueFromSPIFFEID converts a SPIFFE ID from the given spiffeid.ID to
 // *wrappers.StringValue
-func StringValueFromProto(spiffeID *types.SPIFFEID) (*wrappers.StringValue, error) {
+func StringValueFromSPIFFEID(spiffeID *types.SPIFFEID) (*wrappers.StringValue, error) {
 	ID, err := IDFromProto(spiffeID)
 	if err != nil {
 		return nil, err

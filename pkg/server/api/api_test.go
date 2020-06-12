@@ -51,7 +51,7 @@ func TestIDFromProto(t *testing.T) {
 	}
 }
 
-func TestStringValueFromProto(t *testing.T) {
+func TestStringValueFromSPIFFEID(t *testing.T) {
 	testCases := []struct {
 		name     string
 		protoID  *types.SPIFFEID
@@ -76,7 +76,7 @@ func TestStringValueFromProto(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			stringValue, err := api.StringValueFromProto(testCase.protoID)
+			stringValue, err := api.StringValueFromSPIFFEID(testCase.protoID)
 			if testCase.err != "" {
 				require.EqualError(t, err, testCase.err)
 				return
