@@ -385,7 +385,9 @@ protogen: $(protos:.proto=.pb.go)
 
 %.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin)
 	@echo "(proto) compiling $<..."
-	$(E)PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) --proto_path=$(@D) --proto_path=proto --go_out=paths=source_relative,plugins=grpc:$(@D) $<
+	$(E)cd proto && PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) \
+		--go_out=paths=source_relative,plugins=grpc:. \
+		$(<:proto/%=%)
 
 protogen-check:
 ifneq ($(git_dirty),)
