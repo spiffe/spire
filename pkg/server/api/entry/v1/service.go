@@ -2,6 +2,7 @@ package entry
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -39,7 +40,36 @@ type Service struct {
 }
 
 func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListEntries not implemented")
+	log := rpccontext.Logger(ctx)
+
+	listReq, err := buildListEntriesRequest(req)
+	if err != nil {
+		log.WithError(err).Error("Invalid request")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to build request: %v", err)
+	}
+
+	dsResp, err := s.ds.ListRegistrationEntries(ctx, listReq)
+	if err != nil {
+		log.WithError(err).Error("Failed to list entries")
+		return nil, status.Errorf(codes.Internal, "failed to list entries: %v", err)
+	}
+
+	resp := &entry.ListEntriesResponse{}
+	if dsResp.Pagination != nil {
+		resp.NextPageToken = dsResp.Pagination.Token
+	}
+
+	for _, regEntry := range dsResp.Entries {
+		entry, err := api.RegistrationEntryToProto(regEntry)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to convert entry: %q", regEntry.EntryId)
+			continue
+		}
+		applyMask(entry, req.OutputMask)
+		resp.Entries = append(resp.Entries, entry)
+	}
+
+	return resp, nil
 }
 
 func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*types.Entry, error) {
@@ -209,7 +239,7 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthor
 	return nil, status.Error(codes.Unimplemented, "method GetAuthorizedEntries not implemented")
 }
 
-func applyMask(e *types.Entry, mask *types.EntryMask) { //nolint: unused,deadcode
+func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if mask == nil {
 		return
 	}
@@ -249,4 +279,47 @@ func applyMask(e *types.Entry, mask *types.EntryMask) { //nolint: unused,deadcod
 	if !mask.DnsNames {
 		e.DnsNames = nil
 	}
+}
+
+func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegistrationEntriesRequest, error) {
+	listReq := &datastore.ListRegistrationEntriesRequest{}
+
+	if req.PageSize > 0 {
+		listReq.Pagination = &datastore.Pagination{
+			PageSize: req.PageSize,
+			Token:    req.PageToken,
+		}
+	}
+
+	if req.Filter != nil {
+		if req.Filter.ByParentId != nil {
+			var err error
+			listReq.ByParentId, err = api.StringValueFromSPIFFEID(req.Filter.ByParentId)
+			if err != nil {
+				return nil, fmt.Errorf("malformed ByParentId: %v", err)
+			}
+		}
+
+		if req.Filter.BySpiffeId != nil {
+			var err error
+			listReq.BySpiffeId, err = api.StringValueFromSPIFFEID(req.Filter.BySpiffeId)
+			if err != nil {
+				return nil, fmt.Errorf("malformed BySpiffeId: %v", err)
+			}
+		}
+
+		if req.Filter.BySelectors != nil {
+			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
+			if err != nil {
+				return nil, fmt.Errorf("malformed BySelectors: %v", err)
+			}
+
+			listReq.BySelectors = &datastore.BySelectors{
+				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
+				Selectors: dsSelectors,
+			}
+		}
+	}
+
+	return listReq, nil
 }
