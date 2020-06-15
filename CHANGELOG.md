@@ -2,8 +2,8 @@
 
 ## [0.10.1] - 2020-06-19
 - Added Upstream Authority `vault` Plugin (#1611, #1632)
-- Improved cgroup path parsing in the `docker` workload attestor plugin (#1605)
-- Improved container ID parsing in the `k8s` workload attestor plugin (#1649)
+- Improved container ID parsing from cgroup path in the `docker` workload attestor plugin (#1605)
+- Improved container ID parsing from cgroup path in the `k8s` workload attestor plugin (#1649)
 - Envoy SDS support is now always on (#1579)
 - Errors on agent SVID rotation are now fatal if the agent's current SVID has expired, forcing an agent restart (#1584)
 - Added server configuration file including all configuration settings (#1608)
