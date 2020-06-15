@@ -337,12 +337,72 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 	}
 }
 
+func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outputMask *types.BundleMask) *bundle.BatchSetFederatedBundleResponse_Result {
+	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, b.TrustDomain)
+
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %q", b.TrustDomain),
+		}
+	}
+
+	if s.td.Compare(td) == 0 {
+		log.Error("Invalid request: setting a federated bundle for the server's own trust domain is not allowed")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "setting a federated bundle for the server's own trust domain (%s) s not allowed", td.String()),
+		}
+	}
+
+	dsBundle, err := api.ProtoToBundle(b)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+		}
+	}
+	resp, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
+		Bundle: dsBundle,
+	})
+
+	if err != nil {
+		log.WithError(err).Error("Unable to set bundle")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "unable to set bundle: %v", err),
+		}
+	}
+
+	protoBundle, err := api.BundleToProto(resp.Bundle)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+		}
+	}
+
+	applyBundleMask(protoBundle, outputMask)
+
+	log.Info("Bundle set successfully")
+	return &bundle.BatchSetFederatedBundleResponse_Result{
+		Status: api.CreateStatus(codes.OK, "bundle set successfully for trust domain: %q", td.String()),
+		Bundle: protoBundle,
+	}
+}
+
 func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundle.BatchUpdateFederatedBundleRequest) (*bundle.BatchUpdateFederatedBundleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchUpdateFederatedBundle not implemented")
 }
 
 func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.BatchSetFederatedBundleRequest) (*bundle.BatchSetFederatedBundleResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BatchSetFederatedBundle not implemented")
+	var results []*bundle.BatchSetFederatedBundleResponse_Result
+	for _, b := range req.Bundle {
+		results = append(results, s.setFederatedBundle(ctx, b, req.OutputMask))
+	}
+
+	return &bundle.BatchSetFederatedBundleResponse{
+		Results: results,
+	}, nil
 }
 
 func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {
