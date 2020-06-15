@@ -22,10 +22,21 @@ func RegisterService(s *grpc.Server, service *Service) {
 	bundle.RegisterBundleServer(s, service)
 }
 
+type UpstreamPublisher interface {
+	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
+}
+
+type UpstreamPublisherFunc func(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
+
+func (fn UpstreamPublisherFunc) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error) {
+	return fn(ctx, jwtKey)
+}
+
 // Config is the service configuration
 type Config struct {
-	Datastore   datastore.DataStore
-	TrustDomain spiffeid.TrustDomain
+	Datastore         datastore.DataStore
+	TrustDomain       spiffeid.TrustDomain
+	UpstreamPublisher UpstreamPublisher
 }
 
 // New creates a new bundle service
@@ -33,6 +44,7 @@ func New(config Config) *Service {
 	return &Service{
 		ds: config.Datastore,
 		td: config.TrustDomain,
+		up: config.UpstreamPublisher,
 	}
 }
 
@@ -40,6 +52,7 @@ func New(config Config) *Service {
 type Service struct {
 	ds datastore.DataStore
 	td spiffeid.TrustDomain
+	up UpstreamPublisher
 }
 
 func (s *Service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
@@ -133,7 +146,36 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 }
 
 func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PublishJWTAuthority not implemented")
+	log := rpccontext.Logger(ctx)
+
+	if err := rpccontext.RateLimit(ctx, 1); err != nil {
+		log.WithError(err).Error("Rejecting request due to key publishing rate limiting")
+		return nil, err
+	}
+
+	if req.JwtAuthority == nil {
+		log.Error("Invalid request: missing JWT authority")
+		return nil, status.Error(codes.InvalidArgument, "missing JWT authority")
+	}
+
+	keys, err := api.ParseJWTAuthorities([]*types.JWTKey{req.JwtAuthority})
+	if err != nil {
+		log.WithError(err).Error("Invalid request: invalid JWT authority")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid JWT authority: %v", err)
+	}
+
+	resp, err := s.up.PublishJWTKey(ctx, keys[0])
+	if err != nil {
+		log.WithError(err).Error("Failed to publish JWT key")
+		return nil, status.Errorf(codes.Internal, "failed to publish JWT key: %v", err)
+	}
+
+	// TODO: after pushing authoriry, may we reset dsCache? (Track on #1631)
+	// dsCache.DeleteBundleEntry(s.td.String())
+
+	return &bundle.PublishJWTAuthorityResponse{
+		JwtAuthorities: api.PublicKeysToProto(resp),
+	}, nil
 }
 
 func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
@@ -297,6 +339,59 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 	}
 }
 
+func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outputMask *types.BundleMask) *bundle.BatchSetFederatedBundleResponse_Result {
+	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, b.TrustDomain)
+
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: trust domain argument is not valid")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "trust domain argument is not valid: %q", b.TrustDomain),
+		}
+	}
+
+	if s.td.Compare(td) == 0 {
+		log.Error("Invalid request: setting a federated bundle for the server's own trust domain is not allowed")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "setting a federated bundle for the server's own trust domain (%s) s not allowed", td.String()),
+		}
+	}
+
+	dsBundle, err := api.ProtoToBundle(b)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: failed to convert bundle")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert bundle: %v", err),
+		}
+	}
+	resp, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
+		Bundle: dsBundle,
+	})
+
+	if err != nil {
+		log.WithError(err).Error("Unable to set bundle")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "unable to set bundle: %v", err),
+		}
+	}
+
+	protoBundle, err := api.BundleToProto(resp.Bundle)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert bundle")
+		return &bundle.BatchSetFederatedBundleResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+		}
+	}
+
+	applyBundleMask(protoBundle, outputMask)
+
+	log.Info("Bundle set successfully")
+	return &bundle.BatchSetFederatedBundleResponse_Result{
+		Status: api.OK(),
+		Bundle: protoBundle,
+	}
+}
+
 func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundle.BatchUpdateFederatedBundleRequest) (*bundle.BatchUpdateFederatedBundleResponse, error) {
 	var results []*bundle.BatchUpdateFederatedBundleResponse_Result
 	for _, b := range req.Bundle {
@@ -370,7 +465,14 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 }
 
 func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.BatchSetFederatedBundleRequest) (*bundle.BatchSetFederatedBundleResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BatchSetFederatedBundle not implemented")
+	var results []*bundle.BatchSetFederatedBundleResponse_Result
+	for _, b := range req.Bundle {
+		results = append(results, s.setFederatedBundle(ctx, b, req.OutputMask))
+	}
+
+	return &bundle.BatchSetFederatedBundleResponse{
+		Results: results,
+	}, nil
 }
 
 func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {

@@ -127,6 +127,10 @@ func (s *DataStore) SetBundle(ctx context.Context, req *datastore.SetBundleReque
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	bundle := req.Bundle
 
 	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
@@ -442,6 +446,10 @@ func (s *DataStore) FetchRegistrationEntry(ctx context.Context, req *datastore.F
 func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
 	// add the registration entries to the map
 	entriesSet := make(map[string]*common.RegistrationEntry)
