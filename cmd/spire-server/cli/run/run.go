@@ -61,22 +61,24 @@ type Config struct {
 }
 
 type serverConfig struct {
-	BindAddress         string             `hcl:"bind_address"`
-	BindPort            int                `hcl:"bind_port"`
-	CAKeyType           string             `hcl:"ca_key_type"`
-	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL               string             `hcl:"ca_ttl"`
-	DataDir             string             `hcl:"data_dir"`
-	Experimental        experimentalConfig `hcl:"experimental"`
-	JWTIssuer           string             `hcl:"jwt_issuer"`
-	LogFile             string             `hcl:"log_file"`
-	LogLevel            string             `hcl:"log_level"`
-	LogFormat           string             `hcl:"log_format"`
-	RegistrationUDSPath string             `hcl:"registration_uds_path"`
-	DeprecatedSVIDTTL   string             `hcl:"svid_ttl"`
-	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
-	TrustDomain         string             `hcl:"trust_domain"`
-	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
+	BindAddress         string                        `hcl:"bind_address"`
+	BindPort            int                           `hcl:"bind_port"`
+	BundleEndpoint      bundleEndpointConfig          `hcl:"bundle_endpoint"`
+	CAKeyType           string                        `hcl:"ca_key_type"`
+	CASubject           *caSubjectConfig              `hcl:"ca_subject"`
+	CATTL               string                        `hcl:"ca_ttl"`
+	DataDir             string                        `hcl:"data_dir"`
+	Experimental        experimentalConfig            `hcl:"experimental"`
+	FederateWith        map[string]federateWithConfig `hcl:"federate_with"`
+	JWTIssuer           string                        `hcl:"jwt_issuer"`
+	LogFile             string                        `hcl:"log_file"`
+	LogLevel            string                        `hcl:"log_level"`
+	LogFormat           string                        `hcl:"log_format"`
+	RegistrationUDSPath string                        `hcl:"registration_uds_path"`
+	DeprecatedSVIDTTL   string                        `hcl:"svid_ttl"`
+	DefaultSVIDTTL      string                        `hcl:"default_svid_ttl"`
+	TrustDomain         string                        `hcl:"trust_domain"`
+	UpstreamBundle      *bool                         `hcl:"upstream_bundle"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -93,12 +95,6 @@ type serverConfig struct {
 type experimentalConfig struct {
 	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
 
-	BundleEndpointEnabled bool                           `hcl:"bundle_endpoint_enabled"`
-	BundleEndpointAddress string                         `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
-	BundleEndpointACME    *bundleEndpointACMEConfig      `hcl:"bundle_endpoint_acme"`
-	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
-
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -109,6 +105,14 @@ type caSubjectConfig struct {
 	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
+type bundleEndpointConfig struct {
+	Enabled    bool                      `hcl:"enabled"`
+	Address    string                    `hcl:"address"`
+	Port       int                       `hcl:"port"`
+	ACME       *bundleEndpointACMEConfig `hcl:"acme"`
+	UnusedKeys []string                  `hcl:",unusedKeys"`
+}
+
 type bundleEndpointACMEConfig struct {
 	DirectoryURL string   `hcl:"directory_url"`
 	DomainName   string   `hcl:"domain_name"`
@@ -117,12 +121,17 @@ type bundleEndpointACMEConfig struct {
 	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
-type federatesWithConfig struct {
-	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
-	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
-	UseWebPKI              bool     `hcl:"use_web_pki"`
-	UnusedKeys             []string `hcl:",unusedKeys"`
+type federateWithConfig struct {
+	BundleEndpoint federateWithBundleEndpointConfig `hcl:"bundle_endpoint"`
+	UnusedKeys     []string                         `hcl:",unusedKeys"`
+}
+
+type federateWithBundleEndpointConfig struct {
+	Address    string   `hcl:"address"`
+	Port       int      `hcl:"port"`
+	SpiffeID   string   `hcl:"spiffe_id"`
+	UseWebPKI  bool     `hcl:"use_web_pki"`
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 func NewRunCommand(logOptions []log.Option) cli.Command {
@@ -339,14 +348,14 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 		sc.UpstreamBundle = defaultUpstreamBundle
 	}
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
-	sc.Experimental.BundleEndpointEnabled = c.Server.Experimental.BundleEndpointEnabled
-	sc.Experimental.BundleEndpointAddress = &net.TCPAddr{
-		IP:   net.ParseIP(c.Server.Experimental.BundleEndpointAddress),
-		Port: c.Server.Experimental.BundleEndpointPort,
+	sc.BundleEndpoint.Enabled = c.Server.BundleEndpoint.Enabled
+	sc.BundleEndpoint.Address = &net.TCPAddr{
+		IP:   net.ParseIP(c.Server.BundleEndpoint.Address),
+		Port: c.Server.BundleEndpoint.Port,
 	}
 
-	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
-		sc.Experimental.BundleEndpointACME = &bundle.ACMEConfig{
+	if acme := c.Server.BundleEndpoint.ACME; acme != nil {
+		sc.BundleEndpoint.ACME = &bundle.ACMEConfig{
 			DirectoryURL: acme.DirectoryURL,
 			DomainName:   acme.DomainName,
 			CacheDir:     filepath.Join(sc.DataDir, "bundle-acme"),
@@ -355,23 +364,23 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 		}
 	}
 
-	federatesWith := map[string]bundleClient.TrustDomainConfig{}
-	for trustDomain, config := range c.Server.Experimental.FederatesWith {
+	federateWith := map[string]bundleClient.TrustDomainConfig{}
+	for trustDomain, config := range c.Server.FederateWith {
 		port := defaultBundleEndpointPort
-		if config.BundleEndpointPort != 0 {
-			port = config.BundleEndpointPort
+		if config.BundleEndpoint.Port != 0 {
+			port = config.BundleEndpoint.Port
 		}
-		if config.UseWebPKI && config.BundleEndpointSpiffeID != "" {
-			sc.Log.Warn("The `bundle_endpoint_spiffe_id` configurable is ignored when authenticating with Web PKI")
-			config.BundleEndpointSpiffeID = ""
+		if config.BundleEndpoint.UseWebPKI && config.BundleEndpoint.SpiffeID != "" {
+			sc.Log.Warn("The `bundle_endpoint.spiffe_id` configurable is ignored when authenticating with Web PKI")
+			config.BundleEndpoint.SpiffeID = ""
 		}
-		federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
-			EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
-			EndpointSpiffeID: config.BundleEndpointSpiffeID,
-			UseWebPKI:        config.UseWebPKI,
+		federateWith[trustDomain] = bundleClient.TrustDomainConfig{
+			EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpoint.Address, port),
+			EndpointSpiffeID: config.BundleEndpoint.SpiffeID,
+			UseWebPKI:        config.BundleEndpoint.UseWebPKI,
 		}
 	}
-	sc.Experimental.FederatesWith = federatesWith
+	sc.FederateWith = federateWith
 
 	sc.ProfilingEnabled = c.Server.ProfilingEnabled
 	sc.ProfilingPort = c.Server.ProfilingPort
@@ -466,19 +475,19 @@ func validateConfig(c *Config) error {
 		return errors.New("plugins section must be configured")
 	}
 
-	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
+	if acme := c.Server.BundleEndpoint.ACME; acme != nil {
 		if acme.DomainName == "" {
-			return errors.New("bundle_endpoint_acme domain_name must be configured")
+			return errors.New("bundle_endpoint.acme.domain_name must be configured")
 		}
 
 		if acme.Email == "" {
-			return errors.New("bundle_endpoint_acme email must be configured")
+			return errors.New("bundle_endpoint.acme.email must be configured")
 		}
 	}
 
-	for td, tdConfig := range c.Server.Experimental.FederatesWith {
-		if tdConfig.BundleEndpointAddress == "" {
-			return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
+	for td, tdConfig := range c.Server.FederateWith {
+		if tdConfig.BundleEndpoint.Address == "" {
+			return fmt.Errorf("%s bundle_endpoint.address must be configured", td)
 		}
 	}
 
@@ -511,11 +520,11 @@ func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 		//	l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
 		//}
 
-		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
+		if bea := c.Server.BundleEndpoint.ACME; bea != nil && len(bea.UnusedKeys) != 0 {
 			l.Warnf("Detected unknown ACME config options: %q; this will be fatal in a future release.", bea.UnusedKeys)
 		}
 
-		for k, v := range c.Server.Experimental.FederatesWith {
+		for k, v := range c.Server.FederateWith {
 			if len(v.UnusedKeys) != 0 {
 				l.Warnf("Detected unknown federation config options for %q: %q; this will be fatal in a future release.", k, v.UnusedKeys)
 			}
@@ -568,10 +577,11 @@ func defaultConfig() *Config {
 			LogLevel:            defaultLogLevel,
 			LogFormat:           log.DefaultFormat,
 			RegistrationUDSPath: defaultSocketPath,
-			Experimental: experimentalConfig{
-				BundleEndpointAddress: "0.0.0.0",
-				BundleEndpointPort:    defaultBundleEndpointPort,
+			BundleEndpoint: bundleEndpointConfig{
+				Address: "0.0.0.0",
+				Port:    defaultBundleEndpointPort,
 			},
+			Experimental: experimentalConfig{},
 		},
 	}
 }

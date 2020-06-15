@@ -308,9 +308,9 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 	}
-	if s.config.Experimental.BundleEndpointEnabled {
-		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
-		config.BundleEndpointACME = s.config.Experimental.BundleEndpointACME
+	if s.config.BundleEndpoint.Enabled {
+		config.BundleEndpoint.Address = s.config.BundleEndpoint.Address
+		config.BundleEndpoint.ACME = s.config.BundleEndpoint.ACME
 	}
 	return endpoints.New(config)
 }
@@ -319,7 +319,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
 		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
 		DataStore:    cat.GetDataStore(),
-		TrustDomains: s.config.Experimental.FederatesWith,
+		TrustDomains: s.config.FederateWith,
 	})
 }
 
