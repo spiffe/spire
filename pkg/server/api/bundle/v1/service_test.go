@@ -1242,9 +1242,6 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 }
 
 func TestBatchSetFederatedBundle(t *testing.T) {
-	test := setupServiceTest(t)
-	defer test.Cleanup()
-
 	_, expectedX509Err := x509.ParseCertificates([]byte("malformed"))
 	require.Error(t, expectedX509Err)
 
@@ -1268,7 +1265,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle set successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: &types.Bundle{
 						TrustDomain: "another-example.org",
 						RefreshHint: 60,
@@ -1291,7 +1288,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			outputMask:   &types.BundleMask{},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle set successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.String()},
 				},
 			},
@@ -1310,7 +1307,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle set successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
@@ -1333,11 +1330,11 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain), updatedBundle},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle set successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 				{
-					Status: api.CreateStatus(codes.OK, `bundle set successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: updatedBundle,
 				},
 			},
@@ -1434,12 +1431,12 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				},
 			},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.Internal, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to convert bundle",
+					Message: "Invalid request: failed to convert bundle",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 						logrus.ErrorKey:         fmt.Sprintf("unable to parse X.509 authority: %v", expectedX509Err),
@@ -1450,7 +1447,9 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test.logHook.Reset()
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
 			clearDSBundles(t, test.ds)
 			test.ds.SetError(tt.dsError)
 

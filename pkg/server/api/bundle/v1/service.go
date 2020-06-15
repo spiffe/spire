@@ -357,9 +357,9 @@ func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outpu
 
 	dsBundle, err := api.ProtoToBundle(b)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert bundle")
+		log.WithError(err).Error("Invalid request: failed to convert bundle")
 		return &bundle.BatchSetFederatedBundleResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "failed to convert bundle: %v", err),
+			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert bundle: %v", err),
 		}
 	}
 	resp, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
@@ -385,7 +385,7 @@ func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outpu
 
 	log.Info("Bundle set successfully")
 	return &bundle.BatchSetFederatedBundleResponse_Result{
-		Status: api.CreateStatus(codes.OK, "bundle set successfully for trust domain: %q", td.String()),
+		Status: api.OK(),
 		Bundle: protoBundle,
 	}
 }
