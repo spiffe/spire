@@ -1261,7 +1261,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 		dsError         error
 	}{
 		{
-			name:         "Set succeeds",
+			name:         "Succeeds",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			outputMask: &types.BundleMask{
 				RefreshHint: true,
@@ -1286,7 +1286,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 		},
 		{
-			name:         "Set succeeds with all-false mask",
+			name:         "Succeeds with all-false mask",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			outputMask:   &types.BundleMask{},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
@@ -1306,7 +1306,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 		},
 		{
-			name:         "Set succeeds with nil mask",
+			name:         "Succeeds with nil mask",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
 				{
@@ -1325,11 +1325,11 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 		},
 		{
-			name:         "Set succeeds if the request has no bundles",
+			name:         "Succeeds if the request has no bundles",
 			bundlesToSet: []*types.Bundle{},
 		},
 		{
-			name:         "Set updates if bundle already exists",
+			name:         "Updates if bundle already exists",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain), updatedBundle},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
 				{
@@ -1359,7 +1359,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Set fails if trust domain is not a valid SPIFFE ID",
+			name: "Fails if trust domain is not a valid SPIFFE ID",
 			bundlesToSet: []*types.Bundle{
 				func() *types.Bundle {
 					b := makeValidBundle(t, federatedTrustDomain)
@@ -1382,7 +1382,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Set fails if trust domain is server trust domain",
+			name: "Fails if trust domain is server trust domain",
 			bundlesToSet: []*types.Bundle{
 				func() *types.Bundle {
 					b := makeValidBundle(t, federatedTrustDomain)
