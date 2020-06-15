@@ -923,7 +923,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle created successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: &types.Bundle{
 						TrustDomain: "another-example.org",
 						RefreshHint: 60,
@@ -933,7 +933,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle created successfully`,
+					Message: "Federated bundle created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},
@@ -946,14 +946,14 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			outputMask:      &types.BundleMask{},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle created successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.String()},
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle created successfully`,
+					Message: "Federated bundle created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},
@@ -965,14 +965,14 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle created successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle created successfully`,
+					Message: "Federated bundle created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},
@@ -1033,7 +1033,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain), makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle created successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 				{
@@ -1043,7 +1043,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle created successfully`,
+					Message: "Federated bundle created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},
@@ -1148,14 +1148,14 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle updated successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle updated successfully`,
+					Message: "Federated bundle updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},
@@ -1173,14 +1173,14 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle updated successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle updated successfully`,
+					Message: "Federated bundle updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},
@@ -1196,7 +1196,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.OK, `bundle updated successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: &types.Bundle{
 						TrustDomain: federatedTrustDomain.String(),
 						RefreshHint: makeValidBundle(t, federatedTrustDomain).RefreshHint,
@@ -1206,7 +1206,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle updated successfully`,
+					Message: "Federated bundle updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},
@@ -1333,7 +1333,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				{
 					Status: api.CreateStatus(codes.NotFound, "bundle not found: rpc error: code = NotFound desc = no such bundle")},
 				{
-					Status: api.CreateStatus(codes.OK, `bundle updated successfully for trust domain: "another-example.org"`),
+					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
@@ -1348,7 +1348,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				},
 				{
 					Level:   logrus.DebugLevel,
-					Message: `Bundle updated successfully`,
+					Message: "Federated bundle updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 					},

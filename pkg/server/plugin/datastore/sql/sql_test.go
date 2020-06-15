@@ -321,14 +321,50 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle3, anresp.Bundle)
 
-	// update with mask
+	// update with mask: RootCas
 	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
 	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle,
 		InputMask: &common.BundleMask{
-			RefreshHint:    true,
+			RootCas: true,
+		},
+	})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, uresp.Bundle)
+
+	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+
+	// update with mask: RefreshHint
+	bundle.RefreshHint = 60
+	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
+	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+		Bundle: bundle,
+		InputMask: &common.BundleMask{
+			RefreshHint: true,
+		},
+	})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, uresp.Bundle)
+
+	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	expectedCallCounter.Done(nil)
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+
+	// update with mask: JwtSingingKeys
+	bundle.JwtSigningKeys = []*common.PublicKey{{Kid: "jwt-key-1"}}
+	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
+	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+		Bundle: bundle,
+		InputMask: &common.BundleMask{
 			JwtSigningKeys: true,
-			RootCas:        true,
 		},
 	})
 	expectedCallCounter.Done(nil)

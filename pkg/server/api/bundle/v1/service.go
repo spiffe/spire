@@ -290,9 +290,9 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 
 	applyBundleMask(protoBundle, outputMask)
 
-	log.Debug("Bundle created successfully")
+	log.Debug("Federated bundle created")
 	return &bundle.BatchCreateFederatedBundleResponse_Result{
-		Status: api.CreateStatus(codes.OK, "bundle created successfully for trust domain: %q", td.String()),
+		Status: api.OK(),
 		Bundle: protoBundle,
 	}
 }
@@ -362,9 +362,9 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 
 	applyBundleMask(protoBundle, outputMask)
 
-	log.Debug("Bundle updated successfully")
+	log.Debug("Federated bundle updated")
 	return &bundle.BatchUpdateFederatedBundleResponse_Result{
-		Status: api.CreateStatus(codes.OK, "bundle updated successfully for trust domain: %q", td.String()),
+		Status: api.OK(),
 		Bundle: protoBundle,
 	}
 }

@@ -155,7 +155,7 @@ func (ds *Plugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleR
 	callCounter := ds_telemetry.StartUpdateBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	if err = ds.withWriteRepeatableReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateBundle(tx, req)
 		return err
 	}); err != nil {
