@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
+
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire-next/types"
