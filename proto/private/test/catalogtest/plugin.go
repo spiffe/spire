@@ -1,7 +1,7 @@
 // Provides interfaces and adapters for the Plugin service
 //
 // Generated code. Do not modify by hand.
-package test
+package catalogtest
 
 import (
 	"context"

@@ -117,3 +117,9 @@ message Bundle {
      * should poll for bundle updates */
     int64 refresh_hint = 4;
 }
+
+message BundleMask {
+    bool root_cas = 1;
+    bool jwt_signing_keys = 2;
+    bool refresh_hint = 3;
+}
