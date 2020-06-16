@@ -107,6 +107,10 @@ func (s *DataStore) SetBundle(ctx context.Context, req *datastore.SetBundleReque
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	bundle := req.Bundle
 
 	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
