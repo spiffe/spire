@@ -155,7 +155,7 @@ func (ds *Plugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleR
 	callCounter := ds_telemetry.StartUpdateBundleCall(ds.prepareMetricsForCall())
 	defer callCounter.Done(&err)
 
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	if err = ds.withWriteRepeatableReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateBundle(tx, req)
 		return err
 	}); err != nil {
@@ -718,7 +718,8 @@ func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.C
 }
 
 func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
-	newModel, err := bundleToModel(req.Bundle)
+	newBundle := req.Bundle
+	newModel, err := bundleToModel(newBundle)
 	if err != nil {
 		return nil, err
 	}
@@ -728,14 +729,48 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 		return nil, sqlError.Wrap(err)
 	}
 
-	model.Data = newModel.Data
+	if req.InputMask == nil {
+		model.Data = newModel.Data
+	} else {
+		model.Data, newBundle, err = applyBundleMask(model, newBundle, req.InputMask)
+		if err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+	}
+
 	if err := tx.Save(model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
 	return &datastore.UpdateBundleResponse{
-		Bundle: req.Bundle,
+		Bundle: newBundle,
 	}, nil
+}
+
+func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.BundleMask) ([]byte, *common.Bundle, error) {
+	bundle, err := modelToBundle(model)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if inputMask.RefreshHint {
+		bundle.RefreshHint = newBundle.RefreshHint
+	}
+
+	if inputMask.RootCas {
+		bundle.RootCas = newBundle.RootCas
+	}
+
+	if inputMask.JwtSigningKeys {
+		bundle.JwtSigningKeys = newBundle.JwtSigningKeys
+	}
+
+	m, err := bundleToModel(bundle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return m.Data, bundle, nil
 }
 
 func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
