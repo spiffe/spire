@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -24,19 +25,22 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	Datastore datastore.DataStore
+	EntryFetcher api.AuthorizedEntryFetcher
+	Datastore    datastore.DataStore
 }
 
 // New creates a new entry service
 func New(config Config) *Service {
 	return &Service{
 		ds: config.Datastore,
+		ef: config.EntryFetcher,
 	}
 }
 
 // Service implements the v1 entry service
 type Service struct {
 	ds datastore.DataStore
+	ef api.AuthorizedEntryFetcher
 }
 
 func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
@@ -236,7 +240,39 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDelete
 }
 
 func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthorizedEntriesRequest) (*entry.GetAuthorizedEntriesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAuthorizedEntries not implemented")
+	log := rpccontext.Logger(ctx)
+
+	entries, err := s.fetchEntries(ctx, log)
+	if err != nil {
+		return nil, err
+	}
+	for i, entry := range entries {
+		applyMask(entry, req.OutputMask)
+		entries[i] = entry
+	}
+
+	resp := &entry.GetAuthorizedEntriesResponse{
+		Entries: entries,
+	}
+
+	return resp, nil
+}
+
+// fetchEntries fetches authorized entries using caller ID from context
+func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]*types.Entry, error) {
+	callerID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		log.Error("Caller ID missing from request context")
+		return nil, status.Error(codes.Internal, "caller ID missing from request context")
+	}
+
+	entries, err := s.ef.FetchAuthorizedEntries(ctx, callerID)
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch registration entries")
+		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
+	}
+
+	return entries, nil
 }
 
 func applyMask(e *types.Entry, mask *types.EntryMask) {
