@@ -230,7 +230,7 @@ func TestAppendBundle(t *testing.T) {
 	require.NoError(t, err)
 
 	sb := &common.Bundle{
-		TrustDomainId: serverTrustDomain.String(),
+		TrustDomainId: serverTrustDomain.IDString(),
 		RefreshHint:   60,
 		RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
 		JwtSigningKeys: []*common.PublicKey{
@@ -386,9 +386,9 @@ func TestAppendBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "no allowed trust domain",
+			name: "not the server trust domain",
 			bundle: &types.Bundle{
-				TrustDomain: spiffeid.RequireTrustDomainFromString("another.org").String(),
+				TrustDomain: federatedTrustDomain.String(),
 			},
 			code: codes.InvalidArgument,
 			err:  "only the trust domain of the server can be appended",
@@ -552,10 +552,10 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 	td2 := spiffeid.RequireTrustDomainFromString("td2.org")
 	td3 := spiffeid.RequireTrustDomainFromString("td3.org")
 	dsBundles := []string{
-		serverTrustDomain.String(),
-		td1.String(),
-		td2.String(),
-		td3.String(),
+		serverTrustDomain.IDString(),
+		td1.IDString(),
+		td2.IDString(),
+		td3.IDString(),
 	}
 
 	for _, tt := range []struct {
@@ -575,7 +575,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td1.String()},
 				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td2.String()},
 			},
-			expectDSBundles: []string{serverTrustDomain.String(), td3.String()},
+			expectDSBundles: []string{serverTrustDomain.IDString(), td3.IDString()},
 			trustDomains:    []string{td1.String(), td2.String()},
 		},
 		{
@@ -1533,7 +1533,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	up := new(fakeUpstreamPublisher)
 	rateLimiter := new(fakeRateLimiter)
 	service := bundle.New(bundle.Config{
-		Datastore:         ds,
+		DataStore:         ds,
 		TrustDomain:       serverTrustDomain,
 		UpstreamPublisher: up,
 	})

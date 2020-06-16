@@ -34,7 +34,7 @@ func (fn UpstreamPublisherFunc) PublishJWTKey(ctx context.Context, jwtKey *commo
 
 // Config is the service configuration
 type Config struct {
-	Datastore         datastore.DataStore
+	DataStore         datastore.DataStore
 	TrustDomain       spiffeid.TrustDomain
 	UpstreamPublisher UpstreamPublisher
 }
@@ -42,7 +42,7 @@ type Config struct {
 // New creates a new bundle service
 func New(config Config) *Service {
 	return &Service{
-		ds: config.Datastore,
+		ds: config.DataStore,
 		td: config.TrustDomain,
 		up: config.UpstreamPublisher,
 	}
@@ -101,7 +101,7 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 	}
 
 	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: s.td.String(),
+		TrustDomainId: s.td.IDString(),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch server bundle")
@@ -123,7 +123,7 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 
 	resp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
-			TrustDomainId:  td.String(),
+			TrustDomainId:  td.IDString(),
 			JwtSigningKeys: dsBundle.JwtSigningKeys,
 			RootCas:        dsBundle.RootCas,
 		},
@@ -437,7 +437,7 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string)
 	}
 
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: td.String(),
+		TrustDomainId: td.IDString(),
 		// TODO: what mode must we use here?
 		Mode: datastore.DeleteBundleRequest_RESTRICT,
 	})
