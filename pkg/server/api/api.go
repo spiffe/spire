@@ -5,11 +5,8 @@ import (
 	"errors"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire-next/types"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // IDFromProto converts a SPIFFE ID from the given types.SPIFFEID to
@@ -32,29 +29,9 @@ func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 
 // AuthorizedEntryFetcher is the interface to fetch authorized entries
 type AuthorizedEntryFetcher interface {
-	// FetchAuthorizedEntries fetches the entries that the caller
-	// that is extracted from the context is authorized for
-	FetchAuthorizedEntries(ctx context.Context) ([]*types.Entry, error)
-}
-
-// FetchAuthEntries fetches authorized entries using the provided
-// implementation of the AuthorizedEntryFetcher interface.
-// The provided implementation of that interface must ensure that
-// the authorized entries are fetched from the caller that
-// is obtained from the context.
-func FetchAuthEntries(ctx context.Context, log logrus.FieldLogger, ef AuthorizedEntryFetcher) (map[string]*types.Entry, error) {
-	entries, err := ef.FetchAuthorizedEntries(ctx)
-	if err != nil {
-		log.WithError(err).Error("Failed to fetch registration entries")
-		return nil, status.Errorf(codes.Internal, "failed to fetch registration entries: %v", err)
-	}
-
-	entriesMap := make(map[string]*types.Entry)
-	for _, entry := range entries {
-		entriesMap[entry.Id] = entry
-	}
-
-	return entriesMap, nil
+	// FetchAuthorizedEntries fetches the entries that the specified
+	// SPIFFE ID is authorized for
+	FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error)
 }
 
 // StringValueFromSPIFFEID converts a SPIFFE ID from the given spiffeid.ID to

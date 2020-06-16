@@ -3,6 +3,7 @@ package entry_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -19,12 +20,12 @@ import (
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakeentryfetcher"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -995,9 +996,6 @@ func TestBatchDeleteEntry(t *testing.T) {
 }
 
 func TestGetAuthorizedEntries(t *testing.T) {
-	test := setupServiceTest(t, fakedatastore.New())
-	defer test.Cleanup()
-
 	entry1 := types.Entry{
 		Id:       "entry-1",
 		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
@@ -1092,16 +1090,13 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		},
 		{
 			name:         "no caller id",
-			err:          "failed to fetch registration entries",
+			err:          "caller ID missing from request context",
 			code:         codes.Internal,
 			failCallerID: true,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch registration entries",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "missing caller ID",
-					},
+					Message: "Caller ID missing from request context",
 				},
 			},
 		},
@@ -1123,10 +1118,12 @@ func TestGetAuthorizedEntries(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test.logHook.Reset()
+			test := setupServiceTest(t, fakedatastore.New())
+			defer test.Cleanup()
+
 			test.withCallerID = !tt.failCallerID
-			test.ef.Entries = tt.fetcherEntries
-			test.ef.Err = tt.fetcherErr
+			test.ef.entries = tt.fetcherEntries
+			test.ef.err = tt.fetcherErr
 			resp, err := test.client.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{
 				OutputMask: tt.outputMask,
 			})
@@ -1179,7 +1176,7 @@ func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.Re
 
 type serviceTest struct {
 	client       entrypb.EntryClient
-	ef           *fakeentryfetcher.EntryFetcher
+	ef           *entryFetcher
 	done         func()
 	ds           datastore.DataStore
 	logHook      *test.Hook
@@ -1191,7 +1188,7 @@ func (s *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
-	ef := &fakeentryfetcher.EntryFetcher{}
+	ef := &entryFetcher{}
 	service := entry.New(entry.Config{
 		Datastore:    ds,
 		EntryFetcher: ef,
@@ -1270,4 +1267,26 @@ func (f *fakeDS) CreateRegistrationEntry(ctx context.Context, req *datastore.Cre
 	return &datastore.CreateRegistrationEntryResponse{
 		Entry: res,
 	}, nil
+}
+
+type entryFetcher struct {
+	err     string
+	entries []*types.Entry
+}
+
+func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+	if f.err != "" {
+		return nil, status.Error(codes.Internal, f.err)
+	}
+
+	caller, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		return nil, errors.New("missing caller ID")
+	}
+
+	if caller != agentID {
+		return nil, fmt.Errorf("provided caller id is different to expected")
+	}
+
+	return f.entries, nil
 }

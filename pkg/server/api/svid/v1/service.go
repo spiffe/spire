@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
@@ -24,12 +25,6 @@ import (
 // RegisterService registers the service on the gRPC server.
 func RegisterService(s *grpc.Server, service *Service) {
 	svid.RegisterSVIDServer(s, service)
-}
-
-type AuthorizedEntryFetcherFunc func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error)
-
-func (fn AuthorizedEntryFetcherFunc) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-	return fn(ctx, agentID)
 }
 
 // Config is the service configuration
@@ -150,7 +145,7 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SV
 	}
 
 	// Fetch authorized entries
-	entriesMap, err := api.FetchAuthEntries(ctx, log, s.ef)
+	entriesMap, err := s.fetchEntries(ctx, log)
 	if err != nil {
 		return nil, err
 	}
@@ -162,6 +157,28 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SV
 	}
 
 	return &svid.BatchNewX509SVIDResponse{Results: results}, nil
+}
+
+// fetchEntries fetches authorized entries using caller ID from context
+func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map[string]*types.Entry, error) {
+	callerID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		log.Error("Caller ID missing from request context")
+		return nil, status.Error(codes.Internal, "caller ID missing from request context")
+	}
+
+	entries, err := s.ef.FetchAuthorizedEntries(ctx, callerID)
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch registration entries")
+		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
+	}
+
+	entriesMap := make(map[string]*types.Entry)
+	for _, entry := range entries {
+		entriesMap[entry.Id] = entry
+	}
+
+	return entriesMap, nil
 }
 
 // newX509SVID creates an X509-SVID using data from registration entry and key from CSR
@@ -293,7 +310,7 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (
 	}
 
 	// Fetch authorized entries
-	entriesMap, err := api.FetchAuthEntries(ctx, log, s.ef)
+	entriesMap, err := s.fetchEntries(ctx, log)
 	if err != nil {
 		return nil, err
 	}

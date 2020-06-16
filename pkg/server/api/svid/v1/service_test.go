@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"net/url"
 	"testing"
@@ -24,7 +25,6 @@ import (
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakeentryfetcher"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -404,7 +404,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		SpiffeId: &types.SPIFFEID{},
 	}
 
-	test.ef.Entries = []*types.Entry{entry, entryWithTTL, invalidEntry}
+	test.ef.entries = []*types.Entry{entry, entryWithTTL, invalidEntry}
 	jwtKey := test.ca.JWTKey()
 	now := test.ca.Clock().Now().UTC()
 
@@ -455,8 +455,8 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			name:         "no caller id",
 			code:         codes.Internal,
 			audience:     []string{"AUDIENCE"},
-			err:          "failed to fetch registration entries: missing caller ID",
-			logMsg:       "Failed to fetch registration entries",
+			err:          "caller ID missing from request context",
+			logMsg:       "Caller ID missing from request context",
 			entry:        entry,
 			failCallerID: true,
 		},
@@ -552,7 +552,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 		Id:       "invalid",
 		ParentId: api.ProtoFromID(agentID),
 	}
-	test.ef.Entries = []*types.Entry{workloadEntry, dnsEntry, ttlEntry, invalidEntry}
+	test.ef.entries = []*types.Entry{workloadEntry, dnsEntry, ttlEntry, invalidEntry}
 
 	x509CA := test.ca.X509CA()
 	now := test.ca.Clock().Now().UTC()
@@ -623,14 +623,11 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			name: "no caller id",
 			reqs: []string{workloadEntry.Id},
 			code: codes.Internal,
-			err:  "failed to fetch registration entries: missing caller ID",
+			err:  "caller ID missing from request context",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch registration entries",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "missing caller ID",
-					},
+					Message: "Caller ID missing from request context",
 				},
 			},
 			failCallerID: true,
@@ -844,7 +841,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			test.rateLimiter.err = tt.rateLimiterErr
 
 			test.withCallerID = !tt.failCallerID
-			test.ef.Err = tt.fetcherErr
+			test.ef.err = tt.fetcherErr
 
 			var params []*svidpb.NewX509SVIDParams
 			for _, entryID := range tt.reqs {
@@ -1014,7 +1011,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
-			test.ef.Err = tt.fetcherErr
+			test.ef.err = tt.fetcherErr
 			if !tt.failDataStore {
 				_, err := test.ds.AppendBundle(context.Background(), &datastore.AppendBundleRequest{
 					Bundle: &common.Bundle{
@@ -1051,9 +1048,9 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			ctx := context.Background()
 
 			if tt.entry != nil {
-				test.downstream.Entries = []*types.Entry{tt.entry}
+				test.downstream.entries = []*types.Entry{tt.entry}
 			} else {
-				test.downstream.Entries = nil
+				test.downstream.entries = nil
 			}
 
 			resp, err := test.client.NewDownstreamX509CA(ctx, &svidpb.NewDownstreamX509CARequest{
@@ -1082,8 +1079,8 @@ func TestNewDownstreamX509CA(t *testing.T) {
 
 type serviceTest struct {
 	client       svidpb.SVIDClient
-	ef           *fakeentryfetcher.EntryFetcher // Stores entries explicitly fetched using FetchAuthorizedEntries
-	downstream   *fakeentryfetcher.EntryFetcher // Stores Downstream entries which end up in the context
+	ef           *entryFetcher // Stores entries explicitly fetched using FetchAuthorizedEntries
+	downstream   *entryFetcher // Stores Downstream entries which end up in the context
 	ca           *fakeserverca.CA
 	ds           *fakedatastore.DataStore
 	logHook      *test.Hook
@@ -1099,8 +1096,8 @@ func (c *serviceTest) Cleanup() {
 func setupServiceTest(t *testing.T) *serviceTest {
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
-	ef := &fakeentryfetcher.EntryFetcher{}
-	downstream := &fakeentryfetcher.EntryFetcher{}
+	ef := &entryFetcher{}
+	downstream := &entryFetcher{}
 	ds := fakedatastore.New()
 
 	rateLimiter := &fakeRateLimiter{}
@@ -1131,8 +1128,8 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		if test.withCallerID {
 			ctx = rpccontext.WithCallerID(ctx, agentID)
 		}
-		if test.downstream.Entries != nil {
-			ctx = rpccontext.WithCallerDownstreamEntries(ctx, downstream.Entries)
+		if test.downstream.entries != nil {
+			ctx = rpccontext.WithCallerDownstreamEntries(ctx, downstream.entries)
 		}
 		return ctx
 	}
@@ -1181,6 +1178,28 @@ func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID,
 		require.Equal(t, expiresAt.Unix(), jwtsvid.ExpiresAt)
 		require.Equal(t, expiresAt.Unix(), int64(*claims.Expiry))
 	}
+}
+
+type entryFetcher struct {
+	err     string
+	entries []*types.Entry
+}
+
+func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+	if f.err != "" {
+		return nil, status.Error(codes.Internal, f.err)
+	}
+
+	caller, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		return nil, errors.New("no caller ID on context")
+	}
+
+	if caller != agentID {
+		return nil, fmt.Errorf("provided caller id is different to expected")
+	}
+
+	return f.entries, nil
 }
 
 type fakeRateLimiter struct {

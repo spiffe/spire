@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -241,22 +242,39 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDelete
 func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthorizedEntriesRequest) (*entry.GetAuthorizedEntriesResponse, error) {
 	log := rpccontext.Logger(ctx)
 
-	entriesMap, err := api.FetchAuthEntries(ctx, log, s.ef)
+	entries, err := s.fetchEntries(ctx, log)
 	if err != nil {
 		return nil, err
 	}
 
-	var entries []*types.Entry
-	for _, entry := range entriesMap {
+	var entriesWithMask []*types.Entry
+	for _, entry := range entries {
 		applyMask(entry, req.OutputMask)
-		entries = append(entries, entry)
+		entriesWithMask = append(entriesWithMask, entry)
 	}
 
 	resp := &entry.GetAuthorizedEntriesResponse{
-		Entries: entries,
+		Entries: entriesWithMask,
 	}
 
 	return resp, nil
+}
+
+// fetchEntries fetches authorized entries using caller ID from context
+func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]*types.Entry, error) {
+	callerID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		log.Error("Caller ID missing from request context")
+		return nil, status.Error(codes.Internal, "caller ID missing from request context")
+	}
+
+	entries, err := s.ef.FetchAuthorizedEntries(ctx, callerID)
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch registration entries")
+		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
+	}
+
+	return entries, nil
 }
 
 func applyMask(e *types.Entry, mask *types.EntryMask) {
