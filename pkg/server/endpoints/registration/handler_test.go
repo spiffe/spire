@@ -15,8 +15,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -1361,7 +1361,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		},
 		{
 			Peer: &peer.Peer{
-				AuthInfo: peertracker.AuthInfo{},
+				AuthInfo: auth.UntrackedUDSAuthInfo{},
 			},
 		},
 		{
