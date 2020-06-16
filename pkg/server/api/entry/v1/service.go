@@ -246,15 +246,13 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthor
 	if err != nil {
 		return nil, err
 	}
-
-	var entriesWithMask []*types.Entry
-	for _, entry := range entries {
+	for i, entry := range entries {
 		applyMask(entry, req.OutputMask)
-		entriesWithMask = append(entriesWithMask, entry)
+		entries[i] = entry
 	}
 
 	resp := &entry.GetAuthorizedEntriesResponse{
-		Entries: entriesWithMask,
+		Entries: entries,
 	}
 
 	return resp, nil

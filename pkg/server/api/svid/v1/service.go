@@ -173,7 +173,7 @@ func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map
 		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
 	}
 
-	entriesMap := make(map[string]*types.Entry)
+	entriesMap := make(map[string]*types.Entry, len(entries))
 	for _, entry := range entries {
 		entriesMap[entry.Id] = entry
 	}
