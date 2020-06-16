@@ -1,7 +1,7 @@
 // Provides interfaces and adapters for the HostService service
 //
 // Generated code. Do not modify by hand.
-package test
+package catalogtest
 
 import (
 	"context"

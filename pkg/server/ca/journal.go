@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 )
@@ -24,6 +25,10 @@ const (
 	// journalPEMType is the type in the PEM header
 	journalPEMType = "SPIRE CA JOURNAL"
 )
+
+type JournalEntries = journal.Entries
+type X509CAEntry = journal.X509CAEntry
+type JWTKeyEntry = journal.JWTKeyEntry
 
 // Journal stores X509 CAs and JWT keys on disk as they are rotated by the
 // manager. The data format on disk is a PEM encoded protocol buffer.
