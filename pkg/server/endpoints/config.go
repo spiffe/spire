@@ -3,10 +3,8 @@ package endpoints
 import (
 	"net"
 	"net/url"
-	"sync"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -56,10 +54,6 @@ type Config struct {
 // New creates new endpoints struct
 func New(c *Config) *Endpoints {
 	return &Endpoints{
-		c:   c,
-		mtx: new(sync.RWMutex),
-		unixListener: &peertracker.ListenerFactory{
-			Log: c.Log,
-		},
+		c: c,
 	}
 }

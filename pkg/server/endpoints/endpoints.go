@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -44,9 +42,7 @@ type Server interface {
 }
 
 type Endpoints struct {
-	c            *Config
-	mtx          *sync.RWMutex
-	unixListener *peertracker.ListenerFactory
+	c *Config
 }
 
 // ListenAndServe starts all maintenance routines and endpoints, then blocks
@@ -102,7 +98,7 @@ func (e *Endpoints) createUDSServer() *grpc.Server {
 	return grpc.NewServer(
 		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
 		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
-		grpc.Creds(peertracker.NewCredentials()))
+		grpc.Creds(auth.UntrackedUDSCredentials()))
 }
 
 func (e *Endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
@@ -211,7 +207,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.c.UDSAddr.String())
-	l, err := e.unixListener.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
+	l, err := net.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
 	if err != nil {
 		return err
 	}
