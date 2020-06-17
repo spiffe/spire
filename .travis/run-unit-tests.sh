@@ -13,5 +13,6 @@ fi
 make -C "${REPODIR}" COVERPROFILE="${COVERPROFILE}" test
 
 if [ -n "${COVERALLS_TOKEN}" ]; then
-    "$(go env GOPATH)"/bin/goveralls -covermode race -service=travis-ci
+    "$(go env GOPATH)"/bin/goveralls -coverprofile="${COVERPROFILE}" \
+		 -repotoken="${COVERALLS_TOKEN}" -service=travis-ci
 fi
