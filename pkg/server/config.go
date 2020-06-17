@@ -72,12 +72,9 @@ type Config struct {
 	// CAKeyType is the key type used for the X509 and JWT signing keys
 	CAKeyType keymanager.KeyType
 
-	// BundleEndpoint contains the federation bundle endpoint configuration.
-	BundleEndpoint BundleEndpointConfig
-
-	// FederateWith holds the federation configuration for trust domains this
-	// server federates with.
-	FederateWith map[string]bundle_client.TrustDomainConfig
+	// Federation holds the configuration needed to federate with other
+	// trust domains.
+	Federation FederationConfig
 }
 
 type ExperimentalConfig struct {
@@ -85,10 +82,12 @@ type ExperimentalConfig struct {
 	AllowAgentlessNodeAttestors bool
 }
 
-type BundleEndpointConfig struct {
-	bundle.EndpointConfig
-	// Enabled, if true, enables the federation bundle endpoint
-	Enabled bool
+type FederationConfig struct {
+	// BundleEndpoint contains the federation bundle endpoint configuration.
+	BundleEndpoint *bundle.EndpointConfig
+	// FederateWith holds the federation configuration for trust domains this
+	// server federates with.
+	FederateWith map[string]bundle_client.TrustDomainConfig
 }
 
 func New(config Config) *Server {
