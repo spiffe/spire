@@ -86,6 +86,7 @@ type sqlDB struct {
 	raw              *sql.DB
 	*gorm.DB
 
+	dialect     dialect
 	stmtCache   *stmtCache
 	supportsCTE bool
 
@@ -458,7 +459,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 	}
 
 	if sqlDb == nil || connectionString != sqlDb.connectionString || config.DatabaseType != ds.db.databaseType {
-		db, version, supportsCTE, err := ds.openDB(config, isReadOnly)
+		db, version, supportsCTE, dialect, err := ds.openDB(config, isReadOnly)
 		if err != nil {
 			return err
 		}
@@ -482,6 +483,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 			DB:               db,
 			raw:              raw,
 			databaseType:     config.DatabaseType,
+			dialect:          dialect,
 			connectionString: connectionString,
 			stmtCache:        newStmtCache(raw),
 			supportsCTE:      supportsCTE,
@@ -545,7 +547,7 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 
 	if err := op(tx); err != nil {
 		tx.Rollback()
-		return gormToGRPCStatus(err)
+		return ds.gormToGRPCStatus(err)
 	}
 
 	if readOnly {
@@ -557,28 +559,46 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 	return sqlError.Wrap(tx.Commit().Error)
 }
 
-func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, error) {
-	var db *gorm.DB
-	var version string
-	var supportsCTE bool
-	var err error
+// gormToGRPCStatus takes an error, and converts it to a GRPC error.  If the
+// error is already a gRPC status , it will be returned unmodified. Otherwise
+// if the error is a gorm error type with a known mapping to a GRPC status,
+// that code will be set, otherwise the code will be set to Unknown.
+func (ds *Plugin) gormToGRPCStatus(err error) error {
+	unwrapped := errs.Unwrap(err)
+	if _, ok := status.FromError(unwrapped); ok {
+		return unwrapped
+	}
+
+	code := codes.Unknown
+	switch {
+	case gorm.IsRecordNotFoundError(unwrapped):
+		code = codes.NotFound
+	case ds.db.dialect.isConstraintViolation(unwrapped):
+		code = codes.AlreadyExists
+	default:
+	}
+
+	return status.Error(code, err.Error())
+}
+
+func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, dialect, error) {
+	var dialect dialect
 
 	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
-		if isReadOnly {
-			ds.log.Warn("read-only connection is not applicable for %v. Falling back to primary connection.", cfg.DatabaseType)
-		}
-		db, version, supportsCTE, err = sqliteDB{}.connect(cfg)
+		dialect = sqliteDB{log: ds.log}
 	case PostgreSQL:
-		db, version, supportsCTE, err = postgresDB{}.connect(cfg, isReadOnly)
+		dialect = postgresDB{}
 	case MySQL:
-		db, version, supportsCTE, err = mysqlDB{}.connect(cfg, isReadOnly)
+		dialect = mysqlDB{}
 	default:
-		return nil, "", false, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
+		return nil, "", false, nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
 	}
+
+	db, version, supportsCTE, err := dialect.connect(cfg, isReadOnly)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, nil, err
 	}
 
 	gormLogger := ds.log.Named("gorm")
@@ -595,17 +615,17 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	if cfg.ConnMaxLifetime != nil {
 		connMaxLifetime, err := time.ParseDuration(*cfg.ConnMaxLifetime)
 		if err != nil {
-			return nil, "", false, fmt.Errorf("failed to parse conn_max_lifetime %q: %v", *cfg.ConnMaxLifetime, err)
+			return nil, "", false, nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %v", *cfg.ConnMaxLifetime, err)
 		}
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
 
 	if err := migrateDB(db, cfg.DatabaseType, cfg.DisableMigration, ds.log); err != nil {
 		db.Close()
-		return nil, "", false, err
+		return nil, "", false, nil, err
 	}
 
-	return db, version, supportsCTE, nil
+	return db, version, supportsCTE, dialect, nil
 }
 
 func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
@@ -986,14 +1006,12 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 		return nil, sqlError.Wrap(err)
 	}
 
-	updates := AttestedNode{
-		SerialNumber:    req.CertSerialNumber,
-		ExpiresAt:       time.Unix(req.CertNotAfter, 0),
-		NewSerialNumber: req.NewCertSerialNumber,
-		NewExpiresAt:    nullableUnixTimeToDBTime(req.NewCertNotAfter),
-	}
+	model.SerialNumber = req.CertSerialNumber
+	model.ExpiresAt = time.Unix(req.CertNotAfter, 0)
+	model.NewSerialNumber = req.NewCertSerialNumber
+	model.NewExpiresAt = nullableUnixTimeToDBTime(req.NewCertNotAfter)
 
-	if err := tx.Model(&model).Updates(updates).Error; err != nil {
+	if err := tx.Save(&model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -2520,26 +2538,6 @@ func (cfg *configuration) Validate() error {
 	}
 
 	return nil
-}
-
-// gormToGRPCStatus takes an error, and converts it to a GRPC error.  If the
-// error is already a gRPC status , it will be returned unmodified. Otherwise
-// if the error is a gorm error type with a known mapping to a GRPC status,
-// that code will be set, otherwise the code will be set to Unknown.
-func gormToGRPCStatus(err error) error {
-	unwrapped := errs.Unwrap(err)
-	if _, ok := status.FromError(unwrapped); ok {
-		return unwrapped
-	}
-
-	code := codes.Unknown
-	switch {
-	case gorm.IsRecordNotFoundError(unwrapped):
-		code = codes.NotFound
-	default:
-	}
-
-	return status.Error(code, err.Error())
 }
 
 // getConnectionString returns the connection string corresponding to the database connection.

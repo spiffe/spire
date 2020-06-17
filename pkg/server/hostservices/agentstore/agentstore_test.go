@@ -15,7 +15,7 @@ import (
 )
 
 func TestAgentStore(t *testing.T) {
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 	_, err := ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
 			SpiffeId: "spiffe://domain.test/spire/agent/test/foo",

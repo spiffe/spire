@@ -47,6 +47,8 @@ require (
 	github.com/imdario/mergo v0.3.7
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.9
+	github.com/lib/pq v1.1.1
+	github.com/mattn/go-sqlite3 v1.10.0
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect

@@ -71,7 +71,7 @@ func TestManager(t *testing.T) {
 
 func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func() {
 	log, _ := test.NewNullLogger()
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 
 	trustDomainConfig := TrustDomainConfig{
 		EndpointAddress:  "ENDPOINT_ADDRESS",

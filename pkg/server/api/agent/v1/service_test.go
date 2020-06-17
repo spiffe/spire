@@ -25,7 +25,7 @@ func (c *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest { //nolint: unused,deadcode
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 	service := agent.New(agent.Config{
 		Datastore: ds,
 	})

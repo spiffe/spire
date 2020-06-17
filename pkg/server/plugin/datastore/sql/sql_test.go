@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -235,6 +236,12 @@ func (s *PluginSuite) TestBundleCRUD() {
 		Bundle: bundle,
 	})
 	s.Require().NoError(err)
+
+	// create again (constraint violation)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle,
+	})
+	s.Equal(status.Code(err), codes.AlreadyExists)
 
 	// fetch
 	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
@@ -815,52 +822,74 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 }
 
 func (s *PluginSuite) TestUpdateAttestedNode() {
-	node := &common.AttestedNode{
-		SpiffeId:            "foo",
-		AttestationDataType: "aws-tag",
-		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	originalNode := &common.AttestedNode{
+		SpiffeId:            "spiffe-id",
+		AttestationDataType: "attestation-data-type",
+		CertSerialNumber:    "cert-serial-number-1",
+		CertNotAfter:        1,
+		NewCertSerialNumber: "new-cert-serial-number-1",
+		NewCertNotAfter:     1,
 	}
 
-	userial := "deadbeef"
-	uexpires := time.Now().Add(time.Hour * 2).Unix()
+	updatedNode := &common.AttestedNode{
+		SpiffeId:            "spiffe-id",
+		AttestationDataType: "attestation-data-type",
+		CertSerialNumber:    "new-cert-serial-number-2",
+		CertNotAfter:        2,
+		NewCertSerialNumber: "new-cert-serial-number-2",
+		NewCertNotAfter:     2,
+	}
 
-	// update non-existing attested node
-	_, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:         node.SpiffeId,
-		CertSerialNumber: userial,
-		CertNotAfter:     uexpires,
-	})
+	updateReq := &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:            updatedNode.SpiffeId,
+		CertSerialNumber:    updatedNode.CertSerialNumber,
+		CertNotAfter:        updatedNode.CertNotAfter,
+		NewCertSerialNumber: updatedNode.NewCertSerialNumber,
+		NewCertNotAfter:     updatedNode.NewCertNotAfter,
+	}
+
+	updatedNode2 := &common.AttestedNode{
+		SpiffeId:            "spiffe-id",
+		AttestationDataType: "attestation-data-type",
+		CertNotAfter:        2,
+	}
+
+	updateReq2 := &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:            updatedNode2.SpiffeId,
+		CertSerialNumber:    updatedNode2.CertSerialNumber,
+		CertNotAfter:        updatedNode2.CertNotAfter,
+		NewCertSerialNumber: updatedNode2.NewCertSerialNumber,
+		NewCertNotAfter:     updatedNode2.NewCertNotAfter,
+	}
+
+	// Update an attested node that does not exist and assert that it fails
+	_, err := s.ds.UpdateAttestedNode(ctx, updateReq)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	// Create the attested node
+	createResp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: originalNode})
 	s.Require().NoError(err)
+	s.RequireProtoEqual(originalNode, createResp.Node)
 
-	uresp, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:         node.SpiffeId,
-		CertSerialNumber: userial,
-		CertNotAfter:     uexpires,
-	})
+	// Update the attested node and assert that the response has the update
+	updateResp, err := s.ds.UpdateAttestedNode(ctx, updateReq)
 	s.Require().NoError(err)
+	s.RequireProtoEqual(updatedNode, updateResp.Node)
 
-	unode := uresp.Node
-	s.Require().NotNil(unode)
-
-	s.Equal(node.SpiffeId, unode.SpiffeId)
-	s.Equal(node.AttestationDataType, unode.AttestationDataType)
-	s.Equal(userial, unode.CertSerialNumber)
-	s.Equal(uexpires, unode.CertNotAfter)
-
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+	// Fetch the attested node and assert that the response has the update
+	fetchResp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: originalNode.SpiffeId})
 	s.Require().NoError(err)
+	s.RequireProtoEqual(updatedNode, fetchResp.Node)
 
-	fnode := fresp.Node
-	s.Require().NotNil(fnode)
+	// Update the attested node again and assert that the response has the update
+	updateResp2, err := s.ds.UpdateAttestedNode(ctx, updateReq2)
+	s.Require().NoError(err)
+	s.RequireProtoEqual(updatedNode2, updateResp2.Node)
 
-	s.Equal(node.SpiffeId, fnode.SpiffeId)
-	s.Equal(node.AttestationDataType, fnode.AttestationDataType)
-	s.Equal(userial, fnode.CertSerialNumber)
-	s.Equal(uexpires, fnode.CertNotAfter)
+	// Fetch the attested node again and assert that the response has the update
+	fetchResp2, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: originalNode.SpiffeId})
+	s.Require().NoError(err)
+	s.RequireProtoEqual(updatedNode2, fetchResp2.Node)
 }
 
 func (s *PluginSuite) TestDeleteAttestedNode() {
@@ -1886,6 +1915,7 @@ func (s *PluginSuite) TestMigration() {
 	for i := 0; i < latestSchemaVersion; i++ {
 		dbName := fmt.Sprintf("v%d.sqlite3", i)
 		dbPath := filepath.Join(s.dir, "migration-"+dbName)
+		dbURI := fmt.Sprintf("file://%s", dbPath)
 		dump := migrationDump(i)
 		s.Require().NotEmpty(dump, "no migration dump set up for version %d", i)
 		s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", i)
@@ -2030,41 +2060,26 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Len(resp.Entries[0].DnsNames, 1)
 			s.Require().Equal("abcd.efg", resp.Entries[0].DnsNames[0])
 		case 8:
-			db, _, _, err := sqliteDB{}.connect(&configuration{
-				DatabaseType:     "sqlite3",
-				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			db, err := openSQLite3(dbURI)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_parent_id"))
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
 			s.Require().True(db.Dialect().HasIndex("selectors", "idx_selectors_type_value"))
 		case 9:
-			db, _, _, err := sqliteDB{}.connect(&configuration{
-				DatabaseType:     "sqlite3",
-				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			db, err := openSQLite3(dbURI)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
 		case 10:
-			db, _, _, err := sqliteDB{}.connect(&configuration{
-				DatabaseType:     "sqlite3",
-				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			db, err := openSQLite3(dbURI)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 		case 11:
-			db, _, _, err := sqliteDB{}.connect(&configuration{
-				DatabaseType:     "sqlite3",
-				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			db, err := openSQLite3(dbURI)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 		case 12:
 			// Ensure attested_nodes_entries gained two new columns
-			db, _, _, err := sqliteDB{}.connect(&configuration{
-				DatabaseType:     "sqlite3",
-				ConnectionString: fmt.Sprintf("file://%s", dbPath),
-			})
+			db, err := openSQLite3(dbURI)
 			s.Require().NoError(err)
 
 			// Assert attested_node_entries tables gained the new columns

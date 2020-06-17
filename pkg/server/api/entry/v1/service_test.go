@@ -73,7 +73,7 @@ func TestListEntries(t *testing.T) {
 	}
 
 	// setup
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
 
@@ -175,16 +175,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "BySelectors",
-			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
-					BySelectors: &types.SelectorMatch{},
-				},
-			},
-		},
-		{
-			name:            "SelectorMatch_MATCH_EXACT",
+			name:            "BySelectors with SelectorMatch_MATCH_EXACT",
 			expectedEntries: []*types.Entry{expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -198,7 +189,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "SelectorMatch_MATCH_SUBSET",
+			name:            "BySelectors with SelectorMatch_MATCH_SUBSET",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -216,7 +207,7 @@ func TestListEntries(t *testing.T) {
 		{
 			name:                  "PageSize",
 			expectedEntries:       []*types.Entry{expectedChild},
-			expectedNextPageToken: childEntry.Entry.EntryId,
+			expectedNextPageToken: "1",
 			request: &entrypb.ListEntriesRequest{
 				PageSize: 1,
 			},
@@ -231,7 +222,7 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad ByParentId",
-			err:    "failed to build request: malformed ByParentId: spiffeid: invalid scheme",
+			err:    "invalid request: malformed ByParentId: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid request",
 			request: &entrypb.ListEntriesRequest{
@@ -242,7 +233,7 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad BySpiffeId",
-			err:    "failed to build request: malformed BySpiffeId: spiffeid: invalid scheme",
+			err:    "invalid request: malformed BySpiffeId: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid request",
 			request: &entrypb.ListEntriesRequest{
@@ -252,8 +243,19 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:   "bad BySelectors",
-			err:    "failed to build request: malformed BySelectors: missing selector type",
+			name:            "bad BySelectors (no selectors)",
+			err:             "invalid request: malformed BySelectors: empty selector set",
+			code:            codes.InvalidArgument,
+			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					BySelectors: &types.SelectorMatch{},
+				},
+			},
+		},
+		{
+			name:   "bad BySelectors (bad selector)",
+			err:    "invalid request: malformed BySelectors: missing selector type",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid request",
 			request: &entrypb.ListEntriesRequest{
@@ -269,7 +271,7 @@ func TestListEntries(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ds.SetError(tt.dsError)
+			ds.SetNextError(tt.dsError)
 
 			// exercise
 			entries, err := test.client.ListEntries(context.Background(), tt.request)
@@ -294,7 +296,7 @@ func TestListEntries(t *testing.T) {
 }
 
 func TestGetEntry(t *testing.T) {
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
 
@@ -447,7 +449,7 @@ func TestGetEntry(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
-			ds.SetError(tt.dsError)
+			ds.SetNextError(tt.dsError)
 
 			resp, err := test.client.GetEntry(ctx, &entrypb.GetEntryRequest{
 				Id:         tt.entryID,
@@ -584,7 +586,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						TrustDomain: "example.org",
 						Path:        "/malformed",
 					},
-					DnsNames: []string{""},
+					Selectors: []*types.Selector{{Type: "type", Value: "value"}},
+					DnsNames:  []string{""},
 				}, {
 					Id: "entry2",
 					ParentId: &types.SPIFFEID{
@@ -595,11 +598,12 @@ func TestBatchCreateEntry(t *testing.T) {
 						TrustDomain: "example.org",
 						Path:        "/workload2",
 					},
+					Selectors: []*types.Selector{{Type: "type", Value: "value"}},
 				},
 			},
 			expectDsEntries: map[string]*common.RegistrationEntry{
 				"entry1": testDSEntry,
-				"entry2": {EntryId: "entry2", ParentId: "spiffe://example.org/agent", SpiffeId: "spiffe://example.org/workload2"},
+				"entry2": {EntryId: "entry2", ParentId: "spiffe://example.org/agent", SpiffeId: "spiffe://example.org/workload2", Selectors: []*common.Selector{{Type: "type", Value: "value"}}},
 			},
 		},
 		{
@@ -790,7 +794,7 @@ func TestBatchCreateEntry(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ds := newFakeDS()
+			ds := newFakeDS(t)
 
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
@@ -830,18 +834,21 @@ func TestBatchDeleteEntry(t *testing.T) {
 	fooEntry := &common.RegistrationEntry{
 		ParentId:    parentID,
 		SpiffeId:    fooSpiffeID,
+		Selectors:   []*common.Selector{{Type: "not", Value: "relevant"}},
 		EntryExpiry: expiresAt,
 	}
 	barSpiffeID := td.NewID("bar").String()
 	barEntry := &common.RegistrationEntry{
 		ParentId:    parentID,
 		SpiffeId:    barSpiffeID,
+		Selectors:   []*common.Selector{{Type: "not", Value: "relevant"}},
 		EntryExpiry: expiresAt,
 	}
 	bazSpiffeID := td.NewID("baz").String()
 	baz := &common.RegistrationEntry{
 		ParentId:    parentID,
 		SpiffeId:    bazSpiffeID,
+		Selectors:   []*common.Selector{{Type: "not", Value: "relevant"}},
 		EntryExpiry: expiresAt,
 	}
 
@@ -866,7 +873,7 @@ func TestBatchDeleteEntry(t *testing.T) {
 				results = append(results, &entrypb.BatchDeleteEntryResponse_Result{
 					Status: &types.Status{
 						Code:    int32(codes.NotFound),
-						Message: "no such registration entry",
+						Message: "entry not found",
 					},
 					Id: "not found",
 				})
@@ -949,7 +956,7 @@ func TestBatchDeleteEntry(t *testing.T) {
 					{
 						Status: &types.Status{
 							Code:    int32(codes.NotFound),
-							Message: "no such registration entry",
+							Message: "entry not found",
 						},
 						Id: "invalid id",
 					},
@@ -962,14 +969,14 @@ func TestBatchDeleteEntry(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ds := fakedatastore.New()
-			ds.SetError(tt.dsError)
+			ds := fakedatastore.New(t)
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
 			// Create entries
 			entriesMap := createTestEntries(t, ds, fooEntry, barEntry, baz)
 
+			ds.SetNextError(tt.dsError)
 			resp, err := test.client.BatchDeleteEntry(ctx, &entrypb.BatchDeleteEntryRequest{
 				Ids: tt.ids(entriesMap),
 			})
@@ -982,7 +989,6 @@ func TestBatchDeleteEntry(t *testing.T) {
 			}, resp)
 
 			// Validate DS contains expected entries
-			ds.SetError(nil)
 			listEntries, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 			require.NoError(t, err)
 
@@ -1118,7 +1124,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, fakedatastore.New())
+			test := setupServiceTest(t, fakedatastore.New(t))
 			defer test.Cleanup()
 
 			test.withCallerID = !tt.failCallerID
@@ -1230,9 +1236,9 @@ type fakeDS struct {
 	results       map[string]*common.RegistrationEntry
 }
 
-func newFakeDS() *fakeDS {
+func newFakeDS(t *testing.T) *fakeDS {
 	return &fakeDS{
-		DataStore:     fakedatastore.New(),
+		DataStore:     fakedatastore.New(t),
 		expectEntries: make(map[string]*common.RegistrationEntry),
 		results:       make(map[string]*common.RegistrationEntry),
 	}

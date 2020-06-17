@@ -84,7 +84,7 @@ func (s *ExperimentalBundleSuite) SetupTest() {
 	s.stdout = new(bytes.Buffer)
 	s.stderr = new(bytes.Buffer)
 
-	s.ds = fakedatastore.New()
+	s.ds = fakedatastore.New(s.T())
 	s.registrationClient = fakeregistrationclient.New(s.T(), "spiffe://example.test", s.ds, nil)
 
 	testEnv := &env{

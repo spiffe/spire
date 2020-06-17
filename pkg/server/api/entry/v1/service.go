@@ -49,7 +49,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 	listReq, err := buildListEntriesRequest(req)
 	if err != nil {
 		log.WithError(err).Error("Invalid request")
-		return nil, status.Errorf(codes.InvalidArgument, "failed to build request: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid request: %v", err)
 	}
 
 	dsResp, err := s.ds.ListRegistrationEntries(ctx, listReq)
@@ -228,7 +228,7 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDelete
 	case codes.NotFound:
 		return &entry.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.StatusFromError(err),
+			Status: api.CreateStatus(codes.NotFound, "entry not found"),
 		}
 	default:
 		log.WithError(err).Error("Failed to delete entry")
@@ -349,7 +349,9 @@ func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegi
 			if err != nil {
 				return nil, fmt.Errorf("malformed BySelectors: %v", err)
 			}
-
+			if len(dsSelectors) == 0 {
+				return nil, fmt.Errorf("malformed BySelectors: empty selector set")
+			}
 			listReq.BySelectors = &datastore.BySelectors{
 				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
 				Selectors: dsSelectors,

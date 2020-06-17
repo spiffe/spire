@@ -559,7 +559,7 @@ func TestAppendBundle(t *testing.T) {
 			if !tt.noBundle {
 				test.setBundle(t, sb)
 			}
-			test.ds.SetError(tt.dsError)
+			test.ds.SetNextError(tt.dsError)
 
 			if tt.invalidEntry {
 				_, err := test.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
@@ -683,7 +683,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.NotFound),
-						Message: "no such bundle",
+						Message: "bundle not found",
 					},
 					TrustDomain: "notfound.org",
 				},
@@ -727,7 +727,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			}
 
 			// Set datastore error after creating the test bundles
-			test.ds.SetError(tt.dsError)
+			test.ds.SetNextError(tt.dsError)
 			resp, err := test.client.BatchDeleteFederatedBundle(ctx, &bundlepb.BatchDeleteFederatedBundleRequest{
 				TrustDomains: tt.trustDomains,
 			})
@@ -926,32 +926,43 @@ func TestListFederatedBundles(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
 
-	_ = createBundle(t, test, serverTrustDomain.String())
+	_ = createBundle(t, test, serverTrustDomain.IDString())
 
 	serverTrustDomain := spiffeid.RequireTrustDomainFromString("td1.org")
-	b1 := createBundle(t, test, serverTrustDomain.String())
+	b1 := createBundle(t, test, serverTrustDomain.IDString())
 
 	federatedTrustDomain := spiffeid.RequireTrustDomainFromString("td2.org")
-	b2 := createBundle(t, test, federatedTrustDomain.String())
+	b2 := createBundle(t, test, federatedTrustDomain.IDString())
 
 	td3 := spiffeid.RequireTrustDomainFromString("td3.org")
-	b3 := createBundle(t, test, td3.String())
+	b3 := createBundle(t, test, td3.IDString())
 
 	for _, tt := range []struct {
-		name          string
-		code          codes.Code
-		err           string
-		expectBundles []*common.Bundle
-		expectLogs    []spiretest.LogEntry
-		expectToken   string
-		isInvalidTD   bool
-		outputMask    *types.BundleMask
-		pageSize      int32
-		pageToken     string
+		name              string
+		code              codes.Code
+		err               string
+		expectBundlePages [][]*common.Bundle
+		expectLogs        []spiretest.LogEntry
+		outputMask        *types.BundleMask
+		pageSize          int32
 	}{
 		{
-			name:          "no returns fields filtered by mask",
-			expectBundles: []*common.Bundle{b1, b2, b3},
+			name:              "all bundles at once with no mask",
+			expectBundlePages: [][]*common.Bundle{{b1, b2, b3}},
+		},
+		{
+			name:              "all bundles at once with most permissive mask",
+			expectBundlePages: [][]*common.Bundle{{b1, b2, b3}},
+			outputMask: &types.BundleMask{
+				RefreshHint:     true,
+				SequenceNumber:  true,
+				X509Authorities: true,
+				JwtAuthorities:  true,
+			},
+		},
+		{
+			name:              "all bundles at once filtered by mask",
+			expectBundlePages: [][]*common.Bundle{{b1, b2, b3}},
 			outputMask: &types.BundleMask{
 				RefreshHint:     false,
 				SequenceNumber:  false,
@@ -960,85 +971,62 @@ func TestListFederatedBundles(t *testing.T) {
 			},
 		},
 		{
-			name:          "get only trust domains",
-			expectBundles: []*common.Bundle{b1, b2, b3},
-			outputMask:    &types.BundleMask{},
-		},
-		{
-			name: "get first page",
+			name: "page bundles",
 			// Returns only one element because server bundle is the first element
 			// returned by datastore, and we filter resutls on service
-			expectBundles: []*common.Bundle{b1},
-			expectToken:   serverTrustDomain.String(),
-			pageSize:      2,
-		},
-		{
-			name:          "get second page",
-			expectBundles: []*common.Bundle{b2, b3},
-			expectToken:   td3.String(),
-			pageSize:      2,
-			pageToken:     serverTrustDomain.String(),
-		},
-		{
-			name:          "get third page",
-			expectBundles: []*common.Bundle{},
-			expectToken:   "",
-			pageSize:      2,
-			pageToken:     td3.String(),
-		},
-		{
-			name: "datastore returns invalid trust domain",
-			code: codes.Internal,
-			err:  `bundle has an invalid trust domain ID: "invalid TD"`,
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Bundle has an invalid trust domain ID",
-					Data: logrus.Fields{
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://invalid TD: invalid character " " in host name`,
-						telemetry.TrustDomainID: "invalid TD",
-					},
-				},
+			expectBundlePages: [][]*common.Bundle{
+				{b1},
+				{b2, b3},
+				{},
 			},
-			isInvalidTD: true,
+			pageSize: 2,
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
-			// Create an invalid bundle to test mask failing
-			if tt.isInvalidTD {
-				invalidBundle := createBundle(t, test, "invalid TD")
-				defer func() {
-					_, _ = test.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-						TrustDomainId: invalidBundle.TrustDomainId,
-					})
-				}()
+			// This limit exceeds the number of pages we should reasonably
+			// expect to receive during a test. Exceeding this limit implies
+			// that paging is likely broken.
+			const pagesLimit = 10
+
+			var pageToken string
+			var actualBundlePages [][]*types.Bundle
+			for {
+				resp, err := test.client.ListFederatedBundles(ctx, &bundlepb.ListFederatedBundlesRequest{
+					OutputMask: tt.outputMask,
+					PageSize:   tt.pageSize,
+					PageToken:  pageToken,
+				})
+				if tt.err != "" {
+					spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+					require.Nil(t, resp)
+					spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+					return
+				}
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				actualBundlePages = append(actualBundlePages, resp.Bundles)
+				if len(actualBundlePages) > pagesLimit {
+					t.Fatalf("exceeded page count limit (%d); paging is likely broken", pagesLimit)
+					break
+				}
+				pageToken = resp.NextPageToken
+				if pageToken == "" {
+					break
+				}
 			}
 
-			resp, err := test.client.ListFederatedBundles(ctx, &bundlepb.ListFederatedBundlesRequest{
-				OutputMask: tt.outputMask,
-				PageSize:   tt.pageSize,
-				PageToken:  tt.pageToken,
-			})
-
-			if tt.err != "" {
-				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
-				require.Nil(t, resp)
-				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
-
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			require.Equal(t, tt.expectToken, resp.NextPageToken)
-			require.Len(t, resp.Bundles, len(tt.expectBundles))
-
-			for i, b := range resp.Bundles {
-				assertCommonBundleWithMask(t, tt.expectBundles[i], b, tt.outputMask)
+			require.Len(t, actualBundlePages, len(tt.expectBundlePages), "unexpected number of bundle pages")
+			for i, actualBundlePage := range actualBundlePages {
+				expectBundlePage := tt.expectBundlePages[i]
+				require.Len(t, actualBundlePage, len(expectBundlePage), "unexpected number of bundles in page")
+				for j, actualBundle := range actualBundlePage {
+					expectBundle := expectBundlePage[j]
+					assertCommonBundleWithMask(t, expectBundle, actualBundle, tt.outputMask)
+				}
 			}
 		})
 	}
@@ -1215,7 +1203,6 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 					Message: "Bundle already exists",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
-						logrus.ErrorKey:         "rpc error: code = AlreadyExists desc = bundle already exists",
 					},
 				},
 			},
@@ -1269,7 +1256,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			clearDSBundles(t, test.ds)
-			test.ds.SetError(tt.dsError)
+			test.ds.SetNextError(tt.dsError)
 
 			resp, err := test.client.BatchCreateFederatedBundle(context.Background(), &bundlepb.BatchCreateFederatedBundleRequest{
 				Bundle:     tt.bundlesToCreate,
@@ -1429,7 +1416,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.NotFound, "bundle not found: rpc error: code = NotFound desc = no such bundle"),
+					Status: api.CreateStatus(codes.NotFound, "bundle not found"),
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1438,7 +1425,6 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					Message: "Bundle not found",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
-						logrus.ErrorKey:         "rpc error: code = NotFound desc = no such bundle",
 					},
 				},
 			},
@@ -1493,7 +1479,8 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			bundlesToUpdate:   []*types.Bundle{makeValidBundle(t, spiffeid.RequireTrustDomainFromString("non-existent-td")), makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.NotFound, "bundle not found: rpc error: code = NotFound desc = no such bundle")},
+					Status: api.CreateStatus(codes.NotFound, "bundle not found"),
+				},
 				{
 					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
@@ -1505,7 +1492,6 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					Message: "Bundle not found",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "non-existent-td",
-						logrus.ErrorKey:         "rpc error: code = NotFound desc = no such bundle",
 					},
 				},
 				{
@@ -1530,13 +1516,12 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			test.ds.SetError(tt.dsError)
+			test.ds.SetNextError(tt.dsError)
 			resp, err := test.client.BatchUpdateFederatedBundle(context.Background(), &bundlepb.BatchUpdateFederatedBundleRequest{
 				Bundle:     tt.bundlesToUpdate,
 				InputMask:  tt.inputMask,
 				OutputMask: tt.outputMask,
 			})
-			test.ds.SetError(nil)
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
@@ -1547,14 +1532,17 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Status, result.Status)
 				spiretest.RequireProtoEqual(t, tt.expectedResults[i].Bundle, result.Bundle)
 
-				switch codes.Code(result.Status.Code) {
-				case codes.OK, codes.NotFound:
-				default:
-					updatedBundle, err := test.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-						TrustDomainId: "spiffe://" + tt.bundlesToUpdate[i].TrustDomain,
-					})
-					require.NoError(t, err)
-					require.Equal(t, tt.preExistentBundle, updatedBundle.Bundle)
+				if tt.preExistentBundle != nil {
+					// If there was a previous bundle, and the update RPC failed, assert that it didn't change.
+					switch codes.Code(result.Status.Code) {
+					case codes.OK, codes.NotFound:
+					default:
+						updatedBundle, err := test.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+							TrustDomainId: "spiffe://" + tt.bundlesToUpdate[i].TrustDomain,
+						})
+						require.NoError(t, err)
+						require.Equal(t, tt.preExistentBundle, updatedBundle.Bundle)
+					}
 				}
 			}
 		})
@@ -1771,7 +1759,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			defer test.Cleanup()
 
 			clearDSBundles(t, test.ds)
-			test.ds.SetError(tt.dsError)
+			test.ds.SetNextError(tt.dsError)
 
 			resp, err := test.client.BatchSetFederatedBundle(context.Background(), &bundlepb.BatchSetFederatedBundleRequest{
 				Bundle:     tt.bundlesToSet,
@@ -1849,7 +1837,7 @@ func (c *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 	up := new(fakeUpstreamPublisher)
 	rateLimiter := new(fakeRateLimiter)
 	service := bundle.New(bundle.Config{
