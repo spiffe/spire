@@ -243,7 +243,7 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context,
 func (ds *Plugin) ListAttestedNodes(ctx context.Context,
 	req *datastore.ListAttestedNodesRequest) (resp *datastore.ListAttestedNodesResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodes(tx, req)
+		resp, err = listAttestedNodes(ctx, ds.db, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -962,44 +962,479 @@ func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*d
 	}, nil
 }
 
-func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
-	p := req.Pagination
-	var err error
-	if p != nil {
-		tx, err = applyPagination(p, tx)
+func listAttestedNodes(ctx context.Context, db *sqlDB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
+	if req.Pagination != nil && req.Pagination.PageSize == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	}
+	if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot list by empty selectors set")
+	}
+
+	for {
+		resp, err := listAttestedNodesOnce(ctx, db, req)
 		if err != nil {
 			return nil, err
 		}
+
+		if req.BySelectorMatch == nil || len(resp.Nodes) == 0 {
+			return resp, nil
+		}
+
+		resp.Nodes = filterNodesBySelectorSet(resp.Nodes, req.BySelectorMatch.Selectors)
+
+		if len(resp.Nodes) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
+			return resp, nil
+		}
+
+		req.Pagination = resp.Pagination
+	}
+}
+
+// filterNodesBySelectorSet filters nodes based on provided selectors
+func filterNodesBySelectorSet(nodes []*common.AttestedNode, selectors []*common.Selector) []*common.AttestedNode {
+	type selectorKey struct {
+		Type  string
+		Value string
+	}
+	set := make(map[selectorKey]struct{}, len(selectors))
+	for _, s := range selectors {
+		set[selectorKey{Type: s.Type, Value: s.Value}] = struct{}{}
 	}
 
-	if req.ByExpiresBefore != nil {
-		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
+	isSubset := func(ss []*common.Selector) bool {
+		for _, s := range ss {
+			if _, ok := set[selectorKey{Type: s.Type, Value: s.Value}]; !ok {
+				return false
+			}
+		}
+		return true
 	}
 
-	var models []AttestedNode
-	if err := tx.Find(&models).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	if p != nil {
-		p.Token = ""
-		if len(models) > 0 {
-			lastEntry := models[len(models)-1]
-			p.Token = fmt.Sprint(lastEntry.ID)
+	filtered := make([]*common.AttestedNode, 0, len(nodes))
+	for _, node := range nodes {
+		if isSubset(node.Selectors) {
+			filtered = append(filtered, node)
 		}
 	}
 
-	resp := &datastore.ListAttestedNodesResponse{
-		Nodes:      make([]*common.AttestedNode, 0, len(models)),
-		Pagination: p,
+	return filtered
+}
+
+func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
+	query, args, err := buildListAttestedNodesQuery(db.databaseType, db.supportsCTE, req)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
 	}
 
-	for _, model := range models {
-		resp.Nodes = append(resp.Nodes, modelToAttestedNode(model))
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
 	}
+	defer rows.Close()
+
+	var nodes []*common.AttestedNode
+	if req.Pagination != nil {
+		nodes = make([]*common.AttestedNode, 0, req.Pagination.PageSize)
+	} else {
+		nodes = make([]*common.AttestedNode, 0, 64)
+	}
+
+	pushNode := func(node *common.AttestedNode) {
+		if node != nil && node.SpiffeId != "" {
+			nodes = append(nodes, node)
+		}
+	}
+
+	var lastEID uint64
+	var node *common.AttestedNode
+	for rows.Next() {
+		var r nodeRow
+		if err := scanNodeRow(rows, &r); err != nil {
+			return nil, err
+		}
+
+		if node == nil || lastEID != r.EId {
+			lastEID = r.EId
+			pushNode(node)
+			node = new(common.AttestedNode)
+		}
+
+		if err := fillNodeFromRow(node, &r); err != nil {
+			return nil, err
+		}
+	}
+	pushNode(node)
+
+	if err := rows.Err(); err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.ListAttestedNodesResponse{
+		Nodes: nodes,
+	}
+
+	if req.Pagination != nil {
+		resp.Pagination = &datastore.Pagination{
+			PageSize: req.Pagination.PageSize,
+		}
+		if len(resp.Nodes) > 0 {
+			resp.Pagination.Token = strconv.FormatUint(lastEID, 10)
+		}
+	}
+
 	return resp, nil
 }
 
+func buildListAttestedNodesQuery(dbType string, supportsCTE bool, req *datastore.ListAttestedNodesRequest) (string, []interface{}, error) {
+	switch dbType {
+	case SQLite:
+		return buildListAttestedNodesQueryCTE(req, dbType)
+	case PostgreSQL:
+		// The PostgreSQL queries unconditionally leverage CTE since all versions
+		// of PostgreSQL supported by the plugin support CTE.
+		query, args, err := buildListAttestedNodesQueryCTE(req, dbType)
+		if err != nil {
+			return query, args, err
+		}
+		return postgreSQLRebind(query), args, nil
+	case MySQL:
+		if supportsCTE {
+			return buildListAttestedNodesQueryCTE(req, dbType)
+		}
+		return buildListAttestedNodesQueryMySQL(req)
+	default:
+		return "", nil, sqlError.New("unsupported db type: %q", dbType)
+	}
+}
+
+func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbType string) (string, []interface{}, error) {
+	builder := new(strings.Builder)
+	var args []interface{}
+
+	// Selectors will be fetched only when `FetchSelectors` or BySelectorMatch are in request
+	fetchSelectors := req.FetchSelectors || req.BySelectorMatch != nil
+
+	// Creates filtered nodes, `true` is added to simplify code, all filters will start with `AND`
+	builder.WriteString("WITH filtered_nodes AS (\n")
+	builder.WriteString("\tSELECT * FROM attested_node_entries WHERE true\n")
+
+	// Filter by pagination token
+	if req.Pagination != nil && req.Pagination.Token != "" {
+		token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+		if err != nil {
+			return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+		}
+		builder.WriteString("\t\tAND id > ?")
+		args = append(args, token)
+	}
+
+	// Filter by expiration
+	if req.ByExpiresBefore != nil {
+		builder.WriteString("\t\tAND expires_at < ?\n")
+		args = append(args, time.Unix(req.ByExpiresBefore.Value, 0))
+	}
+
+	// Filter by Attestation type
+	if req.ByAttestationType != "" {
+		builder.WriteString("\t\tAND data_type = ?\n")
+		args = append(args, req.ByAttestationType)
+	}
+
+	// Filter by banned, an Attestation Node is banned when serial number is empty.
+	// This filter allows 3 outputs:
+	// - nil:  returns all
+	// - true: returns banned entries
+	// - false: returns no banned entries
+	if req.ByBanned != nil {
+		if req.ByBanned.Value {
+			builder.WriteString("\t\tAND serial_number = ''\n")
+		} else {
+			builder.WriteString("\t\tAND serial_number <> ''\n")
+		}
+	}
+
+	builder.WriteString(")")
+	// Fetch all selectors from filtered entries
+	if fetchSelectors {
+		builder.WriteString(`, filtered_nodes_and_selectors AS (
+	    SELECT
+	        filtered_nodes.*, nr.type AS selector_type, nr.value AS selector_value
+	    FROM
+			filtered_nodes
+	    LEFT JOIN
+	 	    node_resolver_map_entries nr       
+	    ON
+	        nr.spiffe_id=filtered_nodes.spiffe_id
+	)
+`)
+	}
+
+	// Add expected fields
+	builder.WriteString(`
+SELECT 
+	id as e_id,
+	spiffe_id,
+	data_type,
+	serial_number,
+	expires_at,
+	new_serial_number,
+	new_expires_at,`)
+
+	// Add "optional" fields for selectors
+	if fetchSelectors {
+		builder.WriteString(`
+	selector_type,
+	selector_value 
+	  `)
+	} else {
+		builder.WriteString(`
+	NULL AS selector_type,
+	NULL AS selector_value`)
+	}
+
+	// Choose what table will be used
+	fromQuery := "\nFROM filtered_nodes\n"
+	if fetchSelectors {
+		fromQuery = "\nFROM filtered_nodes_and_selectors\n"
+	}
+
+	builder.WriteString(fromQuery)
+	builder.WriteString("WHERE id IN (\n")
+
+	// MySQL requires a subquery in order to apply pagination
+	if req.Pagination != nil && dbType == MySQL {
+		builder.WriteString("\tSELECT id FROM (\n")
+	}
+
+	// Add filter by selectors
+	if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0 {
+		// Select IDs, that will be used to fetch "paged" entrieSelect IDs, that will be used to fetch "paged" entries
+		builder.WriteString("\tSELECT DISTINCT id FROM (\n")
+
+		query := "SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?\n"
+
+		switch req.BySelectorMatch.Match {
+		case datastore.BySelectors_MATCH_SUBSET:
+			// Subset needs a union, so we need to group them and add the group
+			// as a child to the root
+			for i := range req.BySelectorMatch.Selectors {
+				builder.WriteString(query)
+				if i < (len(req.BySelectorMatch.Selectors) - 1) {
+					builder.WriteString("\t\tUNION\n")
+				}
+			}
+		case datastore.BySelectors_MATCH_EXACT:
+			for i := range req.BySelectorMatch.Selectors {
+				switch dbType {
+				// MySQL does not support INTERSECT, so use INNER JOIN instead
+				case MySQL:
+					builder.WriteString("\t\t(")
+					builder.WriteString(query)
+					builder.WriteString(fmt.Sprintf(") c_%d\n", i))
+					// First subquery does not need USING(ID)
+					if i > 0 {
+						builder.WriteString("\t\tUSING(id)\n")
+					}
+					// Last query does not need INNER JOIN
+					if i < (len(req.BySelectorMatch.Selectors) - 1) {
+						builder.WriteString("\t\tINNER JOIN\n")
+					}
+				default:
+					builder.WriteString("\t\t")
+					builder.WriteString(query)
+					if i < (len(req.BySelectorMatch.Selectors) - 1) {
+						builder.WriteString("\t\tINTERSECT\n")
+					}
+				}
+			}
+		default:
+			return "", nil, errs.New("unhandled match behavior %q", req.BySelectorMatch.Match)
+		}
+
+		// Add all selectors as arguments
+		for _, selector := range req.BySelectorMatch.Selectors {
+			args = append(args, selector.Type, selector.Value)
+		}
+
+		builder.WriteString("\n\t) ")
+	} else {
+		// Prevent duplicate IDs when fetching selectors
+		if fetchSelectors {
+			builder.WriteString("\t\tSELECT DISTINCT id ")
+		} else {
+			builder.WriteString("\t\tSELECT id ")
+		}
+		builder.WriteString(fromQuery)
+	}
+
+	if dbType == PostgreSQL ||
+		(req.BySelectorMatch != nil && req.BySelectorMatch.Match == datastore.BySelectors_MATCH_SUBSET) {
+		builder.WriteString(" AS result_nodes")
+	}
+	if req.Pagination != nil {
+		builder.WriteString(" ORDER BY id ASC LIMIT ")
+		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+
+		// Add workaround for limit
+		if dbType == MySQL {
+			builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
+		}
+	}
+
+	builder.WriteString("\n)\n")
+
+	return builder.String(), args, nil
+}
+
+func buildListAttestedNodesQueryMySQL(req *datastore.ListAttestedNodesRequest) (string, []interface{}, error) {
+	builder := new(strings.Builder)
+	var args []interface{}
+
+	// Selectors will be fetched only when `FetchSelectors` or `BySelectorMatch` are in request
+	fetchSelectors := req.FetchSelectors || req.BySelectorMatch != nil
+
+	// Add expected fields
+	builder.WriteString(`
+SELECT 
+	N.id as e_id,
+	N.spiffe_id,
+	N.data_type,
+	N.serial_number,
+	N.expires_at,
+	N.new_serial_number,
+	N.new_expires_at,`)
+
+	// Add "optional" fields for selectors
+	if fetchSelectors {
+		builder.WriteString(`
+	S.type AS selector_type,
+	S.value AS selector_value 
+FROM attested_node_entries N
+LEFT JOIN 
+	node_resolver_map_entries S
+ON
+	N.spiffe_id = S.spiffe_id
+`)
+	} else {
+		builder.WriteString(`
+	NULL AS selector_type,
+	NULL AS selector_value
+FROM attested_node_entries N
+`)
+	}
+
+	writeFilter := func() error {
+		builder.WriteString("WHERE true")
+
+		// Filter by paginatioin token
+		if req.Pagination != nil && req.Pagination.Token != "" {
+			token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+			}
+			builder.WriteString(" AND N.id > ?")
+			args = append(args, token)
+		}
+
+		// Filter by expiration
+		if req.ByExpiresBefore != nil {
+			builder.WriteString(" AND N.expires_at < ?")
+			args = append(args, time.Unix(req.ByExpiresBefore.Value, 0))
+		}
+
+		// Filter by Attestation type
+		if req.ByAttestationType != "" {
+			builder.WriteString(" AND N.data_type = ?")
+			args = append(args, req.ByAttestationType)
+		}
+
+		// Filter by banned, an Attestation Node is banned when serial number is empty.
+		// This filter allows 3 outputs:
+		// - nil:  returns all
+		// - true: returns banned entries
+		// - false: returns no banned entries
+		if req.ByBanned != nil {
+			if req.ByBanned.Value {
+				builder.WriteString(" AND N.serial_number = ''")
+			} else {
+				builder.WriteString(" AND N.serial_number <> ''")
+			}
+		}
+		return nil
+	}
+
+	// Add filter by selectors
+	if fetchSelectors {
+		builder.WriteString("WHERE N.id IN (\n")
+		if req.Pagination != nil {
+			builder.WriteString("\tSELECT id FROM (\n")
+		}
+		builder.WriteString("\t\tSELECT DISTINCT id FROM (\n")
+
+		builder.WriteString("\t\t\t(SELECT N.id, N.spiffe_id FROM attested_node_entries N ")
+		if err := writeFilter(); err != nil {
+			return "", nil, err
+		}
+		builder.WriteString(") c_0\n")
+
+		if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0 {
+			query := "SELECT spiffe_id FROM node_resolver_map_entries WHERE type = ? AND value = ?"
+
+			switch req.BySelectorMatch.Match {
+			case datastore.BySelectors_MATCH_SUBSET:
+				builder.WriteString("\t\t\tINNER JOIN\n")
+				builder.WriteString("\t\t\t(SELECT spiffe_id FROM (\n")
+
+				// subset needs a union, so we need to group them and add the group
+				// as a child to the root.
+				for i := range req.BySelectorMatch.Selectors {
+					builder.WriteString("\t\t\t\t")
+					builder.WriteString(query)
+					if i < (len(req.BySelectorMatch.Selectors) - 1) {
+						builder.WriteString("\n\t\t\t\tUNION\n")
+					}
+				}
+
+				builder.WriteString("\t\t\t) s_1) c_2\n")
+				builder.WriteString("\t\t\tUSING(spiffe_id)\n")
+			case datastore.BySelectors_MATCH_EXACT:
+				for i := range req.BySelectorMatch.Selectors {
+					builder.WriteString("\t\t\tINNER JOIN\n")
+					builder.WriteString("\t\t\t(")
+					builder.WriteString(query)
+					builder.WriteString(fmt.Sprintf(") c_%d\n", i+1))
+					builder.WriteString("\t\t\tUSING(spiffe_id)\n")
+				}
+			default:
+				return "", nil, errs.New("unhandled match behavior %q", req.BySelectorMatch.Match)
+			}
+
+			for _, selector := range req.BySelectorMatch.Selectors {
+				args = append(args, selector.Type, selector.Value)
+			}
+		}
+		if req.Pagination != nil {
+			builder.WriteString("\t\t) ORDER BY id ASC LIMIT ")
+			builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+			builder.WriteString("\n")
+
+			builder.WriteString("\t) workaround_for_mysql_subquery_limit\n")
+		} else {
+			builder.WriteString("\t)\n")
+		}
+		builder.WriteString(") ORDER BY e_id, S.id \n")
+	} else {
+		if err := writeFilter(); err != nil {
+			return "", nil, err
+		}
+		if req.Pagination != nil {
+			builder.WriteString(" ORDER BY N.id ASC LIMIT ")
+			builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
+		}
+	}
+
+	return builder.String(), args, nil
+}
 func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
 	var model AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
@@ -1930,6 +2365,7 @@ func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling in
 			}
 			indent(builder, indentation+1)
 			builder.WriteString("(")
+
 			child.render(builder, dbType, i, indentation+1, false, false)
 			builder.WriteString(") c_")
 			builder.WriteString(strconv.Itoa(i))
@@ -2076,6 +2512,70 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 	}
 
 	return filtered, args, nil
+}
+
+type nodeRow struct {
+	EId             uint64
+	SpiffeID        string
+	DataType        sql.NullString
+	SerialNumber    sql.NullString
+	ExpiresAt       sql.NullTime
+	NewSerialNumber sql.NullString
+	NewExpiresAt    sql.NullTime
+	SelectorType    sql.NullString
+	SelectorValue   sql.NullString
+}
+
+func scanNodeRow(rs *sql.Rows, r *nodeRow) error {
+	return sqlError.Wrap(rs.Scan(
+		&r.EId,
+		&r.SpiffeID,
+		&r.DataType,
+		&r.SerialNumber,
+		&r.ExpiresAt,
+		&r.NewSerialNumber,
+		&r.NewExpiresAt,
+		&r.SelectorType,
+		&r.SelectorValue,
+	))
+}
+
+func fillNodeFromRow(node *common.AttestedNode, r *nodeRow) error {
+	if r.SpiffeID != "" {
+		node.SpiffeId = r.SpiffeID
+	}
+
+	if r.DataType.Valid {
+		node.AttestationDataType = r.DataType.String
+	}
+
+	if r.SerialNumber.Valid {
+		node.CertSerialNumber = r.SerialNumber.String
+	}
+
+	if r.ExpiresAt.Valid {
+		node.CertNotAfter = r.ExpiresAt.Time.Unix()
+	}
+
+	if r.NewExpiresAt.Valid {
+		node.NewCertNotAfter = r.NewExpiresAt.Time.Unix()
+	}
+
+	if r.NewSerialNumber.Valid {
+		node.NewCertSerialNumber = r.NewSerialNumber.String
+	}
+
+	if r.SelectorType.Valid {
+		if !r.SelectorValue.Valid {
+			return sqlError.New("expected non-nil selector.value value for attested node %s", node.SpiffeId)
+		}
+		node.Selectors = append(node.Selectors, &common.Selector{
+			Type:  r.SelectorType.String,
+			Value: r.SelectorValue.String,
+		})
+	}
+
+	return nil
 }
 
 type entryRow struct {

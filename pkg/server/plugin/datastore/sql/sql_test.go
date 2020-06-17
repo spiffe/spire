@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -643,30 +645,38 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 	// Create all necessary nodes
 	aNode1 := &common.AttestedNode{
 		SpiffeId:            "node1",
-		AttestationDataType: "aws-tag",
+		AttestationDataType: "t1",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
 	aNode2 := &common.AttestedNode{
 		SpiffeId:            "node2",
-		AttestationDataType: "aws-tag",
+		AttestationDataType: "t2",
 		CertSerialNumber:    "deadbeef",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
 	aNode3 := &common.AttestedNode{
 		SpiffeId:            "node3",
-		AttestationDataType: "aws-tag",
+		AttestationDataType: "t3",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
 	aNode4 := &common.AttestedNode{
 		SpiffeId:            "node4",
-		AttestationDataType: "aws-tag",
-		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+		AttestationDataType: "t1",
+		// Banned
+		CertSerialNumber: "",
+		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
+	}
+	aNode5 := &common.AttestedNode{
+		SpiffeId:            "node5",
+		AttestationDataType: "t4",
+		// Banned
+		CertSerialNumber: "",
+		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
 	}
 
 	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode1})
@@ -681,18 +691,54 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode4})
 	s.Require().NoError(err)
 
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode5})
+	s.Require().NoError(err)
+
+	aNode1WithSelectors := cloneAttestedNode(aNode1)
+	aNode1WithSelectors.Selectors = []*common.Selector{
+		{Type: "a", Value: "1"},
+		{Type: "b", Value: "2"},
+	}
+	s.setNodeSelectors("node1", aNode1WithSelectors.Selectors)
+
+	aNode2WithSelectors := cloneAttestedNode(aNode2)
+	aNode2WithSelectors.Selectors = []*common.Selector{
+		{Type: "b", Value: "2"},
+	}
+	s.setNodeSelectors("node2", aNode2WithSelectors.Selectors)
+
+	aNode3WithSelectors := cloneAttestedNode(aNode3)
+	aNode3WithSelectors.Selectors = []*common.Selector{
+		{Type: "a", Value: "1"},
+		{Type: "c", Value: "3"},
+	}
+	s.setNodeSelectors("node3", aNode3WithSelectors.Selectors)
+
+	aNode4WithSelectors := cloneAttestedNode(aNode4)
+	aNode4WithSelectors.Selectors = []*common.Selector{
+		{Type: "a", Value: "1"},
+		{Type: "b", Value: "2"},
+	}
+	s.setNodeSelectors("node4", aNode4WithSelectors.Selectors)
+
 	tests := []struct {
 		name               string
-		pagination         *datastore.Pagination
-		byExpiresBefore    *wrappers.Int64Value
+		req                *datastore.ListAttestedNodesRequest
 		expectedList       []*common.AttestedNode
 		expectedPagination *datastore.Pagination
 		expectedErr        string
 	}{
 		{
-			name: "pagination_without_token",
-			pagination: &datastore.Pagination{
-				PageSize: 2,
+			name:         "fetch without pagination",
+			req:          &datastore.ListAttestedNodesRequest{},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode4, aNode5},
+		},
+		{
+			name: "pagination without token",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					PageSize: 2,
+				},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode2},
 			expectedPagination: &datastore.Pagination{
@@ -701,56 +747,114 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			},
 		},
 		{
-			name: "pagination_not_null_but_page_size_is_zero",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 0,
+			name: "pagination without token and fetch selectors",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					PageSize: 3,
+				},
+				FetchSelectors: true,
+			},
+			expectedList: []*common.AttestedNode{
+				aNode1WithSelectors, aNode2WithSelectors, aNode3WithSelectors,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 3,
+			},
+		},
+		{
+			name: "list without pagination and fetch selectors",
+			req: &datastore.ListAttestedNodesRequest{
+				FetchSelectors: true,
+			},
+			expectedList: []*common.AttestedNode{
+				aNode1WithSelectors, aNode2WithSelectors, aNode3WithSelectors,
+				aNode4WithSelectors, aNode5,
+			},
+		},
+		{
+			name: "pagination not null but page size is zero",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 0,
+				},
 			},
 			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
 		},
 		{
-			name: "get_all_nodes_first_page",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 2,
+			name: "by selector match but empty selectors",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				BySelectorMatch: &datastore.BySelectors{
+					Selectors: []*common.Selector{},
+				},
 			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2},
+			expectedErr: "rpc error: code = InvalidArgument desc = cannot list by empty selectors set",
+		},
+		{
+			name: "get all nodes first page",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 3,
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
 			expectedPagination: &datastore.Pagination{
-				Token:    "2",
-				PageSize: 2,
+				Token:    "3",
+				PageSize: 3,
 			},
 		},
 		{
-			name: "get_all_nodes_second_page",
-			pagination: &datastore.Pagination{
-				Token:    "2",
-				PageSize: 2,
+			name: "get all nodes second page",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "3",
+					PageSize: 3,
+				},
 			},
-			expectedList: []*common.AttestedNode{aNode3, aNode4},
+			expectedList: []*common.AttestedNode{aNode4, aNode5},
 			expectedPagination: &datastore.Pagination{
-				Token:    "4",
-				PageSize: 2,
+				Token:    "5",
+				PageSize: 3,
 			},
 		},
 		{
-			name:         "get_all_nodes_third_page_no_results",
+			name:         "get all nodes third page no results",
 			expectedList: []*common.AttestedNode{},
-			pagination: &datastore.Pagination{
-				Token:    "4",
-				PageSize: 2,
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "5",
+					PageSize: 3,
+				},
 			},
 			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
+				PageSize: 3,
 			},
 		},
 		{
-			name: "get_nodes_by_expire_before_get_only_page_first_page",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 2,
+			name: "get nodes by expire no pagination",
+			req: &datastore.ListAttestedNodesRequest{
+				ByExpiresBefore: &wrappers.Int64Value{
+					Value: time.Now().Unix(),
+				},
 			},
-			byExpiresBefore: &wrappers.Int64Value{
-				Value: time.Now().Unix(),
+			expectedList: []*common.AttestedNode{aNode1, aNode3, aNode4, aNode5},
+		},
+		{
+			name: "get nodes by expire before get only page first page",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				ByExpiresBefore: &wrappers.Int64Value{
+					Value: time.Now().Unix(),
+				},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode3},
 			expectedPagination: &datastore.Pagination{
@@ -759,42 +863,243 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			},
 		},
 		{
-			name: "get_nodes_by_expire_before_get_only_page_second_page",
-			pagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 2,
+			name: "get nodes by expire before get only page second page",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "3",
+					PageSize: 2,
+				},
+				ByExpiresBefore: &wrappers.Int64Value{
+					Value: time.Now().Unix(),
+				},
 			},
-			byExpiresBefore: &wrappers.Int64Value{
-				Value: time.Now().Unix(),
-			},
-			expectedList: []*common.AttestedNode{aNode4},
+			expectedList: []*common.AttestedNode{aNode4, aNode5},
 			expectedPagination: &datastore.Pagination{
-				Token:    "4",
+				Token:    "5",
 				PageSize: 2,
 			},
 		},
 		{
-			name: "get_nodes_by_expire_before_get_only_page_third_page_no_results",
-			pagination: &datastore.Pagination{
-				Token:    "4",
-				PageSize: 2,
-			},
-			byExpiresBefore: &wrappers.Int64Value{
-				Value: time.Now().Unix(),
+			name: "get nodes by expire before get only page third page no results",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "5",
+					PageSize: 2,
+				},
+				ByExpiresBefore: &wrappers.Int64Value{
+					Value: time.Now().Unix(),
+				},
 			},
 			expectedList: []*common.AttestedNode{},
 			expectedPagination: &datastore.Pagination{
 				PageSize: 2,
 			},
 		},
+		{
+			name: "by attestation type",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 3,
+				},
+				ByAttestationType: "t1",
+			},
+			expectedList: []*common.AttestedNode{aNode1, aNode4},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 3,
+				Token:    "4",
+			},
+		},
+		{
+			name: "by attestation type no pagination",
+			req: &datastore.ListAttestedNodesRequest{
+				ByAttestationType: "t1",
+			},
+			expectedList: []*common.AttestedNode{aNode1, aNode4},
+		},
+		{
+			name: "by attestation type no results",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 10,
+				},
+				ByAttestationType: "invalid type",
+			},
+			expectedList: []*common.AttestedNode{},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 10,
+			},
+		},
+		{
+			name: "not banned",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 4,
+				},
+				ByBanned: &wrappers.BoolValue{Value: false},
+			},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 4,
+				Token:    "3",
+			},
+		},
+		{
+			name: "not banned no pagination",
+			req: &datastore.ListAttestedNodesRequest{
+				ByBanned: &wrappers.BoolValue{Value: false},
+			},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
+		},
+		{
+			name: "banned",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				ByBanned: &wrappers.BoolValue{Value: true},
+			},
+			expectedList: []*common.AttestedNode{aNode4, aNode5},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+				Token:    "5",
+			},
+		},
+		{
+			name: "by selector match exact",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				BySelectorMatch: &datastore.BySelectors{
+					Match: datastore.BySelectors_MATCH_EXACT,
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
+					},
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode4WithSelectors},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+				Token:    "4",
+			},
+		},
+		{
+			name: "by selector match exact second page no results",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "4",
+					PageSize: 2,
+				},
+				BySelectorMatch: &datastore.BySelectors{
+					Match: datastore.BySelectors_MATCH_EXACT,
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
+					},
+				},
+			},
+			expectedList: []*common.AttestedNode{},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+				Token:    "",
+			},
+		},
+		{
+			name: "by selector match exact no pagination",
+			req: &datastore.ListAttestedNodesRequest{
+				BySelectorMatch: &datastore.BySelectors{
+					Match: datastore.BySelectors_MATCH_EXACT,
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
+					},
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode4WithSelectors},
+		},
+		{
+			name: "by selector match subset",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 4,
+				},
+				BySelectorMatch: &datastore.BySelectors{
+					Match: datastore.BySelectors_MATCH_SUBSET,
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
+					},
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode2WithSelectors, aNode4WithSelectors},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 4,
+				Token:    "4",
+			},
+		},
+		{
+			name: "by selector match subset no pagination",
+			req: &datastore.ListAttestedNodesRequest{
+				BySelectorMatch: &datastore.BySelectors{
+					Match: datastore.BySelectors_MATCH_SUBSET,
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
+					},
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode2WithSelectors, aNode4WithSelectors},
+		},
+		{
+			name: "multiple filters",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				ByAttestationType: "t1",
+				ByBanned:          &wrappers.BoolValue{Value: false},
+				BySelectorMatch: &datastore.BySelectors{
+					Match: datastore.BySelectors_MATCH_EXACT,
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
+					},
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode1WithSelectors},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+				Token:    "1",
+			},
+		},
+		{
+			name: "multiple filters no pagination",
+			req: &datastore.ListAttestedNodesRequest{
+				ByAttestationType: "t1",
+				ByBanned:          &wrappers.BoolValue{Value: false},
+				BySelectorMatch: &datastore.BySelectors{
+					Match: datastore.BySelectors_MATCH_EXACT,
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
+					},
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode1WithSelectors},
+		},
 	}
 	for _, test := range tests {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
-			resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
-				ByExpiresBefore: test.byExpiresBefore,
-				Pagination:      test.pagination,
-			})
+			resp, err := s.ds.ListAttestedNodes(ctx, test.req)
 			if test.expectedErr != "" {
 				require.EqualError(t, err, test.expectedErr)
 				return
@@ -810,7 +1115,6 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		})
 	}
 
-	// with invalid token
 	resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		Pagination: &datastore.Pagination{
 			Token:    "invalid int",
@@ -5938,4 +6242,8 @@ func dropTablesInRows(t *testing.T, db *sql.DB, rows *sql.Rows) {
 		require.NoError(t, err)
 	}
 	require.NoError(t, rows.Err())
+}
+
+func cloneAttestedNode(aNode *common.AttestedNode) *common.AttestedNode {
+	return proto.Clone(aNode).(*common.AttestedNode)
 }

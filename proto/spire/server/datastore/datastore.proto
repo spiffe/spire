@@ -143,6 +143,10 @@ message FetchAttestedNodeResponse {
 message ListAttestedNodesRequest {
     google.protobuf.Int64Value by_expires_before = 1;
     Pagination pagination = 2;
+    string by_attestation_type = 3;
+    BySelectors by_selector_match = 4;
+    google.protobuf.BoolValue by_banned = 5;
+    bool fetch_selectors = 6;
 }
 
 message ListAttestedNodesResponse {
