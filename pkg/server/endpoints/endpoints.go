@@ -35,9 +35,10 @@ const defaultMaxConnectionAge = 3 * time.Minute
 
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
-	// ListenAndServe starts all endpoints, and blocks for as long as the
-	// underlying servers are still running. Returns an error if any of the
-	// endpoints encounter one. ListenAndServe will return an
+	// ListenAndServe starts all endpoint servers and blocks until the context
+	// is canceled or any of the servers fails to run. If the context is
+	// canceled, the function returns nil. Otherwise, the error from the failed
+	// server is returned.
 	ListenAndServe(ctx context.Context) error
 }
 
@@ -45,9 +46,10 @@ type Endpoints struct {
 	c *Config
 }
 
-// ListenAndServe starts all maintenance routines and endpoints, then blocks
-// until the context is cancelled or there is an error encountered listening
-// on one of the servers.
+// ListenAndServe starts all endpoint servers and blocks until the context
+// is canceled or any of the servers fails to run. If the context is
+// canceled, the function returns nil. Otherwise, the error from the failed
+// server is returned.
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.c.Log.Debug("Initializing API endpoints")
 	tcpServer := e.createTCPServer(ctx)
