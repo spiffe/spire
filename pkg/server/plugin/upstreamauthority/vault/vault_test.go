@@ -97,6 +97,7 @@ func (vps *VaultPluginSuite) Test_Configure() {
 	for _, c := range cases {
 		for k, v := range c.envKeyVal {
 			os.Setenv(k, v)
+			defer os.Unsetenv(k)
 		}
 
 		p := vps.newPlugin()
@@ -107,10 +108,6 @@ func (vps *VaultPluginSuite) Test_Configure() {
 		_, err = p.Configure(ctx, req)
 		vps.Require().NoError(err)
 		vps.Require().NotNil(p.vc.vaultClient.Token())
-
-		for k := range c.envKeyVal {
-			os.Unsetenv(k)
-		}
 	}
 }
 
