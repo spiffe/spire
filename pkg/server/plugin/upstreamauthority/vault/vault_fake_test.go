@@ -69,6 +69,18 @@ approle_auth {
    approle_auth_mount_point = "test-approle-auth"
 }`
 
+	testMultipleAuthConfigsTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+cert_auth {}
+token_auth {}
+approle_auth {
+	approle_auth_mount_point = "test-approle-auth"
+	approle_id = "test-approle-id"
+	approle_secret_id  = "test-approle-secret-id"
+}`
+
 	testCertAuthResponse = `{
   "auth": {
     "client_token": "cf95f87d-f95b-47ff-b1f5-ba7bff850425",
