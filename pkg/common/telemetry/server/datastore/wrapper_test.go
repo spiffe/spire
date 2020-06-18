@@ -20,119 +20,135 @@ func TestWithMetrics(t *testing.T) {
 	ds := &fakeDataStore{}
 	w := WithMetrics(ds, m)
 
+	// This map ensures that a unit-test is added for any additional
+	// datastore methods that are added.
+	methodNames := make(map[string]struct{})
+	wv := reflect.ValueOf(w)
+	wt := reflect.TypeOf(w)
+	for i := 0; i < wt.NumMethod(); i++ {
+		methodNames[wt.Method(i).Name] = struct{}{}
+	}
+
 	for _, tt := range []struct {
-		key    string
-		method interface{}
+		key        string
+		methodName string
 	}{
 		{
-			key:    "datastore.bundle.append",
-			method: w.AppendBundle,
+			key:        "datastore.bundle.append",
+			methodName: "AppendBundle",
 		},
 		{
-			key:    "datastore.node.create",
-			method: w.CreateAttestedNode,
+			key:        "datastore.node.create",
+			methodName: "CreateAttestedNode",
 		},
 		{
-			key:    "datastore.bundle.create",
-			method: w.CreateBundle,
+			key:        "datastore.bundle.create",
+			methodName: "CreateBundle",
 		},
 		{
-			key:    "datastore.join_token.create",
-			method: w.CreateJoinToken,
+			key:        "datastore.join_token.create",
+			methodName: "CreateJoinToken",
 		},
 		{
-			key:    "datastore.registration_entry.create",
-			method: w.CreateRegistrationEntry,
+			key:        "datastore.registration_entry.create",
+			methodName: "CreateRegistrationEntry",
 		},
 		{
-			key:    "datastore.node.delete",
-			method: w.DeleteAttestedNode,
+			key:        "datastore.node.delete",
+			methodName: "DeleteAttestedNode",
 		},
 		{
-			key:    "datastore.bundle.delete",
-			method: w.DeleteBundle,
+			key:        "datastore.bundle.delete",
+			methodName: "DeleteBundle",
 		},
 		{
-			key:    "datastore.join_token.delete",
-			method: w.DeleteJoinToken,
+			key:        "datastore.join_token.delete",
+			methodName: "DeleteJoinToken",
 		},
 		{
-			key:    "datastore.registration_entry.delete",
-			method: w.DeleteRegistrationEntry,
+			key:        "datastore.registration_entry.delete",
+			methodName: "DeleteRegistrationEntry",
 		},
 		{
-			key:    "datastore.node.fetch",
-			method: w.FetchAttestedNode,
+			key:        "datastore.node.fetch",
+			methodName: "FetchAttestedNode",
 		},
 		{
-			key:    "datastore.bundle.fetch",
-			method: w.FetchBundle,
+			key:        "datastore.bundle.fetch",
+			methodName: "FetchBundle",
 		},
 		{
-			key:    "datastore.join_token.fetch",
-			method: w.FetchJoinToken,
+			key:        "datastore.join_token.fetch",
+			methodName: "FetchJoinToken",
 		},
 		{
-			key:    "datastore.registration_entry.fetch",
-			method: w.FetchRegistrationEntry,
+			key:        "datastore.registration_entry.fetch",
+			methodName: "FetchRegistrationEntry",
 		},
 		{
-			key:    "datastore.node.selectors.fetch",
-			method: w.GetNodeSelectors,
+			key:        "datastore.node.selectors.fetch",
+			methodName: "GetNodeSelectors",
 		},
 		{
-			key:    "datastore.node.list",
-			method: w.ListAttestedNodes,
+			key:        "datastore.node.list",
+			methodName: "ListAttestedNodes",
 		},
 		{
-			key:    "datastore.bundle.list",
-			method: w.ListBundles,
+			key:        "datastore.bundle.list",
+			methodName: "ListBundles",
 		},
 		{
-			key:    "datastore.registration_entry.list",
-			method: w.ListRegistrationEntries,
+			key:        "datastore.registration_entry.list",
+			methodName: "ListRegistrationEntries",
 		},
 		{
-			key:    "datastore.bundle.prune",
-			method: w.PruneBundle,
+			key:        "datastore.bundle.prune",
+			methodName: "PruneBundle",
 		},
 		{
-			key:    "datastore.join_token.prune",
-			method: w.PruneJoinTokens,
+			key:        "datastore.join_token.prune",
+			methodName: "PruneJoinTokens",
 		},
 		{
-			key:    "datastore.registration_entry.prune",
-			method: w.PruneRegistrationEntries,
+			key:        "datastore.registration_entry.prune",
+			methodName: "PruneRegistrationEntries",
 		},
 		{
-			key:    "datastore.bundle.set",
-			method: w.SetBundle,
+			key:        "datastore.bundle.set",
+			methodName: "SetBundle",
 		},
 		{
-			key:    "datastore.node.selectors.set",
-			method: w.SetNodeSelectors,
+			key:        "datastore.node.selectors.set",
+			methodName: "SetNodeSelectors",
 		},
 		{
-			key:    "datastore.node.update",
-			method: w.UpdateAttestedNode,
+			key:        "datastore.node.update",
+			methodName: "UpdateAttestedNode",
 		},
 		{
-			key:    "datastore.bundle.update",
-			method: w.UpdateBundle,
+			key:        "datastore.bundle.update",
+			methodName: "UpdateBundle",
 		},
 		{
-			key:    "datastore.registration_entry.update",
-			method: w.UpdateRegistrationEntry,
+			key:        "datastore.registration_entry.update",
+			methodName: "UpdateRegistrationEntry",
 		},
 	} {
 		tt := tt
+		methodType, ok := wt.MethodByName(tt.methodName)
+		require.True(t, ok, "method %q does not exist on DataStore interface", tt.methodName)
+		methodValue := wv.Method(methodType.Index)
+
+		// Record that the method was tested. Methods that aren't tested
+		// will fail the test below.
+		delete(methodNames, methodType.Name)
+
 		doCall := func(err error) interface{} {
 			m.Reset()
 			ds.SetError(err)
-			method := reflect.ValueOf(tt.method)
-			out := method.Call([]reflect.Value{
+			out := methodValue.Call([]reflect.Value{
 				reflect.ValueOf(context.Background()),
-				reflect.New(method.Type().In(1)).Elem(),
+				reflect.New(methodValue.Type().In(1)).Elem(),
 			})
 			require.Len(t, out, 2)
 			// Our fake always returns a response even on failure, which
@@ -173,6 +189,10 @@ func TestWithMetrics(t *testing.T) {
 			assert.NotNil(t, err, "error should be not nil")
 			assert.Equal(t, expectedMetrics(codes.Unknown), m.AllMetrics())
 		})
+	}
+
+	for methodName := range methodNames {
+		t.Errorf("DataStore method %q was not tested", methodName)
 	}
 }
 

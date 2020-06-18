@@ -7,6 +7,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
+// WithMetrics wraps a datastore interface and provides per-call metrics. The
+// metrics produced include a call counter and elapsed time measurement with
+// labels for the status code.
 func WithMetrics(ds datastore.DataStore, metrics telemetry.Metrics) datastore.DataStore {
 	return metricsWrapper{ds: ds, m: metrics}
 }
