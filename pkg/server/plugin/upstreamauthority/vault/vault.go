@@ -39,11 +39,11 @@ type PluginConfig struct {
 	// Name of the mount point where PKI secret engine is mounted. (e.g., /<mount_point>/ca/pem)
 	PKIMountPoint string `hcl:"pki_mount_point"`
 	// Configuration for the Token authentication method
-	TokenAuth TokenAuthConfig `hcl:"token_auth"`
+	TokenAuth *TokenAuthConfig `hcl:"token_auth"`
 	// Configuration for the Client Certificate authentication method
-	CertAuth CertAuthConfig `hcl:"cert_auth"`
+	CertAuth *CertAuthConfig `hcl:"cert_auth"`
 	// Configuration for the AppRole authentication method
-	AppRoleAuth AppRoleAuthConfig `hcl:"approle_auth"`
+	AppRoleAuth *AppRoleAuthConfig `hcl:"approle_auth"`
 	// Path to a CA certificate file that the client verifies the server certificate.
 	// Only PEM format is supported.
 	CACertPath string `hcl:"ca_cert_path"`
@@ -112,19 +112,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		return nil, err
 	}
 
-	cp := &ClientParams{
-		VaultAddr:             getEnvOrDefault(envVaultAddr, config.VaultAddr),
-		CACertPath:            getEnvOrDefault(envVaultCACert, config.CACertPath),
-		Token:                 getEnvOrDefault(envVaultToken, config.TokenAuth.Token),
-		PKIMountPoint:         config.PKIMountPoint,
-		CertAuthMountPoint:    config.CertAuth.CertAuthMountPoint,
-		ClientKeyPath:         getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath),
-		ClientCertPath:        getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath),
-		AppRoleAuthMountPoint: config.AppRoleAuth.AppRoleMountPoint,
-		AppRoleID:             getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID),
-		AppRoleSecretID:       getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID),
-		TLSSKipVerify:         config.InsecureSkipVerify,
-	}
+	cp := genClientParams(am, config)
 	vcConfig, err := NewClientConfig(cp, p.logger)
 	if err != nil {
 		return nil, err
@@ -206,17 +194,41 @@ func makeError(code codes.Code, format string, args ...interface{}) error {
 }
 
 func parseAuthMethod(config *PluginConfig) (AuthMethod, error) {
-	if config.TokenAuth.Token != "" {
+	if config.TokenAuth != nil {
 		return TOKEN, nil
 	}
-	if config.CertAuth.ClientCertPath != "" {
+	if config.CertAuth != nil {
 		return CERT, nil
 	}
-	if config.AppRoleAuth.RoleID != "" {
+	if config.AppRoleAuth != nil {
 		return APPROLE, nil
 	}
 
 	return 0, errors.New("must be configured one of these authentication method 'Token or Cert or AppRole'")
+}
+
+func genClientParams(method AuthMethod, config *PluginConfig) *ClientParams {
+	cp := &ClientParams{
+		VaultAddr:     getEnvOrDefault(envVaultAddr, config.VaultAddr),
+		CACertPath:    getEnvOrDefault(envVaultCACert, config.CACertPath),
+		PKIMountPoint: config.PKIMountPoint,
+		TLSSKipVerify: config.InsecureSkipVerify,
+	}
+
+	switch method {
+	case TOKEN:
+		cp.Token = getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
+	case CERT:
+		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
+		cp.ClientCertPath = getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
+		cp.ClientKeyPath = getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
+	case APPROLE:
+		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
+		cp.AppRoleID = getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
+		cp.AppRoleSecretID = getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
+	}
+
+	return cp
 }
 
 func getEnvOrDefault(envKey, fallback string) string {
