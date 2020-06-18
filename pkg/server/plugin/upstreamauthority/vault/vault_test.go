@@ -52,9 +52,10 @@ func (vps *VaultPluginSuite) Test_Configure() {
 	s.Start()
 	defer s.Close()
 
-	cases := []struct {
+	for _, c := range []struct {
 		name       string
 		configTmpl string
+		err        string
 		envKeyVal  map[string]string
 	}{
 		{
@@ -88,26 +89,33 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			name:       "Configure plugin with AppRole authentication params given as environment variables",
 			configTmpl: testAppRoleAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				"VAULT_APPROLE_ID":        "test-approle-id",
+				"VAULT_APPROLE_ID":        "test-approle-idd",
 				"VAULT_APPROLE_SECRET_ID": "test-approle-secret-id",
 			},
 		},
-	}
+		{
+			name:       "Multiple authentication methods configured",
+			configTmpl: testMultipleAuthConfigsTpl,
+			err:        "only one authentication method can be configured",
+		},
+	} {
+		c := c
+		vps.Run(c.name, func() {
+			for k, v := range c.envKeyVal {
+				os.Setenv(k, v)
+				defer os.Unsetenv(k)
+			}
 
-	for _, c := range cases {
-		for k, v := range c.envKeyVal {
-			os.Setenv(k, v)
-			defer os.Unsetenv(k)
-		}
-
-		p := vps.newPlugin()
-
-		req := vps.getTestConfigureRequest(fmt.Sprintf("https://%v/", addr), c.configTmpl)
-
-		ctx := context.Background()
-		_, err = p.Configure(ctx, req)
-		vps.Require().NoError(err)
-		vps.Require().NotNil(p.vc.vaultClient.Token())
+			p := vps.newPlugin()
+			req := vps.getTestConfigureRequest(fmt.Sprintf("https://%v/", addr), c.configTmpl)
+			ctx := context.Background()
+			_, err = p.Configure(ctx, req)
+			if c.err != "" {
+				vps.Require().EqualError(err, c.err)
+				return
+			}
+			vps.Require().NotNil(p.vc.vaultClient.Token())
+		})
 	}
 }
 
