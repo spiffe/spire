@@ -194,17 +194,35 @@ func makeError(code codes.Code, format string, args ...interface{}) error {
 }
 
 func parseAuthMethod(config *PluginConfig) (AuthMethod, error) {
+	var authMethod AuthMethod
 	if config.TokenAuth != nil {
-		return TOKEN, nil
+		authMethod = TOKEN
 	}
 	if config.CertAuth != nil {
-		return CERT, nil
+		if err := checkForAuthMethodConfigured(authMethod); err != nil {
+			return 0, err
+		}
+		authMethod = CERT
 	}
 	if config.AppRoleAuth != nil {
-		return APPROLE, nil
+		if err := checkForAuthMethodConfigured(authMethod); err != nil {
+			return 0, err
+		}
+		authMethod = APPROLE
+	}
+
+	if authMethod != 0 {
+		return authMethod, nil
 	}
 
 	return 0, errors.New("must be configured one of these authentication method 'Token or Cert or AppRole'")
+}
+
+func checkForAuthMethodConfigured(authMethod AuthMethod) error {
+	if authMethod != 0 {
+		return errors.New("only one authentication method can be configured")
+	}
+	return nil
 }
 
 func genClientParams(method AuthMethod, config *PluginConfig) *ClientParams {
