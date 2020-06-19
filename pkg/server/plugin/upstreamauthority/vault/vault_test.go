@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"os"
 	"testing"
 	"text/template"
 	"time"
@@ -37,30 +38,13 @@ func (vps *VaultPluginSuite) SetupTest() {
 	vps.fakeVaultServer.RenewResponse = []byte(testRenewResponse)
 }
 
-func (vps *VaultPluginSuite) Test_Configure_CertConfig() {
+func (vps *VaultPluginSuite) Test_Configure() {
 	vps.fakeVaultServer.CertAuthResponseCode = 200
 	vps.fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
-
-	s, addr, err := vps.fakeVaultServer.NewTLSServer()
-	vps.Require().NoError(err)
-
-	s.Start()
-	defer s.Close()
-
-	p := vps.newPlugin()
-
-	req := vps.getTestConfigureRequest(fmt.Sprintf("https://%v/", addr), testCertAuthConfigTpl)
-
-	ctx := context.Background()
-	_, err = p.Configure(ctx, req)
-	vps.Require().NoError(err)
-	vps.Require().NotNil(p.vc.vaultClient.Token())
-}
-
-func (vps *VaultPluginSuite) Test_Configure_AppRoleConfig() {
-	vps.fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-auth/login"
+	vps.fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
 	vps.fakeVaultServer.AppRoleAuthResponseCode = 200
 	vps.fakeVaultServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponse)
+	vps.fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-approle-auth/login"
 
 	s, addr, err := vps.fakeVaultServer.NewTLSServer()
 	vps.Require().NoError(err)
@@ -68,31 +52,66 @@ func (vps *VaultPluginSuite) Test_Configure_AppRoleConfig() {
 	s.Start()
 	defer s.Close()
 
-	p := vps.newPlugin()
+	cases := []struct {
+		name       string
+		configTmpl string
+		envKeyVal  map[string]string
+	}{
+		{
+			name:       "Configure plugin with Client Certificate authentication params given in config file",
+			configTmpl: testTokenAuthConfigTpl,
+		},
+		{
+			name:       "Configure plugin with Token authentication params given as environment variables",
+			configTmpl: testTokenAuthConfigWithEnvTpl,
+			envKeyVal: map[string]string{
+				"VAULT_TOKEN": "test-token",
+			},
+		},
+		{
+			name:       "Configure plugin with Client Certificate authentication params given in config file",
+			configTmpl: testCertAuthConfigTpl,
+		},
+		{
+			name:       "Configure plugin with Client Certificate authentication params given as environment variables",
+			configTmpl: testCertAuthConfigWithEnvTpl,
+			envKeyVal: map[string]string{
+				"VAULT_CLIENT_CERT": "_test_data/keys/EC/client_cert.pem",
+				"VAULT_CLIENT_KEY":  "_test_data/keys/EC/client_key.pem",
+			},
+		},
+		{
+			name:       "Configure plugin with AppRole authenticate params given in config file",
+			configTmpl: testAppRoleAuthConfigTpl,
+		},
+		{
+			name:       "Configure plugin with AppRole authentication params given as environment variables",
+			configTmpl: testAppRoleAuthConfigWithEnvTpl,
+			envKeyVal: map[string]string{
+				"VAULT_APPROLE_ID":        "test-approle-id",
+				"VAULT_APPROLE_SECRET_ID": "test-approle-secret-id",
+			},
+		},
+	}
 
-	req := vps.getTestConfigureRequest(fmt.Sprintf("https://%v/", addr), testAppRoleAuthConfigTpl)
+	for _, c := range cases {
+		for k, v := range c.envKeyVal {
+			os.Setenv(k, v)
+		}
 
-	ctx := context.Background()
-	_, err = p.Configure(ctx, req)
-	vps.Require().NoError(err)
-	vps.Require().NotNil(p.vc.vaultClient.Token())
-}
+		p := vps.newPlugin()
 
-func (vps *VaultPluginSuite) Test_Configure_TokenConfig() {
-	s, addr, err := vps.fakeVaultServer.NewTLSServer()
-	vps.Require().NoError(err)
+		req := vps.getTestConfigureRequest(fmt.Sprintf("https://%v/", addr), c.configTmpl)
 
-	s.Start()
-	defer s.Close()
+		ctx := context.Background()
+		_, err = p.Configure(ctx, req)
+		vps.Require().NoError(err)
+		vps.Require().NotNil(p.vc.vaultClient.Token())
 
-	p := vps.newPlugin()
-
-	req := vps.getTestConfigureRequest(fmt.Sprintf("https://%v/", addr), testTokenAuthConfigTpl)
-
-	ctx := context.Background()
-	_, err = p.Configure(ctx, req)
-	vps.Require().NoError(err)
-	vps.Require().Equal(p.vc.vaultClient.Token(), "test-token")
+		for k := range c.envKeyVal {
+			os.Unsetenv(k)
+		}
+	}
 }
 
 func (vps *VaultPluginSuite) Test_Configure_Error_InvalidConfig() {
