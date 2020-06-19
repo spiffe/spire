@@ -153,14 +153,14 @@ server {
 
 ### Configuration options for `federation.federate_with["<trust domain>"].bundle_endpoint`
 
-The `federate_with` section is a map of `bunble_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
+The `federate_with` section is a map of `bundle_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
 
-| Configuration   | Description                                                                                                 | Default                                            |
-| --------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| address         | IP or DNS name of the bundle endpoint that provides the trust bundle for federating with `"<trust domain>"` |                                                    |
-| port            | Port number of the bundle endpoint                                                                          |                                                    |
-| spiffe_id       | Expected SPIFFE ID of the bundle endpoint server.                                                           | SPIRE Server SPIFFE ID within the `"<trust domain>"` |
-| use_web_pki     | Indicates if this server must use Web PKI to authenticate the bundle endpoint                               | false                                              |
+| Configuration   | Description                                                                                                                       | Default                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------| ---------------------------------------------------- |
+| address         | IP or DNS name of the bundle endpoint that provides the trust bundle to federate with `"<trust domain>"`                          |                                                      |
+| port            | Port number of the bundle endpoint                                                                                                | 443                                                  |
+| spiffe_id       | Expected SPIFFE ID of the bundle endpoint server. This is ignored if use_web_pki is true                                          | SPIRE Server SPIFFE ID within the `"<trust domain>"` |
+| use_web_pki     | If true, indicates that this server must use Web PKI to authenticate the bundle endpoint, otherwise SPIFFE authentication is used | false                                                |
 
 To clarify, `address` and `port` are used to form the bundle endpoint URL to federate with `"<trust domain>"` as follows:
 ```
