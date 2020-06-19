@@ -89,7 +89,7 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			name:       "Configure plugin with AppRole authentication params given as environment variables",
 			configTmpl: testAppRoleAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				"VAULT_APPROLE_ID":        "test-approle-idd",
+				"VAULT_APPROLE_ID":        "test-approle-id",
 				"VAULT_APPROLE_SECRET_ID": "test-approle-secret-id",
 			},
 		},
@@ -101,9 +101,13 @@ func (vps *VaultPluginSuite) Test_Configure() {
 	} {
 		c := c
 		vps.Run(c.name, func() {
+			defer func() {
+				for k := range c.envKeyVal {
+					os.Unsetenv(k)
+				}
+			}()
 			for k, v := range c.envKeyVal {
 				os.Setenv(k, v)
-				defer os.Unsetenv(k)
 			}
 
 			p := vps.newPlugin()
