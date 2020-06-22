@@ -3,9 +3,11 @@ package entry_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -23,12 +25,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
 	ctx         = context.Background()
 	td          = spiffeid.RequireTrustDomainFromString("example.org")
 	federatedTd = spiffeid.RequireTrustDomainFromString("domain1.org")
+	agentID     = spiffeid.RequireFromString("spiffe://example.org/agent")
 )
 
 func TestListEntries(t *testing.T) {
@@ -991,6 +995,156 @@ func TestBatchDeleteEntry(t *testing.T) {
 	}
 }
 
+func TestGetAuthorizedEntries(t *testing.T) {
+	entry1 := types.Entry{
+		Id:       "entry-1",
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		Ttl:      60,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
+		},
+		FederatesWith: []string{
+			"spiffe://domain1.com",
+			"spiffe://domain2.com",
+		},
+		Admin:      true,
+		ExpiresAt:  time.Now().Add(30 * time.Second).Unix(),
+		DnsNames:   []string{"dns1", "dns2"},
+		Downstream: true,
+	}
+	entry2 := types.Entry{
+		Id:       "entry-2",
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/baz"},
+		Ttl:      3600,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1001"},
+			{Type: "unix", Value: "gid:1001"},
+		},
+		FederatesWith: []string{
+			"spiffe://domain3.com",
+			"spiffe://domain4.com",
+		},
+		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
+		DnsNames:  []string{"dns3", "dns4"},
+	}
+
+	for _, tt := range []struct {
+		name           string
+		code           codes.Code
+		fetcherErr     string
+		err            string
+		fetcherEntries []*types.Entry
+		expectEntries  []*types.Entry
+		expectLogs     []spiretest.LogEntry
+		outputMask     *types.EntryMask
+		failCallerID   bool
+	}{
+		{
+			name:           "success",
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			expectEntries:  []*types.Entry{&entry1, &entry2},
+		},
+		{
+			name:           "success, no entries",
+			fetcherEntries: []*types.Entry{},
+			expectEntries:  []*types.Entry{},
+		},
+		{
+			name:           "success with output mask",
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			expectEntries: []*types.Entry{
+				{
+					Id:        entry1.Id,
+					SpiffeId:  entry1.SpiffeId,
+					ParentId:  entry1.ParentId,
+					Selectors: entry1.Selectors,
+				},
+				{
+					Id:        entry2.Id,
+					SpiffeId:  entry2.SpiffeId,
+					ParentId:  entry2.ParentId,
+					Selectors: entry2.Selectors,
+				},
+			},
+			outputMask: &types.EntryMask{
+				SpiffeId:  true,
+				ParentId:  true,
+				Selectors: true,
+			},
+		},
+		{
+			name:           "success with output mask all false",
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			expectEntries: []*types.Entry{
+				{
+					Id: entry1.Id,
+				},
+				{
+					Id: entry2.Id,
+				},
+			},
+			outputMask: &types.EntryMask{},
+		},
+		{
+			name:         "no caller id",
+			err:          "caller ID missing from request context",
+			code:         codes.Internal,
+			failCallerID: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Caller ID missing from request context",
+				},
+			},
+		},
+		{
+			name:       "error",
+			err:        "failed to fetch registration entries",
+			code:       codes.Internal,
+			fetcherErr: "fetcher fails",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch registration entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = fetcher fails",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t, fakedatastore.New())
+			defer test.Cleanup()
+
+			test.withCallerID = !tt.failCallerID
+			test.ef.entries = tt.fetcherEntries
+			test.ef.err = tt.fetcherErr
+			resp, err := test.client.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{
+				OutputMask: tt.outputMask,
+			})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			expectResponse := &entrypb.GetAuthorizedEntriesResponse{
+				Entries: tt.expectEntries,
+			}
+			spiretest.AssertProtoEqual(t, expectResponse, resp)
+		})
+	}
+}
+
 func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
 	_, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: &common.Bundle{
@@ -1021,10 +1175,12 @@ func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.Re
 }
 
 type serviceTest struct {
-	client  entrypb.EntryClient
-	done    func()
-	ds      datastore.DataStore
-	logHook *test.Hook
+	client       entrypb.EntryClient
+	ef           *entryFetcher
+	done         func()
+	ds           datastore.DataStore
+	logHook      *test.Hook
+	withCallerID bool
 }
 
 func (s *serviceTest) Cleanup() {
@@ -1032,8 +1188,10 @@ func (s *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
+	ef := &entryFetcher{}
 	service := entry.New(entry.Config{
-		Datastore: ds,
+		Datastore:    ds,
+		EntryFetcher: ef,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -1044,10 +1202,14 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	test := &serviceTest{
 		ds:      ds,
 		logHook: logHook,
+		ef:      ef,
 	}
 
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
+		if test.withCallerID {
+			ctx = rpccontext.WithCallerID(ctx, agentID)
+		}
 		return ctx
 	}
 
@@ -1105,4 +1267,26 @@ func (f *fakeDS) CreateRegistrationEntry(ctx context.Context, req *datastore.Cre
 	return &datastore.CreateRegistrationEntryResponse{
 		Entry: res,
 	}, nil
+}
+
+type entryFetcher struct {
+	err     string
+	entries []*types.Entry
+}
+
+func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+	if f.err != "" {
+		return nil, status.Error(codes.Internal, f.err)
+	}
+
+	caller, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		return nil, errors.New("missing caller ID")
+	}
+
+	if caller != agentID {
+		return nil, fmt.Errorf("provided caller id is different to expected")
+	}
+
+	return f.entries, nil
 }

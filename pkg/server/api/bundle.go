@@ -81,6 +81,18 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 	return commonBundle, nil
 }
 
+func ProtoToBundleMask(mask *types.BundleMask) *common.BundleMask {
+	if mask == nil {
+		return nil
+	}
+
+	return &common.BundleMask{
+		JwtSigningKeys: mask.JwtAuthorities,
+		RootCas:        mask.X509Authorities,
+		RefreshHint:    mask.RefreshHint,
+	}
+}
+
 func parseX509Authorities(certs []*types.X509Certificate) ([]*common.Certificate, error) {
 	var rootCAs []*common.Certificate
 	for _, rootCA := range certs {

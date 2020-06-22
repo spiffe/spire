@@ -37,6 +37,7 @@ message ListBundlesResponse {
 
 message UpdateBundleRequest {
     spire.common.Bundle bundle = 1;
+    spire.common.BundleMask input_mask = 2;
 }
 
 message UpdateBundleResponse {

@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -16,22 +15,16 @@ import (
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
-	proto_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
-	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
-	"github.com/spiffe/spire/test/fakes/fakemetrics"
-	"github.com/spiffe/spire/test/fakes/fakepluginmetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var (
@@ -66,9 +59,6 @@ type PluginSuite struct {
 	nextID    int
 	ds        datastore.Plugin
 	sqlPlugin *Plugin
-
-	m               *fakemetrics.FakeMetrics
-	expectedMetrics *fakepluginmetrics.FakePluginMetrics
 }
 
 type ListRegistrationReq struct {
@@ -124,16 +114,7 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	s.sqlPlugin = p
 
 	var ds datastore.Plugin
-
-	s.expectedMetrics = fakepluginmetrics.New()
-
-	s.m = fakemetrics.New()
-	metricsService := metricsservice.New(metricsservice.Config{
-		Metrics: s.m,
-	})
-
-	s.LoadPlugin(builtin(p), &ds,
-		spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
+	s.LoadPlugin(builtin(p), &ds)
 
 	// When the test suite is executed normally, we test against sqlite3 since
 	// it requires no external dependencies. The integration test framework
@@ -236,53 +217,37 @@ func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
 	// fetch non-existent
-	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fresp)
 	s.Require().Nil(fresp.Bundle)
 
 	// update non-existent
-	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
 	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
-	expectedErr := status.Error(codes.NotFound, _notFoundErrMsg)
-	expectedCallCounter.Done(&expectedErr)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// delete non-existent
-	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
-	expectedErr = status.Error(codes.NotFound, _notFoundErrMsg)
-	expectedCallCounter.Done(&expectedErr)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// create
-	expectedCallCounter = ds_telemetry.StartCreateBundleCall(s.expectedMetrics)
 	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// fetch
-	expectedCallCounter = ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle, fresp.Bundle)
 
 	// fetch (with denormalized id)
-	expectedCallCounter = ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://fOO"})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle, fresp.Bundle)
 
 	// list
-	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle, lresp.Bundles[0])
@@ -292,82 +257,106 @@ func (s *PluginSuite) TestBundleCRUD() {
 		[]*x509.Certificate{s.cert, s.cacert})
 
 	// append
-	expectedCallCounter = ds_telemetry.StartAppendBundleCall(s.expectedMetrics)
 	aresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: bundle2,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(aresp.Bundle)
 	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
 
 	// append identical
-	expectedCallCounter = ds_telemetry.StartAppendBundleCall(s.expectedMetrics)
 	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: bundle2,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(aresp.Bundle)
 	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
 
 	// append on a new bundle
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cacert)
-	expectedCallCounter = ds_telemetry.StartAppendBundleCall(s.expectedMetrics)
 	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: bundle3,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle3, anresp.Bundle)
 
-	// update
-	expectedCallCounter = ds_telemetry.StartUpdateBundleCall(s.expectedMetrics)
+	// update with mask: RootCas
 	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+		Bundle: bundle,
+		InputMask: &common.BundleMask{
+			RootCas: true,
+		},
+	})
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, uresp.Bundle)
+
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+
+	// update with mask: RefreshHint
+	bundle.RefreshHint = 60
+	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+		Bundle: bundle,
+		InputMask: &common.BundleMask{
+			RefreshHint: true,
+		},
+	})
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, uresp.Bundle)
+
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+
+	// update with mask: JwtSingingKeys
+	bundle.JwtSigningKeys = []*common.PublicKey{{Kid: "jwt-key-1"}}
+	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+		Bundle: bundle,
+		InputMask: &common.BundleMask{
+			JwtSigningKeys: true,
+		},
+	})
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, uresp.Bundle)
+
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+
+	// update without mask
+	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle2,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle2, uresp.Bundle)
 
-	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	assertBundlesEqual(s.T(), []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
-	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
 	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle2, dresp.Bundle)
 
-	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 
 	// delete (with denormalized id)
-	expectedCallCounter = ds_telemetry.StartDeleteBundleCall(s.expectedMetrics)
 	dresp, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
 		TrustDomainId: "spiffe://bAR",
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle3, dresp.Bundle)
 
-	expectedCallCounter = ds_telemetry.StartListBundleCall(s.expectedMetrics)
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Empty(lresp.Bundles)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestListBundlesWithPagination() {
@@ -505,24 +494,18 @@ func (s *PluginSuite) TestSetBundle() {
 	s.Require().Nil(s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is created
-	expectedCallCounter := ds_telemetry.StartSetBundleCall(s.expectedMetrics)
 	_, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
 		Bundle: bundle,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle, s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is updated
-	expectedCallCounter = ds_telemetry.StartSetBundleCall(s.expectedMetrics)
 	_, err = s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
 		Bundle: bundle2,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle2, s.fetchBundle("spiffe://foo"))
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestBundlePrune() {
@@ -547,42 +530,33 @@ func (s *PluginSuite) TestBundlePrune() {
 	}
 
 	// Store bundle in datastore
-	expectedCallCounter := ds_telemetry.StartCreateBundleCall(s.expectedMetrics)
 	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{Bundle: bundle})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Prune
 	// prune non existent bundle should not return error, no bundle to prune
 	expiration := time.Now().Unix()
-	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
 	presp, err := s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: "spiffe://notexistent",
 		ExpiresBefore: expiration,
 	})
-	expectedCallCounter.Done(nil)
 	s.NoError(err)
 	s.AssertProtoEqual(presp, &datastore.PruneBundleResponse{})
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
 	expiration = time.Now().Unix()
-	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
 	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 		ExpiresBefore: expiration,
 	})
-	expectedError := errors.New("prune failed: would prune all certificates")
-	expectedCallCounter.Done(&expectedError)
-	s.Error(err, expectedError.Error())
+	s.AssertGRPCStatus(err, codes.Unknown, "prune failed: would prune all certificates")
 	s.Nil(presp)
 
 	// prune should remove expired certs
-	expectedCallCounter = ds_telemetry.StartPruneBundleCall(s.expectedMetrics)
 	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 		ExpiresBefore: middleTime.Unix(),
 	})
-	expectedCallCounter.Done(nil)
 	s.NoError(err)
 	s.NotNil(presp)
 	s.True(presp.BundleChanged)
@@ -590,13 +564,9 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
 	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
-	expectedCallCounter = ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(expectedPrunedBundle, fresp.Bundle)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
@@ -607,40 +577,28 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	expectedCallCounter := ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, cresp.Node)
 
-	expectedCallCounter = ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, fresp.Node)
 
 	expiration := time.Now().Unix()
-	expectedCallCounter = ds_telemetry.StartListNodeCall(s.expectedMetrics)
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
 			Value: expiration,
 		},
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Empty(sresp.Nodes)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeMissing() {
-	expectedCallCounter := ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: "missing"})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Nil(fresp.Node)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchStaleNodes() {
@@ -658,28 +616,20 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
-	expectedCallCounter := ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: efuture})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: epast})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	expiration := time.Now().Unix()
-	expectedCallCounter = ds_telemetry.StartListNodeCall(s.expectedMetrics)
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
 			Value: expiration,
 		},
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoListEqual([]*common.AttestedNode{epast}, sresp.Nodes)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
@@ -876,28 +826,21 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	uexpires := time.Now().Add(time.Hour * 2).Unix()
 
 	// update non-existing attested node
-	expectedCallCounter := ds_telemetry.StartUpdateNodeCall(s.expectedMetrics)
 	_, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
 		SpiffeId:         node.SpiffeId,
 		CertSerialNumber: userial,
 		CertNotAfter:     uexpires,
 	})
-	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
-	expectedCallCounter.Done(&expectedError)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
-	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartUpdateNodeCall(s.expectedMetrics)
 	uresp, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
 		SpiffeId:         node.SpiffeId,
 		CertSerialNumber: userial,
 		CertNotAfter:     uexpires,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	unode := uresp.Node
@@ -908,9 +851,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	s.Equal(userial, unode.CertSerialNumber)
 	s.Equal(uexpires, unode.CertNotAfter)
 
-	expectedCallCounter = ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	fnode := fresp.Node
@@ -920,8 +861,6 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	s.Equal(node.AttestationDataType, fnode.AttestationDataType)
 	s.Equal(userial, fnode.CertSerialNumber)
 	s.Equal(uexpires, fnode.CertNotAfter)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestDeleteAttestedNode() {
@@ -933,30 +872,19 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	}
 
 	// delete it before it exists
-	expectedCallCounter := ds_telemetry.StartDeleteNodeCall(s.expectedMetrics)
 	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
-	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
-	expectedCallCounter.Done(&expectedError)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
-	expectedCallCounter = ds_telemetry.StartCreateNodeCall(s.expectedMetrics)
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartDeleteNodeCall(s.expectedMetrics)
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(entry, dresp.Node)
 
-	expectedCallCounter = ds_telemetry.StartFetchNodeCall(s.expectedMetrics)
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(fresp.Node)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
@@ -1006,8 +934,6 @@ func (s *PluginSuite) TestNodeSelectors() {
 	// get bar selectors (make sure they weren't impacted by deleting foo)
 	selectors = s.getNodeSelectors("bar", false)
 	s.RequireProtoListEqual(bar, selectors)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
@@ -1048,9 +974,7 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
-		expectedCallCounter.Done(nil)
 		s.Require().NoError(err)
 		s.NotNil(resp)
 		s.Require().NotNil(resp.Entry)
@@ -1058,8 +982,6 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 		resp.Entry.EntryId = ""
 		s.RequireProtoEqual(resp.Entry, validRegistrationEntry)
 	}
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
@@ -1067,14 +989,10 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
-		expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: invalidRegistrationEntry})
-		expectedCallCounter.Done(&err)
 		s.Require().Error(err)
 		s.Require().Nil(createRegistrationEntryResponse)
 	}
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 
 	// TODO: Check that no entries have been created
 }
@@ -1095,21 +1013,15 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 		},
 	}
 
-	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
 	createdEntry := createRegistrationEntryResponse.Entry
 
-	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.RequireProtoEqual(createdEntry, fetchRegistrationEntryResponse.Entry)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
@@ -1126,68 +1038,48 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		EntryExpiry: now,
 	}
 
-	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
 	createdEntry := createRegistrationEntryResponse.Entry
 
 	// Ensure we don't prune valid entries, wind clock back 10s
-	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now - 10,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
 	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
 
 	// Ensure we prune old entries
-	expectedCallCounter = ds_telemetry.StartPruneRegistrationCall(s.expectedMetrics)
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
 		ExpiresBefore: now + 10,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
 	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(fetchRegistrationEntryResponse.Entry)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
-	expectedCallCounter := ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: "INEXISTENT"})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Nil(fetchRegistrationEntryResponse.Entry)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
@@ -1215,9 +1107,7 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 		Downstream: true,
 	})
 
-	expectedCallCounter := ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
@@ -1227,8 +1117,6 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	util.SortRegistrationEntries(expectedResponse.Entries)
 	util.SortRegistrationEntries(resp.Entries)
 	s.Equal(expectedResponse, resp)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
@@ -1539,40 +1427,28 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.Admin = true
 	entry.Downstream = true
 
-	expectedCallCounter := ds_telemetry.StartUpdateRegistrationCall(s.expectedMetrics)
 	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(updateRegistrationEntryResponse)
 
-	expectedCallCounter = ds_telemetry.StartFetchRegistrationCall(s.expectedMetrics)
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: entry.EntryId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
 	s.RequireProtoEqual(entry, fetchRegistrationEntryResponse.Entry)
 
 	entry.EntryId = "badid"
-	expectedCallCounter = ds_telemetry.StartUpdateRegistrationCall(s.expectedMetrics)
 	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
-	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
-	expectedCallCounter.Done(&expectedError)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	// delete non-existing
-	expectedCallCounter := ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
 	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: "badid"})
-	expectedError := status.Error(codes.NotFound, _notFoundErrMsg)
-	expectedCallCounter.Done(&expectedError)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -1598,32 +1474,22 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	})
 
 	// We have two registration entries
-	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
 	entriesResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Len(entriesResp.Entries, 2)
 
 	// Make sure we deleted the right one
-	expectedCallCounter = ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
 	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Equal(entry1, delRes.Entry)
 
 	// Make sure we have now only one registration entry
-	expectedCallCounter = ds_telemetry.StartListRegistrationCall(s.expectedMetrics)
 	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().Len(entriesResp.Entries, 1)
 
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
-
 	// Delete again must fails with Not Found
-	expectedCallCounter = ds_telemetry.StartDeleteRegistrationCall(s.expectedMetrics)
 	delRes, err = s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
-	expectedCallCounter.Done(nil)
 	s.Require().EqualError(err, "rpc error: code = NotFound desc = datastore-sql: record not found")
 	s.Require().Nil(delRes)
 }
@@ -1869,18 +1735,12 @@ func (s *PluginSuite) TestCreateJoinToken() {
 			Expiry: now,
 		},
 	}
-	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
 	_, err := s.ds.CreateJoinToken(ctx, req)
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Make sure we can't re-register
-	expectedCallCounter = ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
 	_, err = s.ds.CreateJoinToken(ctx, req)
-	expectedCallCounter.Done(&err)
 	s.NotNil(err)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestCreateAndFetchJoinToken() {
@@ -1890,23 +1750,17 @@ func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 		Expiry: now,
 	}
 
-	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	res, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", res.JoinToken.Token)
 	s.Equal(now, res.JoinToken.Expiry)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestDeleteJoinToken() {
@@ -1916,11 +1770,9 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Expiry: now,
 	}
 
-	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken1,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	joinToken2 := &datastore.JoinToken{
@@ -1928,39 +1780,29 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Expiry: now,
 	}
 
-	expectedCallCounter = ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
 	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken2,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartDeleteJoinTokenCall(s.expectedMetrics)
 	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
 		Token: joinToken1.Token,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Should not be able to fetch after delete
-	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken1.Token,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(resp.JoinToken)
 
 	// Second token should still be present
-	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken2.Token,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(joinToken2, resp.JoinToken)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestPruneJoinTokens() {
@@ -1970,63 +1812,47 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 		Expiry: now,
 	}
 
-	expectedCallCounter := ds_telemetry.StartCreateJoinTokenCall(s.expectedMetrics)
 	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
 		JoinToken: joinToken,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
-	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now - 10,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", resp.JoinToken.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Equal("foobar", resp.JoinToken.Token)
 
 	// Ensure we prune old tokens
 	joinToken.Expiry = (now + 10)
-	expectedCallCounter = ds_telemetry.StartPruneJoinTokenCall(s.expectedMetrics)
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
 		ExpiresBefore: now + 10,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 
-	expectedCallCounter = ds_telemetry.StartFetchJoinTokenCall(s.expectedMetrics)
 	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: joinToken.Token,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Nil(resp.JoinToken)
-
-	s.Require().Equal(s.expectedMetrics.AllMetrics(), s.m.AllMetrics())
 }
 
 func (s *PluginSuite) TestGetPluginInfo() {
@@ -2303,30 +2129,24 @@ func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interfa
 }
 
 func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
-	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	return resp.Bundle
 }
 
 func (s *PluginSuite) createBundle(trustDomainID string) {
-	expectedCallCounter := ds_telemetry.StartFetchBundleCall(s.expectedMetrics)
 	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert),
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
-	expectedCallCounter := ds_telemetry.StartCreateRegistrationCall(s.expectedMetrics)
 	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: entry,
 	})
-	expectedCallCounter.Done(nil)
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.Entry)
@@ -2354,8 +2174,6 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 }
 
 func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*common.Selector {
-	callCounter := ds_telemetry.StartGetNodeSelectorsCall(s.expectedMetrics)
-	defer callCounter.Done(nil)
 	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
 		SpiffeId:      spiffeID,
 		TolerateStale: tolerateStale,
@@ -2368,14 +2186,12 @@ func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*c
 }
 
 func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
-	callCounter := ds_telemetry.StartSetNodeSelectorsCall(s.expectedMetrics)
 	resp, err := s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  spiffeID,
 			Selectors: selectors,
 		},
 	})
-	callCounter.Done(nil)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(&datastore.SetNodeSelectorsResponse{}, resp)
 }
@@ -2419,12 +2235,8 @@ func (s *PluginSuite) TestConfigure() {
 		s.T().Run(tt.desc, func(t *testing.T) {
 			p := New()
 
-			metricsService := metricsservice.New(metricsservice.Config{
-				Metrics: s.m,
-			})
 			var ds datastore.Plugin
-			pluginDone := spiretest.LoadPlugin(t, builtin(p), &ds,
-				spiretest.HostService(proto_services.MetricsServiceHostServiceServer(metricsService)))
+			pluginDone := spiretest.LoadPlugin(t, builtin(p), &ds)
 			defer pluginDone()
 
 			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")

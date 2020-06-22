@@ -89,13 +89,33 @@ func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundl
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bundle := req.Bundle
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
 
-	if _, ok := s.bundles[bundle.TrustDomainId]; !ok {
+	newBundle := req.Bundle
+	bundle, ok := s.bundles[newBundle.TrustDomainId]
+	if !ok {
 		return nil, ErrNoSuchBundle
 	}
 
-	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
+	if req.InputMask == nil {
+		s.bundles[newBundle.TrustDomainId] = cloneBundle(newBundle)
+
+		return &datastore.UpdateBundleResponse{
+			Bundle: cloneBundle(newBundle),
+		}, nil
+	}
+
+	if req.InputMask.JwtSigningKeys {
+		bundle.JwtSigningKeys = newBundle.JwtSigningKeys
+	}
+	if req.InputMask.RootCas {
+		bundle.RootCas = newBundle.RootCas
+	}
+	if req.InputMask.RefreshHint {
+		bundle.RefreshHint = newBundle.RefreshHint
+	}
 
 	return &datastore.UpdateBundleResponse{
 		Bundle: cloneBundle(bundle),

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -37,21 +35,21 @@ const defaultMaxConnectionAge = 3 * time.Minute
 
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
-	// ListenAndServe starts all endpoints, and blocks for as long as the
-	// underlying servers are still running. Returns an error if any of the
-	// endpoints encounter one. ListenAndServe will return an
+	// ListenAndServe starts all endpoint servers and blocks until the context
+	// is canceled or any of the servers fails to run. If the context is
+	// canceled, the function returns nil. Otherwise, the error from the failed
+	// server is returned.
 	ListenAndServe(ctx context.Context) error
 }
 
 type Endpoints struct {
-	c            *Config
-	mtx          *sync.RWMutex
-	unixListener *peertracker.ListenerFactory
+	c *Config
 }
 
-// ListenAndServe starts all maintenance routines and endpoints, then blocks
-// until the context is cancelled or there is an error encountered listening
-// on one of the servers.
+// ListenAndServe starts all endpoint servers and blocks until the context
+// is canceled or any of the servers fails to run. If the context is
+// canceled, the function returns nil. Otherwise, the error from the failed
+// server is returned.
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.c.Log.Debug("Initializing API endpoints")
 	tcpServer := e.createTCPServer(ctx)
@@ -102,7 +100,7 @@ func (e *Endpoints) createUDSServer() *grpc.Server {
 	return grpc.NewServer(
 		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
 		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
-		grpc.Creds(peertracker.NewCredentials()))
+		grpc.Creds(auth.UntrackedUDSCredentials()))
 }
 
 func (e *Endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
@@ -211,7 +209,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.c.UDSAddr.String())
-	l, err := e.unixListener.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
+	l, err := net.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
 	if err != nil {
 		return err
 	}

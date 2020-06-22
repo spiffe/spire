@@ -7,11 +7,12 @@ package main
 import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/catalog/test"
+	"github.com/spiffe/spire/proto/private/test/catalogtest"
 )
 
 func main() {
 	catalog.PluginMain(catalog.MakePlugin("test",
-		test.PluginPluginServer(test.NewPlugin()),
-		test.ServiceServiceServer(test.NewService()),
+		catalogtest.PluginPluginServer(test.NewPlugin()),
+		catalogtest.ServiceServiceServer(test.NewService()),
 	))
 }

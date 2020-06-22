@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "ca";
+option go_package = "github.com/spiffe/spire/proto/private/server/journal";
 
 message X509CAEntry {
     // Which X509 CA slot this entry occupied.
@@ -32,7 +32,7 @@ message JWTKeyEntry {
     bytes public_key = 5;
 }
 
-message JournalEntries {
+message Entries {
     repeated X509CAEntry x509CAs = 1;
     repeated JWTKeyEntry jwtKeys = 2;
 }
