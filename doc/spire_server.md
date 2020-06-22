@@ -116,14 +116,14 @@ server {
                 email = "mail@example.org"
             }
         }
-        federate_with "spiffe://domain1.test" {
+        federates_with "spiffe://domain1.test" {
             bundle_endpoint {
                 address = "1.2.3.4"
                 port = 8443
                 use_web_pki = true
             }
         }
-        federate_with "spiffe://domain.test" {
+        federates_with "spiffe://domain.test" {
             bundle_endpoint {
                 address = "5.6.7.8"
                 port = 8443
@@ -151,9 +151,9 @@ server {
 | email           | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                  |
 | tos_accepted    | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                            |
 
-### Configuration options for `federation.federate_with["<trust domain>"].bundle_endpoint`
+### Configuration options for `federation.federates_with["<trust domain>"].bundle_endpoint`
 
-The `federate_with` section is a map of `bundle_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
+The `federates_with` section is a map of `bundle_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
 
 | Configuration   | Description                                                                                                                       | Default                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------| ---------------------------------------------------- |

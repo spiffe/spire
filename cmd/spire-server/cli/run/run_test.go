@@ -33,11 +33,11 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
-	assert.Equal(t, len(c.Server.Federation.FederateWith), 2)
-	assert.Equal(t, c.Server.Federation.FederateWith["spiffe://domain1.test"].BundleEndpoint.Address, "1.2.3.4")
-	assert.True(t, c.Server.Federation.FederateWith["spiffe://domain1.test"].BundleEndpoint.UseWebPKI)
-	assert.Equal(t, c.Server.Federation.FederateWith["spiffe://domain2.test"].BundleEndpoint.Address, "5.6.7.8")
-	assert.Equal(t, c.Server.Federation.FederateWith["spiffe://domain2.test"].BundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
+	assert.Equal(t, len(c.Server.Federation.FederatesWith), 2)
+	assert.Equal(t, c.Server.Federation.FederatesWith["spiffe://domain1.test"].BundleEndpoint.Address, "1.2.3.4")
+	assert.True(t, c.Server.Federation.FederatesWith["spiffe://domain1.test"].BundleEndpoint.UseWebPKI)
+	assert.Equal(t, c.Server.Federation.FederatesWith["spiffe://domain2.test"].BundleEndpoint.Address, "5.6.7.8")
+	assert.Equal(t, c.Server.Federation.FederatesWith["spiffe://domain2.test"].BundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -703,9 +703,9 @@ func TestNewServerConfig(t *testing.T) {
 			msg: "bundle federates with section is parsed and configured correctly",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
-					FederateWith: map[string]federateWithConfig{
+					FederatesWith: map[string]federatesWithConfig{
 						"spiffe://domain1.test": {
-							BundleEndpoint: federateWithBundleEndpointConfig{
+							BundleEndpoint: federatesWithBundleEndpointConfig{
 								Address:   "192.168.1.1",
 								Port:      1337,
 								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
@@ -713,7 +713,7 @@ func TestNewServerConfig(t *testing.T) {
 							},
 						},
 						"spiffe://domain2.test": {
-							BundleEndpoint: federateWithBundleEndpointConfig{
+							BundleEndpoint: federatesWithBundleEndpointConfig{
 								Address:   "192.168.1.1",
 								SpiffeID:  "THIS SHOULD BE IGNORED",
 								Port:      1337,
@@ -734,7 +734,7 @@ func TestNewServerConfig(t *testing.T) {
 						EndpointAddress: "192.168.1.1:1337",
 						UseWebPKI:       true,
 					},
-				}, c.Federation.FederateWith)
+				}, c.Federation.FederatesWith)
 			},
 		},
 		{
@@ -967,15 +967,15 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "federation.bundle_endpoint.acme.email must be configured",
 		},
 		{
-			name: "if FederateWith is used, federation.bundle_endpoint.address must be configured",
+			name: "if FederatesWith is used, federation.bundle_endpoint.address must be configured",
 			applyConf: func(c *Config) {
-				federatesWith := make(map[string]federateWithConfig)
-				federatesWith["spiffe://domain.test"] = federateWithConfig{}
+				federatesWith := make(map[string]federatesWithConfig)
+				federatesWith["spiffe://domain.test"] = federatesWithConfig{}
 				c.Server.Federation = &federationConfig{
-					FederateWith: federatesWith,
+					FederatesWith: federatesWith,
 				}
 			},
-			expectedErr: "federation.federate_with[\"spiffe://domain.test\"].bundle_endpoint.address must be configured",
+			expectedErr: "federation.federates_with[\"spiffe://domain.test\"].bundle_endpoint.address must be configured",
 		},
 		{
 			name:        "deprecated configurable `svid_ttl` must not be set",
@@ -1036,7 +1036,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogMsg: "Detected unknown ACME config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},
 		{
-			msg:            "in nested federate_with block",
+			msg:            "in nested federates_with block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_federates_with_block.conf", testFileDir),
 			expectedLogMsg: "Detected unknown federation config options for \"test1\": [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},

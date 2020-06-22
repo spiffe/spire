@@ -319,7 +319,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
 		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
 		DataStore:    cat.GetDataStore(),
-		TrustDomains: s.config.Federation.FederateWith,
+		TrustDomains: s.config.Federation.FederatesWith,
 	})
 }
 

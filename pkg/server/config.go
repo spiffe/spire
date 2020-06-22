@@ -85,9 +85,9 @@ type ExperimentalConfig struct {
 type FederationConfig struct {
 	// BundleEndpoint contains the federation bundle endpoint configuration.
 	BundleEndpoint *bundle.EndpointConfig
-	// FederateWith holds the federation configuration for trust domains this
+	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
-	FederateWith map[string]bundle_client.TrustDomainConfig
+	FederatesWith map[string]bundle_client.TrustDomainConfig
 }
 
 func New(config Config) *Server {

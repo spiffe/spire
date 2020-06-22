@@ -111,8 +111,8 @@ type caSubjectConfig struct {
 }
 
 type federationConfig struct {
-	BundleEndpoint *bundleEndpointConfig         `hcl:"bundle_endpoint"`
-	FederateWith   map[string]federateWithConfig `hcl:"federate_with"`
+	BundleEndpoint *bundleEndpointConfig          `hcl:"bundle_endpoint"`
+	FederatesWith  map[string]federatesWithConfig `hcl:"federates_with"`
 }
 
 type bundleEndpointConfig struct {
@@ -138,12 +138,12 @@ type deprecatedFederatesWithConfig struct {
 	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
-type federateWithConfig struct {
-	BundleEndpoint federateWithBundleEndpointConfig `hcl:"bundle_endpoint"`
-	UnusedKeys     []string                         `hcl:",unusedKeys"`
+type federatesWithConfig struct {
+	BundleEndpoint federatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
+	UnusedKeys     []string                          `hcl:",unusedKeys"`
 }
 
-type federateWithBundleEndpointConfig struct {
+type federatesWithBundleEndpointConfig struct {
 	Address    string   `hcl:"address"`
 	Port       int      `hcl:"port"`
 	SpiffeID   string   `hcl:"spiffe_id"`
@@ -385,8 +385,8 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 			}
 		}
 
-		federateWith := map[string]bundleClient.TrustDomainConfig{}
-		for trustDomain, config := range c.Server.Federation.FederateWith {
+		federatesWith := map[string]bundleClient.TrustDomainConfig{}
+		for trustDomain, config := range c.Server.Federation.FederatesWith {
 			port := defaultBundleEndpointPort
 			if config.BundleEndpoint.Port != 0 {
 				port = config.BundleEndpoint.Port
@@ -395,13 +395,13 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 				sc.Log.Warn("The `bundle_endpoint.spiffe_id` configurable is ignored when authenticating with Web PKI")
 				config.BundleEndpoint.SpiffeID = ""
 			}
-			federateWith[trustDomain] = bundleClient.TrustDomainConfig{
+			federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
 				EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpoint.Address, port),
 				EndpointSpiffeID: config.BundleEndpoint.SpiffeID,
 				UseWebPKI:        config.BundleEndpoint.UseWebPKI,
 			}
 		}
-		sc.Federation.FederateWith = federateWith
+		sc.Federation.FederatesWith = federatesWith
 	}
 
 	sc.ProfilingEnabled = c.Server.ProfilingEnabled
@@ -517,9 +517,9 @@ func validateConfig(c *Config) error {
 			}
 		}
 
-		for td, tdConfig := range c.Server.Federation.FederateWith {
+		for td, tdConfig := range c.Server.Federation.FederatesWith {
 			if tdConfig.BundleEndpoint.Address == "" {
-				return fmt.Errorf("federation.federate_with[\"%s\"].bundle_endpoint.address must be configured", td)
+				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
 			}
 		}
 	} else { // TODO: Remove this else block once the deprecated experimental federation options are removed.
@@ -571,10 +571,10 @@ func federationConfigFromExperimentalConfig(ec experimentalConfig) *federationCo
 			}
 		}
 		if len(ec.DeprecatedFederatesWith) > 0 {
-			fc.FederateWith = make(map[string]federateWithConfig)
+			fc.FederatesWith = make(map[string]federatesWithConfig)
 			for td, cfg := range ec.DeprecatedFederatesWith {
-				fc.FederateWith[td] = federateWithConfig{
-					BundleEndpoint: federateWithBundleEndpointConfig{
+				fc.FederatesWith[td] = federatesWithConfig{
+					BundleEndpoint: federatesWithBundleEndpointConfig{
 						Address:   cfg.BundleEndpointAddress,
 						Port:      cfg.BundleEndpointPort,
 						SpiffeID:  cfg.BundleEndpointSpiffeID,
@@ -627,7 +627,7 @@ func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 				}
 			}
 
-			for k, v := range c.Server.Federation.FederateWith {
+			for k, v := range c.Server.Federation.FederatesWith {
 				if len(v.UnusedKeys) != 0 {
 					l.Warnf("Detected unknown federation config options for %q: %q; this will be fatal in a future release.", k, v.UnusedKeys)
 				}
