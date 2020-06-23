@@ -313,6 +313,10 @@ func (s *DataStore) FetchAttestedNode(ctx context.Context, req *datastore.FetchA
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.expectErr != nil {
+		return nil, s.expectErr
+	}
+
 	resp := new(datastore.FetchAttestedNodeResponse)
 	node, ok := s.attestedNodes[req.SpiffeId]
 	if !ok {
