@@ -133,8 +133,10 @@ server {
     }
 }
 ```
+Worth noting that the `federation.bundle_endpoint` and `federation.federates_with` sections are both optional.
 
 ### Configuration options for `federation.bundle_endpoint`
+This optional section contains the configurables used by SPIRE Server to expose a bundle endpoint.
 
 | Configuration   | Description                                                                    |
 | --------------- | ------------------------------------------------------------------------------ |
@@ -153,7 +155,7 @@ server {
 
 ### Configuration options for `federation.federates_with["<trust domain>"].bundle_endpoint`
 
-The `federates_with` section is a map of `bundle_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
+The optional `federates_with` section is a map of `bundle_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
 
 | Configuration   | Description                                                                                                                       | Default                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------| ---------------------------------------------------- |
