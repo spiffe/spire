@@ -23,6 +23,14 @@ The plugin supports **Client Certificate**, **Token** and **AppRole** authentica
 - **Token** method authenticates to Vault using the token in a HTTP Request header. 
 - **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
 
+The configured token needs to be attached to a policy that has at least the following capabilities:
+
+```hcl
+path "pki/root/sign-intermediate" {
+  capabilities = ["update"]
+}
+```
+
 ## Client Certificate Authentication
 
 | key | type | required | description | default |
@@ -42,6 +50,13 @@ The plugin supports **Client Certificate**, **Token** and **AppRole** authentica
                 client_cert_path = "/path/to/client-cert.pem"
                 client_key_path  = "/path/to/client-key.pem"
             }
+            // If specify the key-pair as an environment variable and use the modified mount point
+            // cert_auth {
+            //    cert_auth_mount_point = "test-tls-cert-auth"    
+            // }
+
+            // If specify the key-pair as an environment variable and use the default mount point, set the empty structure.
+            // cert_auth {}
         }
     }
 ```
@@ -59,8 +74,10 @@ The plugin supports **Client Certificate**, **Token** and **AppRole** authentica
             pki_mount_point = "test-pki"
             ca_cert_path = "/path/to/ca-cert.pem"
             token_auth {
-               token = "<token>" // or specified by environment variables
+               token = "<token>" 
             }
+            // If specify the token as an environment variable, set the empty structure.
+            // token_auth {}
         }
     }
 ```
@@ -83,6 +100,13 @@ The plugin supports **Client Certificate**, **Token** and **AppRole** authentica
                approle_id = "<Role ID>" // or specified by environment variables
                approle_secret_id = "<Secret ID>" // or specified by environment variables
             }
+            // If specify the approle_id and approle_secret as an environment variable and use the modified mount point
+            // approle_auth {
+            //    approle_auth_mount_point = "my-approle-auth"    
+            // }
+
+            // If specify the approle_id and approle_secret as an environment variable and use the default mount point, set the empty structure.
+            // approle_auth {}
         }
     }
 ```

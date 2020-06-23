@@ -22,10 +22,19 @@ vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
 ca_cert_path = "_test_data/keys/EC/root_cert.pem"
 cert_auth {
-   tls_auth_mount_point = "test-auth"
+   cert_auth_mount_point = "test-cert-auth"
    client_cert_path = "_test_data/keys/EC/client_cert.pem"
    client_key_path  = "_test_data/keys/EC/client_key.pem"
 }`
+
+	testCertAuthConfigWithEnvTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+cert_auth {
+   cert_auth_mount_point = "test-cert-auth"
+}`
+
 	/* #nosec G101 */
 	testTokenAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
@@ -35,14 +44,41 @@ token_auth {
    token  = "test-token"
 }`
 
+	/* #nosec G101 */
+	testTokenAuthConfigWithEnvTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+token_auth {}`
+
 	testAppRoleAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
 ca_cert_path = "_test_data/keys/EC/root_cert.pem"
 approle_auth {
-   approle_auth_mount_point = "test-auth"
+   approle_auth_mount_point = "test-approle-auth"
    approle_id = "test-approle-id"
    approle_secret_id  = "test-approle-secret-id"
+}`
+
+	testAppRoleAuthConfigWithEnvTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+approle_auth {
+   approle_auth_mount_point = "test-approle-auth"
+}`
+
+	testMultipleAuthConfigsTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+cert_auth {}
+token_auth {}
+approle_auth {
+	approle_auth_mount_point = "test-approle-auth"
+	approle_id = "test-approle-id"
+	approle_secret_id  = "test-approle-secret-id"
 }`
 
 	testCertAuthResponse = `{
