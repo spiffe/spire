@@ -715,7 +715,6 @@ func TestNewServerConfig(t *testing.T) {
 						"spiffe://domain2.test": {
 							BundleEndpoint: federatesWithBundleEndpointConfig{
 								Address:   "192.168.1.1",
-								SpiffeID:  "THIS SHOULD BE IGNORED",
 								Port:      1337,
 								UseWebPKI: true,
 							},
@@ -735,6 +734,27 @@ func TestNewServerConfig(t *testing.T) {
 						UseWebPKI:       true,
 					},
 				}, c.Federation.FederatesWith)
+			},
+		},
+		{
+			msg:         "bundle federates with section uses Web PKI and SpiffeID",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"spiffe://domain1.test": {
+							BundleEndpoint: federatesWithBundleEndpointConfig{
+								Address:   "192.168.1.1",
+								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
+								Port:      1337,
+								UseWebPKI: true,
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{
@@ -1030,6 +1050,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
 		//	expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		//},
+		//{
+		//	msg:            "in nested federation block",
+		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_federation_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown federation config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
+		{
+			msg:            "in nested federation.bundle_endpoint block",
+			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_block.conf", testFileDir),
+			expectedLogMsg: "Detected unknown federation config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		},
 		{
 			msg:            "in nested bundle_endpoint.acme block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_acme_block.conf", testFileDir),

@@ -113,6 +113,7 @@ type caSubjectConfig struct {
 type federationConfig struct {
 	BundleEndpoint *bundleEndpointConfig          `hcl:"bundle_endpoint"`
 	FederatesWith  map[string]federatesWithConfig `hcl:"federates_with"`
+	UnusedKeys     []string                       `hcl:",unusedKeys"`
 }
 
 type bundleEndpointConfig struct {
@@ -392,8 +393,7 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 				port = config.BundleEndpoint.Port
 			}
 			if config.BundleEndpoint.UseWebPKI && config.BundleEndpoint.SpiffeID != "" {
-				sc.Log.Warn("The `bundle_endpoint.spiffe_id` configurable is ignored when authenticating with Web PKI")
-				config.BundleEndpoint.SpiffeID = ""
+				return nil, errors.New("usage of `bundle_endpoint.spiffe_id` is not allowed when authenticating with Web PKI")
 			}
 			federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
 				EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpoint.Address, port),
@@ -621,7 +621,18 @@ func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 		//}
 
 		if c.Server.Federation != nil {
+			// TODO: Re-enable unused key detection for experimental config. See
+			// https://github.com/spiffe/spire/issues/1101 for more information
+			//
+			//if len(c.Server.Federation.UnusedKeys) != 0 {
+			//	l.Warnf("Detected unknown federation config options: %q; this will be fatal in a future release.", c.Server.Federation.UnusedKeys)
+			//}
+
 			if c.Server.Federation.BundleEndpoint != nil {
+				if len(c.Server.Federation.BundleEndpoint.UnusedKeys) != 0 {
+					l.Warnf("Detected unknown federation config options: %q; this will be fatal in a future release.", c.Server.Federation.BundleEndpoint.UnusedKeys)
+				}
+
 				if bea := c.Server.Federation.BundleEndpoint.ACME; bea != nil && len(bea.UnusedKeys) != 0 {
 					l.Warnf("Detected unknown ACME config options: %q; this will be fatal in a future release.", bea.UnusedKeys)
 				}
