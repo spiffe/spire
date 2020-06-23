@@ -1,6 +1,5 @@
 syntax = "proto3";
-package test;
-option go_package = "github.com/spiffe/spire/pkg/common/catalog/test";
+option go_package = "github.com/spiffe/spire/proto/private/catalogtest";
 
 import "spire/common/plugin/plugin.proto";
 
@@ -12,18 +11,18 @@ message Response {
     string out = 1;
 }
 
-// Plugin is a toy plugin interface for testing
+// Plugin is a toy plugin interface for testing the catalog
 service Plugin {
     rpc CallPlugin(Request) returns (Response);
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
 }
 
-// Service is a toy plugin interface for testing
+// Service is a toy plugin interface for testing the catalog
 service Service {
     rpc CallService(Request) returns (Response);
 }
 
-// HostService is a toy host service interface for testing
+// HostService is a toy host service interface for testing the catalog
 service HostService {
     rpc CallHostService(Request) returns (Response);
 }

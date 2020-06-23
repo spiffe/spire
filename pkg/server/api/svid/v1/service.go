@@ -27,19 +27,9 @@ func RegisterService(s *grpc.Server, service *Service) {
 	svid.RegisterSVIDServer(s, service)
 }
 
-type AuthorizedEntryFetcher interface {
-	FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error)
-}
-
-type AuthorizedEntryFetcherFunc func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error)
-
-func (fn AuthorizedEntryFetcherFunc) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-	return fn(ctx, agentID)
-}
-
 // Config is the service configuration
 type Config struct {
-	EntryFetcher AuthorizedEntryFetcher
+	EntryFetcher api.AuthorizedEntryFetcher
 	ServerCA     ca.ServerCA
 	TrustDomain  spiffeid.TrustDomain
 	DataStore    datastore.DataStore
@@ -58,7 +48,7 @@ func New(config Config) *Service {
 // Service implements the v1 SVID service
 type Service struct {
 	ca ca.ServerCA
-	ef AuthorizedEntryFetcher
+	ef api.AuthorizedEntryFetcher
 	td spiffeid.TrustDomain
 	ds datastore.DataStore
 }
@@ -183,7 +173,7 @@ func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map
 		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
 	}
 
-	entriesMap := make(map[string]*types.Entry)
+	entriesMap := make(map[string]*types.Entry, len(entries))
 	for _, entry := range entries {
 		entriesMap[entry.Id] = entry
 	}

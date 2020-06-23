@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -24,6 +25,13 @@ func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 		TrustDomain: id.TrustDomain().String(),
 		Path:        id.Path(),
 	}
+}
+
+// AuthorizedEntryFetcher is the interface to fetch authorized entries
+type AuthorizedEntryFetcher interface {
+	// FetchAuthorizedEntries fetches the entries that the specified
+	// SPIFFE ID is authorized for
+	FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error)
 }
 
 // StringValueFromSPIFFEID converts a SPIFFE ID from the given spiffeid.ID to

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.1] - 2020-06-19
+
+### What's New
+- `vault` as Upstream Authority built-in plugin (#1611, #1632)
+- Improved configuration file docs to list all possible configuration settings (#1608, #1618)
+
+### What's Changed
+- Improved container ID parsing from cgroup path in the `docker` workload attestor plugin (#1605)
+- Improved container ID parsing from cgroup path in the `k8s` workload attestor plugin (#1649)
+- Envoy SDS support is now always on (#1579)
+- Errors on agent SVID rotation are now fatal if the agent's current SVID has expired, forcing an agent restart (#1584)
+
 ## [0.10.0] - 2020-04-22
 - Added support for JWT-SVID in nested SPIRE topologies (#1388, #1394, #1396, #1406, #1409, #1410, #1411, #1415, #1416, #1417, #1423, #1440, #1455, #1458, #1469, #1476)
 - Reduced database load under certain configurations (#1439)
