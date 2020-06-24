@@ -577,57 +577,185 @@ func TestBanAgent(t *testing.T) {
 	}
 }
 
-type serviceTest struct {
-	client  agentpb.AgentClient
-	done    func()
-	ds      *fakedatastore.DataStore
-	logHook *test.Hook
-}
-
-func (s *serviceTest) Cleanup() {
-	s.done()
-}
-
-func setupServiceTest(t *testing.T) *serviceTest {
-	ds := fakedatastore.New(t)
-	td := spiffeid.RequireTrustDomainFromString("example.org")
-	service := agent.New(agent.Config{
-		Datastore:   ds,
-		TrustDomain: td,
-	})
-
-	log, logHook := test.NewNullLogger()
-	log.Level = logrus.DebugLevel
-	registerFn := func(s *grpc.Server) {
-		agent.RegisterService(s, service)
+func TestDeleteAgent(t *testing.T) {
+	node1 := &common.AttestedNode{
+		SpiffeId: "spiffe://example.org/spire/agent/node1",
 	}
 
-	test := &serviceTest{
-		ds:      ds,
-		logHook: logHook,
-	}
+	for _, tt := range []struct {
+		name string
 
-	contextFn := func(ctx context.Context) context.Context {
-		ctx = rpccontext.WithLogger(ctx, log)
-		return ctx
-	}
+		code       codes.Code
+		dsError    error
+		err        string
+		expectLogs []spiretest.LogEntry
+		req        *agentpb.DeleteAgentRequest
+	}{
+		{
+			name: "success",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent deleted",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/node1",
+					},
+				},
+			},
+			req: &agentpb.DeleteAgentRequest{
+				Id: &types.SPIFFEID{
+					TrustDomain: "example.org",
+					Path:        "/spire/agent/node1",
+				},
+			},
+		},
+		{
+			name: "malformed SPIFFE ID",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid SPIFFE ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "spiffeid: trust domain is empty",
+					},
+				},
+			},
+			code: codes.InvalidArgument,
+			err:  "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			req: &agentpb.DeleteAgentRequest{
+				Id: &types.SPIFFEID{
+					TrustDomain: "",
+					Path:        "spiffe://examples.org/spire/agent/node1",
+				},
+			},
+		},
+		{
+			name: "not found",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Agent not found",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "rpc error: code = NotFound desc = datastore-sql: record not found",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/notfound",
+					},
+				},
+			},
+			code: codes.NotFound,
+			err:  "agent not found",
+			req: &agentpb.DeleteAgentRequest{
+				Id: &types.SPIFFEID{
+					TrustDomain: "example.org",
+					Path:        "/spire/agent/notfound",
+				},
+			},
+		},
+		{
+			name: "no agent ID",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: not an agent ID",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://examples.org/host",
+					},
+				},
+			},
+			code: codes.InvalidArgument,
+			err:  "not an agent ID",
+			req: &agentpb.DeleteAgentRequest{
+				Id: &types.SPIFFEID{
+					TrustDomain: "examples.org",
+					Path:        "host",
+				},
+			},
+		},
+		{
+			name: "no member of trust domain",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: cannot ban an agent that does not belong to this trust domain",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://another.org/spire/agent/node1",
+					},
+				},
+			},
+			code: codes.InvalidArgument,
+			err:  "cannot ban an agent that does not belong to this trust domain",
+			req: &agentpb.DeleteAgentRequest{
+				Id: &types.SPIFFEID{
+					TrustDomain: "another.org",
+					Path:        "/spire/agent/node1",
+				},
+			},
+		},
+		{
+			name:    "ds fails",
+			code:    codes.Internal,
+			err:     "failed to remove Agent: some error",
+			dsError: errors.New("some error"),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to remove Agent",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "some error",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/node1",
+					},
+				},
+			},
+			req: &agentpb.DeleteAgentRequest{
+				Id: &types.SPIFFEID{
+					TrustDomain: "example.org",
+					Path:        "/spire/agent/node1",
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
 
-	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
-	test.done = done
-	test.client = agentpb.NewAgentClient(conn)
+			_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+				Node: node1,
+			})
+			require.NoError(t, err)
 
-	return test
-}
+			if tt.dsError != nil {
+				test.ds.SetNextError(tt.dsError)
+			}
 
-func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
-	for _, testNode := range testNodes {
-		// create the test node
-		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: testNode})
-		require.NoError(t, err)
+			resp, err := test.client.DeleteAgent(ctx, tt.req)
 
-		// set selectors to the test node
-		_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{Selectors: testNodeSelectors[testNode.SpiffeId]})
-		require.NoError(t, err)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if err != nil {
+				require.Nil(t, resp)
+				spiretest.RequireGRPCStatus(t, err, tt.code, tt.err)
+
+				// Verify node was not deleted
+				node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+					SpiffeId: node1.SpiffeId,
+				})
+				require.NoError(t, err)
+				require.NotNil(t, node.Node)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			id, err := api.IDFromProto(tt.req.Id)
+			require.NoError(t, err)
+
+			node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+				SpiffeId: id.String(),
+			})
+			require.NoError(t, err)
+			require.Nil(t, node.Node)
+		})
 	}
 }
 
@@ -755,5 +883,59 @@ func TestGetAgent(t *testing.T) {
 			require.NoError(t, err)
 			spiretest.AssertProtoEqual(t, tt.agent, agent)
 		})
+	}
+}
+
+type serviceTest struct {
+	client  agentpb.AgentClient
+	done    func()
+	ds      *fakedatastore.DataStore
+	logHook *test.Hook
+}
+
+func (s *serviceTest) Cleanup() {
+	s.done()
+}
+
+func setupServiceTest(t *testing.T) *serviceTest {
+	ds := fakedatastore.New(t)
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	service := agent.New(agent.Config{
+		Datastore:   ds,
+		TrustDomain: td,
+	})
+
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	registerFn := func(s *grpc.Server) {
+		agent.RegisterService(s, service)
+	}
+
+	test := &serviceTest{
+		ds:      ds,
+		logHook: logHook,
+	}
+
+	contextFn := func(ctx context.Context) context.Context {
+		ctx = rpccontext.WithLogger(ctx, log)
+		return ctx
+	}
+
+	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
+	test.done = done
+	test.client = agentpb.NewAgentClient(conn)
+
+	return test
+}
+
+func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
+	for _, testNode := range testNodes {
+		// create the test node
+		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: testNode})
+		require.NoError(t, err)
+
+		// set selectors to the test node
+		_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{Selectors: testNodeSelectors[testNode.SpiffeId]})
+		require.NoError(t, err)
 	}
 }

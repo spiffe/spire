@@ -1476,6 +1476,10 @@ func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (
 		return nil, sqlError.Wrap(err)
 	}
 
+	if err := tx.Where("spiffe_id = ?", req.SpiffeId).Delete(NodeSelector{}).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
 	return &datastore.DeleteAttestedNodeResponse{
 		Node: modelToAttestedNode(model),
 	}, nil
