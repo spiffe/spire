@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.10.1] - 2020-06-19
+## [0.10.1] - 2020-06-23
 
 ### What's New
 - `vault` as Upstream Authority built-in plugin (#1611, #1632)
