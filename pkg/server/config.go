@@ -71,23 +71,20 @@ type Config struct {
 
 	// CAKeyType is the key type used for the X509 and JWT signing keys
 	CAKeyType keymanager.KeyType
+
+	// Federation holds the configuration needed to federate with other
+	// trust domains.
+	Federation FederationConfig
 }
 
 type ExperimentalConfig struct {
 	// Skip agent id validation in node attestation
 	AllowAgentlessNodeAttestors bool
+}
 
-	// BundleEndpointEnabled, if true, enables the federation bundle endpoint
-	BundleEndpointEnabled bool
-
-	// BundleEndpointAddress is the address on which to serve the federation
-	// bundle endpoint.
-	BundleEndpointAddress *net.TCPAddr
-
-	// BundleEndpointACME is the ACME configuration for the bundle endpoint.
-	// If unset, the bundle endpoint will use SPIFFE auth.
-	BundleEndpointACME *bundle.ACMEConfig
-
+type FederationConfig struct {
+	// BundleEndpoint contains the federation bundle endpoint configuration.
+	BundleEndpoint *bundle.EndpointConfig
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
 	FederatesWith map[string]bundle_client.TrustDomainConfig

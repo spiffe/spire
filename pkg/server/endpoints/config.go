@@ -38,11 +38,8 @@ type Config struct {
 	// Allow agentless spiffeIds when doing node attestation
 	AllowAgentlessNodeAttestors bool
 
-	// Bundle endpoint address
-	BundleEndpointAddress *net.TCPAddr
-
-	// Bundle endpoint ACME configuration. If unset, SPIFFE auth will be used.
-	BundleEndpointACME *bundle.ACMEConfig
+	// Bundle endpoint configuration
+	BundleEndpoint bundle.EndpointConfig
 
 	// CA Manager
 	Manager *ca.Manager
