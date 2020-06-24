@@ -47,7 +47,7 @@ type EndpointsTestSuite struct {
 }
 
 func (s *EndpointsTestSuite) SetupTest() {
-	s.ds = fakedatastore.New()
+	s.ds = fakedatastore.New(s.T())
 
 	log, _ := test.NewNullLogger()
 	ip := net.ParseIP("127.0.0.1")

@@ -3,23 +3,26 @@ package sql
 import (
 	"net/url"
 
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
+	"github.com/mattn/go-sqlite3"
 
 	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	_ "github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
-type sqliteDB struct{}
+type sqliteDB struct {
+	log hclog.Logger
+}
 
-func (s sqliteDB) connect(cfg *configuration) (db *gorm.DB, version string, supportsCTE bool, err error) {
-	embellished, err := embellishSQLite3ConnString(cfg.ConnectionString)
+func (s sqliteDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+	if isReadOnly {
+		s.log.Warn("read-only connection is not applicable for sqlite3. Falling back to primary connection.")
+	}
+
+	db, err = openSQLite3(cfg.ConnectionString)
 	if err != nil {
 		return nil, "", false, err
-	}
-	db, err = gorm.Open("sqlite3", embellished)
-	if err != nil {
-		return nil, "", false, sqlError.Wrap(err)
 	}
 
 	version, err = queryVersion(db, "SELECT sqlite_version()")
@@ -29,6 +32,26 @@ func (s sqliteDB) connect(cfg *configuration) (db *gorm.DB, version string, supp
 
 	// The embedded version of SQLite3 unconditionally supports CTE.
 	return db, version, true, nil
+}
+
+func (s sqliteDB) isConstraintViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	e, ok := err.(sqlite3.Error)
+	return ok && e.Code == sqlite3.ErrConstraint
+}
+
+func openSQLite3(connString string) (*gorm.DB, error) {
+	embellished, err := embellishSQLite3ConnString(connString)
+	if err != nil {
+		return nil, err
+	}
+	db, err := gorm.Open("sqlite3", embellished)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+	return db, nil
 }
 
 // embellishSQLite3ConnString adds query values supported by

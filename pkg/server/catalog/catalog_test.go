@@ -27,7 +27,7 @@ func TestLoad(t *testing.T) {
 	builtIns = []catalog.Plugin{
 		// Fake Datastore
 		catalog.MakePlugin("fake_ds",
-			datastore.PluginServer(fakedatastore.New())),
+			datastore.PluginServer(fakedatastore.New(t))),
 		// Fake key manager
 		catalog.MakePlugin("fake_km",
 			keymanager.PluginServer(&fakeKeyManager{})),
