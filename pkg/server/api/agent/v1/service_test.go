@@ -5,7 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/agent/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	agentpb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
@@ -19,101 +21,78 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var agent1 = "spiffe://example.org/agent-1"
-var agent2 = "spiffe://example.org/agent-2"
-var agent3 = "spiffe://example.org/agent-3"
+const (
+	agent1 = "spiffe://example.org/agent-1"
+	agent2 = "spiffe://example.org/agent-2"
+)
 
-var testNodes map[string]*common.AttestedNode = map[string]*common.AttestedNode{
-	agent1: {
-		SpiffeId:            agent1,
-		AttestationDataType: "type-1",
-		CertSerialNumber:    "CertSerialNumber-1",
-		NewCertSerialNumber: "CertSerialNumber-1",
-		CertNotAfter:        1,
-	},
-	agent2: {
-		SpiffeId:            agent2,
-		AttestationDataType: "type-2",
-		CertSerialNumber:    "CertSerialNumber-2",
-		NewCertSerialNumber: "CertSerialNumber-2",
-		CertNotAfter:        2,
-	},
-	agent3: {
-		SpiffeId:            agent3,
-		AttestationDataType: "type-2",
-		CertNotAfter:        3,
-	},
-}
+var (
+	ctx = context.Background()
 
-var testNodeSelectors map[string]*datastore.NodeSelectors = map[string]*datastore.NodeSelectors{
-	agent1: {
-		SpiffeId: agent1,
-		Selectors: []*common.Selector{
-			{
-				Type:  "node-selector-type-1",
-				Value: "node-delector-value-1",
-			},
+	testNodes = map[string]*common.AttestedNode{
+		agent1: {
+			SpiffeId:            agent1,
+			AttestationDataType: "type-1",
+			CertSerialNumber:    "CertSerialNumber-1",
+			NewCertSerialNumber: "CertSerialNumber-1",
+			CertNotAfter:        1,
 		},
-	},
-	agent2: {
-		SpiffeId: agent2,
-		Selectors: []*common.Selector{
-			{
-				Type:  "node-selector-type-2",
-				Value: "node-delector-value-2",
-			},
+		agent2: {
+			SpiffeId:            agent2,
+			AttestationDataType: "type-2",
+			CertNotAfter:        3,
 		},
-	},
-	agent3: {
-		SpiffeId: agent3,
-		Selectors: []*common.Selector{
-			{
-				Type:  "node-selector-type-3",
-				Value: "node-delector-value-3",
-			},
-		},
-	},
-}
+	}
 
-var expectedAgents map[string]*types.Agent = map[string]*types.Agent{
-	agent1: {
-		Id:                   &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"},
-		AttestationType:      testNodes[agent1].AttestationDataType,
-		X509SvidSerialNumber: testNodes[agent1].CertSerialNumber,
-		X509SvidExpiresAt:    testNodes[agent1].CertNotAfter,
-		Selectors: []*types.Selector{
-			{
-				Type:  testNodeSelectors[agent1].Selectors[0].Type,
-				Value: testNodeSelectors[agent1].Selectors[0].Value,
+	testNodeSelectors = map[string]*datastore.NodeSelectors{
+		agent1: {
+			SpiffeId: agent1,
+			Selectors: []*common.Selector{
+				{
+					Type:  "node-selector-type-1",
+					Value: "node-delector-value-1",
+				},
 			},
 		},
-	},
-	agent2: {
-		Id:                   &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-2"},
-		AttestationType:      testNodes[agent2].AttestationDataType,
-		X509SvidSerialNumber: testNodes[agent2].CertSerialNumber,
-		X509SvidExpiresAt:    testNodes[agent2].CertNotAfter,
-		Selectors: []*types.Selector{
-			{
-				Type:  testNodeSelectors[agent2].Selectors[0].Type,
-				Value: testNodeSelectors[agent2].Selectors[0].Value,
+		agent2: {
+			SpiffeId: agent2,
+			Selectors: []*common.Selector{
+				{
+					Type:  "node-selector-type-2",
+					Value: "node-delector-value-2",
+				},
 			},
 		},
-	},
-	agent3: {
-		Id:                   &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-3"},
-		AttestationType:      testNodes[agent3].AttestationDataType,
-		X509SvidSerialNumber: testNodes[agent3].CertSerialNumber,
-		X509SvidExpiresAt:    testNodes[agent3].CertNotAfter,
-		Selectors: []*types.Selector{
-			{
-				Type:  testNodeSelectors[agent3].Selectors[0].Type,
-				Value: testNodeSelectors[agent3].Selectors[0].Value,
+	}
+
+	expectedAgents = map[string]*types.Agent{
+		agent1: {
+			Id:                   &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"},
+			AttestationType:      testNodes[agent1].AttestationDataType,
+			X509SvidSerialNumber: testNodes[agent1].CertSerialNumber,
+			X509SvidExpiresAt:    testNodes[agent1].CertNotAfter,
+			Selectors: []*types.Selector{
+				{
+					Type:  testNodeSelectors[agent1].Selectors[0].Type,
+					Value: testNodeSelectors[agent1].Selectors[0].Value,
+				},
 			},
 		},
-		Banned: true,
-	},
-}
+		agent2: {
+			Id:                   &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-2"},
+			AttestationType:      testNodes[agent2].AttestationDataType,
+			X509SvidSerialNumber: testNodes[agent2].CertSerialNumber,
+			X509SvidExpiresAt:    testNodes[agent2].CertNotAfter,
+			Selectors: []*types.Selector{
+				{
+					Type:  testNodeSelectors[agent2].Selectors[0].Type,
+					Value: testNodeSelectors[agent2].Selectors[0].Value,
+				},
+			},
+			Banned: true,
+		},
+	}
+)
 
 type serviceTest struct { //nolint: unused,deadcode
 	client  agentpb.AgentClient
@@ -142,9 +121,6 @@ func setupServiceTest(t *testing.T) *serviceTest { //nolint: unused,deadcode
 		logHook: logHook,
 	}
 
-	ctx := context.Background()
-	test.createTestNodes(ctx, t)
-
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		return ctx
@@ -171,28 +147,23 @@ func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
 
 func TestGetAgent(t *testing.T) {
 	for _, tt := range []struct {
-		name          string
-		req           *agentpb.GetAgentRequest
-		expectedAgent *types.Agent
-		expectedCode  codes.Code
-		err           string
-		logMsg        string
-		dsError       error
+		name    string
+		req     *agentpb.GetAgentRequest
+		agent   *types.Agent
+		code    codes.Code
+		err     string
+		logs    []spiretest.LogEntry
+		dsError error
 	}{
 		{
-			name:          "success 1",
-			req:           &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"}},
-			expectedAgent: expectedAgents[agent1],
+			name:  "success agent-1",
+			req:   &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"}},
+			agent: expectedAgents[agent1],
 		},
 		{
-			name:          "success 2",
-			req:           &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-2"}},
-			expectedAgent: expectedAgents[agent2],
-		},
-		{
-			name:          "success 3",
-			req:           &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-3"}},
-			expectedAgent: expectedAgents[agent3],
+			name:  "success agent-2",
+			req:   &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-2"}},
+			agent: expectedAgents[agent2],
 		},
 		{
 			name: "success - with mask",
@@ -202,7 +173,7 @@ func TestGetAgent(t *testing.T) {
 					X509SvidExpiresAt:    true,
 					X509SvidSerialNumber: true,
 				}},
-			expectedAgent: &types.Agent{
+			agent: &types.Agent{
 				Id:                   expectedAgents[agent1].Id,
 				AttestationType:      expectedAgents[agent1].AttestationType,
 				X509SvidExpiresAt:    expectedAgents[agent1].X509SvidExpiresAt,
@@ -213,53 +184,90 @@ func TestGetAgent(t *testing.T) {
 			name: "success - with all false mask",
 			req: &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"},
 				OutputMask: &types.AgentMask{}},
-			expectedAgent: &types.Agent{
+			agent: &types.Agent{
 				Id: expectedAgents[agent1].Id,
 			},
 		},
 		{
-			name:   "no SPIFFE ID",
-			req:    &agentpb.GetAgentRequest{},
-			logMsg: "Failed to parse SPIFFE ID",
-			err:    "request must specify SPIFFE ID",
+			name: "no SPIFFE ID",
+			req:  &agentpb.GetAgentRequest{},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to parse SPIFFE ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "request must specify SPIFFE ID",
+					},
+				},
+			},
+			err:  "request must specify SPIFFE ID",
+			code: codes.InvalidArgument,
 		},
 		{
-			name:   "invalid SPIFFE ID",
-			req:    &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "invalid domain"}},
-			logMsg: "Failed to parse SPIFFE ID",
-			err:    `spiffeid: unable to parse: parse spiffe://invalid domain: invalid character " " in host name`,
+			name: "invalid SPIFFE ID",
+			req:  &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "invalid domain"}},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to parse SPIFFE ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "spiffeid: unable to parse: parse spiffe://invalid domain: invalid character \" \" in host name",
+					},
+				},
+			},
+			err:  `spiffeid: unable to parse: parse spiffe://invalid domain: invalid character " " in host name`,
+			code: codes.InvalidArgument,
 		},
 		{
-			name:         "agent does not exist",
-			req:          &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/does-not-exist"}},
-			logMsg:       "Agent not found",
-			err:          "agent not found",
-			expectedCode: codes.NotFound,
+			name: "agent does not exist",
+			req:  &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/does-not-exist"}},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Agent not found",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://example.org/does-not-exist",
+					},
+				},
+			},
+			err:  "agent not found",
+			code: codes.NotFound,
 		},
 		{
-			name:         "datastore error",
-			req:          &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"}},
-			err:          "failed to fetch node: datastore error",
-			expectedCode: codes.Internal,
-			dsError:      errors.New("datastore error"),
+			name: "datastore error",
+			req:  &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"}},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch node",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "datastore error",
+						telemetry.SPIFFEID: "spiffe://example.org/agent-1",
+					},
+				},
+			},
+			err:     "failed to fetch node: datastore error",
+			code:    codes.Internal,
+			dsError: errors.New("datastore error"),
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
-			test.ds.SetError(tt.dsError)
+			test.createTestNodes(ctx, t)
+			test.ds.SetNextError(tt.dsError)
 			agent, err := test.client.GetAgent(context.Background(), tt.req)
-
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.logs)
 			if tt.err != "" {
 				require.Nil(t, agent)
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.err)
-				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
 				return
 			}
 
 			require.NoError(t, err)
-			spiretest.AssertProtoEqual(t, tt.expectedAgent, agent)
+			spiretest.AssertProtoEqual(t, tt.agent, agent)
 		})
 	}
 }
