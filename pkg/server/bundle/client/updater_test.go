@@ -73,7 +73,7 @@ func TestBundleUpdater(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			ds := fakedatastore.New()
+			ds := fakedatastore.New(t)
 
 			if testCase.localBundle != nil {
 				_, err := ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{

@@ -74,7 +74,7 @@ func (s *BundleSuite) SetupTest() {
 	s.stdout = new(bytes.Buffer)
 	s.stderr = new(bytes.Buffer)
 
-	s.ds = fakedatastore.New()
+	s.ds = fakedatastore.New(s.T())
 	s.registrationClient = fakeregistrationclient.New(s.T(), "spiffe://example.test", s.ds, nil)
 
 	testEnv := &env{
@@ -340,7 +340,7 @@ func (s *BundleSuite) TestDeleteWithRestrictMode() {
 	})
 
 	s.Require().Equal(1, s.deleteCmd.Run([]string{"-id", "spiffe://domain1.test"}))
-	s.Require().Equal("rpc error: code = Internal desc = cannot delete bundle; federated with 1 registration entries\n", s.stderr.String())
+	s.Require().Equal("rpc error: code = Internal desc = rpc error: code = Unknown desc = datastore-sql: cannot delete bundle; federated with 1 registration entries\n", s.stderr.String())
 
 	_, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 		TrustDomainId: "spiffe://domain1.test",

@@ -304,14 +304,14 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert bundle: %v", err),
 		}
 	}
+
 	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: dsBundle,
 	})
-
 	switch status.Code(err) {
 	case codes.OK:
 	case codes.AlreadyExists:
-		log.WithError(err).Error("Bundle already exists")
+		log.Error("Bundle already exists")
 		return &bundle.BatchCreateFederatedBundleResponse_Result{
 			Status: api.CreateStatus(codes.AlreadyExists, "bundle already exists"),
 		}
@@ -436,9 +436,9 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 	switch status.Code(err) {
 	case codes.OK:
 	case codes.NotFound:
-		log.WithError(err).Error("Bundle not found")
+		log.Error("Bundle not found")
 		return &bundle.BatchUpdateFederatedBundleResponse_Result{
-			Status: api.CreateStatus(codes.NotFound, "bundle not found: %v", err),
+			Status: api.CreateStatus(codes.NotFound, "bundle not found"),
 		}
 	default:
 		log.WithError(err).Error("Unable to update bundle")
@@ -519,7 +519,7 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string)
 		}
 	case codes.NotFound:
 		return &bundle.BatchDeleteFederatedBundleResponse_Result{
-			Status:      api.StatusFromError(err),
+			Status:      api.CreateStatus(codes.NotFound, "bundle not found"),
 			TrustDomain: trustDomain,
 		}
 	default:

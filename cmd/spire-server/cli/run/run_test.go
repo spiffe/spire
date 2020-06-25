@@ -33,6 +33,11 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
+	assert.Equal(t, len(c.Server.Federation.FederatesWith), 2)
+	assert.Equal(t, c.Server.Federation.FederatesWith["spiffe://domain1.test"].BundleEndpoint.Address, "1.2.3.4")
+	assert.True(t, c.Server.Federation.FederatesWith["spiffe://domain1.test"].BundleEndpoint.UseWebPKI)
+	assert.Equal(t, c.Server.Federation.FederatesWith["spiffe://domain2.test"].BundleEndpoint.Address, "5.6.7.8")
+	assert.Equal(t, c.Server.Federation.FederatesWith["spiffe://domain2.test"].BundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -682,31 +687,38 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg: "bundle endpoint is parsed and configured correctly",
 			input: func(c *Config) {
-				c.Server.Experimental.BundleEndpointEnabled = true
-				c.Server.Experimental.BundleEndpointAddress = "192.168.1.1"
-				c.Server.Experimental.BundleEndpointPort = 1337
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: &bundleEndpointConfig{
+						Address: "192.168.1.1",
+						Port:    1337,
+					},
+				}
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.True(t, c.Experimental.BundleEndpointEnabled)
-				require.Equal(t, "192.168.1.1", c.Experimental.BundleEndpointAddress.IP.String())
-				require.Equal(t, 1337, c.Experimental.BundleEndpointAddress.Port)
+				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
+				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
 			},
 		},
 		{
 			msg: "bundle federates with section is parsed and configured correctly",
 			input: func(c *Config) {
-				c.Server.Experimental.FederatesWith = map[string]federatesWithConfig{
-					"spiffe://domain1.test": {
-						BundleEndpointAddress:  "192.168.1.1",
-						BundleEndpointPort:     1337,
-						BundleEndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
-						UseWebPKI:              false,
-					},
-					"spiffe://domain2.test": {
-						BundleEndpointAddress:  "192.168.1.1",
-						BundleEndpointSpiffeID: "THIS SHOULD BE IGNORED",
-						BundleEndpointPort:     1337,
-						UseWebPKI:              true,
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"spiffe://domain1.test": {
+							BundleEndpoint: federatesWithBundleEndpointConfig{
+								Address:   "192.168.1.1",
+								Port:      1337,
+								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
+								UseWebPKI: false,
+							},
+						},
+						"spiffe://domain2.test": {
+							BundleEndpoint: federatesWithBundleEndpointConfig{
+								Address:   "192.168.1.1",
+								Port:      1337,
+								UseWebPKI: true,
+							},
+						},
 					},
 				}
 			},
@@ -721,7 +733,28 @@ func TestNewServerConfig(t *testing.T) {
 						EndpointAddress: "192.168.1.1:1337",
 						UseWebPKI:       true,
 					},
-				}, c.Experimental.FederatesWith)
+				}, c.Federation.FederatesWith)
+			},
+		},
+		{
+			msg:         "bundle federates with section uses Web PKI and SpiffeID",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"spiffe://domain1.test": {
+							BundleEndpoint: federatesWithBundleEndpointConfig{
+								Address:   "192.168.1.1",
+								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
+								Port:      1337,
+								UseWebPKI: true,
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{
@@ -930,29 +963,39 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "plugins section must be configured",
 		},
 		{
-			name: "if ACME is used, bundle_endpoint_acme domain_name must be configured",
+			name: "if ACME is used, federation.bundle_endpoint.acme.domain_name must be configured",
 			applyConf: func(c *Config) {
-				c.Server.Experimental.BundleEndpointACME = &bundleEndpointACMEConfig{}
-			},
-			expectedErr: "bundle_endpoint_acme domain_name must be configured",
-		},
-		{
-			name: "if ACME is used, bundle_endpoint_acme email must be configured",
-			applyConf: func(c *Config) {
-				c.Server.Experimental.BundleEndpointACME = &bundleEndpointACMEConfig{
-					DomainName: "domain-name",
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: &bundleEndpointConfig{
+						ACME: &bundleEndpointACMEConfig{},
+					},
 				}
 			},
-			expectedErr: "bundle_endpoint_acme email must be configured",
+			expectedErr: "federation.bundle_endpoint.acme.domain_name must be configured",
 		},
 		{
-			name: "if FederatesWith is used, bundle_endpoint_address must be configured",
+			name: "if ACME is used, federation.bundle_endpoint.acme.email must be configured",
+			applyConf: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: &bundleEndpointConfig{
+						ACME: &bundleEndpointACMEConfig{
+							DomainName: "domain-name",
+						},
+					},
+				}
+			},
+			expectedErr: "federation.bundle_endpoint.acme.email must be configured",
+		},
+		{
+			name: "if FederatesWith is used, federation.bundle_endpoint.address must be configured",
 			applyConf: func(c *Config) {
 				federatesWith := make(map[string]federatesWithConfig)
 				federatesWith["spiffe://domain.test"] = federatesWithConfig{}
-				c.Server.Experimental.FederatesWith = federatesWith
+				c.Server.Federation = &federationConfig{
+					FederatesWith: federatesWith,
+				}
 			},
-			expectedErr: "spiffe://domain.test bundle_endpoint_address must be configured",
+			expectedErr: "federation.federates_with[\"spiffe://domain.test\"].bundle_endpoint.address must be configured",
 		},
 		{
 			name:        "deprecated configurable `svid_ttl` must not be set",
@@ -1007,8 +1050,18 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
 		//	expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		//},
+		//{
+		//	msg:            "in nested federation block",
+		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_federation_block.conf", testFileDir),
+		//	expectedLogMsg: "Detected unknown federation config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//},
 		{
-			msg:            "in nested bundle_endpoint_acme block",
+			msg:            "in nested federation.bundle_endpoint block",
+			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_block.conf", testFileDir),
+			expectedLogMsg: "Detected unknown federation config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		},
+		{
+			msg:            "in nested bundle_endpoint.acme block",
 			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_acme_block.conf", testFileDir),
 			expectedLogMsg: "Detected unknown ACME config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
 		},

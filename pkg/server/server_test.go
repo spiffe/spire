@@ -22,7 +22,7 @@ type ServerTestSuite struct {
 }
 
 func (suite *ServerTestSuite) SetupTest() {
-	suite.ds = fakedatastore.New()
+	suite.ds = fakedatastore.New(suite.T())
 
 	suite.stdout = new(bytes.Buffer)
 	logrusLevel, err := logrus.ParseLevel("DEBUG")
@@ -68,7 +68,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.NoError(err)
 
 	// create attested node with current trust domain
-	_, err = ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+	nodeResp, err := ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
 			SpiffeId:            "spiffe://test.com/host",
 			AttestationDataType: "fake_nodeattestor_1",
@@ -95,7 +95,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.server.config.TrustDomain = *uri
 
 	// Create a registration entry with original trust domain
-	_, err = ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+	entryResp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &common.RegistrationEntry{
 			SpiffeId:  "spiffe://test.com/foo",
 			Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
@@ -113,8 +113,12 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.EqualError(err, fmt.Sprintf(invalidTrustDomainRegistrationEntry, "test.com", "new_test.com"))
 
 	// Create a registration entry with an invalid url
+	_, err = ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
+		EntryId: entryResp.Entry.EntryId,
+	})
+	suite.NoError(err)
 	suite.server.config.TrustDomain = *uri
-	resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+	entryResp, err = ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &common.RegistrationEntry{
 			SpiffeId:  "spiffe://inv%ild/test",
 			Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
@@ -122,17 +126,23 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	})
 	suite.NoError(err)
 	err = suite.server.validateTrustDomain(ctx, ds)
-	expectedError := fmt.Sprintf(invalidSpiffeIDRegistrationEntry, resp.Entry.EntryId, "")
-	suite.Contains(err.Error(), expectedError)
+	expectedError := fmt.Sprintf(invalidSpiffeIDRegistrationEntry, entryResp.Entry.EntryId, "")
+	if suite.Error(err) {
+		suite.Contains(err.Error(), expectedError)
+	}
 
 	// remove entry to solve error
 	_, err = ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
-		EntryId: resp.Entry.EntryId,
+		EntryId: entryResp.Entry.EntryId,
 	})
 	suite.NoError(err)
 
 	// create attested node with current trust domain
 	// drop resp
+	_, err = ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{
+		SpiffeId: nodeResp.Node.SpiffeId,
+	})
+	suite.NoError(err)
 	_, err = ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
 			SpiffeId:            "spiffe://inv%ild/host",

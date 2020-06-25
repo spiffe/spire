@@ -56,6 +56,7 @@ This may be useful for templating configuration files, for example across differ
 | `ca_subject`                | The Subject that CA certificates should use (see below)                       |                               |
 | `ca_ttl`                    | The default CA/signing key TTL                                                | 24h                           |
 | `data_dir`                  | A directory the server can use for its runtime                                |                               |
+| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)|                      |
 | `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                  |                               |
 | `log_file`                  | File to write logs to                                                         |                               |
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                           | INFO                          |
@@ -95,6 +96,78 @@ The following configuration options are available to configure a plugin:
 | plugin_data     | Plugin-specific data                     |
 
 Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
+
+## Federation configuration
+
+SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.  
+A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.  
+Using the `federation` section you will be able to configure the bundle endpoints as follows:
+```hcl
+server {
+    .
+    .
+    .
+    federation {
+        bundle_endpoint {
+            address = "0.0.0.0"
+            port = 8443
+            acme {
+                domain_name = "example.org"
+                email = "mail@example.org"
+            }
+        }
+        federates_with "spiffe://domain1.test" {
+            bundle_endpoint {
+                address = "1.2.3.4"
+                port = 8443
+                use_web_pki = true
+            }
+        }
+        federates_with "spiffe://domain.test" {
+            bundle_endpoint {
+                address = "5.6.7.8"
+                port = 8443
+                spiffe_id = "spiffe://domain.test/beserver"
+            }
+        }
+    }
+}
+```
+Worth noting that the `federation.bundle_endpoint` and `federation.federates_with` sections are both optional.
+
+### Configuration options for `federation.bundle_endpoint`
+This optional section contains the configurables used by SPIRE Server to expose a bundle endpoint.
+
+| Configuration   | Description                                                                    |
+| --------------- | ------------------------------------------------------------------------------ |
+| address         | IP address where this server will listen for HTTP requests                     |
+| port            | TCP port number where this server will listen for HTTP requests                |
+| acme            | Automated Certificate Management Environment configuration section (see below) |
+
+### Configuration options for `federation.bundle_endpoint.acme`
+
+| Configuration   | Description                                                                                                               | Default                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| directory_url   | Directory endpoint URL                                                                                                    | "https://acme-v02.api.letsencrypt.org/directory" |
+| domain_name     | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                  |
+| email           | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                  |
+| tos_accepted    | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                            |
+
+### Configuration options for `federation.federates_with["<trust domain>"].bundle_endpoint`
+
+The optional `federates_with` section is a map of `bundle_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
+
+| Configuration   | Description                                                                                                                       | Default                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------| ---------------------------------------------------- |
+| address         | IP or DNS name of the bundle endpoint that provides the trust bundle to federate with `"<trust domain>"`                          |                                                      |
+| port            | Port number of the bundle endpoint                                                                                                | 443                                                  |
+| spiffe_id       | Expected SPIFFE ID of the bundle endpoint server. This is ignored if use_web_pki is true                                          | SPIRE Server SPIFFE ID within the `"<trust domain>"` |
+| use_web_pki     | If true, indicates that this server must use Web PKI to authenticate the bundle endpoint, otherwise SPIFFE authentication is used | false                                                |
+
+To clarify, `address` and `port` are used to form the bundle endpoint URL to federate with `"<trust domain>"` as follows:
+```
+https://<address>:<port>/
+```
 
 ## Telemetry configuration
 
