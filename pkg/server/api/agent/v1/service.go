@@ -48,7 +48,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 	reqID, err := api.IDFromProto(req.Id)
 	if err != nil {
 		log.WithError(err).Error("Failed to parse SPIFFE ID")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse SPIFFE ID: %v", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, reqID.String())
