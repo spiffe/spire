@@ -3,6 +3,7 @@ package spire.api.server.agent.v1;
 option go_package = "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1;agent";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 import "spire-next/types/agent.proto";
 import "spire-next/types/attestation.proto";
 import "spire-next/types/jointoken.proto";
@@ -63,7 +64,7 @@ message ListAgentsRequest {
         spire.types.SelectorMatch by_selector_match = 2;
 
         // Filters agents to those that are banned.
-        bool by_banned = 3;
+        google.protobuf.BoolValue by_banned = 3;
     }
 
     // Filters the agents returned by the list operation.
