@@ -1218,7 +1218,7 @@ func (h *Handler) isBanned(ctx context.Context, agentID string) (bool, error) {
 		SpiffeId: agentID,
 	})
 	if err != nil {
-		return false, fmt.Errorf("failed to fetch node: %v", err)
+		return false, fmt.Errorf("failed to fetch attested node: %v", err)
 	}
 
 	if resp.Node == nil {
