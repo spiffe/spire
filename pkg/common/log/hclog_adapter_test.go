@@ -3,20 +3,12 @@ package log
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHCLogAdapterImpliedArgs(t *testing.T) {
-	testHook := test.Hook{}
-
-	// Set up a logger with a test hook
-	logger, err := NewLogger(WithLevel("warning"),
-		func(logger *Logger) error {
-			logger.AddHook(&testHook)
-			return nil
-		})
+	logger, err := NewLogger()
 	require.NoError(t, err)
 
 	adapter := NewHCLogAdapter(logger, "test")
