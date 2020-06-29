@@ -48,6 +48,9 @@ message AttestedNode {
 
     // Node certificate not_after (seconds since unix epoch)
     int64 new_cert_not_after = 6;
+
+    // Node selectors
+    repeated Selector selectors = 7;
 }
 
 /** This is a curated record that the Server uses to set up and

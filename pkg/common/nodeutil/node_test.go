@@ -9,11 +9,6 @@ import (
 )
 
 func TestIsAgentBanned(t *testing.T) {
-	require.True(t, nodeutil.IsAgentBanned(common.AttestedNode{}))
-	require.False(t, nodeutil.IsAgentBanned(common.AttestedNode{CertSerialNumber: "non-empty-serial"}))
-	require.False(t, nodeutil.IsAgentBanned(common.AttestedNode{NewCertSerialNumber: "non-empty-serial"}))
-	require.False(t, nodeutil.IsAgentBanned(common.AttestedNode{
-		CertSerialNumber:    "non-empty-serial",
-		NewCertSerialNumber: "non-empty-serial",
-	}))
+	require.True(t, nodeutil.IsAgentBanned(&common.AttestedNode{}))
+	require.False(t, nodeutil.IsAgentBanned(&common.AttestedNode{CertSerialNumber: "non-empty-serial"}))
 }

@@ -69,7 +69,7 @@ func AttestedNodeToProto(node *common.AttestedNode, selectors []*types.Selector)
 		X509SvidSerialNumber: node.CertSerialNumber,
 		X509SvidExpiresAt:    node.CertNotAfter,
 		Selectors:            selectors,
-		Banned:               nodeutil.IsAgentBanned(*node),
+		Banned:               nodeutil.IsAgentBanned(node),
 	}, nil
 }
 
