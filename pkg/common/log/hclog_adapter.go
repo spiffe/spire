@@ -89,7 +89,7 @@ func (a *HCLogAdapter) SetLevel(hclog.Level) {
 
 func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
 	e := a.CreateEntry(args)
-	newArgs := make([]interface{}, 0, len(a.args)+len(args))
+	newArgs := make([]interface{}, len(a.args)+len(args))
 	copy(newArgs, a.args)
 	copy(newArgs[len(a.args):], args)
 	return &HCLogAdapter{
