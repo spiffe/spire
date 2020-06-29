@@ -1115,7 +1115,7 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 	fetchSelectors := req.FetchSelectors || req.BySelectorMatch != nil
 
 	// Creates filtered nodes, `true` is added to simplify code, all filters will start with `AND`
-	builder.WriteString("WITH filtered_nodes AS (\n")
+	builder.WriteString("\nWITH filtered_nodes AS (\n")
 	builder.WriteString("\tSELECT * FROM attested_node_entries WHERE true\n")
 
 	// Filter by pagination token
@@ -1193,13 +1193,14 @@ SELECT
 	}
 
 	// Choose what table will be used
-	fromQuery := "\nFROM filtered_nodes\n"
+	fromQuery := "FROM filtered_nodes"
 	if fetchSelectors {
-		fromQuery = "\nFROM filtered_nodes_and_selectors\n"
+		fromQuery = "FROM filtered_nodes_and_selectors"
 	}
 
+	builder.WriteString("\n")
 	builder.WriteString(fromQuery)
-	builder.WriteString("WHERE id IN (\n")
+	builder.WriteString("\nWHERE id IN (\n")
 
 	// MySQL requires a subquery in order to apply pagination
 	if req.Pagination != nil && dbType == MySQL {
@@ -1211,16 +1212,17 @@ SELECT
 		// Select IDs, that will be used to fetch "paged" entrieSelect IDs, that will be used to fetch "paged" entries
 		builder.WriteString("\tSELECT DISTINCT id FROM (\n")
 
-		query := "SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?\n"
+		query := "SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?"
 
 		switch req.BySelectorMatch.Match {
 		case datastore.BySelectors_MATCH_SUBSET:
 			// Subset needs a union, so we need to group them and add the group
 			// as a child to the root
 			for i := range req.BySelectorMatch.Selectors {
+				builder.WriteString("\t\t")
 				builder.WriteString(query)
 				if i < (len(req.BySelectorMatch.Selectors) - 1) {
-					builder.WriteString("\t\tUNION\n")
+					builder.WriteString("\n\t\tUNION\n")
 				}
 			}
 		case datastore.BySelectors_MATCH_EXACT:
@@ -1243,7 +1245,7 @@ SELECT
 					builder.WriteString("\t\t")
 					builder.WriteString(query)
 					if i < (len(req.BySelectorMatch.Selectors) - 1) {
-						builder.WriteString("\t\tINTERSECT\n")
+						builder.WriteString("\n\t\tINTERSECT\n")
 					}
 				}
 			}
@@ -1264,6 +1266,7 @@ SELECT
 		} else {
 			builder.WriteString("\t\tSELECT id ")
 		}
+		builder.WriteString("\n\t\t")
 		builder.WriteString(fromQuery)
 	}
 
@@ -1422,7 +1425,7 @@ FROM attested_node_entries N
 		} else {
 			builder.WriteString("\t)\n")
 		}
-		builder.WriteString(") ORDER BY e_id, S.id \n")
+		builder.WriteString(") ORDER BY e_id, S.id\n")
 	} else {
 		if err := writeFilter(); err != nil {
 			return "", nil, err
@@ -1431,6 +1434,7 @@ FROM attested_node_entries N
 			builder.WriteString(" ORDER BY N.id ASC LIMIT ")
 			builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
 		}
+		builder.WriteString("\n")
 	}
 
 	return builder.String(), args, nil
