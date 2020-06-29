@@ -618,6 +618,29 @@ func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
+func (s *HandlerSuite) TestAttestBannedAgent() {
+	attestor := fakeservernodeattestor.Config{
+		Data:          map[string]string{"data": agentID},
+		ReturnLiteral: true,
+	}
+
+	s.addAttestor(attestor)
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR(agentID),
+	}, agentID)
+
+	// Ban the agent
+	s.updateAttestedNode(agentID, "", s.clock.Now())
+
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR(agentID),
+	}, codes.PermissionDenied, "agent is banned")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
+}
+
 func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
 	s.requireFetchX509SVIDAuthFailure()
 }
