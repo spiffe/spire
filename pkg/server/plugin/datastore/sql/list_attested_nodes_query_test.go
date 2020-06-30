@@ -11,11 +11,47 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	pagedNames    = []string{"", "with-token", "no-token"}
+	filterByNames = []string{"", "expires-before", "selector-subset-one", "selector-subset-many", "selector-exact-one", "selector-exact-many", "attestation-type", "banned", "no-banned", "fetch-selectors"}
+)
+
+type filterBy int
+
+const (
+	noFilter filterBy = iota
+	byExpiresBefore
+	bySelectorSubsetOne
+	bySelectorSubsetMany
+	bySelectorExactOne
+	bySelectorExactMany
+	byAttestationType
+	byBanned
+	byNoBanned
+	byFetchSelectors
+)
+
+func (f filterBy) String() string {
+	return filterByNames[f]
+}
+
+type paged int
+
+const (
+	noPaged paged = iota
+	withToken
+	withNoToken
+)
+
+func (p paged) String() string {
+	return pagedNames[p]
+}
+
 func TestListAttestedNodesQuery(t *testing.T) {
 	for _, tt := range []struct {
 		dialect     string
-		paged       string
-		by          []string
+		paged       paged
+		by          []filterBy
 		supportsCTE bool
 		query       string
 	}{
@@ -43,7 +79,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			paged:   "no-token",
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -66,7 +102,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			paged:   "with-token",
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -89,7 +125,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"expires-before"},
+			by:      []filterBy{byExpiresBefore},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -113,7 +149,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"selector-subset-one"},
+			by:      []filterBy{bySelectorSubsetOne},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -148,7 +184,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"selector-subset-many"},
+			by:      []filterBy{bySelectorSubsetMany},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -185,7 +221,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"selector-exact-one"},
+			by:      []filterBy{bySelectorExactOne},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -220,7 +256,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"selector-exact-many"},
+			by:      []filterBy{bySelectorExactMany},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -257,7 +293,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"attestation-type"},
+			by:      []filterBy{byAttestationType},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -281,7 +317,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"banned-true"},
+			by:      []filterBy{byBanned},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -305,7 +341,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"banned-false"},
+			by:      []filterBy{byNoBanned},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -329,7 +365,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"fetch-selectors"},
+			by:      []filterBy{byFetchSelectors},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -363,8 +399,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"fetch-selectors"},
-			paged:   "no-token",
+			by:      []filterBy{byFetchSelectors},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -398,8 +434,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"fetch-selectors"},
-			paged:   "with-token",
+			by:      []filterBy{byFetchSelectors},
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -433,8 +469,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"selector-exact-many"},
-			paged:   "no-token",
+			by:      []filterBy{bySelectorExactMany},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -471,8 +507,9 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"selector-exact-many"},
-			paged:   "with-token", query: `
+			by:      []filterBy{bySelectorExactMany},
+			paged:   withToken,
+			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 		AND id > ?), filtered_nodes_and_selectors AS (
@@ -508,8 +545,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"attestation-type"},
-			paged:   "no-token",
+			by:      []filterBy{byAttestationType},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -533,8 +570,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"attestation-type"},
-			paged:   "with-token",
+			by:      []filterBy{byAttestationType},
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -558,8 +595,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:   "with-token",
+			by:      []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -599,8 +636,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "sqlite3",
-			by:      []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:   "no-token",
+			by:      []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -662,7 +699,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			paged:   "no-token",
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -685,7 +722,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			paged:   "with-token",
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -708,7 +745,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"expires-before"},
+			by:      []filterBy{byExpiresBefore},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -732,7 +769,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"selector-subset-one"},
+			by:      []filterBy{bySelectorSubsetOne},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -767,7 +804,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"selector-subset-many"},
+			by:      []filterBy{bySelectorSubsetMany},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -804,7 +841,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"selector-exact-one"},
+			by:      []filterBy{bySelectorExactOne},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -839,7 +876,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"selector-exact-many"},
+			by:      []filterBy{bySelectorExactMany},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -876,7 +913,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"attestation-type"},
+			by:      []filterBy{byAttestationType},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -900,7 +937,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"banned-true"},
+			by:      []filterBy{byBanned},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -924,7 +961,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"banned-false"},
+			by:      []filterBy{byNoBanned},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -948,7 +985,7 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"fetch-selectors"},
+			by:      []filterBy{byFetchSelectors},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -982,8 +1019,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"fetch-selectors"},
-			paged:   "no-token",
+			by:      []filterBy{byFetchSelectors},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1017,8 +1054,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"fetch-selectors"},
-			paged:   "with-token",
+			by:      []filterBy{byFetchSelectors},
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1052,8 +1089,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"selector-exact-many"},
-			paged:   "no-token",
+			by:      []filterBy{bySelectorExactMany},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1090,8 +1127,9 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"selector-exact-many"},
-			paged:   "with-token", query: `
+			by:      []filterBy{bySelectorExactMany},
+			paged:   withToken,
+			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 		AND id > $1), filtered_nodes_and_selectors AS (
@@ -1127,8 +1165,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"attestation-type"},
-			paged:   "no-token",
+			by:      []filterBy{byAttestationType},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1152,8 +1190,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"attestation-type"},
-			paged:   "with-token",
+			by:      []filterBy{byAttestationType},
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1177,8 +1215,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:   "with-token",
+			by:      []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:   withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1218,8 +1256,8 @@ WHERE id IN (
 `},
 		{
 			dialect: "postgres",
-			by:      []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:   "no-token",
+			by:      []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:   withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1275,7 +1313,7 @@ WHERE true
 `},
 		{
 			dialect: "mysql",
-			paged:   "no-token",
+			paged:   withNoToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1292,7 +1330,7 @@ WHERE true ORDER BY N.id ASC LIMIT 1
 `},
 		{
 			dialect: "mysql",
-			paged:   "with-token",
+			paged:   withToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1309,7 +1347,7 @@ WHERE true AND N.id > ? ORDER BY N.id ASC LIMIT 1
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"expires-before"},
+			by:      []filterBy{byExpiresBefore},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1326,7 +1364,7 @@ WHERE true AND N.expires_at < ?
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"selector-subset-one"},
+			by:      []filterBy{bySelectorSubsetOne},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1355,7 +1393,7 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"selector-subset-many"},
+			by:      []filterBy{bySelectorSubsetMany},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1386,7 +1424,7 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"selector-exact-one"},
+			by:      []filterBy{bySelectorExactOne},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1414,7 +1452,7 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"selector-exact-many"},
+			by:      []filterBy{bySelectorExactMany},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1445,7 +1483,7 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"attestation-type"},
+			by:      []filterBy{byAttestationType},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1462,7 +1500,7 @@ WHERE true AND N.data_type = ?
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"banned-true"},
+			by:      []filterBy{byBanned},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1479,7 +1517,7 @@ WHERE true AND N.serial_number = ''
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"banned-false"},
+			by:      []filterBy{byNoBanned},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1496,7 +1534,7 @@ WHERE true AND N.serial_number <> ''
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"fetch-selectors"},
+			by:      []filterBy{byFetchSelectors},
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1521,8 +1559,8 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"fetch-selectors"},
-			paged:   "no-token",
+			by:      []filterBy{byFetchSelectors},
+			paged:   withNoToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1549,8 +1587,8 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"fetch-selectors"},
-			paged:   "with-token",
+			by:      []filterBy{byFetchSelectors},
+			paged:   withToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1577,8 +1615,8 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"selector-exact-many"},
-			paged:   "no-token",
+			by:      []filterBy{bySelectorExactMany},
+			paged:   withNoToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1611,8 +1649,9 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"selector-exact-many"},
-			paged:   "with-token", query: `
+			by:      []filterBy{bySelectorExactMany},
+			paged:   withToken,
+			query: `
 SELECT 
 	N.id as e_id,
 	N.spiffe_id,
@@ -1644,8 +1683,8 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"attestation-type"},
-			paged:   "no-token",
+			by:      []filterBy{byAttestationType},
+			paged:   withNoToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1662,8 +1701,8 @@ WHERE true AND N.data_type = ? ORDER BY N.id ASC LIMIT 1
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"attestation-type"},
-			paged:   "with-token",
+			by:      []filterBy{byAttestationType},
+			paged:   withToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1680,8 +1719,8 @@ WHERE true AND N.id > ? AND N.data_type = ? ORDER BY N.id ASC LIMIT 1
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:   "with-token",
+			by:      []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:   withToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1714,8 +1753,8 @@ WHERE N.id IN (
 `},
 		{
 			dialect: "mysql",
-			by:      []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:   "no-token",
+			by:      []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:   withNoToken,
 			query: `
 SELECT 
 	N.id as e_id,
@@ -1772,7 +1811,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			paged:       "no-token",
+			paged:       withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1798,7 +1837,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			paged:       "with-token",
+			paged:       withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1824,7 +1863,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"expires-before"},
+			by:          []filterBy{byExpiresBefore},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1849,7 +1888,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"selector-subset-one"},
+			by:          []filterBy{bySelectorSubsetOne},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1885,7 +1924,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"selector-subset-many"},
+			by:          []filterBy{bySelectorSubsetMany},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1923,7 +1962,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"selector-exact-one"},
+			by:          []filterBy{bySelectorExactOne},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -1960,7 +1999,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"selector-exact-many"},
+			by:          []filterBy{bySelectorExactMany},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2000,7 +2039,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"attestation-type"},
+			by:          []filterBy{byAttestationType},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2025,7 +2064,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"banned-true"},
+			by:          []filterBy{byBanned},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2050,7 +2089,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"banned-false"},
+			by:          []filterBy{byNoBanned},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2075,7 +2114,7 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"fetch-selectors"},
+			by:          []filterBy{byFetchSelectors},
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2110,8 +2149,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"fetch-selectors"},
-			paged:       "no-token",
+			by:          []filterBy{byFetchSelectors},
+			paged:       withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2148,8 +2187,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"fetch-selectors"},
-			paged:       "with-token",
+			by:          []filterBy{byFetchSelectors},
+			paged:       withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2186,8 +2225,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"selector-exact-many"},
-			paged:       "no-token",
+			by:          []filterBy{bySelectorExactMany},
+			paged:       withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2229,8 +2268,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"selector-exact-many"},
-			paged:       "with-token", query: `
+			by:          []filterBy{bySelectorExactMany},
+			paged:       withToken, query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 		AND id > ?), filtered_nodes_and_selectors AS (
@@ -2271,8 +2310,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"attestation-type"},
-			paged:       "no-token",
+			by:          []filterBy{byAttestationType},
+			paged:       withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2299,8 +2338,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"attestation-type"},
-			paged:       "with-token",
+			by:          []filterBy{byAttestationType},
+			paged:       withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2327,8 +2366,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:       "with-token",
+			by:          []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:       withToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2373,8 +2412,8 @@ WHERE id IN (
 		{
 			dialect:     "mysql",
 			supportsCTE: true,
-			by:          []string{"attestation-type", "banned-true", "selector-exact-many", "expires-before"},
-			paged:       "no-token",
+			by:          []filterBy{byAttestationType, byBanned, bySelectorExactMany, byExpiresBefore},
+			paged:       withNoToken,
 			query: `
 WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
@@ -2419,13 +2458,15 @@ WHERE id IN (
 	} {
 		tt := tt
 		name := tt.dialect + "-list-"
-		if len(tt.by) == 0 {
-
-		} else {
-			name += "by-" + strings.Join(tt.by, "-")
+		if len(tt.by) > 0 {
+			var byNames []string
+			for _, by := range tt.by {
+				byNames = append(byNames, by.String())
+			}
+			name += "by-" + strings.Join(byNames, "-")
 		}
-		if tt.paged != "" {
-			name += "-paged-" + tt.paged
+		if tt.paged != noPaged {
+			name += "-paged-" + tt.paged.String()
 		}
 		if tt.supportsCTE {
 			name += "-cte"
@@ -2434,61 +2475,56 @@ WHERE id IN (
 		t.Run(name, func(t *testing.T) {
 			req := new(datastore.ListAttestedNodesRequest)
 			switch tt.paged {
-			case "":
-			case "no-token":
+			case withNoToken:
 				req.Pagination = &datastore.Pagination{
 					PageSize: 1,
 				}
-			case "with-token":
+			case withToken:
 				req.Pagination = &datastore.Pagination{
 					PageSize: 1,
 					Token:    "2",
 				}
-			default:
-				require.FailNow(t, "unsupported page case: %q", tt.paged)
 			}
 
 			for _, by := range tt.by {
 				switch by {
-				case "expires-before":
+				case noFilter:
+				case byExpiresBefore:
 					req.ByExpiresBefore = &wrappers.Int64Value{
 						Value: expiresBefore,
 					}
-				case "selector-subset-one":
+				case bySelectorSubsetOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
 						Match:     datastore.BySelectors_MATCH_SUBSET,
 					}
-				case "selector-subset-many":
+				case bySelectorSubsetMany:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
 						Match:     datastore.BySelectors_MATCH_SUBSET,
 					}
-				case "selector-exact-one":
+				case bySelectorExactOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
 						Match:     datastore.BySelectors_MATCH_EXACT,
 					}
-				case "selector-exact-many":
+				case bySelectorExactMany:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
 						Match:     datastore.BySelectors_MATCH_EXACT,
 					}
-				case "attestation-type":
+				case byAttestationType:
 					req.ByAttestationType = "type1"
-				case "banned-true":
+				case byBanned:
 					req.ByBanned = &wrappers.BoolValue{
 						Value: true,
 					}
-				case "banned-false":
+				case byNoBanned:
 					req.ByBanned = &wrappers.BoolValue{
 						Value: false,
 					}
-				case "fetch-selectors":
+				case byFetchSelectors:
 					req.FetchSelectors = true
-
-				default:
-					require.FailNow(t, "unsupported by case: %q", by)
 				}
 			}
 
