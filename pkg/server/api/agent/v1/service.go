@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -23,19 +25,22 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	Datastore datastore.DataStore
+	Datastore   datastore.DataStore
+	TrustDomain spiffeid.TrustDomain
 }
 
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
 		ds: config.Datastore,
+		td: config.TrustDomain,
 	}
 }
 
 // Service implements the v1 agent service
 type Service struct {
 	ds datastore.DataStore
+	td spiffeid.TrustDomain
 }
 
 func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) (*agent.ListAgentsResponse, error) {
@@ -103,15 +108,21 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*types.Agent, error) {
 	log := rpccontext.Logger(ctx)
 
-	reqID, err := api.IDFromProto(req.Id)
+	agentID, err := api.IDFromProto(req.Id)
 	if err != nil {
-		log.WithError(err).Error("Failed to parse SPIFFE ID")
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse SPIFFE ID: %v", err)
+		log.WithError(err).Error("Failed to parse agent ID")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent ID: %v", err)
 	}
 
-	log = log.WithField(telemetry.SPIFFEID, reqID.String())
+	err = idutil.ValidateSpiffeID(agentID.String(), idutil.AllowTrustDomainAgent(s.td.String()))
+	if err != nil {
+		log.WithError(err).Error("Not a valid agent ID")
+		return nil, status.Errorf(codes.Internal, "not a valid agent ID: %v", err)
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, agentID.String())
 	resp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-		SpiffeId: reqID.String(),
+		SpiffeId: agentID.String(),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch node")
