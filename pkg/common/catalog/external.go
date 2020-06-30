@@ -108,10 +108,10 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Loaded
 		ext.Log.Warn("Plugin checksum not configured")
 	}
 
-	logger := log.HCLogAdapter{
-		Log:  ext.Log,
-		Name: telemetry.PluginExternal,
-	}
+	logger := log.NewHCLogAdapter(
+		ext.Log,
+		telemetry.PluginExternal,
+	)
 
 	hcPlugin := &hcClientPlugin{
 		ext: ext,
