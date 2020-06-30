@@ -89,13 +89,22 @@ func (a *HCLogAdapter) SetLevel(hclog.Level) {
 
 func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
 	e := a.CreateEntry(args)
-	newArgs := make([]interface{}, len(a.args)+len(args))
-	copy(newArgs, a.args)
-	copy(newArgs[len(a.args):], args)
 	return &HCLogAdapter{
 		log:  e,
-		args: newArgs,
+		args: concatFields(a.args, args),
 	}
+}
+
+// concatFields combines two sets of key/value pairs.
+// It allocates a new slice to avoid using append() and
+// accidentally overriding the original slice a, e.g.
+// when logger.With() is called multiple times to create
+// sub-scoped loggers.
+func concatFields(a, b []interface{}) []interface{} {
+	c := make([]interface{}, len(a)+len(b))
+	copy(c, a)
+	copy(c[len(a):], b)
+	return c
 }
 
 // ImpliedArgs returns With key/value pairs
