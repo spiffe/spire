@@ -2,8 +2,11 @@ package agent
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -22,19 +25,22 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	Datastore datastore.DataStore
+	Datastore   datastore.DataStore
+	TrustDomain spiffeid.TrustDomain
 }
 
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
 		ds: config.Datastore,
+		td: config.TrustDomain,
 	}
 }
 
 // Service implements the v1 agent service
 type Service struct {
 	ds datastore.DataStore
+	td spiffeid.TrustDomain
 }
 
 func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) (*agent.ListAgentsResponse, error) {
@@ -100,7 +106,48 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 }
 
 func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*types.Agent, error) {
-	return nil, status.Error(codes.Unimplemented, "method not implemented")
+	log := rpccontext.Logger(ctx)
+
+	agentID, err := api.IDFromProto(req.Id)
+	if err != nil {
+		log.WithError(err).Error("Failed to parse agent ID")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent ID: %v", err)
+	}
+
+	err = idutil.ValidateSpiffeID(agentID.String(), idutil.AllowTrustDomainAgent(s.td.String()))
+	if err != nil {
+		log.WithError(err).Error("Not a valid agent ID")
+		return nil, status.Errorf(codes.Internal, "not a valid agent ID: %v", err)
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, agentID.String())
+	resp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+		SpiffeId: agentID.String(),
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch node")
+		return nil, status.Errorf(codes.Internal, "failed to fetch node: %v", err)
+	}
+
+	if resp.Node == nil {
+		log.Error("Agent not found")
+		return nil, status.Error(codes.NotFound, "agent not found")
+	}
+
+	selectors, err := s.getSelectorsFromAgentID(ctx, resp.Node.SpiffeId)
+	if err != nil {
+		log.WithError(err).Error("Failed to get selectors from attested node")
+		return nil, status.Errorf(codes.Internal, "failed to get selectors from attested node: %v", err)
+	}
+
+	agent, err := api.AttestedNodeToProto(resp.Node, selectors)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert from attested node")
+		return nil, status.Errorf(codes.Internal, "failed to convert from attested node: %v", err)
+	}
+
+	applyMask(agent, req.OutputMask)
+	return agent, nil
 }
 
 func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*empty.Empty, error) {
@@ -146,4 +193,15 @@ func applyMask(a *types.Agent, mask *types.AgentMask) { //nolint: unused,deadcod
 	if !mask.Banned {
 		a.Banned = false
 	}
+}
+
+func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) ([]*types.Selector, error) {
+	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
+		SpiffeId: agentID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node selectors: %v", err)
+	}
+
+	return api.NodeSelectorsToProto(resp.Selectors)
 }

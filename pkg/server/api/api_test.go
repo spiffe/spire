@@ -7,7 +7,10 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,6 +87,101 @@ func TestStringValueFromSPIFFEID(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, testCase.expected, stringValue)
+		})
+	}
+}
+
+func TestAttestedNodeToProto(t *testing.T) {
+	testCases := []struct {
+		name      string
+		attNode   *common.AttestedNode
+		selectors []*types.Selector
+		agent     *types.Agent
+		err       string
+	}{
+		{
+			name: "success",
+			attNode: &common.AttestedNode{
+				SpiffeId:            "spiffe://example.org/agent",
+				AttestationDataType: "attestation-type",
+				CertSerialNumber:    "serial-number",
+				CertNotAfter:        1,
+			},
+			agent: &types.Agent{
+				Id:                   &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
+				AttestationType:      "attestation-type",
+				X509SvidSerialNumber: "serial-number",
+				X509SvidExpiresAt:    1,
+				Banned:               false,
+			},
+		},
+		{
+			name: "invalid SPIFFE ID",
+			attNode: &common.AttestedNode{
+				SpiffeId: "invalid",
+			},
+			err: "node has malformed SPIFFE ID: spiffeid: invalid scheme",
+		},
+		{
+			name: "missing node",
+			err:  "missing node",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			agent, err := api.AttestedNodeToProto(testCase.attNode, testCase.selectors)
+			if testCase.err != "" {
+				require.EqualError(t, err, testCase.err)
+				return
+			}
+			require.NoError(t, err)
+			spiretest.AssertProtoEqual(t, testCase.agent, agent)
+		})
+	}
+}
+
+func TestNodeSelectorsToProto(t *testing.T) {
+	testCases := []struct {
+		name          string
+		nodeSelectors *datastore.NodeSelectors
+		selectors     []*types.Selector
+		err           string
+	}{
+		{
+			name: "success",
+			nodeSelectors: &datastore.NodeSelectors{
+				SpiffeId: "spiffe://example.org/agent",
+				Selectors: []*common.Selector{
+					{
+						Type:  "type",
+						Value: "value",
+					},
+				},
+			},
+			selectors: []*types.Selector{
+				{
+					Type:  "type",
+					Value: "value",
+				},
+			},
+		},
+		{
+			name: "missing node selectors",
+			err:  "missing node selectors",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			selectors, err := api.NodeSelectorsToProto(testCase.nodeSelectors)
+			if testCase.err != "" {
+				require.EqualError(t, err, testCase.err)
+				return
+			}
+			require.Equal(t, testCase.selectors, selectors)
 		})
 	}
 }
