@@ -693,12 +693,12 @@ func TestDeleteAgent(t *testing.T) {
 		{
 			name:    "ds fails",
 			code:    codes.Internal,
-			err:     "failed to remove Agent: some error",
+			err:     "failed to remove agent: some error",
 			dsError: errors.New("some error"),
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to remove Agent",
+					Message: "Failed to remove agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "some error",
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/node1",

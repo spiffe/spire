@@ -183,8 +183,8 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 		log.WithError(err).Error("Agent not found")
 		return nil, status.Error(codes.NotFound, "agent not found")
 	default:
-		log.WithError(err).Error("Failed to remove Agent")
-		return nil, status.Errorf(codes.Internal, "failed to remove Agent: %v", err)
+		log.WithError(err).Error("Failed to remove agent")
+		return nil, status.Errorf(codes.Internal, "failed to remove agent: %v", err)
 	}
 }
 
