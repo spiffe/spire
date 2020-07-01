@@ -33,3 +33,12 @@ func StreamInterceptor(middleware Middleware) grpc.StreamServerInterceptor {
 		return err
 	}
 }
+
+type serverStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (ss serverStream) Context() context.Context {
+	return ss.ctx
+}

@@ -72,6 +72,8 @@ var (
 		TrustDomainId: otherDomainID,
 	}
 
+	irrelevantSelectors = []*common.Selector{{Type: "not", Value: "relevant"}}
+
 	testKey, _ = pemutil.ParseECPrivateKey([]byte(`
 -----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgUdF3LNDNZWKYQHFj
@@ -127,7 +129,7 @@ func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.
 
 	s.limiter = new(fakeLimiter)
 
-	s.ds = fakedatastore.New()
+	s.ds = fakedatastore.New(s.T())
 	s.catalog = fakeservercatalog.New()
 	s.catalog.SetDataStore(s.ds)
 	if upstreamAuthorityConfig != nil {
@@ -358,6 +360,7 @@ func (s *HandlerSuite) testAttestSuccess(csr []byte) {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:      agentID,
 		SpiffeId:      workloadID,
+		Selectors:     irrelevantSelectors,
 		FederatesWith: []string{otherDomainID},
 	})
 
@@ -607,9 +610,9 @@ func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
 		Csr:             s.makeCSR(agentID),
 	}, agentID)
 
-	s.Equal([]*common.Selector{
-		{Type: "test", Value: "test-resolver-value"},
+	s.ElementsMatch([]*common.Selector{
 		{Type: "test", Value: "test-attestor-value"},
+		{Type: "test", Value: "test-resolver-value"},
 	}, s.getNodeSelectors())
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
@@ -674,6 +677,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithNoCSRs() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:      agentID,
 		SpiffeId:      workloadID,
+		Selectors:     irrelevantSelectors,
 		FederatesWith: []string{otherDomainID},
 	})
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{})
@@ -689,6 +693,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithCache() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:      agentID,
 		SpiffeId:      workloadID,
+		Selectors:     irrelevantSelectors,
 		FederatesWith: []string{otherDomainID},
 	})
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{})
@@ -886,6 +891,7 @@ func (s *HandlerSuite) TestFetchX509CASVID() {
 	s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
+		Selectors:  irrelevantSelectors,
 		Downstream: true,
 		// add a DNS name. we'll assert it does not influence the CA certificate.
 		DnsNames: []string{"ca-dns1"},
@@ -910,8 +916,9 @@ func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
 	s.attestAgent()
 
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: agentID,
-		SpiffeId: workloadID,
+		ParentId:  agentID,
+		SpiffeId:  workloadID,
+		Selectors: irrelevantSelectors,
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -927,8 +934,9 @@ func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSRLegacy() {
 	s.attestAgent()
 
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: agentID,
-		SpiffeId: workloadID,
+		ParentId:  agentID,
+		SpiffeId:  workloadID,
+		Selectors: irrelevantSelectors,
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -946,9 +954,10 @@ func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNS() {
 	s.attestAgent()
 
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: agentID,
-		SpiffeId: workloadID,
-		DnsNames: dnsList,
+		ParentId:  agentID,
+		SpiffeId:  workloadID,
+		Selectors: irrelevantSelectors,
+		DnsNames:  dnsList,
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -968,9 +977,10 @@ func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNSLegacy() {
 	s.attestAgent()
 
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: agentID,
-		SpiffeId: workloadID,
-		DnsNames: dnsList,
+		ParentId:  agentID,
+		SpiffeId:  workloadID,
+		Selectors: irrelevantSelectors,
+		DnsNames:  dnsList,
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -990,9 +1000,10 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNS() {
 	s.attestAgent()
 
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: agentID,
-		SpiffeId: workloadID,
-		DnsNames: dnsList,
+		ParentId:  agentID,
+		SpiffeId:  workloadID,
+		Selectors: irrelevantSelectors,
+		DnsNames:  dnsList,
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -1012,9 +1023,10 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNSLegacy() {
 	s.attestAgent()
 
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: agentID,
-		SpiffeId: workloadID,
-		DnsNames: dnsList,
+		ParentId:  agentID,
+		SpiffeId:  workloadID,
+		Selectors: irrelevantSelectors,
+		DnsNames:  dnsList,
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -1096,8 +1108,9 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 	s.attestAgent()
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: agentID,
-		SpiffeId: workloadID,
+		ParentId:  agentID,
+		SpiffeId:  workloadID,
+		Selectors: irrelevantSelectors,
 	})
 
 	svid := s.requireFetchJWTSVIDSuccess(&node.FetchJWTSVIDRequest{
@@ -1142,6 +1155,7 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 	s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
+		Selectors:  irrelevantSelectors,
 		Downstream: true,
 	})
 
@@ -1181,6 +1195,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
+		Selectors:  irrelevantSelectors,
 		Downstream: true,
 	})
 
@@ -1207,6 +1222,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 	s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
+		Selectors:  irrelevantSelectors,
 		Downstream: true,
 	})
 
@@ -1270,6 +1286,7 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 	downstreamEntry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   agentID,
 		SpiffeId:   downstreamID,
+		Selectors:  irrelevantSelectors,
 		Downstream: true,
 	})
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
@@ -1310,6 +1327,13 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+
+	// banned agent
+	s.banAttestedNode(agentID)
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 }
@@ -1411,6 +1435,17 @@ func (s *HandlerSuite) updateAttestedNode(spiffeID, serialNumber string, notAfte
 		SpiffeId:         spiffeID,
 		CertSerialNumber: serialNumber,
 		CertNotAfter:     notAfter.Unix(),
+	})
+	s.Require().NoError(err)
+}
+
+func (s *HandlerSuite) banAttestedNode(spiffeID string) {
+	_, err := s.ds.UpdateAttestedNode(context.Background(), &datastore.UpdateAttestedNodeRequest{
+		SpiffeId: spiffeID,
+		InputMask: &common.AttestedNodeMask{
+			CertSerialNumber:    true,
+			NewCertSerialNumber: true,
+		},
 	})
 	s.Require().NoError(err)
 }

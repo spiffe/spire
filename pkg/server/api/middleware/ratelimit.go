@@ -5,12 +5,25 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	// gcInterval is the interval at which per-ip limiters are garbage
+	// collected.
+	gcInterval = time.Minute
+)
+
+var (
+	// Used to manipulate time in unit tests
+	clk = clock.New()
 )
 
 var (
@@ -97,13 +110,23 @@ func (lim *perCallLimiter) RateLimit(ctx context.Context, count int) error {
 type perIPLimiter struct {
 	limit int
 
-	mtx      sync.RWMutex
-	limiters map[string]rawRateLimiter
+	mtx sync.RWMutex
+
+	// previous holds all of the limiters that were current at the GC
+	previous map[string]rawRateLimiter
+
+	// current holds all of the limiters that have been created or moved
+	// from the previous limiters since the last GC.
+	current map[string]rawRateLimiter
+
+	// lastGC is the last GC
+	lastGC time.Time
 }
 
 func newPerIPLimiter(limit int) *perIPLimiter {
 	return &perIPLimiter{limit: limit,
-		limiters: make(map[string]rawRateLimiter),
+		current: make(map[string]rawRateLimiter),
+		lastGC:  clk.Now(),
 	}
 }
 
@@ -117,26 +140,43 @@ func (lim *perIPLimiter) RateLimit(ctx context.Context, count int) error {
 	return waitN(ctx, limiter, count)
 }
 
-func (lim *perIPLimiter) getLimiter(addr string) rawRateLimiter {
+func (lim *perIPLimiter) getLimiter(ip string) rawRateLimiter {
 	lim.mtx.RLock()
-	limiter, ok := lim.limiters[addr]
+	limiter, ok := lim.current[ip]
 	if ok {
 		lim.mtx.RUnlock()
 		return limiter
 	}
 	lim.mtx.RUnlock()
 
-	// TODO: periodically purge unused limiters so the map does not grow
-	// unbounded.
-
+	// A limiter does not exist for that address.
 	lim.mtx.Lock()
 	defer lim.mtx.Unlock()
-	limiter, ok = lim.limiters[addr]
-	if !ok {
-		limiter = newRawRateLimiter(rate.Limit(lim.limit), lim.limit)
-		lim.limiters[addr] = limiter
+
+	// Check the "current" entries in case another goroutine raced on this IP.
+	if limiter, ok = lim.current[ip]; ok {
+		return limiter
 	}
 
+	// Then check the "previous" entries to see if a limiter exists for this
+	// IP as of the last GC. If so, move it to current and return it.
+	if limiter, ok = lim.previous[ip]; ok {
+		lim.current[ip] = limiter
+		delete(lim.previous, ip)
+		return limiter
+	}
+
+	// There is no limiter for this IP. Before we create one, we should see
+	// if we need to do GC.
+	now := clk.Now()
+	if now.Sub(lim.lastGC) >= gcInterval {
+		lim.previous = lim.current
+		lim.current = make(map[string]rawRateLimiter)
+		lim.lastGC = now
+	}
+
+	limiter = newRawRateLimiter(rate.Limit(lim.limit), lim.limit)
+	lim.current[ip] = limiter
 	return limiter
 }
 
@@ -144,16 +184,16 @@ type rateLimitsMiddleware struct {
 	limiters map[string]api.RateLimiter
 }
 
-func (i rateLimitsMiddleware) Preprocess(ctx context.Context, methodName string) (context.Context, error) {
-	rateLimiter, ok := i.limiters[methodName]
+func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
+	rateLimiter, ok := i.limiters[fullMethod]
 	if !ok {
-		rpccontext.Logger(ctx).WithField("method", methodName).Error("Rate limiting misconfigured; this is a bug")
-		return nil, status.Errorf(codes.Internal, "rate limiting misconfigured for RPC %q", methodName)
+		rpccontext.Logger(ctx).Error("Rate limiting misconfigured; this is a bug")
+		return nil, status.Errorf(codes.Internal, "rate limiting misconfigured for %q", fullMethod)
 	}
 	return rpccontext.WithRateLimiter(ctx, &rateLimiterWrapper{rateLimiter: rateLimiter}), nil
 }
 
-func (i rateLimitsMiddleware) Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error) {
+func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
 	// Handlers are expected to invoke the rate limiter unless they failed to
 	// parse parameters.
 	if handlerInvoked && status.Code(rpcErr) == codes.InvalidArgument {
@@ -164,15 +204,15 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, methodName string
 	if !ok {
 		// This shouldn't be the case unless Preprocess is broken and fails to
 		// inject the rate limiter into the context.
-		rpccontext.Logger(ctx).WithField("method", methodName).Error("Rate limiting misconfigured; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiting misconfigured; this is a bug")
 		return
 	}
 
 	wrapper, ok := rateLimiter.(*rateLimiterWrapper)
 	if !ok {
-		// This shouldn't be the case unless Preprocess is broken and fails
-		// to wrap the rate limiter.
-		rpccontext.Logger(ctx).WithField("method", methodName).Error("Rate limiting misconfigured; this is a bug")
+		// This shouldn't be the case unless Preprocess is broken and fails to
+		// wrap the rate limiter.
+		rpccontext.Logger(ctx).Error("Rate limiting misconfigured; this is a bug")
 		return
 	}
 
@@ -182,14 +222,14 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, methodName string
 	switch {
 	case !noop && !used:
 		// The limiter was non-noop and went unused by the handler. This is a bug.
-		rpccontext.Logger(ctx).WithField("method", methodName).Error("Rate limiter went unused; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiter went unused; this is a bug")
 	case !noop && used:
 		// The limiter was non-noop and was used. All is well.
 	case noop && !used:
 		// The limiter was noop and was not used. All is well.
 	case noop && used:
 		// The limiter was noop and was used. This is a bug.
-		rpccontext.Logger(ctx).WithField("method", methodName).Error("Rate limiter used unexpectedly; this is a bug")
+		rpccontext.Logger(ctx).Error("Rate limiter used unexpectedly; this is a bug")
 	}
 }
 

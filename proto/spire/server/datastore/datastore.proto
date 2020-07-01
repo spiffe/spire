@@ -27,14 +27,17 @@ message FetchBundleResponse {
 }
 
 message ListBundlesRequest {
+    Pagination pagination = 1;
 }
 
 message ListBundlesResponse {
     repeated spire.common.Bundle bundles = 1;
+    Pagination pagination = 2;
 }
 
 message UpdateBundleRequest {
     spire.common.Bundle bundle = 1;
+    spire.common.BundleMask input_mask = 2;
 }
 
 message UpdateBundleResponse {
@@ -140,6 +143,10 @@ message FetchAttestedNodeResponse {
 message ListAttestedNodesRequest {
     google.protobuf.Int64Value by_expires_before = 1;
     Pagination pagination = 2;
+    string by_attestation_type = 3;
+    BySelectors by_selector_match = 4;
+    google.protobuf.BoolValue by_banned = 5;
+    bool fetch_selectors = 6;
 }
 
 message ListAttestedNodesResponse {
@@ -157,6 +164,8 @@ message UpdateAttestedNodeRequest {
     string new_cert_serial_number = 4;
 
     int64 new_cert_not_after = 5;
+
+    spire.common.AttestedNodeMask input_mask = 6;
 }
 
 message UpdateAttestedNodeResponse {

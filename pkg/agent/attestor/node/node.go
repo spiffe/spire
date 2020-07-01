@@ -113,7 +113,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 		}
 		return svid, key, nil
 	case privateKeyExists && svidExists && svidIsExpired:
-		a.c.Log.Warn("Private key recovered, but SVID is expired. Generating new keypair.")
+		a.c.Log.WithField("expiry", svid[0].NotAfter).Warn("Private key recovered, but SVID is expired. Generating new keypair.")
 	case privateKeyExists && !svidExists:
 		a.c.Log.Warn("Private key recovered, but no SVID found. Generating new keypair.")
 	case !privateKeyExists && svidExists:

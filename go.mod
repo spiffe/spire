@@ -39,13 +39,16 @@ require (
 	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
-	github.com/hashicorp/go-hclog v0.9.2
+	github.com/hashicorp/go-hclog v0.13.1-0.20200518165504-8476a63db2c6
 	github.com/hashicorp/go-plugin v1.0.1
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
+	github.com/hashicorp/vault/api v1.0.4
 	github.com/imdario/mergo v0.3.7
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.9
+	github.com/lib/pq v1.1.1
+	github.com/mattn/go-sqlite3 v1.10.0
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
@@ -59,7 +62,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
-	github.com/spiffe/go-spiffe/v2 v2.0.0-alpha.2
+	github.com/spiffe/go-spiffe/v2 v2.0.0-alpha.4
 	github.com/spiffe/spire/proto/spire v0.0.0-20190723205943-8d4a2538e330
 	github.com/stretchr/testify v1.5.1
 	github.com/uber-go/tally v3.3.12+incompatible

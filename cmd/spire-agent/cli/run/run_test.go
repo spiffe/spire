@@ -3,7 +3,10 @@ package run
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
@@ -18,6 +21,69 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDownloadTrustBundle(t *testing.T) {
+	testTB, _ := ioutil.ReadFile(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
+	cases := []struct {
+		msg          string
+		status       int
+		fileContents string
+		expectError  bool
+	}{
+		{
+			msg:          "if URL is not found, should be an error",
+			status:       http.StatusNotFound,
+			fileContents: "",
+			expectError:  true,
+		},
+		{
+			msg:          "if URL returns error 500, should be an error",
+			status:       http.StatusInternalServerError,
+			fileContents: "",
+			expectError:  true,
+		},
+		{
+			msg:          "if file is not parseable, should be an error",
+			status:       http.StatusOK,
+			fileContents: "NON PEM PARSEABLE TEXT HERE",
+			expectError:  true,
+		},
+		{
+			msg:          "if file is empty, should be error",
+			status:       http.StatusOK,
+			fileContents: "",
+			expectError:  true,
+		},
+		{
+			msg:          "if file is valid, should be error",
+			status:       http.StatusOK,
+			fileContents: string(testTB),
+			expectError:  false,
+		},
+	}
+
+	for _, testCase := range cases {
+		testCase := testCase
+
+		t.Run(testCase.msg, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(testCase.status)
+					_, _ = io.WriteString(w, testCase.fileContents)
+					//if err != nil {
+					//	return
+					//}
+				}))
+			defer testServer.Close()
+			_, err := downloadTrustBundle(testServer.URL)
+			if testCase.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
 func TestParseConfigGood(t *testing.T) {
 	c, err := ParseFile("../../../../test/fixture/config/agent_good.conf", false)
@@ -65,15 +131,16 @@ func TestParseConfigGood(t *testing.T) {
 }
 
 func TestParseFlagsGood(t *testing.T) {
-	c, err := parseFlags([]string{
+	c, err := parseFlags("run", []string{
 		"-dataDir=.",
 		"-logLevel=INFO",
 		"-serverAddress=127.0.0.1",
 		"-serverPort=8081",
 		"-socketPath=/tmp/agent.sock",
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
+		"-trustBundleUrl=https://test.url",
 		"-trustDomain=example.org",
-	})
+	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.DataDir, ".")
 	assert.Equal(t, c.LogLevel, "INFO")
@@ -81,6 +148,7 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.ServerPort, 8081)
 	assert.Equal(t, c.SocketPath, "/tmp/agent.sock")
 	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
+	assert.Equal(t, c.TrustBundleURL, "https://test.url")
 	assert.Equal(t, c.TrustDomain, "example.org")
 }
 
@@ -124,23 +192,27 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "enable_sds should be configurable by file",
+			msg: "deprecated enable_sds should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Agent.EnableSDS = true
+				enableSDS := true
+				c.Agent.DeprecatedEnableSDS = &enableSDS
 			},
 			cliInput: func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.True(t, c.Agent.EnableSDS)
+				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
+				require.True(t, *c.Agent.DeprecatedEnableSDS)
 			},
 		},
 		{
-			msg:       "enable_sds should be configurable by CLI flag",
+			msg:       "deprecated enable_sds should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
-				c.EnableSDS = true
+				enableSDS := true
+				c.DeprecatedEnableSDS = &enableSDS
 			},
 			test: func(t *testing.T, c *Config) {
-				require.True(t, c.Agent.EnableSDS)
+				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
+				require.True(t, *c.Agent.DeprecatedEnableSDS)
 			},
 		},
 		{
@@ -183,19 +255,6 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "foo", c.Agent.SDS.DefaultBundleName)
 			},
 		},
-		//{
-		//      // TODO: This is currently unsupported
-		//	msg: "enable_sds specified by CLI flag should take precedence over file",
-		//	fileInput: func(c *Config) {
-		//		c.Agent.EnableSDS = true
-		//	},
-		//	cliInput: func(c *agentConfig) {
-		//		c.EnableSDS = false
-		//	},
-		//	test: func(t *testing.T, c *Config) {
-		//		require.False(t, c.Agent.EnableSDS)
-		//	},
-		//},
 		{
 			msg: "insecure_bootstrap should be configurable by file",
 			fileInput: func(c *Config) {
@@ -473,6 +532,16 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "trust_bundle_url should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.TrustBundleURL = "foo"
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.TrustBundleURL)
+			},
+		},
+		{
 			msg:       "trust_bundle_path should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
@@ -638,12 +707,12 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "enable_sds should be correctly configured",
+			msg: "enable_sds should not prevent agent configuration",
 			input: func(c *Config) {
-				c.Agent.EnableSDS = true
+				enableSDS := true
+				c.Agent.DeprecatedEnableSDS = &enableSDS
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.True(t, c.EnableSDS)
 			},
 		},
 		{
@@ -672,6 +741,28 @@ func TestNewAgentConfig(t *testing.T) {
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
 				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
+			},
+		},
+		{
+			msg:         "trust_bundle_path and trust_bundle_url cannot both be set",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.TrustBundlePath = "foo"
+				c.Agent.TrustBundleURL = "foo2"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "insecure_bootstrap and trust_bundle_url cannot both be set",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.TrustBundleURL = "foo"
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{

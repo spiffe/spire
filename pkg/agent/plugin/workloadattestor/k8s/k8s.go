@@ -553,25 +553,31 @@ func getContainerIDFromCGroups(cgroups []cgroups.Cgroup) (string, error) {
 }
 
 // containerIDRe is the regex used to parse out the container ID from a cgroup
-// name. This is the breakdown:
-// /kubepods(?:\.slice)?/
-//     The /kubepods path segment, not necessarily at the start of the path,
-//     optionally followed by the systemd slice suffix (e.g., ".slice") and
-//     ending with a trailing slash.
-// (?:[^/]*/){1,}
-//     One or more path segments with a trailing slash, e.g., the QOS setting,
-//     pod UID, etc.
-// (?:[^-]+-)?((?U)[^/]+)(?:\.scope)?$`)
-//     Base name with the container ID. Optionally starts with a container
-//     runtime prefix (e.g., "docker-") and optionally ends in the systemd
-//     scope suffix (e.g., ".scope").
-var containerIDRe = regexp.MustCompile(`/kubepods(?:\.slice)?/(?:[^/]+/){1,}(?:[^-]+-)?((?U)[^/]+)(?:\.scope)?$`)
+// name. It assumes that any ".scope" suffix has been trimmed off beforehand.
+var containerIDRe = regexp.MustCompile(`` +
+	// "kubepods" surrounded by punctuation
+	`[[:punct:]]kubepods[[:punct:]]` +
+	// zero or more punctuation separated "segments" (e.g. "burstable-")
+	`(?:[[:^punct:]]+[[:punct:]])*` +
+	// "pod"-prefixed Pod UUID (with punctuation separated groups) followed by punctuation
+	`pod[[:xdigit:]]{8}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{12}[[:punct:]]` +
+	// zero or more punctuation separated "segments" (e.g. "docker-")
+	`(?:[[:^punct:]]+[[:punct:]])*` +
+	// non-punctuation end of string, i.e., the container ID
+	`([[:^punct:]]+)$`)
 
 func getContainerIDFromCGroupPath(cgroupPath string) (string, bool) {
 	// We are only interested in kube pods entries, for example:
 	// - /kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
 	// - /docker/8d461fa5765781bcf5f7eb192f101bc3103d4b932e26236f43feecfa20664f96/kubepods/besteffort/poddaa5c7ee-3484-4533-af39-3591564fd03e/aff34703e5e1f89443e9a1bffcc80f43f74d4808a2dd22c8f88c08547b323934
 	// - /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope
+	// - /kubepods-besteffort-pod72f7f152_440c_66ac_9084_e0fc1d8a910c.slice:cri-containerd:b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2"
+
+	// First trim off any .scope suffix. This allows for a cleaner regex since
+	// we don't have to muck with greediness. TrimSuffix is no-copy so this
+	// is cheap.
+	cgroupPath = strings.TrimSuffix(cgroupPath, ".scope")
+
 	matches := containerIDRe.FindStringSubmatch(cgroupPath)
 	if matches != nil {
 		return matches[1], true

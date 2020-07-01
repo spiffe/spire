@@ -8,6 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
@@ -35,6 +37,7 @@ import (
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
+	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
@@ -44,6 +47,7 @@ var (
 		"awssecret": true,
 		"disk":      true,
 		"spire":     true,
+		"vault":     true,
 	}
 
 	builtIns = []catalog.Plugin{
@@ -67,6 +71,7 @@ var (
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		up_disk.BuiltIn(),
+		up_vault.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),
@@ -168,6 +173,7 @@ type Config struct {
 	GlobalConfig GlobalConfig
 	PluginConfig HCLPluginConfigMap
 
+	Metrics          telemetry.Metrics
 	IdentityProvider hostservices.IdentityProvider
 	AgentStore       hostservices.AgentStore
 	MetricsService   common_services.MetricsService
@@ -229,6 +235,8 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	p.DataStore = datastore_telemetry.WithMetrics(p.DataStore, config.Metrics)
 
 	switch {
 	case p.UpstreamCA == nil:

@@ -8,6 +8,8 @@ services:
       - ./root/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   root-agent:
+    # Share the host pid namespace so this agent can attest the intermediate servers
+    pid: "host"
     image: spire-agent:latest-local
     depends_on: ["root-server"]
     hostname: root-agent
@@ -19,8 +21,8 @@ services:
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
   # IntermediateA
   intermediateA-server:
-    # Add process ids from root-agent
-    pid: "service:root-agent"
+    # Share the host pid namespace so this server can be attested by the root agent
+    pid: "host"
     image: spire-server:latest-local
     hostname: intermediateA-server
     labels:
@@ -33,6 +35,8 @@ services:
       - ./intermediateA/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   intermediateA-agent:
+    # Share the host pid namespace so this agent can attest the leafA server
+    pid: "host"
     image: spire-agent:latest-local
     hostname: intermediateA-agent
     depends_on: ["intermediateA-server"]
@@ -44,7 +48,8 @@ services:
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
   # LeafA
   leafA-server:
-    pid: "service:intermediateA-agent"
+    # Share the host pid namespace so this server can be attested by the intermediateA agent
+    pid: "host"
     image: spire-server:latest-local
     hostname: leafA-server
     labels:
@@ -65,7 +70,8 @@ services:
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
   # IntermediateB
   intermediateB-server:
-    pid: "service:root-agent"
+    # Share the host pid namespace so this server can be attested by the root agent
+    pid: "host"
     image: spire-server:latest-local
     hostname: intermediateB-server
     depends_on: ["root-server","root-agent"]
@@ -78,6 +84,8 @@ services:
       - ./intermediateB/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   intermediateB-agent:
+    # Share the host pid namespace so this agent can attest the leafB server
+    pid: "host"
     image: nested-agent
     hostname: intermediateB-agent
     depends_on: ["intermediateB-server"]
@@ -89,7 +97,8 @@ services:
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
   # leafB
   leafB-server:
-    pid: "service:intermediateB-agent"
+    # Share the host pid namespace so this server can be attested by the intermediateB agent
+    pid: "host"
     image: spire-server:latest-local
     hostname: leafB-server
     depends_on: ["intermediateB-server","intermediateB-agent"]

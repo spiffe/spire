@@ -15,8 +15,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -79,7 +79,7 @@ type HandlerSuite struct {
 func (s *HandlerSuite) SetupTest() {
 	log, _ := test.NewNullLogger()
 
-	s.ds = fakedatastore.New()
+	s.ds = fakedatastore.New(s.T())
 	s.serverCA = fakeserverca.New(s.T(), "example.org", nil)
 
 	catalog := fakeservercatalog.New()
@@ -124,7 +124,7 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 		{TrustDomainID: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
 		{TrustDomainID: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
 		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
-		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: "bundle already exists"},
+		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: "UNIQUE constraint failed: bundles.trust_domain"},
 	}
 
 	for _, testCase := range testCases {
@@ -241,7 +241,7 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 	}{
 		{TrustDomainID: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
 		{TrustDomainID: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{TrustDomainID: "spiffe://unknowndomain.org", CaCerts: rootCA1DER, Err: "no such bundle"},
+		{TrustDomainID: "spiffe://unknowndomain.org", CaCerts: rootCA1DER, Err: "record not found"},
 		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
 		{TrustDomainID: "spiffe://otherdomain.org", CaCerts: rootCA2DER, Err: ""},
 	}
@@ -278,7 +278,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 		{TrustDomainID: "spiffe://example.org", Err: "federated bundle id cannot match server trust domain"},
 		{TrustDomainID: "spiffe://otherdomain.org/spire/agent", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
 		{TrustDomainID: "spiffe://otherdomain.org", Err: ""},
-		{TrustDomainID: "spiffe://otherdomain.org", Err: "no such bundle"},
+		{TrustDomainID: "spiffe://otherdomain.org", Err: "record not found"},
 	}
 
 	s.createBundle(&common.Bundle{
@@ -317,14 +317,22 @@ func (s *HandlerSuite) TestCreateEntryAndCreateEntryIfNotExists() {
 		Err   string
 	}{
 		{
-			Name:  "Parent ID is malformed",
-			Entry: &common.RegistrationEntry{ParentId: "FOO"},
-			Err:   `"FOO" is not a valid trust domain member SPIFFE ID`,
+			Name: "Parent ID is malformed",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "FOO",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+			},
+			Err: `"FOO" is not a valid trust domain member SPIFFE ID`,
 		},
 		{
-			Name:  "SPIFFE ID is malformed",
-			Entry: &common.RegistrationEntry{ParentId: "spiffe://example.org/parent", SpiffeId: "FOO"},
-			Err:   `"FOO" is not a valid workload SPIFFE ID`,
+			Name: "SPIFFE ID is malformed",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "FOO",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+			},
+			Err: `"FOO" is not a valid workload SPIFFE ID`,
 		},
 		{
 			Name: "Bad DNS",
@@ -471,55 +479,54 @@ func (s *HandlerSuite) TestCreateEntryIfNotExists() {
 }
 
 func (s *HandlerSuite) TestUpdateEntry() {
-	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+	original := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:  "spiffe://example.org/foo",
 		SpiffeId:  "spiffe://example.org/bar",
 		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
 	})
 
 	testCases := []struct {
-		Name  string
-		Entry *common.RegistrationEntry
-		Err   string
+		Name         string
+		PrepareEntry func(e *common.RegistrationEntry)
+		Err          string
 	}{
 		{
 			Name: "Missing entry",
 			Err:  "missing entry to update",
 		},
 		{
-			Name:  "Parent ID is malformed",
-			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "FOO"},
-			Err:   `"FOO" is not a valid trust domain member SPIFFE ID`,
+			Name: "Parent ID is malformed",
+			PrepareEntry: func(e *common.RegistrationEntry) {
+				e.ParentId = "FOO"
+			},
+			Err: `"FOO" is not a valid trust domain member SPIFFE ID`,
 		},
 		{
-			Name:  "SPIFFE ID is malformed",
-			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "spiffe://example.org/parent", SpiffeId: "FOO"},
-			Err:   `"FOO" is not a valid workload SPIFFE ID`,
+			Name: "SPIFFE ID is malformed",
+			PrepareEntry: func(e *common.RegistrationEntry) {
+				e.SpiffeId = "FOO"
+			},
+			Err: `"FOO" is not a valid workload SPIFFE ID`,
 		},
 		{
-			Name:  "Registration entry does not exist",
-			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "spiffe://example.org/parent", SpiffeId: "spiffe://example.org/child"},
-			Err:   "no such registration entry",
+			Name: "Registration entry does not exist",
+			PrepareEntry: func(e *common.RegistrationEntry) {
+				e.EntryId = "X"
+			},
+			Err: "record not found",
 		},
 		{
 			Name: "Bad DNS",
-			Entry: &common.RegistrationEntry{
-				EntryId:   entry.EntryId,
-				ParentId:  "spiffe://example.org/parent",
-				SpiffeId:  "spiffe://example.org/child",
-				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
-				DnsNames:  []string{" "},
+			PrepareEntry: func(e *common.RegistrationEntry) {
+				e.DnsNames = []string{" "}
 			},
 			Err: "empty or only whitespace",
 		},
 		{
 			Name: "Success",
-			Entry: &common.RegistrationEntry{
-				EntryId:   entry.EntryId,
-				ParentId:  "spiffe://example.org/parent",
-				SpiffeId:  "spiffe://example.org/child",
-				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
-				DnsNames:  []string{"wxyz.2-a"},
+			PrepareEntry: func(e *common.RegistrationEntry) {
+				e.Selectors = []*common.Selector{{Type: "B", Value: "b"}}
+				e.DnsNames = []string{"wxyz.2-a"}
 			},
 		},
 	}
@@ -527,17 +534,21 @@ func (s *HandlerSuite) TestUpdateEntry() {
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.Name, func(t *testing.T) {
+			var entry *common.RegistrationEntry
+			if testCase.PrepareEntry != nil {
+				entry = proto.Clone(original).(*common.RegistrationEntry)
+				testCase.PrepareEntry(entry)
+			}
 			resp, err := s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{
-				Entry: testCase.Entry,
+				Entry: entry,
 			})
-
 			if testCase.Err != "" {
 				requireErrorContains(t, err, testCase.Err)
 				return
 			}
 			require.NoError(t, err)
-			t.Logf("actual=%+v expected=%+v", resp, testCase.Entry)
-			require.True(t, proto.Equal(resp, testCase.Entry))
+			t.Logf("actual=%+v expected=%+v", resp, entry)
+			require.True(t, proto.Equal(resp, entry))
 		})
 	}
 }
@@ -560,7 +571,7 @@ func (s *HandlerSuite) TestDeleteEntry() {
 		},
 		{
 			Name: "Registration entry does not exist",
-			Err:  "no such registration entry",
+			Err:  "record not found",
 		},
 	}
 
@@ -1302,7 +1313,7 @@ func (s *HandlerSuite) TestGetNodeSelectors() {
 	req := &registration.GetNodeSelectorsRequest{SpiffeId: spiffeID}
 	resp, err := s.handler.GetNodeSelectors(ctx, req)
 	s.Require().NoError(err)
-	s.Equal(resp.Selectors, expectedNodeSelectors)
+	spiretest.RequireProtoEqual(s.T(), resp.Selectors, expectedNodeSelectors)
 }
 
 func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode {
@@ -1342,9 +1353,10 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 	}
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: "spiffe://example.org/parent",
-		SpiffeId: "spiffe://example.org/admin",
-		Admin:    true,
+		ParentId:  "spiffe://example.org/parent",
+		SpiffeId:  "spiffe://example.org/admin",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+		Admin:     true,
 	})
 
 	testCases := []struct {
@@ -1361,7 +1373,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		},
 		{
 			Peer: &peer.Peer{
-				AuthInfo: peertracker.AuthInfo{},
+				AuthInfo: auth.UntrackedUDSAuthInfo{},
 			},
 		},
 		{

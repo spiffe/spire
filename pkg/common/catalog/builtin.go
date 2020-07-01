@@ -77,10 +77,10 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Load
 	builtinServer := newBuiltInServer()
 	closers.AddFunc(builtinServer.Stop)
 
-	logger := (&log.HCLogAdapter{
-		Log:  builtin.Log,
-		Name: telemetry.PluginBuiltIn,
-	}).Named(builtin.Plugin.Name)
+	logger := log.NewHCLogAdapter(
+		builtin.Log,
+		telemetry.PluginBuiltIn,
+	).Named(builtin.Plugin.Name)
 
 	initPluginServer(
 		builtinServer,

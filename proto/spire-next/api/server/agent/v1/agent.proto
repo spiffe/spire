@@ -3,6 +3,7 @@ package spire.api.server.agent.v1;
 option go_package = "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1;agent";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 import "spire-next/types/agent.proto";
 import "spire-next/types/attestation.proto";
 import "spire-next/types/jointoken.proto";
@@ -63,7 +64,7 @@ message ListAgentsRequest {
         spire.types.SelectorMatch by_selector_match = 2;
 
         // Filters agents to those that are banned.
-        bool by_banned = 3;
+        google.protobuf.BoolValue by_banned = 3;
     }
 
     // Filters the agents returned by the list operation.
@@ -72,10 +73,11 @@ message ListAgentsRequest {
     // An output mask indicating which agent fields are set in the response.
     spire.types.AgentMask output_mask = 2;
 
-    // The maximum number of items to return.
+    // The maximum number of results to return. The server may further
+    // constrain this value, or if zero, choose its own.
     int32 page_size = 3;
 
-    // The next_page_token value returned from a previous List request, if any.
+    // The next_page_token value returned from a previous request, if any.
     string page_token = 4;
 }
 
@@ -84,6 +86,8 @@ message ListAgentsResponse {
     repeated spire.types.Agent agents = 1;
 
     // The page token for the next request. Empty if there are no more results.
+    // This field should be checked by clients even when a page_size was not
+    // requested, since the server may choose its own (see page_size).
     string next_page_token = 2;
 }
 

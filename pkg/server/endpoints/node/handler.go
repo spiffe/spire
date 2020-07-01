@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -660,6 +661,10 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	n := resp.Node
 	if n == nil {
 		return errors.New("agent is not attested")
+	}
+
+	if nodeutil.IsAgentBanned(n) {
+		return errors.New("agent is banned")
 	}
 
 	if n.CertSerialNumber != "" && n.CertSerialNumber == cert.SerialNumber.String() {

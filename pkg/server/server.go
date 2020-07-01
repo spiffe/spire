@@ -96,7 +96,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, identityProvider, agentStore, metricsService)
+	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, metricsService)
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
 	metricsService common_services.MetricsService) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
@@ -236,6 +236,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 			TrustDomain: s.config.TrustDomain.Host,
 		},
 		PluginConfig:     s.config.PluginConfigs,
+		Metrics:          metrics,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		MetricsService:   metricsService,
@@ -308,9 +309,9 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 	}
-	if s.config.Experimental.BundleEndpointEnabled {
-		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
-		config.BundleEndpointACME = s.config.Experimental.BundleEndpointACME
+	if s.config.Federation.BundleEndpoint != nil {
+		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
+		config.BundleEndpoint.ACME = s.config.Federation.BundleEndpoint.ACME
 	}
 	return endpoints.New(config)
 }
@@ -319,7 +320,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
 		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
 		DataStore:    cat.GetDataStore(),
-		TrustDomains: s.config.Experimental.FederatesWith,
+		TrustDomains: s.config.Federation.FederatesWith,
 	})
 }
 
