@@ -299,23 +299,6 @@ func (s *HandlerSuite) TestAttestWithNonAgentIDInCSR() {
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
-func (s *HandlerSuite) TestAttestWhenAgentAlreadyAttestedWithDeprecatedCSR() {
-	s.addAttestor(fakeservernodeattestor.Config{
-		DisallowReattestation: true,
-	})
-
-	s.createAttestedNode(&common.AttestedNode{
-		SpiffeId: agentID,
-	})
-
-	s.requireAttestFailure(&node.AttestRequest{
-		AttestationData: makeAttestationData("test", ""),
-		Csr:             s.makeCSR(agentID),
-	}, codes.Unknown, "reattestation is not permitted")
-
-	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
-}
-
 func (s *HandlerSuite) TestAttestWithUnknownAttestor() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),

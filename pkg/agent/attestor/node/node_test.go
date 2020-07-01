@@ -60,7 +60,6 @@ func TestAttestor(t *testing.T) {
 
 	testCases := []struct {
 		name                        string
-		deprecatedAgentID           string
 		challengeResponses          []string
 		bootstrapBundle             *x509.Certificate
 		insecureBootstrap           bool
@@ -177,17 +176,6 @@ func TestAttestor(t *testing.T) {
 			joinToken:       "JOINTOKEN",
 		},
 		{
-			name:              "success with old plugin",
-			bootstrapBundle:   caCert,
-			deprecatedAgentID: "spiffe://domain.test/spire/agent/test/foo",
-		},
-		{
-			name:              "old plugin returns mismatched SPIFFE ID",
-			bootstrapBundle:   caCert,
-			deprecatedAgentID: "spiffe://domain.test/spire/agent/test/bar",
-			err:               `server returned inconsistent SPIFFE ID: expected "spiffe://domain.test/spire/agent/test/bar"; got "spiffe://domain.test/spire/agent/test/foo"`,
-		},
-		{
 			name:               "success with challenge response",
 			bootstrapBundle:    caCert,
 			challengeResponses: []string{"FOO", "BAR", "BAZ"},
@@ -234,9 +222,8 @@ func TestAttestor(t *testing.T) {
 
 			// load up the fake agent-side node attestor
 			agentNA, agentNADone := prepareAgentNA(t, fakeagentnodeattestor.Config{
-				Fail:              testCase.failFetchingAttestationData,
-				DeprecatedAgentID: testCase.deprecatedAgentID,
-				Responses:         testCase.challengeResponses,
+				Fail:      testCase.failFetchingAttestationData,
+				Responses: testCase.challengeResponses,
 			})
 			defer agentNADone()
 
