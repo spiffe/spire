@@ -2,17 +2,21 @@ package agent
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"path"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -30,12 +34,14 @@ func RegisterService(s *grpc.Server, service *Service) {
 // Config is the service configuration
 type Config struct {
 	DataStore   datastore.DataStore
+	ServerCA    ca.ServerCA
 	TrustDomain spiffeid.TrustDomain
 }
 
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
+		ca: config.ServerCA,
 		ds: config.DataStore,
 		td: config.TrustDomain,
 	}
@@ -43,6 +49,7 @@ func New(config Config) *Service {
 
 // Service implements the v1 agent service
 type Service struct {
+	ca ca.ServerCA
 	ds datastore.DataStore
 	td spiffeid.TrustDomain
 }
@@ -240,7 +247,121 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 }
 
 func (s *Service) RenewAgent(stream agent.Agent_RenewAgentServer) error {
-	return status.Error(codes.Unimplemented, "method not implemented")
+	ctx := stream.Context()
+
+	log := rpccontext.Logger(ctx)
+
+	if err := rpccontext.RateLimit(ctx, 1); err != nil {
+		log.WithError(err).Error("Rejecting request due to renew agent rate limiting")
+		return err
+	}
+
+	callerID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		log.Error("Caller ID missing from request context")
+		return status.Error(codes.Internal, "caller ID missing from request context")
+	}
+
+	log.Debug("Renewing agent SVID")
+
+	req, err := stream.Recv()
+	if err != nil {
+		log.WithError(err).Error("Failed to receive request from stream")
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	params, ok := req.Step.(*agent.RenewAgentRequest_Params)
+	if !ok {
+		log.Errorf("Invalid argument: expected params step but got %T", params)
+		return status.Errorf(codes.InvalidArgument, "expected params step but got %T", params)
+	}
+
+	agentSVID, err := s.signSvid(ctx, &callerID, params, log)
+	if err != nil {
+		return err
+	}
+
+	if err := s.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+		InputMask: &common.AttestedNodeMask{
+			NewCertNotAfter:     true,
+			NewCertSerialNumber: true,
+		},
+		SpiffeId:            callerID.String(),
+		NewCertNotAfter:     agentSVID[0].NotAfter.Unix(),
+		NewCertSerialNumber: agentSVID[0].SerialNumber.String(),
+	}, log); err != nil {
+		return err
+	}
+
+	// Send response with new X509 SVID
+	if err := stream.Send(&agent.RenewAgentResponse{
+		Svid: &types.X509SVID{
+			Id:        api.ProtoFromID(callerID),
+			ExpiresAt: agentSVID[0].NotAfter.Unix(),
+			CertChain: x509util.RawCertsFromCertificates(agentSVID),
+		},
+	}); err != nil {
+		log.WithError(err).Error("Failed to send response")
+		return status.Errorf(codes.Internal, "failed to send response: %v", err)
+	}
+
+	// Wait until get ACK
+	req, err = stream.Recv()
+	if err != nil {
+		log.WithError(err).Error("Failed to receive ack from stream")
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	ack, ok := req.Step.(*agent.RenewAgentRequest_Ack_)
+	if !ok {
+		log.Errorf("Invalid argument: expected ack step but got %T", ack)
+		return status.Errorf(codes.InvalidArgument, "expected ack step but got %T", ack)
+	}
+
+	return s.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         callerID.String(),
+		CertNotAfter:     agentSVID[0].NotAfter.Unix(),
+		CertSerialNumber: agentSVID[0].SerialNumber.String(),
+	}, log)
+}
+
+func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest, log logrus.FieldLogger) error {
+	_, err := s.ds.UpdateAttestedNode(ctx, req)
+	switch status.Code(err) {
+	case codes.OK:
+		return nil
+	case codes.NotFound:
+		log.WithError(err).Error("Agent not found")
+		return status.Errorf(codes.NotFound, "agent not found: %v", err)
+	default:
+		log.WithError(err).Error("Failed to update agent")
+		return status.Errorf(codes.Internal, "failed to update agent: %v", err)
+	}
+}
+
+func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, step *agent.RenewAgentRequest_Params, log logrus.FieldLogger) ([]*x509.Certificate, error) {
+	if len(step.Params.Csr) == 0 {
+		log.Error("Invalid argument: missing CSR")
+		return nil, status.Error(codes.InvalidArgument, "missing CSR")
+	}
+
+	csr, err := x509.ParseCertificateRequest(step.Params.Csr)
+	if err != nil {
+		log.WithError(err).Error("Invalid argument: failed to parse CSR")
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse CSR: %v", err)
+	}
+
+	// Sign a new X509 SVID
+	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  agentID.String(),
+		PublicKey: csr.PublicKey,
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to sign X509 SVID")
+		return nil, status.Errorf(codes.Internal, "failed to sign X509 SVID: %v", err)
+	}
+
+	return x509Svid, nil
 }
 
 func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinTokenRequest) (*types.JoinToken, error) {
