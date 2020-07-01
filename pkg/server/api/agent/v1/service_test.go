@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -376,7 +377,207 @@ func TestListAgents(t *testing.T) {
 	}
 }
 
-type serviceTest struct { //nolint: unused,deadcode
+func TestBanAgent(t *testing.T) {
+	agentTrustDomain := "example.org"
+	agentPath := "/spire/agent/agent-1"
+
+	for _, tt := range []struct {
+		name            string
+		reqID           *types.SPIFFEID
+		dsError         error
+		expectedErr     error
+		expectedLogMsgs []spiretest.LogEntry
+	}{
+		{
+			name: "Ban agent succeeds",
+			reqID: &types.SPIFFEID{
+				TrustDomain: agentTrustDomain,
+				Path:        agentPath,
+			},
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent banned",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
+					},
+				},
+			},
+		},
+		{
+			name:        "Ban agent fails if ID is nil",
+			reqID:       nil,
+			expectedErr: status.Error(codes.InvalidArgument, "invalid SPIFFE ID: request must specify SPIFFE ID"),
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid SPIFFE ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "request must specify SPIFFE ID",
+					},
+				},
+			},
+		},
+		{
+			name: "Ban agent fails if ID is not valid",
+			reqID: &types.SPIFFEID{
+				Path:        agentPath,
+				TrustDomain: "ex ample.org",
+			},
+			expectedErr: status.Error(codes.InvalidArgument, "invalid SPIFFE ID: spiffeid: unable to parse: parse spiffe://ex ample.org: invalid character \" \" in host name"),
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: invalid SPIFFE ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "spiffeid: unable to parse: parse spiffe://ex ample.org: invalid character \" \" in host name",
+					},
+				},
+			},
+		},
+		{
+			name: "Ban agent fails if ID is not a leaf ID",
+			reqID: &types.SPIFFEID{
+				TrustDomain: agentTrustDomain,
+			},
+			expectedErr: status.Error(codes.InvalidArgument, "not an agent ID"),
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: not an agent ID",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: spiffeid.RequireTrustDomainFromString(agentTrustDomain).IDString(),
+					},
+				},
+			},
+		},
+		{
+			name: "Ban agent fails if ID is not an agent SPIFFE ID",
+			reqID: &types.SPIFFEID{
+				TrustDomain: agentTrustDomain,
+				Path:        "agent-1",
+			},
+			expectedErr: status.Error(codes.InvalidArgument, "not an agent ID"),
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: not an agent ID",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "agent-1").String(),
+					},
+				},
+			},
+		},
+		{
+			name: "Ban agent fails if agent do not belongs to the server's own trust domain",
+			reqID: &types.SPIFFEID{
+				TrustDomain: "another-example.org",
+				Path:        agentPath,
+			},
+			expectedErr: status.Error(codes.InvalidArgument, "cannot ban an agent that does not belong to this trust domain"),
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid request: cannot ban an agent that does not belong to this trust domain",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: spiffeid.Must("another-example.org", agentPath).String(),
+					},
+				},
+			},
+		},
+		{
+			name: "Ban agent fails if agent does not exists",
+			reqID: &types.SPIFFEID{
+				TrustDomain: agentTrustDomain,
+				Path:        "/spire/agent/agent-2",
+			},
+			expectedErr: status.Error(codes.NotFound, "agent not found: rpc error: code = NotFound desc = datastore-sql: record not found"),
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Agent not found",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "rpc error: code = NotFound desc = datastore-sql: record not found",
+						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "spire/agent/agent-2").String(),
+					},
+				},
+			},
+		},
+		{
+			name: "Ban agent fails if there is a datastore error",
+			reqID: &types.SPIFFEID{
+				TrustDomain: agentTrustDomain,
+				Path:        agentPath,
+			},
+			dsError:     errors.New("unknown datastore error"),
+			expectedErr: status.Error(codes.Internal, "unable to ban agent: unknown datastore error"),
+			expectedLogMsgs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Unable to ban agent",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "unknown datastore error",
+						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+			ctx := context.Background()
+
+			node := &common.AttestedNode{
+				SpiffeId:            spiffeid.Must(agentTrustDomain, agentPath).String(),
+				AttestationDataType: "attestation-type",
+				CertNotAfter:        100,
+				NewCertNotAfter:     200,
+				CertSerialNumber:    "1234",
+				NewCertSerialNumber: "1235",
+			}
+
+			_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+				Node: node,
+			})
+			require.NoError(t, err)
+			test.ds.SetNextError(tt.dsError)
+
+			banResp, err := test.client.BanAgent(ctx, &agentpb.BanAgentRequest{Id: tt.reqID})
+			test.ds.SetNextError(nil)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogMsgs)
+			if tt.expectedErr != nil {
+				require.Equal(t, tt.expectedErr, err)
+				require.Nil(t, banResp)
+
+				fetchResp, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+					SpiffeId: node.SpiffeId,
+				})
+				require.NoError(t, err)
+				require.NotNil(t, fetchResp)
+				require.NotZero(t, fetchResp.Node.CertSerialNumber)
+				require.NotZero(t, fetchResp.Node.NewCertSerialNumber)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, banResp)
+
+			fetchResp, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+				SpiffeId: spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String(),
+			})
+			require.NoError(t, err)
+			require.NotNil(t, fetchResp)
+
+			node.CertSerialNumber = ""
+			node.NewCertSerialNumber = ""
+			spiretest.RequireProtoEqual(t, node, fetchResp.Node)
+		})
+	}
+}
+
+type serviceTest struct {
 	client  agentpb.AgentClient
 	done    func()
 	ds      *fakedatastore.DataStore
@@ -387,14 +588,16 @@ func (s *serviceTest) Cleanup() {
 	s.done()
 }
 
-func setupServiceTest(t *testing.T) *serviceTest { //nolint: unused,deadcode
+func setupServiceTest(t *testing.T) *serviceTest {
 	ds := fakedatastore.New(t)
+	td := spiffeid.RequireTrustDomainFromString("example.org")
 	service := agent.New(agent.Config{
 		Datastore:   ds,
-		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		TrustDomain: td,
 	})
 
 	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
 	registerFn := func(s *grpc.Server) {
 		agent.RegisterService(s, service)
 	}

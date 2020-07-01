@@ -1126,74 +1126,128 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 }
 
 func (s *PluginSuite) TestUpdateAttestedNode() {
-	originalNode := &common.AttestedNode{
-		SpiffeId:            "spiffe-id",
-		AttestationDataType: "attestation-data-type",
-		CertSerialNumber:    "cert-serial-number-1",
-		CertNotAfter:        1,
-		NewCertSerialNumber: "new-cert-serial-number-1",
-		NewCertNotAfter:     1,
+	// Current nodes values
+	nodeID := "spiffe-id"
+	attestationType := "attestation-data-type"
+	serial := "cert-serial-number-1"
+	expires := int64(1)
+	newSerial := "new-cert-serial-number"
+	newExpires := int64(2)
+
+	// Updated nodes values
+	updatedSerial := "cert-serial-number-2"
+	updatedExpires := int64(3)
+	updatedNewSerial := ""
+	updatedNewExpires := int64(0)
+
+	for _, tt := range []struct {
+		name           string
+		updateReq      *datastore.UpdateAttestedNodeRequest
+		expUpdatedNode *common.AttestedNode
+		expErr         error
+	}{
+		{
+			name: "update non-existing attested node",
+			updateReq: &datastore.UpdateAttestedNodeRequest{
+				SpiffeId:         "non-existent-node-id",
+				CertSerialNumber: updatedSerial,
+				CertNotAfter:     updatedExpires,
+			},
+			expErr: status.Error(codes.NotFound, _notFoundErrMsg),
+		},
+		{
+			name: "update attested node with all false mask",
+			updateReq: &datastore.UpdateAttestedNodeRequest{
+				SpiffeId:            nodeID,
+				CertSerialNumber:    updatedSerial,
+				CertNotAfter:        updatedExpires,
+				NewCertNotAfter:     updatedNewExpires,
+				NewCertSerialNumber: updatedNewSerial,
+				InputMask:           &common.AttestedNodeMask{},
+			},
+			expUpdatedNode: &common.AttestedNode{
+				SpiffeId:            nodeID,
+				AttestationDataType: attestationType,
+				CertSerialNumber:    serial,
+				CertNotAfter:        expires,
+				NewCertNotAfter:     newExpires,
+				NewCertSerialNumber: newSerial,
+			},
+		},
+		{
+			name: "update attested node with mask set only some fields: 'CertSerialNumber', 'NewCertNotAfter'",
+			updateReq: &datastore.UpdateAttestedNodeRequest{
+				SpiffeId:            nodeID,
+				CertSerialNumber:    updatedSerial,
+				CertNotAfter:        updatedExpires,
+				NewCertNotAfter:     updatedNewExpires,
+				NewCertSerialNumber: updatedNewSerial,
+				InputMask: &common.AttestedNodeMask{
+					CertSerialNumber: true,
+					NewCertNotAfter:  true,
+				},
+			},
+			expUpdatedNode: &common.AttestedNode{
+				SpiffeId:            nodeID,
+				AttestationDataType: attestationType,
+				CertSerialNumber:    updatedSerial,
+				CertNotAfter:        expires,
+				NewCertNotAfter:     updatedNewExpires,
+				NewCertSerialNumber: newSerial,
+			},
+		},
+		{
+			name: "update attested node with nil mask",
+			updateReq: &datastore.UpdateAttestedNodeRequest{
+				SpiffeId:            nodeID,
+				CertSerialNumber:    updatedSerial,
+				CertNotAfter:        updatedExpires,
+				NewCertNotAfter:     updatedNewExpires,
+				NewCertSerialNumber: updatedNewSerial,
+			},
+			expUpdatedNode: &common.AttestedNode{
+				SpiffeId:            nodeID,
+				AttestationDataType: attestationType,
+				CertSerialNumber:    updatedSerial,
+				CertNotAfter:        updatedExpires,
+				NewCertNotAfter:     updatedNewExpires,
+				NewCertSerialNumber: updatedNewSerial,
+			},
+		},
+	} {
+		tt := tt
+		s.T().Run(tt.name, func(t *testing.T) {
+			s.ds = s.newPlugin()
+			defer s.sqlPlugin.closeDB()
+
+			_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: &common.AttestedNode{
+				SpiffeId:            nodeID,
+				AttestationDataType: attestationType,
+				CertSerialNumber:    serial,
+				CertNotAfter:        expires,
+				NewCertNotAfter:     newExpires,
+				NewCertSerialNumber: newSerial,
+			}})
+			s.Require().NoError(err)
+
+			// Update attested node
+			uresp, err := s.ds.UpdateAttestedNode(ctx, tt.updateReq)
+			if tt.expErr != nil {
+				s.Require().Equal(tt.expErr, err)
+				s.Require().Nil(uresp)
+				return
+			}
+			s.Require().NoError(err)
+			s.Require().NotNil(uresp)
+			s.RequireProtoEqual(tt.expUpdatedNode, uresp.Node)
+
+			// Check a fresh fetch shows the updated attested node
+			fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: tt.updateReq.SpiffeId})
+			s.Require().NoError(err)
+			s.Require().NotNil(fresp)
+			s.RequireProtoEqual(tt.expUpdatedNode, fresp.Node)
+		})
 	}
-
-	updatedNode := &common.AttestedNode{
-		SpiffeId:            "spiffe-id",
-		AttestationDataType: "attestation-data-type",
-		CertSerialNumber:    "new-cert-serial-number-2",
-		CertNotAfter:        2,
-		NewCertSerialNumber: "new-cert-serial-number-2",
-		NewCertNotAfter:     2,
-	}
-
-	updateReq := &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:            updatedNode.SpiffeId,
-		CertSerialNumber:    updatedNode.CertSerialNumber,
-		CertNotAfter:        updatedNode.CertNotAfter,
-		NewCertSerialNumber: updatedNode.NewCertSerialNumber,
-		NewCertNotAfter:     updatedNode.NewCertNotAfter,
-	}
-
-	updatedNode2 := &common.AttestedNode{
-		SpiffeId:            "spiffe-id",
-		AttestationDataType: "attestation-data-type",
-		CertNotAfter:        2,
-	}
-
-	updateReq2 := &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:            updatedNode2.SpiffeId,
-		CertSerialNumber:    updatedNode2.CertSerialNumber,
-		CertNotAfter:        updatedNode2.CertNotAfter,
-		NewCertSerialNumber: updatedNode2.NewCertSerialNumber,
-		NewCertNotAfter:     updatedNode2.NewCertNotAfter,
-	}
-
-	// Update an attested node that does not exist and assert that it fails
-	_, err := s.ds.UpdateAttestedNode(ctx, updateReq)
-	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
-
-	// Create the attested node
-	createResp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: originalNode})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(originalNode, createResp.Node)
-
-	// Update the attested node and assert that the response has the update
-	updateResp, err := s.ds.UpdateAttestedNode(ctx, updateReq)
-	s.Require().NoError(err)
-	s.RequireProtoEqual(updatedNode, updateResp.Node)
-
-	// Fetch the attested node and assert that the response has the update
-	fetchResp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: originalNode.SpiffeId})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(updatedNode, fetchResp.Node)
-
-	// Update the attested node again and assert that the response has the update
-	updateResp2, err := s.ds.UpdateAttestedNode(ctx, updateReq2)
-	s.Require().NoError(err)
-	s.RequireProtoEqual(updatedNode2, updateResp2.Node)
-
-	// Fetch the attested node again and assert that the response has the update
-	fetchResp2, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: originalNode.SpiffeId})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(updatedNode2, fetchResp2.Node)
 }
 
 func (s *PluginSuite) TestDeleteAttestedNode() {

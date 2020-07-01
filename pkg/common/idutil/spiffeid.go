@@ -123,7 +123,7 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
-		if !isAgentPath(id.Path) {
+		if !IsAgentPath(id.Path) {
 			return validationError(`invalid path: expecting "/spire/agent/*"`)
 		}
 	default:
@@ -133,16 +133,19 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	return nil
 }
 
+// IsAgentPath returns true if the given string is an
+// SPIRE agent ID path. SPIRE agent IDs are prefixed
+// with "/spire/agent/".
+func IsAgentPath(path string) bool {
+	return strings.HasPrefix(path, "/spire/agent/")
+}
+
 func isReservedPath(path string) bool {
 	return path == "/spire" || strings.HasPrefix(path, "/spire/")
 }
 
 func isServerPath(path string) bool {
 	return path == "/spire/server"
-}
-
-func isAgentPath(path string) bool {
-	return strings.HasPrefix(path, "/spire/agent/")
 }
 
 // ParseSpiffeID parses the SPIFFE ID and makes sure it is valid according to

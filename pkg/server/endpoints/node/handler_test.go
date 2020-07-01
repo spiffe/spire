@@ -1329,6 +1329,13 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+
+	// banned agent
+	s.banAttestedNode(agentID)
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 }
 
 func (s *HandlerSuite) TestFetchBundle() {
@@ -1428,6 +1435,17 @@ func (s *HandlerSuite) updateAttestedNode(spiffeID, serialNumber string, notAfte
 		SpiffeId:         spiffeID,
 		CertSerialNumber: serialNumber,
 		CertNotAfter:     notAfter.Unix(),
+	})
+	s.Require().NoError(err)
+}
+
+func (s *HandlerSuite) banAttestedNode(spiffeID string) {
+	_, err := s.ds.UpdateAttestedNode(context.Background(), &datastore.UpdateAttestedNodeRequest{
+		SpiffeId: spiffeID,
+		InputMask: &common.AttestedNodeMask{
+			CertSerialNumber:    true,
+			NewCertSerialNumber: true,
+		},
 	})
 	s.Require().NoError(err)
 }
