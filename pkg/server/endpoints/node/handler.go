@@ -478,13 +478,13 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to sign JWT-SVID")
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "failed to sign JWT-SVID: %v", err)
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
 		log.WithError(err).Error("Failed to get JWT-SVID expiry")
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "failed to get JWT-SVID expiry: %v", err)
 	}
 
 	return &node.FetchJWTSVIDResponse{
@@ -522,7 +522,7 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 	jwtSigningKeys, err := h.c.Manager.PublishJWTKey(ctx, req.JwtKey)
 	if err != nil {
 		log.WithError(err).Error("Could not publish new JWT key")
-		return nil, status.Error(codes.Internal, "error publishing new JWT key")
+		return nil, status.Errorf(codes.Internal, "error publishing new JWT key: %v", err)
 	}
 
 	// Ensure we invalidate the cached bundle because PublishJWTKey updated it.
@@ -577,7 +577,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ conte
 			log.WithError(err).WithFields(logrus.Fields{
 				telemetry.AgentID: tryGetSpiffeIDFromCert(peerCert),
 			}).Error("Agent is not attested or no longer valid")
-			return nil, status.Error(codes.PermissionDenied, "agent is not attested or no longer valid")
+			return nil, status.Errorf(codes.PermissionDenied, "agent is not attested or no longer valid: %v", err)
 		}
 
 		ctx = withPeerCertificate(ctx, peerCert)
@@ -1188,8 +1188,8 @@ func (h *Handler) parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, e
 	case 1:
 		spiffeID, err = idutil.NormalizeSpiffeID(csr.URIs[0].String(), mode)
 		if err != nil {
-			h.c.Log.WithError(err).Error("Invalid SPIFFE ID")
-			return nil, errorutil.WrapError(err, "invalid SPIFFE ID")
+			h.c.Log.WithError(err).Error("Invalid SPIFFE ID in CSR")
+			return nil, errorutil.WrapError(err, "invalid SPIFFE ID in CSR")
 		}
 	default:
 		return nil, errors.New("CSR cannot have more than one URI SAN")
