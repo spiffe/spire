@@ -9,18 +9,17 @@ import "spire/common/common.proto";
 
 /** Represents a request to attest a node. */
 message AttestRequest {
+    reserved 2;
+
     /** A type which contains attestation data for specific platform. */
     spire.common.AttestationData attestation_data = 1;
-    /** Is true if the Base SPIFFE ID is present in the Attested Node table. */
-    bool DEPRECATED_attested_before = 2;
     /** Challenge response */
     bytes response = 3;
 }
 
 /** Represents a response when attesting a node.*/
 message AttestResponse {
-    /** True/False */
-    bool DEPRECATED_valid = 1;
+    reserved 1;
 
     /** SPIFFE ID of the attested node */
     string agent_id = 2;
