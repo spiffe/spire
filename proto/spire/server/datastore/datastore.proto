@@ -164,6 +164,8 @@ message UpdateAttestedNodeRequest {
     string new_cert_serial_number = 4;
 
     int64 new_cert_not_after = 5;
+
+    spire.common.AttestedNodeMask input_mask = 6;
 }
 
 message UpdateAttestedNodeResponse {

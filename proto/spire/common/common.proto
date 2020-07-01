@@ -126,3 +126,11 @@ message BundleMask {
     bool jwt_signing_keys = 2;
     bool refresh_hint = 3;
 }
+
+message AttestedNodeMask{
+    bool attestation_data_type = 1;
+    bool cert_serial_number = 2;
+    bool cert_not_after = 3;
+    bool new_cert_serial_number = 4;
+    bool new_cert_not_after = 5;
+}
