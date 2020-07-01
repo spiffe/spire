@@ -131,26 +131,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	// Pick the right node attestor
 	var attestResponse *nodeattestor.AttestResponse
 	if request.AttestationData.Type != "join_token" {
-		// New attestor plugins don't provide a SPIFFE ID to the agent so the
-		// CSR will not have one. If we have a SPIFFE ID in the CSR then we're
-		// working with a legacy plugin and need to provide deprecated
-		// "attested before" information to the server side plugin so it can
-		// make re-attestation decisions.
-		//
-		// If the CSR does not provide a SPIFFE ID then we tell the plugin
-		// that the agent has already attested to prevent old plugins from
-		// re-attesting unsafely.
-		//
-		// TODO: remove in SPIRE 0.10
-		attestedBefore := true
-		if csr.SpiffeID != "" {
-			attestedBefore, err = h.isAttested(ctx, csr.SpiffeID)
-			if err != nil {
-				log.WithError(err).Error("Failed to determine if agent has already attested")
-				return status.Error(codes.Internal, "failed to determine if agent has already attested")
-			}
-		}
-
 		nodeAttestorType := request.AttestationData.Type
 		nodeAttestor, ok := h.c.Catalog.GetNodeAttestorNamed(nodeAttestorType)
 		if !ok {
@@ -164,7 +144,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 			return errorutil.WrapError(err, "unable to open attest stream")
 		}
 
-		attestResponse, err = h.doAttestChallengeResponse(stream, attestStream, request, attestedBefore)
+		attestResponse, err = h.doAttestChallengeResponse(stream, attestStream, request)
 		if err != nil {
 			log.WithError(err).Error("Failed to do node attest challenge response")
 			return err
@@ -705,13 +685,10 @@ func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certifi
 	return h.getDownstreamEntry(ctx, peerID)
 }
 
-func (h *Handler) doAttestChallengeResponse(
-	nodeStream node.Node_AttestServer,
-	attestStream nodeattestor.NodeAttestor_AttestClient,
-	request *node.AttestRequest, attestedBefore bool) (*nodeattestor.AttestResponse, error) {
+func (h *Handler) doAttestChallengeResponse(nodeStream node.Node_AttestServer, attestStream nodeattestor.NodeAttestor_AttestClient, request *node.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	// challenge/response loop
 	for {
-		response, err := h.attest(attestStream, request, attestedBefore)
+		response, err := h.attest(attestStream, request)
 		if err != nil {
 			h.c.Log.WithError(err).Error("Failed to attest")
 			return nil, errorutil.WrapError(err, "failed to attest")
@@ -737,11 +714,10 @@ func (h *Handler) doAttestChallengeResponse(
 	}
 }
 
-func (h *Handler) attest(attestStream nodeattestor.NodeAttestor_AttestClient, nodeRequest *node.AttestRequest, attestedBefore bool) (*nodeattestor.AttestResponse, error) {
+func (h *Handler) attest(attestStream nodeattestor.NodeAttestor_AttestClient, nodeRequest *node.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	attestRequest := &nodeattestor.AttestRequest{
-		AttestationData:          nodeRequest.AttestationData,
-		Response:                 nodeRequest.Response,
-		DEPRECATEDAttestedBefore: attestedBefore,
+		AttestationData: nodeRequest.AttestationData,
+		Response:        nodeRequest.Response,
 	}
 	if err := attestStream.Send(attestRequest); err != nil {
 		return nil, err
