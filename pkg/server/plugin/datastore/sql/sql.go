@@ -1445,12 +1445,23 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 		return nil, sqlError.Wrap(err)
 	}
 
-	model.SerialNumber = req.CertSerialNumber
-	model.ExpiresAt = time.Unix(req.CertNotAfter, 0)
-	model.NewSerialNumber = req.NewCertSerialNumber
-	model.NewExpiresAt = nullableUnixTimeToDBTime(req.NewCertNotAfter)
+	m := req.InputMask
 
-	if err := tx.Save(&model).Error; err != nil {
+	updates := make(map[string]interface{})
+	if m == nil || m.CertNotAfter {
+		updates["expires_at"] = time.Unix(req.CertNotAfter, 0)
+	}
+	if m == nil || m.CertSerialNumber {
+		updates["serial_number"] = req.CertSerialNumber
+	}
+	if m == nil || m.NewCertNotAfter {
+		updates["new_expires_at"] = nullableUnixTimeToDBTime(req.NewCertNotAfter)
+	}
+	if m == nil || m.NewCertSerialNumber {
+		updates["new_serial_number"] = req.NewCertSerialNumber
+	}
+
+	if err := tx.Model(&model).Updates(updates).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
