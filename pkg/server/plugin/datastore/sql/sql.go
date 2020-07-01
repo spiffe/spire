@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -655,13 +656,9 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 		return nil, sqlError.Wrap(err)
 	}
 
-	if req.InputMask == nil {
-		model.Data = newModel.Data
-	} else {
-		model.Data, newBundle, err = applyBundleMask(model, newBundle, req.InputMask)
-		if err != nil {
-			return nil, sqlError.Wrap(err)
-		}
+	model.Data, newBundle, err = applyBundleMask(model, newBundle, req.InputMask)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
 	}
 
 	if err := tx.Save(model).Error; err != nil {
@@ -679,6 +676,10 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 		return nil, nil, err
 	}
 
+	if inputMask == nil {
+		inputMask = protoutil.AllTrueCommonBundleMask
+	}
+
 	if inputMask.RefreshHint {
 		bundle.RefreshHint = newBundle.RefreshHint
 	}
@@ -691,12 +692,12 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 		bundle.JwtSigningKeys = newBundle.JwtSigningKeys
 	}
 
-	m, err := bundleToModel(bundle)
+	newModel, err := bundleToModel(bundle)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return m.Data, bundle, nil
+	return newModel.Data, bundle, nil
 }
 
 func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
@@ -1445,19 +1446,21 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 		return nil, sqlError.Wrap(err)
 	}
 
-	m := req.InputMask
+	if req.InputMask == nil {
+		req.InputMask = protoutil.AllTrueCommonAgentMask
+	}
 
 	updates := make(map[string]interface{})
-	if m == nil || m.CertNotAfter {
+	if req.InputMask.CertNotAfter {
 		updates["expires_at"] = time.Unix(req.CertNotAfter, 0)
 	}
-	if m == nil || m.CertSerialNumber {
+	if req.InputMask.CertSerialNumber {
 		updates["serial_number"] = req.CertSerialNumber
 	}
-	if m == nil || m.NewCertNotAfter {
+	if req.InputMask.NewCertNotAfter {
 		updates["new_expires_at"] = nullableUnixTimeToDBTime(req.NewCertNotAfter)
 	}
-	if m == nil || m.NewCertSerialNumber {
+	if req.InputMask.NewCertSerialNumber {
 		updates["new_serial_number"] = req.NewCertSerialNumber
 	}
 
