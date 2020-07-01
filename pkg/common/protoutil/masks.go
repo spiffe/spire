@@ -1,4 +1,4 @@
-package api
+package protoutil
 
 import (
 	"reflect"
@@ -6,12 +6,16 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 var (
 	AllTrueAgentMask  = MakeAllTrueMask(&types.AgentMask{}).(*types.AgentMask)
 	AllTrueBundleMask = MakeAllTrueMask(&types.BundleMask{}).(*types.BundleMask)
 	AllTrueEntryMask  = MakeAllTrueMask(&types.EntryMask{}).(*types.EntryMask)
+
+	AllTrueCommonBundleMask = MakeAllTrueMask(&common.BundleMask{}).(*common.BundleMask)
+	AllTrueCommonAgentMask  = MakeAllTrueMask(&common.AttestedNodeMask{}).(*common.AttestedNodeMask)
 )
 
 func MakeAllTrueMask(m proto.Message) proto.Message {
