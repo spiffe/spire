@@ -15,10 +15,6 @@ type Config struct {
 	// Fail indicates whether or not fetching attestation data should fail.
 	Fail bool
 
-	// DeprecatedAgentID is the SPIFFE ID of the agent. If set, it will be
-	// returned with the attestation response.
-	DeprecatedAgentID string
-
 	// Responses is list of echo responses. The response to each challenge is
 	// expected to match the challenge value.
 	Responses []string
@@ -85,7 +81,6 @@ func (p *NodeAttestor) makeResponse(challengeResponse []byte) *nodeattestor.Fetc
 			Type: "test",
 			Data: []byte("TEST"),
 		},
-		Response:           challengeResponse,
-		DEPRECATEDSpiffeId: p.config.DeprecatedAgentID,
+		Response: challengeResponse,
 	}
 }
