@@ -285,7 +285,7 @@ func (s *HandlerSuite) TestAttestWithAgentIDFromWrongTrustDomainInCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR("spiffe://otherdomain.test/spire/agent/test/id"),
-	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://otherdomain.test/spire/agent/test/id" does not belong to trust domain`)
+	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID in CSR: "spiffe://otherdomain.test/spire/agent/test/id" does not belong to trust domain`)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
@@ -294,7 +294,7 @@ func (s *HandlerSuite) TestAttestWithNonAgentIDInCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR("spiffe://example.org"),
-	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://example.org" is not a valid agent SPIFFE ID`)
+	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID in CSR: "spiffe://example.org" is not a valid agent SPIFFE ID: path is empty`)
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
@@ -1290,7 +1290,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 	// no attested certificate with matching SPIFFE ID
 	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent is not attested")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
@@ -1301,7 +1301,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent SVID has expired")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 	s.clock.Set(peerCert.NotAfter)
@@ -1309,14 +1309,14 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
 	// banned agent
 	s.banAttestedNode(agentID)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent is banned")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 }
@@ -1572,7 +1572,7 @@ func (s *HandlerSuite) requireFetchX509SVIDAuthFailure() {
 	// the auth failure will come back on the Recv(). we shouldn't have to send
 	// on the stream to get this to happen.
 	resp, err := stream.Recv()
-	s.Require().Contains("agent is not attested or no longer valid", status.Convert(err).Message())
+	s.Require().Contains(status.Convert(err).Message(), "agent is not attested or no longer valid")
 	s.Require().Equal(codes.PermissionDenied, status.Code(err))
 	s.Require().Nil(resp)
 }
