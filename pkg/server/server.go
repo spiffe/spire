@@ -260,17 +260,16 @@ func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA) (*ca.Manager, error) {
 	caManager := ca.NewManager(ca.ManagerConfig{
-		CA:             serverCA,
-		Catalog:        cat,
-		TrustDomain:    s.config.TrustDomain,
-		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Metrics:        metrics,
-		UpstreamBundle: s.config.UpstreamBundle,
-		CATTL:          s.config.CATTL,
-		CASubject:      s.config.CASubject,
-		Dir:            s.config.DataDir,
-		X509CAKeyType:  s.config.CAKeyType,
-		JWTKeyType:     s.config.CAKeyType,
+		CA:            serverCA,
+		Catalog:       cat,
+		TrustDomain:   s.config.TrustDomain,
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:       metrics,
+		CATTL:         s.config.CATTL,
+		CASubject:     s.config.CASubject,
+		Dir:           s.config.DataDir,
+		X509CAKeyType: s.config.CAKeyType,
+		JWTKeyType:    s.config.CAKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err

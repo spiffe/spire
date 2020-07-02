@@ -106,7 +106,7 @@ func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, prevSerialNumb
 	select {
 	case <-stream.Changes():
 		state := stream.Next().(State)
-		s.Require().Len(state.SVID, 2)
+		s.Require().Len(state.SVID, 1)
 		s.Require().NotEqual(0, state.SVID[0].SerialNumber.Cmp(prevSerialNumber))
 		return state.SVID[0]
 	case <-timer.C:

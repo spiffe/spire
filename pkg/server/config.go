@@ -33,8 +33,6 @@ type Config struct {
 	// Trust domain
 	TrustDomain url.URL
 
-	UpstreamBundle bool
-
 	Experimental ExperimentalConfig
 
 	// If true enables profiling.

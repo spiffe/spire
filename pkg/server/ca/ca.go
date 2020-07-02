@@ -36,30 +36,6 @@ type ServerCA interface {
 	SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error)
 	SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x509.Certificate, error)
 	SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, error)
-
-	// Sign an SVID used to serve SPIRE server TLS endpoints
-	// This is required because in some cases, an UpstreamAuthority root is used to bootstrap
-	// agents while upstream_bundle is false. This allows the trust domain roots to be
-	// isolated to those managed by SPIRE, but at the same time allows leveraging a stable
-	// upstream root for the sole purpose of bootstrapping agents.
-	//
-	// This should probably not be supported in the long run because simply omitting higher
-	// order CA certificates is 1) not a sufficient isolation mechanism [1] and 2) not supported
-	// by most X.509 validators without a special flag set [2].
-	//
-	// All known instances requiring this use case are isolated to demos and other convenience
-	// functions, meaning that the UpstreamAuthority signer is always the root. To support this specific
-	// use case, while also minimizing disruption to the CA implementation and interfaces, this
-	// method will always return the CA certificate managed by SPIRE as the 2nd element in the
-	// certificate chain. No effort will be made to support this use case when the UpstreamAuthority
-	// signer is not the root.
-	//
-	// TODO: Change the upstream_ca configurable to default to true. Evaluate whether this use
-	// case should be supported in the long term.
-	//
-	// [1]: https://acmccs.github.io/papers/p1407-acerA.pdf
-	// [2]: https://www.openssl.org/docs/man1.1.0/man1/openssl-verify.html
-	SignServerX509SVID(ctx context.Context, params ServerX509SVIDParams) ([]*x509.Certificate, error)
 }
 
 // X509SVIDParams are parameters relevant to X509 SVID creation
@@ -95,12 +71,6 @@ type X509CASVIDParams struct {
 	TTL time.Duration
 }
 
-// X509CASVIDParams are parameters relevant to X509 CA SVID creation
-type ServerX509SVIDParams struct {
-	// Public Key
-	PublicKey crypto.PublicKey
-}
-
 // JWTSVIDParams are parameters relevant to JWT SVID creation
 type JWTSVIDParams struct {
 	// SPIFFE ID of the SVID
@@ -123,8 +93,7 @@ type X509CA struct {
 
 	// UpstreamChain contains the CA certificate and intermediates necessary to
 	// chain back to the upstream trust bundle. It is only set if the CA is
-	// signed by an UpstreamAuthority and the upstream trust bundle *is* the SPIRE
-	// trust bundle (see the upstream_bundle configurable).
+	// signed by an UpstreamCA.
 	UpstreamChain []*x509.Certificate
 }
 
@@ -205,32 +174,7 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 }
 
 func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error) {
-	return ca.signX509SVID(params, ca.X509CA())
-}
-
-func (ca *CA) SignServerX509SVID(ctx context.Context, params ServerX509SVIDParams) ([]*x509.Certificate, error) {
 	x509CA := ca.X509CA()
-
-	certs, err := ca.signX509SVID(X509SVIDParams{
-		SpiffeID:  idutil.ServerID(ca.c.TrustDomain.Host),
-		PublicKey: params.PublicKey,
-	}, x509CA)
-	if err != nil {
-		return nil, err
-	}
-
-	// If we don't have an upstream chain, always add our local CA cert to
-	// the chain in order to support use cases in which an UpstreamAuthority is used
-	// for bootstrapping only. Don't worry if an UpstreamAuthority is actually set or
-	// not because the cost of transmitting the extra cert is relatively low.
-	if len(x509CA.UpstreamChain) == 0 {
-		certs = append(certs, x509CA.Certificate)
-	}
-
-	return certs, nil
-}
-
-func (ca *CA) signX509SVID(params X509SVIDParams, x509CA *X509CA) ([]*x509.Certificate, error) {
 	if x509CA == nil {
 		return nil, errs.New("X509 CA is not available for signing")
 	}
