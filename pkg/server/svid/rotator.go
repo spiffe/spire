@@ -2,6 +2,7 @@ package svid
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -31,7 +32,7 @@ type rotator struct {
 // State is the current SVID and key
 type State struct {
 	SVID []*x509.Certificate
-	Key  *ecdsa.PrivateKey
+	Key  crypto.Signer
 }
 
 // Start generates a new SVID and then starts the rotator.

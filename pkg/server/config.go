@@ -80,6 +80,9 @@ type Config struct {
 type ExperimentalConfig struct {
 	// Skip agent id validation in node attestation
 	AllowAgentlessNodeAttestors bool
+
+	// EnableAPI enables experimental APIs
+	EnableAPI bool
 }
 
 type FederationConfig struct {
