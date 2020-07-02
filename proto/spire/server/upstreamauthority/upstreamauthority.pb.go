@@ -269,7 +269,7 @@ type UpstreamAuthorityClient interface {
 	// otherwise the RPC is completed after sending the initial response.
 	//
 	// Implementation note:
-	// The stream should be kept open open in the face of transient errors
+	// The stream should be kept open in the face of transient errors
 	// encountered while tracking changes to the upstream X.509 roots as SPIRE
 	// core will not reopen a closed stream until the next X.509 CA rotation.
 	MintX509CA(ctx context.Context, in *MintX509CARequest, opts ...grpc.CallOption) (UpstreamAuthority_MintX509CAClient, error)
@@ -281,7 +281,7 @@ type UpstreamAuthorityClient interface {
 	// This RPC is optional and will return NotImplemented if unsupported.
 	//
 	// Implementation note:
-	// The stream should be kept open open in the face of transient errors
+	// The stream should be kept open in the face of transient errors
 	// encountered while tracking changes to the upstream JWT keys as SPIRE
 	// core will not reopen a closed stream until the next JWT key rotation.
 	PublishJWTKey(ctx context.Context, in *PublishJWTKeyRequest, opts ...grpc.CallOption) (UpstreamAuthority_PublishJWTKeyClient, error)
@@ -388,7 +388,7 @@ type UpstreamAuthorityServer interface {
 	// otherwise the RPC is completed after sending the initial response.
 	//
 	// Implementation note:
-	// The stream should be kept open open in the face of transient errors
+	// The stream should be kept open in the face of transient errors
 	// encountered while tracking changes to the upstream X.509 roots as SPIRE
 	// core will not reopen a closed stream until the next X.509 CA rotation.
 	MintX509CA(*MintX509CARequest, UpstreamAuthority_MintX509CAServer) error
@@ -400,7 +400,7 @@ type UpstreamAuthorityServer interface {
 	// This RPC is optional and will return NotImplemented if unsupported.
 	//
 	// Implementation note:
-	// The stream should be kept open open in the face of transient errors
+	// The stream should be kept open in the face of transient errors
 	// encountered while tracking changes to the upstream JWT keys as SPIRE
 	// core will not reopen a closed stream until the next JWT key rotation.
 	PublishJWTKey(*PublishJWTKeyRequest, UpstreamAuthority_PublishJWTKeyServer) error
