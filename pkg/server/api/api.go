@@ -38,6 +38,16 @@ type AuthorizedEntryFetcher interface {
 	FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error)
 }
 
+// AuthorizedEntryFetcherFunc is an implementation of AuthorizedEntryFetcher
+// using a function.
+type AuthorizedEntryFetcherFunc func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error)
+
+// FetchAuthorizedEntries fetches the entries that the specified
+// SPIFFE ID is authorized for
+func (fn AuthorizedEntryFetcherFunc) FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
+	return fn(ctx, id)
+}
+
 // StringValueFromSPIFFEID converts a SPIFFE ID from the given spiffeid.ID to
 // *wrappers.StringValue
 func StringValueFromSPIFFEID(spiffeID *types.SPIFFEID) (*wrappers.StringValue, error) {

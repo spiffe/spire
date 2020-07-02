@@ -10,7 +10,23 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
-// RegistrationEntryToProto converts RegistrationEntry into types Entry
+// RegistrationEntriesToProto converts RegistrationEntry's into Entry's
+func RegistrationEntriesToProto(es []*common.RegistrationEntry) ([]*types.Entry, error) {
+	if es == nil {
+		return nil, nil
+	}
+	pbs := make([]*types.Entry, 0, len(es))
+	for _, e := range es {
+		pb, err := RegistrationEntryToProto(e)
+		if err != nil {
+			return nil, err
+		}
+		pbs = append(pbs, pb)
+	}
+	return pbs, nil
+}
+
+// RegistrationEntryToProto converts RegistrationEntry into Entry
 func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error) {
 	if e == nil {
 		return nil, errors.New("missing registration entry")

@@ -1196,7 +1196,7 @@ func (s *serviceTest) Cleanup() {
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	ef := &entryFetcher{}
 	service := entry.New(entry.Config{
-		Datastore:    ds,
+		DataStore:    ds,
 		EntryFetcher: ef,
 	})
 

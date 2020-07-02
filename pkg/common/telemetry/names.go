@@ -275,6 +275,9 @@ const (
 	// SVIDResponseLatency tags latency for SVID response
 	SVIDResponseLatency = "svid_response_latency"
 
+	// SVIDSerialNumber tags a certificate serial number
+	SVIDSerialNumber = "svid_serial_num"
+
 	// SVIDType tags some type of SVID (eg. X509, JWT)
 	SVIDType = "svid_type"
 

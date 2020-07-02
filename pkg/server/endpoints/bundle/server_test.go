@@ -292,7 +292,7 @@ func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth) (net.Addr
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.Run(ctx)
+		errCh <- server.ListenAndServe(ctx)
 	}()
 
 	// wait for the listener to be created and the url to be set

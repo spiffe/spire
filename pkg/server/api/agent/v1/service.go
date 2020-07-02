@@ -26,6 +26,7 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
+	DataStore   datastore.DataStore
 	Datastore   datastore.DataStore
 	TrustDomain spiffeid.TrustDomain
 }
@@ -33,7 +34,7 @@ type Config struct {
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
-		ds: config.Datastore,
+		ds: config.DataStore,
 		td: config.TrustDomain,
 	}
 }
