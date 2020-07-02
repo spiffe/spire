@@ -57,6 +57,8 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgpHVYFq6Z/LgGIG/X
 +i+PWZEFjGVEUpjrMzlz95tDl4yhRANCAAQAc/I3bBO9XhgTTbLBuNA6XJBSvds9
 c4gThKYxugN3V398Eieoo2HTO2L7BBjTp5yh+EUtHQD52bFseBCnZT3d
 -----END PRIVATE KEY-----`)
+
+	notNil = gomock.Not(gomock.Nil())
 )
 
 func TestAttestorPlugin(t *testing.T) {
@@ -207,7 +209,7 @@ func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
 
 func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(nil, errors.New("an error"))
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(nil, errors.New("an error"))
 	s.requireAttestError(makeAttestRequest("BAR", token), "unable to validate token with TokenReview API")
 }
 
@@ -220,7 +222,7 @@ func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", false)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), "token not authenticated")
 }
 
@@ -232,7 +234,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceFromTokenStatus() {
 	token := s.signToken(s.barSigner, "", "SA2")
 	status := createTokenStatus("", "SA2", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
@@ -244,7 +246,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "")
 	status := createTokenStatus("NS2", "", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
@@ -256,7 +258,7 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenCl
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "NO-WHITHELISTED-SA")
 	status := createTokenStatus("NS2", "NO-WHITHELISTED-SA", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), `"NS2:NO-WHITHELISTED-SA" is not a whitelisted service account`)
 }
 
@@ -283,7 +285,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with BAR signed token (token review API validation)
 	token = s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	resp, err = s.doAttest(makeAttestRequest("BAR", token))
 
 	s.Require().NoError(err)

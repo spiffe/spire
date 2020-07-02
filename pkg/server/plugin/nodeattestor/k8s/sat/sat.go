@@ -164,7 +164,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 	var namespace, serviceAccountName string
 	if cluster.useTokenReviewAPI {
 		// Empty audience is used since SAT does not support audiences
-		tokenStatus, err := cluster.client.ValidateToken(attestationData.Token, []string{})
+		tokenStatus, err := cluster.client.ValidateToken(stream.Context(), attestationData.Token, []string{})
 		if err != nil {
 			return satError.New("unable to validate token with TokenReview API: %v", err)
 		}
