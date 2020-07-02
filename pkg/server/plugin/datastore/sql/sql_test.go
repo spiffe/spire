@@ -1265,6 +1265,12 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
 	s.Require().NoError(err)
 
+	foo1 := []*common.Selector{
+		{Type: "FOO1", Value: "1"},
+	}
+
+	s.setNodeSelectors(entry.SpiffeId, foo1)
+
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
 	s.AssertProtoEqual(entry, dresp.Node)
@@ -1272,6 +1278,12 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
 	s.Nil(fresp.Node)
+
+	selectorsResp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
+		SpiffeId: entry.SpiffeId,
+	})
+	s.Require().NoError(err)
+	s.Require().Empty(selectorsResp.Selectors.Selectors)
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
