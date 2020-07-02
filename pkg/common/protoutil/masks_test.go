@@ -1,9 +1,11 @@
-package api
+package protoutil_test
 
 import (
 	"testing"
 
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,14 +16,14 @@ func TestAllTrueMasks(t *testing.T) {
 		X509SvidExpiresAt:    true,
 		Selectors:            true,
 		Banned:               true,
-	}, AllTrueAgentMask)
+	}, protoutil.AllTrueAgentMask)
 
 	assert.Equal(t, &types.BundleMask{
 		X509Authorities: true,
 		JwtAuthorities:  true,
 		RefreshHint:     true,
 		SequenceNumber:  true,
-	}, AllTrueBundleMask)
+	}, protoutil.AllTrueBundleMask)
 
 	assert.Equal(t, &types.EntryMask{
 		SpiffeId:      true,
@@ -33,5 +35,19 @@ func TestAllTrueMasks(t *testing.T) {
 		Downstream:    true,
 		ExpiresAt:     true,
 		DnsNames:      true,
-	}, AllTrueEntryMask)
+	}, protoutil.AllTrueEntryMask)
+
+	assert.Equal(t, &common.BundleMask{
+		RootCas:        true,
+		JwtSigningKeys: true,
+		RefreshHint:    true,
+	}, protoutil.AllTrueCommonBundleMask)
+
+	assert.Equal(t, &common.AttestedNodeMask{
+		AttestationDataType: true,
+		CertSerialNumber:    true,
+		CertNotAfter:        true,
+		NewCertSerialNumber: true,
+		NewCertNotAfter:     true,
+	}, protoutil.AllTrueCommonAgentMask)
 }

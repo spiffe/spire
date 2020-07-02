@@ -65,10 +65,6 @@ func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (er
 		return errs.Wrap(err)
 	}
 
-	if req.DEPRECATEDAttestedBefore && p.config.DisallowReattestation {
-		return errs.New("reattestation is not permitted (deprecated)")
-	}
-
 	if req.AttestationData == nil {
 		return errs.New("request is missing attestation data")
 	}

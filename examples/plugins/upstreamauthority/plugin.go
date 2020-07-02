@@ -6,9 +6,8 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 )
@@ -16,7 +15,8 @@ import (
 const (
 	// TODO: Replace with your plugin name. This will be used by the catalog to
 	// identify your plugin. Plugin names don't usually contain the plugin type
-	// in them. For example, prefer "my-plugin" to "my-plugin-node-attestor".
+	// in them. For example, prefer "my-plugin" to
+	// "my-plugin-upstream-authority".
 	pluginName = "my-plugin"
 )
 
@@ -32,7 +32,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(p))
 }
 
 type Config struct {
@@ -54,9 +54,10 @@ type Plugin struct {
 
 // These are compile time assertions that the plugin matches the interfaces the
 // catalog requires to provide the plugin with a logger and host service
-// broker.
+// broker as well as the UpstreamAuthority itself.
 var _ catalog.NeedsLogger = (*Plugin)(nil)
-var _ catalog.NeedsHostServices = (*Plugin)(nil)
+var _ catalog.NeedsLogger = (*Plugin)(nil)
+var _ upstreamauthority.UpstreamAuthorityServer = (*Plugin)(nil)
 
 func New() *Plugin {
 	return &Plugin{}
@@ -79,42 +80,33 @@ func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 	return nil
 }
 
-// FetchAttestationData is called by the agent when initiating node attestation.
-// The agent acts as a conduit between this plugin and the corresponding
-// node attestor plugin on the server.
+// Mints an X.509 CA and responds with the signed X.509 CA certificate
+// chain and upstream X.509 roots. If supported by the implementation,
+// subsequent responses on the stream contain upstream X.509 root updates,
+// otherwise the RPC is completed after sending the initial response.
 //
-// FetchAttestationData should do the following:
-//   1) Gather attestation data
-//   2) Send the attestation data through the stream
-// If implementing a challenge response flow, the plugin should then:
-//   3) Receive a challenge from the server
-//   4) Send a challenge response back to the server
-//   5) Repeat 3 and 4 as much as necessary to complete the challenge/response.
-func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
-	config, err := p.getConfig()
-	if err != nil {
-		return err
-	}
+// Implementation note:
+// The stream should be kept open in the face of transient errors
+// encountered while tracking changes to the upstream X.509 roots as SPIRE
+// core will not reopen a closed stream until the next X.509 CA rotation.
+func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+	// TODO: implement
+	return nil
+}
 
-	data, err := p.loadAttestationData(stream.Context(), config)
-	if err != nil {
-		return err
-	}
-
-	// Send the attestation data back to the agent. The "type" of the
-	// attestation data should be set to the plugin name.
-	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
-		AttestationData: &common.AttestationData{
-			Type: pluginName,
-			Data: data,
-		},
-	}); err != nil {
-		return err
-	}
-
-	// TODO: Implement challenge response flow if necessary for your
-	// attestation design.
-
+// Publishes a JWT signing key upstream and responds with the upstream JWT
+// keys. If supported by the implementation, subsequent responses on the
+// stream contain upstream JWT key updates, otherwise the RPC is completed
+// after sending the initial response.
+//
+// This RPC is optional and will return NotImplemented if unsupported.
+//
+// Implementation note:
+// The stream should be kept open in the face of transient errors
+// encountered while tracking changes to the upstream JWT keys as SPIRE
+// core will not reopen a closed stream until the next JWT key rotation.
+func (p *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+	// TODO: implement or return NotImplemented if unsupported
 	return nil
 }
 
@@ -154,18 +146,10 @@ func (p *Plugin) setConfig(c *Config) {
 	p.c = c
 }
 
-func (p *Plugin) loadAttestationData(ctx context.Context, config *Config) ([]byte, error) {
-	// TODO: gather the attestation data using any necessary values the
-	// configuration
-	var attestationData []byte
-
-	return attestationData, nil
-}
-
-// TODO: If you are implementing an external plugin, you can use the following main()
-// to run your plugin. If this is a builtin plugin, the catalog can use the
-// BuiltIn() function in this package to load the plugin and this function can
-// be removed.
+// TODO: If you are implementing an external plugin, you can use the following
+// main() to run your plugin. If this is a builtin plugin, the catalog can use
+// the BuiltIn() function in this package to load the plugin and this function
+// can be removed.
 func main() {
 	catalog.PluginMain(BuiltIn())
 }
