@@ -2,8 +2,6 @@ package catalog
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -38,18 +36,9 @@ import (
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca"
 )
 
 var (
-	portedUpstreamCA = map[string]bool{
-		"aws_pca":   true,
-		"awssecret": true,
-		"disk":      true,
-		"spire":     true,
-		"vault":     true,
-	}
-
 	builtIns = []catalog.Plugin{
 		// DataStores
 		ds_sql.BuiltIn(),
@@ -100,7 +89,6 @@ func KnownPlugins() []catalog.PluginClient {
 		nodeattestor.PluginClient,
 		noderesolver.PluginClient,
 		upstreamauthority.PluginClient,
-		upstreamca.PluginClient,
 		keymanager.PluginClient,
 		notifier.PluginClient,
 	}
@@ -119,25 +107,18 @@ type Notifier struct {
 	notifier.Notifier
 }
 
-type UpstreamCA struct {
-	catalog.PluginInfo
-	upstreamca.UpstreamCA
-}
-
 type UpstreamAuthority struct {
 	catalog.PluginInfo
 	upstreamauthority.UpstreamAuthority
 }
 
 type Plugins struct {
-	DataStore     datastore.DataStore
-	NodeAttestors map[string]nodeattestor.NodeAttestor
-	NodeResolvers map[string]noderesolver.NodeResolver
-	UpstreamCA    *UpstreamCA
-	KeyManager    keymanager.KeyManager
-	Notifiers     []Notifier
-
+	DataStore         datastore.DataStore
+	NodeAttestors     map[string]nodeattestor.NodeAttestor
+	NodeResolvers     map[string]noderesolver.NodeResolver
 	UpstreamAuthority *UpstreamAuthority
+	KeyManager        keymanager.KeyManager
+	Notifiers         []Notifier
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -184,35 +165,7 @@ type Repository struct {
 	catalog.Closer
 }
 
-// reclassifyPortedUpstreamCAs reclassify ported UpstreamCA plugins into UpstreamAuthority
-func reclassifyPortedUpstreamCAs(pluginConfig catalog.HCLPluginConfigMap, log logrus.FieldLogger) error {
-	// We only expect one UpstreamCA configuration
-	for name, config := range pluginConfig[upstreamca.Type] {
-		// in case configured UpstreamCA is ported update configuration to process it as an UpstreamAuthority
-		if !portedUpstreamCA[name] || config.PluginCmd != "" {
-			continue
-		}
-
-		if _, ok := pluginConfig[upstreamauthority.Type]; ok {
-			return fmt.Errorf("%q cannot be configured as both an UpstreamCA and UpstreamAuthority", name)
-		}
-		// Create upstream authority type entry
-		pluginConfig[upstreamauthority.Type] = map[string]catalog.HCLPluginConfig{
-			name: config,
-		}
-
-		log.Warnf("%q should be configured as an UpstreamAuthority plugin. The UpstreamCA plugin type has been deprecated.", name)
-		delete(pluginConfig[upstreamca.Type], name)
-	}
-
-	return nil
-}
-
 func Load(ctx context.Context, config Config) (*Repository, error) {
-	if err := reclassifyPortedUpstreamCAs(config.PluginConfig, config.Log); err != nil {
-		return nil, err
-	}
-
 	pluginConfigs, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
@@ -237,18 +190,6 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	}
 
 	p.DataStore = datastore_telemetry.WithMetrics(p.DataStore, config.Metrics)
-
-	switch {
-	case p.UpstreamCA == nil:
-	case p.UpstreamAuthority != nil:
-		logrus.Error("UpstreamCA and UpstreamAuthority are mutually exclusive. Please remove one of them")
-		return nil, errors.New("plugins UpstreamCA and UpstreamAuthority are mutually exclusive")
-	default:
-		p.UpstreamAuthority = &UpstreamAuthority{
-			UpstreamAuthority: upstreamauthority.Wrap(p.UpstreamCA),
-			PluginInfo:        p.UpstreamCA,
-		}
-	}
 
 	return &Repository{
 		Catalog: p,

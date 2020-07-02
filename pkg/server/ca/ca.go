@@ -38,7 +38,7 @@ type ServerCA interface {
 	SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, error)
 
 	// Sign an SVID used to serve SPIRE server TLS endpoints
-	// This is required because in some cases, an UpstreamCA root is used to bootstrap
+	// This is required because in some cases, an UpstreamAuthority root is used to bootstrap
 	// agents while upstream_bundle is false. This allows the trust domain roots to be
 	// isolated to those managed by SPIRE, but at the same time allows leveraging a stable
 	// upstream root for the sole purpose of bootstrapping agents.
@@ -48,10 +48,10 @@ type ServerCA interface {
 	// by most X.509 validators without a special flag set [2].
 	//
 	// All known instances requiring this use case are isolated to demos and other convenience
-	// functions, meaning that the UpstreamCA signer is always the root. To support this specific
+	// functions, meaning that the UpstreamAuthority signer is always the root. To support this specific
 	// use case, while also minimizing disruption to the CA implementation and interfaces, this
 	// method will always return the CA certificate managed by SPIRE as the 2nd element in the
-	// certificate chain. No effort will be made to support this use case when the UpstreamCA
+	// certificate chain. No effort will be made to support this use case when the UpstreamAuthority
 	// signer is not the root.
 	//
 	// TODO: Change the upstream_ca configurable to default to true. Evaluate whether this use
@@ -123,7 +123,7 @@ type X509CA struct {
 
 	// UpstreamChain contains the CA certificate and intermediates necessary to
 	// chain back to the upstream trust bundle. It is only set if the CA is
-	// signed by an UpstreamCA and the upstream trust bundle *is* the SPIRE
+	// signed by an UpstreamAuthority and the upstream trust bundle *is* the SPIRE
 	// trust bundle (see the upstream_bundle configurable).
 	UpstreamChain []*x509.Certificate
 }
@@ -220,8 +220,8 @@ func (ca *CA) SignServerX509SVID(ctx context.Context, params ServerX509SVIDParam
 	}
 
 	// If we don't have an upstream chain, always add our local CA cert to
-	// the chain in order to support use cases in which an UpstreamCA is used
-	// for bootstrapping only. Don't worry if an UpstreamCA is actually set or
+	// the chain in order to support use cases in which an UpstreamAuthority is used
+	// for bootstrapping only. Don't worry if an UpstreamAuthority is actually set or
 	// not because the cost of transmitting the extra cert is relatively low.
 	if len(x509CA.UpstreamChain) == 0 {
 		certs = append(certs, x509CA.Certificate)
