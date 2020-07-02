@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/imkira/go-observer"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
@@ -92,20 +93,19 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Sign the CSR
-	svid, err := r.c.ServerCA.SignServerX509SVID(ctx, ca.ServerX509SVIDParams{
+	svid, err := r.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  idutil.ServerID(r.c.TrustDomain.Host),
 		PublicKey: key.Public(),
 	})
 	if err != nil {
 		return err
 	}
 
-	s := State{
+	r.state.Update(State{
 		SVID: svid,
 		Key:  key,
-	}
+	})
 
-	r.state.Update(s)
 	return nil
 }
 

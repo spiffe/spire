@@ -64,7 +64,6 @@ This may be useful for templating configuration files, for example across differ
 | `registration_uds_path`     | Location to bind the registration API socket                                  | /tmp/spire-registration.sock  |
 | `default_svid_ttl`          | The default SVID TTL                                                          | 1h                            |
 | `trust_domain`              | The trust domain that this server belongs to                                  |                               |
-| `upstream_bundle`           | Include upstream CA certificates in the trust bundle                          | true                          |
 
 | ca_subject Configuration    | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -205,7 +204,6 @@ Most of the configuration file above options have identical command-line counter
 | `-registrationUDSPath` | UDS Path to bind registration API | |
 | `-serverPort` | Port number of the SPIRE server | |
 | `-trustDomain` | The trust domain that this server belongs to | |
-| `-upstreamBundle` | Include upstream CA certificates in the bundle | |
 
 ### `spire-server token generate`
 

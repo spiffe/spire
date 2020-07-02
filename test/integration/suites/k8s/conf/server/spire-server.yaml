@@ -108,7 +108,6 @@ data:
       log_level = "DEBUG"
       default_svid_ttl = "1h"
       ca_ttl = "12h"
-      upstream_bundle = true
       ca_subject = {
         country = ["US"],
         organization = ["SPIFFE"],

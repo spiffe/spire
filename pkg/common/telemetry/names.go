@@ -295,9 +295,6 @@ const (
 	// with other tags to add clarity
 	Updated = "updated"
 
-	// UpstreamBundle tags an upstream bundle for an entity
-	UpstreamBundle = "upstream_bundle"
-
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"
 
