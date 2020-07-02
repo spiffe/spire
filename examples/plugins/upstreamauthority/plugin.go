@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	// TODO: Replace with your plugin name. This will be used by the catalog
-	// to identify your plugin. Plugin names don't usually contain the plugin
-	// in them. For example, prefer "my-plugin" to "my-plugin-upstream-authority".
+	// TODO: Replace with your plugin name. This will be used by the catalog to
+	// identify your plugin. Plugin names don't usually contain the plugin type
+	// in them. For example, prefer "my-plugin" to
+	// "my-plugin-upstream-authority".
 	pluginName = "my-plugin"
 )
 
@@ -85,7 +86,7 @@ func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 // otherwise the RPC is completed after sending the initial response.
 //
 // Implementation note:
-// The stream should be kept open open in the face of transient errors
+// The stream should be kept open in the face of transient errors
 // encountered while tracking changes to the upstream X.509 roots as SPIRE
 // core will not reopen a closed stream until the next X.509 CA rotation.
 func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
@@ -101,7 +102,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream ups
 // This RPC is optional and will return NotImplemented if unsupported.
 //
 // Implementation note:
-// The stream should be kept open open in the face of transient errors
+// The stream should be kept open in the face of transient errors
 // encountered while tracking changes to the upstream JWT keys as SPIRE
 // core will not reopen a closed stream until the next JWT key rotation.
 func (p *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
