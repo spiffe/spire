@@ -657,7 +657,7 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid request: not an agent ID",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: "spiffe://examples.org/host",
+						telemetry.SPIFFEID: "spiffe://example.org/host",
 					},
 				},
 			},
@@ -665,7 +665,7 @@ func TestDeleteAgent(t *testing.T) {
 			err:  "not an agent ID",
 			req: &agentpb.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
-					TrustDomain: "examples.org",
+					TrustDomain: "example.org",
 					Path:        "host",
 				},
 			},
@@ -722,10 +722,7 @@ func TestDeleteAgent(t *testing.T) {
 				Node: node1,
 			})
 			require.NoError(t, err)
-
-			if tt.dsError != nil {
-				test.ds.SetNextError(tt.dsError)
-			}
+			test.ds.SetNextError(tt.dsError)
 
 			resp, err := test.client.DeleteAgent(ctx, tt.req)
 
