@@ -614,7 +614,7 @@ func (s *HandlerSuite) TestAttestBannedAgent() {
 	}, agentID)
 
 	// Ban the agent
-	s.updateAttestedNode(agentID, "", s.clock.Now())
+	s.banAttestedNode(agentID)
 
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
