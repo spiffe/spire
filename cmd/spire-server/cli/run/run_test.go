@@ -470,51 +470,6 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "bar", c.Server.TrustDomain)
 			},
 		},
-		{
-			msg:       "upstream_bundle should be nil if not set",
-			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Nil(t, c.Server.UpstreamBundle)
-			},
-		},
-		{
-			msg: "upstream_bundle should be configurable by file",
-			fileInput: func(c *Config) {
-				value := true
-				c.Server.UpstreamBundle = &value
-			},
-			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Server.UpstreamBundle)
-				require.Equal(t, true, *c.Server.UpstreamBundle)
-			},
-		},
-		{
-			msg:       "upstream_bundle should be configurable by CLI flag",
-			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				value := true
-				c.UpstreamBundle = &value
-			},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Server.UpstreamBundle)
-				require.Equal(t, true, *c.Server.UpstreamBundle)
-			},
-		},
-		//{
-		//      // TODO: This is currently unsupported
-		//	msg: "upstream_bundle specified by CLI flag should take precedence over file",
-		//	fileInput: func(c *Config) {
-		//		c.Server.UpstreamBundle = true
-		//	},
-		//	cliInput: func(c *serverConfig) {
-		//		c.UpstreamBundle = false
-		//	},
-		//	test: func(t *testing.T, c *Config) {
-		//		require.Equal(t, false, c.Server.UpstreamBundle)
-		//	},
-		//},
 	}
 
 	for _, testCase := range cases {
@@ -656,23 +611,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "upstream_bundle is configured correctly",
-			input: func(c *Config) {
-				value := false
-				c.Server.UpstreamBundle = &value
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.False(t, c.UpstreamBundle)
-			},
-		},
-		{
-			msg:   "upstream_bundle default value must be 'true'",
-			input: func(c *Config) {},
-			test: func(t *testing.T, c *server.Config) {
-				require.True(t, c.UpstreamBundle)
 			},
 		},
 		{

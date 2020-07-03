@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,6 +26,7 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
+	DataStore   datastore.DataStore
 	Datastore   datastore.DataStore
 	TrustDomain spiffeid.TrustDomain
 }
@@ -32,7 +34,7 @@ type Config struct {
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
-		ds: config.Datastore,
+		ds: config.DataStore,
 		td: config.TrustDomain,
 	}
 }
@@ -151,11 +153,84 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 }
 
 func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*empty.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "method not implemented")
+	log := rpccontext.Logger(ctx)
+
+	id, err := api.IDFromProto(req.Id)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: invalid SPIFFE ID")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, id.String())
+
+	if !idutil.IsAgentPath(id.Path()) {
+		log.Error("Invalid request: not an agent ID")
+		return nil, status.Error(codes.InvalidArgument, "not an agent ID")
+	}
+
+	if !id.MemberOf(s.td) {
+		log.Error("Invalid request: cannot ban an agent that does not belong to this trust domain")
+		return nil, status.Errorf(codes.InvalidArgument, "cannot ban an agent that does not belong to this trust domain")
+	}
+
+	_, err = s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{
+		SpiffeId: id.String(),
+	})
+	switch status.Code(err) {
+	case codes.OK:
+		log.Info("Agent deleted")
+		return &empty.Empty{}, nil
+	case codes.NotFound:
+		log.WithError(err).Error("Agent not found")
+		return nil, status.Error(codes.NotFound, "agent not found")
+	default:
+		log.WithError(err).Error("Failed to remove agent")
+		return nil, status.Errorf(codes.Internal, "failed to remove agent: %v", err)
+	}
 }
 
 func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*empty.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "method not implemented")
+	log := rpccontext.Logger(ctx)
+
+	id, err := api.IDFromProto(req.Id)
+	if err != nil {
+		log.WithError(err).Error("Invalid request: invalid SPIFFE ID")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, id.String())
+
+	if !idutil.IsAgentPath(id.Path()) {
+		log.Error("Invalid request: not an agent ID")
+		return nil, status.Error(codes.InvalidArgument, "not an agent ID")
+	}
+
+	if !id.MemberOf(s.td) {
+		log.Error("Invalid request: cannot ban an agent that does not belong to this trust domain")
+		return nil, status.Errorf(codes.InvalidArgument, "cannot ban an agent that does not belong to this trust domain")
+	}
+
+	// The agent "Banned" state is pointed out by setting its
+	// serial numbers (current and new) to empty strings.
+	_, err = s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+		SpiffeId: id.String(),
+		InputMask: &common.AttestedNodeMask{
+			CertSerialNumber:    true,
+			NewCertSerialNumber: true,
+		},
+	})
+
+	switch status.Code(err) {
+	case codes.OK:
+		log.Info("Agent banned")
+		return &empty.Empty{}, nil
+	case codes.NotFound:
+		log.WithError(err).Error("Agent not found")
+		return nil, status.Errorf(codes.NotFound, "agent not found: %v", err)
+	default:
+		log.WithError(err).Error("Unable to ban agent")
+		return nil, status.Errorf(codes.Internal, "unable to ban agent: %v", err)
+	}
 }
 
 func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {

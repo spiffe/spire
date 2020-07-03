@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
@@ -125,7 +126,10 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
+	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
+	if err != nil {
+		return err
+	}
 
 	// Set the identity provider dependencies
 	if err := identityProvider.SetDeps(identityprovider.Deps{
@@ -256,17 +260,16 @@ func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA) (*ca.Manager, error) {
 	caManager := ca.NewManager(ca.ManagerConfig{
-		CA:             serverCA,
-		Catalog:        cat,
-		TrustDomain:    s.config.TrustDomain,
-		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Metrics:        metrics,
-		UpstreamBundle: s.config.UpstreamBundle,
-		CATTL:          s.config.CATTL,
-		CASubject:      s.config.CASubject,
-		Dir:            s.config.DataDir,
-		X509CAKeyType:  s.config.CAKeyType,
-		JWTKeyType:     s.config.CAKeyType,
+		CA:            serverCA,
+		Catalog:       cat,
+		TrustDomain:   s.config.TrustDomain,
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:       metrics,
+		CATTL:         s.config.CATTL,
+		CASubject:     s.config.CASubject,
+		Dir:           s.config.DataDir,
+		X509CAKeyType: s.config.CAKeyType,
+		JWTKeyType:    s.config.CAKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -296,18 +299,19 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) endpoints.Server {
-	config := &endpoints.Config{
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
+	config := endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
 		SVIDObserver:                svidObserver,
-		TrustDomain:                 s.config.TrustDomain,
+		TrustDomain:                 spiffeid.RequireTrustDomainFromURI(&s.config.TrustDomain),
 		Catalog:                     catalog,
 		ServerCA:                    serverCA,
 		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:                     metrics,
 		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
+		EnableExperimentalAPI:       s.config.Experimental.EnableAPI,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

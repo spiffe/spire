@@ -7,16 +7,16 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/zeebo/errs"
 )
 
 const (
-	// TODO: Replace with your plugin name. This will be used by the catalog
-	// to identify your plugin. Plugin names don't usually contain the plugin
+	// TODO: Replace with your plugin name. This will be used by the catalog to
+	// identify your plugin. Plugin names don't usually contain the plugin type
 	// in them. For example, prefer "my-plugin" to "my-plugin-node-attestor".
 	pluginName = "my-plugin"
 )

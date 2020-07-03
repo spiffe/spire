@@ -275,6 +275,9 @@ const (
 	// SVIDResponseLatency tags latency for SVID response
 	SVIDResponseLatency = "svid_response_latency"
 
+	// SVIDSerialNumber tags a certificate serial number
+	SVIDSerialNumber = "svid_serial_num"
+
 	// SVIDType tags some type of SVID (eg. X509, JWT)
 	SVIDType = "svid_type"
 
@@ -294,9 +297,6 @@ const (
 	// Updated tags some entity as updated; should be used
 	// with other tags to add clarity
 	Updated = "updated"
-
-	// UpstreamBundle tags an upstream bundle for an entity
-	UpstreamBundle = "upstream_bundle"
 
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"

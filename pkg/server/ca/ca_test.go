@@ -71,7 +71,7 @@ func (s *CATestSuite) SetupTest() {
 			CommonName: "TESTCA",
 		},
 	})
-	s.setX509CA(false)
+	s.setX509CA(true)
 	s.setJWTKey()
 }
 
@@ -79,21 +79,6 @@ func (s *CATestSuite) TestSignX509SVIDNoCASet() {
 	s.ca.SetX509CA(nil)
 	_, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
 	s.Require().EqualError(err, "X509 CA is not available for signing")
-}
-
-func (s *CATestSuite) TestSignServerX509SVID() {
-	svidChain, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
-	s.Require().NoError(err)
-	s.Require().Len(svidChain, 2)
-
-	// SPIFFE ID should be set to that of the trust domain
-	svid := svidChain[0]
-	if s.Len(svid.URIs, 1, "has no URIs") {
-		s.Equal("spiffe://example.org/spire/server", svid.URIs[0].String())
-	}
-
-	// Chain MUST include the CA cert
-	s.Equal(s.ca.x509CA.Certificate, svidChain[1])
 }
 
 func (s *CATestSuite) TestSignX509SVID() {
@@ -225,7 +210,7 @@ func (s *CATestSuite) TestSignX509SVIDWithSubject() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDReturnsChainIfIntermediate() {
-	s.setX509CA(true)
+	s.setX509CA(false)
 
 	svid, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
 	s.Require().NoError(err)
@@ -359,9 +344,9 @@ func (s *CATestSuite) TestSignCAX509SVIDValidatesTrustDomain() {
 	s.Require().EqualError(err, `"spiffe://foo.com" does not belong to trust domain "example.org"`)
 }
 
-func (s *CATestSuite) setX509CA(upstreamBundle bool) {
+func (s *CATestSuite) setX509CA(selfSigned bool) {
 	var upstreamChain []*x509.Certificate
-	if upstreamBundle {
+	if !selfSigned {
 		upstreamChain = []*x509.Certificate{s.caCert, s.upstreamCert}
 	}
 	s.ca.SetX509CA(&X509CA{
@@ -393,12 +378,6 @@ func (s *CATestSuite) createX509SVIDParamsInDomain(trustDomain string) X509SVIDP
 func (s *CATestSuite) createX509CASVIDParams(trustDomain string) X509CASVIDParams {
 	return X509CASVIDParams{
 		SpiffeID:  makeTrustDomainID(trustDomain),
-		PublicKey: testSigner.Public(),
-	}
-}
-
-func (s *CATestSuite) createServerX509SVIDParams() ServerX509SVIDParams {
-	return ServerX509SVIDParams{
 		PublicKey: testSigner.Public(),
 	}
 }

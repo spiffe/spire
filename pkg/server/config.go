@@ -33,8 +33,6 @@ type Config struct {
 	// Trust domain
 	TrustDomain url.URL
 
-	UpstreamBundle bool
-
 	Experimental ExperimentalConfig
 
 	// If true enables profiling.
@@ -80,6 +78,9 @@ type Config struct {
 type ExperimentalConfig struct {
 	// Skip agent id validation in node attestation
 	AllowAgentlessNodeAttestors bool
+
+	// EnableAPI enables experimental APIs
+	EnableAPI bool
 }
 
 type FederationConfig struct {

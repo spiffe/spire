@@ -26,7 +26,7 @@ func TestBundleToProto(t *testing.T) {
 		{
 			name: "success",
 			bundle: &common.Bundle{
-				TrustDomainId: td.String(),
+				TrustDomainId: td.IDString(),
 				RefreshHint:   10,
 				RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
 				JwtSigningKeys: []*common.PublicKey{

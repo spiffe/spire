@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +40,6 @@ const (
 	defaultSocketPath         = "/tmp/spire-registration.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
-	defaultUpstreamBundle     = true
 )
 
 var (
@@ -77,7 +75,6 @@ type serverConfig struct {
 	DeprecatedSVIDTTL   string             `hcl:"svid_ttl"`
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
-	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -99,6 +96,8 @@ type experimentalConfig struct {
 	DeprecatedBundleEndpointPort    int                                      `hcl:"bundle_endpoint_port"`
 	DeprecatedBundleEndpointACME    *bundleEndpointACMEConfig                `hcl:"bundle_endpoint_acme"`
 	DeprecatedFederatesWith         map[string]deprecatedFederatesWithConfig `hcl:"federates_with"`
+
+	EnableAPI bool `hcl:"enable_api"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -287,7 +286,6 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.Var(newMaybeBoolValue(&c.UpstreamBundle), "upstreamBundle", "Include upstream CA certificates in the bundle")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	err := flags.Parse(args)
@@ -360,11 +358,6 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 	}
 	sc.Log = logger
 
-	if c.Server.UpstreamBundle != nil {
-		sc.UpstreamBundle = *c.Server.UpstreamBundle
-	} else {
-		sc.UpstreamBundle = defaultUpstreamBundle
-	}
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil {
@@ -402,6 +395,10 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 			}
 		}
 		sc.Federation.FederatesWith = federatesWith
+	}
+	if c.Server.Experimental.EnableAPI {
+		sc.Experimental.EnableAPI = true
+		sc.Log.Info("Experimental API enabled")
 	}
 
 	sc.ProfilingEnabled = c.Server.ProfilingEnabled
@@ -590,10 +587,6 @@ func federationConfigFromExperimentalConfig(ec experimentalConfig) *federationCo
 }
 
 func warnOnDeprecatedConfig(c *Config, l logrus.FieldLogger) {
-	if c.Server.UpstreamBundle != nil {
-		l.Warn("The `upstream_bundle` configurable will be deprecated and enforced to 'true' in a future release. Please see issue #1095 and the configuration documentation for more information.")
-	}
-
 	if isDeprecatedFederationConfigUsed(c.Server.Experimental) {
 		l.Warn("The experimental federation configurables will be deprecated in a future release. Please see issue #1619 and the configuration documentation for more information.")
 	}
@@ -711,37 +704,6 @@ func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
 		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("CA key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
-
-type maybeBoolValue struct {
-	p **bool
-}
-
-func newMaybeBoolValue(p **bool) *maybeBoolValue {
-	return &maybeBoolValue{p: p}
-}
-
-func (b *maybeBoolValue) Set(s string) error {
-	if b.p == nil {
-		// This should never happen, but just in case.
-		return errors.New("cannot set a zero-valued maybeBoolValue")
-	}
-	v, err := strconv.ParseBool(s)
-	if err != nil {
-		err = errors.New("parse error")
-	}
-	*b.p = &v
-	return err
-}
-
-func (b *maybeBoolValue) String() string {
-	var v bool
-	if b.p != nil && *b.p != nil {
-		v = **b.p
-	}
-	return strconv.FormatBool(v)
-}
-
-func (b maybeBoolValue) IsBoolFlag() bool { return true }
 
 // hasExpectedTTLs is a function that checks if ca_ttl is less than default_svid_ttl * 6. SPIRE Server prepares a new CA certificate when 1/2 of the CA lifetime has elapsed in order to give ample time for the new trust bundle to propagate. However, it does not start using it until 5/6th of the CA lifetime. So its normal for an SVID TTL to be capped to 1/6th of the CA TTL. In order to get the expected lifetime on SVID TTLs, the CA TTL should be 6x.
 func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {

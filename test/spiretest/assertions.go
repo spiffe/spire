@@ -42,13 +42,15 @@ func RequireGRPCStatus(tb testing.TB, err error, code codes.Code, message string
 func AssertGRPCStatus(tb testing.TB, err error, code codes.Code, message string) bool {
 	tb.Helper()
 	st := status.Convert(err)
+
+	ok := true
 	if !assert.Equal(tb, code, st.Code(), "GRPC status code does not match") {
-		return false
+		ok = false
 	}
 	if !assert.Equal(tb, message, st.Message(), "GRPC status message does not match") {
-		return false
+		ok = false
 	}
-	return true
+	return ok
 }
 
 func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string) {
