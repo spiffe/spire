@@ -185,6 +185,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		}
 
 		for _, item := range list.Items {
+			item := item
 			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:

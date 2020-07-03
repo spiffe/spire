@@ -44,7 +44,7 @@ func run(ctx context.Context) error {
 	}
 
 	pluginPath := args[0]
-	pid, err := strconv.Atoi(args[1])
+	pid, err := strconv.Atoi(args[1]) // nolint: gosec
 	if err != nil {
 		return errors.New("pid argument is malformed")
 	}
