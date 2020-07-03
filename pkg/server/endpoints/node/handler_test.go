@@ -1177,7 +1177,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method, noAttestedErr
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
 	// banned agent
-	s.updateAttestedNode(agentID, "", peerCert.NotAfter)
+	s.banAttestedNode(agentID)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent is banned")
 	s.Require().Nil(ctx)
