@@ -1103,11 +1103,17 @@ func (s *HandlerSuite) TestAuthorizeCallForAlwaysAuthorizedCalls() {
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchX509SVID() {
-	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID", "agent is not attested or no longer valid: agent is not attested", "agent is not attested or no longer valid: agent SVID has expired", "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
+	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID",
+		"agent is not attested or no longer valid: agent is not attested",
+		"agent is not attested or no longer valid: agent SVID has expired",
+		`agent is not attested or no longer valid: agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVID() {
-	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID", "agent is not attested or no longer valid: agent is not attested", "agent is not attested or no longer valid: agent SVID has expired", "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
+	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID",
+		"agent is not attested or no longer valid: agent is not attested",
+		"agent is not attested or no longer valid: agent SVID has expired",
+		`agent is not attested or no longer valid: agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
