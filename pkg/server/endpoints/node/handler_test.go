@@ -1103,17 +1103,11 @@ func (s *HandlerSuite) TestAuthorizeCallForAlwaysAuthorizedCalls() {
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchX509SVID() {
-	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID",
-		"agent is not attested or no longer valid: agent is not attested",
-		"agent is not attested or no longer valid: agent SVID has expired",
-		`agent is not attested or no longer valid: agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
+	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID")
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVID() {
-	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID",
-		"agent is not attested or no longer valid: agent is not attested",
-		"agent is not attested or no longer valid: agent SVID has expired",
-		`agent is not attested or no longer valid: agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
+	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID")
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
@@ -1145,7 +1139,7 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 		"Downstream SVID is required for this request", peerCert)
 }
 
-func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method, noAttestedErr, expiredErr, serialErr string) {
+func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	peerCert := s.agentSVID[0]
 	peerCtx := withPeerCert(context.Background(), s.agentSVID)
 
@@ -1153,7 +1147,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method, noAttestedErr
 
 	// no attested certificate with matching SPIFFE ID
 	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, noAttestedErr)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent is not attested")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
@@ -1164,7 +1158,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method, noAttestedErr
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, expiredErr)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent SVID has expired")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 	s.clock.Set(peerCert.NotAfter)
@@ -1172,7 +1166,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method, noAttestedErr
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, serialErr)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
