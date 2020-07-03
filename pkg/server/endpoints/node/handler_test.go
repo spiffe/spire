@@ -642,7 +642,7 @@ func (s *HandlerSuite) TestAttestBannedAgent() {
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
-	s.requireFetchX509SVIDAuthFailure()
+	s.requireFetchX509SVIDAuthFailure("agent is not attested or no longer valid: agent is not attested")
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithCurrentAndLegacyCSRs() {
@@ -877,7 +877,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
 	agentSVID.SerialNumber = big.NewInt(9999999999)
 	s.Require().NoError(createAttestationEntry(context.Background(), s.ds, &agentSVID, "test"))
 
-	s.requireFetchX509SVIDAuthFailure()
+	s.requireFetchX509SVIDAuthFailure(`agent is not attested or no longer valid: agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
@@ -1286,11 +1286,11 @@ func (s *HandlerSuite) TestAuthorizeCallForAlwaysAuthorizedCalls() {
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchX509SVID() {
-	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID")
+	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID", "agent is not attested or no longer valid: agent is not attested", "agent is not attested or no longer valid: agent SVID has expired", "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVID() {
-	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID")
+	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID", "agent is not attested or no longer valid: agent is not attested", "agent is not attested or no longer valid: agent SVID has expired", "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
 }
 
 func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
@@ -1322,7 +1322,7 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
 		"Downstream SVID is required for this request", peerCert)
 }
 
-func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
+func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method, noAttestedErr, expiredErr, serialErr string) {
 	peerCert := s.agentSVID[0]
 	peerCtx := withPeerCert(context.Background(), s.agentSVID)
 
@@ -1330,7 +1330,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 	// no attested certificate with matching SPIFFE ID
 	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, noAttestedErr)
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 
@@ -1341,7 +1341,7 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, expiredErr)
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 	s.clock.Set(peerCert.NotAfter)
@@ -1349,7 +1349,14 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, serialErr)
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+
+	// banned agent
+	s.updateAttestedNode(agentID, "", peerCert.NotAfter)
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent is banned")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
 }
@@ -1586,7 +1593,7 @@ func (s *HandlerSuite) requireFetchX509SVIDFailure(req *node.FetchX509SVIDReques
 	s.Require().Nil(resp)
 }
 
-func (s *HandlerSuite) requireFetchX509SVIDAuthFailure() {
+func (s *HandlerSuite) requireFetchX509SVIDAuthFailure(expectedErr string) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 	stream, err := s.attestedClient.FetchX509SVID(ctx)
@@ -1594,8 +1601,7 @@ func (s *HandlerSuite) requireFetchX509SVIDAuthFailure() {
 	// the auth failure will come back on the Recv(). we shouldn't have to send
 	// on the stream to get this to happen.
 	resp, err := stream.Recv()
-	s.Require().Contains("agent is not attested or no longer valid", status.Convert(err).Message())
-	s.Require().Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.PermissionDenied, expectedErr)
 	s.Require().Nil(resp)
 }
 

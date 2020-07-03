@@ -587,7 +587,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ conte
 			log.WithError(err).WithFields(logrus.Fields{
 				telemetry.AgentID: tryGetSpiffeIDFromCert(peerCert),
 			}).Error("Agent is not attested or no longer valid")
-			return nil, status.Error(codes.PermissionDenied, "agent is not attested or no longer valid")
+			return nil, status.Errorf(codes.PermissionDenied, "agent is not attested or no longer valid: %v", err)
 		}
 
 		ctx = withPeerCertificate(ctx, peerCert)
@@ -670,6 +670,10 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	n := resp.Node
 	if n == nil {
 		return errors.New("agent is not attested")
+	}
+
+	if nodeutil.IsAgentBanned(resp.Node) {
+		return errors.New("agent is banned")
 	}
 
 	if n.CertSerialNumber != "" && n.CertSerialNumber == cert.SerialNumber.String() {
