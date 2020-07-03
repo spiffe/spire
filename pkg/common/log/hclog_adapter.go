@@ -13,8 +13,16 @@ import (
 // HCLogAdapter implements the hclog interface, and wraps it
 // around a Logrus entry
 type HCLogAdapter struct {
-	Log  logrus.FieldLogger
-	Name string
+	log  logrus.FieldLogger
+	name string
+	args []interface{} // key/value pairs if this logger was created via With()
+}
+
+func NewHCLogAdapter(log logrus.FieldLogger, name string) *HCLogAdapter {
+	return &HCLogAdapter{
+		log:  log,
+		name: name,
+	}
 }
 
 // HCLog has one more level than we do. As such, we will never
@@ -36,6 +44,21 @@ func (a *HCLogAdapter) Warn(msg string, args ...interface{}) {
 
 func (a *HCLogAdapter) Error(msg string, args ...interface{}) {
 	a.CreateEntry(args).Error(msg)
+}
+
+func (a *HCLogAdapter) Log(level hclog.Level, msg string, args ...interface{}) {
+	switch level {
+	case hclog.Trace:
+		a.Trace(msg, args...)
+	case hclog.Debug:
+		a.Debug(msg, args...)
+	case hclog.Info:
+		a.Info(msg, args...)
+	case hclog.Warn:
+		a.Warn(msg, args...)
+	case hclog.Error:
+		a.Error(msg, args...)
+	}
 }
 
 func (a *HCLogAdapter) IsTrace() bool {
@@ -66,13 +89,37 @@ func (a *HCLogAdapter) SetLevel(hclog.Level) {
 
 func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
 	e := a.CreateEntry(args)
-	return &HCLogAdapter{Log: e}
+	return &HCLogAdapter{
+		log:  e,
+		args: concatFields(a.args, args),
+	}
+}
+
+// concatFields combines two sets of key/value pairs.
+// It allocates a new slice to avoid using append() and
+// accidentally overriding the original slice a, e.g.
+// when logger.With() is called multiple times to create
+// sub-scoped loggers.
+func concatFields(a, b []interface{}) []interface{} {
+	c := make([]interface{}, len(a)+len(b))
+	copy(c, a)
+	copy(c[len(a):], b)
+	return c
+}
+
+// ImpliedArgs returns With key/value pairs
+func (a *HCLogAdapter) ImpliedArgs() []interface{} {
+	return a.args
+}
+
+func (a *HCLogAdapter) Name() string {
+	return a.name
 }
 
 func (a *HCLogAdapter) Named(name string) hclog.Logger {
 	var newName bytes.Buffer
-	if a.Name != "" {
-		newName.WriteString(a.Name)
+	if a.name != "" {
+		newName.WriteString(a.name)
 		newName.WriteString(".")
 	}
 	newName.WriteString(name)
@@ -83,7 +130,7 @@ func (a *HCLogAdapter) Named(name string) hclog.Logger {
 func (a *HCLogAdapter) ResetNamed(name string) hclog.Logger {
 	fields := []interface{}{"subsystem_name", name}
 	e := a.CreateEntry(fields)
-	return &HCLogAdapter{Log: e, Name: name}
+	return &HCLogAdapter{log: e, name: name}
 }
 
 // StandardLogger is meant to return a stdlib Logger type which wraps around
@@ -97,13 +144,13 @@ func (a *HCLogAdapter) ResetNamed(name string) hclog.Logger {
 //
 // Apologies to those who find themselves here.
 func (a *HCLogAdapter) StandardLogger(opts *hclog.StandardLoggerOptions) *log.Logger {
-	entry := a.Log.WithFields(logrus.Fields{})
+	entry := a.log.WithFields(logrus.Fields{})
 	return log.New(entry.WriterLevel(logrus.InfoLevel), "", 0)
 }
 
 func (a *HCLogAdapter) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writer {
 	var w io.Writer
-	logger, ok := a.Log.(*logrus.Logger)
+	logger, ok := a.log.(*logrus.Logger)
 	if ok {
 		w = logger.Out
 	}
@@ -114,7 +161,7 @@ func (a *HCLogAdapter) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writ
 }
 
 func (a *HCLogAdapter) shouldEmit(level logrus.Level) bool {
-	return a.Log.WithFields(logrus.Fields{}).Level >= level
+	return a.log.WithFields(logrus.Fields{}).Level >= level
 }
 
 func (a *HCLogAdapter) CreateEntry(args []interface{}) *logrus.Entry {
@@ -132,5 +179,5 @@ func (a *HCLogAdapter) CreateEntry(args []interface{}) *logrus.Entry {
 		fields[k] = v
 	}
 
-	return a.Log.WithFields(fields)
+	return a.log.WithFields(fields)
 }
