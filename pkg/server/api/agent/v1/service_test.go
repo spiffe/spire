@@ -14,10 +14,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/agent/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	agentpb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -894,12 +894,94 @@ func (s *serviceTest) Cleanup() {
 	s.done()
 }
 
-func setupServiceTest(t *testing.T) *serviceTest {
+func TestCreateJoinToken(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		request       *agentpb.CreateJoinTokenRequest
+		expectLogs    []spiretest.LogEntry
+		expectResults *types.JoinToken
+		err           string
+		code          codes.Code
+		dsError       error
+	}{
+		{
+			name: "Success Basic Create Join Token",
+			request: &agentpb.CreateJoinTokenRequest{
+				Ttl: 1000,
+			},
+		},
+		{
+			name: "Success Custom Value Join Token",
+			request: &agentpb.CreateJoinTokenRequest{
+				Ttl:   1000,
+				Token: "token goes here",
+			},
+		},
+		{
+			name: "Fail Negative Ttl",
+			request: &agentpb.CreateJoinTokenRequest{
+				Ttl: -1000,
+			},
+			err:  "ttl is required, you must provide one",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "Fail Datastore Error",
+			err:  "failed to create token: datatore broken",
+			request: &agentpb.CreateJoinTokenRequest{
+				Ttl: 1000,
+			},
+			dsError: errors.New("datatore broken"),
+			code:    codes.Internal,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			test.ds.SetNextError(tt.dsError)
+
+			result, err := test.client.CreateJoinToken(context.Background(), tt.request)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.NotEmpty(t, result.Value)
+			require.NotEmpty(t, result.Value)
+		})
+	}
+}
+
+func TestCreateJoinTokenWithAgentId(t *testing.T) {
+	test := setupServiceTest(t)
+
+	_, err := test.client.CreateJoinToken(context.Background(), &agentpb.CreateJoinTokenRequest{
+		Ttl:     1000,
+		AgentId: &types.SPIFFEID{TrustDomain: "badtd.org", Path: "invalid"},
+	})
+	require.Error(t, err)
+	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "requested agent SPIFFE ID does not match server trust domain")
+
+	token, err := test.client.CreateJoinToken(context.Background(), &agentpb.CreateJoinTokenRequest{
+		Ttl:     1000,
+		AgentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "valid"},
+	})
+	require.NoError(t, err)
+	spiretest.RequireGRPCStatusContains(t, err, codes.OK, "")
+
+	listEntries, err := test.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "spiffe://example.org/valid", listEntries.Entries[0].SpiffeId)
+	require.Equal(t, "spiffe://example.org/spire/agent/join_token/"+token.Value, listEntries.Entries[0].ParentId)
+	require.Equal(t, "spiffe://example.org/spire/agent/join_token/"+token.Value, listEntries.Entries[0].Selectors[0].Value)
+}
+
+func setupServiceTest(t *testing.T) *serviceTest { //nolint: unused,deadcode
 	ds := fakedatastore.New(t)
-	td := spiffeid.RequireTrustDomainFromString("example.org")
 	service := agent.New(agent.Config{
 		DataStore:   ds,
-		TrustDomain: td,
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	})
 
 	log, logHook := test.NewNullLogger()

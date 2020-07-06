@@ -3,7 +3,10 @@ package agent
 import (
 	"context"
 	"fmt"
+	"path"
+	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -27,7 +30,6 @@ func RegisterService(s *grpc.Server, service *Service) {
 // Config is the service configuration
 type Config struct {
 	DataStore   datastore.DataStore
-	Datastore   datastore.DataStore
 	TrustDomain spiffeid.TrustDomain
 }
 
@@ -242,7 +244,75 @@ func (s *Service) RenewAgent(stream agent.Agent_RenewAgentServer) error {
 }
 
 func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinTokenRequest) (*types.JoinToken, error) {
-	return nil, status.Error(codes.Unimplemented, "method not implemented")
+	log := rpccontext.Logger(ctx)
+
+	if req.Ttl < 1 {
+		log.Error("TTL is required")
+		return nil, status.Error(codes.InvalidArgument, "ttl is required, you must provide one")
+	}
+
+	// If provided, check that the AgentID is valid BEFORE creating the join token so we can fail early
+	var agentID spiffeid.ID
+	var err error
+	if req.AgentId != nil {
+		agentID, err = api.IDFromProto(req.AgentId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid spiffe ID: %v", err)
+		}
+		if agentID.TrustDomain() != s.td {
+			return nil, status.Errorf(codes.InvalidArgument, "requested agent SPIFFE ID does not match server trust domain")
+		}
+	}
+
+	// Generate a token if one wasn't specified
+	if req.Token == "" {
+		u, err := uuid.NewV4()
+		if err != nil {
+			log.WithError(err).Error("Failed to generate token UUID")
+			return nil, status.Errorf(codes.Internal, "failed to generate token UUID: %v", err)
+		}
+		req.Token = u.String()
+	}
+
+	expiry := time.Now().Unix() + int64(req.Ttl)
+
+	result, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
+		JoinToken: &datastore.JoinToken{
+			Token:  req.Token,
+			Expiry: expiry,
+		},
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to create token")
+		return nil, status.Errorf(codes.Internal, "failed to create token: %v", err)
+	}
+
+	if req.AgentId != nil {
+		err := s.createJoinTokenRegistrationEntry(ctx, req.Token, agentID.String())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &types.JoinToken{Value: result.JoinToken.Token, ExpiresAt: expiry}, nil
+}
+
+func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
+	parentID := s.td.NewID(path.Join("spire", "agent", "join_token", token))
+	req := &datastore.CreateRegistrationEntryRequest{
+		Entry: &common.RegistrationEntry{
+			ParentId: parentID.String(),
+			SpiffeId: agentID,
+			Selectors: []*common.Selector{
+				{Type: "spiffe_id", Value: parentID.String()},
+			},
+		},
+	}
+	_, err := s.ds.CreateRegistrationEntry(ctx, req)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to create join token registration entry: %v", err)
+	}
+	return nil
 }
 
 func applyMask(a *types.Agent, mask *types.AgentMask) { //nolint: unused,deadcode
