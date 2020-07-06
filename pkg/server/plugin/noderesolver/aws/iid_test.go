@@ -192,26 +192,12 @@ func (s *IIDResolverSuite) TestGetPluginInfo() {
 	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *IIDResolverSuite) TestInstanceProfileArnParsing() {
-	// not an ARN
-	_, err := instanceProfileNameFromArn("not-an-arn")
-	s.Require().EqualError(err, "aws-iid: arn: invalid prefix")
-
-	// not an instance profile ARN
-	_, err = instanceProfileNameFromArn("arn:aws:elasticbeanstalk:us-east-1:123456789012:environment/My App/MyEnvironment")
-	s.Require().EqualError(err, "aws-iid: arn is not for an instance profile")
-
-	name, err := instanceProfileNameFromArn(testInstanceProfileArn)
-	s.Require().NoError(err)
-	s.Require().Equal(testInstanceProfileName, name)
-}
-
 func (s *IIDResolverSuite) newResolver() {
 	resolver := New()
 	resolver.hooks.getenv = func(key string) string {
 		return s.env[key]
 	}
-	resolver.hooks.newClient = func(config *caws.SessionConfig, region string) (awsClient, error) {
+	resolver.clients = caws.NewClientsCache(func(config *caws.SessionConfig, region string) (caws.Client, error) {
 		// assert that the right region is specified
 		s.Require().Equal("REGION", region)
 
@@ -228,7 +214,7 @@ func (s *IIDResolverSuite) newResolver() {
 		}
 
 		return s.client, nil
-	}
+	})
 	s.LoadPlugin(builtin(resolver), &s.resolver)
 }
 

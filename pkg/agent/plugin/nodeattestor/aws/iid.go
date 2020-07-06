@@ -3,20 +3,18 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
 
-	awssdk "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/plugin/aws"
+	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
@@ -31,12 +29,16 @@ const (
 	sigPath = "instance-identity/signature"
 )
 
+var (
+	iidError = caws.IidErrorClass
+)
+
 func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
 func builtin(p *IIDAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(aws.PluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(caws.PluginName, nodeattestor.PluginServer(p))
 }
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
@@ -70,7 +72,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return err
 	}
 
-	var attestationData *aws.IIDAttestationData
+	var attestationData *caws.IIDAttestationData
 
 	if c.isLegacyConfig() {
 		// Legacy configuration
@@ -87,19 +89,19 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 
 	respData, err := json.Marshal(attestationData)
 	if err != nil {
-		return aws.AttestationStepError("marshaling the attested data", err)
+		return caws.AttestationStepError("marshaling the attested data", err)
 	}
 
 	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
-			Type: aws.PluginName,
+			Type: caws.PluginName,
 			Data: respData,
 		},
 	})
 }
 
-func fetchMetadata(endpoint string) (*aws.IIDAttestationData, error) {
-	awsCfg := awssdk.NewConfig()
+func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
+	awsCfg := aws.NewConfig()
 	if endpoint != "" {
 		awsCfg.WithEndpoint(endpoint)
 	}
@@ -120,22 +122,22 @@ func fetchMetadata(endpoint string) (*aws.IIDAttestationData, error) {
 		return nil, err
 	}
 
-	return &aws.IIDAttestationData{
+	return &caws.IIDAttestationData{
 		Document:  doc,
 		Signature: sig,
 	}, nil
 }
 
-func legacyFetch(c *IIDAttestorConfig) (*aws.IIDAttestationData, error) {
+func legacyFetch(c *IIDAttestorConfig) (*caws.IIDAttestationData, error) {
 	docBytes, err := httpGetBytes(c.DeprecatedIdentityDocumentURL)
 	if err != nil {
-		return nil, aws.AttestationStepError("retrieving the IID from AWS", err)
+		return nil, caws.AttestationStepError("retrieving the IID from AWS", err)
 	}
 	sigBytes, err := httpGetBytes(c.DeprecatedIdentitySignatureURL)
 	if err != nil {
-		return nil, aws.AttestationStepError("retrieving the IID signature from AWS", err)
+		return nil, caws.AttestationStepError("retrieving the IID signature from AWS", err)
 	}
-	return &aws.IIDAttestationData{
+	return &caws.IIDAttestationData{
 		Document:  string(docBytes),
 		Signature: string(sigBytes),
 	}, nil
@@ -196,7 +198,7 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 	defer p.mtx.RUnlock()
 
 	if p.config == nil {
-		return nil, errors.New("not configured")
+		return nil, iidError.New("not configured")
 	}
 	return p.config, nil
 }
@@ -215,7 +217,7 @@ func httpGetBytes(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, iidError.New("unexpected status code: %d", resp.StatusCode)
 	}
 
 	bytes, err := ioutil.ReadAll(resp.Body)
