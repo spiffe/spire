@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -26,7 +27,7 @@ func RegistrationEntriesToProto(es []*common.RegistrationEntry) ([]*types.Entry,
 	return pbs, nil
 }
 
-// RegistrationEntryToProto converts RegistrationEntry into Entry
+// RegistrationEntryToProto converts RegistrationEntry into types Entry
 func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error) {
 	if e == nil {
 		return nil, errors.New("missing registration entry")
@@ -66,20 +67,34 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 
 // ProtoToRegistrationEntry converts and validate entry into common registration entry
 func ProtoToRegistrationEntry(e *types.Entry) (*common.RegistrationEntry, error) {
+	return ProtoToRegistrationEntryWithMask(e, protoutil.AllTrueEntryMask)
+}
+
+// ProtoToRegistrationEntryWithMask converts and validate entry into common registration entry,
+// while allowing empty values for SpiffeId, ParentId, and Selectors IF their corresponding values
+// in the mask are false.
+// This allows the user to not specify these fields while updating using a mask.
+// All other fields are allowed to be empty (with or without a mask).
+func ProtoToRegistrationEntryWithMask(e *types.Entry, mask *types.EntryMask) (*common.RegistrationEntry, error) {
+	var parentIDString string
 	if e == nil {
 		return nil, errors.New("missing entry")
 	}
-
-	parentID, err := IDFromProto(e.ParentId)
-	if err != nil {
-		return nil, fmt.Errorf("invalid parent ID: %v", err)
+	if mask == nil || mask.ParentId {
+		parentID, err := IDFromProto(e.ParentId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid parent ID: %v", err)
+		}
+		parentIDString = parentID.String()
 	}
-
-	spiffeID, err := IDFromProto(e.SpiffeId)
-	if err != nil {
-		return nil, fmt.Errorf("invalid spiffe ID: %v", err)
+	var spiffeIDString string
+	if mask == nil || mask.SpiffeId {
+		spiffeID, err := IDFromProto(e.SpiffeId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid spiffe ID: %v", err)
+		}
+		spiffeIDString = spiffeID.String()
 	}
-
 	for _, dnsName := range e.DnsNames {
 		if err := x509util.ValidateDNS(dnsName); err != nil {
 			return nil, fmt.Errorf("invalid DNS name: %v", err)
@@ -95,15 +110,22 @@ func ProtoToRegistrationEntry(e *types.Entry) (*common.RegistrationEntry, error)
 		e.FederatesWith[i] = td.IDString()
 	}
 
-	selectors, err := SelectorsFromProto(e.Selectors)
-	if err != nil {
-		return nil, err
+	var selectors []*common.Selector
+	var err error
+	if mask == nil || mask.Selectors {
+		if len(e.Selectors) == 0 {
+			return nil, errors.New("selector list is empty")
+		}
+		selectors, err = SelectorsFromProto(e.Selectors)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &common.RegistrationEntry{
 		EntryId:       e.Id,
-		ParentId:      parentID.String(),
-		SpiffeId:      spiffeID.String(),
+		ParentId:      parentIDString,
+		SpiffeId:      spiffeIDString,
 		Admin:         e.Admin,
 		DnsNames:      e.DnsNames,
 		Downstream:    e.Downstream,

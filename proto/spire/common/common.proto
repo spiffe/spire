@@ -83,6 +83,21 @@ message RegistrationEntry {
     repeated string dns_names = 10;
 }
 
+/** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */
+message RegistrationEntryMask {
+    bool selectors = 1;
+    bool parent_id = 2;
+    bool spiffe_id = 3;
+    bool ttl = 4;
+    bool federates_with = 5;
+    bool entry_id = 6;
+    bool admin = 7;
+    bool downstream = 8;
+    bool entryExpiry = 9;
+    bool dns_names = 10;
+}
+
+
 /** A list of registration entries. */
 message RegistrationEntries {
     /** A list of RegistrationEntry. */

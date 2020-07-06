@@ -231,6 +231,7 @@ message ListRegistrationEntriesResponse {
 
 message UpdateRegistrationEntryRequest {
     spire.common.RegistrationEntry entry = 1;
+    spire.common.RegistrationEntryMask mask = 2;
 }
 
 message UpdateRegistrationEntryResponse {
