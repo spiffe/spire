@@ -36,7 +36,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
-	err = ioutil.WriteFile(confPath, []byte(minimalRegistrationAPIConfig), 0644)
+	err = ioutil.WriteFile(confPath, []byte(minimalRegistrationAPIConfig), 0600)
 	require.NoError(err)
 
 	config, err := LoadConfig(confPath)

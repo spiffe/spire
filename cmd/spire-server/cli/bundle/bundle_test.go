@@ -195,7 +195,7 @@ func (s *BundleSuite) TestSetCreatesBundleFromFile() {
 
 	bundlePath := filepath.Join(tmpDir, "bundle.pem")
 
-	s.Require().NoError(ioutil.WriteFile(bundlePath, []byte(cert1PEM), 0644))
+	s.Require().NoError(ioutil.WriteFile(bundlePath, []byte(cert1PEM), 0600))
 	s.assertBundleSet("-path", bundlePath)
 }
 

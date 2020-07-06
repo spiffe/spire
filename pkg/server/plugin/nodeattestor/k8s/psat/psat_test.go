@@ -389,9 +389,9 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// cluster missing service account whitelist
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprint(`clusters = {
+		Configuration: `clusters = {
 			"FOO" = {}
-		}`),
+		}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.RequireGRPCStatus(err, codes.Unknown, `k8s-psat: cluster "FOO" configuration must have at least one service account whitelisted`)
@@ -447,7 +447,7 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 	attestor := New()
 
 	resp, err := attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprint(`
+		Configuration: `
 		clusters = {
 			"FOO" = {
 				service_account_whitelist = ["NS1:SA1"]
@@ -461,7 +461,7 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 				audience = ["AUDIENCE"]
 			}
 		}
-		`),
+		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
@@ -528,7 +528,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0644); err != nil {
+	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600); err != nil {
 		return err
 	}
 	return nil
