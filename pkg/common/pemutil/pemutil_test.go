@@ -4,6 +4,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -244,4 +246,132 @@ func (s *Suite) readFile(path string) []byte {
 	data, err := ioutil.ReadFile(path)
 	s.Require().NoError(err)
 	return data
+}
+
+func (s *Suite) TestEncodeCertificates() {
+	// success with one certificate
+	cert, err := LoadCertificates("testdata/cert.pem")
+	s.Require().NoError(err)
+	expCertPem, err := ioutil.ReadFile("testdata/cert.pem")
+	s.Require().NoError(err)
+	s.Require().Equal(expCertPem, EncodeCertificates(cert))
+
+	// success with multiple certificates
+	cert, err = LoadCertificates("testdata/certs.pem")
+	s.Require().NoError(err)
+	expCertPem, err = ioutil.ReadFile("testdata/certs.pem")
+	s.Require().NoError(err)
+	s.Require().Equal(expCertPem, EncodeCertificates(cert))
+}
+
+func (s *Suite) TestEncodeCertificate() {
+	// success with one certificate
+	cert, err := LoadCertificate("testdata/cert.pem")
+	s.Require().NoError(err)
+	expCertPem, err := ioutil.ReadFile("testdata/cert.pem")
+	s.Require().NoError(err)
+	s.Require().Equal(expCertPem, EncodeCertificate(cert))
+}
+
+func (s *Suite) TestSaveCertificate() {
+	dir, err := ioutil.TempDir("", "pemutil-test")
+	s.Require().NoError(err)
+	defer os.Remove(dir)
+
+	certPath := path.Join(dir, "cert")
+	cert, err := LoadCertificate("testdata/cert.pem")
+	s.Require().NoError(err)
+	err = SaveCertificate(certPath, cert, 0600)
+	s.Require().NoError(err)
+
+	fileContent, err := ioutil.ReadFile(certPath)
+	s.Require().NoError(err)
+	s.Require().Equal(EncodeCertificate(cert), fileContent)
+}
+
+func (s *Suite) TestSaveCertificates() {
+	dir, err := ioutil.TempDir("", "pemutil-test")
+	s.Require().NoError(err)
+	defer os.Remove(dir)
+
+	certsPath := path.Join(dir, "certs")
+	certs, err := LoadCertificates("testdata/certs.pem")
+	s.Require().NoError(err)
+	err = SaveCertificates(certsPath, certs, 0600)
+	s.Require().NoError(err)
+
+	fileContent, err := ioutil.ReadFile(certsPath)
+	s.Require().NoError(err)
+	s.Require().Equal(EncodeCertificates(certs), fileContent)
+}
+
+func (s *Suite) TestLoadSigner() {
+	// fail if not a private key
+	_, err := LoadSigner("testdata/cert.pem")
+	s.Require().EqualError(err, `expected block type ["PRIVATE KEY" "RSA PRIVATE KEY" "EC PRIVATE KEY"]; got "CERTIFICATE"`)
+
+	// success with RSA
+	key, err := LoadSigner("testdata/rsa-key.pem")
+	s.Require().NoError(err)
+	s.Require().NotNil(key)
+}
+
+func (s *Suite) TestParseSigner() {
+	// fail if not a private key
+	_, err := ParseSigner(s.readFile("testdata/cert.pem"))
+	s.Require().EqualError(err, `expected block type ["PRIVATE KEY" "RSA PRIVATE KEY" "EC PRIVATE KEY"]; got "CERTIFICATE"`)
+
+	// success with RSA
+	key, err := ParseSigner(s.readFile("testdata/rsa-key.pem"))
+	s.Require().NoError(err)
+	s.Require().NotNil(key)
+}
+
+func (s *Suite) TestLoadPublicKey() {
+	// fails if not a public key
+	key, err := LoadPublicKey("testdata/rsa-key.pem")
+	s.Require().EqualError(err, `expected block type "PUBLIC KEY"; got "RSA PRIVATE KEY"`)
+	s.Require().Nil(key)
+
+	// success with public key
+	key, err = LoadPublicKey("testdata/public-rsa-key.pem")
+	s.Require().NoError(err)
+	s.Require().NotNil(key)
+}
+
+func (s *Suite) TestParsePublicKey() {
+	// fails if not a public key
+	keyBytes, err := ioutil.ReadFile("testdata/rsa-key.pem")
+	s.Require().NoError(err)
+	key, err := ParsePublicKey(keyBytes)
+	s.Require().EqualError(err, `expected block type "PUBLIC KEY"; got "RSA PRIVATE KEY"`)
+	s.Require().Nil(key)
+
+	// success with public key
+	keyBytes, err = ioutil.ReadFile("testdata/public-rsa-key.pem")
+	s.Require().NoError(err)
+	key, err = ParsePublicKey(keyBytes)
+	s.Require().NoError(err)
+	s.Require().NotNil(key)
+}
+
+func (s *Suite) TestEncodePKCS8PrivateKey() {
+	// fails if not a key
+	cert, err := LoadCertificate("testdata/cert.pem")
+	s.Require().NoError(err)
+	keyBytes, err := EncodePKCS8PrivateKey(cert)
+	s.Require().EqualError(err, "x509: unknown key type while marshaling PKCS#8: *x509.Certificate")
+	s.Require().Nil(keyBytes)
+
+	// succeeds if key
+	key, err := LoadPrivateKey("testdata/rsa-key.pem")
+	s.Require().NoError(err)
+
+	keyPKCS8, err := EncodePKCS8PrivateKey(key)
+	s.Require().NoError(err)
+	s.Require().NotNil(keyPKCS8)
+
+	expKeyPKCS8, err := ioutil.ReadFile("testdata/rsa-key-pkcs8.pem")
+	s.Require().NoError(err)
+	s.Require().Equal(expKeyPKCS8, keyPKCS8)
 }
