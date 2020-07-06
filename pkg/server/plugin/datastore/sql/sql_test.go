@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -1265,12 +1266,6 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
 	s.Require().NoError(err)
 
-	foo1 := []*common.Selector{
-		{Type: "FOO1", Value: "1"},
-	}
-
-	s.setNodeSelectors(entry.SpiffeId, foo1)
-
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
 	s.AssertProtoEqual(entry, dresp.Node)
@@ -1278,12 +1273,6 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
 	s.Nil(fresp.Node)
-
-	selectorsResp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: entry.SpiffeId,
-	})
-	s.Require().NoError(err)
-	s.Require().Empty(selectorsResp.Selectors.Selectors)
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
@@ -1843,6 +1832,203 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 		Entry: entry,
 	})
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+}
+
+func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
+	// There are 9 fields in a registration entry. Of these, 3 have some validation in the SQL
+	// layer. In this test, we update each of the 9 fields and make sure update works, and also check
+	// with the mask value false to make sure nothing changes. For the 3 fields that have validation
+	// we try with good data, bad data, and with or without a mask (so 4 cases each.)
+
+	// Note that most of the input validation is done in the API layer and has more extensive tests there.
+	oldEntry := common.RegistrationEntry{
+		ParentId:      "spiffe://example.org/oldParentId",
+		SpiffeId:      "spiffe://example.org/oldSpiffeId",
+		Ttl:           1000,
+		Selectors:     []*common.Selector{{Type: "Type1", Value: "Value1"}},
+		FederatesWith: []string{"spiffe://dom1.org"},
+		Admin:         false,
+		EntryExpiry:   1000,
+		DnsNames:      []string{"dns1"},
+		Downstream:    false,
+	}
+	newEntry := common.RegistrationEntry{
+		ParentId:      "spiffe://example.org/oldParentId",
+		SpiffeId:      "spiffe://example.org/newSpiffeId",
+		Ttl:           1000,
+		Selectors:     []*common.Selector{{Type: "Type2", Value: "Value2"}},
+		FederatesWith: []string{"spiffe://dom2.org"},
+		Admin:         false,
+		EntryExpiry:   1000,
+		DnsNames:      []string{"dns2"},
+		Downstream:    false,
+	}
+	badEntry := common.RegistrationEntry{
+		ParentId:      "not a good parent id",
+		SpiffeId:      "",
+		Ttl:           -1000,
+		Selectors:     []*common.Selector{},
+		FederatesWith: []string{"invalid federated bundle"},
+		Admin:         false,
+		EntryExpiry:   -2000,
+		DnsNames:      []string{"this is a bad domain name "},
+		Downstream:    false,
+	}
+	emptyEntry := common.RegistrationEntry{}
+	// Needed for the FederatesWith field to work
+	s.createBundle("spiffe://dom1.org")
+	s.createBundle("spiffe://dom2.org")
+	for _, testcase := range []struct {
+		name   string
+		mask   *common.RegistrationEntryMask
+		update func(*common.RegistrationEntry)
+		result func(*common.RegistrationEntry)
+		err    error
+	}{ /// SPIFFE ID FIELD -- this field is validated so we check with good and bad data
+		{name: "Update Spiffe ID, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{SpiffeId: true},
+			update: func(e *common.RegistrationEntry) { e.SpiffeId = newEntry.SpiffeId },
+			result: func(e *common.RegistrationEntry) { e.SpiffeId = newEntry.SpiffeId }},
+		{name: "Update Spiffe ID, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{SpiffeId: false},
+			update: func(e *common.RegistrationEntry) { e.SpiffeId = newEntry.SpiffeId },
+			result: func(e *common.RegistrationEntry) {}},
+		{name: "Update Spiffe ID, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{SpiffeId: true},
+			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
+			err:    errors.New("invalid registration entry: missing SPIFFE ID")},
+		{name: "Update Spiffe ID, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{SpiffeId: false},
+			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
+			result: func(e *common.RegistrationEntry) {}},
+		/// PARENT ID FIELD -- This field isn't validated so we just check with good data
+		{name: "Update Parent ID, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{ParentId: true},
+			update: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId },
+			result: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId }},
+		{name: "Update Parent ID, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{ParentId: false},
+			update: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId },
+			result: func(e *common.RegistrationEntry) {}},
+		/// TTL FIELD -- This field is validated so we check with good and bad data
+		{name: "Update TTL, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Ttl: true},
+			update: func(e *common.RegistrationEntry) { e.Ttl = newEntry.Ttl },
+			result: func(e *common.RegistrationEntry) { e.Ttl = newEntry.Ttl }},
+		{name: "Update TTL, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Ttl: false},
+			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
+			result: func(e *common.RegistrationEntry) {}},
+		{name: "Update TTL, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Ttl: true},
+			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
+			err:    errors.New("invalid registration entry: TTL is not set")},
+		{name: "Update TTL, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Ttl: false},
+			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
+			result: func(e *common.RegistrationEntry) {}},
+		/// SELECTORS FIELD -- This field is validated so we check with good and bad data
+		{name: "Update Selectors, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Selectors: true},
+			update: func(e *common.RegistrationEntry) { e.Selectors = newEntry.Selectors },
+			result: func(e *common.RegistrationEntry) { e.Selectors = newEntry.Selectors }},
+		{name: "Update Selectors, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Selectors: false},
+			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
+			result: func(e *common.RegistrationEntry) {}},
+		{name: "Update Selectors, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Selectors: false},
+			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
+			err:    errors.New("invalid registration entry: missing selector list")},
+		{name: "Update Selectors, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Selectors: false},
+			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
+			result: func(e *common.RegistrationEntry) {}},
+		/// FEDERATESWITH FIELD -- This field isn't validated so we just check with good data
+		{name: "Update FederatesWith, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{FederatesWith: true},
+			update: func(e *common.RegistrationEntry) { e.FederatesWith = newEntry.FederatesWith },
+			result: func(e *common.RegistrationEntry) { e.FederatesWith = newEntry.FederatesWith }},
+		{name: "Update FederatesWith Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{FederatesWith: false},
+			update: func(e *common.RegistrationEntry) { e.FederatesWith = newEntry.FederatesWith },
+			result: func(e *common.RegistrationEntry) {}},
+		/// ADMIN FIELD -- This field isn't validated so we just check with good data
+		{name: "Update Admin, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Admin: true},
+			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
+			result: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin }},
+		{name: "Update Admin, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Admin: false},
+			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
+			result: func(e *common.RegistrationEntry) {}},
+		/// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
+		{name: "Update EntryExpiry, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{EntryExpiry: true},
+			update: func(e *common.RegistrationEntry) { e.EntryExpiry = newEntry.EntryExpiry },
+			result: func(e *common.RegistrationEntry) { e.EntryExpiry = newEntry.EntryExpiry }},
+		{name: "Update EntryExpiry, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{EntryExpiry: false},
+			update: func(e *common.RegistrationEntry) { e.EntryExpiry = newEntry.EntryExpiry },
+			result: func(e *common.RegistrationEntry) {}},
+		/// DNSNAMES FIELD -- This field isn't validated so we just check with good data
+		{name: "Update DnsNames, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{DnsNames: true},
+			update: func(e *common.RegistrationEntry) { e.DnsNames = newEntry.DnsNames },
+			result: func(e *common.RegistrationEntry) { e.DnsNames = newEntry.DnsNames }},
+		{name: "Update DnsNames, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{DnsNames: false},
+			update: func(e *common.RegistrationEntry) { e.DnsNames = newEntry.DnsNames },
+			result: func(e *common.RegistrationEntry) {}},
+		/// DOWNSTREAM FIELD -- This field isn't validated so we just check with good data
+		{name: "Update DnsNames, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Downstream: true},
+			update: func(e *common.RegistrationEntry) { e.Downstream = newEntry.Downstream },
+			result: func(e *common.RegistrationEntry) { e.Downstream = newEntry.Downstream }},
+		{name: "Update DnsNames, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Downstream: false},
+			update: func(e *common.RegistrationEntry) { e.Downstream = newEntry.Downstream },
+			result: func(e *common.RegistrationEntry) {}},
+		// This should update all fields
+		{name: "Test With Nil Mask",
+			mask:   nil,
+			update: func(e *common.RegistrationEntry) { *e = oldEntry },
+			result: func(e *common.RegistrationEntry) {}},
+	} {
+		tt := testcase
+		s.Run(tt.name, func() {
+			entry := s.createRegistrationEntry(&oldEntry)
+			id := entry.EntryId
+
+			updateEntry := emptyEntry
+			tt.update(&updateEntry)
+			updateEntry.EntryId = id
+			updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+				Entry: &updateEntry,
+				Mask:  tt.mask,
+			})
+
+			if tt.err != nil {
+				s.Require().Error(tt.err)
+				return
+			}
+
+			s.Require().NoError(err)
+			s.Require().NotNil(updateRegistrationEntryResponse)
+			expectedResult := oldEntry
+			tt.result(&expectedResult)
+			expectedResult.EntryId = id
+			s.RequireProtoEqual(&expectedResult, updateRegistrationEntryResponse.Entry)
+
+			// Fetch and check the results match expectations
+			fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: id})
+			s.Require().NoError(err)
+			s.Require().NotNil(fetchRegistrationEntryResponse)
+			s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
+
+			s.RequireProtoEqual(&expectedResult, fetchRegistrationEntryResponse.Entry)
+		})
+	}
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {

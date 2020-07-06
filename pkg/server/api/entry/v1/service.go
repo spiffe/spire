@@ -165,31 +165,17 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	}
 }
 
-func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry) *types.Status {
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
-			Value: e.SpiffeId,
-		},
-		ByParentId: &wrappers.StringValue{
-			Value: e.ParentId,
-		},
-		BySelectors: &datastore.BySelectors{
-			Match:     datastore.BySelectors_MATCH_EXACT,
-			Selectors: e.Selectors,
-		},
-	})
-	if err != nil {
-		return api.CreateStatus(codes.Internal, "failed to list entries: %v", err)
-	}
-	if len(resp.Entries) != 0 {
-		return api.CreateStatus(codes.AlreadyExists, "entry already exists")
-	}
-
-	return nil
-}
-
 func (s *Service) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEntryRequest) (*entry.BatchUpdateEntryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method BatchUpdateEntry not implemented")
+	var results []*entry.BatchUpdateEntryResponse_Result
+
+	for _, eachEntry := range req.Entries {
+		e := s.updateEntry(ctx, eachEntry, req.InputMask, req.OutputMask)
+		results = append(results, e)
+	}
+
+	return &entry.BatchUpdateEntryResponse{
+		Results: results,
+	}, nil
 }
 
 func (s *Service) BatchDeleteEntry(ctx context.Context, req *entry.BatchDeleteEntryRequest) (*entry.BatchDeleteEntryResponse, error) {
@@ -360,4 +346,81 @@ func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegi
 	}
 
 	return listReq, nil
+}
+
+func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry) *types.Status {
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		BySpiffeId: &wrappers.StringValue{
+			Value: e.SpiffeId,
+		},
+		ByParentId: &wrappers.StringValue{
+			Value: e.ParentId,
+		},
+		BySelectors: &datastore.BySelectors{
+			Match:     datastore.BySelectors_MATCH_EXACT,
+			Selectors: e.Selectors,
+		},
+	})
+	if err != nil {
+		return api.CreateStatus(codes.Internal, "failed to list entries: %v", err)
+	}
+	if len(resp.Entries) != 0 {
+		return api.CreateStatus(codes.AlreadyExists, "entry already exists")
+	}
+
+	return nil
+}
+
+func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entry.BatchUpdateEntryResponse_Result {
+	log := rpccontext.Logger(ctx)
+	log = log.WithField(telemetry.RegistrationID, e.Id)
+
+	convEntry, err := api.ProtoToRegistrationEntryWithMask(e, inputMask)
+	if err != nil {
+		log.WithError(err).Error("Failed to convert entry")
+		return &entry.BatchUpdateEntryResponse_Result{
+			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert entry: %v", err),
+		}
+	}
+
+	var resp *datastore.UpdateRegistrationEntryResponse
+	if inputMask != nil {
+		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+			Entry: convEntry,
+			Mask: &common.RegistrationEntryMask{
+				SpiffeId:      inputMask.SpiffeId,
+				ParentId:      inputMask.ParentId,
+				Ttl:           inputMask.Ttl,
+				FederatesWith: inputMask.FederatesWith,
+				Admin:         inputMask.Admin,
+				Downstream:    inputMask.Downstream,
+				EntryExpiry:   inputMask.ExpiresAt,
+				DnsNames:      inputMask.DnsNames,
+				Selectors:     inputMask.Selectors,
+			}})
+	} else {
+		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{Entry: convEntry})
+	}
+
+	if err != nil {
+		log.WithError(err).Error("failed to update entry")
+		return &entry.BatchUpdateEntryResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "failed to update entry: %v", err),
+		}
+	}
+
+	tEntry, err := api.RegistrationEntryToProto(resp.Entry)
+	if err != nil {
+		log.WithError(err).Error("unable to convert registration entry to proto")
+		return &entry.BatchUpdateEntryResponse_Result{
+			Status: api.CreateStatus(codes.Internal, "unable to convert registration entry in updateEntry: %v", err),
+		}
+	}
+
+	applyMask(tEntry, outputMask)
+
+	return &entry.BatchUpdateEntryResponse_Result{
+		Status: api.OK(),
+		Entry:  tEntry,
+	}
 }
