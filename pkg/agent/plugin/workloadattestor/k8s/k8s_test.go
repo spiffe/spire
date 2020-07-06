@@ -641,7 +641,7 @@ func (s *Suite) setServer(server *httptest.Server) {
 func (s *Suite) writeFile(path, data string) {
 	realPath := filepath.Join(s.dir, path)
 	s.Require().NoError(os.MkdirAll(filepath.Dir(realPath), 0755))
-	s.Require().NoError(ioutil.WriteFile(realPath, []byte(data), 0644))
+	s.Require().NoError(ioutil.WriteFile(realPath, []byte(data), 0600))
 }
 
 func (s *Suite) serveHTTP(w http.ResponseWriter, req *http.Request) {

@@ -217,7 +217,7 @@ func (s *Suite) configure(config string) {
 }
 
 func (s *Suite) writeFile(path string, data []byte) {
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, path), data, 0644))
+	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, path), data, 0600))
 }
 
 type fakeProcess struct {
