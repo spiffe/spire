@@ -151,12 +151,12 @@ func (c *fetchX509Command) writeKey(filename string, privateKey crypto.PrivateKe
 		Bytes: data,
 	}
 
-	return c.writeFile(filename, pem.EncodeToMemory(b))
+	return ioutil.WriteFile(filename, pem.EncodeToMemory(b), 0600)
 }
 
 // writeFile creates or truncates filename, and writes data to it
 func (c *fetchX509Command) writeFile(filename string, data []byte) error {
-	return ioutil.WriteFile(filename, data, 0644)
+	return ioutil.WriteFile(filename, data, 0644) // nolint: gosec // expected permission for certificates
 }
 
 type X509SVID struct {

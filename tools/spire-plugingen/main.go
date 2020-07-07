@@ -331,7 +331,7 @@ func (g *generator) generate() (err error) {
 			return errs.Wrap(err)
 		}
 
-		if err := ioutil.WriteFile(filepath.Join(outDir, strings.ToLower(client.Name)+".go"), outBytes, 0644); err != nil {
+		if err := ioutil.WriteFile(filepath.Join(outDir, strings.ToLower(client.Name)+".go"), outBytes, 0644); err != nil { // nolint: gosec // expected permission
 			return errs.New("unable to write generated code for %s: %v", client.Name, err)
 		}
 	}

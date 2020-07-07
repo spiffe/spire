@@ -378,18 +378,18 @@ func createTokenReview(audience []string) *authv1.TokenReview {
 
 func (s *ClientSuite) createSampleKubeConfigFile(kubeConfigPath string) {
 	caPath := filepath.Join(s.dir, "ca.crt")
-	err := ioutil.WriteFile(caPath, kubeConfigCA, 0644)
+	err := ioutil.WriteFile(caPath, kubeConfigCA, 0600)
 	s.Require().NoError(err)
 
 	clientCrtPath := filepath.Join(s.dir, "client.crt")
-	err = ioutil.WriteFile(clientCrtPath, kubeConfigClientCert, 0644)
+	err = ioutil.WriteFile(clientCrtPath, kubeConfigClientCert, 0600)
 	s.Require().NoError(err)
 
 	clientKeyPath := filepath.Join(s.dir, "client.key")
-	err = ioutil.WriteFile(clientKeyPath, kubeConfigClientKey, 0644)
+	err = ioutil.WriteFile(clientKeyPath, kubeConfigClientKey, 0600)
 	s.Require().NoError(err)
 
 	kubeConfigContent := []byte(fmt.Sprintf(kubeConfig, caPath, clientCrtPath, clientKeyPath))
-	err = ioutil.WriteFile(kubeConfigPath, kubeConfigContent, 0644)
+	err = ioutil.WriteFile(kubeConfigPath, kubeConfigContent, 0600)
 	s.Require().NoError(err)
 }

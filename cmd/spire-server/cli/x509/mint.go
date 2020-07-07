@@ -165,7 +165,7 @@ func (c *mintCommand) run() error {
 		keyPath := c.env.JoinPath(c.write, "key.pem")
 		bundlePath := c.env.JoinPath(c.write, "bundle.pem")
 
-		if err := ioutil.WriteFile(svidPath, svidPEM.Bytes(), 0644); err != nil {
+		if err := ioutil.WriteFile(svidPath, svidPEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
 			return fmt.Errorf("unable to write SVID: %v", err)
 		}
 		if err := c.env.Printf("X509-SVID written to %s\n", svidPath); err != nil {
@@ -179,7 +179,7 @@ func (c *mintCommand) run() error {
 			return err
 		}
 
-		if err := ioutil.WriteFile(bundlePath, bundlePEM.Bytes(), 0644); err != nil {
+		if err := ioutil.WriteFile(bundlePath, bundlePEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
 			return fmt.Errorf("unable to write bundle: %v", err)
 		}
 		if err := c.env.Printf("Root CAs written to %s\n", bundlePath); err != nil {

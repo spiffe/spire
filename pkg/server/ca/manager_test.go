@@ -453,7 +453,7 @@ func (s *ManagerSuite) TestMigration() {
 	// assert that we migrate on load by writing junk data to the old JSON file
 	// and making sure initialization fails. The journal tests exercise this
 	// code more carefully.
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "certs.json"), []byte("NOTJSON"), 0644))
+	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "certs.json"), []byte("NOTJSON"), 0600))
 	s.m = NewManager(s.selfSignedConfig())
 	err := s.m.Initialize(context.Background())
 	s.RequireErrorContains(err, "failed to migrate old JSON data: unable to decode JSON")

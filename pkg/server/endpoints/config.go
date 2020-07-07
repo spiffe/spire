@@ -128,7 +128,9 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 
 	return &ExperimentalServers{
 		AgentServer: agentv1.New(agentv1.Config{
-			DataStore: ds,
+			DataStore:   ds,
+			ServerCA:    c.ServerCA,
+			TrustDomain: c.TrustDomain,
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain: c.TrustDomain,

@@ -349,11 +349,11 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// cluster missing service account whitelist (token review validation config)
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprint(`clusters = {
+		Configuration: `clusters = {
 				"BAR" = {
 					use_token_review_api_validation = true
 				}
-			}`),
+			}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "BAR" configuration must have at least one service account whitelisted`)
@@ -373,7 +373,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.Require().Nil(resp)
 
 	// no keys in PEM file
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0644))
+	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 				"FOO" = {
@@ -396,7 +396,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(ioutil.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: fooPKCS1Bytes,
-	}), 0644))
+	}), 0600))
 
 	fooPKIXKeyPath := filepath.Join(s.dir, "foo-pkix.pem")
 	fooPKIXBytes, err := x509.MarshalPKIXPublicKey(s.fooKey.Public())
@@ -404,7 +404,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(ioutil.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: fooPKIXBytes,
-	}), 0644))
+	}), 0600))
 
 	barPKIXKeyPath := filepath.Join(s.dir, "bar-pkix.pem")
 	barPKIXBytes, err := x509.MarshalPKIXPublicKey(s.barKey.Public())
@@ -412,7 +412,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(ioutil.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: barPKIXBytes,
-	}), 0644))
+	}), 0600))
 
 	_, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
@@ -556,7 +556,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0644); err != nil {
+	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600); err != nil {
 		return err
 	}
 	return nil

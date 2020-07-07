@@ -17,8 +17,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 
-	// gorm sqlite dialect init registration
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	_ "github.com/jinzhu/gorm/dialects/sqlite" // gorm sqlite dialect init registration
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -335,11 +334,7 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 // UpdateRegistrationEntry updates an existing registration entry
 func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context,
 	req *datastore.UpdateRegistrationEntryRequest) (resp *datastore.UpdateRegistrationEntryResponse, err error) {
-	if err = validateRegistrationEntry(req.Entry); err != nil {
-		return nil, err
-	}
-
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	if err = ds.withWriteRepeatableReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateRegistrationEntry(tx, req)
 		return err
 	}); err != nil {
@@ -1480,10 +1475,6 @@ func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (
 	}
 
 	if err := tx.Delete(&model).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	if err := tx.Where("spiffe_id = ?", req.SpiffeId).Delete(NodeSelector{}).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -2698,65 +2689,92 @@ func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error
 
 func updateRegistrationEntry(tx *gorm.DB,
 	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
+	if err := validateRegistrationEntryForUpdate(req.Entry, req.Mask); err != nil {
+		return nil, err
+	}
+
 	// Get the existing entry
 	entry := RegisteredEntry{}
 	if err := tx.Find(&entry, "entry_id = ?", req.Entry.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
-
-	// Delete existing selectors - we will write new ones
-	if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	selectors := []Selector{}
-	for _, s := range req.Entry.Selectors {
-		selector := Selector{
-			Type:  s.Type,
-			Value: s.Value,
+	if req.Mask == nil || req.Mask.Selectors {
+		// Delete existing selectors - we will write new ones
+		if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+			return nil, sqlError.Wrap(err)
 		}
 
-		selectors = append(selectors, selector)
+		selectors := []Selector{}
+		for _, s := range req.Entry.Selectors {
+			selector := Selector{
+				Type:  s.Type,
+				Value: s.Value,
+			}
+
+			selectors = append(selectors, selector)
+		}
+		entry.Selectors = selectors
 	}
 
-	// Delete existing DNSs - we will write new ones
-	if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	dnsList := []DNSName{}
-	for _, d := range req.Entry.DnsNames {
-		dns := DNSName{
-			Value: d,
+	if req.Mask == nil || req.Mask.DnsNames {
+		// Delete existing DNSs - we will write new ones
+		if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+			return nil, sqlError.Wrap(err)
 		}
 
-		dnsList = append(dnsList, dns)
+		dnsList := []DNSName{}
+		for _, d := range req.Entry.DnsNames {
+			dns := DNSName{
+				Value: d,
+			}
+
+			dnsList = append(dnsList, dns)
+		}
+		entry.DNSList = dnsList
 	}
 
-	entry.SpiffeID = req.Entry.SpiffeId
-	entry.ParentID = req.Entry.ParentId
-	entry.TTL = req.Entry.Ttl
-	entry.Selectors = selectors
-	entry.Admin = req.Entry.Admin
-	entry.Downstream = req.Entry.Downstream
-	entry.Expiry = req.Entry.EntryExpiry
-	entry.DNSList = dnsList
+	if req.Mask == nil || req.Mask.SpiffeId {
+		entry.SpiffeID = req.Entry.SpiffeId
+	}
+	if req.Mask == nil || req.Mask.ParentId {
+		entry.ParentID = req.Entry.ParentId
+	}
+	if req.Mask == nil || req.Mask.Ttl {
+		entry.TTL = req.Entry.Ttl
+	}
+	if req.Mask == nil || req.Mask.Admin {
+		entry.Admin = req.Entry.Admin
+	}
+	if req.Mask == nil || req.Mask.Downstream {
+		entry.Downstream = req.Entry.Downstream
+	}
+	if req.Mask == nil || req.Mask.EntryExpiry {
+		entry.Expiry = req.Entry.EntryExpiry
+	}
+
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	if req.Mask == nil || req.Mask.FederatesWith {
+		federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := tx.Model(&entry).Association("FederatesWith").Replace(federatesWith).Error; err != nil {
+			return nil, err
+		}
+		// The FederatesWith field in entry is filled in by the call to modelToEntry below
+	}
+
+	returnEntry, err := modelToEntry(tx, entry)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := tx.Model(&entry).Association("FederatesWith").Replace(federatesWith).Error; err != nil {
-		return nil, err
-	}
-
-	req.Entry.EntryId = entry.EntryID
 	return &datastore.UpdateRegistrationEntryResponse{
-		Entry: req.Entry,
+		Entry: returnEntry,
 	}, nil
 }
 
@@ -2890,6 +2908,29 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	}
 
 	if entry.Ttl < 0 {
+		return sqlError.New("invalid registration entry: TTL is not set")
+	}
+
+	return nil
+}
+
+func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
+	if entry == nil {
+		return sqlError.New("invalid request: missing registered entry")
+	}
+
+	if (mask == nil || mask.Selectors) &&
+		(entry.Selectors == nil || len(entry.Selectors) == 0) {
+		return sqlError.New("invalid registration entry: missing selector list")
+	}
+
+	if (mask == nil || mask.SpiffeId) &&
+		entry.SpiffeId == "" {
+		return sqlError.New("invalid registration entry: missing SPIFFE ID")
+	}
+
+	if (mask == nil || mask.Ttl) &&
+		(entry.Ttl < 0) {
 		return sqlError.New("invalid registration entry: TTL is not set")
 	}
 
