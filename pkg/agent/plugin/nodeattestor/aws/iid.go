@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io/ioutil"
-	"net/http"
 	"sync"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
@@ -24,9 +21,6 @@ import (
 )
 
 const (
-	defaultIdentityDocumentURL  = "http://169.254.169.254/latest/dynamic/instance-identity/document"
-	defaultIdentitySignatureURL = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
-
 	docPath = "instance-identity/document"
 	sigPath = "instance-identity/signature"
 )
@@ -143,22 +137,4 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 		return nil, errors.New("not configured")
 	}
 	return p.config, nil
-}
-
-func httpGetBytes(url string) ([]byte, error) {
-	resp, err := http.Get(url) //nolint: gosec // URL is provided via explicit configuration
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return bytes, nil
 }
