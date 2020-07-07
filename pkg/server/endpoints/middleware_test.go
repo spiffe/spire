@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -14,12 +15,14 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestAuthorizedEntryFetcher(t *testing.T) {
@@ -105,16 +108,26 @@ func TestAuthorizedEntryFetcher(t *testing.T) {
 
 func TestAgentAuthorizer(t *testing.T) {
 	ca := testca.New(t, testTD)
-	agentSVID := ca.CreateX509SVID(agentID)
+	agentSVID := ca.CreateX509SVID(agentID).Certificates[0]
 
 	for _, tt := range []struct {
-		name         string
-		failFetch    bool
-		node         *common.AttestedNode
-		expectedCode codes.Code
-		expectedMsg  string
-		expectedLogs []spiretest.LogEntry
+		name           string
+		failFetch      bool
+		node           *common.AttestedNode
+		time           time.Time
+		expectedCode   codes.Code
+		expectedMsg    string
+		expectedReason types.PermissionDeniedDetails_Reason
+		expectedLogs   []spiretest.LogEntry
 	}{
+		{
+			name: "authorized",
+			node: &common.AttestedNode{
+				SpiffeId:         agentID.String(),
+				CertSerialNumber: agentSVID.SerialNumber.String(),
+			},
+			expectedCode: codes.OK,
+		},
 		{
 			name:         "fail fetch",
 			failFetch:    true,
@@ -132,9 +145,30 @@ func TestAgentAuthorizer(t *testing.T) {
 			},
 		},
 		{
-			name:         "no attested node",
-			expectedCode: codes.PermissionDenied,
-			expectedMsg:  `agent "spiffe://domain.test/agent" is not attested`,
+			name: "expired",
+			time: agentSVID.NotAfter.Add(time.Second),
+			node: &common.AttestedNode{
+				SpiffeId:         agentID.String(),
+				CertSerialNumber: agentSVID.SerialNumber.String(),
+			},
+			expectedCode:   codes.PermissionDenied,
+			expectedMsg:    `agent "spiffe://domain.test/agent" SVID is expired`,
+			expectedReason: types.PermissionDeniedDetails_AGENT_EXPIRED,
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Agent SVID is expired",
+					Data: map[string]interface{}{
+						telemetry.AgentID: agentID.String(),
+					},
+				},
+			},
+		},
+		{
+			name:           "no attested node",
+			expectedCode:   codes.PermissionDenied,
+			expectedMsg:    `agent "spiffe://domain.test/agent" is not attested`,
+			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ATTESTED,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -150,8 +184,9 @@ func TestAgentAuthorizer(t *testing.T) {
 			node: &common.AttestedNode{
 				SpiffeId: agentID.String(),
 			},
-			expectedCode: codes.PermissionDenied,
-			expectedMsg:  `agent "spiffe://domain.test/agent" is banned`,
+			expectedCode:   codes.PermissionDenied,
+			expectedMsg:    `agent "spiffe://domain.test/agent" is banned`,
+			expectedReason: types.PermissionDeniedDetails_AGENT_BANNED,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -163,20 +198,21 @@ func TestAgentAuthorizer(t *testing.T) {
 			},
 		},
 		{
-			name: "stale SVID",
+			name: "inactive SVID",
 			node: &common.AttestedNode{
 				SpiffeId:         agentID.String(),
 				CertSerialNumber: "NEW",
 			},
-			expectedCode: codes.PermissionDenied,
-			expectedMsg:  fmt.Sprintf(`agent "spiffe://domain.test/agent" expected to have serial number "NEW"; has %q`, agentSVID.Certificates[0].SerialNumber),
+			expectedCode:   codes.PermissionDenied,
+			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/agent" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber),
+			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Agent SVID is stale",
+					Message: "Agent SVID is not active",
 					Data: map[string]interface{}{
 						telemetry.AgentID:          agentID.String(),
-						telemetry.SVIDSerialNumber: agentSVID.Certificates[0].SerialNumber.String(),
+						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
 						telemetry.SerialNumber:     "NEW",
 					},
 				},
@@ -199,9 +235,21 @@ func TestAgentAuthorizer(t *testing.T) {
 				ds.SetNextError(errors.New("ohno"))
 			}
 
-			authorizer := AgentAuthorizer(log, ds)
-			err := authorizer.AuthorizeAgent(context.Background(), agentID, agentSVID.Certificates[0])
+			clk := clock.NewMock(t)
+			if !tt.time.IsZero() {
+				clk.Set(tt.time)
+			}
+			authorizer := AgentAuthorizer(log, ds, clk)
+			err := authorizer.AuthorizeAgent(context.Background(), agentID, agentSVID)
 			spiretest.RequireGRPCStatus(t, err, tt.expectedCode, tt.expectedMsg)
+			if tt.expectedCode == codes.PermissionDenied {
+				// Assert that the expected permission denied reason is returned
+				assert.Equal(t, []interface{}{
+					&types.PermissionDeniedDetails{
+						Reason: tt.expectedReason,
+					},
+				}, status.Convert(err).Details())
+			}
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectedLogs)
 		})
 	}
