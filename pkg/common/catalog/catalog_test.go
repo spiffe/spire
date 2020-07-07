@@ -631,9 +631,13 @@ func (s *CatalogSuite) TestPluginsFill() {
 				r.Len(c.JustPluginInfos, 2)
 				r.Equal("testext", c.JustPluginInfos[0].Name())
 				r.Equal("testbuiltin", c.JustPluginInfos[1].Name())
+				r.False(c.JustPluginInfos[0].BuiltIn())
+				r.True(c.JustPluginInfos[1].BuiltIn())
 				r.Len(c.PluginInfosInStruct, 2)
 				r.Equal("testext", c.PluginInfosInStruct[0].Name())
 				r.Equal("testbuiltin", c.PluginInfosInStruct[1].Name())
+				r.False(c.PluginInfosInStruct[0].BuiltIn())
+				r.True(c.PluginInfosInStruct[1].BuiltIn())
 			},
 		},
 	}

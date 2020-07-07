@@ -109,6 +109,7 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Load
 	plugin, err = newCatalogPlugin(ctx, builtinConn, catalogPluginConfig{
 		Log:           builtin.Log,
 		Name:          builtin.Plugin.Name,
+		BuiltIn:       true,
 		Plugin:        pluginClient,
 		KnownServices: knownServices,
 		HostServices:  builtin.HostServices,

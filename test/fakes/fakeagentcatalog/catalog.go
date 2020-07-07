@@ -59,3 +59,7 @@ func (pi pluginInfo) Name() string {
 func (pi pluginInfo) Type() string {
 	return pi.typ
 }
+
+func (pi pluginInfo) BuiltIn() bool {
+	return true
+}

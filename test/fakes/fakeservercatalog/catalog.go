@@ -25,7 +25,10 @@ func New() *Catalog {
 }
 
 func (c *Catalog) SetDataStore(dataStore datastore.DataStore) {
-	c.DataStore = dataStore
+	c.DataStore = catalog.DataStore{
+		PluginInfo: pluginInfo{name: "fake", typ: datastore.Type},
+		DataStore:  dataStore,
+	}
 }
 
 func (c *Catalog) AddNodeAttestorNamed(name string, nodeAttestor nodeattestor.NodeAttestor) {
@@ -73,4 +76,8 @@ func (pi pluginInfo) Name() string {
 
 func (pi pluginInfo) Type() string {
 	return pi.typ
+}
+
+func (pi pluginInfo) BuiltIn() bool {
+	return true
 }

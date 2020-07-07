@@ -6,7 +6,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 
 | Type           | Description |
 |:---------------|:------------|
-| DataStore      | Provides persistent storage and HA features. |
+| DataStore      | Provides persistent storage and HA features. **Note:** Pluggability for the DataStore is no longer supported. Only the built-in SQL plugin can be used. |
 | KeyManager     | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations. |
 | NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
 | NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
