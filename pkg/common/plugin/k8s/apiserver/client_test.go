@@ -1,6 +1,7 @@
 package apiserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -23,6 +24,8 @@ import (
 )
 
 var (
+	ctx = context.Background()
+
 	kubeConfig = `
 apiVersion: v1
 clusters:
@@ -155,21 +158,21 @@ func (s *ClientSuite) TearDownTest() {
 
 func (s *ClientSuite) TestGetPodFailsIfNamespaceIsEmpty() {
 	client := New("")
-	pod, err := client.GetPod("", "POD-NAME")
+	pod, err := client.GetPod(ctx, "", "POD-NAME")
 	s.AssertErrorContains(err, "empty namespace")
 	s.Nil(pod)
 }
 
 func (s *ClientSuite) TestGetPodFailsIfPodNameIsEmpty() {
 	client := New("")
-	pod, err := client.GetPod("NAMESPACE", "")
+	pod, err := client.GetPod(ctx, "NAMESPACE", "")
 	s.AssertErrorContains(err, "empty pod name")
 	s.Nil(pod)
 }
 
 func (s *ClientSuite) TestGetPodFailsToLoadClient() {
 	client := s.createDefectiveClient("")
-	pod, err := client.GetPod("NAMESPACE", "PODNAME")
+	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
 	s.AssertErrorContains(err, "unable to get clientset")
 	s.Nil(pod)
 }
@@ -177,10 +180,10 @@ func (s *ClientSuite) TestGetPodFailsToLoadClient() {
 func (s *ClientSuite) TestGetPodFailsIfGetsErrorFromAPIServer() {
 	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
 	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
-	s.mockPods.EXPECT().Get("PODNAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
+	s.mockPods.EXPECT().Get(ctx, "PODNAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
 
 	client := s.createClient()
-	pod, err := client.GetPod("NAMESPACE", "PODNAME")
+	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
 	s.AssertErrorContains(err, "unable to query pods API")
 	s.Nil(pod)
 }
@@ -188,10 +191,10 @@ func (s *ClientSuite) TestGetPodFailsIfGetsErrorFromAPIServer() {
 func (s *ClientSuite) TestGetPodFailsIfGetsNilPod() {
 	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
 	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
-	s.mockPods.EXPECT().Get("PODNAME", metav1.GetOptions{}).Return(nil, nil)
+	s.mockPods.EXPECT().Get(ctx, "PODNAME", metav1.GetOptions{}).Return(nil, nil)
 
 	client := s.createClient()
-	pod, err := client.GetPod("NAMESPACE", "PODNAME")
+	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
 	s.AssertErrorContains(err, "got nil pod for pod name: PODNAME")
 	s.Nil(pod)
 }
@@ -200,24 +203,24 @@ func (s *ClientSuite) TestGetPodSucceeds() {
 	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
 	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
 	expectedPod := createPod("PODNAME")
-	s.mockPods.EXPECT().Get("PODNAME", metav1.GetOptions{}).Return(expectedPod, nil)
+	s.mockPods.EXPECT().Get(ctx, "PODNAME", metav1.GetOptions{}).Return(expectedPod, nil)
 
 	client := s.createClient()
-	pod, err := client.GetPod("NAMESPACE", "PODNAME")
+	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
 	s.NoError(err)
 	s.Equal(expectedPod, pod)
 }
 
 func (s *ClientSuite) TestGetNodeFailsIfNodeNameIsEmpty() {
 	client := New("")
-	node, err := client.GetNode("")
+	node, err := client.GetNode(ctx, "")
 	s.AssertErrorContains(err, "empty node name")
 	s.Nil(node)
 }
 
 func (s *ClientSuite) TestGetNodeFailsToLoadClient() {
 	client := s.createDefectiveClient("")
-	node, err := client.GetNode("NODENAME")
+	node, err := client.GetNode(ctx, "NODENAME")
 	s.AssertErrorContains(err, "unable to get clientset")
 	s.Nil(node)
 }
@@ -225,10 +228,10 @@ func (s *ClientSuite) TestGetNodeFailsToLoadClient() {
 func (s *ClientSuite) TestGetNodeFailsIfGetsErrorFromAPIServer() {
 	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
 	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
-	s.mockNodes.EXPECT().Get("NODENAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
+	s.mockNodes.EXPECT().Get(ctx, "NODENAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
 
 	client := s.createClient()
-	node, err := client.GetNode("NODENAME")
+	node, err := client.GetNode(ctx, "NODENAME")
 	s.AssertErrorContains(err, "unable to query nodes API")
 	s.Nil(node)
 }
@@ -236,10 +239,10 @@ func (s *ClientSuite) TestGetNodeFailsIfGetsErrorFromAPIServer() {
 func (s *ClientSuite) TestGetNodeFailsIfGetsNilNode() {
 	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
 	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
-	s.mockNodes.EXPECT().Get("NODENAME", metav1.GetOptions{}).Return(nil, nil)
+	s.mockNodes.EXPECT().Get(ctx, "NODENAME", metav1.GetOptions{}).Return(nil, nil)
 
 	client := s.createClient()
-	node, err := client.GetNode("NODENAME")
+	node, err := client.GetNode(ctx, "NODENAME")
 	s.AssertErrorContains(err, "got nil node for node name: NODENAME")
 	s.Nil(node)
 }
@@ -248,17 +251,17 @@ func (s *ClientSuite) TestGetNodeSucceeds() {
 	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
 	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
 	expectedNode := createNode("NODENAME")
-	s.mockNodes.EXPECT().Get("NODENAME", metav1.GetOptions{}).Return(expectedNode, nil)
+	s.mockNodes.EXPECT().Get(ctx, "NODENAME", metav1.GetOptions{}).Return(expectedNode, nil)
 
 	client := s.createClient()
-	node, err := client.GetNode("NODENAME")
+	node, err := client.GetNode(ctx, "NODENAME")
 	s.NoError(err)
 	s.Equal(expectedNode, node)
 }
 
 func (s *ClientSuite) TestValidateTokenFailsToLoadClient() {
 	client := s.createDefectiveClient("")
-	status, err := client.ValidateToken(testToken, []string{"aud1", "aud2"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1", "aud2"})
 	s.AssertErrorContains(err, "unable to get clientset")
 	s.Nil(status)
 }
@@ -267,10 +270,10 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
 	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
 	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
 	req := createTokenReview([]string{"aud1"})
-	s.mockTokenReviews.EXPECT().Create(req).Return(nil, errors.New("an error"))
+	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(nil, errors.New("an error"))
 
 	client := s.createClient()
-	status, err := client.ValidateToken(testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "unable to query token review API")
 	s.Nil(status)
 }
@@ -279,10 +282,10 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsNilResponse() {
 	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
 	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
 	req := createTokenReview([]string{"aud1"})
-	s.mockTokenReviews.EXPECT().Create(req).Return(nil, nil)
+	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(nil, nil)
 
 	client := s.createClient()
-	status, err := client.ValidateToken(testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response is nil")
 	s.Nil(status)
 }
@@ -294,10 +297,10 @@ func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
 	req := createTokenReview([]string{"aud1"})
 	resp := *req
 	resp.Status.Error = "an error"
-	s.mockTokenReviews.EXPECT().Create(req).Return(&resp, nil)
+	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(&resp, nil)
 
 	client := s.createClient()
-	status, err := client.ValidateToken(testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response contains an error")
 	s.Nil(status)
 }
@@ -309,10 +312,10 @@ func (s *ClientSuite) TestValidateTokenSucceeds() {
 	req := createTokenReview([]string{"aud1"})
 	resp := *req
 	resp.Status.Authenticated = true
-	s.mockTokenReviews.EXPECT().Create(req).Return(&resp, nil)
+	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(&resp, nil)
 
 	client := s.createClient()
-	status, err := client.ValidateToken(testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.NoError(err)
 	s.NotNil(status)
 	s.True(status.Authenticated)
