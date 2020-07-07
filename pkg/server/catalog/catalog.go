@@ -2,7 +2,7 @@ package catalog
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -197,7 +197,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 
 	// The DataStore interface is no longer pluggable (see #1650).
 	if !p.DataStore.BuiltIn() {
-		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
+		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
 	}
 	p.DataStore.DataStore = datastore_telemetry.WithMetrics(p.DataStore.DataStore, config.Metrics)
 
