@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types"
@@ -17,7 +16,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -43,17 +41,17 @@ type Docker interface {
 }
 
 type Plugin struct {
-	log               hclog.Logger
-	docker            Docker
-	fs                cgroups.FileSystem
-	mtx               *sync.RWMutex
-	retryer           *retryer
+	log     hclog.Logger
+	fs      cgroups.FileSystem
+	retryer *retryer
+
+	mtx               sync.RWMutex
 	containerIDFinder cgroup.ContainerIDFinder
+	docker            Docker
 }
 
 func New() *Plugin {
 	return &Plugin{
-		mtx:     &sync.RWMutex{},
 		fs:      cgroups.OSFileSystem{},
 		retryer: newRetryer(),
 	}
@@ -64,11 +62,6 @@ type dockerPluginConfig struct {
 	DockerSocketPath string `hcl:"docker_socket_path"`
 	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
 	DockerVersion string `hcl:"docker_version"`
-	// CgroupPrefix (DEPRECATED) is the cgroup prefix to look for in the cgroup entries (default: "/docker").
-	CgroupPrefix string `hcl:"cgroup_prefix"`
-	// CgroupContainerIndex (DEPRECATED) is the index within the cgroup path where the container ID should be found (default: 1).
-	// This is a *int to allow differentiation between the default int value (0) and the absence of the field.
-	CgroupContainerIndex *int `hcl:"cgroup_container_index"`
 	// ContainerIDCGroupMatchers
 	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers"`
 }
@@ -136,9 +129,6 @@ func getSelectorsFromConfig(cfg *container.Config) []*common.Selector {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	var err error
 	config := &dockerPluginConfig{}
 	if err = hcl.Decode(config, req.Configuration); err != nil {
@@ -155,34 +145,24 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	default:
 		opts = append(opts, dockerclient.WithAPIVersionNegotiation())
 	}
-	p.docker, err = dockerclient.NewClientWithOpts(opts...)
+
+	docker, err := dockerclient.NewClientWithOpts(opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	switch {
-	case config.CgroupPrefix != "" || config.CgroupContainerIndex != nil:
-		if config.CgroupPrefix == "" || config.CgroupContainerIndex == nil {
-			return nil, errors.New("cgroup_prefix and cgroup_container_index must be specified together")
-		}
-		p.log.Warn("cgroup_prefix and cgroup_container_index are deprecated and will be removed in a future release")
-
-		p.containerIDFinder = &legacyContainerIDFinder{
-			log:          p.log,
-			cgroupPrefix: config.CgroupPrefix,
-			// index 0 will always be "" as the prefix must start with /.
-			// We add 1 to the requested index to hide this from the user.
-			cgroupContainerIndex: *config.CgroupContainerIndex + 1,
-		}
-	case len(config.ContainerIDCGroupMatchers) > 0:
-		p.containerIDFinder, err = cgroup.NewContainerIDFinder(config.ContainerIDCGroupMatchers)
+	var containerIDFinder cgroup.ContainerIDFinder = &defaultContainerIDFinder{}
+	if len(config.ContainerIDCGroupMatchers) > 0 {
+		containerIDFinder, err = cgroup.NewContainerIDFinder(config.ContainerIDCGroupMatchers)
 		if err != nil {
 			return nil, err
 		}
-	default:
-		p.containerIDFinder = &defaultContainerIDFinder{}
 	}
 
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.docker = docker
+	p.containerIDFinder = containerIDFinder
 	return &spi.ConfigureResponse{}, nil
 }
 
@@ -231,33 +211,6 @@ func getContainerIDFromCGroups(finder cgroup.ContainerIDFinder, cgroups []cgroup
 	default:
 		return containerID, nil
 	}
-}
-
-type legacyContainerIDFinder struct {
-	log                  hclog.Logger
-	cgroupPrefix         string
-	cgroupContainerIndex int
-}
-
-// FindContainerID returns the container ID from the given cgroup path. It only
-// considers cgroup paths matching the configured prefix. The path is split
-// into a number of slash separated segments. The container ID is assumed to
-// occupy the segment at the configured index. If the cgroup path does not
-// match the prefix or does not have enough segments to accommodate the index,
-// the method returns false.
-func (f *legacyContainerIDFinder) FindContainerID(cgroupPath string) (string, bool) {
-	if !strings.HasPrefix(cgroupPath, f.cgroupPrefix) {
-		return "", false
-	}
-
-	parts := strings.Split(cgroupPath, "/")
-
-	if len(parts) <= f.cgroupContainerIndex {
-		f.log.Warn("Docker entry found, but is missing the container id", telemetry.CGroupPath, cgroupPath)
-		return "", false
-	}
-
-	return parts[f.cgroupContainerIndex], true
 }
 
 // dockerCGroupRE matches cgroup paths that have the following properties.
