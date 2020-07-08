@@ -12,15 +12,15 @@ of selectors.
 | Instance Tag        | `tag:name:blog`                                   | The key (e.g. `name`) and value (e.g. `blog`) of an instance tag |
 | Security Group ID   | `sg:id:sg-01234567`                               | The id of the security group the instance belongs to             |
 | Security Group Name | `sg:name:blog`                                    | The name of the security group the instance belongs to           |
-| IAM role            | `iamrole:arn:aws:iam::123456789012:role/Blog` | An IAM role within the instance profile for the instance         |
+| IAM role            | `iamrole:arn:aws:iam::123456789012:role/Blog`     | An IAM role within the instance profile for the instance         |
 
  All of the selectors have the type `aws_iid`.
 
 ## Configuration
 
-| Configuration        | Description                  | Default                 |
-| -------------------- | ---------------------------- | ----------------------- |
-| `access_key_id`      | AWS access key id            | Value of `AWS_ACCESS_KEY_ID` environment variable |
+| Configuration        | Description                  | Default                                               |
+| -------------------- | ---------------------------- | ----------------------------------------------------- |
+| `access_key_id`      | AWS access key id            | Value of `AWS_ACCESS_KEY_ID` environment variable     |
 | `secret_access_key`  | AWS secret access key        | Value of `AWS_SECRET_ACCESS_KEY` environment variable |
 
 The user or role identified by the credentials must have permissions for
