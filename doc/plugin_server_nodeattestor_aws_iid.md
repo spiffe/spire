@@ -6,7 +6,8 @@ The `aws_iid` plugin automatically attests instances using the AWS Instance
 Metadata API and the AWS Instance Identity document. It also allows an operator
 to use AWS Instance IDs when defining SPIFFE ID attestation policies. Agents
 attested by the aws_iid attestor will be issued a SPIFFE ID like
-`spiffe://example.org/agent/aws_iid/ACCOUNT_ID/REGION/INSTANCE_ID`
+`spiffe://example.org/agent/aws_iid/ACCOUNT_ID/REGION/INSTANCE_ID`. Additionally,
+this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors.
 
 | Configuration       | Description | Default                 |
 | --------------------| ----------- | ----------------------- |
@@ -44,3 +45,17 @@ A sample configuration:
         }
     }
 ```
+
+This plugin generates the following selectors related to the instance where the agent is running:
+
+| Selector            | Example                                           | Description                                                      |
+| ------------------- | ------------------------------------------------- | ---------------------------------------------------------------- |
+| Instance Tag        | `tag:name:blog`                                   | The key (e.g. `name`) and value (e.g. `blog`) of an instance tag |
+| Security Group ID   | `sg:id:sg-01234567`                               | The id of the security group the instance belongs to             |
+| Security Group Name | `sg:name:blog`                                    | The name of the security group the instance belongs to           |
+| IAM role            | `iamrole:arn:aws:iam::123456789012:role/Blog`     | An IAM role within the instance profile for the instance         |
+
+ All of the selectors have the type `aws_iid`.
+
+ The `IAM role` selector is included in the generated set of selectors only if the instance has an IAM Instance Profile associated.
+
