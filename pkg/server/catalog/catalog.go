@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -102,6 +103,11 @@ func BuiltIns() []catalog.Plugin {
 	return append([]catalog.Plugin(nil), builtIns...)
 }
 
+type DataStore struct {
+	catalog.PluginInfo
+	datastore.DataStore
+}
+
 type Notifier struct {
 	catalog.PluginInfo
 	notifier.Notifier
@@ -113,7 +119,7 @@ type UpstreamAuthority struct {
 }
 
 type Plugins struct {
-	DataStore         datastore.DataStore
+	DataStore         DataStore
 	NodeAttestors     map[string]nodeattestor.NodeAttestor
 	NodeResolvers     map[string]noderesolver.NodeResolver
 	UpstreamAuthority *UpstreamAuthority
@@ -189,7 +195,11 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p.DataStore = datastore_telemetry.WithMetrics(p.DataStore, config.Metrics)
+	// The DataStore interface is no longer pluggable (see #1650).
+	if !p.DataStore.BuiltIn() {
+		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
+	}
+	p.DataStore.DataStore = datastore_telemetry.WithMetrics(p.DataStore.DataStore, config.Metrics)
 
 	return &Repository{
 		Catalog: p,

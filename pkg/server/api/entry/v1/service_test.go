@@ -1226,6 +1226,750 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	return test
 }
 
+func TestBatchUpdateEntry(t *testing.T) {
+	parent := &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"}
+	entry1SpiffeID := &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"}
+	expiresAt := time.Now().Unix()
+	initialEntry := &types.Entry{
+		ParentId: parent,
+		SpiffeId: entry1SpiffeID,
+		Ttl:      60,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "uid:2000"},
+		},
+		FederatesWith: []string{
+			federatedTd.IDString(),
+		},
+		Admin:      true,
+		ExpiresAt:  expiresAt,
+		DnsNames:   []string{"dns1", "dns2"},
+		Downstream: true,
+	}
+	updateEverythingEntry := &types.Entry{
+		ParentId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+		Ttl:      500000,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:9999"},
+		},
+		FederatesWith: []string{},
+		Admin:         false,
+		ExpiresAt:     999999999,
+		DnsNames:      []string{"dns3", "dns4"},
+		Downstream:    false,
+	}
+	for _, tt := range []struct {
+		name            string
+		code            codes.Code
+		dsError         error
+		err             string
+		expectDsEntries func(m string) []*types.Entry
+		expectLogs      func(map[string]string) []spiretest.LogEntry
+		expectStatus    *types.Status
+		inputMask       *types.EntryMask
+		outputMask      *types.EntryMask
+		initialEntries  []*types.Entry
+		updateEntries   []*types.Entry
+		expectResults   []*entrypb.BatchUpdateEntryResponse_Result
+	}{
+		{
+			name:           "Success Update Parent Id",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				ParentId: true,
+			},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					// Trust domain will be normalized to lower case
+					ParentId: &types.SPIFFEID{TrustDomain: "exampleUPDATED.org", Path: "/parentUpdated"},
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.ParentId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/parentUpdated"}
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						ParentId: &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/parentUpdated"}},
+				},
+			},
+		},
+		{
+			name:           "Success Update Spiffe Id",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				SpiffeId: true,
+			},
+			outputMask: &types.EntryMask{
+				SpiffeId: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					// Trust domain will be normalized to lower case
+					SpiffeId: &types.SPIFFEID{TrustDomain: "exampleUPDATED.org", Path: "/workloadUpdated"},
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.SpiffeId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/workloadUpdated"}
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						SpiffeId: &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/workloadUpdated"}},
+				},
+			},
+		},
+		{
+			name:           "Success Update Multiple Selectors Into One",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Selectors: true,
+			},
+			outputMask: &types.EntryMask{
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Selectors: []*types.Selector{
+						{Type: "unix", Value: "uid:2000"},
+					},
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				// Annoying -- the selectors switch order inside api.ProtoToRegistrationEntry, so the
+				// datastore won't return them in order
+				// To avoid this, for this test, we only have one selector
+				// In the next test, we test multiple seletors, and just don't verify against the data
+				// store
+				modifiedEntry.Selectors = []*types.Selector{
+					{Type: "unix", Value: "uid:2000"},
+				}
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Selectors: []*types.Selector{
+							{Type: "unix", Value: "uid:2000"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update Multiple Selectors",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Selectors: true,
+			},
+			outputMask: &types.EntryMask{
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Selectors: []*types.Selector{
+						{Type: "unix", Value: "uid:2000"},
+						{Type: "unix", Value: "gid:2000"},
+					},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Selectors: []*types.Selector{
+							{Type: "unix", Value: "gid:2000"},
+							{Type: "unix", Value: "uid:2000"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update TTL",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Ttl: true,
+			},
+			outputMask: &types.EntryMask{
+				Ttl: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Ttl: 1000,
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.Ttl = 1000
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Ttl: 1000,
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update FederatesWith",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				FederatesWith: true,
+			},
+			outputMask: &types.EntryMask{
+				FederatesWith: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					FederatesWith: []string{},
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.FederatesWith = []string{}
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						FederatesWith: []string{},
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update Admin",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Admin: true,
+			},
+			outputMask: &types.EntryMask{
+				Admin: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Admin: false,
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.Admin = false
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Admin: false,
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update Downstream",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Downstream: true,
+			},
+			outputMask: &types.EntryMask{
+				Downstream: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Downstream: false,
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.Downstream = false
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Downstream: false,
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update ExpiresAt",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				ExpiresAt: true,
+			},
+			outputMask: &types.EntryMask{
+				ExpiresAt: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					ExpiresAt: 999,
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.ExpiresAt = 999
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						ExpiresAt: 999,
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update DnsNames",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				DnsNames: true,
+			},
+			outputMask: &types.EntryMask{
+				DnsNames: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					DnsNames: []string{"dnsUpdated"},
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.DnsNames = []string{"dnsUpdated"}
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						DnsNames: []string{"dnsUpdated"},
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Don't Update TTL",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask:      &types.EntryMask{
+				// With this empty, the update operation should be a no-op
+			},
+			outputMask: &types.EntryMask{
+				Ttl: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Ttl: 500000,
+				},
+			},
+			expectDsEntries: func(m string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = m
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Ttl: 60,
+					},
+				},
+			},
+		},
+		{
+			name:           "Fail Invalid Spiffe Id",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				SpiffeId: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					SpiffeId: &types.SPIFFEID{TrustDomain: "", Path: "/invalid"},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid spiffe ID: spiffeid: trust domain is empty"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to convert entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "invalid spiffe ID: spiffeid: trust domain is empty",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail Invalid Parent Id",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				ParentId: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					ParentId: &types.SPIFFEID{TrustDomain: "", Path: "/invalid"},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to convert entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "invalid parent ID: spiffeid: trust domain is empty",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail Empty Parent Id",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				ParentId: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					ParentId: &types.SPIFFEID{TrustDomain: "", Path: ""},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to convert entry",
+						Data: logrus.Fields{
+							"error":                  "invalid parent ID: spiffeid: trust domain is empty",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail Empty Spiffe Id",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				SpiffeId: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					SpiffeId: &types.SPIFFEID{TrustDomain: "", Path: ""},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid spiffe ID: spiffeid: trust domain is empty"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to convert entry",
+						Data: logrus.Fields{
+							"error":                  "invalid spiffe ID: spiffeid: trust domain is empty",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail Empty Selectors List",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Selectors: []*types.Selector{},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.InvalidArgument),
+						Message: "failed to convert entry: selector list is empty"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to convert entry",
+						Data: logrus.Fields{
+							"error":                  "selector list is empty",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail Datastore Error",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				ParentId: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					ParentId: &types.SPIFFEID{TrustDomain: "trustdomain", Path: "/workload"},
+				},
+			},
+			dsError: errors.New("datastore error"),
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.Internal), Message: "failed to update entry: datastore error"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "failed to update entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "datastore error",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Success Nil Input Mask",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask:      nil, // Nil should mean "update everything"
+			outputMask:     nil,
+			// Try to update all fields (all should be successfully updated)
+			updateEntries: []*types.Entry{updateEverythingEntry},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(updateEverythingEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						ParentId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+						Ttl:      500000,
+						Selectors: []*types.Selector{
+							{Type: "unix", Value: "uid:9999"},
+						},
+						FederatesWith: []string{},
+						Admin:         false,
+						ExpiresAt:     999999999,
+						DnsNames:      []string{"dns3", "dns4"},
+						Downstream:    false,
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Nil Output Mask",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Ttl: true,
+			},
+			outputMask: nil,
+			updateEntries: []*types.Entry{
+				{
+					Ttl: 500000,
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						ParentId: parent,
+						SpiffeId: entry1SpiffeID,
+						Ttl:      500000,
+						Selectors: []*types.Selector{
+							{Type: "unix", Value: "uid:1000"},
+							{Type: "unix", Value: "uid:2000"},
+						},
+						FederatesWith: []string{
+							"spiffe://domain1.org",
+						},
+						Admin:      true,
+						ExpiresAt:  expiresAt,
+						DnsNames:   []string{"dns1", "dns2"},
+						Downstream: true,
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Empty Input Mask",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask:      &types.EntryMask{
+				// With this empty, the update operation should be a no-op
+			},
+			outputMask: &types.EntryMask{
+				SpiffeId: true,
+			},
+			// Try to update all fields (none will be updated)
+			updateEntries: []*types.Entry{updateEverythingEntry},
+			expectDsEntries: func(m string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = m
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Empty Output Mask",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Ttl: true,
+			},
+			// With the output mask empty, the update will take place, but the results will be empty
+			outputMask: &types.EntryMask{},
+			updateEntries: []*types.Entry{
+				{
+					Ttl: 500000,
+				},
+			},
+			expectDsEntries: func(m string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = m
+				modifiedEntry.Ttl = 500000
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry:  &types.Entry{},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ds := fakedatastore.New(t)
+			test := setupServiceTest(t, ds)
+			defer test.Cleanup()
+			// Create fedeated bundles, that we use on "FederatesWith"
+			createFederatedBundles(t, test.ds)
+
+			// First create the initial entries
+			createResp, err := test.client.BatchCreateEntry(ctx, &entrypb.BatchCreateEntryRequest{
+				Entries: tt.initialEntries,
+			})
+			require.NoError(t, err)
+			require.Equal(t, len(createResp.Results), len(tt.updateEntries))
+
+			// Then copy the IDs of the created entries onto the entries to be updated
+			spiffeToIDMap := make(map[string]string)
+			updateEntries := tt.updateEntries
+			for i := range createResp.Results {
+				require.Equal(t, createResp.Results[i].Status, api.OK())
+				updateEntries[i].Id = createResp.Results[i].Entry.Id
+				spiffeToIDMap[createResp.Results[i].Entry.SpiffeId.Path] = createResp.Results[i].Entry.Id
+			}
+			ds.SetNextError(tt.dsError)
+
+			// Actually do the update, with the proper IDs
+			resp, err := test.client.BatchUpdateEntry(ctx, &entrypb.BatchUpdateEntryRequest{
+				Entries:    updateEntries,
+				InputMask:  tt.inputMask,
+				OutputMask: tt.outputMask,
+			})
+			require.NoError(t, err)
+
+			if tt.expectLogs != nil {
+				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs(spiffeToIDMap))
+			}
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+			require.Equal(t, len(tt.updateEntries), len(resp.Results))
+
+			// The updated entries contain IDs, which we don't know before running the test.
+			// To make things easy we set all the IDs to empty before checking the results.
+			for i := range resp.Results {
+				if resp.Results[i].Entry != nil {
+					resp.Results[i].Entry.Id = ""
+				}
+			}
+
+			spiretest.AssertProtoEqual(t, &entrypb.BatchUpdateEntryResponse{
+				Results: tt.expectResults,
+			}, resp)
+
+			// Check that the datastore also contains the correctly updated entry
+			// expectDsEntries is a function so it can substitute in the right entryID and make any needed changes
+			// to the template itself
+			// This only checks the first entry in the DS (which is fine since most test cases only update 1 entry)
+			ds.SetNextError(nil)
+			if tt.expectDsEntries != nil {
+				listEntries, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+				require.NoError(t, err)
+				firstEntry, err := api.RegistrationEntryToProto(listEntries.Entries[0])
+				require.NoError(t, err)
+				spiretest.AssertProtoEqual(t, firstEntry, tt.expectDsEntries(listEntries.Entries[0].EntryId)[0])
+			}
+		})
+	}
+}
+
 type fakeDS struct {
 	*fakedatastore.DataStore
 

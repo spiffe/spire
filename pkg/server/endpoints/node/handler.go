@@ -167,6 +167,15 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	agentID := attestResponse.AgentId
 	log = log.WithField(telemetry.SPIFFEID, agentID)
 
+	isBanned, err := h.isBanned(ctx, agentID)
+	switch {
+	case err != nil:
+		log.WithError(err).Error("Failed to determine if agent is banned")
+		return status.Errorf(codes.Internal, "failed to determine if agent is banned: %v", err)
+	case isBanned:
+		return status.Error(codes.PermissionDenied, "agent is banned")
+	}
+
 	if csr.SpiffeID != "" && agentID != csr.SpiffeID {
 		log.WithField(telemetry.CsrSpiffeID, csr.SpiffeID).Error("Attested SPIFFE ID does not match CSR")
 		return status.Error(codes.NotFound, "attestor returned unexpected response")
@@ -1070,6 +1079,24 @@ func (h *Handler) parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, e
 		SpiffeID:  spiffeID,
 		PublicKey: csr.PublicKey,
 	}, nil
+}
+
+func (h *Handler) isBanned(ctx context.Context, agentID string) (bool, error) {
+	ds := h.c.Catalog.GetDataStore()
+
+	resp, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+		SpiffeId: agentID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch attested node: %v", err)
+	}
+
+	if resp.Node == nil {
+		// agent not found
+		return false, nil
+	}
+
+	return nodeutil.IsAgentBanned(resp.Node), nil
 }
 
 func getPeerCertificateFromRequestContext(ctx context.Context) (cert *x509.Certificate, err error) {

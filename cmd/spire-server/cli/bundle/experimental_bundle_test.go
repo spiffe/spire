@@ -200,7 +200,7 @@ func (s *ExperimentalBundleSuite) TestSetCreatesBundleFromFile() {
 
 	bundlePath := filepath.Join(tmpDir, "bundle.pem")
 
-	s.Require().NoError(ioutil.WriteFile(bundlePath, []byte(otherDomainJWKS), 0644))
+	s.Require().NoError(ioutil.WriteFile(bundlePath, []byte(otherDomainJWKS), 0600))
 	s.assertBundleSet("-id", "spiffe://otherdomain.test", "-path", bundlePath)
 }
 

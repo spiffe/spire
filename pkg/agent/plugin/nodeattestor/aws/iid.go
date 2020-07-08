@@ -3,8 +3,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
-	"net/http"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -22,9 +20,6 @@ import (
 )
 
 const (
-	defaultIdentityDocumentURL  = "http://169.254.169.254/latest/dynamic/instance-identity/document"
-	defaultIdentitySignatureURL = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
-
 	docPath = "instance-identity/document"
 	sigPath = "instance-identity/signature"
 )
@@ -43,9 +38,7 @@ func builtin(p *IIDAttestorPlugin) catalog.Plugin {
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
 type IIDAttestorConfig struct {
-	EC2MetadataEndpoint            string `hcl:"ec2_metadata_endpoint"`
-	DeprecatedIdentityDocumentURL  string `hcl:"identity_document_url"`
-	DeprecatedIdentitySignatureURL string `hcl:"identity_signature_url"`
+	EC2MetadataEndpoint string `hcl:"ec2_metadata_endpoint"`
 }
 
 // IIDAttestorPlugin implements aws nodeattestation in the agent.
@@ -72,19 +65,9 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return err
 	}
 
-	var attestationData *caws.IIDAttestationData
-
-	if c.isLegacyConfig() {
-		// Legacy configuration
-		attestationData, err = legacyFetch(c)
-		if err != nil {
-			return err
-		}
-	} else {
-		attestationData, err = fetchMetadata(c.EC2MetadataEndpoint)
-		if err != nil {
-			return err
-		}
+	attestationData, err := fetchMetadata(c.EC2MetadataEndpoint)
+	if err != nil {
+		return err
 	}
 
 	respData, err := json.Marshal(attestationData)
@@ -128,56 +111,12 @@ func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
 	}, nil
 }
 
-func legacyFetch(c *IIDAttestorConfig) (*caws.IIDAttestationData, error) {
-	docBytes, err := httpGetBytes(c.DeprecatedIdentityDocumentURL)
-	if err != nil {
-		return nil, caws.AttestationStepError("retrieving the IID from AWS", err)
-	}
-	sigBytes, err := httpGetBytes(c.DeprecatedIdentitySignatureURL)
-	if err != nil {
-		return nil, caws.AttestationStepError("retrieving the IID signature from AWS", err)
-	}
-	return &caws.IIDAttestationData{
-		Document:  string(docBytes),
-		Signature: string(sigBytes),
-	}, nil
-}
-
 // Configure configures the IIDAttestorPlugin.
 func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &IIDAttestorConfig{}
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.EC2MetadataEndpoint != "" {
-		if config.DeprecatedIdentityDocumentURL != "" {
-			p.log.Warn("Deprecated configuration identity_document_url ignored because ec2_metadata_endpoint is set")
-		}
-
-		if config.DeprecatedIdentitySignatureURL != "" {
-			p.log.Warn("Deprecated configuration identity_signature_url ignored because ec2_metadata_endpoint is set")
-		}
-	} else {
-		if config.DeprecatedIdentityDocumentURL != "" {
-			p.log.Warn("configuration identity_document_url is deprecated, please use ec2_metadata_endpoint instead")
-		}
-
-		if config.DeprecatedIdentitySignatureURL != "" {
-			p.log.Warn("configuration identity_signature_url is deprecated, please use ec2_metadata_endpoint instead")
-		}
-	}
-
-	// If we have a legacy config, ensure both have a value
-	if config.isLegacyConfig() {
-		if config.DeprecatedIdentityDocumentURL == "" {
-			config.DeprecatedIdentityDocumentURL = defaultIdentityDocumentURL
-		}
-
-		if config.DeprecatedIdentitySignatureURL == "" {
-			config.DeprecatedIdentitySignatureURL = defaultIdentitySignatureURL
-		}
 	}
 
 	p.mtx.Lock()
@@ -201,28 +140,4 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 		return nil, iidError.New("not configured")
 	}
 	return p.config, nil
-}
-
-// isLegacyConfig returns true if either deprecated configurable is set
-func (c *IIDAttestorConfig) isLegacyConfig() bool {
-	return c.EC2MetadataEndpoint == "" &&
-		(c.DeprecatedIdentitySignatureURL != "" || c.DeprecatedIdentityDocumentURL != "")
-}
-
-func httpGetBytes(url string) ([]byte, error) {
-	resp, err := http.Get(url) //nolint: gosec // URL is provided via explicit configuration
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, iidError.New("unexpected status code: %d", resp.StatusCode)
-	}
-
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return bytes, nil
 }

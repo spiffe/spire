@@ -5,8 +5,10 @@
 package mock_tokenreview
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/api/authentication/v1"
+	v10 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	reflect "reflect"
 )
 
@@ -34,16 +36,16 @@ func (m *MockTokenReviewInterface) EXPECT() *MockTokenReviewInterfaceMockRecorde
 }
 
 // Create mocks base method
-func (m *MockTokenReviewInterface) Create(arg0 *v1.TokenReview) (*v1.TokenReview, error) {
+func (m *MockTokenReviewInterface) Create(arg0 context.Context, arg1 *v1.TokenReview, arg2 v10.CreateOptions) (*v1.TokenReview, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0)
+	ret := m.ctrl.Call(m, "Create", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v1.TokenReview)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create
-func (mr *MockTokenReviewInterfaceMockRecorder) Create(arg0 interface{}) *gomock.Call {
+func (mr *MockTokenReviewInterfaceMockRecorder) Create(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockTokenReviewInterface)(nil).Create), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockTokenReviewInterface)(nil).Create), arg0, arg1, arg2)
 }

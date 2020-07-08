@@ -3,12 +3,8 @@ package bundle
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/asn1"
-	"io"
-	"math/big"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
@@ -115,7 +111,7 @@ func (ks *acmeKeyStore) GetPrivateKey(ctx context.Context, id string) (crypto.Si
 		return nil, autocert.ErrNoSuchKey
 	}
 
-	return ks.signer(keyID, resp.PublicKey, isACMEAccountKey(id))
+	return ks.signer(keyID, resp.PublicKey)
 }
 
 func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType autocert.KeyType) (crypto.Signer, error) {
@@ -140,67 +136,13 @@ func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType au
 	}
 
 	ks.log.WithField("id", id).Info("Generated new key")
-	return ks.signer(keyID, resp.PublicKey, isACMEAccountKey(id))
+	return ks.signer(keyID, resp.PublicKey)
 }
 
-func (ks *acmeKeyStore) signer(id string, kmPublicKey *keymanager.PublicKey, isAccountKey bool) (crypto.Signer, error) {
+func (ks *acmeKeyStore) signer(id string, kmPublicKey *keymanager.PublicKey) (crypto.Signer, error) {
 	publicKey, err := x509.ParsePKIXPublicKey(kmPublicKey.PkixData)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	signer, err := cryptoutil.NewKeyManagerSigner(ks.km, id, publicKey), nil
-	if err != nil {
-		return nil, err
-	}
-	if isAccountKey {
-		// The account key is used to sign JWT tokens and needs to sign things
-		// differently. Unfortunately, github.com/x/crypto/acme does not
-		// properly handle crypto.Signers that aren't of type *ecdsa.PrivateKey
-		// so we have to wrap it here.
-		return jwtSigner{Signer: signer}, nil
-	}
-
-	return signer, nil
-}
-
-func isACMEAccountKey(id string) bool {
-	return id == "acme_account+key"
-}
-
-// jwtSigner adapts a keymanager signer to one that does ECDSA signatures as
-// specified by RFC7518.
-type jwtSigner struct {
-	crypto.Signer
-}
-
-func (js jwtSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	sigBytes, err := js.Signer.Sign(rand, digest, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	// not an ECDSA signature? move on.
-	publicKey, ok := js.Signer.Public().(*ecdsa.PublicKey)
-	if !ok {
-		return sigBytes, nil
-	}
-
-	// decode R and S
-	sigASN1 := struct {
-		R, S *big.Int
-	}{}
-	if _, err := asn1.Unmarshal(sigBytes, &sigASN1); err != nil {
-		return nil, err
-	}
-
-	r, s := sigASN1.R, sigASN1.S
-	rb, sb := r.Bytes(), s.Bytes()
-	size := publicKey.Params().BitSize / 8
-	if size%8 > 0 {
-		size++
-	}
-	sig := make([]byte, size*2)
-	copy(sig[size-len(rb):], rb)
-	copy(sig[size*2-len(sb):], sb)
-	return sig, nil
+	return cryptoutil.NewKeyManagerSigner(ks.km, id, publicKey), nil
 }

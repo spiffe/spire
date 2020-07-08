@@ -5,6 +5,7 @@
 package mock_apiserver
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/api/authentication/v1"
 	v10 "k8s.io/api/core/v1"
@@ -35,46 +36,46 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // GetNode mocks base method
-func (m *MockClient) GetNode(arg0 string) (*v10.Node, error) {
+func (m *MockClient) GetNode(arg0 context.Context, arg1 string) (*v10.Node, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNode", arg0)
+	ret := m.ctrl.Call(m, "GetNode", arg0, arg1)
 	ret0, _ := ret[0].(*v10.Node)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetNode indicates an expected call of GetNode
-func (mr *MockClientMockRecorder) GetNode(arg0 interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) GetNode(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockClient)(nil).GetNode), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockClient)(nil).GetNode), arg0, arg1)
 }
 
 // GetPod mocks base method
-func (m *MockClient) GetPod(arg0, arg1 string) (*v10.Pod, error) {
+func (m *MockClient) GetPod(arg0 context.Context, arg1, arg2 string) (*v10.Pod, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPod", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetPod", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v10.Pod)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPod indicates an expected call of GetPod
-func (mr *MockClientMockRecorder) GetPod(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) GetPod(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPod", reflect.TypeOf((*MockClient)(nil).GetPod), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPod", reflect.TypeOf((*MockClient)(nil).GetPod), arg0, arg1, arg2)
 }
 
 // ValidateToken mocks base method
-func (m *MockClient) ValidateToken(arg0 string, arg1 []string) (*v1.TokenReviewStatus, error) {
+func (m *MockClient) ValidateToken(arg0 context.Context, arg1 string, arg2 []string) (*v1.TokenReviewStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ValidateToken", arg0, arg1)
+	ret := m.ctrl.Call(m, "ValidateToken", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v1.TokenReviewStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ValidateToken indicates an expected call of ValidateToken
-func (mr *MockClientMockRecorder) ValidateToken(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) ValidateToken(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockClient)(nil).ValidateToken), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockClient)(nil).ValidateToken), arg0, arg1, arg2)
 }

@@ -601,8 +601,31 @@ func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }
 
+func (s *HandlerSuite) TestAttestBannedAgent() {
+	attestor := fakeservernodeattestor.Config{
+		Data:          map[string]string{"data": agentID},
+		ReturnLiteral: true,
+	}
+
+	s.addAttestor(attestor)
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR(agentID),
+	}, agentID)
+
+	// Ban the agent
+	s.banAttestedNode(agentID)
+
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR(agentID),
+	}, codes.PermissionDenied, "agent is banned")
+
+	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
+}
+
 func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
-	s.requireFetchX509SVIDAuthFailure()
+	s.requireFetchX509SVIDAuthFailure("agent is not attested or no longer valid: agent is not attested")
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDLimits() {
@@ -744,7 +767,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
 	agentSVID.SerialNumber = big.NewInt(9999999999)
 	s.Require().NoError(createAttestationEntry(context.Background(), s.ds, &agentSVID, "test"))
 
-	s.requireFetchX509SVIDAuthFailure()
+	s.requireFetchX509SVIDAuthFailure(`agent is not attested or no longer valid: agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
@@ -1398,7 +1421,7 @@ func (s *HandlerSuite) requireFetchX509SVIDFailure(req *node.FetchX509SVIDReques
 	s.Require().Nil(resp)
 }
 
-func (s *HandlerSuite) requireFetchX509SVIDAuthFailure() {
+func (s *HandlerSuite) requireFetchX509SVIDAuthFailure(expectedErr string) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 	stream, err := s.attestedClient.FetchX509SVID(ctx)
@@ -1406,8 +1429,7 @@ func (s *HandlerSuite) requireFetchX509SVIDAuthFailure() {
 	// the auth failure will come back on the Recv(). we shouldn't have to send
 	// on the stream to get this to happen.
 	resp, err := stream.Recv()
-	s.Require().Contains(status.Convert(err).Message(), "agent is not attested or no longer valid")
-	s.Require().Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.PermissionDenied, expectedErr)
 	s.Require().Nil(resp)
 }
 

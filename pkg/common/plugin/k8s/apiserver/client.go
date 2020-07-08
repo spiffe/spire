@@ -1,6 +1,7 @@
 package apiserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -15,13 +16,13 @@ import (
 // Client is a client for querying k8s API server
 type Client interface {
 	// GetNode returns the node object for the given node name
-	GetNode(nodeName string) (*v1.Node, error)
+	GetNode(ctx context.Context, nodeName string) (*v1.Node, error)
 
 	// GetPod returns the pod object for the given pod name and namespace
-	GetPod(namespace, podName string) (*v1.Pod, error)
+	GetPod(ctx context.Context, namespace, podName string) (*v1.Pod, error)
 
 	// ValidateToken queries k8s token review API and returns information about the given token
-	ValidateToken(token string, audiences []string) (*authv1.TokenReviewStatus, error)
+	ValidateToken(ctx context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error)
 }
 
 type client struct {
@@ -42,7 +43,7 @@ func New(kubeConfigFilePath string) Client {
 	}
 }
 
-func (c *client) GetPod(namespace, podName string) (*v1.Pod, error) {
+func (c *client) GetPod(ctx context.Context, namespace, podName string) (*v1.Pod, error) {
 	// Validate inputs
 	if namespace == "" {
 		return nil, errors.New("empty namespace")
@@ -58,7 +59,7 @@ func (c *client) GetPod(namespace, podName string) (*v1.Pod, error) {
 	}
 
 	// Get pod
-	pod, err := clientset.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to query pods API: %v", err)
 	}
@@ -70,7 +71,7 @@ func (c *client) GetPod(namespace, podName string) (*v1.Pod, error) {
 	return pod, nil
 }
 
-func (c *client) GetNode(nodeName string) (*v1.Node, error) {
+func (c *client) GetNode(ctx context.Context, nodeName string) (*v1.Node, error) {
 	// Validate inputs
 	if nodeName == "" {
 		return nil, errors.New("empty node name")
@@ -83,7 +84,7 @@ func (c *client) GetNode(nodeName string) (*v1.Node, error) {
 	}
 
 	// Get node
-	node, err := clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to query nodes API: %v", err)
 	}
@@ -95,7 +96,7 @@ func (c *client) GetNode(nodeName string) (*v1.Node, error) {
 	return node, nil
 }
 
-func (c *client) ValidateToken(token string, audiences []string) (*authv1.TokenReviewStatus, error) {
+func (c *client) ValidateToken(ctx context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error) {
 	// Reload config
 	clientset, err := c.loadClientHook(c.kubeConfigFilePath)
 	if err != nil {
@@ -111,7 +112,7 @@ func (c *client) ValidateToken(token string, audiences []string) (*authv1.TokenR
 	}
 
 	// Do request
-	resp, err := clientset.AuthenticationV1().TokenReviews().Create(req)
+	resp, err := clientset.AuthenticationV1().TokenReviews().Create(ctx, req, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to query token review API: %v", err)
 	}

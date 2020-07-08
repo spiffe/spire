@@ -220,6 +220,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	plugin, err := newCatalogPlugin(ctx, c, catalogPluginConfig{
 		Log:           p.ext.Log,
 		Name:          p.ext.Name,
+		BuiltIn:       false,
 		Plugin:        p.ext.Plugin,
 		KnownServices: p.ext.KnownServices,
 		HostServices:  p.ext.HostServices,

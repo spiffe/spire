@@ -110,7 +110,7 @@ func TestNew(t *testing.T) {
 		assert.NotNil(t, endpoints.ExperimentalServers.SVIDServer)
 	}
 	assert.NotNil(t, endpoints.BundleServer)
-	assert.Equal(t, ds, endpoints.DataStore)
+	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
 	assert.Equal(t, metrics, endpoints.Metrics)
 }

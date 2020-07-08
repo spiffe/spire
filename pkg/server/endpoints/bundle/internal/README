@@ -12,4 +12,4 @@ deeper test coverage. The specific changes are documented below the copyright in
 acmetest/ca.go.
 
 Both packages were forked from the following go module:
-	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
+	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
