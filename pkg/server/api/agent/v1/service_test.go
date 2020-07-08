@@ -957,14 +957,7 @@ func TestRenewAgent(t *testing.T) {
 					},
 				},
 			},
-			paramsError: status.Error(codes.Unknown, "rate limit fails"),
-			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
-				},
-			},
+			paramsError:    status.Error(codes.Unknown, "rate limit fails"),
 			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
 		},
 		{
@@ -978,13 +971,6 @@ func TestRenewAgent(t *testing.T) {
 			},
 			failCallerID: true,
 			paramsError:  status.Error(codes.Internal, "caller ID missing from request context"),
-			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
-				},
-			},
 		},
 		{
 			name:       "invalid param type",
@@ -1189,9 +1175,12 @@ func TestRenewAgent(t *testing.T) {
 			stream, err := test.client.RenewAgent(ctx)
 			require.NoError(t, err)
 
-			err = stream.Send(tt.paramReq)
-			require.NoError(t, err)
-
+			// Some test cases expect the handler to fail before the parameters are received by the client.
+			// Only send the request parameters if provided by the test case.
+			if tt.paramReq != nil {
+				err = stream.Send(tt.paramReq)
+				require.NoError(t, err)
+			}
 			// Get SVID as response
 			resp, err := stream.Recv()
 			if tt.paramsError != nil {
