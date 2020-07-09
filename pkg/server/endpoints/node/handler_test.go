@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
+	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -625,7 +626,7 @@ func (s *HandlerSuite) TestAttestBannedAgent() {
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
-	s.requireFetchX509SVIDAuthFailure("agent is not attested or no longer valid: agent is not attested")
+	s.requireFetchX509SVIDAuthFailure(`agent "spiffe://example.org/spire/agent/test/id" is not attested`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDLimits() {
@@ -767,7 +768,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
 	agentSVID.SerialNumber = big.NewInt(9999999999)
 	s.Require().NoError(createAttestationEntry(context.Background(), s.ds, &agentSVID, "test"))
 
-	s.requireFetchX509SVIDAuthFailure(`agent is not attested or no longer valid: agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
+	s.requireFetchX509SVIDAuthFailure(`agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
@@ -882,7 +883,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNS() {
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithUnattestedAgent() {
 	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{},
-		codes.PermissionDenied, "agent is not attested or no longer valid")
+		codes.PermissionDenied, `agent "spiffe://example.org/spire/agent/test/id" is not attested`)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDLimits() {
@@ -1147,9 +1148,10 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 	// no attested certificate with matching SPIFFE ID
 	ctx, err := s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent is not attested")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, `agent "spiffe://example.org/spire/agent/test/id" is not attested`)
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+	s.assertLastLogMessage(`Agent permission denied`)
+	s.assertPermissionDeniedDetails(err, types.PermissionDeniedDetails_AGENT_NOT_ATTESTED)
 
 	s.attestAgent()
 	s.testAuthorizeCallRequiringClientCert(peerCtx, fullMethod, "agent SVID is required for this request",
@@ -1158,24 +1160,27 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent SVID has expired")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, `agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+	s.assertLastLogMessage(`Agent permission denied`)
 	s.clock.Set(peerCert.NotAfter)
+	s.assertPermissionDeniedDetails(err, types.PermissionDeniedDetails_AGENT_EXPIRED)
 
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent \"spiffe://example.org/spire/agent/test/id\" SVID does not match expected serial number")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, `agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+	s.assertLastLogMessage(`Agent permission denied`)
+	s.assertPermissionDeniedDetails(err, types.PermissionDeniedDetails_AGENT_NOT_ACTIVE)
 
 	// banned agent
 	s.banAttestedNode(agentID)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid: agent is banned")
+	s.RequireGRPCStatus(err, codes.PermissionDenied, `agent "spiffe://example.org/spire/agent/test/id" is banned`)
 	s.Require().Nil(ctx)
-	s.assertLastLogMessage(`Agent is not attested or no longer valid`)
+	s.assertLastLogMessage(`Agent permission denied`)
+	s.assertPermissionDeniedDetails(err, types.PermissionDeniedDetails_AGENT_BANNED)
 }
 
 func (s *HandlerSuite) TestFetchBundle() {
@@ -1509,6 +1514,17 @@ func (s *HandlerSuite) assertLastLogMessage(message string) {
 	entry := s.logHook.LastEntry()
 	if s.NotNil(entry) {
 		s.Equal(message, entry.Message)
+	}
+}
+
+func (s *HandlerSuite) assertPermissionDeniedDetails(err error, reason types.PermissionDeniedDetails_Reason) {
+	st := status.Convert(err)
+	if s.Equal(codes.PermissionDenied, st.Code()) {
+		s.Equal([]interface{}{
+			&types.PermissionDeniedDetails{
+				Reason: reason,
+			},
+		}, st.Details())
 	}
 }
 
