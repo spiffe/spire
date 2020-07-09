@@ -165,10 +165,18 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 		return cachedSVID, nil
 	}
 
+	var entryID string
+	if m.c.ExperimentalAPIEnabled {
+		entryID = m.getEntryID(spiffeID)
+		if entryID == "" {
+			return nil, errors.New("no entry found for spiffe ID")
+		}
+	}
+
 	newSVID, err := m.client.FetchJWTSVID(ctx, &node.JSR{
 		SpiffeId: spiffeID,
 		Audience: audience,
-	})
+	}, entryID)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
@@ -184,6 +192,16 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	return newSVID, nil
 }
 
+func (m *manager) getEntryID(spiffeID string) string {
+	m.c.Log.WithField("spiffeid", spiffeID).Debug("------------SPIFFE ID")
+	for _, identity := range m.cache.Identities() {
+		m.c.Log.WithField("spiffeid", identity.Entry.SpiffeId).Debug("////////// ENtry")
+		if identity.Entry.SpiffeId == spiffeID {
+			return identity.Entry.EntryId
+		}
+	}
+	return ""
+}
 func (m *manager) runSynchronizer(ctx context.Context) error {
 	for {
 		select {

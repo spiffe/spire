@@ -795,6 +795,15 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "experimental api enabled",
+			input: func(c *Config) {
+				c.Agent.Experimental.EnableAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.True(t, c.ExperimentalAPIEnabled)
+			},
+		},
+		{
 			msg:         "invalid sync_interval returns an error",
 			expectError: true,
 			input: func(c *Config) {
