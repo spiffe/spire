@@ -547,6 +547,7 @@ func (s *HandlerSuite) TestUpdateEntry() {
 				return
 			}
 			require.NoError(t, err)
+			entry.RevisionNumber++
 			t.Logf("actual=%+v expected=%+v", resp, entry)
 			require.True(t, proto.Equal(resp, entry))
 		})

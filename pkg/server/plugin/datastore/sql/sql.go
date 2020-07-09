@@ -1684,7 +1684,8 @@ SELECT
 	NULL AS selector_value,
 	NULL AS trust_domain,
 	NULL AS dns_name_id,
-	NULL AS dns_name
+	NULL AS dns_name,
+	revision_number
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -1692,7 +1693,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1705,7 +1706,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1713,7 +1714,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1742,7 +1743,8 @@ SELECT
 	NULL AS selector_value,
 	NULL AS trust_domain,
 	NULL ::integer AS dns_name_id,
-	NULL AS dns_name
+	NULL AS dns_name,
+	revision_number
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -1750,7 +1752,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1763,7 +1765,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1771,7 +1773,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1797,7 +1799,8 @@ SELECT
 	S.value AS selector_value,
 	B.trust_domain,
 	D.id AS dns_name_id,
-	D.value AS dns_name
+	D.value AS dns_name,
+	E.revision_number
 FROM
 	registered_entries E
 LEFT JOIN
@@ -1833,7 +1836,8 @@ SELECT
 	NULL AS selector_value,
 	NULL AS trust_domain,
 	NULL AS dns_name_id,
-	NULL AS dns_name
+	NULL AS dns_name,
+	revision_number
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -1841,7 +1845,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1854,7 +1858,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1862,7 +1866,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2050,7 +2054,8 @@ SELECT
 	NULL AS selector_value,
 	NULL AS trust_domain,
 	NULL AS dns_name_id,
-	NULL AS dns_name
+	NULL AS dns_name,
+	revision_number
 FROM
 	registered_entries
 `)
@@ -2061,7 +2066,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2076,7 +2081,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2087,7 +2092,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2127,7 +2132,8 @@ SELECT
 	NULL AS selector_value,
 	NULL AS trust_domain,
 	NULL ::integer AS dns_name_id,
-	NULL AS dns_name
+	NULL AS dns_name,
+	revision_number
 FROM
 	registered_entries
 `)
@@ -2138,7 +2144,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2153,7 +2159,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2164,7 +2170,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2208,7 +2214,8 @@ SELECT
 	S.value AS selector_value,
 	B.trust_domain,
 	D.id AS dns_name_id,
-	D.value AS dns_name
+	D.value AS dns_name,
+	E.revision_number
 FROM
 	registered_entries E
 LEFT JOIN
@@ -2261,7 +2268,8 @@ SELECT
 	NULL AS selector_value,
 	NULL AS trust_domain,
 	NULL AS dns_name_id,
-	NULL AS dns_name
+	NULL AS dns_name,
+	revision_number
 FROM
 	registered_entries
 `)
@@ -2272,7 +2280,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2287,7 +2295,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2298,7 +2306,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2592,20 +2600,21 @@ func fillNodeFromRow(node *common.AttestedNode, r *nodeRow) error {
 }
 
 type entryRow struct {
-	EId           uint64
-	EntryID       sql.NullString
-	SpiffeID      sql.NullString
-	ParentID      sql.NullString
-	RegTTL        sql.NullInt64
-	Admin         sql.NullBool
-	Downstream    sql.NullBool
-	Expiry        sql.NullInt64
-	SelectorID    sql.NullInt64
-	SelectorType  sql.NullString
-	SelectorValue sql.NullString
-	TrustDomain   sql.NullString
-	DNSNameID     sql.NullInt64
-	DNSName       sql.NullString
+	EId            uint64
+	EntryID        sql.NullString
+	SpiffeID       sql.NullString
+	ParentID       sql.NullString
+	RegTTL         sql.NullInt64
+	Admin          sql.NullBool
+	Downstream     sql.NullBool
+	Expiry         sql.NullInt64
+	SelectorID     sql.NullInt64
+	SelectorType   sql.NullString
+	SelectorValue  sql.NullString
+	TrustDomain    sql.NullString
+	DNSNameID      sql.NullInt64
+	DNSName        sql.NullString
+	RevisionNumber sql.NullInt64
 }
 
 func scanEntryRow(rs *sql.Rows, r *entryRow) error {
@@ -2624,6 +2633,7 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.TrustDomain,
 		&r.DNSNameID,
 		&r.DNSName,
+		&r.RevisionNumber,
 	))
 }
 
@@ -2648,6 +2658,9 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	}
 	if r.Expiry.Valid {
 		entry.EntryExpiry = r.Expiry.Int64
+	}
+	if r.RevisionNumber.Valid {
+		entry.RevisionNumber = r.RevisionNumber.Int64
 	}
 
 	if r.SelectorType.Valid {
@@ -2751,6 +2764,9 @@ func updateRegistrationEntry(tx *gorm.DB,
 	if req.Mask == nil || req.Mask.EntryExpiry {
 		entry.Expiry = req.Entry.EntryExpiry
 	}
+
+	// Revision number is increased by 1 on every update call
+	entry.RevisionNumber++
 
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -2997,16 +3013,17 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 	}
 
 	return &common.RegistrationEntry{
-		EntryId:       model.EntryID,
-		Selectors:     selectors,
-		SpiffeId:      model.SpiffeID,
-		ParentId:      model.ParentID,
-		Ttl:           model.TTL,
-		FederatesWith: federatesWith,
-		Admin:         model.Admin,
-		Downstream:    model.Downstream,
-		EntryExpiry:   model.Expiry,
-		DnsNames:      dnsList,
+		EntryId:        model.EntryID,
+		Selectors:      selectors,
+		SpiffeId:       model.SpiffeID,
+		ParentId:       model.ParentID,
+		Ttl:            model.TTL,
+		FederatesWith:  federatesWith,
+		Admin:          model.Admin,
+		Downstream:     model.Downstream,
+		EntryExpiry:    model.Expiry,
+		DnsNames:       dnsList,
+		RevisionNumber: model.RevisionNumber,
 	}, nil
 }
 

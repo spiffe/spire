@@ -60,6 +60,7 @@ func printEntry(e *common.RegistrationEntry) {
 	fmt.Printf("Entry ID      : %s\n", e.EntryId)
 	fmt.Printf("SPIFFE ID     : %s\n", e.SpiffeId)
 	fmt.Printf("Parent ID     : %s\n", e.ParentId)
+	fmt.Printf("Revision      : %d\n", e.RevisionNumber)
 
 	if e.Downstream {
 		fmt.Printf("Downstream    : %t\n", e.Downstream)
