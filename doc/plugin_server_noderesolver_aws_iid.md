@@ -1,5 +1,7 @@
 # Server plugin: NodeResolver "aws_iid"
 
+**DO NOT USE THIS PLUGIN: it has been deprecated and will be removed in the next release. Its functionality was subsumed into the aws_iid node attestor plugin**
+
 *Must be used in conjunction with the aws_iid node attestor plugin*
 
 The `aws_iid` resolver plugin resolves AWS IID-based SPIFFE ID's into a set
