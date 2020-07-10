@@ -89,13 +89,15 @@ func (ih *InformerHandler) Run(ctx context.Context) error {
 		},
 	})
 
+	ih.c.Log.Info("starting initial sync of pods")
+
 	ih.c.Factory.Start(ctx.Done())
 
 	if ok := cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
-	ih.c.Log.Info("all pods synced")
+	ih.c.Log.Info("initial sync of pods complete")
 
 	<-ctx.Done()
 	return nil
