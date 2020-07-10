@@ -205,6 +205,19 @@ additional configuration needed is to ensure that the registrar is
 running as a ServiceAccount which has permissions to get, list, and
 watch pods in all namespaces.
 
+An example ClusterRole for this would be:
+
+```
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-k8s-registrar-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+```
+
 ## Security Considerations
 
 The registrar authenticates webhook clients by default. This is a very
