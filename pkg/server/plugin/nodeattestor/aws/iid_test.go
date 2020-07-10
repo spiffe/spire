@@ -43,6 +43,9 @@ Qj/AwRxXdH++5ycGijkoil4UNzyUtGqPIJkCMQC5g9ola8ekWqKPVxWvK+jOQO3E
 f9w7MoPJkmQnbtOHWXnDzKkvlDJNmTFyB6RwkQECMQDp+GR2I305amG9isTzm7UU
 8pJxbXLymDwR4A7x5vwH6x2gLBgpat21QAR14W4dYEg=
 -----END RSA PRIVATE KEY-----`
+
+	testInstanceProfileArn  = "arn:aws:iam::123412341234:instance-profile/nodes.test.k8s.local"
+	testInstanceProfileName = "nodes.test.k8s.local"
 )
 
 var (
@@ -415,10 +418,10 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 
 			client := mock_aws.NewMockClient(mockCtl)
 
-			mockGetEC2Client := func(config *caws.SessionConfig, region string) (caws.Client, error) {
+			mockGetEC2Client := func(config *SessionConfig, region string) (Client, error) {
 				return client, nil
 			}
-			s.plugin.clients = caws.NewClientsCache(mockGetEC2Client)
+			s.plugin.clients = newClientsCache(mockGetEC2Client)
 
 			if tt.mockExpect != nil {
 				tt.mockExpect(client)
@@ -534,15 +537,15 @@ func (s *IIDAttestorSuite) TestConfigure() {
 	s.Require().Nil(resp)
 
 	// success with envvars
-	s.env[caws.AccessKeyIDVarName] = "ACCESSKEYID"
-	s.env[caws.SecretAccessKeyVarName] = "SECRETACCESSKEY"
+	s.env[accessKeyIDVarName] = "ACCESSKEYID"
+	s.env[secretAccessKeyVarName] = "SECRETACCESSKEY"
 	resp, err = s.plugin.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-	delete(s.env, caws.AccessKeyIDVarName)
-	delete(s.env, caws.SecretAccessKeyVarName)
+	delete(s.env, accessKeyIDVarName)
+	delete(s.env, secretAccessKeyVarName)
 
 	// success, no AWS keys
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
@@ -559,6 +562,20 @@ func (s *IIDAttestorSuite) TestGetPluginInfo() {
 	require.NoError(err)
 	require.NotNil(resp)
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
+}
+
+func (s *IIDAttestorSuite) TestInstanceProfileArnParsing() {
+	// not an ARN
+	_, err := instanceProfileNameFromArn("not-an-arn")
+	s.Require().EqualError(err, "aws-iid: arn: invalid prefix")
+
+	// not an instance profile ARN
+	_, err = instanceProfileNameFromArn("arn:aws:elasticbeanstalk:us-east-1:123456789012:environment/My App/MyEnvironment")
+	s.Require().EqualError(err, "aws-iid: arn is not for an instance profile")
+
+	name, err := instanceProfileNameFromArn(testInstanceProfileArn)
+	s.Require().NoError(err)
+	s.Require().Equal(testInstanceProfileName, name)
 }
 
 func (s *IIDAttestorSuite) configure() {
@@ -635,7 +652,7 @@ func (s *IIDAttestorSuite) iidAttestationDataToBytes(data caws.IIDAttestationDat
 func setResolveSelectorsExpectations(mock *mock_aws.MockClient, dio *ec2.DescribeInstancesOutput, gipo *iam.GetInstanceProfileOutput) {
 	mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
 		InstanceIds: []*string{&testInstance},
-		Filters:     caws.InstanceFilters,
+		Filters:     InstanceFilters,
 	}).Return(dio, nil)
 
 	mock.EXPECT().GetInstanceProfileWithContext(gomock.Any(), &iam.GetInstanceProfileInput{

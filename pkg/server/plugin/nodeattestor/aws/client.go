@@ -9,6 +9,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 )
 
+var (
+	defaultNewClientCallback = newClient
+)
+
 // IAMClient interface describing used aws iamclient functions, useful for mocking
 type IAMClient interface {
 	GetInstanceProfileWithContext(aws.Context, *iam.GetInstanceProfileInput, ...request.Option) (*iam.GetInstanceProfileOutput, error)
@@ -24,30 +28,30 @@ type Client interface {
 	IAMClient
 }
 
-type ClientsCache struct {
+type clientsCache struct {
 	mu        sync.RWMutex
 	config    *SessionConfig
 	clients   map[string]Client
-	newClient NewClientCallback
+	newClient newClientCallback
 }
 
-type NewClientCallback func(config *SessionConfig, region string) (Client, error)
+type newClientCallback func(config *SessionConfig, region string) (Client, error)
 
-func NewClientsCache(newClient NewClientCallback) *ClientsCache {
-	return &ClientsCache{
+func newClientsCache(newClient newClientCallback) *clientsCache {
+	return &clientsCache{
 		clients:   make(map[string]Client),
 		newClient: newClient,
 	}
 }
 
-func (cc *ClientsCache) Configure(config SessionConfig) {
+func (cc *clientsCache) configure(config SessionConfig) {
 	cc.mu.Lock()
 	cc.clients = make(map[string]Client)
 	cc.config = &config
 	cc.mu.Unlock()
 }
 
-func (cc *ClientsCache) GetClient(region string) (Client, error) {
+func (cc *clientsCache) getClient(region string) (Client, error) {
 	// do an initial check to see if p client for this region already exists
 	cc.mu.RLock()
 	client, ok := cc.clients[region]

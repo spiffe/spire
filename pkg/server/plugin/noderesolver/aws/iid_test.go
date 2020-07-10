@@ -2,27 +2,19 @@ package aws
 
 import (
 	"context"
-	"errors"
-	"sort"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
-	"github.com/zeebo/errs"
-	"google.golang.org/grpc/codes"
 )
 
 const (
-	awsAgentID              = "spiffe://example.org/spire/agent/aws_iid/ACCOUNT/REGION/INSTANCE"
-	testInstanceProfileArn  = "arn:aws:iam::123412341234:instance-profile/nodes.test.k8s.local"
-	testInstanceProfileName = "nodes.test.k8s.local"
+	awsAgentID = "spiffe://example.org/spire/agent/aws_iid/ACCOUNT/REGION/INSTANCE"
 )
 
 func TestIIDResolver(t *testing.T) {
@@ -33,36 +25,19 @@ type IIDResolverSuite struct {
 	spiretest.Suite
 
 	env      map[string]string
-	client   *fakeAWSClient
 	resolver noderesolver.Plugin
+	logHook  *test.Hook
 }
 
 func (s *IIDResolverSuite) SetupTest() {
 	s.env = make(map[string]string)
-	s.client = new(fakeAWSClient)
 	s.newResolver()
 	s.configureResolver()
 }
 
 func (s *IIDResolverSuite) TestResolveWhenNotConfigured() {
 	s.newResolver()
-	s.assertResolveFailure(awsAgentID,
-		`aws-iid: not configured`)
-}
-
-func (s *IIDResolverSuite) TestResolveRecreatesClientsOnConfigure() {
-	// resolve once
-	s.client.SetInstance(&ec2.Instance{})
 	s.assertResolveSuccess()
-
-	// fail the next client creation
-	s.client = nil
-
-	// reconfigure
-	s.configureResolver()
-
-	// make sure resolving failed because a new client was attempted to be made
-	s.assertResolveFailure(awsAgentID, "YAY")
 }
 
 func (s *IIDResolverSuite) TestResolve() {
@@ -83,65 +58,6 @@ func (s *IIDResolverSuite) TestResolve() {
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().Empty(resp.Map["spiffe://example.org/spire/agent/whatever"])
-
-	// instance w/o tags or security groups or IAM
-	s.client.SetInstance(&ec2.Instance{})
-	s.assertResolveSuccess()
-
-	// instance with tags
-	s.client.SetInstance(&ec2.Instance{
-		Tags: []*ec2.Tag{
-			{
-				Key:   aws.String("KEY1"),
-				Value: aws.String("VALUE1"),
-			},
-			{
-				Key:   aws.String("KEY2"),
-				Value: aws.String("VALUE2"),
-			},
-		},
-	})
-	s.assertResolveSuccess([]string{
-		"tag:KEY1:VALUE1",
-		"tag:KEY2:VALUE2",
-	})
-
-	// instance with security groups
-	s.client.SetInstance(&ec2.Instance{
-		SecurityGroups: []*ec2.GroupIdentifier{
-			{
-				GroupId:   aws.String("GROUPID1"),
-				GroupName: aws.String("GROUPNAME1"),
-			},
-			{
-				GroupId:   aws.String("GROUPID2"),
-				GroupName: aws.String("GROUPNAME2"),
-			},
-		},
-	})
-	s.assertResolveSuccess([]string{
-		"sg:id:GROUPID1",
-		"sg:id:GROUPID2",
-		"sg:name:GROUPNAME1",
-		"sg:name:GROUPNAME2",
-	})
-
-	// instance with IAM role
-	s.client.SetInstance(&ec2.Instance{
-		IamInstanceProfile: &ec2.IamInstanceProfile{
-			Arn: aws.String(testInstanceProfileArn),
-		},
-	})
-	s.client.SetInstanceProfile(&iam.InstanceProfile{
-		Roles: []*iam.Role{
-			{Arn: aws.String("ROLE1")},
-			{Arn: aws.String("ROLE2")},
-		},
-	})
-	s.assertResolveSuccess([]string{
-		"iamrole:ROLE1",
-		"iamrole:ROLE2",
-	})
 }
 
 func (s *IIDResolverSuite) TestConfigure() {
@@ -149,40 +65,40 @@ func (s *IIDResolverSuite) TestConfigure() {
 	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: "blah",
 	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "aws-iid: unable to decode configuration")
-	s.Require().Nil(resp)
+	s.Require().NoError(err)
+	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 
 	// succeeds with no credentials
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 
-	// fails with access id but no secret
+	// access id but no secret
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 		access_key_id = "ACCESSKEYID"
 		`})
-	s.RequireGRPCStatus(err, codes.Unknown, "aws-iid: configuration missing secret access key, but has access key id")
-	s.Require().Nil(resp)
+	s.Require().NoError(err)
+	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 
-	// fails with secret but no access id
+	// secret but no access id
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 		secret_access_key = "SECRETACCESSKEY"
 		`})
-	s.RequireGRPCStatus(err, codes.Unknown, "aws-iid: configuration missing access key id, but has secret access key")
-	s.Require().Nil(resp)
+	s.Require().NoError(err)
+	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 
-	// success with envvars
-	s.env[caws.AccessKeyIDVarName] = "ACCESSKEYID"
-	s.env[caws.SecretAccessKeyVarName] = "SECRETACCESSKEY"
+	// envvars
+	s.env["AWS_ACCESS_KEY_ID"] = "ACCESSKEYID"
+	s.env["AWS_SECRET_ACCESS_KEY"] = "SECRETACCESSKEY"
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-	delete(s.env, caws.AccessKeyIDVarName)
-	delete(s.env, caws.SecretAccessKeyVarName)
+	delete(s.env, "AWS_ACCESS_KEY_ID")
+	delete(s.env, "AWS_SECRET_ACCESS_KEY")
 
-	// success with access id/secret credentials
+	// access id/secret credentials
 	s.configureResolver()
 }
 
@@ -194,28 +110,9 @@ func (s *IIDResolverSuite) TestGetPluginInfo() {
 
 func (s *IIDResolverSuite) newResolver() {
 	resolver := New()
-	resolver.hooks.getenv = func(key string) string {
-		return s.env[key]
-	}
-	resolver.clients = caws.NewClientsCache(func(config *caws.SessionConfig, region string) (caws.Client, error) {
-		// assert that the right region is specified
-		s.Require().Equal("REGION", region)
-
-		// assert that the credentials are populated correctly
-		s.Require().NotNil(config)
-		s.Require().Equal(&caws.SessionConfig{
-			AccessKeyID:     "ACCESSKEYID",
-			SecretAccessKey: "SECRETACCESSKEY",
-		}, config)
-
-		// if s.client is nil, fail in a special way (see TestResolveRecreatesClientsOnConfigure)
-		if s.client == nil {
-			return nil, errors.New("YAY")
-		}
-
-		return s.client, nil
-	})
-	s.LoadPlugin(builtin(resolver), &s.resolver)
+	log, hook := test.NewNullLogger()
+	s.logHook = hook
+	s.LoadPlugin(builtin(resolver), &s.resolver, spiretest.Logger(log))
 }
 
 func (s *IIDResolverSuite) configureResolver() {
@@ -226,92 +123,29 @@ func (s *IIDResolverSuite) configureResolver() {
 		`})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	spiretest.AssertLogs(s.T(), []*logrus.Entry{s.logHook.LastEntry()},
+		[]spiretest.LogEntry{
+			{
+				Level:   logrus.WarnLevel,
+				Message: "Usage of deprecated plugin detected.",
+				Data: logrus.Fields{
+					telemetry.PluginName:    caws.PluginName,
+					telemetry.PluginType:    noderesolver.Type,
+					telemetry.SubsystemName: telemetry.PluginBuiltIn + "." + caws.PluginName,
+				},
+			},
+		})
 }
 
-func (s *IIDResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
-	var selectorValues []string
-	for _, values := range selectorValueSets {
-		selectorValues = append(selectorValues, values...)
-	}
-	sort.Strings(selectorValues)
-	selectors := &common.Selectors{}
-	for _, selectorValue := range selectorValues {
-		selectors.Entries = append(selectors.Entries, &common.Selector{
-			Type:  "aws_iid",
-			Value: selectorValue,
-		})
-	}
-	expected := &noderesolver.ResolveResponse{
-		Map: map[string]*common.Selectors{
-			awsAgentID: selectors,
-		},
-	}
+func (s *IIDResolverSuite) assertResolveSuccess() {
+	expected := &noderesolver.ResolveResponse{}
 	actual, err := s.doResolve(awsAgentID)
 	s.Require().NoError(err)
 	s.Require().Equal(expected, actual)
-}
-
-func (s *IIDResolverSuite) assertResolveFailure(spiffeID, containsErr string) {
-	resp, err := s.doResolve(spiffeID)
-	s.RequireErrorContains(err, containsErr)
-	s.Require().Nil(resp)
 }
 
 func (s *IIDResolverSuite) doResolve(spiffeID string) (*noderesolver.ResolveResponse, error) {
 	return s.resolver.Resolve(context.Background(), &noderesolver.ResolveRequest{
 		BaseSpiffeIdList: []string{spiffeID},
 	})
-}
-
-type fakeAWSClient struct {
-	instance        *ec2.Instance
-	instanceProfile *iam.InstanceProfile
-}
-
-func (c *fakeAWSClient) SetInstance(instance *ec2.Instance) {
-	c.instance = instance
-}
-
-func (c *fakeAWSClient) SetInstanceProfile(instanceProfile *iam.InstanceProfile) {
-	c.instanceProfile = instanceProfile
-}
-
-func (c *fakeAWSClient) DescribeInstancesWithContext(_ aws.Context, input *ec2.DescribeInstancesInput, _ ...request.Option) (*ec2.DescribeInstancesOutput, error) {
-	switch {
-	case input.InstanceIds == nil:
-		return nil, errs.New("bad request: instance ids is nil")
-	case len(input.InstanceIds) == 0:
-		return nil, errs.New("bad request: instance ids is empty")
-	case input.InstanceIds[0] == nil:
-		return nil, errs.New("bad request: instance id is nil")
-	case (*input.InstanceIds[0]) != "INSTANCE":
-		return nil, errs.New("instance not found")
-	case c.instance == nil:
-		return nil, errs.New("misconfigured test: instance is nil")
-	}
-	return &ec2.DescribeInstancesOutput{
-		Reservations: []*ec2.Reservation{
-			{
-				Instances: []*ec2.Instance{
-					c.instance,
-				},
-			},
-		},
-	}, nil
-}
-
-func (c *fakeAWSClient) GetInstanceProfileWithContext(_ aws.Context, input *iam.GetInstanceProfileInput, _ ...request.Option) (*iam.GetInstanceProfileOutput, error) {
-	switch {
-	case input.InstanceProfileName == nil:
-		return nil, errs.New("bad request: instance profile name is nil")
-	case (*input.InstanceProfileName) == "":
-		return nil, errs.New("bad request: instance profile name id empty")
-	case (*input.InstanceProfileName) != testInstanceProfileName:
-		return nil, errs.New("instance profile not found")
-	case c.instanceProfile == nil:
-		return nil, errs.New("misconfigured test: instance profile is nil")
-	}
-	return &iam.GetInstanceProfileOutput{
-		InstanceProfile: c.instanceProfile,
-	}, nil
 }
