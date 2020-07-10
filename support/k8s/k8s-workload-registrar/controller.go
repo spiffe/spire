@@ -210,6 +210,12 @@ func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) string {
 // Attempt to create or update a registration entry. This function can
 // only work if there is exactly one matching entry.
 func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEntry) error {
+	log := c.c.Log.WithFields(logrus.Fields{
+		"parent_id": entry.ParentId,
+		"spiffe_id": entry.SpiffeId,
+		"selectors": selectorsField(entry.Selectors),
+	})
+
 	entries, err := c.c.R.ListBySelectors(ctx, &common.Selectors{
 		Entries: entry.Selectors,
 	})
@@ -232,7 +238,7 @@ func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEn
 			// configuration. There is no way to resolve this
 			// situation without administrative intervention, so we
 			// make no changes.
-			c.c.Log.Warningf("Multiple registration entries with parent %s match the same pod: %s and %s. Until this is resolved, ignoring %s.", existing.ParentId, existing.SpiffeId, e.SpiffeId, e.SpiffeId)
+			log.Warningf("Multiple registration entries match the same selectors: %s and %s. Conflicting configurations may exist, ignoring this entry.", existing.SpiffeId, e.SpiffeId)
 			return errs.New("Multiple pod entries found: %s and %s", existing.SpiffeId, e.SpiffeId)
 		}
 		existing = e
