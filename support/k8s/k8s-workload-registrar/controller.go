@@ -51,15 +51,17 @@ func (c *Controller) Initialize(ctx context.Context) error {
 }
 
 func (c *Controller) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
-	c.c.Log.WithFields(logrus.Fields{
+	log := c.c.Log.WithFields(logrus.Fields{
 		"namespace": req.Namespace,
 		"name":      req.Name,
 		"kind":      req.Kind.Kind,
 		"version":   req.Kind.Version,
 		"operation": req.Operation,
-	}).Debug("ReviewAdmission called")
+	})
+	log.Debug("ReviewAdmission called")
 
 	if err := c.reviewAdmission(ctx, req); err != nil {
+		log.WithError(err).Error("ReviewAdmission failed")
 		return nil, err
 	}
 
@@ -171,7 +173,7 @@ func (c *Controller) deletePodEntry(ctx context.Context, namespace, name string)
 		},
 	})
 	if err != nil {
-		return errs.New("unable to list by pod entries: %v", err)
+		return errs.New("ListBySelectors for pod failed: %v", err)
 	}
 
 	log.Info("Deleting pod entries")
@@ -186,7 +188,7 @@ func (c *Controller) deletePodEntry(ctx context.Context, namespace, name string)
 		})
 		if err != nil {
 			log.WithError(err).Error("Failed deleting pod entry")
-			errGroup.Add(errs.New("unable to delete entry %q: %v", entry.EntryId, err))
+			errGroup.Add(errs.New("DeleteEntry failed for %q: %v", entry.EntryId, err))
 		}
 	}
 	return errGroup.Err()
@@ -211,21 +213,20 @@ func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEn
 		Entries: entry.Selectors,
 	})
 	if err != nil {
-		return errs.New("unable to list by pod entries: %v", err)
+		return errs.New("ListBySelectors failed: %v", err)
 	}
 
-	var existing *common.RegistrationEntry = nil
+	var existing *common.RegistrationEntry
 
 	for _, e := range entries.Entries {
 		if e.ParentId != c.nodeID() {
 			// This is not an entry managed by this registrar
 			continue
 		}
-		if existing == nil {
-			existing = e
-		} else {
+		if existing != nil {
 			return errs.New("Multiple pod entries found, with spiffe_id %s and %s", existing.SpiffeId, e.SpiffeId)
 		}
+		existing = e
 	}
 
 	if existing != nil {
@@ -256,7 +257,7 @@ func (c *Controller) createEntry(ctx context.Context, entry *common.Registration
 		log.Info("Created pod entry")
 		return nil
 	default:
-		log.WithError(err).Error("Failed to create pod entry")
+		log.WithError(err).Error("CreateEntry failed")
 		return errs.Wrap(err)
 	}
 }
@@ -274,7 +275,7 @@ func (c *Controller) updateEntry(ctx context.Context, entry *common.Registration
 		log.Info("Updated pod entry")
 		return nil
 	default:
-		log.WithError(err).Error("Failed to update pod entry")
+		log.WithError(err).Error("UpdateEntry failed")
 		return errs.Wrap(err)
 	}
 }
