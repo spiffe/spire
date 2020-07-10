@@ -260,15 +260,15 @@ func (c *Controller) createEntry(ctx context.Context, entry *common.Registration
 		"spiffe_id": entry.SpiffeId,
 		"selectors": selectorsField(entry.Selectors),
 	})
-	_, err := c.c.R.CreateEntry(ctx, entry)
-	switch status.Code(err) {
-	case codes.OK, codes.AlreadyExists:
-		log.Info("Created pod entry")
-		return nil
-	default:
+	res, err := c.c.R.CreateEntryIfNotExists(ctx, entry)
+	if err != nil {
 		log.WithError(err).Error("CreateEntry failed")
 		return errs.Wrap(err)
 	}
+	if !res.Preexisting {
+		log.Info("Created pod entry")
+	}
+	return nil
 }
 
 // Update an existing entry, identified by entry.EntryId
