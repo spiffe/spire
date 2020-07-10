@@ -200,6 +200,11 @@ The registrar should be deployed as a container in the SPIRE server pod, since
 it talks to SPIRE server via a Unix domain socket. It will need access to a
 shared volume containing the socket file.
 
+Running multiple replicas of the registrar is encouraged; one per
+replica of the SPIRE server should be reasonable. All replicas will
+attempt to apply all changes, with duplicates resolved in the SPIRE
+server.
+
 Authentication is via the in-cluster Kubernetes API, so the only
 additional configuration needed is to ensure that the registrar is
 running as a ServiceAccount which has permissions to get, list, and
