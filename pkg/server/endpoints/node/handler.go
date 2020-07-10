@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
+	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"golang.org/x/net/context"
@@ -531,20 +532,11 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ conte
 	// peer certificate required for SVID fetching
 	case "/spire.api.node.Node/FetchX509SVID",
 		"/spire.api.node.Node/FetchJWTSVID":
-		peerCert, err := getPeerCertificateFromRequestContext(ctx)
+		agentCert, err := h.getAgentCertificateFromRequestContext(ctx, log)
 		if err != nil {
-			log.WithError(err).Error("Agent SVID is required for this request")
-			return nil, status.Error(codes.Unauthenticated, "agent SVID is required for this request")
+			return nil, err
 		}
-
-		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
-			log.WithError(err).WithFields(logrus.Fields{
-				telemetry.AgentID: tryGetSpiffeIDFromCert(peerCert),
-			}).Error("Agent is not attested or no longer valid")
-			return nil, status.Errorf(codes.PermissionDenied, "agent is not attested or no longer valid: %v", err)
-		}
-
-		ctx = withPeerCertificate(ctx, peerCert)
+		ctx = withPeerCertificate(ctx, agentCert)
 	case "/spire.api.node.Node/FetchX509CASVID",
 		"/spire.api.node.Node/PushJWTKeyUpstream":
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
@@ -597,12 +589,40 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, er
 	return false, nil
 }
 
+func (h *Handler) getAgentCertificateFromRequestContext(ctx context.Context, log logrus.FieldLogger) (*x509.Certificate, error) {
+	agentCert, err := getPeerCertificateFromRequestContext(ctx)
+	if err != nil {
+		log.WithError(err).Error("Agent SVID is required for this request")
+		return nil, status.Error(codes.Unauthenticated, "agent SVID is required for this request")
+	}
+
+	log = log.WithFields(logrus.Fields{
+		telemetry.AgentID: tryGetSpiffeIDFromCert(agentCert),
+	})
+
+	if err := h.validateAgentSVID(ctx, agentCert); err != nil {
+		log.WithError(err).Error("Agent permission denied")
+		return nil, err
+	}
+	return agentCert, nil
+}
+
 func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate) error {
 	ds := h.c.Catalog.GetDataStore()
 
+	permissionDenied := func(reason types.PermissionDeniedDetails_Reason, format string, args ...interface{}) error {
+		st := status.Newf(codes.PermissionDenied, format, args...)
+		if detailed, err := st.WithDetails(&types.PermissionDeniedDetails{
+			Reason: reason,
+		}); err == nil {
+			st = detailed
+		}
+		return st.Err()
+	}
+
 	agentID, err := getSpiffeIDFromCert(cert)
 	if err != nil {
-		return err
+		return permissionDenied(types.PermissionDeniedDetails_UNKNOWN, "unable to get spiffe ID: %v", err)
 	}
 
 	// agent SVIDs must be unexpired and a belong to the attested nodes.
@@ -611,23 +631,23 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	// certificate on the connection could have expired after the initial
 	// handshake.
 	if h.c.Clock.Now().After(cert.NotAfter) {
-		return errors.New("agent SVID has expired")
+		return permissionDenied(types.PermissionDeniedDetails_AGENT_EXPIRED, "agent %q SVID has expired", agentID)
 	}
 
 	resp, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
 		SpiffeId: agentID,
 	})
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "unable to fetch agent information: %v", err)
 	}
 
 	n := resp.Node
 	if n == nil {
-		return errors.New("agent is not attested")
+		return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ATTESTED, "agent %q is not attested", agentID)
 	}
 
 	if nodeutil.IsAgentBanned(n) {
-		return errors.New("agent is banned")
+		return permissionDenied(types.PermissionDeniedDetails_AGENT_BANNED, "agent %q is banned", agentID)
 	}
 
 	if n.CertSerialNumber != "" && n.CertSerialNumber == cert.SerialNumber.String() {
@@ -645,12 +665,12 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 
 		if err != nil {
 			fieldLog.Warningf("Failed to activate agent SVID: %v", err)
-			return fmt.Errorf("failed to activate agent SVID: %v", err)
+			return status.Errorf(codes.Internal, "failed to activate agent %q SVID: %v", agentID, err)
 		}
 		return nil
 	}
 
-	return fmt.Errorf("agent %q SVID does not match expected serial number", agentID)
+	return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ACTIVE, "agent %q SVID does not match expected serial number", agentID)
 }
 
 func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certificate) (*common.RegistrationEntry, error) {
@@ -1099,7 +1119,7 @@ func (h *Handler) isBanned(ctx context.Context, agentID string) (bool, error) {
 	return nodeutil.IsAgentBanned(resp.Node), nil
 }
 
-func getPeerCertificateFromRequestContext(ctx context.Context) (cert *x509.Certificate, err error) {
+func getPeerCertificateFromRequestContext(ctx context.Context) (*x509.Certificate, error) {
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, errors.New("no peer information")

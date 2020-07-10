@@ -19,6 +19,16 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 )
 
+func init() {
+	os.Unsetenv(envVaultAddr)
+	os.Unsetenv(envVaultToken)
+	os.Unsetenv(envVaultClientCert)
+	os.Unsetenv(envVaultClientKey)
+	os.Unsetenv(envVaultCACert)
+	os.Unsetenv(envVaultAppRoleID)
+	os.Unsetenv(envVaultAppRoleSecretID)
+}
+
 func TestVaultPlugin(t *testing.T) {
 	spiretest.Run(t, new(VaultPluginSuite))
 }
@@ -66,7 +76,7 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			name:       "Configure plugin with Token authentication params given as environment variables",
 			configTmpl: testTokenAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				"VAULT_TOKEN": "test-token",
+				envVaultToken: "test-token",
 			},
 		},
 		{
@@ -77,8 +87,8 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			name:       "Configure plugin with Client Certificate authentication params given as environment variables",
 			configTmpl: testCertAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				"VAULT_CLIENT_CERT": "_test_data/keys/EC/client_cert.pem",
-				"VAULT_CLIENT_KEY":  "_test_data/keys/EC/client_key.pem",
+				envVaultClientCert: "_test_data/keys/EC/client_cert.pem",
+				envVaultClientKey:  "_test_data/keys/EC/client_key.pem",
 			},
 		},
 		{
@@ -89,14 +99,21 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			name:       "Configure plugin with AppRole authentication params given as environment variables",
 			configTmpl: testAppRoleAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				"VAULT_APPROLE_ID":        "test-approle-id",
-				"VAULT_APPROLE_SECRET_ID": "test-approle-secret-id",
+				envVaultAppRoleID:       "test-approle-id",
+				envVaultAppRoleSecretID: "test-approle-secret-id",
 			},
 		},
 		{
 			name:       "Multiple authentication methods configured",
 			configTmpl: testMultipleAuthConfigsTpl,
 			err:        "only one authentication method can be configured",
+		},
+		{
+			name:       "Pass VaultAddr via the environment variable",
+			configTmpl: testConfigWithVaultAddrEnvTpl,
+			envKeyVal: map[string]string{
+				envVaultAddr: fmt.Sprintf("https://%v/", addr),
+			},
 		},
 	} {
 		c := c

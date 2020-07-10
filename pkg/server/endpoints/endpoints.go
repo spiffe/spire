@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
@@ -290,7 +291,7 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore))
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New()))
 
 	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }
