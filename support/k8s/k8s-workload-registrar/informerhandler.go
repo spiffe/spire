@@ -26,8 +26,7 @@ func NewInformerHandler(config InformerHandlerConfig) *InformerHandler {
 	}
 }
 
-func (ih *InformerHandler) addHandler(ctx context.Context, obj interface{}) {
-	pod := obj.(*corev1.Pod)
+func (ih *InformerHandler) addHandler(ctx context.Context, pod *corev1.Pod) {
 	log := ih.c.Log.WithFields(logrus.Fields{
 		"ns":  pod.Namespace,
 		"pod": pod.Name,
@@ -37,14 +36,7 @@ func (ih *InformerHandler) addHandler(ctx context.Context, obj interface{}) {
 	}
 }
 
-func (ih *InformerHandler) deleteHandler(ctx context.Context, obj interface{}) {
-	// obj is either a cache.DeletedFinalStateUnknown, or a *corev1.Pod
-
-	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		// This might be stale, but we're only going to use the name anyway
-		obj = tombstone.Obj
-	}
-	pod := obj.(*corev1.Pod)
+func (ih *InformerHandler) deleteHandler(ctx context.Context, pod *corev1.Pod) {
 	log := ih.c.Log.WithFields(logrus.Fields{
 		"ns":  pod.Namespace,
 		"pod": pod.Name,
@@ -59,15 +51,41 @@ func (ih *InformerHandler) Run(ctx context.Context) error {
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 
 		AddFunc: func(obj interface{}) {
-			ih.addHandler(ctx, obj)
+			switch v := obj.(type) {
+			case *corev1.Pod: // It can only be this type, so we just ignore anything else
+				ih.addHandler(ctx, v)
+			default:
+				ih.c.Log.Errorf("BUG: k8s client-go returned type %T", v)
+			}
 		},
 
 		UpdateFunc: func(old, new interface{}) {
-			ih.addHandler(ctx, new)
+			switch v := new.(type) {
+			case *corev1.Pod:
+				ih.addHandler(ctx, v)
+			default:
+				ih.c.Log.Errorf("BUG: k8s client-go returned type %T", v)
+			}
 		},
 
 		DeleteFunc: func(obj interface{}) {
-			ih.deleteHandler(ctx, obj)
+			switch v := obj.(type) {
+			case *corev1.Pod:
+				ih.deleteHandler(ctx, v)
+			case cache.DeletedFinalStateUnknown:
+				// This might be a stale object, but since we only
+				// wanted the metadata, we just unwrap the type and
+				// move on - Namespace and Name are immutable so they
+				// are still correct.
+				switch v2 := v.Obj.(type) {
+				case *corev1.Pod:
+					ih.deleteHandler(ctx, v2)
+				default:
+					ih.c.Log.Errorf("BUG: k8s client-go returned type %T", v)
+				}
+			default:
+				ih.c.Log.Errorf("BUG: k8s client-go returned type %T", v)
+			}
 		},
 	})
 
