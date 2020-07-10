@@ -286,7 +286,7 @@ func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.M
 	return registrationManager
 }
 
-func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
+func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (*svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
 		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
