@@ -33,42 +33,37 @@ type Config struct {
 	Cluster                        string `hcl:"cluster"`
 	PodLabel                       string `hcl:"pod_label"`
 	PodAnnotation                  string `hcl:"pod_annotation"`
-	Mode                           string `hcl:"mode"`
 	InformerResyncInterval         string `hcl:"informer_resync_interval" mode:"informer"`
 	KubeConfig                     string `hcl:"kubeconfig" mode:"informer"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig(path, mode string) (*Config, error) {
 	hclBytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, errs.New("unable to load configuration: %v", err)
 	}
-	return ParseConfig(string(hclBytes))
+	return ParseConfig(string(hclBytes), mode)
 }
 
-func ParseConfig(hclConfig string) (*Config, error) {
+func ParseConfig(hclConfig, mode string) (*Config, error) {
 	c := new(Config)
 	if err := hcl.Decode(c, hclConfig); err != nil {
 		return nil, errs.New("unable to decode configuration: %v", err)
 	}
 
-	if c.Mode == "" {
-		c.Mode = "admission"
-	}
-
-	if err := c.validate(); err != nil {
+	if err := c.validate(mode); err != nil {
 		return nil, err
 	}
 
-	c.setDefault()
+	c.setDefault(mode)
 
 	return c, nil
 }
 
-func (c *Config) validate() error {
+func (c *Config) validate(mode string) error {
 	var errGroup errs.Group
 
-	switch c.Mode {
+	switch mode {
 	case "admission":
 	case "informer":
 		// Note that time.ParseDuration does not accept "" as zero
@@ -78,7 +73,7 @@ func (c *Config) validate() error {
 			}
 		}
 	default:
-		errGroup.Add(errs.New("invalid mode %s", c.Mode))
+		errGroup.Add(errs.New("invalid mode %s", mode))
 	}
 
 	// Validate the 'mode' tag on the struct: can only be set in this mode
@@ -97,9 +92,9 @@ func (c *Config) validate() error {
 		if hclName, ok := fty.Tag.Lookup("hcl"); ok {
 			name = hclName
 		}
-		if mode, ok := fty.Tag.Lookup("mode"); ok {
-			if c.Mode != mode {
-				errGroup.Add(errs.New("%s not valid in %s mode", name, c.Mode))
+		if modeTag, ok := fty.Tag.Lookup("mode"); ok {
+			if modeTag != mode {
+				errGroup.Add(errs.New("%s not valid in %s mode", name, mode))
 			}
 		}
 	}
@@ -120,12 +115,12 @@ func (c *Config) validate() error {
 	return errGroup.Err()
 }
 
-func (c *Config) setDefault() {
+func (c *Config) setDefault(mode string) {
 	if c.LogLevel == "" {
 		c.LogLevel = defaultLogLevel
 	}
 
-	switch c.Mode {
+	switch mode {
 	case "admission":
 		if c.Addr == "" {
 			c.Addr = defaultAddr
@@ -147,6 +142,5 @@ func (c *Config) setDefault() {
 		if c.InformerResyncInterval == "" {
 			c.InformerResyncInterval = "0"
 		}
-	default:
 	}
 }

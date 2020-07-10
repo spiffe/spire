@@ -18,7 +18,7 @@ The registrar has the following command line flags:
 | Flag         | Description                                                      | Default                       |
 | ------------ | -----------------------------------------------------------------| ----------------------------- |
 | `-config`    | Path on disk to the [HCL Configuration](#hcl-configuration) file | `k8s-workload-registrar.conf` |
-
+| `-mode`      | Selects the operating mode of the registrar, must be admission or informer | `admission`   |
 
 ### HCL Configuration
 
@@ -36,10 +36,9 @@ The following fields are available in any mode:
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string  | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string  | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
-| `mode`                     | string  | required | "admission" or "informer" | `"admission"` |
 
-The `mode` field selects whether the registrar will use the admission
-controller or informer approach. When `mode = "admission"`, the
+The `-mode` flag selects whether the registrar will use the admission
+controller or informer approach. With `-mode=admission`, the
 following config fields are accepted:
 
 | Key                        | Type    | Required? | Description                              | Default |
@@ -50,7 +49,7 @@ following config fields are accepted:
 | `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
 | `insecure_skip_client_verification` | boolean | optional | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
 
-When `mode = "informer"`, the following config fields are accepted:
+With `-mode=informer`, the following config fields are accepted:
 
 | Key                        | Type    | Required? | Description                              | Default |
 | -------------------------- | --------| --------- | ---------------------------------------- | ------- |
@@ -61,7 +60,8 @@ If `informer_resync_interval` is not set, then errors are logged and
 never retried. If it is set, then all registration entries will be
 updated at this interval, which will create some amount of load on the
 spire and kubernetes servers. An appropriate interval depends on the
-size of the cluster.
+size of the cluster. Setting this interval is recommended, but there
+is no safe default.
 
 ### Example
 
@@ -81,7 +81,6 @@ log_level = "debug"
 trust_domain = "domain.test"
 server_socket_path = "/run/spire/sockets/registration.sock"
 cluster = "production"
-mode = "informer"
 informer_resync_interval = "10m"
 ```
 

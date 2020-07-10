@@ -21,11 +21,12 @@ import (
 
 var (
 	configFlag = flag.String("config", "k8s-workload-registrar.conf", "configuration file")
+	modeFlag   = flag.String("mode", "admission", "set operating mode, valid values are: admission, informer (default: admission)")
 )
 
 func main() {
 	flag.Parse()
-	if err := run(context.Background(), *configFlag); err != nil {
+	if err := run(context.Background(), *configFlag, *modeFlag); err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
 	}
@@ -61,10 +62,17 @@ func setupKube(config *Config, log *log.Logger) (*kubernetes.Clientset, error) {
 	return client, nil
 }
 
-func run(ctx context.Context, configPath string) error {
-	config, err := LoadConfig(configPath)
-	if err != nil {
-		return err
+func run(ctx context.Context, configPath string, modeFlag string) error {
+	var config *Config
+	switch modeFlag {
+	case "informer", "admission":
+		var err error
+		config, err = LoadConfig(configPath, modeFlag)
+		if err != nil {
+			return err
+		}
+	default:
+		return errs.New("invalid flag --mode=%s, must be 'informer' or 'admission'invalid mode %s", modeFlag)
 	}
 
 	log, err := log.NewLogger(log.WithLevel(config.LogLevel), log.WithFormat(config.LogFormat), log.WithOutputFile(config.LogPath))
@@ -94,7 +102,7 @@ func run(ctx context.Context, configPath string) error {
 		return err
 	}
 
-	switch config.Mode {
+	switch modeFlag {
 	case "informer":
 		client, err := setupKube(config, log)
 		if err != nil {
@@ -129,6 +137,7 @@ func run(ctx context.Context, configPath string) error {
 		}
 		return server.Run(ctx)
 	default:
-		return errs.New("invalid mode %s", config.Mode)
+		// We handled this error at the top of the function
+		panic("not reached")
 	}
 }
