@@ -44,21 +44,6 @@ jobs:
       os: linux 
       dist: xenial
     - stage: lint and test
-      name: lint
-      arch : arm64
-      script:
-        - sudo apt-get update
-        - sudo apt-get install shellcheck
-        - make lint
-        - make tidy-check
-        - make generate-check
-        - shellcheck script/*.sh
-        - shellcheck .travis/*.sh
-      # linting is OS agnostic but protobuf_verify needs utils to lets be explicit
-      # about its runtime environment
-      os: linux
-      dist: xenial
-    - stage: lint and test
       name: macos tests
       script:
         - .travis/run-unit-tests.sh
@@ -69,13 +54,6 @@ jobs:
         - .travis/run-unit-tests.sh
       os: linux
       dist: xenial
-    - stage: lint and test
-      name: linux tests
-      arch: arm64
-      script:
-        - .travis/run-unit-tests.sh
-      os: linux
-      dist: xenial
     - stage: build release
       script:
         - make artifact
@@ -103,34 +81,7 @@ jobs:
           on:
             tags: true
             condition: $GITHUB_TOKEN != ""
-    - stage: build release
-      arch: arm64
-      script:
-        - make artifact
-        - .travis/build-release.sh
-      os: linux
-      dist: xenial
-      deploy:
-        - provider: s3
-          access_key_id: $AWS_ACCESS_KEY_ID
-          secret_access_key: $AWS_SECRET_ACCESS_KEY
-          bucket: scytale-artifacts
-          local-dir: artifacts
-          upload-dir: spire
-          acl: public_read
-          skip_cleanup: true
-          region: us-east-2
-          on:
-            all_branches: true
-            condition: $AWS_SECRET_ACCESS_KEY != ""
-        - provider: releases
-          api_key: $GITHUB_TOKEN
-          file_glob: true
-          file: releases/*
-          skip_cleanup: true
-          on:
-            tags: true
-            condition: $GITHUB_TOKEN != ""
+
     - stage: publish images
       if: type = push AND (tag IS present OR branch = master)
       os: linux
@@ -142,19 +93,7 @@ jobs:
         - make images
         - make integration
         - .travis/publish-images.sh
-    - stage: publish images
-      arch: arm64
-      if: type = push AND (tag IS present OR branch = master)
-      os: linux
-      dist: xenial
-      before_script:
-        # Decrypt credentials needed to log into gcr registry
-        - echo $encrypted_b48f9e852489_iv
-        - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
-      script:
-        - make images
-        - make integration
-        - .travis/publish-images.sh
+
     - stage: nightly integration tests
       if: type = cron
       os: linux
