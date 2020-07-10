@@ -74,7 +74,9 @@ func init() {
 	proto.RegisterType((*AttestationData)(nil), "spire.types.AttestationData")
 }
 
-func init() { proto.RegisterFile("spire-next/types/attestation.proto", fileDescriptor_5442a4761cc40158) }
+func init() {
+	proto.RegisterFile("spire-next/types/attestation.proto", fileDescriptor_5442a4761cc40158)
+}
 
 var fileDescriptor_5442a4761cc40158 = []byte{
 	// 145 bytes of a gzipped FileDescriptorProto
