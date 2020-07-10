@@ -465,8 +465,10 @@ type BatchCreateFederatedBundleResponse_Result struct {
 func (m *BatchCreateFederatedBundleResponse_Result) Reset() {
 	*m = BatchCreateFederatedBundleResponse_Result{}
 }
-func (m *BatchCreateFederatedBundleResponse_Result) String() string { return proto.CompactTextString(m) }
-func (*BatchCreateFederatedBundleResponse_Result) ProtoMessage()    {}
+func (m *BatchCreateFederatedBundleResponse_Result) String() string {
+	return proto.CompactTextString(m)
+}
+func (*BatchCreateFederatedBundleResponse_Result) ProtoMessage() {}
 func (*BatchCreateFederatedBundleResponse_Result) Descriptor() ([]byte, []int) {
 	return fileDescriptor_c1cad79312a8d0d5, []int{8, 0}
 }
@@ -614,8 +616,10 @@ type BatchUpdateFederatedBundleResponse_Result struct {
 func (m *BatchUpdateFederatedBundleResponse_Result) Reset() {
 	*m = BatchUpdateFederatedBundleResponse_Result{}
 }
-func (m *BatchUpdateFederatedBundleResponse_Result) String() string { return proto.CompactTextString(m) }
-func (*BatchUpdateFederatedBundleResponse_Result) ProtoMessage()    {}
+func (m *BatchUpdateFederatedBundleResponse_Result) String() string {
+	return proto.CompactTextString(m)
+}
+func (*BatchUpdateFederatedBundleResponse_Result) ProtoMessage() {}
 func (*BatchUpdateFederatedBundleResponse_Result) Descriptor() ([]byte, []int) {
 	return fileDescriptor_c1cad79312a8d0d5, []int{10, 0}
 }
@@ -886,8 +890,10 @@ type BatchDeleteFederatedBundleResponse_Result struct {
 func (m *BatchDeleteFederatedBundleResponse_Result) Reset() {
 	*m = BatchDeleteFederatedBundleResponse_Result{}
 }
-func (m *BatchDeleteFederatedBundleResponse_Result) String() string { return proto.CompactTextString(m) }
-func (*BatchDeleteFederatedBundleResponse_Result) ProtoMessage()    {}
+func (m *BatchDeleteFederatedBundleResponse_Result) String() string {
+	return proto.CompactTextString(m)
+}
+func (*BatchDeleteFederatedBundleResponse_Result) ProtoMessage() {}
 func (*BatchDeleteFederatedBundleResponse_Result) Descriptor() ([]byte, []int) {
 	return fileDescriptor_c1cad79312a8d0d5, []int{14, 0}
 }

@@ -60,9 +60,9 @@ func TestBundleToProto(t *testing.T) {
 		}, {
 			name: "invalid trust domain",
 			bundle: &common.Bundle{
-				TrustDomainId: "invaid TD",
+				TrustDomainId: "invalid TD",
 			},
-			expectError: `spiffeid: unable to parse: parse spiffe://invaid TD: invalid character " " in host name`,
+			expectError: `spiffeid: unable to parse: parse "spiffe://invalid TD": invalid character " " in host name`,
 		},
 	} {
 		tt := tt
@@ -179,9 +179,9 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "invalid trust domain",
 			bundle: &types.Bundle{
-				TrustDomain: "invaid TD",
+				TrustDomain: "invalid TD",
 			},
-			expectError: `spiffeid: unable to parse: parse spiffe://invaid TD: invalid character " " in host name`,
+			expectError: `spiffeid: unable to parse: parse "spiffe://invalid TD": invalid character " " in host name`,
 		},
 	} {
 		tt := tt
