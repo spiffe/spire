@@ -207,7 +207,8 @@ func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) string {
 	return id.String()
 }
 
-// Ensure that there is exactly one entry matching these selectors, and it's this one
+// Attempt to create or update a registration entry. This function can
+// only work if there is exactly one matching entry.
 func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEntry) error {
 	entries, err := c.c.R.ListBySelectors(ctx, &common.Selectors{
 		Entries: entry.Selectors,
@@ -220,28 +221,36 @@ func (c *Controller) syncEntry(ctx context.Context, entry *common.RegistrationEn
 
 	for _, e := range entries.Entries {
 		if e.ParentId != c.nodeID() {
-			// This is not an entry managed by this registrar
+			// This is not an entry managed by this registrar, so we
+			// ignore it entirely
 			continue
 		}
 		if existing != nil {
-			return errs.New("Multiple pod entries found, with spiffe_id %s and %s", existing.SpiffeId, e.SpiffeId)
+			// This situation should not occur in reasonable
+			// configurations. We are likely fighting with another
+			// registrar that has the same nodeID and different
+			// configuration. There is no way to resolve this
+			// situation without administrative intervention, so we
+			// make no changes.
+			c.c.Log.Warningf("Multiple registration entries with parent %s match the same pod: %s and %s. Until this is resolved, ignoring %s.", existing.ParentId, existing.SpiffeId, e.SpiffeId, e.SpiffeId)
+			return errs.New("Multiple pod entries found: %s and %s", existing.SpiffeId, e.SpiffeId)
 		}
 		existing = e
 	}
 
-	if existing != nil {
-		if existing.SpiffeId == entry.SpiffeId {
-			// This is already in the state we want
-			return nil
-		}
-
-		// Update the existing entry
-		existing.SpiffeId = entry.SpiffeId
-		return c.updateEntry(ctx, existing)
+	if existing == nil {
+		// Create the entry if it is missing
+		return c.createEntry(ctx, entry)
 	}
 
-	// Create the entry if it is missing
-	return c.createEntry(ctx, entry)
+	if existing.SpiffeId == entry.SpiffeId {
+		// This is already in the state we want, no action required
+		return nil
+	}
+
+	// Update the existing entry, which has changed its SpiffeId
+	existing.SpiffeId = entry.SpiffeId
+	return c.updateEntry(ctx, existing)
 }
 
 func (c *Controller) createEntry(ctx context.Context, entry *common.RegistrationEntry) error {
