@@ -19,6 +19,16 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 )
 
+func init() {
+	os.Unsetenv(envVaultAddr)
+	os.Unsetenv(envVaultToken)
+	os.Unsetenv(envVaultClientCert)
+	os.Unsetenv(envVaultClientKey)
+	os.Unsetenv(envVaultCACert)
+	os.Unsetenv(envVaultAppRoleID)
+	os.Unsetenv(envVaultAppRoleSecretID)
+}
+
 func TestVaultPlugin(t *testing.T) {
 	spiretest.Run(t, new(VaultPluginSuite))
 }
@@ -97,6 +107,13 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			name:       "Multiple authentication methods configured",
 			configTmpl: testMultipleAuthConfigsTpl,
 			err:        "only one authentication method can be configured",
+		},
+		{
+			name:       "Pass VaultAddr via the environment variable",
+			configTmpl: testConfigWithVaultAddrEnvTpl,
+			envKeyVal: map[string]string{
+				envVaultAddr: fmt.Sprintf("https://%v/", addr),
+			},
 		},
 	} {
 		c := c
