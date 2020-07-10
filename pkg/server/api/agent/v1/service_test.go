@@ -435,13 +435,13 @@ func TestBanAgent(t *testing.T) {
 				Path:        agentPath,
 				TrustDomain: "ex ample.org",
 			},
-			expectedErr: status.Error(codes.InvalidArgument, "invalid SPIFFE ID: spiffeid: unable to parse: parse spiffe://ex ample.org: invalid character \" \" in host name"),
+			expectedErr: status.Error(codes.InvalidArgument, `invalid SPIFFE ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid request: invalid SPIFFE ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "spiffeid: unable to parse: parse spiffe://ex ample.org: invalid character \" \" in host name",
+						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
 					},
 				},
 			},
@@ -833,11 +833,11 @@ func TestGetAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to parse agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "spiffeid: unable to parse: parse spiffe://invalid domain: invalid character \" \" in host name",
+						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
 					},
 				},
 			},
-			err:  `spiffeid: unable to parse: parse spiffe://invalid domain: invalid character " " in host name`,
+			err:  `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
 			code: codes.InvalidArgument,
 		},
 		{

@@ -312,7 +312,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 		},
 		{
 			name: "malformed federated trust domain",
-			err:  "invalid federated trust domain: spiffeid: unable to parse: parse spiffe://malformed td:",
+			err:  `invalid federated trust domain: spiffeid: unable to parse: parse "spiffe://malformed td":`,
 			entry: &types.Entry{
 				SpiffeId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
 				ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},

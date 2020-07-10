@@ -26,15 +26,16 @@ func TestAllTrueMasks(t *testing.T) {
 	}, protoutil.AllTrueBundleMask)
 
 	assert.Equal(t, &types.EntryMask{
-		SpiffeId:      true,
-		ParentId:      true,
-		Selectors:     true,
-		Ttl:           true,
-		FederatesWith: true,
-		Admin:         true,
-		Downstream:    true,
-		ExpiresAt:     true,
-		DnsNames:      true,
+		SpiffeId:       true,
+		ParentId:       true,
+		Selectors:      true,
+		Ttl:            true,
+		FederatesWith:  true,
+		Admin:          true,
+		Downstream:     true,
+		ExpiresAt:      true,
+		DnsNames:       true,
+		RevisionNumber: true,
 	}, protoutil.AllTrueEntryMask)
 
 	assert.Equal(t, &common.BundleMask{

@@ -17,6 +17,13 @@ const (
 )
 
 var (
+	testConfigWithVaultAddrEnvTpl = `
+pki_mount_point = "test-pki"
+ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+token_auth {
+   token  = "test-token"
+}`
+
 	testCertAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"

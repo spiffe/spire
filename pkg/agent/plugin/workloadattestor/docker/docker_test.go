@@ -150,32 +150,6 @@ func TestContainerExtraction(t *testing.T) {
 			expectErr: "a pattern matched, but no container id was found",
 		},
 		{
-			desc:    "legacy match",
-			cgroups: testCgroupEntries,
-			cfg: `cgroup_prefix = "/docker"
-cgroup_container_index = 1`,
-			hasMatch: true,
-		},
-		{
-			desc:    "legacy no prefix",
-			cgroups: testCgroupEntries,
-			cfg: `cgroup_prefix = "/docker2"
-cgroup_container_index = 1`,
-		},
-		{
-			desc:    "legacy match no container",
-			cgroups: "10:cpu:/docker/",
-			cfg: `cgroup_prefix = "/docker"
-cgroup_container_index = 1`,
-			expectErr: "a pattern matched, but no container id was found",
-		},
-		{
-			desc:    "legacy match not enough parts",
-			cgroups: testCgroupEntries,
-			cfg: `cgroup_prefix = "/docker"
-cgroup_container_index = 2`,
-		},
-		{
 			desc:     "RHEL docker cgroups",
 			cgroups:  "4:devices:/system.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
 			hasMatch: true,
@@ -358,23 +332,6 @@ container_id_cgroup_matchers = [
 		require.Equal(t, "1.20", p.docker.(*dockerclient.Client).ClientVersion())
 		require.Equal(t, expectFinder, p.containerIDFinder)
 	})
-	t.Run("good legacy config", func(t *testing.T) {
-		p := New()
-		cfg := &spi.ConfigureRequest{
-			Configuration: `
-cgroup_prefix = "/docker2"
-cgroup_container_index = 2
-`,
-		}
-
-		_, err := doConfigure(t, p, cfg)
-		require.NoError(t, err)
-		require.Equal(t, &legacyContainerIDFinder{
-			log:                  p.log,
-			cgroupPrefix:         "/docker2",
-			cgroupContainerIndex: 3,
-		}, p.containerIDFinder)
-	})
 	t.Run("bad matcher", func(t *testing.T) {
 		p := New()
 		cfg := &spi.ConfigureRequest{
@@ -387,18 +344,6 @@ container_id_cgroup_matchers = [
 		_, err := doConfigure(t, p, cfg)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `must contain the container id token "<id>" exactly once`)
-	})
-	t.Run("bad legacy config", func(t *testing.T) {
-		p := New()
-		cfg := &spi.ConfigureRequest{
-			Configuration: `
-cgroup_prefix = "/docker2"
-`,
-		}
-
-		_, err := doConfigure(t, p, cfg)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "cgroup_prefix and cgroup_container_index must be specified together")
 	})
 	t.Run("bad hcl", func(t *testing.T) {
 		p := New()

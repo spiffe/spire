@@ -301,6 +301,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if !mask.DnsNames {
 		e.DnsNames = nil
 	}
+
+	if !mask.RevisionNumber {
+		e.RevisionNumber = 0
+	}
 }
 
 func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegistrationEntriesRequest, error) {

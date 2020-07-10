@@ -3,9 +3,9 @@ package run
 import (
 	"bytes"
 	"crypto/x509/pkix"
-	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -410,16 +410,6 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "deprecated svid_ttl should be configurable by file",
-			fileInput: func(c *Config) {
-				c.Server.DeprecatedSVIDTTL = "1h"
-			},
-			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "1h", c.Server.DeprecatedSVIDTTL)
-			},
-		},
-		{
 			msg: "default_svid_ttl should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1h"
@@ -696,16 +686,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:         "using deprecated svid_ttl returns an error",
-			expectError: true,
-			input: func(c *Config) {
-				c.Server.DeprecatedSVIDTTL = "1m"
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Nil(t, c)
-			},
-		},
-		{
 			msg: "default_svid_ttl is correctly parsed",
 			input: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1m"
@@ -834,7 +814,7 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := NewServerConfig(input, []log.Option{})
+			sc, err := NewServerConfig(input, []log.Option{}, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -935,11 +915,6 @@ func TestValidateConfig(t *testing.T) {
 			},
 			expectedErr: "federation.federates_with[\"spiffe://domain.test\"].bundle_endpoint.address must be configured",
 		},
-		{
-			name:        "deprecated configurable `svid_ttl` must not be set",
-			applyConf:   func(c *Config) { c.Server.DeprecatedSVIDTTL = "1h" },
-			expectedErr: `the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`,
-		},
 	}
 
 	for _, testCase := range testCases {
@@ -960,122 +935,216 @@ func TestValidateConfig(t *testing.T) {
 
 func TestWarnOnUnknownConfig(t *testing.T) {
 	testFileDir := "../../../../test/fixture/config"
+
+	type logEntry struct {
+		section string
+		keys    string
+	}
+
 	cases := []struct {
-		msg            string
-		testFilePath   string
-		expectedLogMsg string
+		msg                string
+		confFile           string
+		expectedLogEntries []logEntry
 	}{
 		{
-			msg:            "in root block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_root_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown top-level config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in root block",
+			confFile: "server_and_agent_bad_root_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "top-level",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in server block",
-			testFilePath:   fmt.Sprintf("%v/server_bad_server_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown server config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in server block",
+			confFile: "server_bad_server_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "server",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in nested ca_subject block",
-			testFilePath:   fmt.Sprintf("%v/server_bad_nested_ca_subject_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown CA Subject config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested ca_subject block",
+			confFile: "server_bad_nested_ca_subject_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "ca_subject",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
 		//{
 		//	msg:            "in nested experimental block",
-		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_experimental_block.conf", testFileDir),
-		//	expectedLogMsg: "Detected unknown experimental config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//	confFile: "/server_bad_nested_experimental_block.conf",
+		//	expectedLogEntries: []logEntry{
+		//		{
+		//			section: "experimental",
+		//			keys: 		"unknown_option1,unknown_option2",
+		//		},
+		//	},
 		//},
 		//{
 		//	msg:            "in nested federation block",
-		//	testFilePath:   fmt.Sprintf("%v/server_bad_nested_federation_block.conf", testFileDir),
-		//	expectedLogMsg: "Detected unknown federation config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//	confFile: "/server_bad_nested_federation_block.conf",
+		//	expectedLogEntries: []logEntry{
+		//		{
+		//			section: "federation",
+		//			keys: "unknown_option1,unknown_option2",
+		//		},
+		//	},
 		//},
 		{
-			msg:            "in nested federation.bundle_endpoint block",
-			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown federation config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested federation.bundle_endpoint block",
+			confFile: "server_bad_nested_bundle_endpoint_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "bundle endpoint",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in nested bundle_endpoint.acme block",
-			testFilePath:   fmt.Sprintf("%v/server_bad_nested_bundle_endpoint_acme_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown ACME config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested bundle_endpoint.acme block",
+			confFile: "server_bad_nested_bundle_endpoint_acme_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "bundle endpoint ACME",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in nested federates_with block",
-			testFilePath:   fmt.Sprintf("%v/server_bad_nested_federates_with_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown federation config options for \"test1\": [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested federates_with block",
+			confFile: "server_bad_nested_federates_with_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: `federates_with "test1"`,
+					keys:    "unknown_option1,unknown_option2",
+				},
+				{
+					section: `federates_with "test2"`,
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		// TODO: Re-enable unused key detection for telemetry. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
 		//{
 		//	msg:            "in telemetry block",
-		//	testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
-		//	expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//	confFile: "/server_and_agent_bad_telemetry_block.conf",
+		//	expectedLogEntries: []logEntry{
+		//		{
+		//			section: "telemetry",
+		//			keys: "unknown_option1,unknown_option2",
+		//		},
+		//	},
 		//},
 		{
-			msg:            "in nested Prometheus block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown Prometheus config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested Prometheus block",
+			confFile: "server_and_agent_bad_nested_Prometheus_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "Prometheus",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in nested DogStatsd block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_DogStatsd_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown DogStatsd config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested DogStatsd block",
+			confFile: "server_and_agent_bad_nested_DogStatsd_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "DogStatsd",
+					keys:    "unknown_option1,unknown_option2",
+				},
+				{
+					section: "DogStatsd",
+					keys:    "unknown_option3,unknown_option4",
+				},
+			},
 		},
 		{
-			msg:            "in nested Statsd block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Statsd_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown Statsd config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested Statsd block",
+			confFile: "server_and_agent_bad_nested_Statsd_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "Statsd",
+					keys:    "unknown_option1,unknown_option2",
+				},
+				{
+					section: "Statsd",
+					keys:    "unknown_option3,unknown_option4",
+				},
+			},
 		},
 		{
-			msg:            "in nested M3 block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_M3_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown M3 config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested M3 block",
+			confFile: "server_and_agent_bad_nested_M3_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "M3",
+					keys:    "unknown_option1,unknown_option2",
+				},
+				{
+					section: "M3",
+					keys:    "unknown_option3,unknown_option4",
+				},
+			},
 		},
 		{
-			msg:            "in nested InMem block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_InMem_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown InMem config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested InMem block",
+			confFile: "server_and_agent_bad_nested_InMem_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "InMem",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in nested health_checks block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_health_checks_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown health check config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested health_checks block",
+			confFile: "server_and_agent_bad_nested_health_checks_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "health check",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 	}
 
 	for _, testCase := range cases {
 		testCase := testCase
 
-		c, err := ParseFile(testCase.testFilePath, false)
+		c, err := ParseFile(filepath.Join(testFileDir, testCase.confFile), false)
 		require.NoError(t, err)
 
-		log, hook := test.NewNullLogger()
-
 		t.Run(testCase.msg, func(t *testing.T) {
-			warnOnUnknownConfig(c, log)
-			requireLogLine(t, hook, testCase.expectedLogMsg)
+			log, hook := test.NewNullLogger()
+			err := checkForUnknownConfig(c, log)
+			assert.EqualError(t, err, "unknown configuration detected")
 
-			hook.Reset()
-			require.Nil(t, hook.LastEntry())
+			var logEntries []spiretest.LogEntry
+			for _, expectedLogEntry := range testCase.expectedLogEntries {
+				logEntries = append(logEntries, spiretest.LogEntry{
+					Level:   logrus.ErrorLevel,
+					Message: "Unknown configuration detected",
+					Data: logrus.Fields{
+						"section": expectedLogEntry.section,
+						"keys":    expectedLogEntry.keys,
+					},
+				})
+			}
+			spiretest.AssertLogsAnyOrder(t, hook.AllEntries(), logEntries)
 		})
 	}
-}
-
-func requireLogLine(t *testing.T, h *test.Hook, expectedMsg string) {
-	var currMsg string
-	for _, e := range h.AllEntries() {
-		currMsg = e.Message
-		if currMsg == expectedMsg {
-			break
-		}
-	}
-
-	require.Equal(t, expectedMsg, currMsg)
 }
 
 // TestLogOptions verifies the log options given to newAgentConfig are applied, and are overridden
@@ -1092,7 +1161,7 @@ func TestLogOptions(t *testing.T) {
 		log.WithOutputFile(fd.Name()),
 	}
 
-	agentConfig, err := NewServerConfig(defaultValidConfig(), logOptions)
+	agentConfig, err := NewServerConfig(defaultValidConfig(), logOptions, false)
 	require.NoError(t, err)
 
 	logger := agentConfig.Log.(*log.Logger).Logger

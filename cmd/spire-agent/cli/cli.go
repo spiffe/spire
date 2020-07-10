@@ -13,7 +13,8 @@ import (
 )
 
 type CLI struct {
-	LogOptions []log.Option
+	LogOptions         []log.Option
+	AllowUnknownConfig bool
 }
 
 func (cc *CLI) Run(args []string) int {
@@ -36,7 +37,7 @@ func (cc *CLI) Run(args []string) int {
 			return &api.WatchCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return run.NewRunCommand(cc.LogOptions), nil
+			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil

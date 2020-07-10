@@ -10,10 +10,12 @@ import (
 	"time"
 
 	observer "github.com/imkira/go-observer"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -28,14 +30,13 @@ func TestRotator(t *testing.T) {
 type RotatorTestSuite struct {
 	suite.Suite
 
-	r        *rotator
+	r        *Rotator
 	serverCA *fakeserverca.CA
-
-	clock *clock.Mock
+	logHook  *test.Hook
+	clock    *clock.Mock
 }
 
 func (s *RotatorTestSuite) SetupTest() {
-	log, _ := test.NewNullLogger()
 	td := url.URL{
 		Scheme: "spiffe",
 		Host:   "example.org",
@@ -46,7 +47,12 @@ func (s *RotatorTestSuite) SetupTest() {
 		Clock:       s.clock,
 		X509SVIDTTL: testTTL,
 	})
-	s.r = newRotator(&RotatorConfig{
+
+	log, hook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	s.logHook = hook
+
+	s.r = NewRotator(&RotatorConfig{
 		ServerCA:    s.serverCA,
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
@@ -55,7 +61,7 @@ func (s *RotatorTestSuite) SetupTest() {
 	})
 }
 
-func (s *RotatorTestSuite) TestRotation() {
+func (s *RotatorTestSuite) TestRotationSucceeds() {
 	stream := s.r.Subscribe()
 
 	var wg sync.WaitGroup
@@ -100,12 +106,54 @@ func (s *RotatorTestSuite) TestRotation() {
 	s.Require().NoError(<-errCh)
 }
 
+func (s *RotatorTestSuite) TestRotationFails() {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Intentionally change the trust domain to trigger a rotation error
+	s.r.c.TrustDomain.Host = "wrong-td.org"
+
+	wg.Add(1)
+	errCh := make(chan error, 1)
+	go func() {
+		defer wg.Done()
+		errCh <- s.r.Run(ctx)
+	}()
+
+	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
+	s.clock.Add(DefaultRotatorInterval)
+
+	cancel()
+	s.Require().NoError(<-errCh)
+	spiretest.AssertLogs(s.T(), s.logHook.AllEntries(), []spiretest.LogEntry{
+		{
+			Level:   logrus.DebugLevel,
+			Message: "Rotating server SVID",
+		},
+		{
+			Level:   logrus.ErrorLevel,
+			Message: "Could not rotate server SVID",
+			Data: logrus.Fields{
+				logrus.ErrorKey: `"spiffe://wrong-td.org/spire/server" does not belong to trust domain "example.org"`,
+			},
+		},
+		{
+			Level:   logrus.DebugLevel,
+			Message: "Stopping SVID rotator",
+		},
+	})
+}
+
 func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, prevSerialNumber *big.Int) *x509.Certificate {
 	timer := time.NewTimer(time.Second * 10)
 	defer timer.Stop()
 	select {
 	case <-stream.Changes():
 		state := stream.Next().(State)
+		s.Require().Equal(state, s.r.State())
 		s.Require().Len(state.SVID, 1)
 		s.Require().NotEqual(0, state.SVID[0].SerialNumber.Cmp(prevSerialNumber))
 		return state.SVID[0]

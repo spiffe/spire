@@ -2,13 +2,13 @@ package run
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/hcl/hcl/printer"
@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -814,7 +815,7 @@ func TestNewAgentConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			ac, err := NewAgentConfig(input, []log.Option{})
+			ac, err := NewAgentConfig(input, []log.Option{}, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -844,76 +845,147 @@ func defaultValidConfig() *Config {
 
 func TestWarnOnUnknownConfig(t *testing.T) {
 	testFileDir := "../../../../test/fixture/config"
+
+	type logEntry struct {
+		section string
+		keys    string
+	}
+
 	cases := []struct {
-		msg            string
-		testFilePath   string
-		expectedLogMsg string
+		msg                string
+		confFile           string
+		expectedLogEntries []logEntry
 	}{
 		{
-			msg:            "in root block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_root_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown top-level config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in root block",
+			confFile: "server_and_agent_bad_root_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "top-level",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in agent block",
-			testFilePath:   fmt.Sprintf("%v/agent_bad_agent_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown agent config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in agent block",
+			confFile: "agent_bad_agent_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "agent",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		// TODO: Re-enable unused key detection for telemetry. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
 		//{
 		//	msg:            "in telemetry block",
-		//	testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_telemetry_block.conf", testFileDir),
-		//	expectedLogMsg: "Detected unknown telemetry config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+		//	confFile:   "server_and_agent_bad_telemetry_block.conf",
+		//	expectedLogEntries: []logEntry{
+		//		{
+		//			section: "telemetry",
+		//			keys:    "unknown_option1,unknown_option2",
+		//		},
+		//	},
 		//},
 		{
-			msg:            "in nested Prometheus block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Prometheus_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown Prometheus config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested Prometheus block",
+			confFile: "server_and_agent_bad_nested_Prometheus_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "Prometheus",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in nested DogStatsd block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_DogStatsd_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown DogStatsd config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested DogStatsd block",
+			confFile: "server_and_agent_bad_nested_DogStatsd_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "DogStatsd",
+					keys:    "unknown_option1,unknown_option2",
+				},
+				{
+					section: "DogStatsd",
+					keys:    "unknown_option3,unknown_option4",
+				},
+			},
 		},
 		{
-			msg:            "in nested Statsd block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_Statsd_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown Statsd config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested Statsd block",
+			confFile: "server_and_agent_bad_nested_Statsd_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "Statsd",
+					keys:    "unknown_option1,unknown_option2",
+				},
+				{
+					section: "Statsd",
+					keys:    "unknown_option3,unknown_option4",
+				},
+			},
 		},
 		{
-			msg:            "in nested M3 block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_M3_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown M3 config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested M3 block",
+			confFile: "server_and_agent_bad_nested_M3_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "M3",
+					keys:    "unknown_option1,unknown_option2",
+				},
+				{
+					section: "M3",
+					keys:    "unknown_option3,unknown_option4",
+				},
+			},
 		},
 		{
-			msg:            "in nested InMem block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_InMem_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown InMem config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested InMem block",
+			confFile: "server_and_agent_bad_nested_InMem_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "InMem",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 		{
-			msg:            "in nested health_checks block",
-			testFilePath:   fmt.Sprintf("%v/server_and_agent_bad_nested_health_checks_block.conf", testFileDir),
-			expectedLogMsg: "Detected unknown health check config options: [\"unknown_option1\" \"unknown_option2\"]; this will be fatal in a future release.",
+			msg:      "in nested health_checks block",
+			confFile: "server_and_agent_bad_nested_health_checks_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "health check",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
 		},
 	}
 
 	for _, testCase := range cases {
 		testCase := testCase
 
-		c, err := ParseFile(testCase.testFilePath, false)
+		c, err := ParseFile(filepath.Join(testFileDir, testCase.confFile), false)
 		require.NoError(t, err)
 
-		log, hook := test.NewNullLogger()
-
 		t.Run(testCase.msg, func(t *testing.T) {
-			warnOnUnknownConfig(c, log)
-			require.NotNil(t, hook.LastEntry())
-			require.Equal(t, testCase.expectedLogMsg, hook.AllEntries()[0].Message)
+			log, hook := test.NewNullLogger()
+			err := checkForUnknownConfig(c, log)
+			assert.EqualError(t, err, "unknown configuration detected")
 
-			hook.Reset()
-			require.Nil(t, hook.LastEntry())
+			var logEntries []spiretest.LogEntry
+			for _, expectedLogEntry := range testCase.expectedLogEntries {
+				logEntries = append(logEntries, spiretest.LogEntry{
+					Level:   logrus.ErrorLevel,
+					Message: "Unknown configuration detected",
+					Data: logrus.Fields{
+						"section": expectedLogEntry.section,
+						"keys":    expectedLogEntry.keys,
+					},
+				})
+			}
+			spiretest.AssertLogsAnyOrder(t, hook.AllEntries(), logEntries)
 		})
 	}
 }
@@ -932,7 +1004,7 @@ func TestLogOptions(t *testing.T) {
 		log.WithOutputFile(fd.Name()),
 	}
 
-	agentConfig, err := NewAgentConfig(defaultValidConfig(), logOptions)
+	agentConfig, err := NewAgentConfig(defaultValidConfig(), logOptions, false)
 	require.NoError(t, err)
 
 	logger := agentConfig.Log.(*log.Logger).Logger

@@ -81,6 +81,8 @@ message RegistrationEntry {
     int64 entryExpiry = 9;
     /** DNS entries */
     repeated string dns_names = 10;
+    /** Revision number is bumped every time the entry is updated */
+    int64 revision_number = 11;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */

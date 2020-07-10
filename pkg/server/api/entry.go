@@ -52,16 +52,17 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 	}
 
 	return &types.Entry{
-		Id:            e.EntryId,
-		SpiffeId:      ProtoFromID(spiffeID),
-		ParentId:      ProtoFromID(parentID),
-		Selectors:     selectors,
-		Ttl:           e.Ttl,
-		FederatesWith: e.FederatesWith,
-		Admin:         e.Admin,
-		Downstream:    e.Downstream,
-		ExpiresAt:     e.EntryExpiry,
-		DnsNames:      e.DnsNames,
+		Id:             e.EntryId,
+		SpiffeId:       ProtoFromID(spiffeID),
+		ParentId:       ProtoFromID(parentID),
+		Selectors:      selectors,
+		Ttl:            e.Ttl,
+		FederatesWith:  e.FederatesWith,
+		Admin:          e.Admin,
+		Downstream:     e.Downstream,
+		ExpiresAt:      e.EntryExpiry,
+		DnsNames:       e.DnsNames,
+		RevisionNumber: e.RevisionNumber,
 	}, nil
 }
 

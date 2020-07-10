@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -94,18 +95,20 @@ type experimentalConfig struct {
 }
 
 type Command struct {
-	LogOptions []log.Option
-	env        *common_cli.Env
+	logOptions         []log.Option
+	env                *common_cli.Env
+	allowUnknownConfig bool
 }
 
-func NewRunCommand(logOptions []log.Option) cli.Command {
-	return newRunCommand(common_cli.DefaultEnv, logOptions)
+func NewRunCommand(logOptions []log.Option, allowUnknownConfig bool) cli.Command {
+	return newRunCommand(common_cli.DefaultEnv, logOptions, allowUnknownConfig)
 }
 
-func newRunCommand(env *common_cli.Env, logOptions []log.Option) *Command {
+func newRunCommand(env *common_cli.Env, logOptions []log.Option, allowUnknownConfig bool) *Command {
 	return &Command{
-		env:        env,
-		LogOptions: logOptions,
+		env:                env,
+		logOptions:         logOptions,
+		allowUnknownConfig: allowUnknownConfig,
 	}
 }
 
@@ -122,7 +125,7 @@ func Help(name string, writer io.Writer) string {
 	return err.Error()
 }
 
-func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer) (*agent.Config, error) {
+func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*agent.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(name, args, output)
@@ -142,11 +145,11 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, err
 	}
 
-	return NewAgentConfig(input, logOptions)
+	return NewAgentConfig(input, logOptions, allowUnknownConfig)
 }
 
 func (cmd *Command) Run(args []string) int {
-	c, err := LoadConfig(commandName, args, cmd.LogOptions, cmd.env.Stderr)
+	c, err := LoadConfig(commandName, args, cmd.logOptions, cmd.env.Stderr, cmd.allowUnknownConfig)
 	if err != nil {
 		_, _ = fmt.Fprintln(cmd.env.Stderr, err)
 		return 1
@@ -321,7 +324,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 	return nil
 }
 
-func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
+func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*agent.Config, error) {
 	ac := &agent.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -385,12 +388,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option) (*agent.Config, error) {
 		ac.Log.Warn("SDS support is now always on. The enable_sds configurable is ignored and should be removed.")
 	}
 
-	// Warn if we detect unknown config options. We need a logger to do this. In
-	// the future, we can move from warning to bailing out (once folks have had
-	// ample time to detect any pre-existing errors)
-	//
-	// TODO: Move this check into validateConfig for 0.11.0
-	warnOnUnknownConfig(c, ac.Log)
+	if !allowUnknownConfig {
+		if err := checkForUnknownConfig(c, logger); err != nil {
+			return nil, err
+		}
+	}
 
 	return ac, nil
 }
@@ -441,51 +443,61 @@ func validateConfig(c *Config) error {
 	return nil
 }
 
-func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
+func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
+	detectedUnknown := func(section string, keys []string) {
+		l.WithFields(logrus.Fields{
+			"section": section,
+			"keys":    strings.Join(keys, ","),
+		}).Error("Unknown configuration detected")
+		err = errors.New("unknown configuration detected")
+	}
+
 	if len(c.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
+		detectedUnknown("top-level", c.UnusedKeys)
 	}
 
 	if a := c.Agent; a != nil && len(a.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown agent config options: %q; this will be fatal in a future release.", a.UnusedKeys)
+		detectedUnknown("agent", a.UnusedKeys)
 	}
 
 	// TODO: Re-enable unused key detection for telemetry. See
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
 	//if len(c.Telemetry.UnusedKeys) != 0 {
-	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
 	//}
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+		detectedUnknown("Prometheus", p.UnusedKeys)
 	}
 
 	for _, v := range c.Telemetry.DogStatsd {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown DogStatsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+			detectedUnknown("DogStatsd", v.UnusedKeys)
 		}
 	}
 
 	for _, v := range c.Telemetry.Statsd {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown Statsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+			detectedUnknown("Statsd", v.UnusedKeys)
 		}
 	}
 
 	for _, v := range c.Telemetry.M3 {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown M3 config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+			detectedUnknown("M3", v.UnusedKeys)
 		}
 	}
 
 	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown InMem config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+		detectedUnknown("InMem", p.UnusedKeys)
 	}
 
 	if len(c.HealthChecks.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown health check config options: %q; this will be fatal in a future release.", c.HealthChecks.UnusedKeys)
+		detectedUnknown("health check", c.HealthChecks.UnusedKeys)
 	}
+
+	return err
 }
 
 func defaultConfig() *Config {

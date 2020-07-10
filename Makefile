@@ -105,11 +105,13 @@ protoc_dir = $(build_dir)/protoc/$(protoc_version)
 protoc_bin = $(protoc_dir)/bin/protoc
 
 protoc_gen_go_version := $(shell grep github.com/golang/protobuf go.mod | awk '{print $$2}')
-protoc_gen_go_dir := $(build_dir)/protoc-gen-go/$(protoc_gen_go_version)
+protoc_gen_go_base_dir := $(build_dir)/protoc-gen-go
+protoc_gen_go_dir := $(protoc_gen_go_base_dir)/$(protoc_gen_go_version)-go$(go_version)
 protoc_gen_go_bin := $(protoc_gen_go_dir)/protoc-gen-go
 
 mockgen_version := $(shell grep github.com/golang/mock go.mod | awk '{print $$2}')
-mockgen_dir := $(build_dir)/mockgen/$(mockgen_version)
+mockgen_base_dir := $(build_dir)/mockgen
+mockgen_dir := $(mockgen_base_dir)/$(mockgen_version)-go$(go_version)
 mockgen_bin := $(mockgen_dir)/mockgen
 
 # There may be more than one tag. Only use one that starts with 'v' followed by
@@ -513,7 +515,7 @@ install-protoc-gen-go: $(protoc_gen_go_bin)
 
 $(protoc_gen_go_bin): | go-check
 	@echo "Installing protoc-gen-go $(protoc_gen_go_version)..."
-	$(E)rm -rf $(dir $(protoc_gen_go_dir))
+	$(E)rm -rf $(protoc_gen_go_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_dir)
 	$(E)$(go) build -o $(protoc_gen_go_bin) github.com/golang/protobuf/protoc-gen-go
 
@@ -521,6 +523,6 @@ install-mockgen: $(mockgen_bin)
 
 $(mockgen_bin): | go-check
 	@echo "Installing mockgen $(mockgen_version)..."
-	$(E)rm -rf $(dir $(mockgen_dir))
+	$(E)rm -rf $(mockgen_base_dir)
 	$(E)mkdir -p $(mockgen_dir)
 	$(E)$(go) build -o $(mockgen_bin) github.com/golang/mock/mockgen

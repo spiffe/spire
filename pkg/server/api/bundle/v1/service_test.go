@@ -94,14 +94,14 @@ func TestGetFederatedBundle(t *testing.T) {
 			name:        "Trust domain is not a valid trust domain",
 			isAdmin:     true,
 			trustDomain: "malformed id",
-			err:         `rpc error: code = InvalidArgument desc = trust domain argument is not valid: spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`,
+			err:         `rpc error: code = InvalidArgument desc = trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid request: trust domain argument is not valid",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`,
+						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
 					},
 				},
 			},
@@ -410,14 +410,14 @@ func TestAppendBundle(t *testing.T) {
 				TrustDomain: "malformed id",
 			},
 			code: codes.InvalidArgument,
-			err:  `trust domain argument is not valid: spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`,
+			err:  `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid request: trust domain argument is not valid",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`,
+						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
 					},
 				},
 			},
@@ -637,7 +637,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid request: trust domain argument is not valid",
 					Data: logrus.Fields{
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://malformed TD: invalid character " " in host name`,
+						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
 						telemetry.TrustDomainID: "malformed TD",
 					},
 				},
@@ -646,7 +646,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: `trust domain argument is not valid: spiffeid: unable to parse: parse spiffe://malformed TD: invalid character " " in host name`,
+						Message: `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
 					},
 					TrustDomain: "malformed TD",
 				},
@@ -1143,7 +1143,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1151,7 +1151,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 					Message: `Invalid request: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`,
+						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
 					},
 				},
 			},
@@ -1376,7 +1376,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1384,7 +1384,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					Message: `Invalid request: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse spiffe://malformed id: invalid character " " in host name`,
+						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
 					},
 				},
 			},

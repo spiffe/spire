@@ -1292,6 +1292,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.ParentId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/parentUpdated"}
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1321,6 +1322,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.SpiffeId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/workloadUpdated"}
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1358,6 +1360,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.Selectors = []*types.Selector{
 					{Type: "unix", Value: "uid:2000"},
 				}
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1418,6 +1421,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.Ttl = 1000
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1447,6 +1451,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.FederatesWith = []string{}
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1476,6 +1481,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.Admin = false
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1505,6 +1511,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.Downstream = false
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1534,6 +1541,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.ExpiresAt = 999
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1563,6 +1571,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
 				modifiedEntry.DnsNames = []string{"dnsUpdated"}
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1591,6 +1600,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectDsEntries: func(m string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = m
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1792,6 +1802,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(updateEverythingEntry).(*types.Entry)
 				modifiedEntry.Id = id
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1804,11 +1815,12 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:9999"},
 						},
-						FederatesWith: []string{},
-						Admin:         false,
-						ExpiresAt:     999999999,
-						DnsNames:      []string{"dns3", "dns4"},
-						Downstream:    false,
+						FederatesWith:  []string{},
+						Admin:          false,
+						ExpiresAt:      999999999,
+						DnsNames:       []string{"dns3", "dns4"},
+						Downstream:     false,
+						RevisionNumber: 1,
 					},
 				},
 			},
@@ -1839,10 +1851,11 @@ func TestBatchUpdateEntry(t *testing.T) {
 						FederatesWith: []string{
 							"spiffe://domain1.org",
 						},
-						Admin:      true,
-						ExpiresAt:  expiresAt,
-						DnsNames:   []string{"dns1", "dns2"},
-						Downstream: true,
+						Admin:          true,
+						ExpiresAt:      expiresAt,
+						DnsNames:       []string{"dns1", "dns2"},
+						Downstream:     true,
+						RevisionNumber: 1,
 					},
 				},
 			},
@@ -1861,6 +1874,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectDsEntries: func(m string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = m
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
@@ -1889,6 +1903,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = m
 				modifiedEntry.Ttl = 500000
+				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
