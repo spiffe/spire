@@ -89,6 +89,7 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
+	EnableAPI    bool   `hcl:"enable_api"`
 	SyncInterval string `hcl:"sync_interval"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
@@ -382,6 +383,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry
 	ac.HealthChecks = c.HealthChecks
+
+	if c.Agent.Experimental.EnableAPI {
+		ac.ExperimentalAPIEnabled = c.Agent.Experimental.EnableAPI
+		ac.Log.Info("Experimental API enabled")
+	}
 
 	// TODO: remove deprecated configurable in 0.12.0
 	if c.Agent.DeprecatedEnableSDS != nil {

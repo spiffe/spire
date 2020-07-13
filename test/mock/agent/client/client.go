@@ -36,18 +36,18 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // FetchJWTSVID mocks base method
-func (m *MockClient) FetchJWTSVID(arg0 context.Context, arg1 *node.JSR) (*client.JWTSVID, error) {
+func (m *MockClient) FetchJWTSVID(arg0 context.Context, arg1 *node.JSR, arg2 string) (*client.JWTSVID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchJWTSVID", arg0, arg1)
+	ret := m.ctrl.Call(m, "FetchJWTSVID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*client.JWTSVID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchJWTSVID indicates an expected call of FetchJWTSVID
-func (mr *MockClientMockRecorder) FetchJWTSVID(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) FetchJWTSVID(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockClient)(nil).FetchJWTSVID), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockClient)(nil).FetchJWTSVID), arg0, arg1, arg2)
 }
 
 // FetchUpdates mocks base method
