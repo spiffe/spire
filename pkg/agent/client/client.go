@@ -100,7 +100,12 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	}
 
 	if c.c.ExperimentalAPIEnabled {
-		return c.fetchUpdates(ctx, req, forRotation)
+		resp, err := c.fetchUpdates(ctx, req, forRotation)
+		if err != nil {
+			c.c.Log.WithError(err).Error("Failed to fetch updates")
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	nodeClient, nodeConn, err := c.newNodeClient(ctx)

@@ -97,6 +97,10 @@ func bundleFormProto(b *types.Bundle) (*common.Bundle, error) {
 		return nil, errors.New("no bundle provided")
 	}
 
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
 	var rootCAs []*common.Certificate
 	for _, rootCA := range b.X509Authorities {
 		rootCAs = append(rootCAs, &common.Certificate{
@@ -118,7 +122,7 @@ func bundleFormProto(b *types.Bundle) (*common.Bundle, error) {
 	}
 
 	return &common.Bundle{
-		TrustDomainId:  b.TrustDomain,
+		TrustDomainId:  td.IDString(),
 		RefreshHint:    b.RefreshHint,
 		RootCas:        rootCAs,
 		JwtSigningKeys: jwtKeys,

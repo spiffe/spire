@@ -20,6 +20,29 @@ import (
 )
 
 func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest, forRotation bool) (*Update, error) {
+	// Only SVIDs are required when calling for rotation
+	if forRotation {
+		svids := make(map[string]*node.X509SVID)
+		for spiffeID, csr := range req.Csrs {
+			svid, err := c.renewSVID(ctx, csr)
+			if err != nil {
+				c.c.Log.WithError(err).Error("failed to renew SVID")
+				return nil, err
+			}
+			var certChain []byte
+			for _, cert := range svid.CertChain {
+				certChain = append(certChain, cert...)
+			}
+			svids[spiffeID] = &node.X509SVID{
+				CertChain: certChain,
+				ExpiresAt: svid.ExpiresAt,
+			}
+		}
+
+		return &Update{
+			SVIDs: svids,
+		}, nil
+	}
 	protoEntries, err := c.fetchEntries(ctx)
 	if err != nil {
 		return nil, err
@@ -39,7 +62,6 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 			continue
 		}
 
-		c.c.Log.WithField("entryID", entry.EntryId).WithField("spiffeID", entry.SpiffeId).Debug("Entry found")
 		// Get all federated trust domains
 		for _, td := range entry.FederatesWith {
 			federatesWith[td] = true
@@ -51,6 +73,7 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	for key := range federatesWith {
 		keys = append(keys, key)
 	}
+
 	protoBundles, err := c.fetchBundles(ctx, keys)
 	if err != nil {
 		return nil, err
@@ -66,26 +89,7 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	}
 
 	svids := make(map[string]*node.X509SVID)
-	switch {
-	case len(req.Csrs) == 0:
-		// No action need
-	case forRotation:
-		for spiffID, csr := range req.Csrs {
-			svid, err := c.renewSVID(ctx, csr)
-			if err != nil {
-				return nil, err
-			}
-
-			var certChain []byte
-			for _, cert := range svid.CertChain {
-				certChain = append(certChain, cert...)
-			}
-			svids[spiffID] = &node.X509SVID{
-				CertChain: certChain,
-				ExpiresAt: svid.ExpiresAt,
-			}
-		}
-	default:
+	if len(req.Csrs) > 0 {
 		var params []*svidpb.NewX509SVIDParams
 		for entryID, csr := range req.Csrs {
 			params = append(params, &svidpb.NewX509SVIDParams{
@@ -299,6 +303,7 @@ func (c *client) newEntryClient(ctx context.Context) (entrypb.EntryClient, *node
 		}
 		c.connections = newNodeConn(conn)
 	}
+
 	c.connections.AddRef()
 	return c.createNewEntryClient(c.connections.conn), c.connections, nil
 }
