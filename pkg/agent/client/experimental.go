@@ -26,7 +26,7 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		for spiffeID, csr := range req.Csrs {
 			svid, err := c.renewSVID(ctx, csr)
 			if err != nil {
-				c.c.Log.WithError(err).Error("failed to renew SVID")
+				c.c.Log.WithError(err).Error("Failed to renew SVID")
 				return nil, err
 			}
 			var certChain []byte
@@ -98,12 +98,12 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 			})
 		}
 
-		protoSvids, err := c.fetchSVIDs(ctx, params)
+		protoSVIDs, err := c.fetchSVIDs(ctx, params)
 		if err != nil {
 			return nil, err
 		}
 
-		for i, s := range protoSvids {
+		for i, s := range protoSVIDs {
 			entryID := params[i].EntryId
 			if s == nil {
 				c.c.Log.WithField(telemetry.RegistrationID, entryID).Debug("Entry not found")
@@ -295,7 +295,6 @@ func (c *client) newEntryClient(ctx context.Context) (entrypb.EntryClient, *node
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	// open a new connection
 	if c.connections == nil {
 		conn, err := c.dial(ctx)
 		if err != nil {
@@ -312,7 +311,6 @@ func (c *client) newBundleClient(ctx context.Context) (bundlepb.BundleClient, *n
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	// open a new connection
 	if c.connections == nil {
 		conn, err := c.dial(ctx)
 		if err != nil {
@@ -328,7 +326,6 @@ func (c *client) newSVIDClient(ctx context.Context) (svidpb.SVIDClient, *nodeCon
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	// open a new connection
 	if c.connections == nil {
 		conn, err := c.dial(ctx)
 		if err != nil {
@@ -344,7 +341,6 @@ func (c *client) newAgentClient(ctx context.Context) (agentpb.AgentClient, *node
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	// open a new connection
 	if c.connections == nil {
 		conn, err := c.dial(ctx)
 		if err != nil {
