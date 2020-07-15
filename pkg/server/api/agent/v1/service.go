@@ -246,39 +246,30 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	return status.Error(codes.Unimplemented, "method not implemented")
 }
 
-func (s *Service) RenewAgent(stream agent.Agent_RenewAgentServer) error {
-	ctx := stream.Context()
-
+func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) (*agent.RenewAgentResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
 		log.WithError(err).Error("Rejecting request due to renew agent rate limiting")
-		return err
+		return nil, err
 	}
 
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
 		log.Error("Caller ID missing from request context")
-		return status.Error(codes.Internal, "caller ID missing from request context")
+		return nil, status.Error(codes.Internal, "caller ID missing from request context")
 	}
 
 	log.Debug("Renewing agent SVID")
 
-	req, err := stream.Recv()
-	if err != nil {
-		log.WithError(err).Error("Failed to receive request from stream")
-		return status.Error(codes.InvalidArgument, err.Error())
+	if req.Params == nil {
+		log.Error("Invalid argument: params cannot be nil")
+		return nil, status.Error(codes.InvalidArgument, "params cannot be nil")
 	}
 
-	params, ok := req.Step.(*agent.RenewAgentRequest_Params)
-	if !ok {
-		log.Errorf("Invalid argument: expected params step but got %T", params)
-		return status.Errorf(codes.InvalidArgument, "expected params step but got %T", params)
-	}
-
-	agentSVID, err := s.signSvid(ctx, &callerID, params, log)
+	agentSVID, err := s.signSvid(ctx, &callerID, req.Params, log)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := s.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
@@ -290,39 +281,17 @@ func (s *Service) RenewAgent(stream agent.Agent_RenewAgentServer) error {
 		NewCertNotAfter:     agentSVID[0].NotAfter.Unix(),
 		NewCertSerialNumber: agentSVID[0].SerialNumber.String(),
 	}, log); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Send response with new X509 SVID
-	if err := stream.Send(&agent.RenewAgentResponse{
+	return &agent.RenewAgentResponse{
 		Svid: &types.X509SVID{
 			Id:        api.ProtoFromID(callerID),
 			ExpiresAt: agentSVID[0].NotAfter.Unix(),
 			CertChain: x509util.RawCertsFromCertificates(agentSVID),
 		},
-	}); err != nil {
-		log.WithError(err).Error("Failed to send response")
-		return status.Errorf(codes.Internal, "failed to send response: %v", err)
-	}
-
-	// Wait until get ACK
-	req, err = stream.Recv()
-	if err != nil {
-		log.WithError(err).Error("Failed to receive ack from stream")
-		return status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	ack, ok := req.Step.(*agent.RenewAgentRequest_Ack_)
-	if !ok {
-		log.Errorf("Invalid argument: expected ack step but got %T", ack)
-		return status.Errorf(codes.InvalidArgument, "expected ack step but got %T", ack)
-	}
-
-	return s.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:         callerID.String(),
-		CertNotAfter:     agentSVID[0].NotAfter.Unix(),
-		CertSerialNumber: agentSVID[0].SerialNumber.String(),
-	}, log)
+	}, nil
 }
 
 func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest, log logrus.FieldLogger) error {
@@ -339,13 +308,13 @@ func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateA
 	}
 }
 
-func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, step *agent.RenewAgentRequest_Params, log logrus.FieldLogger) ([]*x509.Certificate, error) {
-	if len(step.Params.Csr) == 0 {
+func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, params *agent.AgentX509SVIDParams, log logrus.FieldLogger) ([]*x509.Certificate, error) {
+	if len(params.Csr) == 0 {
 		log.Error("Invalid argument: missing CSR")
 		return nil, status.Error(codes.InvalidArgument, "missing CSR")
 	}
 
-	csr, err := x509.ParseCertificateRequest(step.Params.Csr)
+	csr, err := x509.ParseCertificateRequest(params.Csr)
 	if err != nil {
 		log.WithError(err).Error("Invalid argument: failed to parse CSR")
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse CSR: %v", err)

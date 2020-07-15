@@ -25,3 +25,15 @@ message PermissionDeniedDetails {
     }
     Reason reason = 1;
 }
+
+message InternalDetails{
+    enum Reason {
+        // Reason unknown.
+        UNKNOWN = 0;
+        // Unable to activate agent SVID.
+        SVID_ACTIVATION_FAILED = 1;
+        // Unable to fetch agent SVID information.
+        SVID_RETRIEVAL_FAILED = 2;
+    }
+    Reason reason = 1;
+}

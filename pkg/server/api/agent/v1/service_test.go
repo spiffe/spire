@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"testing"
 	"time"
@@ -921,8 +920,6 @@ func TestRenewAgent(t *testing.T) {
 		name string
 
 		dsError        []error
-		ackError       error
-		ackReq         *agentpb.RenewAgentRequest
 		createNode     *common.AttestedNode
 		expectLogs     []spiretest.LogEntry
 		failCallerID   bool
@@ -938,10 +935,8 @@ func TestRenewAgent(t *testing.T) {
 				renewingMessage,
 			},
 			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
+				Params: &agentpb.AgentX509SVIDParams{
+					Csr: csr,
 				},
 			},
 		},
@@ -957,6 +952,7 @@ func TestRenewAgent(t *testing.T) {
 					},
 				},
 			},
+			paramReq:       &agentpb.RenewAgentRequest{},
 			paramsError:    status.Error(codes.Unknown, "rate limit fails"),
 			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
 		},
@@ -969,23 +965,9 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Caller ID missing from request context",
 				},
 			},
+			paramReq:     &agentpb.RenewAgentRequest{},
 			failCallerID: true,
 			paramsError:  status.Error(codes.Internal, "caller ID missing from request context"),
-		},
-		{
-			name:       "invalid param type",
-			createNode: cloneAttestedNode(defaultNode),
-			expectLogs: []spiretest.LogEntry{
-				renewingMessage,
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: expected params step but got *agent.RenewAgentRequest_Params",
-				},
-			},
-			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Ack_{Ack: &agentpb.RenewAgentRequest_Ack{}},
-			},
-			paramsError: status.Error(codes.InvalidArgument, "expected params step but got *agent.RenewAgentRequest_Params"),
 		},
 		{
 			name: "no attested node",
@@ -1000,10 +982,8 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
+				Params: &agentpb.AgentX509SVIDParams{
+					Csr: csr,
 				},
 			},
 			paramsError: status.Error(codes.NotFound, "agent not found: rpc error: code = NotFound desc = datastore-sql: record not found"),
@@ -1019,9 +999,7 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{},
-				},
+				Params: &agentpb.AgentX509SVIDParams{},
 			},
 			paramsError: status.Error(codes.InvalidArgument, "missing CSR"),
 		},
@@ -1038,13 +1016,24 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: []byte("malformed CSR"),
-					},
+				Params: &agentpb.AgentX509SVIDParams{
+					Csr: []byte("malformed CSR"),
 				},
 			},
 			paramsError: status.Errorf(codes.InvalidArgument, "failed to parse CSR: %v", malformedError),
+		},
+		{
+			name:       "request has nil param",
+			createNode: cloneAttestedNode(defaultNode),
+			expectLogs: []spiretest.LogEntry{
+				renewingMessage,
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: params cannot be nil",
+				},
+			},
+			paramReq:    &agentpb.RenewAgentRequest{},
+			paramsError: status.Error(codes.InvalidArgument, "params cannot be nil"),
 		},
 		{
 			name:       "failed to sign SVID",
@@ -1061,10 +1050,8 @@ func TestRenewAgent(t *testing.T) {
 			},
 			failSigning: true,
 			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
+				Params: &agentpb.AgentX509SVIDParams{
+					Csr: csr,
 				},
 			},
 			paramsError: status.Error(codes.Internal, "failed to sign X509 SVID: X509 CA is not available for signing"),
@@ -1086,64 +1073,11 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
+				Params: &agentpb.AgentX509SVIDParams{
+					Csr: csr,
 				},
 			},
 			paramsError: status.Error(codes.Internal, "failed to update agent: some error"),
-		},
-		{
-			name:       "ack invalid type",
-			createNode: cloneAttestedNode(defaultNode),
-			expectLogs: []spiretest.LogEntry{
-				renewingMessage,
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: expected ack step but got *agent.RenewAgentRequest_Ack_",
-				},
-			},
-			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
-				},
-			},
-			ackReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{},
-				},
-			},
-			ackError: status.Error(codes.InvalidArgument, "expected ack step but got *agent.RenewAgentRequest_Ack_"),
-		},
-		{
-			name:       "failed to update attested node after ack",
-			createNode: cloneAttestedNode(defaultNode),
-			dsError: []error{
-				nil,
-				nil,
-				errors.New("some error"),
-			},
-			expectLogs: []spiretest.LogEntry{
-				renewingMessage,
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Failed to update agent",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "some error",
-					},
-				},
-			},
-			paramReq: &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Params{
-					Params: &agentpb.AgentX509SVIDParams{
-						Csr: csr,
-					},
-				},
-			},
-			ackError: status.Error(codes.Internal, "failed to update agent: some error"),
 		},
 	} {
 		tt := tt
@@ -1172,17 +1106,8 @@ func TestRenewAgent(t *testing.T) {
 			expiredAt := now.Add(test.ca.X509SVIDTTL())
 
 			// Send param message
-			stream, err := test.client.RenewAgent(ctx)
-			require.NoError(t, err)
+			resp, err := test.client.RenewAgent(ctx, tt.paramReq)
 
-			// Some test cases expect the handler to fail before the parameters are received by the client.
-			// Only send the request parameters if provided by the test case.
-			if tt.paramReq != nil {
-				err = stream.Send(tt.paramReq)
-				require.NoError(t, err)
-			}
-			// Get SVID as response
-			resp, err := stream.Recv()
 			if tt.paramsError != nil {
 				require.Nil(t, resp)
 				require.Equal(t, tt.paramsError, err)
@@ -1216,56 +1141,10 @@ func TestRenewAgent(t *testing.T) {
 			expectedNode.NewCertSerialNumber = x509Svid.SerialNumber.String()
 			spiretest.AssertProtoEqual(t, expectedNode, updatedNode.Node)
 
-			// Send ack message
-			ackReq := &agentpb.RenewAgentRequest{
-				Step: &agentpb.RenewAgentRequest_Ack_{Ack: &agentpb.RenewAgentRequest_Ack{}},
-			}
-			if tt.ackReq != nil {
-				ackReq = tt.ackReq
-			}
-
-			err = stream.Send(ackReq)
-			require.NoError(t, err)
-
-			// EOF is expected
-			_, err = stream.Recv()
-			if tt.ackError != nil {
-				require.Equal(t, tt.ackError, err)
-				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
-				return
-			}
-			require.Equal(t, io.EOF, err)
-
-			// Verify attested node certificate data is updated
-			updatedNode, err = test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-				SpiffeId: agentID.String(),
-			})
-			require.NoError(t, err)
-			require.NotNil(t, updatedNode)
-
-			expectedNode.CertNotAfter = x509Svid.NotAfter.Unix()
-			expectedNode.CertSerialNumber = x509Svid.SerialNumber.String()
-			expectedNode.NewCertNotAfter = 0
-			expectedNode.NewCertSerialNumber = ""
-			spiretest.AssertProtoEqual(t, expectedNode, updatedNode.Node)
 			// No logs expected
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 		})
 	}
-}
-
-type serviceTest struct {
-	ca           *fakeserverca.CA
-	client       agentpb.AgentClient
-	done         func()
-	ds           *fakedatastore.DataStore
-	logHook      *test.Hook
-	rateLimiter  *fakeRateLimiter
-	withCallerID bool
-}
-
-func (s *serviceTest) Cleanup() {
-	s.done()
 }
 
 func TestCreateJoinToken(t *testing.T) {
@@ -1349,6 +1228,20 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 	require.Equal(t, "spiffe://example.org/valid", listEntries.Entries[0].SpiffeId)
 	require.Equal(t, "spiffe://example.org/spire/agent/join_token/"+token.Value, listEntries.Entries[0].ParentId)
 	require.Equal(t, "spiffe://example.org/spire/agent/join_token/"+token.Value, listEntries.Entries[0].Selectors[0].Value)
+}
+
+type serviceTest struct {
+	ca           *fakeserverca.CA
+	client       agentpb.AgentClient
+	done         func()
+	ds           *fakedatastore.DataStore
+	logHook      *test.Hook
+	rateLimiter  *fakeRateLimiter
+	withCallerID bool
+}
+
+func (s *serviceTest) Cleanup() {
+	s.done()
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
