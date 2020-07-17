@@ -118,7 +118,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		time           time.Time
 		expectedCode   codes.Code
 		expectedMsg    string
-		expectedReason int32
+		expectedReason types.PermissionDeniedDetails_Reason
 		expectedLogs   []spiretest.LogEntry
 	}{
 		{
@@ -130,11 +130,10 @@ func TestAgentAuthorizer(t *testing.T) {
 			expectedCode: codes.OK,
 		},
 		{
-			name:           "fail fetch",
-			failFetch:      true,
-			expectedCode:   codes.Internal,
-			expectedReason: int32(types.InternalDetails_SVID_RETRIEVAL_FAILED),
-			expectedMsg:    "unable to look up agent information",
+			name:         "fail fetch",
+			failFetch:    true,
+			expectedCode: codes.Internal,
+			expectedMsg:  "unable to look up agent information: fetch failed",
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -155,7 +154,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			},
 			expectedCode:   codes.PermissionDenied,
 			expectedMsg:    `agent "spiffe://domain.test/agent" SVID is expired`,
-			expectedReason: int32(types.PermissionDeniedDetails_AGENT_EXPIRED),
+			expectedReason: types.PermissionDeniedDetails_AGENT_EXPIRED,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -170,7 +169,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			name:           "no attested node",
 			expectedCode:   codes.PermissionDenied,
 			expectedMsg:    `agent "spiffe://domain.test/agent" is not attested`,
-			expectedReason: int32(types.PermissionDeniedDetails_AGENT_NOT_ATTESTED),
+			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ATTESTED,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -188,7 +187,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			},
 			expectedCode:   codes.PermissionDenied,
 			expectedMsg:    `agent "spiffe://domain.test/agent" is banned`,
-			expectedReason: int32(types.PermissionDeniedDetails_AGENT_BANNED),
+			expectedReason: types.PermissionDeniedDetails_AGENT_BANNED,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -207,7 +206,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			},
 			expectedCode:   codes.PermissionDenied,
 			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/agent" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber),
-			expectedReason: int32(types.PermissionDeniedDetails_AGENT_NOT_ACTIVE),
+			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -236,10 +235,9 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber:    "CURRENT",
 				NewCertSerialNumber: agentSVID.SerialNumber.String(),
 			},
-			failUpdate:     true,
-			expectedCode:   codes.Internal,
-			expectedMsg:    `unable to activate the new agent SVID: update failed`,
-			expectedReason: int32(types.InternalDetails_SVID_ACTIVATION_FAILED),
+			failUpdate:   true,
+			expectedCode: codes.Internal,
+			expectedMsg:  `unable to activate the new agent SVID: update failed`,
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -295,17 +293,13 @@ func TestAgentAuthorizer(t *testing.T) {
 				// Assert that the expected permission denied reason is returned
 				assert.Equal(t, []interface{}{
 					&types.PermissionDeniedDetails{
-						Reason: types.PermissionDeniedDetails_Reason(tt.expectedReason),
+						Reason: tt.expectedReason,
 					},
 				}, status.Convert(err).Details())
 				return
 			case codes.Internal:
-				// Assert that the expected internal reason is returned
-				assert.Equal(t, []interface{}{
-					&types.InternalDetails{
-						Reason: types.InternalDetails_Reason(tt.expectedReason),
-					},
-				}, status.Convert(err).Details())
+				// Assert that the expected error matches
+				assert.Equal(t, err, status.Errorf(codes.Internal, tt.expectedMsg))
 				return
 			}
 

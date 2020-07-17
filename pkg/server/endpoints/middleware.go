@@ -113,16 +113,6 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 			return st.Err()
 		}
 
-		internal := func(reason types.InternalDetails_Reason, format string, args ...interface{}) error {
-			st := status.Newf(codes.Internal, format, args...)
-			if detailed, err := st.WithDetails(&types.InternalDetails{
-				Reason: reason,
-			}); err == nil {
-				st = detailed
-			}
-			return st.Err()
-		}
-
 		if clk.Now().After(agentSVID.NotAfter) {
 			log.Error("Agent SVID is expired")
 			return permissionDenied(types.PermissionDeniedDetails_AGENT_EXPIRED, "agent %q SVID is expired", id)
@@ -134,7 +124,7 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 		switch {
 		case err != nil:
 			log.WithError(err).Error("Unable to look up agent information")
-			return internal(types.InternalDetails_SVID_RETRIEVAL_FAILED, "unable to look up agent information")
+			return status.Errorf(codes.Internal, "unable to look up agent information: %v", err)
 		case resp.Node == nil:
 			log.Error("Agent is not attested")
 			return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ATTESTED, "agent %q is not attested", id)
@@ -158,7 +148,7 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 					telemetry.SerialNumber:     resp.Node.CertSerialNumber,
 					telemetry.NewSerialNumber:  resp.Node.NewCertSerialNumber,
 				}).WithError(err).Warningf("Unable to activate the new agent SVID")
-				return internal(types.InternalDetails_SVID_ACTIVATION_FAILED, "unable to activate the new agent SVID: %v", err)
+				return status.Errorf(codes.Internal, "unable to activate the new agent SVID: %v", err)
 			}
 			return nil
 		default:
