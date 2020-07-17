@@ -289,6 +289,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectedLogs)
 
 			switch tt.expectedCode {
+			case codes.OK:
 			case codes.PermissionDenied:
 				// Assert that the expected permission denied reason is returned
 				assert.Equal(t, []interface{}{
@@ -298,9 +299,9 @@ func TestAgentAuthorizer(t *testing.T) {
 				}, status.Convert(err).Details())
 				return
 			case codes.Internal:
-				// Assert that the expected error matches
-				assert.Equal(t, err, status.Errorf(codes.Internal, tt.expectedMsg))
 				return
+			default:
+				require.Fail(t, "unexpected error code")
 			}
 
 			// Assert the new SVID serial number (if existed) is now set as current
