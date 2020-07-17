@@ -167,6 +167,86 @@ func TestFetchUpdates(t *testing.T) {
 	}
 }
 
+func TestFetchUpdatesForRotation(t *testing.T) {
+	client, tc := createClient(t)
+	defer tc.Release()
+
+	for _, tt := range []struct {
+		name       string
+		agentErr   error
+		err        string
+		expectSVID map[string]*node.X509SVID
+		req        *node.FetchX509SVIDRequest
+		agentSVID  *types.X509SVID
+	}{
+		{
+			name: "success",
+			req: &node.FetchX509SVIDRequest{
+				Csrs: map[string][]byte{
+					"spiffe://example.org/agent1": {0, 1, 2},
+				},
+			},
+			agentSVID: &types.X509SVID{
+				Id: &types.SPIFFEID{
+					TrustDomain: "example.org",
+					Path:        "/agent1",
+				},
+				CertChain: [][]byte{{1, 2, 3}},
+				ExpiresAt: 12345,
+			},
+			expectSVID: map[string]*node.X509SVID{
+				"spiffe://example.org/agent1": {
+					CertChain: []byte{1, 2, 3},
+					ExpiresAt: 12345,
+				},
+			},
+		},
+		{
+			name: "no csr",
+			req: &node.FetchX509SVIDRequest{
+				Csrs: map[string][]byte{},
+			},
+			agentSVID: &types.X509SVID{
+				Id: &types.SPIFFEID{
+					TrustDomain: "example.org",
+					Path:        "/agent1",
+				},
+				CertChain: [][]byte{{1, 2, 3}},
+				ExpiresAt: 12345,
+			},
+			expectSVID: map[string]*node.X509SVID{},
+		},
+		{
+			name: "renew agent fails",
+			req: &node.FetchX509SVIDRequest{
+				Csrs: map[string][]byte{
+					"spiffe://example.org/agent1": {0, 1, 2},
+				},
+			},
+			agentErr: errors.New("renew fails"),
+			err:      "renew fails",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client.c.ExperimentalAPIEnabled = true
+			tc.agentClient.err = tt.agentErr
+			tc.agentClient.svid = tt.agentSVID
+
+			resp, err := client.FetchUpdates(context.Background(), tt.req, true)
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.Nil(t, err)
+			require.Equal(t, resp, &Update{SVIDs: tt.expectSVID})
+
+			assertConnectionIsNotNil(t, client)
+		})
+	}
+}
 func newTestFetchX509SVIDRequest() *node.FetchX509SVIDRequest {
 	return &node.FetchX509SVIDRequest{
 		Csrs: map[string][]byte{
@@ -974,6 +1054,22 @@ func (c *fakeSVIDClient) NewJWTSVID(ctx context.Context, in *svidpb.NewJWTSVIDRe
 
 type fakeAgentClient struct {
 	agentpb.AgentClient
+	err  error
+	svid *types.X509SVID
+}
+
+func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentpb.RenewAgentRequest, opts ...grpc.CallOption) (*agentpb.RenewAgentResponse, error) {
+	if c.err != nil {
+		return nil, c.err
+	}
+
+	if in.Params == nil || len(in.Params.Csr) == 0 {
+		return nil, errors.New("malformed param")
+	}
+
+	return &agentpb.RenewAgentResponse{
+		Svid: c.svid,
+	}, nil
 }
 
 type testClient struct {

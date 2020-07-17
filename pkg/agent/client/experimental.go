@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -179,7 +178,6 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	return bundles, nil
 }
 
-// TODO: this implementation must be refactored once we remove ACK logic (#1723) and covered with unit tests
 func (c *client) renewSVID(ctx context.Context, csr []byte) (*types.X509SVID, error) {
 	agentClient, connection, err := c.newAgentClient(ctx)
 	if err != nil {
@@ -187,36 +185,13 @@ func (c *client) renewSVID(ctx context.Context, csr []byte) (*types.X509SVID, er
 	}
 	defer connection.Release()
 
-	stream, err := agentClient.RenewAgent(ctx)
+	resp, err := agentClient.RenewAgent(ctx, &agentpb.RenewAgentRequest{
+		Params: &agentpb.AgentX509SVIDParams{
+			Csr: csr,
+		},
+	})
 	if err != nil {
 		c.release(connection)
-		c.c.Log.WithError(err).Error("failed to renew connection")
-		return nil, err
-	}
-
-	req := &agentpb.RenewAgentRequest{
-		Step: &agentpb.RenewAgentRequest_Params{
-			Params: &agentpb.AgentX509SVIDParams{
-				Csr: csr,
-			},
-		},
-	}
-	if err := stream.Send(req); err != nil {
-		return nil, err
-	}
-
-	resp, err := stream.Recv()
-	if err != nil {
-		return nil, err
-	}
-
-	req = &agentpb.RenewAgentRequest{
-		Step: &agentpb.RenewAgentRequest_Ack_{Ack: &agentpb.RenewAgentRequest_Ack{}},
-	}
-	if err := stream.Send(req); err != nil {
-		return nil, err
-	}
-	if _, err := stream.Recv(); err != io.EOF {
 		return nil, err
 	}
 
