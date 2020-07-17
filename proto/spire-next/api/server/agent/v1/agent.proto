@@ -41,12 +41,12 @@ service Agent {
     // The caller is not authenticated.
     rpc AttestAgent(stream AttestAgentRequest) returns (stream AttestAgentResponse);
 
-    // Renews the agent and returns a new X509-SVID using a bidirectional
-    // stream to facilitate two-phase commit of the renewal.
+    // Renews the agent and returns a new X509-SVID. The new SVID is not enabled
+    // on the server side until its first use.
     //
     // The caller must present an active agent X509-SVID, i.e. the X509-SVID
     // returned by the AttestAgent or the most recent RenewAgent call.
-    rpc RenewAgent(stream RenewAgentRequest) returns (stream RenewAgentResponse);
+    rpc RenewAgent(RenewAgentRequest) returns (RenewAgentResponse);
 
     // Creates an agent join token. The token can be used with `join_token`
     // attestation to join the trust domain.
@@ -146,17 +146,8 @@ message AttestAgentResponse {
 }
 
 message RenewAgentRequest {
-    message Ack {};
-
-    // Required. The data for the step in the renewal flow.
-    oneof step {
-        // Parameters for the X509-SVID.
-        AgentX509SVIDParams params = 1;
-
-        // An acknowledgement by the receiving end that it has received the
-        // renewed SVID and will be using it in future requests.
-        Ack ack = 2;
-    }
+    // Required. Parameters for the X509-SVID.
+    AgentX509SVIDParams params = 1;
 }
 
 message RenewAgentResponse {
