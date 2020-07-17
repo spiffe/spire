@@ -171,6 +171,9 @@ const (
 	// Kid tags some key ID
 	Kid = "kid"
 
+	// NewSerialNumber tags a certificate new serial number
+	NewSerialNumber = "new_serial_num"
+
 	// NodeAttestorType declares the type of node attestation.
 	NodeAttestorType = "node_attestor_type"
 
