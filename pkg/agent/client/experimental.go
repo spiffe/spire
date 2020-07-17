@@ -83,7 +83,8 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	for _, b := range protoBundles {
 		bundle, err := bundleFormProto(b)
 		if err != nil {
-			c.c.Log.WithError(err).WithField(telemetry.TrustDomainID, b.TrustDomain).Warn("Received malformed entry from SPIRE server")
+			c.c.Log.WithError(err).WithField(telemetry.TrustDomainID, b.TrustDomain).Warn("Received malformed bundle from SPIRE server")
+			continue
 		}
 		bundles[b.TrustDomain] = bundle
 	}
@@ -234,8 +235,8 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 	})
 	if err != nil {
 		c.release(connection)
-		c.c.Log.WithError(err).Error("failed to batch svid")
-		return nil, errors.New("failed to batch svid")
+		c.c.Log.WithError(err).Error("failed to batch new X509 SVID(s)")
+		return nil, errors.New("failed to batch new X509 SVID(s)")
 	}
 
 	okStatus := int32(codes.OK)

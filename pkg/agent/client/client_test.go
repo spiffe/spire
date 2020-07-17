@@ -500,9 +500,9 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 					TrustDomain:     "spiffe://example.org",
 					X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
 				}
-				tc.svidClient.batchSvidErr = errors.New("an error")
+				tc.svidClient.batchSVIDErr = errors.New("an error")
 			},
-			err: "failed to batch svid",
+			err: "failed to batch new X509 SVID(s)",
 		},
 	} {
 		tt := tt
@@ -817,7 +817,7 @@ func TestFetchJWTSVIDExperimental(t *testing.T) {
 	}
 }
 
-// Creates a sample client with mocked components for testing purposes
+// createClient creates a sample client with mocked components for testing purposes
 func createClient(tb testing.TB) (*client, *testClient) {
 	ctrl := gomock.NewController(tb)
 	tc := &testClient{
@@ -826,7 +826,7 @@ func createClient(tb testing.TB) (*client, *testClient) {
 		agentClient:  &fakeAgentClient{},
 		bundleClient: &fakeBundleClient{},
 		entryClient:  &fakeEntryClient{},
-		svidClient:   &fakeSvidClient{},
+		svidClient:   &fakeSVIDClient{},
 	}
 
 	client := newClient(&Config{
@@ -918,18 +918,18 @@ func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlepb.
 	return b, nil
 }
 
-type fakeSvidClient struct {
+type fakeSVIDClient struct {
 	svidpb.SVIDClient
-	batchSvidErr    error
+	batchSVIDErr    error
 	newJWTSVID      error
 	x509SVIDs       map[string]*types.X509SVID
 	jwtSVID         *types.JWTSVID
 	simulateRelease func()
 }
 
-func (c *fakeSvidClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchNewX509SVIDRequest, opts ...grpc.CallOption) (*svidpb.BatchNewX509SVIDResponse, error) {
-	if c.batchSvidErr != nil {
-		return nil, c.batchSvidErr
+func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchNewX509SVIDRequest, opts ...grpc.CallOption) (*svidpb.BatchNewX509SVIDResponse, error) {
+	if c.batchSVIDErr != nil {
+		return nil, c.batchSVIDErr
 	}
 
 	// Simulate async calls
@@ -963,7 +963,7 @@ func (c *fakeSvidClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchN
 	}, nil
 }
 
-func (c *fakeSvidClient) NewJWTSVID(ctx context.Context, in *svidpb.NewJWTSVIDRequest, opts ...grpc.CallOption) (*svidpb.NewJWTSVIDResponse, error) {
+func (c *fakeSVIDClient) NewJWTSVID(ctx context.Context, in *svidpb.NewJWTSVIDRequest, opts ...grpc.CallOption) (*svidpb.NewJWTSVIDResponse, error) {
 	if c.newJWTSVID != nil {
 		return nil, c.newJWTSVID
 	}
@@ -982,7 +982,7 @@ type testClient struct {
 	agentClient  *fakeAgentClient
 	bundleClient *fakeBundleClient
 	entryClient  *fakeEntryClient
-	svidClient   *fakeSvidClient
+	svidClient   *fakeSVIDClient
 }
 
 func (c *testClient) Release() {

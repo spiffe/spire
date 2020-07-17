@@ -39,7 +39,7 @@ func registrationEntryFromProto(e *types.Entry) (*common.RegistrationEntry, erro
 
 	spiffeID, err := spiffeIDFromProto(e.SpiffeId)
 	if err != nil {
-		return nil, fmt.Errorf("invalid spiffe ID: %v", err)
+		return nil, fmt.Errorf("invalid SPIFFE ID: %v", err)
 	}
 
 	for _, dnsName := range e.DnsNames {
