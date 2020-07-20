@@ -19,8 +19,8 @@ The plugin accepts the following configuration options:
 
 The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
 
-- **Client Certificate** method authenticates to Vault using a TLS client certificate. 
-- **Token** method authenticates to Vault using the token in a HTTP Request header. 
+- **Client Certificate** method authenticates to Vault using a TLS client certificate.
+- **Token** method authenticates to Vault using the token in a HTTP Request header.
 - **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
 
 The configured token needs to be attached to a policy that has at least the following capabilities:
@@ -52,7 +52,7 @@ path "pki/root/sign-intermediate" {
             }
             // If specify the key-pair as an environment variable and use the modified mount point
             // cert_auth {
-            //    cert_auth_mount_point = "test-tls-cert-auth"    
+            //    cert_auth_mount_point = "test-tls-cert-auth"
             // }
 
             // If specify the key-pair as an environment variable and use the default mount point, set the empty structure.
@@ -74,7 +74,7 @@ path "pki/root/sign-intermediate" {
             pki_mount_point = "test-pki"
             ca_cert_path = "/path/to/ca-cert.pem"
             token_auth {
-               token = "<token>" 
+               token = "<token>"
             }
             // If specify the token as an environment variable, set the empty structure.
             // token_auth {}
@@ -102,7 +102,7 @@ path "pki/root/sign-intermediate" {
             }
             // If specify the approle_id and approle_secret as an environment variable and use the modified mount point
             // approle_auth {
-            //    approle_auth_mount_point = "my-approle-auth"    
+            //    approle_auth_mount_point = "my-approle-auth"
             // }
 
             // If specify the approle_id and approle_secret as an environment variable and use the default mount point, set the empty structure.
