@@ -12,7 +12,7 @@ The plugin accepts the following configuration options:
 | vault_addr  | string |   | The URL of the Vault server. (e.g., https://vault.example.com:8443/) | `${VAULT_ADDR}` |
 | pki_mount_point  | string |  | Name of the mount point where PKI secret engine is mounted | pki |
 | ca_cert_path     | string |  | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported. | `${VAULT_CACERT}` |
-| insecure_skip_verify  | string |  | If true, vault client accepts any server certificates | false |
+| insecure_skip_verify  | bool |  | If true, vault client accepts any server certificates | false |
 | cert_auth        | struct |  | Configuration for the Client Certificate authentication method | |
 | token_auth       | struct |  | Configuration for the Token authentication method | |
 | approle_auth     | struct |  | Configuration for the AppRole authentication method | |
