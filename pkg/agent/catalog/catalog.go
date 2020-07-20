@@ -21,6 +21,8 @@ import (
 	wa_k8s "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
 	wa_unix "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
 )
 
 type Catalog interface {
@@ -102,6 +104,7 @@ type Config struct {
 	GlobalConfig GlobalConfig
 	PluginConfig HCLPluginConfigMap
 	HostServices []catalog.HostServiceServer
+	Metrics      *telemetry.MetricsImpl
 }
 
 type Repository struct {
@@ -128,6 +131,8 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	p.KeyManager.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager.KeyManager, config.Metrics)
 
 	return &Repository{
 		Catalog: p,
