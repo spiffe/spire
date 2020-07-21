@@ -19,18 +19,19 @@ import (
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
-	SVID             []*x509.Certificate
-	SVIDKey          *ecdsa.PrivateKey
-	Bundle           *cache.Bundle
-	Catalog          catalog.Catalog
-	TrustDomain      url.URL
-	Log              logrus.FieldLogger
-	Metrics          telemetry.Metrics
-	ServerAddr       string
-	SVIDCachePath    string
-	BundleCachePath  string
-	SyncInterval     time.Duration
-	RotationInterval time.Duration
+	SVID                   []*x509.Certificate
+	SVIDKey                *ecdsa.PrivateKey
+	Bundle                 *cache.Bundle
+	Catalog                catalog.Catalog
+	TrustDomain            url.URL
+	Log                    logrus.FieldLogger
+	Metrics                telemetry.Metrics
+	ServerAddr             string
+	SVIDCachePath          string
+	BundleCachePath        string
+	SyncInterval           time.Duration
+	RotationInterval       time.Duration
+	ExperimentalAPIEnabled bool
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -62,17 +63,18 @@ func newManager(c *Config) (*manager, error) {
 	cache := cache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain.String(), c.Bundle, c.Metrics)
 
 	rotCfg := &svid.RotatorConfig{
-		Catalog:      c.Catalog,
-		Log:          c.Log,
-		Metrics:      c.Metrics,
-		SVID:         c.SVID,
-		SVIDKey:      c.SVIDKey,
-		SpiffeID:     spiffeID,
-		BundleStream: cache.SubscribeToBundleChanges(),
-		ServerAddr:   c.ServerAddr,
-		TrustDomain:  c.TrustDomain,
-		Interval:     c.RotationInterval,
-		Clk:          c.Clk,
+		Catalog:                c.Catalog,
+		Log:                    c.Log,
+		Metrics:                c.Metrics,
+		SVID:                   c.SVID,
+		SVIDKey:                c.SVIDKey,
+		SpiffeID:               spiffeID,
+		BundleStream:           cache.SubscribeToBundleChanges(),
+		ServerAddr:             c.ServerAddr,
+		TrustDomain:            c.TrustDomain,
+		Interval:               c.RotationInterval,
+		Clk:                    c.Clk,
+		ExperimentalAPIEnabled: c.ExperimentalAPIEnabled,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 
