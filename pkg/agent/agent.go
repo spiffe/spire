@@ -70,6 +70,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		HostServices: []common_catalog.HostServiceServer{
 			common_services.MetricsServiceHostServiceServer(metricsService),
 		},
+		Metrics: metrics,
 	})
 	if err != nil {
 		return err

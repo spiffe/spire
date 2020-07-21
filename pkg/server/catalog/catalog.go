@@ -9,6 +9,7 @@ import (
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
+	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
@@ -200,6 +201,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
 	}
 	p.DataStore.DataStore = datastore_telemetry.WithMetrics(p.DataStore.DataStore, config.Metrics)
+	p.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
 
 	return &Repository{
 		Catalog: p,
