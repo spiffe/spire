@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -131,6 +132,8 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 			DataStore:   ds,
 			ServerCA:    c.ServerCA,
 			TrustDomain: c.TrustDomain,
+			Catalog:     c.Catalog,
+			Clock:       clock.New(),
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain: c.TrustDomain,
