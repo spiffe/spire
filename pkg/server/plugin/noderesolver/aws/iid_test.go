@@ -32,11 +32,9 @@ type IIDResolverSuite struct {
 func (s *IIDResolverSuite) SetupTest() {
 	s.env = make(map[string]string)
 	s.newResolver()
-	s.configureResolver()
 }
 
 func (s *IIDResolverSuite) TestResolveWhenNotConfigured() {
-	s.newResolver()
 	s.assertResolveSuccess()
 }
 
@@ -61,45 +59,23 @@ func (s *IIDResolverSuite) TestResolve() {
 }
 
 func (s *IIDResolverSuite) TestConfigure() {
-	// malformed configuration
 	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: "blah",
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-
-	// succeeds with no credentials
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-
-	// access id but no secret
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 		access_key_id = "ACCESSKEYID"
-		`})
-	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-
-	// secret but no access id
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
 		secret_access_key = "SECRETACCESSKEY"
 		`})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-
-	// envvars
-	s.env["AWS_ACCESS_KEY_ID"] = "ACCESSKEYID"
-	s.env["AWS_SECRET_ACCESS_KEY"] = "SECRETACCESSKEY"
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-	delete(s.env, "AWS_ACCESS_KEY_ID")
-	delete(s.env, "AWS_SECRET_ACCESS_KEY")
-
-	// access id/secret credentials
-	s.configureResolver()
+	spiretest.AssertLogs(s.T(), []*logrus.Entry{s.logHook.LastEntry()},
+		[]spiretest.LogEntry{
+			{
+				Level:   logrus.WarnLevel,
+				Message: "The aws_iid resolver has been subsumed by the aws_iid node attestor and will be removed in a future release. Please remove it from your configuration.",
+				Data: logrus.Fields{
+					telemetry.SubsystemName: telemetry.PluginBuiltIn + "." + caws.PluginName,
+				},
+			},
+		})
 }
 
 func (s *IIDResolverSuite) TestGetPluginInfo() {
@@ -113,28 +89,6 @@ func (s *IIDResolverSuite) newResolver() {
 	log, hook := test.NewNullLogger()
 	s.logHook = hook
 	s.LoadPlugin(builtin(resolver), &s.resolver, spiretest.Logger(log))
-}
-
-func (s *IIDResolverSuite) configureResolver() {
-	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		access_key_id = "ACCESSKEYID"
-		secret_access_key = "SECRETACCESSKEY"
-		`})
-	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-	spiretest.AssertLogs(s.T(), []*logrus.Entry{s.logHook.LastEntry()},
-		[]spiretest.LogEntry{
-			{
-				Level:   logrus.WarnLevel,
-				Message: "Usage of deprecated plugin detected.",
-				Data: logrus.Fields{
-					telemetry.PluginName:    caws.PluginName,
-					telemetry.PluginType:    noderesolver.Type,
-					telemetry.SubsystemName: telemetry.PluginBuiltIn + "." + caws.PluginName,
-				},
-			},
-		})
 }
 
 func (s *IIDResolverSuite) assertResolveSuccess() {

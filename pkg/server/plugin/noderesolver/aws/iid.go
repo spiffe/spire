@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -37,9 +36,8 @@ func (p *IIDResolverPlugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the IIDResolverPlugin
 func (p *IIDResolverPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	p.log.Warn("Usage of deprecated plugin detected.",
-		telemetry.PluginName, caws.PluginName,
-		telemetry.PluginType, noderesolver.Type)
+	p.log.Warn("The aws_iid resolver has been subsumed by the aws_iid node attestor " +
+		"and will be removed in a future release. Please remove it from your configuration.")
 	return &spi.ConfigureResponse{}, nil
 }
 

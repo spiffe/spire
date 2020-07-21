@@ -154,6 +154,18 @@ func (s *IIDAttestorSuite) TestErrorOnBadData() {
 }
 
 func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
+	mockCtl := gomock.NewController(s.T())
+	defer mockCtl.Finish()
+
+	client := mock_aws.NewMockClient(mockCtl)
+
+	mockGetEC2Client := func(config *SessionConfig, region string) (Client, error) {
+		return client, nil
+	}
+	s.plugin.clients = newClientsCache(mockGetEC2Client)
+
+	setAttestExpectations(client, getDefaultDescribeInstancesOutput(), nil)
+
 	s.configure()
 
 	// using our own keypair (since we don't have AWS private key)
@@ -226,18 +238,14 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 		{
 			desc: "error on call",
 			mockExpect: func(mock *mock_aws.MockClient) {
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(nil, errors.New("client error"))
+				setAttestExpectations(mock, nil, errors.New("client error"))
 			},
 			expectErr: "client error",
 		},
 		{
 			desc: "no reservation",
 			mockExpect: func(mock *mock_aws.MockClient) {
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(&ec2.DescribeInstancesOutput{
+				setAttestExpectations(mock, &ec2.DescribeInstancesOutput{
 					Reservations: []*ec2.Reservation{},
 				}, nil)
 			},
@@ -246,9 +254,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 		{
 			desc: "no instance",
 			mockExpect: func(mock *mock_aws.MockClient) {
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(&ec2.DescribeInstancesOutput{
+				setAttestExpectations(mock, &ec2.DescribeInstancesOutput{
 					Reservations: []*ec2.Reservation{
 						{
 							Instances: []*ec2.Instance{},
@@ -264,9 +270,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(output, nil)
+				setAttestExpectations(mock, output, nil)
 			},
 			expectErr: "verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0",
 		},
@@ -277,7 +281,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
@@ -289,7 +294,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
@@ -300,7 +306,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
@@ -309,7 +316,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			allowList: []string{testAccount, "someOtherAccount"},
 			mockExpect: func(mock *mock_aws.MockClient) {
 				output := getDefaultDescribeInstancesOutput()
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
@@ -319,7 +327,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			skipEC2Block: true,
 			mockExpect: func(mock *mock_aws.MockClient) {
 				output := getDefaultDescribeInstancesOutput()
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
@@ -329,10 +338,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(output, nil)
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
@@ -342,10 +349,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(output, nil)
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			replacementTemplate: "{{ .PluginName}}/{{ .Region }}/{{ .AccountID }}/{{ .InstanceID }}",
 			expectID:            "spiffe://example.org/spire/agent/aws_iid/test-region/test-account/test-instance",
@@ -371,9 +376,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				}
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(output, nil)
+				setAttestExpectations(mock, output, nil)
 				gipo := &iam.GetInstanceProfileOutput{
 					InstanceProfile: &iam.InstanceProfile{
 						Roles: []*iam.Role{
@@ -382,7 +385,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 						},
 					},
 				}
-				setResolveSelectorsExpectations(mock, output, gipo)
+				setResolveSelectorsExpectations(mock, gipo)
 			},
 			replacementTemplate: "{{ .PluginName}}/zone1/{{ .Tags.Hostname }}",
 			expectSelectors: []*common.Selector{
@@ -400,10 +403,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
-				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
-					InstanceIds: []*string{&testInstance},
-				}).Return(output, nil)
-				setResolveSelectorsExpectations(mock, output, nil)
+				setAttestExpectations(mock, output, nil)
+				setResolveSelectorsExpectations(mock, nil)
 			},
 			replacementTemplate: "{{ .PluginName}}/zone1/{{ .Tags.Hostname }}",
 			expectID:            "spiffe://example.org/spire/agent/aws_iid/zone1/%3Cno%20value%3E",
@@ -649,12 +650,14 @@ func (s *IIDAttestorSuite) iidAttestationDataToBytes(data caws.IIDAttestationDat
 	return dataBytes
 }
 
-func setResolveSelectorsExpectations(mock *mock_aws.MockClient, dio *ec2.DescribeInstancesOutput, gipo *iam.GetInstanceProfileOutput) {
+func setAttestExpectations(mock *mock_aws.MockClient, dio *ec2.DescribeInstancesOutput, err error) {
 	mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
 		InstanceIds: []*string{&testInstance},
-		Filters:     InstanceFilters,
-	}).Return(dio, nil)
+		Filters:     instanceFilters,
+	}).Return(dio, err)
+}
 
+func setResolveSelectorsExpectations(mock *mock_aws.MockClient, gipo *iam.GetInstanceProfileOutput) {
 	mock.EXPECT().GetInstanceProfileWithContext(gomock.Any(), &iam.GetInstanceProfileInput{
 		InstanceProfileName: aws.String(testProfile),
 	}).AnyTimes().Return(gipo, nil)

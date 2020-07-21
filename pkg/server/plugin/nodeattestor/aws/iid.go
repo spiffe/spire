@@ -37,7 +37,7 @@ import (
 var (
 	iidError        = caws.IidErrorClass
 	_awsTimeout     = 5 * time.Second
-	InstanceFilters = []*ec2.Filter{
+	instanceFilters = []*ec2.Filter{
 		{
 			Name: aws.String("instance-state-name"),
 			Values: []*string{
@@ -154,6 +154,22 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		}
 	}
 
+	awsClient, err := p.clients.getClient(validDoc.Region)
+	if err != nil {
+		return iidError.New("failed to get client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(stream.Context(), _awsTimeout)
+	defer cancel()
+
+	instancesDesc, err := awsClient.DescribeInstancesWithContext(ctx, &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{aws.String(validDoc.InstanceID)},
+		Filters:     instanceFilters,
+	})
+	if err != nil {
+		return caws.AttestationStepError("querying AWS via describe-instances", err)
+	}
+
 	// Ideally we wouldn't do this work at all if the agent has already attested
 	// e.g. do it after the call to `p.IsAttested`, however, we may need
 	// the instance to construct tags used in the agent ID.
@@ -163,12 +179,15 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	// is a potential DoS vector.
 	shouldCheckBlockDevice := !inTrustAcctList && !c.SkipBlockDevice
 	var instance *ec2.Instance
+	var tags = make(instanceTags)
 	if strings.Contains(c.AgentPathTemplate, ".Tags") || shouldCheckBlockDevice {
 		var err error
-		instance, err = p.getEC2Instance(stream.Context(), validDoc)
+		instance, err = p.getEC2Instance(instancesDesc)
 		if err != nil {
 			return err
 		}
+
+		tags = tagsFromInstance(instance)
 	}
 
 	if shouldCheckBlockDevice {
@@ -177,8 +196,6 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 			return iidError.New("failed aws ec2 attestation: %w", err)
 		}
 	}
-
-	tags := tagsFromInstance(instance)
 
 	agentID, err := makeSpiffeID(c.trustDomain, c.pathTemplate, validDoc, tags)
 	if err != nil {
@@ -193,7 +210,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return iidError.New("IID has already been used to attest an agent")
 	}
 
-	selectors, err := p.ResolveSelectors(stream.Context(), validDoc.Region, validDoc.InstanceID)
+	selectors, err := p.resolveSelectors(stream.Context(), instancesDesc, awsClient)
 	if err != nil {
 		return err
 	}
@@ -324,44 +341,22 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 		return nil, iidError.New("not configured")
 	}
 
-	config := *p.config
-	return &config, nil
+	return p.config, nil
 }
 
-func (p *IIDAttestorPlugin) getEC2Instance(ctx context.Context, doc ec2metadata.EC2InstanceIdentityDocument) (*ec2.Instance, error) {
-	awsClient, err := p.clients.getClient(doc.Region)
-	if err != nil {
-		return nil, caws.AttestationStepError("creating AWS client", err)
-	}
-
-	query := &ec2.DescribeInstancesInput{
-		InstanceIds: []*string{&doc.InstanceID},
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, _awsTimeout)
-	defer cancel()
-
-	result, err := awsClient.DescribeInstancesWithContext(ctx, query)
-	if err != nil {
-		return nil, caws.AttestationStepError("querying AWS via describe-instances", err)
-	}
-
-	if len(result.Reservations) < 1 {
+func (p *IIDAttestorPlugin) getEC2Instance(instancesDesc *ec2.DescribeInstancesOutput) (*ec2.Instance, error) {
+	if len(instancesDesc.Reservations) < 1 {
 		return nil, caws.AttestationStepError("querying AWS via describe-instances", iidError.New("returned no reservations"))
 	}
 
-	if len(result.Reservations[0].Instances) < 1 {
+	if len(instancesDesc.Reservations[0].Instances) < 1 {
 		return nil, caws.AttestationStepError("querying AWS via describe-instances", iidError.New("returned no instances"))
 	}
 
-	return result.Reservations[0].Instances[0], nil
+	return instancesDesc.Reservations[0].Instances[0], nil
 }
 
 func tagsFromInstance(instance *ec2.Instance) instanceTags {
-	if instance == nil {
-		return make(instanceTags)
-	}
-
 	tags := make(instanceTags, len(instance.Tags))
 	for _, tag := range instance.Tags {
 		if tag != nil && tag.Key != nil && tag.Value != nil {
@@ -396,20 +391,7 @@ func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (e
 	return doc, nil
 }
 
-func (p *IIDAttestorPlugin) ResolveSelectors(ctx context.Context, region, instanceID string) (*common.Selectors, error) {
-	client, err := p.clients.getClient(region)
-	if err != nil {
-		return nil, iidError.New("failed to get client: %w", err)
-	}
-
-	resp, err := client.DescribeInstancesWithContext(ctx, &ec2.DescribeInstancesInput{
-		InstanceIds: []*string{aws.String(instanceID)},
-		Filters:     InstanceFilters,
-	})
-	if err != nil {
-		return nil, iidError.Wrap(err)
-	}
-
+func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDesc *ec2.DescribeInstancesOutput, client Client) (*common.Selectors, error) {
 	selectorSet := map[string]bool{}
 	addSelectors := func(values []string) {
 		for _, value := range values {
@@ -417,7 +399,7 @@ func (p *IIDAttestorPlugin) ResolveSelectors(ctx context.Context, region, instan
 		}
 	}
 
-	for _, reservation := range resp.Reservations {
+	for _, reservation := range instancesDesc.Reservations {
 		for _, instance := range reservation.Instances {
 			addSelectors(resolveTags(instance.Tags))
 			addSelectors(resolveSecurityGroups(instance.SecurityGroups))
@@ -426,6 +408,8 @@ func (p *IIDAttestorPlugin) ResolveSelectors(ctx context.Context, region, instan
 				if err != nil {
 					return nil, err
 				}
+				ctx, cancel := context.WithTimeout(parent, _awsTimeout)
+				defer cancel()
 				output, err := client.GetInstanceProfileWithContext(ctx, &iam.GetInstanceProfileInput{
 					InstanceProfileName: aws.String(instanceProfileName),
 				})
