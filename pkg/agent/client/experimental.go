@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest, forRotation bool) (*Update, error) {
@@ -167,12 +168,15 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlepb.GetFederatedBundleRequest{
 			TrustDomain: b,
 		})
-		if err != nil {
-			// TODO: may it continue or just return error?
-			c.c.Log.WithError(err).WithField(telemetry.FederatedBundle, b).Warn("Faied to fetch federated bundle")
-			continue
+		switch status.Code(err) {
+		case codes.OK:
+			bundles = append(bundles, bundle)
+		case codes.NotFound:
+			c.c.Log.WithError(err).WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
+		default:
+			c.c.Log.WithError(err).WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
+			return nil, err
 		}
-		bundles = append(bundles, bundle)
 	}
 
 	return bundles, nil
