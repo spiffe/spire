@@ -24,14 +24,15 @@ branches:
     - /^v\d+\.\d+(\.\d+)?$/
 
 stages:
-  - lint and test
+  - lint and unit test
+  - build images and integration test
   - build release
   - publish images
   - nightly integration tests
 
 jobs:
   include:
-    - stage: lint and test
+    - stage: lint and unit test
       name: lint
       script:
         - make lint
@@ -43,17 +44,25 @@ jobs:
       # about its runtime environment
       os: linux
       dist: xenial
-    - stage: lint and test
+    - stage: lint and unit test
       name: macos tests
       script:
         - .travis/run-unit-tests.sh
       os: macos
-    - stage: lint and test
+    - stage: lint and unit test
       name: linux tests
       script:
         - .travis/run-unit-tests.sh
       os: linux
       dist: xenial
+
+    - stage: build images and integration test
+      if: type = push AND (tag IS present OR branch = master)
+      os: linux
+      dist: xenial
+      script:
+        - make images
+        - make integration
 
     - stage: build release
       if: type = push AND (tag IS present OR branch = master)
