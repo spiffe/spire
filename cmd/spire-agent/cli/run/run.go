@@ -21,6 +21,7 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
@@ -36,7 +37,6 @@ const (
 	commandName = "run"
 
 	defaultConfigPath = "conf/agent/agent.conf"
-	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
 	defaultDataDir           = "."
@@ -512,7 +512,7 @@ func defaultConfig() *Config {
 			DataDir:    defaultDataDir,
 			LogLevel:   defaultLogLevel,
 			LogFormat:  log.DefaultFormat,
-			SocketPath: defaultSocketPath,
+			SocketPath: common.DefaultSocketPath,
 			SDS: sdsConfig{
 				DefaultBundleName: defaultDefaultBundleName,
 				DefaultSVIDName:   defaultDefaultSVIDName,
