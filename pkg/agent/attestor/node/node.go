@@ -67,10 +67,19 @@ func New(config *Config) Attestor {
 }
 
 func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
+	log := a.c.Log
+
 	bundle, err := a.loadBundle()
 	if err != nil {
 		return nil, err
 	}
+	if bundle == nil {
+		log.Info("Bundle is not found")
+	} else {
+		log = log.WithField(telemetry.TrustDomainID, bundle.TrustDomainID())
+		log.Info("Bundle loaded")
+	}
+
 	svid, key, err := a.loadSVID(ctx)
 	if err != nil {
 		return nil, err
@@ -78,15 +87,19 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 
 	switch {
 	case svid == nil:
+		log.Info("SVID is not found. Starting node attestation")
 		svid, bundle, err = a.newSVID(ctx, key, bundle)
 		if err != nil {
 			return nil, err
 		}
+		log.WithField(telemetry.SPIFFEID, svid[0].URIs[0].String()).Info("Node attestation was successful")
 	case bundle == nil:
 		// This is a bizarre case where we have an SVID but were unable to
 		// load a bundle from the cache which suggests some tampering with the
 		// cache on disk.
 		return nil, errs.New("SVID loaded but no bundle in cache")
+	default:
+		log.WithField(telemetry.SPIFFEID, svid[0].URIs[0].String()).Info("SVID loaded")
 	}
 
 	return &AttestationResult{Bundle: bundle, SVID: svid, Key: key}, nil
