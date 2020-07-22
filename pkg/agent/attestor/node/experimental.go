@@ -81,7 +81,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 		a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 	}
 
-	svid, err := parseAttestationResponseExperimental(attestResp)
+	svid, err := getSVIDFromAttestAgentResponse(attestResp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse attestation response: %v", err)
 	}
@@ -89,7 +89,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 	return svid, nil
 }
 
-func (a *attestor) getUpdatedBundle(ctx context.Context, conn *grpc.ClientConn) (*bundleutil.Bundle, error) {
+func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*bundleutil.Bundle, error) {
 	updatedBundle, err := a.createNewBundleClient(conn).GetBundle(ctx, &bundlepb.GetBundleRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated bundle %v", err)
@@ -108,7 +108,7 @@ func (a *attestor) getUpdatedBundle(ctx context.Context, conn *grpc.ClientConn) 
 	return bundle, err
 }
 
-func parseAttestationResponseExperimental(r *agent.AttestAgentResponse) ([]*x509.Certificate, error) {
+func getSVIDFromAttestAgentResponse(r *agent.AttestAgentResponse) ([]*x509.Certificate, error) {
 	if r.GetResult().Svid == nil {
 		return nil, errors.New("missing svid update")
 	}

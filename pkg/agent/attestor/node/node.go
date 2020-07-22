@@ -285,7 +285,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get SVID: %v", err)
 		}
-		bundle, err := a.getUpdatedBundle(ctx, conn)
+		bundle, err := a.getBundle(ctx, conn)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get updated bundle: %v", err)
 		}
