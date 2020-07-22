@@ -2795,7 +2795,7 @@ func (s *PluginSuite) TestConfigure() {
 			giveDBConfig: `
 			max_open_conns = 1000
 			max_idle_conns = 50
-			conn_max_lifetime = "1ms"
+			conn_max_lifetime = "10s"
 			`,
 			expectMaxOpenConns: 1000,
 			expectIdle:         50,
