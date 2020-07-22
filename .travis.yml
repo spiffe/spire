@@ -41,7 +41,7 @@ jobs:
         - shellcheck .travis/*.sh
       # linting is OS agnostic but protobuf_verify needs utils to lets be explicit
       # about its runtime environment
-      os: linux 
+      os: linux
       dist: xenial
     - stage: lint and test
       name: macos tests
@@ -54,7 +54,9 @@ jobs:
         - .travis/run-unit-tests.sh
       os: linux
       dist: xenial
+
     - stage: build release
+      if: type = push AND (tag IS present OR branch = master)
       script:
         - make artifact
         - .travis/build-release.sh
