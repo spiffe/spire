@@ -76,11 +76,16 @@ func (p *NodeAttestor) GetPluginInfo(context.Context, *plugin.GetPluginInfoReque
 }
 
 func (p *NodeAttestor) makeResponse(challengeResponse []byte) *nodeattestor.FetchAttestationDataResponse {
+	if challengeResponse != nil {
+		return &nodeattestor.FetchAttestationDataResponse{
+			Response: challengeResponse,
+		}
+	}
+
 	return &nodeattestor.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: "test",
 			Data: []byte("TEST"),
 		},
-		Response: challengeResponse,
 	}
 }

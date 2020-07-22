@@ -489,7 +489,7 @@ func (s *HandlerSuite) TestAttestWithAlreadyUsedJoinToken() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: &common.AttestationData{Type: "join_token", Data: []byte("TOKEN")},
 		Csr:             s.makeCSR(joinTokenID),
-	}, codes.Unknown, "failed to attest: join token has already been used")
+	}, codes.Unknown, "failed to attest: join token does not exist or has already been used")
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }

@@ -23,6 +23,8 @@ import (
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
@@ -56,14 +58,29 @@ type Config struct {
 	SVIDCachePath     string
 	Log               logrus.FieldLogger
 	ServerAddress     string
+
+	// Use experimental API
+	ExperimentalAPIEnabled bool
 }
 
 type attestor struct {
 	c *Config
+
+	// Used for testing purposes.
+	createNewAgentClient  func(*grpc.ClientConn) agent.AgentClient
+	createNewBundleClient func(*grpc.ClientConn) bundle.BundleClient
 }
 
 func New(config *Config) Attestor {
-	return &attestor{c: config}
+	return newAttestor(config)
+}
+
+func newAttestor(config *Config) *attestor {
+	return &attestor{
+		c:                     config,
+		createNewAgentClient:  agent.NewAgentClient,
+		createNewBundleClient: bundle.NewBundleClient,
+	}
 }
 
 func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
@@ -258,16 +275,34 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	}
 	defer conn.Close()
 
-	nodeClient := node.NewNodeClient(conn)
-
-	attestStream, err := nodeClient.Attest(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("opening stream for attestation: %v", err)
-	}
-
 	csr, err := util.MakeCSRWithoutURISAN(key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate CSR for attestation: %v", err)
+	}
+
+	if a.c.ExperimentalAPIEnabled {
+		svid, err := a.getSVID(ctx, conn, csr, fetchStream)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get SVID: %v", err)
+		}
+		bundle, err := a.getUpdatedBundle(ctx, conn)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get updated bundle: %v", err)
+		}
+		return svid, bundle, nil
+	}
+
+	svid, bundle, err := a.getSVIDAndBundle(ctx, conn, csr, fetchStream)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get SVID and bundle: %v", err)
+	}
+	return svid, bundle, nil
+}
+
+func (a *attestor) getSVIDAndBundle(ctx context.Context, conn *grpc.ClientConn, csr []byte, fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+	attestStream, err := node.NewNodeClient(conn).Attest(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create new node client for attestation: %v", err)
 	}
 
 	attestResp := new(node.AttestResponse)

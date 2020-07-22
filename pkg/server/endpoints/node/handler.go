@@ -744,7 +744,7 @@ func (h *Handler) attestToken(ctx context.Context, attestationData *common.Attes
 		h.c.Log.WithError(err).Error("Failed to determine if agent has already attested")
 		return nil, errorutil.WrapError(err, "failed to determine if agent has already attested")
 	case attestedBefore:
-		return nil, errors.New("join token has already been used")
+		return nil, errors.New("join token does not exist or has already been used")
 	}
 
 	ds := h.c.Catalog.GetDataStore()
