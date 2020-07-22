@@ -7,7 +7,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -81,8 +80,9 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is not a valid SPIFFE ID", err)
 	}
 
-	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID in CSR", err)
+	if err := api.VerifyTrustDomainWorkloadID(s.td, id); err != nil {
+		log.Errorf("Invalid CSR: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
 	for _, dnsName := range csr.DNSNames {
@@ -169,7 +169,7 @@ func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map
 }
 
 // newX509SVID creates an X509-SVID using data from registration entry and key from CSR
-func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams, typeEntries map[string]*types.Entry) *svid.BatchNewX509SVIDResponse_Result {
+func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams, entries map[string]*types.Entry) *svid.BatchNewX509SVIDResponse_Result {
 	log := rpccontext.Logger(ctx)
 
 	switch {
@@ -185,7 +185,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 
 	log = log.WithField(telemetry.RegistrationID, param.EntryId)
 
-	entry, ok := typeEntries[param.EntryId]
+	entry, ok := entries[param.EntryId]
 	if !ok {
 		return &svid.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
@@ -205,7 +205,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 		}
 	}
 
-	spiffeID, err := api.IDFromProto(entry.SpiffeId)
+	spiffeID, err := api.TrustDomainMemberIDFromProto(s.td, entry.SpiffeId)
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
 		return &svid.BatchNewX509SVIDResponse_Result{
@@ -239,12 +239,8 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) (*types.JWTSVID, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.IDFromProto(protoID)
+	id, err := api.TrustDomainWorkloadIDFromProto(s.td, protoID)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse SPIFFE ID", err)
-	}
-
-	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
 

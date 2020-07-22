@@ -14,7 +14,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -131,14 +130,9 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*types.Agent, error) {
 	log := rpccontext.Logger(ctx)
 
-	agentID, err := api.IDFromProto(req.Id)
+	agentID, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse agent ID", err)
-	}
-
-	err = idutil.ValidateSpiffeID(agentID.String(), idutil.AllowTrustDomainAgent(s.td.String()))
-	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "not a valid agent ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, agentID.String())
@@ -170,20 +164,12 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*empty.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.IDFromProto(req.Id)
+	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
-
-	if !idutil.IsAgentPath(id.Path()) {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "not an agent ID", nil)
-	}
-
-	if !id.MemberOf(s.td) {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "cannot delete an agent that does not belong to this trust domain", nil)
-	}
 
 	_, err = s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{
 		SpiffeId: id.String(),
@@ -202,20 +188,12 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*empty.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.IDFromProto(req.Id)
+	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
-
-	if !idutil.IsAgentPath(id.Path()) {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "not an agent ID", nil)
-	}
-
-	if !id.MemberOf(s.td) {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "cannot ban an agent that does not belong to this trust domain", nil)
-	}
 
 	// The agent "Banned" state is pointed out by setting its
 	// serial numbers (current and new) to empty strings.
@@ -411,14 +389,11 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinToke
 	var agentID spiffeid.ID
 	var err error
 	if req.AgentId != nil {
-		log.WithField(telemetry.SPIFFEID, req.AgentId.String())
-		agentID, err = api.IDFromProto(req.AgentId)
+		agentID, err = api.TrustDomainWorkloadIDFromProto(s.td, req.AgentId)
 		if err != nil {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid spiffe ID", err)
+			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 		}
-		if agentID.TrustDomain() != s.td {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "requested agent SPIFFE ID does not match server trust domain", nil)
-		}
+		log.WithField(telemetry.SPIFFEID, agentID.String())
 	}
 
 	// Generate a token if one wasn't specified

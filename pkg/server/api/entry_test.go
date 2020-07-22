@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -96,7 +97,9 @@ func TestRegistrationEntryToProto(t *testing.T) {
 		})
 	}
 }
+
 func TestProtoToRegistrationEntryWithMask(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
 	expiresAt := time.Now().Unix()
 
 	for _, tt := range []struct {
@@ -204,7 +207,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			entry, err := api.ProtoToRegistrationEntryWithMask(tt.entry, tt.mask)
+			entry, err := api.ProtoToRegistrationEntryWithMask(td, tt.entry, tt.mask)
 			if tt.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.err)
@@ -219,6 +222,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 }
 
 func TestProtoToRegistrationEntry(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
 	expiresAt := time.Now().Unix()
 
 	for _, tt := range []struct {
@@ -365,7 +369,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			entry, err := api.ProtoToRegistrationEntry(tt.entry)
+			entry, err := api.ProtoToRegistrationEntry(td, tt.entry)
 			if tt.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.err)

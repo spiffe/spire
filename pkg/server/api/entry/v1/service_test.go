@@ -157,7 +157,7 @@ func TestListEntries(t *testing.T) {
 			request:         &entrypb.ListEntriesRequest{},
 		},
 		{
-			name:            "ByParentId",
+			name:            "filter by parent ID",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -166,7 +166,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "BySpiffeId",
+			name:            "filter by SPIFFE ID",
 			expectedEntries: []*types.Entry{expectedChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -175,7 +175,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "BySelectors with SelectorMatch_MATCH_EXACT",
+			name:            "filter by selectors exact match",
 			expectedEntries: []*types.Entry{expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -189,7 +189,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "BySelectors with SelectorMatch_MATCH_SUBSET",
+			name:            "filter by selectors subset match",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -205,7 +205,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:                  "PageSize",
+			name:                  "page",
 			expectedEntries:       []*types.Entry{expectedChild},
 			expectedNextPageToken: "1",
 			request: &entrypb.ListEntriesRequest{
@@ -221,10 +221,10 @@ func TestListEntries(t *testing.T) {
 			request: &entrypb.ListEntriesRequest{},
 		},
 		{
-			name:   "bad ByParentId",
-			err:    "failed to parse request: malformed ByParentId: spiffeid: invalid scheme",
+			name:   "bad parent ID filter",
+			err:    "malformed parent ID filter: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: failed to parse request",
+			logMsg: "Invalid argument: malformed parent ID filter",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					ByParentId: badID,
@@ -232,10 +232,10 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:   "bad BySpiffeId",
-			err:    "failed to parse request: malformed BySpiffeId: spiffeid: invalid scheme",
+			name:   "bad SPIFFE ID filter",
+			err:    "malformed SPIFFE ID filter: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: failed to parse request",
+			logMsg: "Invalid argument: malformed SPIFFE ID filter",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySpiffeId: badID,
@@ -243,10 +243,10 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "bad BySelectors (no selectors)",
-			err:             "failed to parse request: malformed BySelectors: empty selector set",
+			name:            "bad selectors filter (no selectors)",
+			err:             "malformed selectors filter: empty selector set",
 			code:            codes.InvalidArgument,
-			logMsg:          "Invalid argument: failed to parse request",
+			logMsg:          "Invalid argument: malformed selectors filter",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -255,10 +255,10 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:   "bad BySelectors (bad selector)",
-			err:    "failed to parse request: malformed BySelectors: missing selector type",
+			name:   "bad selectors filter (bad selector)",
+			err:    "malformed selectors filter: missing selector type",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: failed to parse request",
+			logMsg: "Invalid argument: malformed selectors filter",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
@@ -1224,6 +1224,7 @@ func (s *serviceTest) Cleanup() {
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	ef := &entryFetcher{}
 	service := entry.New(entry.Config{
+		TrustDomain:  td,
 		DataStore:    ds,
 		EntryFetcher: ef,
 	})
@@ -1275,8 +1276,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 		Downstream: true,
 	}
 	updateEverythingEntry := &types.Entry{
-		ParentId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 		Ttl:      500000,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:9999"},
@@ -1313,13 +1314,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 			updateEntries: []*types.Entry{
 				{
 					// Trust domain will be normalized to lower case
-					ParentId: &types.SPIFFEID{TrustDomain: "exampleUPDATED.org", Path: "/parentUpdated"},
+					ParentId: &types.SPIFFEID{TrustDomain: "EXAMPLE.org", Path: "/parentUpdated"},
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
-				modifiedEntry.ParentId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/parentUpdated"}
+				modifiedEntry.ParentId = &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"}
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -1327,7 +1328,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						ParentId: &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/parentUpdated"}},
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"}},
 				},
 			},
 		},
@@ -1343,13 +1344,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 			updateEntries: []*types.Entry{
 				{
 					// Trust domain will be normalized to lower case
-					SpiffeId: &types.SPIFFEID{TrustDomain: "exampleUPDATED.org", Path: "/workloadUpdated"},
+					SpiffeId: &types.SPIFFEID{TrustDomain: "EXAMPLE.org", Path: "/workloadUpdated"},
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
-				modifiedEntry.SpiffeId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/workloadUpdated"}
+				modifiedEntry.SpiffeId = &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"}
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -1357,7 +1358,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						SpiffeId: &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/workloadUpdated"}},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"}},
 				},
 			},
 		},
@@ -1798,7 +1799,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			updateEntries: []*types.Entry{
 				{
-					ParentId: &types.SPIFFEID{TrustDomain: "trustdomain", Path: "/workload"},
+					ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 				},
 			},
 			dsError: errors.New("datastore error"),
@@ -1837,8 +1838,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						ParentId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
-						SpiffeId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 						Ttl:      500000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:9999"},
@@ -1961,7 +1962,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			spiffeToIDMap := make(map[string]string)
 			updateEntries := tt.updateEntries
 			for i := range createResp.Results {
-				require.Equal(t, createResp.Results[i].Status, api.OK())
+				require.Equal(t, api.OK(), createResp.Results[i].Status)
 				updateEntries[i].Id = createResp.Results[i].Entry.Id
 				spiffeToIDMap[createResp.Results[i].Entry.SpiffeId.Path] = createResp.Results[i].Entry.Id
 			}

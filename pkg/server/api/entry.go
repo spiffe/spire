@@ -67,8 +67,8 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 }
 
 // ProtoToRegistrationEntry converts and validate entry into common registration entry
-func ProtoToRegistrationEntry(e *types.Entry) (*common.RegistrationEntry, error) {
-	return ProtoToRegistrationEntryWithMask(e, protoutil.AllTrueEntryMask)
+func ProtoToRegistrationEntry(td spiffeid.TrustDomain, e *types.Entry) (*common.RegistrationEntry, error) {
+	return ProtoToRegistrationEntryWithMask(td, e, protoutil.AllTrueEntryMask)
 }
 
 // ProtoToRegistrationEntryWithMask converts and validate entry into common registration entry,
@@ -76,13 +76,13 @@ func ProtoToRegistrationEntry(e *types.Entry) (*common.RegistrationEntry, error)
 // in the mask are false.
 // This allows the user to not specify these fields while updating using a mask.
 // All other fields are allowed to be empty (with or without a mask).
-func ProtoToRegistrationEntryWithMask(e *types.Entry, mask *types.EntryMask) (*common.RegistrationEntry, error) {
+func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, mask *types.EntryMask) (*common.RegistrationEntry, error) {
 	var parentIDString string
 	if e == nil {
 		return nil, errors.New("missing entry")
 	}
 	if mask == nil || mask.ParentId {
-		parentID, err := IDFromProto(e.ParentId)
+		parentID, err := TrustDomainMemberIDFromProto(td, e.ParentId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid parent ID: %v", err)
 		}
@@ -90,7 +90,7 @@ func ProtoToRegistrationEntryWithMask(e *types.Entry, mask *types.EntryMask) (*c
 	}
 	var spiffeIDString string
 	if mask == nil || mask.SpiffeId {
-		spiffeID, err := IDFromProto(e.SpiffeId)
+		spiffeID, err := TrustDomainWorkloadIDFromProto(td, e.SpiffeId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid spiffe ID: %v", err)
 		}
