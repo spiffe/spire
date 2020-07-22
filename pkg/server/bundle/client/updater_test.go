@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
@@ -25,6 +26,8 @@ func TestBundleUpdater(t *testing.T) {
 	testCases := []struct {
 		// name of the test
 		name string
+		// trust domain
+		trustDomain string
 		// the bundle prepopulated in the datastore and returned from Update()
 		localBundle *bundleutil.Bundle
 		// the expected endpoint bundle returned from Update()
@@ -37,11 +40,18 @@ func TestBundleUpdater(t *testing.T) {
 		err string
 	}{
 		{
-			name: "local bundle not found",
-			err:  "local bundle not found",
+			name:        "local bundle not found",
+			trustDomain: "domain.test",
+			err:         "local bundle not found",
+		},
+		{
+			name:        "accepts trust domain id as the trust domain",
+			trustDomain: "spiffe://domain.test",
+			err:         "local bundle not found",
 		},
 		{
 			name:           "bundle has no changes",
+			trustDomain:    "domain.test",
 			localBundle:    bundle1,
 			endpointBundle: nil,
 			storedBundle:   bundle1,
@@ -51,6 +61,7 @@ func TestBundleUpdater(t *testing.T) {
 		},
 		{
 			name:           "bundle changed",
+			trustDomain:    "domain.test",
 			localBundle:    bundle1,
 			endpointBundle: bundle2,
 			storedBundle:   bundle2,
@@ -60,6 +71,7 @@ func TestBundleUpdater(t *testing.T) {
 		},
 		{
 			name:           "bundle fails to download",
+			trustDomain:    "domain.test",
 			localBundle:    bundle1,
 			endpointBundle: nil,
 			storedBundle:   bundle1,
@@ -84,7 +96,7 @@ func TestBundleUpdater(t *testing.T) {
 
 			updater := NewBundleUpdater(BundleUpdaterConfig{
 				DataStore:   ds,
-				TrustDomain: "domain.test",
+				TrustDomain: testCase.trustDomain,
 				TrustDomainConfig: TrustDomainConfig{
 					EndpointAddress:  "ENDPOINT_ADDRESS",
 					EndpointSpiffeID: "ENDPOINT_SPIFFEID",
@@ -115,7 +127,7 @@ func TestBundleUpdater(t *testing.T) {
 			}
 
 			resp, err := ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-				TrustDomainId: "spiffe://domain.test",
+				TrustDomainId: idutil.TrustDomainID(testCase.trustDomain),
 			})
 			require.NoError(t, err)
 			require.NotNil(t, resp)
