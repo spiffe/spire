@@ -153,7 +153,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return fmt.Errorf("failed setting AgentStore deps: %v", err)
 	}
 
-	bundleManager := s.newBundleManager(cat)
+	bundleManager := s.newBundleManager(cat, metrics)
 
 	registrationManager := s.newRegistrationManager(cat, metrics)
 
@@ -320,9 +320,10 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 	return endpoints.New(config)
 }
 
-func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
+func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
 		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
+		Metrics:      metrics,
 		DataStore:    cat.GetDataStore(),
 		TrustDomains: s.config.Federation.FederatesWith,
 	})
