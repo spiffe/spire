@@ -359,6 +359,9 @@ const (
 	// to add clarity
 	Bundle = "bundle"
 
+	// BundleManager functionality related to a Bundle manager
+	BundleManager = "bundle_manager"
+
 	// BundlesUpdate functionality related to updating bundles
 	BundlesUpdate = "bundles_update"
 
