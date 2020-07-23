@@ -10,7 +10,7 @@ docker-compose exec -T spire-server \
     -ttl 0
 check-synced-entry "spire-agent" "spiffe://domain.test/admin"
 
-log-debug "creating admin registration entry..."
+log-debug "creating regular registration entry..."
 docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \

@@ -166,7 +166,7 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 	template := &x509.CertificateRequest{URIs: []*url.URL{id.URL()}}
 	csr, err := x509.CreateCertificateRequest(rand.Reader, template, key)
 	if err != nil {
-		return fmt.Errorf("fails to create CSR: %v", err)
+		return fmt.Errorf("failed to create CSR: %v", err)
 	}
 
 	// Call mint
@@ -180,7 +180,7 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 	case err != nil:
 		return err
 	case time.Unix(resp.Svid.ExpiresAt, 0).Before(time.Now()):
-		return errors.New("invalid expiredAt")
+		return errors.New("invalid ExpiresAt")
 	case !proto.Equal(resp.Svid.Id, expectedID):
 		return fmt.Errorf("unexpected Id: %v", resp.Svid.Id.String())
 	case len(resp.Svid.CertChain) == 0:
@@ -234,7 +234,7 @@ func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
 	claimsMap := make(map[string]interface{})
 	err = token.UnsafeClaimsWithoutVerification(&claimsMap)
 	if err != nil {
-		return fmt.Errorf("failed to claims: %v", err)
+		return fmt.Errorf("claims verification failed: %v", err)
 	}
 
 	// Validate token
@@ -309,7 +309,7 @@ func batchCreateFederatedBundle(ctx context.Context, c *itclient.Client) error {
 	case err != nil:
 		return err
 	case len(resp.Results) != 1:
-		return fmt.Errorf("unexpected response size: %v", len(resp.Results))
+		return fmt.Errorf("unexpected response size: %d", len(resp.Results))
 	}
 
 	// Validate result
@@ -324,9 +324,9 @@ func batchCreateFederatedBundle(ctx context.Context, c *itclient.Client) error {
 	case len(r.Bundle.X509Authorities) == 0:
 		return errors.New("missing X509 authorities")
 	case !containsX509Certificate(r.Bundle.X509Authorities, blk.Bytes):
-		return errors.New("no x509 authority")
+		return errors.New("no X509 authority")
 	case !containsJWTKey(r.Bundle.JwtAuthorities, jwtKey):
-		return errors.New("no jwt key")
+		return errors.New("no JWT key")
 	}
 
 	return nil
@@ -352,7 +352,7 @@ func batchUpdateFederatedBundle(ctx context.Context, c *itclient.Client) error {
 	case err != nil:
 		return err
 	case len(resp.Results) != 1:
-		return fmt.Errorf("unexpected response size: %v", len(resp.Results))
+		return fmt.Errorf("unexpected response size: %d", len(resp.Results))
 	}
 
 	r := resp.Results[0]
@@ -408,9 +408,9 @@ func batchSetFederatedBundle(ctx context.Context, c *itclient.Client) error {
 	case len(r.Bundle.X509Authorities) == 0:
 		return errors.New("missing X509 authorities")
 	case !containsX509Certificate(r.Bundle.X509Authorities, blk.Bytes):
-		return errors.New("no x509 authority")
+		return errors.New("no X509 authority")
 	case !containsJWTKey(r.Bundle.JwtAuthorities, jwtKey):
-		return errors.New("no jwt key")
+		return errors.New("no JWT key")
 	}
 
 	return nil
@@ -438,7 +438,7 @@ func listFederatedBundles(ctx context.Context, c *itclient.Client) error {
 
 	for _, td := range []string{"foo", "bar"} {
 		if !containsFunc(td) {
-			return fmt.Errorf("bundle %q not found", td)
+			return fmt.Errorf("bundle for trust domain %q not found", td)
 		}
 	}
 	return nil
@@ -558,7 +558,7 @@ func listEntries(ctx context.Context, c *itclient.Client) error {
 
 	for _, e := range resp.Entries {
 		if !containsFunc(e.SpiffeId) {
-			return fmt.Errorf("unexpected entry: %v", e.Id)
+			return fmt.Errorf("unexpected entry: %v", e)
 		}
 	}
 
@@ -664,7 +664,7 @@ func batchDeleteEntry(ctx context.Context, c *itclient.Client) error {
 	case r.Status.Code != int32(codes.OK):
 		return fmt.Errorf("unexpected status: %v", r.Status)
 	case r.Id != entryID:
-		return fmt.Errorf("unexpected entryID: %v", r.Id)
+		return fmt.Errorf("unexpected entry: %v", r)
 	}
 	return nil
 }
@@ -690,7 +690,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 		return errors.New("missing token")
 	}
 
-	// Set agentID that will be used in another tests
+	// Set agentID that will be used in other tests
 	agentID = &types.SPIFFEID{
 		TrustDomain: c.Td.String(),
 		Path:        fmt.Sprintf("/spire/agent/join_token/%s", resp.Value),
@@ -699,7 +699,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 	// Create CSR
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
-		return fmt.Errorf("fails to create CSR: %v", err)
+		return fmt.Errorf("failed to create CSR: %v", err)
 	}
 
 	// Attest using generated token
