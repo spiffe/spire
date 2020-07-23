@@ -34,7 +34,7 @@ type ManagerSuite struct {
 func (s *ManagerSuite) SetupTest() {
 	s.clock = clock.NewMock(s.T())
 	s.log, s.logHook = test.NewNullLogger()
-	s.ds = fakedatastore.New()
+	s.ds = fakedatastore.New(s.T())
 	s.metrics = fakemetrics.New()
 }
 

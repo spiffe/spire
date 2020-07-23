@@ -28,7 +28,6 @@ type BundleUpdater interface {
 type UpstreamClientConfig struct {
 	UpstreamAuthority upstreamauthority.UpstreamAuthority
 	BundleUpdater     BundleUpdater
-	UpstreamBundle    bool
 }
 
 // UpstreamClient is used to interact with and stream updates from the
@@ -178,19 +177,6 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreama
 		return
 	}
 
-	if !u.c.UpstreamBundle {
-		// We have opted not to join the upstream PKI. The server CA should
-		// therefore be considered the root. Also, this means there is no
-		// reason to continue monitoring for bundle updates, so update the
-		// bundle with the server CA and return.
-		if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509CA[:1]); err != nil {
-			firstResultCh <- mintX509CAResult{err: err}
-			return
-		}
-		firstResultCh <- mintX509CAResult{x509CA: x509CA, done: true}
-		return
-	}
-
 	if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509Roots); err != nil {
 		firstResultCh <- mintX509CAResult{err: err}
 		return
@@ -240,19 +226,6 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 	resp, err := stream.Recv()
 	if err != nil {
 		firstResultCh <- publishJWTKeyResult{err: err}
-		return
-	}
-
-	if !u.c.UpstreamBundle {
-		// We have opted not to join the upstream PKI. This means there is no
-		// reason to continue monitoring for bundle updates, so update the
-		// bundle with the JWT key and return.
-		updatedKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, []*common.PublicKey{req.JwtKey})
-		if err != nil {
-			firstResultCh <- publishJWTKeyResult{err: err}
-			return
-		}
-		firstResultCh <- publishJWTKeyResult{jwtKeys: updatedKeys, done: true}
 		return
 	}
 

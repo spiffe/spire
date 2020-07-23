@@ -26,11 +26,7 @@ type RotatorConfig struct {
 	Interval time.Duration
 }
 
-func NewRotator(c *RotatorConfig) Rotator {
-	return newRotator(c)
-}
-
-func newRotator(c *RotatorConfig) *rotator {
+func NewRotator(c *RotatorConfig) *Rotator {
 	if c.Interval == 0 {
 		c.Interval = DefaultRotatorInterval
 	}
@@ -38,7 +34,7 @@ func newRotator(c *RotatorConfig) *rotator {
 		c.Clock = clock.New()
 	}
 
-	return &rotator{
+	return &Rotator{
 		c:     c,
 		state: observer.NewProperty(State{}),
 	}

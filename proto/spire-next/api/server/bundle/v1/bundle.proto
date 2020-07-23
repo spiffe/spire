@@ -16,8 +16,18 @@ service Bundle {
     // is returned. This is the only RPC that can be used to update the
     // bundle for the trust domain of the SPIRE server.
     //
-    // The caller must be local or present an admin or downstream X509-SVID.
+    // The caller must be local or present an admin X509-SVID.
     rpc AppendBundle(AppendBundleRequest) returns (spire.types.Bundle);
+
+    // Publishes a downstream JWT authority to the SPIRE server. If the server
+    // is itself a downstream server (i.e. configured with an UpstreamAuthority
+    // plugin), the JWT authority is published further upstream using the
+    // UpstreamAuthority plugin. If the server is not a downstream server, or
+    // if the UpstreamAuthority does not support publishing JWT authorities,
+    // the server appends the JWT authority to its own bundle.
+    //
+    // The caller must present a downstream X509-SVID.
+    rpc PublishJWTAuthority(PublishJWTAuthorityRequest) returns (PublishJWTAuthorityResponse);
 
     // Lists federated bundles.
     //
@@ -67,14 +77,25 @@ message AppendBundleRequest {
     spire.types.BundleMask output_mask = 3;
 }
 
+message PublishJWTAuthorityRequest {
+    // Required. The JWT authority to publish.
+    spire.types.JWTKey jwt_authority = 1;
+}
+
+message PublishJWTAuthorityResponse {
+    // The JWT authorities for the trust domain.
+    repeated spire.types.JWTKey jwt_authorities = 1;
+}
+
 message ListFederatedBundlesRequest {
     // An output mask indicating which bundle fields are set in the response.
     spire.types.BundleMask output_mask = 1;
 
-    // The maximum number of items to return.
+    // The maximum number of results to return. The server may further
+    // constrain this value, or if zero, choose its own.
     int32 page_size = 2;
 
-    // The next_page_token value returned from a previous List request, if any.
+    // The next_page_token value returned from a previous request, if any.
     string page_token = 3;
 }
 
@@ -83,11 +104,13 @@ message ListFederatedBundlesResponse {
     repeated spire.types.Bundle bundles = 1;
 
     // The page token for the next request. Empty if there are no more results.
+    // This field should be checked by clients even when a page_size was not
+    // requested, since the server may choose its own (see page_size).
     string next_page_token = 2;
 }
 
 message GetFederatedBundleRequest {
-    // Required. The trust domain of the bundle, e.g. example.org. If unset, the bundle
+    // Required. The trust domain name of the bundle (e.g., "example.org").
     string trust_domain = 1;
 
     // An output mask indicating which bundle fields are set in the response.
@@ -161,7 +184,7 @@ message BatchSetFederatedBundleResponse {
 }
 
 message BatchDeleteFederatedBundleRequest {
-    // The trust domains of the bundles to be deleted.
+    // The trust domain names (e.g., "example.org") of the bundles to delete.
     repeated string trust_domains = 1;
 }
 
@@ -170,7 +193,8 @@ message BatchDeleteFederatedBundleResponse {
         // The status of deleting the bundle.
         spire.types.Status status = 1;
 
-        // The trust domain of the bundle that was deleted.
+        // The trust domain name (e.g., "example.org") of the bundle that was
+        // deleted.
         string trust_domain = 2;
     }
 

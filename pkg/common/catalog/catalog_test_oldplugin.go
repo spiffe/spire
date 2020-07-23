@@ -10,6 +10,7 @@ import (
 
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/spiffe/spire/pkg/common/catalog/test"
+	"github.com/spiffe/spire/proto/private/test/catalogtest"
 	"google.golang.org/grpc"
 )
 
@@ -32,7 +33,7 @@ type grpcPlugin struct {
 }
 
 func (grpcPlugin) GRPCServer(b *goplugin.GRPCBroker, s *grpc.Server) error {
-	test.RegisterPluginServer(s, test.NewPlugin())
+	catalogtest.RegisterPluginServer(s, test.NewPlugin())
 	return nil
 }
 

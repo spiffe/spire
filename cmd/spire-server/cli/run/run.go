@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +40,6 @@ const (
 	defaultSocketPath         = "/tmp/spire-registration.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
-	defaultUpstreamBundle     = true
 )
 
 var (
@@ -68,15 +66,14 @@ type serverConfig struct {
 	CATTL               string             `hcl:"ca_ttl"`
 	DataDir             string             `hcl:"data_dir"`
 	Experimental        experimentalConfig `hcl:"experimental"`
+	Federation          *federationConfig  `hcl:"federation"`
 	JWTIssuer           string             `hcl:"jwt_issuer"`
 	LogFile             string             `hcl:"log_file"`
 	LogLevel            string             `hcl:"log_level"`
 	LogFormat           string             `hcl:"log_format"`
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
-	DeprecatedSVIDTTL   string             `hcl:"svid_ttl"`
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
-	UpstreamBundle      *bool              `hcl:"upstream_bundle"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -93,11 +90,13 @@ type serverConfig struct {
 type experimentalConfig struct {
 	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
 
-	BundleEndpointEnabled bool                           `hcl:"bundle_endpoint_enabled"`
-	BundleEndpointAddress string                         `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort    int                            `hcl:"bundle_endpoint_port"`
-	BundleEndpointACME    *bundleEndpointACMEConfig      `hcl:"bundle_endpoint_acme"`
-	FederatesWith         map[string]federatesWithConfig `hcl:"federates_with"`
+	DeprecatedBundleEndpointEnabled bool                                     `hcl:"bundle_endpoint_enabled"`
+	DeprecatedBundleEndpointAddress string                                   `hcl:"bundle_endpoint_address"`
+	DeprecatedBundleEndpointPort    int                                      `hcl:"bundle_endpoint_port"`
+	DeprecatedBundleEndpointACME    *bundleEndpointACMEConfig                `hcl:"bundle_endpoint_acme"`
+	DeprecatedFederatesWith         map[string]deprecatedFederatesWithConfig `hcl:"federates_with"`
+
+	EnableAPI bool `hcl:"enable_api"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -109,6 +108,19 @@ type caSubjectConfig struct {
 	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
+type federationConfig struct {
+	BundleEndpoint *bundleEndpointConfig          `hcl:"bundle_endpoint"`
+	FederatesWith  map[string]federatesWithConfig `hcl:"federates_with"`
+	UnusedKeys     []string                       `hcl:",unusedKeys"`
+}
+
+type bundleEndpointConfig struct {
+	Address    string                    `hcl:"address"`
+	Port       int                       `hcl:"port"`
+	ACME       *bundleEndpointACMEConfig `hcl:"acme"`
+	UnusedKeys []string                  `hcl:",unusedKeys"`
+}
+
 type bundleEndpointACMEConfig struct {
 	DirectoryURL string   `hcl:"directory_url"`
 	DomainName   string   `hcl:"domain_name"`
@@ -117,7 +129,7 @@ type bundleEndpointACMEConfig struct {
 	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
-type federatesWithConfig struct {
+type deprecatedFederatesWithConfig struct {
 	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
 	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
 	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
@@ -125,21 +137,36 @@ type federatesWithConfig struct {
 	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
-func NewRunCommand(logOptions []log.Option) cli.Command {
-	return newRunCommand(common_cli.DefaultEnv, logOptions)
+type federatesWithConfig struct {
+	BundleEndpoint federatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
+	UnusedKeys     []string                          `hcl:",unusedKeys"`
 }
 
-func newRunCommand(env *common_cli.Env, logOptions []log.Option) *Command {
+type federatesWithBundleEndpointConfig struct {
+	Address    string   `hcl:"address"`
+	Port       int      `hcl:"port"`
+	SpiffeID   string   `hcl:"spiffe_id"`
+	UseWebPKI  bool     `hcl:"use_web_pki"`
+	UnusedKeys []string `hcl:",unusedKeys"`
+}
+
+func NewRunCommand(logOptions []log.Option, allowUnknownConfig bool) cli.Command {
+	return newRunCommand(common_cli.DefaultEnv, logOptions, allowUnknownConfig)
+}
+
+func newRunCommand(env *common_cli.Env, logOptions []log.Option, allowUnknownConfig bool) *Command {
 	return &Command{
-		env:        env,
-		LogOptions: logOptions,
+		env:                env,
+		logOptions:         logOptions,
+		allowUnknownConfig: allowUnknownConfig,
 	}
 }
 
 // Run Command struct
 type Command struct {
-	LogOptions []log.Option
-	env        *common_cli.Env
+	logOptions         []log.Option
+	env                *common_cli.Env
+	allowUnknownConfig bool
 }
 
 // Help prints the server cmd usage
@@ -155,7 +182,7 @@ func Help(name string, writer io.Writer) string {
 	return err.Error()
 }
 
-func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer) (*server.Config, error) {
+func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*server.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(name, args, output)
@@ -175,12 +202,12 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, err
 	}
 
-	return NewServerConfig(input, logOptions)
+	return NewServerConfig(input, logOptions, allowUnknownConfig)
 }
 
 // Run the SPIFFE Server
 func (cmd *Command) Run(args []string) int {
-	c, err := LoadConfig(commandName, args, cmd.LogOptions, cmd.env.Stderr)
+	c, err := LoadConfig(commandName, args, cmd.logOptions, cmd.env.Stderr, cmd.allowUnknownConfig)
 	if err != nil {
 		_, _ = fmt.Fprintln(cmd.env.Stderr, err)
 		return 1
@@ -260,7 +287,6 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.Var(newMaybeBoolValue(&c.UpstreamBundle), "upstreamBundle", "Include upstream CA certificates in the bundle")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	err := flags.Parse(args)
@@ -293,7 +319,7 @@ func mergeInput(fileInput *Config, cliInput *serverConfig) (*Config, error) {
 	return c, nil
 }
 
-func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error) {
+func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -333,45 +359,48 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 	}
 	sc.Log = logger
 
-	if c.Server.UpstreamBundle != nil {
-		sc.UpstreamBundle = *c.Server.UpstreamBundle
-	} else {
-		sc.UpstreamBundle = defaultUpstreamBundle
-	}
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
-	sc.Experimental.BundleEndpointEnabled = c.Server.Experimental.BundleEndpointEnabled
-	sc.Experimental.BundleEndpointAddress = &net.TCPAddr{
-		IP:   net.ParseIP(c.Server.Experimental.BundleEndpointAddress),
-		Port: c.Server.Experimental.BundleEndpointPort,
-	}
+	if c.Server.Federation != nil {
+		if c.Server.Federation.BundleEndpoint != nil {
+			sc.Federation.BundleEndpoint = &bundle.EndpointConfig{
+				Address: &net.TCPAddr{
+					IP:   net.ParseIP(c.Server.Federation.BundleEndpoint.Address),
+					Port: c.Server.Federation.BundleEndpoint.Port,
+				},
+			}
 
-	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
-		sc.Experimental.BundleEndpointACME = &bundle.ACMEConfig{
-			DirectoryURL: acme.DirectoryURL,
-			DomainName:   acme.DomainName,
-			CacheDir:     filepath.Join(sc.DataDir, "bundle-acme"),
-			Email:        acme.Email,
-			ToSAccepted:  acme.ToSAccepted,
+			if acme := c.Server.Federation.BundleEndpoint.ACME; acme != nil {
+				sc.Federation.BundleEndpoint.ACME = &bundle.ACMEConfig{
+					DirectoryURL: acme.DirectoryURL,
+					DomainName:   acme.DomainName,
+					CacheDir:     filepath.Join(sc.DataDir, "bundle-acme"),
+					Email:        acme.Email,
+					ToSAccepted:  acme.ToSAccepted,
+				}
+			}
 		}
-	}
 
-	federatesWith := map[string]bundleClient.TrustDomainConfig{}
-	for trustDomain, config := range c.Server.Experimental.FederatesWith {
-		port := defaultBundleEndpointPort
-		if config.BundleEndpointPort != 0 {
-			port = config.BundleEndpointPort
+		federatesWith := map[string]bundleClient.TrustDomainConfig{}
+		for trustDomain, config := range c.Server.Federation.FederatesWith {
+			port := defaultBundleEndpointPort
+			if config.BundleEndpoint.Port != 0 {
+				port = config.BundleEndpoint.Port
+			}
+			if config.BundleEndpoint.UseWebPKI && config.BundleEndpoint.SpiffeID != "" {
+				return nil, errors.New("usage of `bundle_endpoint.spiffe_id` is not allowed when authenticating with Web PKI")
+			}
+			federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
+				EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpoint.Address, port),
+				EndpointSpiffeID: config.BundleEndpoint.SpiffeID,
+				UseWebPKI:        config.BundleEndpoint.UseWebPKI,
+			}
 		}
-		if config.UseWebPKI && config.BundleEndpointSpiffeID != "" {
-			sc.Log.Warn("The `bundle_endpoint_spiffe_id` configurable is ignored when authenticating with Web PKI")
-			config.BundleEndpointSpiffeID = ""
-		}
-		federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
-			EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
-			EndpointSpiffeID: config.BundleEndpointSpiffeID,
-			UseWebPKI:        config.UseWebPKI,
-		}
+		sc.Federation.FederatesWith = federatesWith
 	}
-	sc.Experimental.FederatesWith = federatesWith
+	if c.Server.Experimental.EnableAPI {
+		sc.Experimental.EnableAPI = true
+		sc.Log.Info("Experimental API enabled")
+	}
 
 	sc.ProfilingEnabled = c.Server.ProfilingEnabled
 	sc.ProfilingPort = c.Server.ProfilingPort
@@ -427,16 +456,13 @@ func NewServerConfig(c *Config, logOptions []log.Option) (*server.Config, error)
 	sc.HealthChecks = c.HealthChecks
 
 	// Write out deprecation warnings
-	if c.Server.UpstreamBundle != nil {
-		sc.Log.Warn("The `upstream_bundle` configurable will be deprecated and enforced to 'true' in a future release.  Please see issue #1095 and the configuration documentation for more information.")
-	}
+	warnOnDeprecatedConfig(c, sc.Log)
 
-	// Warn if we detect unknown config options. We need a logger to do this. In
-	// the future, we can move from warning to bailing out (once folks have had
-	// ample time to detect any pre-existing errors)
-	//
-	// TODO: Move this check into validateConfig for 0.11.0
-	warnOnUnknownConfig(c, sc.Log)
+	if !allowUnknownConfig {
+		if err := checkForUnknownConfig(c, sc.Log); err != nil {
+			return nil, err
+		}
+	}
 
 	return sc, nil
 }
@@ -466,58 +492,152 @@ func validateConfig(c *Config) error {
 		return errors.New("plugins section must be configured")
 	}
 
-	if acme := c.Server.Experimental.BundleEndpointACME; acme != nil {
-		if acme.DomainName == "" {
-			return errors.New("bundle_endpoint_acme domain_name must be configured")
+	if c.Server.Federation != nil {
+		// TODO: Remove this check once the deprecated experimental federation options are removed.
+		if isDeprecatedFederationConfigUsed(c.Server.Experimental) {
+			return errors.New("cannot configure federation section along with any of " +
+				"the following deprecated experimental options: bundle_endpoint_acme, " +
+				"bundle_endpoint_enabled, bundle_endpoint_address, bundle_endpoint_port, " +
+				"federates_with")
 		}
 
-		if acme.Email == "" {
-			return errors.New("bundle_endpoint_acme email must be configured")
-		}
-	}
+		if c.Server.Federation.BundleEndpoint != nil &&
+			c.Server.Federation.BundleEndpoint.ACME != nil {
+			acme := c.Server.Federation.BundleEndpoint.ACME
 
-	for td, tdConfig := range c.Server.Experimental.FederatesWith {
-		if tdConfig.BundleEndpointAddress == "" {
-			return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
-		}
-	}
+			if acme.DomainName == "" {
+				return errors.New("federation.bundle_endpoint.acme.domain_name must be configured")
+			}
 
-	// TODO: Remove this check at 0.11.0 (after warnOnUnknownConfig bails out instead of only display a warning)
-	if c.Server.DeprecatedSVIDTTL != "" {
-		return errors.New(`the "svid_ttl" configurable has been deprecated and renamed to "default_svid_ttl"; please update your configuration`)
+			if acme.Email == "" {
+				return errors.New("federation.bundle_endpoint.acme.email must be configured")
+			}
+		}
+
+		for td, tdConfig := range c.Server.Federation.FederatesWith {
+			if tdConfig.BundleEndpoint.Address == "" {
+				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
+			}
+		}
+	} else { // TODO: Remove this else block once the deprecated experimental federation options are removed.
+		if acme := c.Server.Experimental.DeprecatedBundleEndpointACME; acme != nil {
+			if acme.DomainName == "" {
+				return errors.New("bundle_endpoint_acme domain_name must be configured")
+			}
+
+			if acme.Email == "" {
+				return errors.New("bundle_endpoint_acme email must be configured")
+			}
+		}
+
+		for td, tdConfig := range c.Server.Experimental.DeprecatedFederatesWith {
+			if tdConfig.BundleEndpointAddress == "" {
+				return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
+			}
+		}
+
+		c.Server.Federation = federationConfigFromExperimentalConfig(c.Server.Experimental)
 	}
 
 	return nil
 }
 
-func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
+// TODO: Remove this function once the deprecated experimental federation options are removed.
+func isDeprecatedFederationConfigUsed(ec experimentalConfig) bool {
+	return ec.DeprecatedBundleEndpointACME != nil ||
+		ec.DeprecatedBundleEndpointEnabled ||
+		ec.DeprecatedBundleEndpointAddress != "" ||
+		ec.DeprecatedBundleEndpointPort != 0 ||
+		len(ec.DeprecatedFederatesWith) > 0
+}
+
+// TODO: Remove this function once the deprecated experimental federation options are removed.
+func federationConfigFromExperimentalConfig(ec experimentalConfig) *federationConfig {
+	if isDeprecatedFederationConfigUsed(ec) {
+		fc := &federationConfig{}
+		if ec.DeprecatedBundleEndpointEnabled {
+			fc.BundleEndpoint = &bundleEndpointConfig{
+				ACME:    ec.DeprecatedBundleEndpointACME,
+				Address: ec.DeprecatedBundleEndpointAddress,
+				Port:    ec.DeprecatedBundleEndpointPort,
+			}
+		}
+		if len(ec.DeprecatedFederatesWith) > 0 {
+			fc.FederatesWith = make(map[string]federatesWithConfig)
+			for td, cfg := range ec.DeprecatedFederatesWith {
+				fc.FederatesWith[td] = federatesWithConfig{
+					BundleEndpoint: federatesWithBundleEndpointConfig{
+						Address:   cfg.BundleEndpointAddress,
+						Port:      cfg.BundleEndpointPort,
+						SpiffeID:  cfg.BundleEndpointSpiffeID,
+						UseWebPKI: cfg.UseWebPKI,
+					},
+				}
+			}
+		}
+		return fc
+	}
+
+	return nil
+}
+
+func warnOnDeprecatedConfig(c *Config, l logrus.FieldLogger) {
+	if isDeprecatedFederationConfigUsed(c.Server.Experimental) {
+		l.Warn("The experimental federation configurables will be deprecated in a future release. Please see issue #1619 and the configuration documentation for more information.")
+	}
+}
+
+func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
+	detectedUnknown := func(section string, keys []string) {
+		l.WithFields(logrus.Fields{
+			"section": section,
+			"keys":    strings.Join(keys, ","),
+		}).Error("Unknown configuration detected")
+		err = errors.New("unknown configuration detected")
+	}
+
 	if len(c.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown top-level config options: %q; this will be fatal in a future release.", c.UnusedKeys)
+		detectedUnknown("top-level", c.UnusedKeys)
 	}
 
 	if c.Server != nil {
 		if len(c.Server.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown server config options: %q; this will be fatal in a future release.", c.Server.UnusedKeys)
+			detectedUnknown("server", c.Server.UnusedKeys)
 		}
 
 		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown CA Subject config options: %q; this will be fatal in a future release.", cs.UnusedKeys)
+			detectedUnknown("ca_subject", cs.UnusedKeys)
 		}
 
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
 		//if len(c.Server.Experimental.UnusedKeys) != 0 {
-		//	l.Warnf("Detected unknown experimental config options: %q; this will be fatal in a future release.", c.Server.Experimental.UnusedKeys)
+		//	detectedUnknown("experimental", c.Server.Experimental.UnusedKeys)
 		//}
 
-		if bea := c.Server.Experimental.BundleEndpointACME; bea != nil && len(bea.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown ACME config options: %q; this will be fatal in a future release.", bea.UnusedKeys)
-		}
+		if c.Server.Federation != nil {
+			// TODO: Re-enable unused key detection for experimental config. See
+			// https://github.com/spiffe/spire/issues/1101 for more information
+			//
+			//if len(c.Server.Federation.UnusedKeys) != 0 {
+			//	detectedUnknown("federation", c.Server.Federation.UnusedKeys)
+			//}
 
-		for k, v := range c.Server.Experimental.FederatesWith {
-			if len(v.UnusedKeys) != 0 {
-				l.Warnf("Detected unknown federation config options for %q: %q; this will be fatal in a future release.", k, v.UnusedKeys)
+			if c.Server.Federation.BundleEndpoint != nil {
+				if len(c.Server.Federation.BundleEndpoint.UnusedKeys) != 0 {
+					detectedUnknown("bundle endpoint", c.Server.Federation.BundleEndpoint.UnusedKeys)
+				}
+
+				if bea := c.Server.Federation.BundleEndpoint.ACME; bea != nil && len(bea.UnusedKeys) != 0 {
+					detectedUnknown("bundle endpoint ACME", bea.UnusedKeys)
+				}
+			}
+
+			for k, v := range c.Server.Federation.FederatesWith {
+				if len(v.UnusedKeys) != 0 {
+					detectedUnknown(fmt.Sprintf("federates_with %q", k), v.UnusedKeys)
+				}
 			}
 		}
 	}
@@ -526,38 +646,40 @@ func warnOnUnknownConfig(c *Config, l logrus.FieldLogger) {
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
 	//if len(c.Telemetry.UnusedKeys) != 0 {
-	//	l.Warnf("Detected unknown telemetry config options: %q; this will be fatal in a future release.", c.Telemetry.UnusedKeys)
+	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
 	//}
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown Prometheus config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+		detectedUnknown("Prometheus", p.UnusedKeys)
 	}
 
 	for _, v := range c.Telemetry.DogStatsd {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown DogStatsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+			detectedUnknown("DogStatsd", v.UnusedKeys)
 		}
 	}
 
 	for _, v := range c.Telemetry.Statsd {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown Statsd config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+			detectedUnknown("Statsd", v.UnusedKeys)
 		}
 	}
 
 	for _, v := range c.Telemetry.M3 {
 		if len(v.UnusedKeys) != 0 {
-			l.Warnf("Detected unknown M3 config options: %q; this will be fatal in a future release.", v.UnusedKeys)
+			detectedUnknown("M3", v.UnusedKeys)
 		}
 	}
 
 	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown InMem config options: %q; this will be fatal in a future release.", p.UnusedKeys)
+		detectedUnknown("InMem", p.UnusedKeys)
 	}
 
 	if len(c.HealthChecks.UnusedKeys) != 0 {
-		l.Warnf("Detected unknown health check config options: %q; this will be fatal in a future release.", c.HealthChecks.UnusedKeys)
+		detectedUnknown("health check", c.HealthChecks.UnusedKeys)
 	}
+
+	return err
 }
 
 func defaultConfig() *Config {
@@ -568,10 +690,7 @@ func defaultConfig() *Config {
 			LogLevel:            defaultLogLevel,
 			LogFormat:           log.DefaultFormat,
 			RegistrationUDSPath: defaultSocketPath,
-			Experimental: experimentalConfig{
-				BundleEndpointAddress: "0.0.0.0",
-				BundleEndpointPort:    defaultBundleEndpointPort,
-			},
+			Experimental:        experimentalConfig{},
 		},
 	}
 }
@@ -590,37 +709,6 @@ func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
 		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("CA key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
-
-type maybeBoolValue struct {
-	p **bool
-}
-
-func newMaybeBoolValue(p **bool) *maybeBoolValue {
-	return &maybeBoolValue{p: p}
-}
-
-func (b *maybeBoolValue) Set(s string) error {
-	if b.p == nil {
-		// This should never happen, but just in case.
-		return errors.New("cannot set a zero-valued maybeBoolValue")
-	}
-	v, err := strconv.ParseBool(s)
-	if err != nil {
-		err = errors.New("parse error")
-	}
-	*b.p = &v
-	return err
-}
-
-func (b *maybeBoolValue) String() string {
-	var v bool
-	if b.p != nil && *b.p != nil {
-		v = **b.p
-	}
-	return strconv.FormatBool(v)
-}
-
-func (b maybeBoolValue) IsBoolFlag() bool { return true }
 
 // hasExpectedTTLs is a function that checks if ca_ttl is less than default_svid_ttl * 6. SPIRE Server prepares a new CA certificate when 1/2 of the CA lifetime has elapsed in order to give ample time for the new trust bundle to propagate. However, it does not start using it until 5/6th of the CA lifetime. So its normal for an SVID TTL to be capped to 1/6th of the CA TTL. In order to get the expected lifetime on SVID TTLs, the CA TTL should be 6x.
 func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {

@@ -53,18 +53,17 @@ type ManagedCA interface {
 }
 
 type ManagerConfig struct {
-	CA             ManagedCA
-	Catalog        catalog.Catalog
-	TrustDomain    url.URL
-	UpstreamBundle bool
-	CATTL          time.Duration
-	X509CAKeyType  keymanager.KeyType
-	JWTKeyType     keymanager.KeyType
-	CASubject      pkix.Name
-	Dir            string
-	Log            logrus.FieldLogger
-	Metrics        telemetry.Metrics
-	Clock          clock.Clock
+	CA            ManagedCA
+	Catalog       catalog.Catalog
+	TrustDomain   url.URL
+	CATTL         time.Duration
+	X509CAKeyType keymanager.KeyType
+	JWTKeyType    keymanager.KeyType
+	CASubject     pkix.Name
+	Dir           string
+	Log           logrus.FieldLogger
+	Metrics       telemetry.Metrics
+	Clock         clock.Clock
 }
 
 type Manager struct {
@@ -112,7 +111,6 @@ func NewManager(c ManagerConfig) *Manager {
 				ds:            c.Catalog.GetDataStore(),
 				updated:       m.bundleUpdated,
 			},
-			UpstreamBundle: c.UpstreamBundle,
 		})
 		m.upstreamPluginName = upstreamAuthority.Name()
 	}
@@ -238,7 +236,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 
 	var x509CA *X509CA
 	if m.upstreamClient != nil {
-		x509CA, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, m.upstreamClient, m.c.UpstreamBundle, m.c.CATTL)
+		x509CA, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, m.upstreamClient, m.c.CATTL)
 		if err != nil {
 			return err
 		}
@@ -263,11 +261,10 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:           slot.id,
-		telemetry.IssuedAt:       timeField(slot.issuedAt),
-		telemetry.Expiration:     timeField(slot.x509CA.Certificate.NotAfter),
-		telemetry.SelfSigned:     m.upstreamClient == nil,
-		telemetry.UpstreamBundle: m.c.UpstreamBundle,
+		telemetry.Slot:       slot.id,
+		telemetry.IssuedAt:   timeField(slot.issuedAt),
+		telemetry.Expiration: timeField(slot.x509CA.Certificate.NotAfter),
+		telemetry.SelfSigned: m.upstreamClient == nil,
 	}).Info("X509 CA prepared")
 	return nil
 }
@@ -1041,7 +1038,7 @@ func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain strin
 	}, trustBundle, nil
 }
 
-func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamClient *UpstreamClient, upstreamBundle bool, caTTL time.Duration) (*X509CA, error) {
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamClient *UpstreamClient, caTTL time.Duration) (*X509CA, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, err
@@ -1052,14 +1049,10 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		return nil, err
 	}
 
-	var upstreamChain []*x509.Certificate
-	if upstreamBundle {
-		upstreamChain = caChain
-	}
 	return &X509CA{
 		Signer:        signer,
 		Certificate:   caChain[0],
-		UpstreamChain: upstreamChain,
+		UpstreamChain: caChain,
 	}, nil
 }
 

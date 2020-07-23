@@ -2,6 +2,7 @@ package svid
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -9,20 +10,12 @@ import (
 	"time"
 
 	"github.com/imkira/go-observer"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
 
-// Rotator is an interface for a SVID rotator
-type Rotator interface {
-	Initialize(ctx context.Context) error
-	Run(ctx context.Context) error
-
-	State() State
-	Subscribe() observer.Stream
-}
-
-type rotator struct {
+type Rotator struct {
 	c *RotatorConfig
 
 	state observer.Property
@@ -31,25 +24,29 @@ type rotator struct {
 // State is the current SVID and key
 type State struct {
 	SVID []*x509.Certificate
-	Key  *ecdsa.PrivateKey
+	Key  crypto.Signer
 }
 
 // Start generates a new SVID and then starts the rotator.
-func (r *rotator) Initialize(ctx context.Context) error {
+func (r *Rotator) Initialize(ctx context.Context) error {
 	return r.rotateSVID(ctx)
 }
 
-func (r *rotator) State() State {
+func (r *Rotator) State() State {
 	return r.state.Value().(State)
 }
 
-func (r *rotator) Subscribe() observer.Stream {
+func (r *Rotator) Subscribe() observer.Stream {
 	return r.state.Observe()
+}
+
+func (r *Rotator) Interval() time.Duration {
+	return r.c.Interval
 }
 
 // Run starts a ticker which monitors the server SVID
 // for expiration and rotates the SVID as necessary.
-func (r *rotator) Run(ctx context.Context) error {
+func (r *Rotator) Run(ctx context.Context) error {
 	t := r.c.Clock.Ticker(r.c.Interval)
 	defer t.Stop()
 
@@ -70,7 +67,7 @@ func (r *rotator) Run(ctx context.Context) error {
 
 // shouldRotate returns a boolean informing the caller of whether or not the
 // SVID should be rotated.
-func (r *rotator) shouldRotate() bool {
+func (r *Rotator) shouldRotate() bool {
 	s := r.state.Value().(State)
 
 	if len(s.SVID) == 0 {
@@ -82,7 +79,7 @@ func (r *rotator) shouldRotate() bool {
 
 // rotateSVID cuts a new server SVID from the CA plugin and installs
 // it on the endpoints struct. Also updates the CA certificates.
-func (r *rotator) rotateSVID(ctx context.Context) (err error) {
+func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 	counter := telemetry_server.StartRotateServerSVIDCall(r.c.Metrics)
 	defer counter.Done(&err)
 	r.c.Log.Debug("Rotating server SVID")
@@ -92,20 +89,19 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Sign the CSR
-	svid, err := r.c.ServerCA.SignServerX509SVID(ctx, ca.ServerX509SVIDParams{
+	svid, err := r.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  idutil.ServerID(r.c.TrustDomain.Host),
 		PublicKey: key.Public(),
 	})
 	if err != nil {
 		return err
 	}
 
-	s := State{
+	r.state.Update(State{
 		SVID: svid,
 		Key:  key,
-	}
+	})
 
-	r.state.Update(s)
 	return nil
 }
 

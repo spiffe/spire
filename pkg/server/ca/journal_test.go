@@ -76,16 +76,6 @@ var (
 }
 `
 
-	jsonX509CAUpstreamNoBundle = `{
-	"cas": {
-		"x509-CA-A": "MIIBbjCCARSgAwIBAgIBATAKBggqhkjOPQQDAjAZMRcwFQYDVQQDEw5GQUtFVVBTVFJFQU1DQTAeFw0xOTA0MTUxNzQzMjZaFw0xOTA0MTUxODQzMzZaMAAwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATA/QudaCHS+SIdorglqmSANMf7qZsuzFoQQSb86LNz+t2Jy/3Ydrwln2AGsii8NKRr9xAVcWR6wR/lVmen81SHo2YwZDAOBgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU3kf0/nNHcHpTb1lbGhzlcT/rt24wIgYDVR0RAQH/BBgwFoYUc3BpZmZlOi8vZG9tYWluLnRlc3QwCgYIKoZIzj0EAwIDSAAwRQIhAMtfBvjCDQKuC6pGSwvtHgAc10cpQIalnIyYwMKSCe5kAiBr7UqjiYa9VLqRM6vNPhj4jhcdFV9eNkb94uL7SW1eig=="
-	},
-	"public_keys": {
-		"JWT-Signer-A": "ClswWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARFWYjoAMoGTBoxXAbxzLKap2KcKAUzvBE23h3HRu3H7A0iyTT5KRRenszcv/oDTtzVvGJ9n2jrzTcvEeqlvQrUEiBSZFBrOTFYZ2U0R1I1eTU5R25IYjU3T3VXeEN3dHZOUBiq9rPlBQ=="
-	}
-}
-`
-
 	jsonX509CAUpstreamRootWithBundle = `{
 	"cas": {
 		"x509-CA-A": "MIIBbTCCARSgAwIBAgIBATAKBggqhkjOPQQDAjAZMRcwFQYDVQQDEw5GQUtFVVBTVFJFQU1DQTAeFw0xOTA0MTUxNzQyMjlaFw0xOTA0MTUxODQyMzlaMAAwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATA/QudaCHS+SIdorglqmSANMf7qZsuzFoQQSb86LNz+t2Jy/3Ydrwln2AGsii8NKRr9xAVcWR6wR/lVmen81SHo2YwZDAOBgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU3kf0/nNHcHpTb1lbGhzlcT/rt24wIgYDVR0RAQH/BBgwFoYUc3BpZmZlOi8vZG9tYWluLnRlc3QwCgYIKoZIzj0EAwIDRwAwRAIgMMPAokgpzURcMCPSc/Zn+CXRxwKapiCxSc0A0uQoWH4CICNFEWlgWCZ/0pSD4odB80U+DtdfgfvyODr3lkni2m+VMIIBNTCB3KADAgECAgEBMAoGCCqGSM49BAMCMBkxFzAVBgNVBAMTDkZBS0VVUFNUUkVBTUNBMCAYDzAwMDEwMTAxMDAwMDAwWhcNMTkwNDE1MTg0MjM5WjAZMRcwFQYDVQQDEw5GQUtFVVBTVFJFQU1DQTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABMN7/Z3rP4/T3kjd0iShwqvhvfMDL7WpAO6hepryLdg4+Tl8uJvg5HOoP00kVysqMj4su2KlB73K795jUrTKEFqjEzARMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSAAwRQIgJ5++zGfBJEgN5ymvwRq8VzT3PUuW2NhCpq8Drx/ZeIECIQCU+64Kln9YiryOZUYl/XhbajhN4mwGGOU72DBsd2kqYA=="
@@ -263,12 +253,6 @@ func (s *JournalSuite) TestX509CAChainMigration() {
 	s.NotNil(entries.X509CAs[0].Certificate)
 	s.Empty(entries.X509CAs[0].UpstreamChain)
 
-	// signed by upstream intermediate but upstream bundle not used
-	entries = s.migrateThenLoad(jsonX509CAUpstreamNoBundle)
-	s.Require().Len(entries.X509CAs, 1)
-	s.NotNil(entries.X509CAs[0].Certificate)
-	s.Empty(entries.X509CAs[0].UpstreamChain)
-
 	// signed by upstream root and upstream bundle is used
 	entries = s.migrateThenLoad(jsonX509CAUpstreamRootWithBundle)
 	s.Require().Len(entries.X509CAs, 1)
@@ -311,7 +295,7 @@ func (s *JournalSuite) writeString(path, data string) {
 }
 
 func (s *JournalSuite) writeBytes(path string, data []byte) {
-	s.Require().NoError(ioutil.WriteFile(path, data, 0644))
+	s.Require().NoError(ioutil.WriteFile(path, data, 0600))
 }
 
 func (s *JournalSuite) now() time.Time {

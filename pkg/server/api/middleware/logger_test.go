@@ -16,18 +16,25 @@ func TestWithLogger(t *testing.T) {
 	log, hook := test.NewNullLogger()
 	m := middleware.WithLogger(log)
 
-	ctx, err := m.Preprocess(context.Background(), fakeMethodName)
+	ctx, err := m.Preprocess(context.Background(), fakeFullMethod)
 	assert.NoError(t, err)
 	rpccontext.Logger(ctx).Info("HELLO")
 
 	// Assert the log contents
 	spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
-		{Level: logrus.InfoLevel, Message: "HELLO"},
+		{
+			Level:   logrus.InfoLevel,
+			Message: "HELLO",
+			Data: logrus.Fields{
+				"service": "foo.v1.Foo",
+				"method":  "SomeMethod",
+			},
+		},
 	})
 
 	// Assert that we can call Postprocess without it panicking. That's as
 	// close as we can test the noop implementation for the logging middleware.
 	assert.NotPanics(t, func() {
-		m.Postprocess(context.Background(), fakeMethodName, false, nil)
+		m.Postprocess(context.Background(), fakeFullMethod, false, nil)
 	})
 }

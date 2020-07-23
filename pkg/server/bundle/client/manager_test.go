@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/stretchr/testify/require"
@@ -71,7 +72,7 @@ func TestManager(t *testing.T) {
 
 func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func() {
 	log, _ := test.NewNullLogger()
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 
 	trustDomainConfig := TrustDomainConfig{
 		EndpointAddress:  "ENDPOINT_ADDRESS",
@@ -80,6 +81,7 @@ func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func()
 
 	manager := NewManager(ManagerConfig{
 		Log:       log,
+		Metrics:   telemetry.Blackhole{},
 		DataStore: ds,
 		Clock:     clock,
 		TrustDomains: map[string]TrustDomainConfig{

@@ -42,7 +42,7 @@ service UpstreamAuthority {
     // otherwise the RPC is completed after sending the initial response.
     //
     // Implementation note:
-    // The stream should be kept open open in the face of transient errors
+    // The stream should be kept open in the face of transient errors
     // encountered while tracking changes to the upstream X.509 roots as SPIRE
     // core will not reopen a closed stream until the next X.509 CA rotation.
     rpc MintX509CA(MintX509CARequest) returns (stream MintX509CAResponse);
@@ -55,7 +55,7 @@ service UpstreamAuthority {
     // This RPC is optional and will return NotImplemented if unsupported.
     //
     // Implementation note:
-    // The stream should be kept open open in the face of transient errors
+    // The stream should be kept open in the face of transient errors
     // encountered while tracking changes to the upstream JWT keys as SPIRE
     // core will not reopen a closed stream until the next JWT key rotation.
     rpc PublishJWTKey(PublishJWTKeyRequest) returns (stream PublishJWTKeyResponse);

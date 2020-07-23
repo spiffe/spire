@@ -57,6 +57,8 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgpHVYFq6Z/LgGIG/X
 +i+PWZEFjGVEUpjrMzlz95tDl4yhRANCAAQAc/I3bBO9XhgTTbLBuNA6XJBSvds9
 c4gThKYxugN3V398Eieoo2HTO2L7BBjTp5yh+EUtHQD52bFseBCnZT3d
 -----END PRIVATE KEY-----`)
+
+	notNil = gomock.Not(gomock.Nil())
 )
 
 func TestAttestorPlugin(t *testing.T) {
@@ -207,7 +209,7 @@ func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
 
 func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(nil, errors.New("an error"))
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(nil, errors.New("an error"))
 	s.requireAttestError(makeAttestRequest("BAR", token), "unable to validate token with TokenReview API")
 }
 
@@ -220,7 +222,7 @@ func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", false)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), "token not authenticated")
 }
 
@@ -232,7 +234,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceFromTokenStatus() {
 	token := s.signToken(s.barSigner, "", "SA2")
 	status := createTokenStatus("", "SA2", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
@@ -244,7 +246,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "")
 	status := createTokenStatus("NS2", "", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
@@ -256,7 +258,7 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenCl
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "NO-WHITHELISTED-SA")
 	status := createTokenStatus("NS2", "NO-WHITHELISTED-SA", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	s.requireAttestError(makeAttestRequest("BAR", token), `"NS2:NO-WHITHELISTED-SA" is not a whitelisted service account`)
 }
 
@@ -283,7 +285,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with BAR signed token (token review API validation)
 	token = s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
 	resp, err = s.doAttest(makeAttestRequest("BAR", token))
 
 	s.Require().NoError(err)
@@ -347,11 +349,11 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// cluster missing service account whitelist (token review validation config)
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprint(`clusters = {
+		Configuration: `clusters = {
 				"BAR" = {
 					use_token_review_api_validation = true
 				}
-			}`),
+			}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "BAR" configuration must have at least one service account whitelisted`)
@@ -371,7 +373,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.Require().Nil(resp)
 
 	// no keys in PEM file
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0644))
+	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 				"FOO" = {
@@ -394,7 +396,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(ioutil.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: fooPKCS1Bytes,
-	}), 0644))
+	}), 0600))
 
 	fooPKIXKeyPath := filepath.Join(s.dir, "foo-pkix.pem")
 	fooPKIXBytes, err := x509.MarshalPKIXPublicKey(s.fooKey.Public())
@@ -402,7 +404,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(ioutil.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: fooPKIXBytes,
-	}), 0644))
+	}), 0600))
 
 	barPKIXKeyPath := filepath.Join(s.dir, "bar-pkix.pem")
 	barPKIXBytes, err := x509.MarshalPKIXPublicKey(s.barKey.Public())
@@ -410,7 +412,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(ioutil.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: barPKIXBytes,
-	}), 0644))
+	}), 0600))
 
 	_, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
@@ -554,7 +556,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0644); err != nil {
+	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600); err != nil {
 		return err
 	}
 	return nil

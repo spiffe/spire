@@ -23,9 +23,6 @@ type Config struct {
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 
-	// If true, an SDS server will be served over the UDS socket
-	EnableSDS bool
-
 	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
 	DefaultSVIDName string
 

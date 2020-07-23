@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -41,7 +42,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 		TrustDomainId: "spiffe://domain.test",
 	}
 
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 	_, err := ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})
@@ -76,5 +77,5 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 	require.NotNil(t, resp.Identity)
 	require.Equal(t, [][]byte{{1}, {2}}, resp.Identity.CertChain)
 	require.Equal(t, privateKeyBytes, resp.Identity.PrivateKey)
-	require.Equal(t, bundle, resp.Bundle)
+	spiretest.RequireProtoEqual(t, bundle, resp.Bundle)
 }

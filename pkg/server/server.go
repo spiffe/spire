@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
@@ -96,7 +97,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, identityProvider, agentStore, metricsService)
+	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, metricsService)
 	if err != nil {
 		return err
 	}
@@ -125,7 +126,10 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
+	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
+	if err != nil {
+		return err
+	}
 
 	// Set the identity provider dependencies
 	if err := identityProvider.SetDeps(identityprovider.Deps{
@@ -149,7 +153,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return fmt.Errorf("failed setting AgentStore deps: %v", err)
 	}
 
-	bundleManager := s.newBundleManager(cat)
+	bundleManager := s.newBundleManager(cat, metrics)
 
 	registrationManager := s.newRegistrationManager(cat, metrics)
 
@@ -228,7 +232,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
 	metricsService common_services.MetricsService) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
@@ -236,6 +240,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 			TrustDomain: s.config.TrustDomain.Host,
 		},
 		PluginConfig:     s.config.PluginConfigs,
+		Metrics:          metrics,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		MetricsService:   metricsService,
@@ -255,17 +260,16 @@ func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA) (*ca.Manager, error) {
 	caManager := ca.NewManager(ca.ManagerConfig{
-		CA:             serverCA,
-		Catalog:        cat,
-		TrustDomain:    s.config.TrustDomain,
-		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Metrics:        metrics,
-		UpstreamBundle: s.config.UpstreamBundle,
-		CATTL:          s.config.CATTL,
-		CASubject:      s.config.CASubject,
-		Dir:            s.config.DataDir,
-		X509CAKeyType:  s.config.CAKeyType,
-		JWTKeyType:     s.config.CAKeyType,
+		CA:            serverCA,
+		Catalog:       cat,
+		TrustDomain:   s.config.TrustDomain,
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:       metrics,
+		CATTL:         s.config.CATTL,
+		CASubject:     s.config.CASubject,
+		Dir:           s.config.DataDir,
+		X509CAKeyType: s.config.CAKeyType,
+		JWTKeyType:    s.config.CAKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -282,7 +286,7 @@ func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.M
 	return registrationManager
 }
 
-func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
+func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (*svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
 		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
@@ -295,31 +299,33 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) endpoints.Server {
-	config := &endpoints.Config{
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
+	config := endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
 		SVIDObserver:                svidObserver,
-		TrustDomain:                 s.config.TrustDomain,
+		TrustDomain:                 spiffeid.RequireTrustDomainFromURI(&s.config.TrustDomain),
 		Catalog:                     catalog,
 		ServerCA:                    serverCA,
 		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:                     metrics,
 		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
+		EnableExperimentalAPI:       s.config.Experimental.EnableAPI,
 	}
-	if s.config.Experimental.BundleEndpointEnabled {
-		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
-		config.BundleEndpointACME = s.config.Experimental.BundleEndpointACME
+	if s.config.Federation.BundleEndpoint != nil {
+		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
+		config.BundleEndpoint.ACME = s.config.Federation.BundleEndpoint.ACME
 	}
 	return endpoints.New(config)
 }
 
-func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
+func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics) *bundle_client.Manager {
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
 		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
+		Metrics:      metrics,
 		DataStore:    cat.GetDataStore(),
-		TrustDomains: s.config.Experimental.FederatesWith,
+		TrustDomains: s.config.Federation.FederatesWith,
 	})
 }
 

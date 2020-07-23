@@ -94,6 +94,6 @@ func writeCerts(path string, certs ...*x509.Certificate) {
 		})
 		panice(err)
 	}
-	err := ioutil.WriteFile(path, data.Bytes(), 0644)
+	err := ioutil.WriteFile(path, data.Bytes(), 0600)
 	panice(err)
 }

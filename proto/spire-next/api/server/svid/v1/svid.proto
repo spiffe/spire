@@ -111,13 +111,10 @@ message NewJWTSVIDResponse {
 }
 
 message NewDownstreamX509CARequest {
-    // Required. The entry ID for the identity being requested.
-    string entry_id = 1;
-
     // Required. The ASN.1 DER encoded Certificate Signing Request (CSR). The
     // CSR is only used to convey the public key; other fields in the CSR are
-    // ignored. The X509-SVID attributes are determined by the entry.
-    bytes csr = 2;
+    // ignored. The X509-SVID attributes are determined by the downstream entry.
+    bytes csr = 1;
 }
 
 message NewDownstreamX509CAResponse {

@@ -16,7 +16,7 @@ func TestFetchBundleCache(t *testing.T) {
 	req := &datastore.FetchBundleRequest{TrustDomainId: "spiffe://domain.test"}
 	bundle1 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 1}
 	bundle2 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 2}
-	ds := fakedatastore.New()
+	ds := fakedatastore.New(t)
 	clock := clock.NewMock(t)
 	cache := newDatastoreCache(ds, clock)
 

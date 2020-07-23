@@ -10,7 +10,7 @@
 NUMRSA1024=5
 NUMRSA2048=5
 NUMRSA4096=5
-NUMEC256=5
+NUMEC256=15
 NUMEC384=5
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"

@@ -32,6 +32,8 @@ type AttestedNode struct {
 	ExpiresAt       time.Time
 	NewSerialNumber string
 	NewExpiresAt    *time.Time
+
+	Selectors []*NodeSelector
 }
 
 // TableName gets table name of AttestedNode

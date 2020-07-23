@@ -31,7 +31,7 @@ type Client struct {
 
 func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() time.Time) *Client {
 	if ds == nil {
-		ds = fakedatastore.New()
+		ds = fakedatastore.New(t)
 	}
 	if nowFn == nil {
 		nowFn = time.Now

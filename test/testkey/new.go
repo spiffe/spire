@@ -21,45 +21,45 @@ var (
 	ec384Idx   int
 )
 
-func NewRSA1024(t *testing.T) *rsa.PrivateKey {
+func NewRSA1024(tb testing.TB) *rsa.PrivateKey {
 	keysMtx.Lock()
 	defer keysMtx.Unlock()
 	if rsa1024Idx >= len(rsa1024Keys) {
-		t.Fatalf("exhausted %d pregenerated RSA 1024 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(rsa1024Keys))
+		tb.Fatalf("exhausted %d pregenerated RSA-1024 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(rsa1024Keys))
 	}
 	key, err := pemutil.ParseRSAPrivateKey([]byte(rsa1024Keys[rsa1024Idx]))
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	rsa1024Idx++
 	return key
 }
 
-func NewRSA2048(t *testing.T) *rsa.PrivateKey {
+func NewRSA2048(tb testing.TB) *rsa.PrivateKey {
 	keysMtx.Lock()
 	defer keysMtx.Unlock()
 	if rsa2048Idx >= len(rsa2048Keys) {
-		t.Fatalf("exhausted %d pregenerated RSA 2048 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(rsa2048Keys))
+		tb.Fatalf("exhausted %d pregenerated RSA-2048 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(rsa2048Keys))
 	}
 	key, err := pemutil.ParseRSAPrivateKey([]byte(rsa2048Keys[rsa2048Idx]))
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	rsa2048Idx++
 	return key
 }
 
-func NewRSA4096(t *testing.T) *rsa.PrivateKey {
+func NewRSA4096(tb testing.TB) *rsa.PrivateKey {
 	keysMtx.Lock()
 	defer keysMtx.Unlock()
 	if rsa4096Idx >= len(rsa4096Keys) {
-		t.Fatalf("exhausted %d pregenerated RSA 2048 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(rsa4096Keys))
+		tb.Fatalf("exhausted %d pregenerated RSA-4096 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(rsa4096Keys))
 	}
 	key, err := pemutil.ParseRSAPrivateKey([]byte(rsa4096Keys[rsa4096Idx]))
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	rsa4096Idx++
 	return key
 }
 
-func NewEC256(t *testing.T) *ecdsa.PrivateKey {
+func NewEC256(tb testing.TB) *ecdsa.PrivateKey {
 	key, err := newEC256()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	return key
 }
 
@@ -73,7 +73,7 @@ func newEC256() (*ecdsa.PrivateKey, error) {
 	keysMtx.Lock()
 	defer keysMtx.Unlock()
 	if ec256Idx >= len(ec256Keys) {
-		return nil, fmt.Errorf("exhausted %d pregenerated RSA 2048 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(ec256Keys))
+		return nil, fmt.Errorf("exhausted %d pregenerated EC-256 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(ec256Keys))
 	}
 	key, err := pemutil.ParseECPrivateKey([]byte(ec256Keys[ec256Idx]))
 	if err != nil {
@@ -83,14 +83,14 @@ func newEC256() (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
-func NewEC384(t *testing.T) *ecdsa.PrivateKey {
+func NewEC384(tb testing.TB) *ecdsa.PrivateKey {
 	keysMtx.Lock()
 	defer keysMtx.Unlock()
 	if ec384Idx >= len(ec384Keys) {
-		t.Fatalf("exhausted %d pregenerated RSA 2048 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(ec384Keys))
+		tb.Fatalf("exhausted %d pregenerated EC-384 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(ec384Keys))
 	}
 	key, err := pemutil.ParseECPrivateKey([]byte(ec384Keys[ec384Idx]))
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	ec384Idx++
 	return key
 }

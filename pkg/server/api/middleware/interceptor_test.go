@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	fakeUnaryServerInfo  = &grpc.UnaryServerInfo{FullMethod: fakeMethodName}
-	fakeStreamServerInfo = &grpc.StreamServerInfo{FullMethod: fakeMethodName}
+	fakeUnaryServerInfo  = &grpc.UnaryServerInfo{FullMethod: fakeFullMethod}
+	fakeStreamServerInfo = &grpc.StreamServerInfo{FullMethod: fakeFullMethod}
 )
 
 func TestInterceptors(t *testing.T) {
@@ -59,8 +59,8 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		// 3) Postprocess was called with "handlerInvoked" and no error
 		assert.NoError(t, err)
 		assert.Equal(t, "response", resp)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, methodName: fakeMethodName}, m.lastPreprocess)
-		assert.Equal(t, postprocessArgs{wrapCount: 1, methodName: fakeMethodName, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
 	})
 
 	t.Run("preprocess failure", func(t *testing.T) {
@@ -82,7 +82,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		// 3) Postprocess was not called
 		assert.Equal(t, errFake, err)
 		assert.Nil(t, resp)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, methodName: fakeMethodName}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{}, m.lastPostprocess)
 	})
 
@@ -106,8 +106,8 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		// 3) Postprocess was called with "handlerInvoked" and the handler error
 		assert.Equal(t, err, errFake)
 		assert.Nil(t, resp)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, methodName: fakeMethodName}, m.lastPreprocess)
-		assert.Equal(t, postprocessArgs{wrapCount: 1, methodName: fakeMethodName, handlerInvoked: true, rpcErr: errFake}, m.lastPostprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: errFake}, m.lastPostprocess)
 	})
 }
 
@@ -131,8 +131,8 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 		// 2) Preprocess was called
 		// 3) Postprocess was called with "handlerInvoked" and no error
 		assert.NoError(t, err)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, methodName: fakeMethodName}, m.lastPreprocess)
-		assert.Equal(t, postprocessArgs{wrapCount: 1, methodName: fakeMethodName, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
 	})
 
 	t.Run("preprocess failure", func(t *testing.T) {
@@ -153,7 +153,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 		// 2) Preprocess was called
 		// 3) Postprocess was not called
 		assert.Equal(t, errFake, err)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, methodName: fakeMethodName}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{}, m.lastPostprocess)
 	})
 
@@ -176,8 +176,8 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 		// 2) Preprocess was called
 		// 3) Postprocess was called with "handlerInvoked" and the handler error
 		assert.Equal(t, err, errFake)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, methodName: fakeMethodName}, m.lastPreprocess)
-		assert.Equal(t, postprocessArgs{wrapCount: 1, methodName: fakeMethodName, handlerInvoked: true, rpcErr: errFake}, m.lastPostprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: errFake}, m.lastPostprocess)
 	})
 }
 

@@ -241,11 +241,11 @@ type kubeClientset struct {
 }
 
 func (c kubeClientset) GetConfigMap(ctx context.Context, namespace, configMap string) (*corev1.ConfigMap, error) {
-	return c.CoreV1().ConfigMaps(namespace).Get(configMap, metav1.GetOptions{})
+	return c.CoreV1().ConfigMaps(namespace).Get(ctx, configMap, metav1.GetOptions{})
 }
 
 func (c kubeClientset) PatchConfigMap(ctx context.Context, namespace, configMap string, patchBytes []byte) error {
-	_, err := c.CoreV1().ConfigMaps(namespace).Patch(configMap, types.StrategicMergePatchType, patchBytes)
+	_, err := c.CoreV1().ConfigMaps(namespace).Patch(ctx, configMap, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	return err
 }
 

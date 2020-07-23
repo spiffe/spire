@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	fakeMethodName = "/some.Service/SomeMethod"
+	fakeFullMethod = "/spire.api.server.foo.v1.Foo/SomeMethod"
 )
 
 var (
@@ -15,12 +15,12 @@ var (
 
 type preprocessArgs struct {
 	wrapCount  int
-	methodName string
+	fullMethod string
 }
 
 type postprocessArgs struct {
 	wrapCount      int
-	methodName     string
+	fullMethod     string
 	handlerInvoked bool
 	rpcErr         error
 }
@@ -31,10 +31,10 @@ type fakeMiddleware struct {
 	nextPreprocessErr error
 }
 
-func (f *fakeMiddleware) Preprocess(ctx context.Context, methodName string) (context.Context, error) {
+func (f *fakeMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
 	f.lastPreprocess = preprocessArgs{
 		wrapCount:  wrapCount(ctx),
-		methodName: methodName,
+		fullMethod: fullMethod,
 	}
 	if err := f.nextPreprocessErr; err != nil {
 		f.nextPreprocessErr = nil
@@ -43,10 +43,10 @@ func (f *fakeMiddleware) Preprocess(ctx context.Context, methodName string) (con
 	return wrapContext(ctx), nil
 }
 
-func (f *fakeMiddleware) Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error) {
+func (f *fakeMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
 	f.lastPostprocess = postprocessArgs{
 		wrapCount:      wrapCount(ctx),
-		methodName:     methodName,
+		fullMethod:     fullMethod,
 		handlerInvoked: handlerInvoked,
 		rpcErr:         rpcErr,
 	}

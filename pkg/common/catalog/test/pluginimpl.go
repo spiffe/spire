@@ -6,18 +6,19 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/private/test/catalogtest"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func NewPlugin() PluginPlugin {
+func NewPlugin() catalogtest.PluginPlugin {
 	return &testPlugin{}
 }
 
 type testPlugin struct {
 	log hclog.Logger
-	hs  HostService
+	hs  catalogtest.HostService
 }
 
 func (s *testPlugin) SetLogger(log hclog.Logger) {
@@ -25,7 +26,7 @@ func (s *testPlugin) SetLogger(log hclog.Logger) {
 }
 
 func (s *testPlugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(HostServiceHostServiceClient(&s.hs))
+	has, err := broker.GetHostService(catalogtest.HostServiceHostServiceClient(&s.hs))
 	if err != nil {
 		return err
 	}
@@ -51,10 +52,10 @@ func (s *testPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (s *testPlugin) CallPlugin(ctx context.Context, req *Request) (*Response, error) {
+func (s *testPlugin) CallPlugin(ctx context.Context, req *catalogtest.Request) (*catalogtest.Response, error) {
 	out := req.In
 	if s.hs != nil {
-		resp, err := s.hs.CallHostService(ctx, &Request{
+		resp, err := s.hs.CallHostService(ctx, &catalogtest.Request{
 			In: req.In,
 		})
 		if err != nil {
@@ -62,7 +63,7 @@ func (s *testPlugin) CallPlugin(ctx context.Context, req *Request) (*Response, e
 		}
 		out = resp.Out
 	}
-	return &Response{
+	return &catalogtest.Response{
 		Out: fmt.Sprintf("plugin(%s)", out),
 	}, nil
 }

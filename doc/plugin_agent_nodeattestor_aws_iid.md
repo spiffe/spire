@@ -17,8 +17,6 @@ Generally no plugin data is needed in AWS, and this configuration should be used
 | Configuration          | Description                                        |
 | ---------------------- | -------------------------------------------------- |
 | ec2_metadata_endpoint  | Endpoint for AWS SDK to retrieve instance metadata |
-| identity_document_url  | Deprecated; use ec2_metadata_endpoint              |
-| identity_signature_url | Deprecated; use ec2_metadata_endpoint              |
 
 
 For testing or non-standard AWS environments, you may need to specify the

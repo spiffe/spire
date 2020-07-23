@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 )
@@ -24,6 +25,10 @@ const (
 	// journalPEMType is the type in the PEM header
 	journalPEMType = "SPIRE CA JOURNAL"
 )
+
+type JournalEntries = journal.Entries
+type X509CAEntry = journal.X509CAEntry
+type JWTKeyEntry = journal.JWTKeyEntry
 
 // Journal stores X509 CAs and JWT keys on disk as they are rotated by the
 // manager. The data format on disk is a PEM encoded protocol buffer.
@@ -183,14 +188,12 @@ func migrateJSONFile(from, to string) (bool, error) {
 		if len(chain) == 0 {
 			return nil, nil
 		}
-		// The chain is in one of three states:
+		// The chain is in one of two states:
 		// 1) single self-signed cert
-		// 2) single upstream-signed cert, implying upstream_bundle=false
-		// 3) an upstream-signed cert followed by any intermediates and a root
+		// 2) an upstream-signed cert followed by any intermediates and a root
 		//
-		// The ca should only be considered an "intermediate" in case #3, so a
-		// check for more than one cert should be sufficient for that. However
-		// we don't want the the root in the chain anymore, so remove it.
+		// In the case where the CA is an intermediate, we don't want to store
+		// the root, so remove it.
 		certificate := chain[0].Raw
 		var upstreamChain [][]byte
 		if len(chain) > 1 {

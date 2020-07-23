@@ -129,7 +129,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("not configured for cluster %q", attestationData.Cluster)
 	}
 
-	tokenStatus, err := cluster.client.ValidateToken(attestationData.Token, cluster.audience)
+	tokenStatus, err := cluster.client.ValidateToken(stream.Context(), attestationData.Token, cluster.audience)
 	if err != nil {
 		return psatError.New("unable to validate token with TokenReview API: %v", err)
 	}
@@ -158,12 +158,12 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("fail to get pod UID from token review status: %v", err)
 	}
 
-	pod, err := cluster.client.GetPod(namespace, podName)
+	pod, err := cluster.client.GetPod(stream.Context(), namespace, podName)
 	if err != nil {
 		return psatError.New("fail to get pod from k8s API server: %v", err)
 	}
 
-	node, err := cluster.client.GetNode(pod.Spec.NodeName)
+	node, err := cluster.client.GetNode(stream.Context(), pod.Spec.NodeName)
 	if err != nil {
 		return psatError.New("fail to get node from k8s API server: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -16,7 +17,8 @@ var (
 
 func TestFetchRegistrationEntries(t *testing.T) {
 	assert := assert.New(t)
-	dataStore := fakedatastore.New()
+	require := require.New(t)
+	dataStore := fakedatastore.New(t)
 
 	cache, err := NewFetchX509SVIDCache(10)
 	assert.NoError(err)
@@ -25,7 +27,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		resp, err := dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 			Entry: entry,
 		})
-		assert.NoError(err)
+		require.NoError(err)
 		return resp.Entry
 	}
 
@@ -59,18 +61,21 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	// node resolvers map from 2 to 4
 
 	oneEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: rootID,
-		SpiffeId: oneID,
+		ParentId:  rootID,
+		SpiffeId:  oneID,
+		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
 	})
 
 	twoEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: rootID,
-		SpiffeId: twoID,
+		ParentId:  rootID,
+		SpiffeId:  twoID,
+		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
 	})
 
 	threeEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: twoID,
-		SpiffeId: threeID,
+		ParentId:  twoID,
+		SpiffeId:  threeID,
+		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
 	})
 
 	fourEntry := createRegistrationEntry(&common.RegistrationEntry{
@@ -79,8 +84,9 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	})
 
 	fiveEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: fourID,
-		SpiffeId: fiveID,
+		ParentId:  fourID,
+		SpiffeId:  fiveID,
+		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
 	})
 
 	setNodeSelectors(twoID, a1, b2)

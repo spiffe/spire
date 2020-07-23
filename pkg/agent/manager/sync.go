@@ -51,11 +51,8 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 			}).Warn("cached X509 SVID is empty")
 		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
 			expiring++
-		case existingEntry != nil && !stringsEqual(existingEntry.DnsNames, newEntry.DnsNames):
-			// DNS Names have changed
-			outdated++
-		case existingEntry != nil && existingEntry.Ttl != newEntry.Ttl:
-			// TTL has changed
+		case existingEntry != nil && existingEntry.RevisionNumber != newEntry.RevisionNumber:
+			// Registration entry has been updated
 			outdated++
 		default:
 			// SVID is good
@@ -208,19 +205,4 @@ func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, 
 		out[bundle.TrustDomainID()] = bundle
 	}
 	return out, nil
-}
-
-// stringsEqual determines whether two string slices are equal or not
-func stringsEqual(x, y []string) bool {
-	if len(x) != len(y) {
-		return false
-	}
-
-	for i, s := range x {
-		if s != y[i] {
-			return false
-		}
-	}
-
-	return true
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateSpiffeID(t *testing.T) {
@@ -280,4 +281,10 @@ func TestNormalizeSpiffeID(t *testing.T) {
 			assert.Equal(t, test.out, out)
 		})
 	}
+}
+
+func TestIsAgentPath(t *testing.T) {
+	require.False(t, IsAgentPath(""))
+	require.False(t, IsAgentPath("/not/an/agent/path"))
+	require.True(t, IsAgentPath("/spire/agent/join_token/d3f678b4-d41d-4b1c-a971-73e012729b43"))
 }

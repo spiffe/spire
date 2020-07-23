@@ -22,7 +22,7 @@ var (
 )
 
 func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
-	client, updater, ua, uaDone := setUpUpstreamClientTest(t, true, fakeupstreamauthority.Config{
+	client, updater, ua, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain:     "example.org",
 		UseIntermediate: true,
 	})
@@ -40,28 +40,6 @@ func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
 	// certificate and wait for the bundle updater to receive the update.
 	ua.RotateX509CA()
 	require.Equal(t, ua.X509Roots(), updater.WaitForAppendedX509Roots(t))
-}
-
-func TestUpstreamClientMintX509CA_NoUpstreamBundle(t *testing.T) {
-	client, updater, _, uaDone := setUpUpstreamClientTest(t, false, fakeupstreamauthority.Config{
-		TrustDomain: "example.org",
-	})
-	defer client.Close()
-	defer uaDone()
-
-	x509CA, err := client.MintX509CA(context.Background(), csr, 0)
-	require.NoError(t, err)
-	require.NotNil(t, x509CA)
-	require.Len(t, x509CA, 1)
-
-	// Assert that the initial bundle update happened.
-	require.Equal(t, x509CA, updater.WaitForAppendedX509Roots(t))
-
-	// The stream should close down since we are not participating in the
-	// upstream PKI outside of getting our X.509 CA signed.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	require.NoError(t, client.WaitUntilMintX509CAStreamDone(ctx))
 }
 
 func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
@@ -101,7 +79,7 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			client, _, _, uaDone := setUpUpstreamClientTest(t, true, fakeupstreamauthority.Config{
+			client, _, _, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 				TrustDomain:              "example.org",
 				MutateMintX509CAResponse: tt.mutate,
 			})
@@ -147,7 +125,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			var first bool
-			client, updater, ua, uaDone := setUpUpstreamClientTest(t, true, fakeupstreamauthority.Config{
+			client, updater, ua, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 				TrustDomain: "example.org",
 				MutateMintX509CAResponse: func(resp *upstreamauthority.MintX509CAResponse) {
 					if !first {
@@ -178,7 +156,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 }
 
 func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
-	client, updater, ua, uaDone := setUpUpstreamClientTest(t, true, fakeupstreamauthority.Config{
+	client, updater, ua, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain: "example.org",
 	})
 	defer client.Close()
@@ -204,41 +182,8 @@ func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1, key2}, updater.WaitForAppendedJWTKeys(t))
 }
 
-func TestUpstreamClientPublishJWTKey_NoUpstreamBundle(t *testing.T) {
-	client, updater, ua, uaDone := setUpUpstreamClientTest(t, false, fakeupstreamauthority.Config{
-		TrustDomain: "example.org",
-	})
-	defer client.Close()
-	defer uaDone()
-
-	key1 := &common.PublicKey{
-		Kid: "KEY1",
-	}
-	key2 := &common.PublicKey{
-		Kid: "KEY2",
-	}
-
-	// Add key2 to the upstream authority so we can make sure our bundle does
-	// not end up with an upstream JWT key since we aren't participating in
-	// the upstream PKI.
-	ua.AppendJWTKey(key2)
-
-	// Publish the JWT keys and assert that the upstream key, key2, does not
-	// end up in the bundle.
-	jwtKeys, err := client.PublishJWTKey(context.Background(), key1)
-	require.NoError(t, err)
-	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1}, jwtKeys)
-	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1}, updater.WaitForAppendedJWTKeys(t))
-
-	// The stream should close down since we are not participating in the
-	// upstream PKI outside of getting our X.509 CA signed.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	require.NoError(t, client.WaitUntilPublishJWTKeyStreamDone(ctx))
-}
-
 func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
-	client, _, _, uaDone := setUpUpstreamClientTest(t, true, fakeupstreamauthority.Config{
+	client, _, _, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain:           "example.org",
 		DisallowPublishJWTKey: true,
 	})
@@ -250,14 +195,13 @@ func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
 	require.Nil(t, jwtKeys)
 }
 
-func setUpUpstreamClientTest(t *testing.T, upstreamBundle bool, config fakeupstreamauthority.Config) (*ca.UpstreamClient, *fakeBundleUpdater, *fakeupstreamauthority.UpstreamAuthority, func()) {
+func setUpUpstreamClientTest(t *testing.T, config fakeupstreamauthority.Config) (*ca.UpstreamClient, *fakeBundleUpdater, *fakeupstreamauthority.UpstreamAuthority, func()) {
 	plugin, upstreamAuthority, done := fakeupstreamauthority.Load(t, config)
 	updater := newFakeBundleUpdater()
 
 	return ca.NewUpstreamClient(ca.UpstreamClientConfig{
 		UpstreamAuthority: plugin,
 		BundleUpdater:     updater,
-		UpstreamBundle:    upstreamBundle,
 	}), updater, upstreamAuthority, done
 }
 

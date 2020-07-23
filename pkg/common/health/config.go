@@ -36,22 +36,17 @@ func (c *Config) getLivePath() string {
 	return c.LivePath
 }
 
-// getAddress returns an address suitable for use as http.Server.Addr, or nil if not configured with
-// a port to listen on
-func (c *Config) getAddress() *string {
-	if c.ListenerEnabled {
-		host := "localhost"
-		if c.BindAddress != "" {
-			host = c.BindAddress
-		}
-
-		port := "80"
-		if c.BindPort != "" {
-			port = c.BindPort
-		}
-
-		address := fmt.Sprintf("%s:%s", host, port)
-		return &address
+// getAddress returns an address suitable for use as http.Server.Addr.
+func (c *Config) getAddress() string {
+	host := "localhost"
+	if c.BindAddress != "" {
+		host = c.BindAddress
 	}
-	return nil
+
+	port := "80"
+	if c.BindPort != "" {
+		port = c.BindPort
+	}
+
+	return fmt.Sprintf("%s:%s", host, port)
 }

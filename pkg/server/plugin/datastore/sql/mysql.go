@@ -15,7 +15,6 @@ import (
 	// gorm mysql dialect init registration
 	// also needed for GCP Cloud SQL Proxy
 	_ "github.com/jinzhu/gorm/dialects/mysql"
-	_ "github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
 
 type mysqlDB struct{}
@@ -66,8 +65,13 @@ func (my mysqlDB) supportsCTE(gormDB *gorm.DB) (bool, error) {
 }
 
 func (my mysqlDB) isParseError(err error) bool {
-	mysqlError, ok := err.(*mysql.MySQLError)
-	return ok && mysqlError.Number == 1064
+	e, ok := err.(*mysql.MySQLError)
+	return ok && e.Number == 1064 // ER_PARSE_ERROR
+}
+
+func (my mysqlDB) isConstraintViolation(err error) bool {
+	e, ok := err.(*mysql.MySQLError)
+	return ok && e.Number == 1062 // ER_DUP_ENTRY
 }
 
 // configureConnection modifies the connection string to support features that

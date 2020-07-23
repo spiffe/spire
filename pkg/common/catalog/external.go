@@ -108,10 +108,10 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Loaded
 		ext.Log.Warn("Plugin checksum not configured")
 	}
 
-	logger := log.HCLogAdapter{
-		Log:  ext.Log,
-		Name: telemetry.PluginExternal,
-	}
+	logger := log.NewHCLogAdapter(
+		ext.Log,
+		telemetry.PluginExternal,
+	)
 
 	hcPlugin := &hcClientPlugin{
 		ext: ext,
@@ -220,6 +220,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	plugin, err := newCatalogPlugin(ctx, c, catalogPluginConfig{
 		Log:           p.ext.Log,
 		Name:          p.ext.Name,
+		BuiltIn:       false,
 		Plugin:        p.ext.Plugin,
 		KnownServices: p.ext.KnownServices,
 		HostServices:  p.ext.HostServices,

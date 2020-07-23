@@ -1,6 +1,7 @@
 package spiretest
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -14,7 +15,23 @@ type LogEntry struct {
 }
 
 func AssertLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
+	for _, entry := range entries {
+		for key, field := range entry.Data {
+			entry.Data[key] = fmt.Sprint(field)
+		}
+	}
+
 	assert.Equal(t, expected, convertLogEntries(entries), "unexpected logs")
+}
+
+func AssertLogsAnyOrder(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
+	for _, entry := range entries {
+		for key, field := range entry.Data {
+			entry.Data[key] = fmt.Sprint(field)
+		}
+	}
+
+	assert.ElementsMatch(t, expected, convertLogEntries(entries), "unexpected logs")
 }
 
 func convertLogEntries(entries []*logrus.Entry) (out []LogEntry) {

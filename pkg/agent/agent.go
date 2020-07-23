@@ -70,6 +70,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		HostServices: []common_catalog.HostServiceServer{
 			common_services.MetricsServiceHostServiceServer(metricsService),
 		},
+		Metrics: metrics,
 	})
 	if err != nil {
 		return err
@@ -180,17 +181,18 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 
 func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *attestor.AttestationResult) (manager.Manager, error) {
 	config := &manager.Config{
-		SVID:            as.SVID,
-		SVIDKey:         as.Key,
-		Bundle:          as.Bundle,
-		Catalog:         cat,
-		TrustDomain:     a.c.TrustDomain,
-		ServerAddr:      a.c.ServerAddress,
-		Log:             a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
-		Metrics:         metrics,
-		BundleCachePath: a.bundleCachePath(),
-		SVIDCachePath:   a.agentSVIDPath(),
-		SyncInterval:    a.c.SyncInterval,
+		SVID:                   as.SVID,
+		SVIDKey:                as.Key,
+		Bundle:                 as.Bundle,
+		Catalog:                cat,
+		TrustDomain:            a.c.TrustDomain,
+		ServerAddr:             a.c.ServerAddress,
+		Log:                    a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
+		Metrics:                metrics,
+		BundleCachePath:        a.bundleCachePath(),
+		SVIDCachePath:          a.agentSVIDPath(),
+		SyncInterval:           a.c.SyncInterval,
+		ExperimentalAPIEnabled: a.c.ExperimentalAPIEnabled,
 	}
 
 	mgr, err := manager.New(config)
@@ -212,7 +214,6 @@ func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr
 		Manager:           mgr,
 		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:           metrics,
-		EnableSDS:         a.c.EnableSDS,
 		DefaultSVIDName:   a.c.DefaultSVIDName,
 		DefaultBundleName: a.c.DefaultBundleName,
 	}

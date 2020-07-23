@@ -150,30 +150,23 @@ func TestContainerExtraction(t *testing.T) {
 			expectErr: "a pattern matched, but no container id was found",
 		},
 		{
-			desc:    "legacy match",
-			cgroups: testCgroupEntries,
-			cfg: `cgroup_prefix = "/docker"
-cgroup_container_index = 1`,
+			desc:     "RHEL docker cgroups",
+			cgroups:  "4:devices:/system.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
 			hasMatch: true,
 		},
 		{
-			desc:    "legacy no prefix",
-			cgroups: testCgroupEntries,
-			cfg: `cgroup_prefix = "/docker2"
-cgroup_container_index = 1`,
+			desc:     "docker for desktop",
+			cgroups:  "6:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/system.slice/containerd.service",
+			hasMatch: true,
 		},
 		{
-			desc:    "legacy match no container",
-			cgroups: "10:cpu:/docker/",
-			cfg: `cgroup_prefix = "/docker"
-cgroup_container_index = 1`,
-			expectErr: "a pattern matched, but no container id was found",
+			desc:      "more than one id",
+			cgroups:   testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
+			expectErr: "multiple container IDs found in cgroups",
 		},
 		{
-			desc:    "legacy match not enough parts",
-			cgroups: testCgroupEntries,
-			cfg: `cgroup_prefix = "/docker"
-cgroup_container_index = 2`,
+			desc:    "default finder does not match cgroup missing docker prefix",
+			cgroups: "4:devices:/system.slice/41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
 		},
 	}
 
@@ -339,20 +332,6 @@ container_id_cgroup_matchers = [
 		require.Equal(t, "1.20", p.docker.(*dockerclient.Client).ClientVersion())
 		require.Equal(t, expectFinder, p.containerIDFinder)
 	})
-	t.Run("good legacy config", func(t *testing.T) {
-		p := New()
-		cfg := &spi.ConfigureRequest{
-			Configuration: `
-cgroup_prefix = "/docker2"
-cgroup_container_index = 2
-`,
-		}
-
-		_, err := doConfigure(t, p, cfg)
-		require.NoError(t, err)
-		require.Equal(t, "/docker2", p.cgroupPrefix)
-		require.Equal(t, 3, p.cgroupContainerIndex)
-	})
 	t.Run("bad matcher", func(t *testing.T) {
 		p := New()
 		cfg := &spi.ConfigureRequest{
@@ -365,18 +344,6 @@ container_id_cgroup_matchers = [
 		_, err := doConfigure(t, p, cfg)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `must contain the container id token "<id>" exactly once`)
-	})
-	t.Run("bad legacy config", func(t *testing.T) {
-		p := New()
-		cfg := &spi.ConfigureRequest{
-			Configuration: `
-cgroup_prefix = "/docker2"
-`,
-		}
-
-		_, err := doConfigure(t, p, cfg)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "cgroup_prefix and cgroup_container_index must be specified together")
 	})
 	t.Run("bad hcl", func(t *testing.T) {
 		p := New()
@@ -393,15 +360,12 @@ container_id_cgroup_matchers = [
 }
 
 func TestDockerConfigDefault(t *testing.T) {
-	defaultFinder, err := cgroup.NewContainerIDFinder(defaultContainerIDMatchers)
-	require.NoError(t, err)
-
 	p := newTestPlugin(t)
 
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
 	require.Equal(t, "1.41", p.docker.(*dockerclient.Client).ClientVersion())
-	require.Equal(t, defaultFinder, p.containerIDFinder)
+	require.Equal(t, &defaultContainerIDFinder{}, p.containerIDFinder)
 }
 
 func doAttest(t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {

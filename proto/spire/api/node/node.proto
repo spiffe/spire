@@ -21,6 +21,8 @@ message Bundle {
 // A type which contains the "Spiffe Verifiable Identity Document" and
 // a TTL indicating when the SVID expires.
 message X509SVID {
+    reserved 1;
+
     // X509 SVID and intermediates necessary to form a chain of trust back
     // to a root CA in the bundle.
     bytes cert_chain = 3;
@@ -32,6 +34,8 @@ message X509SVID {
 // A message returned by the Spire Server, which includes a map of signed SVIDs and
 //a list of all current Registration Entries which are relevant to the caller SPIFFE ID.
 message X509SVIDUpdate {
+    reserved 2, 4;
+
     // A map containing SVID values keyed by:
     //  - SPIFFE ID in message 'AttestResponse'        (Map[SPIFFE_ID] => SVID)
     //  - Entry  ID in message 'FetchX509SVIDResponse' (Map[Entry_ID]  => SVID)
@@ -44,7 +48,6 @@ message X509SVIDUpdate {
     // Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE
     // ID. Bundles included are the trust bundle for the server trust domain
     // and any federated trust domain bundles applicable to the SVIDs.
-    // Supersedes the deprecated `bundle` field.
     map<string, spire.common.Bundle> bundles = 5;
 }
 
@@ -100,8 +103,7 @@ message AttestResponse {
 
 // Represents a request with a list of CSR.
 message FetchX509SVIDRequest {
-    // A list of CSRs (deprecated, use `csrs` map instead)
-    repeated bytes DEPRECATED_csrs = 2;
+    reserved 1, 2;
 
     // A map of CSRs keyed by entry ID
     map<string, bytes> csrs = 3;

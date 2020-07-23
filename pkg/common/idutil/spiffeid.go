@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 )
 
 type idType int
@@ -121,7 +123,7 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
-		if !isAgentPath(id.Path) {
+		if !IsAgentPath(id.Path) {
 			return validationError(`invalid path: expecting "/spire/agent/*"`)
 		}
 	default:
@@ -131,16 +133,19 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	return nil
 }
 
+// IsAgentPath returns true if the given string is an
+// SPIRE agent ID path. SPIRE agent IDs are prefixed
+// with "/spire/agent/".
+func IsAgentPath(path string) bool {
+	return strings.HasPrefix(path, "/spire/agent/")
+}
+
 func isReservedPath(path string) bool {
 	return path == "/spire" || strings.HasPrefix(path, "/spire/")
 }
 
 func isServerPath(path string) bool {
 	return path == "/spire/server"
-}
-
-func isAgentPath(path string) bool {
-	return strings.HasPrefix(path, "/spire/agent/")
 }
 
 // ParseSpiffeID parses the SPIFFE ID and makes sure it is valid according to
@@ -337,4 +342,21 @@ func ServerURI(trustDomain string) *url.URL {
 		Host:   trustDomain,
 		Path:   path.Join("spire", "server"),
 	}
+}
+
+// ValidateTrustDomainWorkload validates if the given SPIFFE ID
+// is a SPIFFE ID for a workload belonging to the specified
+// trust domain (e.g. spiffe://domain.test/workload)
+func ValidateTrustDomainWorkload(id spiffeid.ID, td spiffeid.TrustDomain) error {
+	if !id.MemberOf(td) {
+		return fmt.Errorf("%q does not belong to trust domain %q", id.String(), td.String())
+	}
+	if id.Path() == "" {
+		return fmt.Errorf("invalid workload SPIFFE ID %q: path is empty", id.String())
+	}
+	if isReservedPath(id.Path()) {
+		return fmt.Errorf(`%q is not a valid workload SPIFFE ID: invalid path: "/spire/*" namespace is reserved`, id.String())
+	}
+
+	return nil
 }
