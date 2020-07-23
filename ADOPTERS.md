@@ -4,6 +4,7 @@ Known end users with notable contributions to the project include:
 
 * Bloomberg 
 * ByteDance 
+* Github
 * Pinterest 
 * Square
 * Uber
@@ -26,6 +27,7 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 
 * [Kubernetes](https://github.com/kubernetes/kubernetes)
 * [Docker](https://github.com/containerd/containerd)
+* [Emissary](https://github.com/github/emissary)
 * [Envoy](https://github.com/envoyproxy/envoy)
 * [Istio](https://github.com/istio/istio)
 * [NGINX](http://hg.nginx.org/nginx/)
