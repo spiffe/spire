@@ -9,7 +9,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire-next/types"
@@ -96,6 +98,10 @@ func AuthorizedEntryFetcher(ds datastore.DataStore) api.AuthorizedEntryFetcher {
 		}
 		return api.RegistrationEntriesToProto(entries)
 	})
+}
+
+func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
+	return bundle.UpstreamPublisherFunc(manager.PublishJWTKey)
 }
 
 func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {
