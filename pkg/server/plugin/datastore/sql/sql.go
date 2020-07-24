@@ -616,9 +616,11 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
 
-	if err := migrateDB(db, cfg.DatabaseType, cfg.DisableMigration, ds.log); err != nil {
-		db.Close()
-		return nil, "", false, nil, err
+	if !isReadOnly {
+		if err := migrateDB(db, cfg.DatabaseType, cfg.DisableMigration, ds.log); err != nil {
+			db.Close()
+			return nil, "", false, nil, err
+		}
 	}
 
 	return db, version, supportsCTE, dialect, nil
