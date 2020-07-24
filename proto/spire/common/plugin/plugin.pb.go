@@ -380,7 +380,9 @@ func init() {
 	proto.RegisterType((*InitResponse)(nil), "spire.common.plugin.InitResponse")
 }
 
-func init() { proto.RegisterFile("spire/common/plugin/plugin.proto", fileDescriptor_bcbbaf1bc59558c6) }
+func init() {
+	proto.RegisterFile("spire/common/plugin/plugin.proto", fileDescriptor_bcbbaf1bc59558c6)
+}
 
 var fileDescriptor_bcbbaf1bc59558c6 = []byte{
 	// 435 bytes of a gzipped FileDescriptorProto
@@ -416,11 +418,11 @@ var fileDescriptor_bcbbaf1bc59558c6 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // PluginInitClient is the client API for PluginInit service.
 //
@@ -430,10 +432,10 @@ type PluginInitClient interface {
 }
 
 type pluginInitClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewPluginInitClient(cc *grpc.ClientConn) PluginInitClient {
+func NewPluginInitClient(cc grpc.ClientConnInterface) PluginInitClient {
 	return &pluginInitClient{cc}
 }
 

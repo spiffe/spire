@@ -186,7 +186,9 @@ func init() {
 	proto.RegisterType((*AgentMask)(nil), "spire.types.AgentMask")
 }
 
-func init() { proto.RegisterFile("spire-next/types/agent.proto", fileDescriptor_46f44d132b3caa27) }
+func init() {
+	proto.RegisterFile("spire-next/types/agent.proto", fileDescriptor_46f44d132b3caa27)
+}
 
 var fileDescriptor_46f44d132b3caa27 = []byte{
 	// 322 bytes of a gzipped FileDescriptorProto
