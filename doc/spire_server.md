@@ -115,18 +115,18 @@ server {
                 email = "mail@example.org"
             }
         }
-        federates_with "spiffe://domain1.test" {
+        federates_with "domain1.test" {
             bundle_endpoint {
                 address = "1.2.3.4"
                 port = 8443
                 use_web_pki = true
             }
         }
-        federates_with "spiffe://domain.test" {
+        federates_with "domain2.test" {
             bundle_endpoint {
                 address = "5.6.7.8"
                 port = 8443
-                spiffe_id = "spiffe://domain.test/beserver"
+                spiffe_id = "spiffe://domain2.test/beserver"
             }
         }
     }
