@@ -64,11 +64,11 @@ type client struct {
 	connections *nodeConn
 	m           sync.Mutex
 	// Constructor used for testing purposes.
-	createNewNodeClient   func(*grpc.ClientConn) node.NodeClient
-	createNewEntryClient  func(*grpc.ClientConn) entrypb.EntryClient
-	createNewBundleClient func(*grpc.ClientConn) bundlepb.BundleClient
-	createNewSVIDClient   func(*grpc.ClientConn) svidpb.SVIDClient
-	createNewAgentClient  func(*grpc.ClientConn) agentpb.AgentClient
+	createNewNodeClient   func(grpc.ClientConnInterface) node.NodeClient
+	createNewEntryClient  func(grpc.ClientConnInterface) entrypb.EntryClient
+	createNewBundleClient func(grpc.ClientConnInterface) bundlepb.BundleClient
+	createNewSVIDClient   func(grpc.ClientConnInterface) svidpb.SVIDClient
+	createNewAgentClient  func(grpc.ClientConnInterface) agentpb.AgentClient
 
 	// Constructor used for testing purposes.
 	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)

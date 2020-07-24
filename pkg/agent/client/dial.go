@@ -85,6 +85,7 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithBlock(),
+		grpc.WithReturnConnectionError(),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	switch {

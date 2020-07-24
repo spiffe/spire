@@ -9,33 +9,51 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
-
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
+	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
-var _awsTimeout = 5 * time.Second
+var (
+	iidError        = caws.IidErrorClass
+	_awsTimeout     = 5 * time.Second
+	instanceFilters = []*ec2.Filter{
+		{
+			Name: aws.String("instance-state-name"),
+			Values: []*string{
+				aws.String("pending"),
+				aws.String("running"),
+			},
+		},
+	}
+)
 
 const (
 	maxSecondsBetweenDeviceAttachments int64 = 60
+	// accessKeyIDVarName env var name for AWS access key ID
+	accessKeyIDVarName = "AWS_ACCESS_KEY_ID"
+	// secretAccessKeyVarName env car name for AWS secret access key
+	secretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
 )
 
 const awsCaCertPEM = `-----BEGIN CERTIFICATE-----
@@ -72,20 +90,20 @@ func builtin(p *IIDAttestorPlugin) catalog.Plugin {
 // IIDAttestorPlugin implements node attestation for agents running in aws.
 type IIDAttestorPlugin struct {
 	nodeattestorbase.Base
-	config *IIDAttestorConfig
-	mtx    sync.RWMutex
-	hooks  struct {
-		// in test, this can be overridden to get mock client
-		getClient func(p client.ConfigProvider, cfgs ...*aws.Config) EC2Client
+	config  *IIDAttestorConfig
+	mtx     sync.RWMutex
+	clients *clientsCache
+
+	hooks struct {
 		// in test, this can be overridden to mock OS env
-		getEnv func(string) string
+		getenv func(string) string
 	}
 	log hclog.Logger
 }
 
 // IIDAttestorConfig holds hcl configuration for IID attestor plugin
 type IIDAttestorConfig struct {
-	caws.SessionConfig `hcl:",squash"`
+	SessionConfig      `hcl:",squash"`
 	SkipBlockDevice    bool     `hcl:"skip_block_device"`
 	LocalValidAcctIDs  []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate  string   `hcl:"agent_path_template"`
@@ -94,13 +112,11 @@ type IIDAttestorConfig struct {
 	awsCaCertPublicKey *rsa.PublicKey
 }
 
-// New creates a new IITAttestorPlugin.
+// New creates a new IIDAttestorPlugin.
 func New() *IIDAttestorPlugin {
 	p := &IIDAttestorPlugin{}
-	p.hooks.getClient = func(p client.ConfigProvider, cfgs ...*aws.Config) EC2Client {
-		return ec2.New(p, cfgs...)
-	}
-	p.hooks.getEnv = os.Getenv
+	p.clients = newClientsCache(defaultNewClientCallback)
+	p.hooks.getenv = os.Getenv
 	return p
 }
 
@@ -118,11 +134,11 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 
 	genAttestData := req.GetAttestationData()
 	if genAttestData == nil {
-		return errors.New("request missing attestation data")
+		return iidError.New("request missing attestation data")
 	}
 
 	if genAttestData.Type != caws.PluginName {
-		return fmt.Errorf("unexpected attestation data type %q", genAttestData.Type)
+		return iidError.New("unexpected attestation data type %q", genAttestData.Type)
 	}
 
 	validDoc, err := unmarshalAndValidateIdentityDocument(genAttestData.Data, c.awsCaCertPublicKey)
@@ -138,6 +154,22 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		}
 	}
 
+	awsClient, err := p.clients.getClient(validDoc.Region)
+	if err != nil {
+		return iidError.New("failed to get client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(stream.Context(), _awsTimeout)
+	defer cancel()
+
+	instancesDesc, err := awsClient.DescribeInstancesWithContext(ctx, &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{aws.String(validDoc.InstanceID)},
+		Filters:     instanceFilters,
+	})
+	if err != nil {
+		return caws.AttestationStepError("querying AWS via describe-instances", err)
+	}
+
 	// Ideally we wouldn't do this work at all if the agent has already attested
 	// e.g. do it after the call to `p.IsAttested`, however, we may need
 	// the instance to construct tags used in the agent ID.
@@ -147,26 +179,27 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	// is a potential DoS vector.
 	shouldCheckBlockDevice := !inTrustAcctList && !c.SkipBlockDevice
 	var instance *ec2.Instance
+	var tags = make(instanceTags)
 	if strings.Contains(c.AgentPathTemplate, ".Tags") || shouldCheckBlockDevice {
 		var err error
-		instance, err = p.getEC2Instance(stream.Context(), c, validDoc)
+		instance, err = p.getEC2Instance(instancesDesc)
 		if err != nil {
 			return err
 		}
+
+		tags = tagsFromInstance(instance)
 	}
 
 	if shouldCheckBlockDevice {
 		err = p.checkBlockDevice(instance)
 		if err != nil {
-			return fmt.Errorf("failed aws ec2 attestation: %v", err)
+			return iidError.New("failed aws ec2 attestation: %w", err)
 		}
 	}
 
-	tags := tagsFromInstance(instance)
-
 	agentID, err := makeSpiffeID(c.trustDomain, c.pathTemplate, validDoc, tags)
 	if err != nil {
-		return fmt.Errorf("failed to create spiffe ID: %v", err)
+		return iidError.New("failed to create spiffe ID: %w", err)
 	}
 
 	attested, err := p.IsAttested(stream.Context(), agentID.String())
@@ -174,11 +207,17 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	case err != nil:
 		return err
 	case attested:
-		return errors.New("IID has already been used to attest an agent")
+		return iidError.New("IID has already been used to attest an agent")
+	}
+
+	selectors, err := p.resolveSelectors(stream.Context(), instancesDesc, awsClient)
+	if err != nil {
+		return err
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		AgentId: agentID.String(),
+		AgentId:   agentID.String(),
+		Selectors: selectors.Entries,
 	})
 }
 
@@ -190,12 +229,12 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	config := &IIDAttestorConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
-		err := fmt.Errorf("error parsing AWS IID Attestor configuration: %s", err)
+		err := iidError.New("error parsing AWS IID Attestor configuration: %w", err)
 		return resp, err
 	}
 	err = hcl.DecodeObject(&config, hclTree)
 	if err != nil {
-		err := fmt.Errorf("error decoding AWS IID Attestor configuration: %v", err)
+		err := iidError.New("error decoding AWS IID Attestor configuration: %w", err)
 		return resp, err
 	}
 
@@ -203,39 +242,26 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	awsCaCert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		err := fmt.Errorf("error reading the AWS CA Certificate in the AWS IID Attestor: %v", err)
+		err := iidError.New("error reading the AWS CA Certificate in the AWS IID Attestor: %w", err)
 		return resp, err
 	}
 
 	awsCaCertPublicKey, ok := awsCaCert.PublicKey.(*rsa.PublicKey)
 	if !ok {
-		err := fmt.Errorf("error extracting the AWS CA Certificate's public key in the AWS IID Attestor: %v", err)
+		err := iidError.New("error extracting the AWS CA Certificate's public key in the AWS IID Attestor: %w", err)
 		return resp, err
 	}
 	config.awsCaCertPublicKey = awsCaCertPublicKey
 
-	if config.AccessKeyID == "" {
-		config.AccessKeyID = p.hooks.getEnv(caws.AccessKeyIDVarName)
-	}
-
-	if config.SecretAccessKey == "" {
-		config.SecretAccessKey = p.hooks.getEnv(caws.SecretAccessKeyVarName)
-	}
-
-	switch {
-	case config.AccessKeyID != "" && config.SecretAccessKey == "":
-		return nil, errors.New("configuration missing secret access key, but has access key id")
-	case config.AccessKeyID == "" && config.SecretAccessKey != "":
-		return nil, errors.New("configuration missing access key id, but has secret access key")
+	if err := config.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
+		return nil, err
 	}
 
 	if req.GlobalConfig == nil {
-		err := fmt.Errorf("global configuration is required")
-		return resp, err
+		return resp, iidError.New("global configuration is required")
 	}
 	if req.GlobalConfig.TrustDomain == "" {
-		err := fmt.Errorf("trust_domain is required")
-		return resp, err
+		return resp, iidError.New("trust_domain is required")
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 
@@ -243,7 +269,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if len(config.AgentPathTemplate) > 0 {
 		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
+			return nil, iidError.New("failed to parse agent svid template: %q", config.AgentPathTemplate)
 		}
 		config.pathTemplate = tmpl
 	}
@@ -252,6 +278,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	defer p.mtx.Unlock()
 
 	p.config = config
+	p.clients.configure(config.SessionConfig)
 
 	return &spi.ConfigureResponse{}, nil
 }
@@ -270,7 +297,7 @@ func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 	ifaceZeroDeviceIndex := *instance.NetworkInterfaces[0].Attachment.DeviceIndex
 
 	if ifaceZeroDeviceIndex != 0 {
-		innerErr := fmt.Errorf("the DeviceIndex is %d", ifaceZeroDeviceIndex)
+		innerErr := iidError.New("the DeviceIndex is %d", ifaceZeroDeviceIndex)
 		return caws.AttestationStepError("verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0", innerErr)
 	}
 
@@ -289,7 +316,7 @@ func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 		}
 
 		if rootDeviceIndex == -1 {
-			innerErr := fmt.Errorf("could not locate a device mapping with name '%v'", instance.RootDeviceName)
+			innerErr := iidError.New("could not locate a device mapping with name '%v'", instance.RootDeviceName)
 			return caws.AttestationStepError("locating the root device block mapping", innerErr)
 		}
 
@@ -298,7 +325,7 @@ func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 		attachTimeDisparitySeconds := int64(math.Abs(float64(ifaceZeroAttachTime.Unix() - rootDeviceAttachTime.Unix())))
 
 		if attachTimeDisparitySeconds > maxSecondsBetweenDeviceAttachments {
-			innerErr := fmt.Errorf("root BlockDeviceMapping and NetworkInterface[0] attach times differ by %d seconds", attachTimeDisparitySeconds)
+			innerErr := iidError.New("root BlockDeviceMapping and NetworkInterface[0] attach times differ by %d seconds", attachTimeDisparitySeconds)
 			return caws.AttestationStepError("checking the disparity device attach times", innerErr)
 		}
 	}
@@ -311,47 +338,25 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 	defer p.mtx.RUnlock()
 
 	if p.config == nil {
-		return nil, errors.New("not configured")
+		return nil, iidError.New("not configured")
 	}
+
 	return p.config, nil
 }
 
-func (p *IIDAttestorPlugin) getEC2Instance(ctx context.Context, c *IIDAttestorConfig, doc ec2metadata.EC2InstanceIdentityDocument) (*ec2.Instance, error) {
-	awsSession, err := caws.NewAWSSession(c.AccessKeyID, c.SecretAccessKey, doc.Region)
-	if err != nil {
-		return nil, caws.AttestationStepError("creating AWS session", err)
+func (p *IIDAttestorPlugin) getEC2Instance(instancesDesc *ec2.DescribeInstancesOutput) (*ec2.Instance, error) {
+	if len(instancesDesc.Reservations) < 1 {
+		return nil, caws.AttestationStepError("querying AWS via describe-instances", iidError.New("returned no reservations"))
 	}
 
-	ec2Client := p.hooks.getClient(awsSession)
-
-	query := &ec2.DescribeInstancesInput{
-		InstanceIds: []*string{&doc.InstanceID},
+	if len(instancesDesc.Reservations[0].Instances) < 1 {
+		return nil, caws.AttestationStepError("querying AWS via describe-instances", iidError.New("returned no instances"))
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, _awsTimeout)
-	defer cancel()
-
-	result, err := ec2Client.DescribeInstancesWithContext(ctx, query)
-	if err != nil {
-		return nil, caws.AttestationStepError("querying AWS via describe-instances", err)
-	}
-
-	if len(result.Reservations) < 1 {
-		return nil, caws.AttestationStepError("querying AWS via describe-instances", errors.New("returned no reservations"))
-	}
-
-	if len(result.Reservations[0].Instances) < 1 {
-		return nil, caws.AttestationStepError("querying AWS via describe-instances", errors.New("returned no instances"))
-	}
-
-	return result.Reservations[0].Instances[0], nil
+	return instancesDesc.Reservations[0].Instances[0], nil
 }
 
 func tagsFromInstance(instance *ec2.Instance) instanceTags {
-	if instance == nil {
-		return make(instanceTags)
-	}
-
 	tags := make(instanceTags, len(instance.Tags))
 	for _, tag := range instance.Tags {
 		if tag != nil && tag.Key != nil && tag.Value != nil {
@@ -384,4 +389,98 @@ func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (e
 	}
 
 	return doc, nil
+}
+
+func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDesc *ec2.DescribeInstancesOutput, client Client) (*common.Selectors, error) {
+	selectorSet := map[string]bool{}
+	addSelectors := func(values []string) {
+		for _, value := range values {
+			selectorSet[value] = true
+		}
+	}
+
+	for _, reservation := range instancesDesc.Reservations {
+		for _, instance := range reservation.Instances {
+			addSelectors(resolveTags(instance.Tags))
+			addSelectors(resolveSecurityGroups(instance.SecurityGroups))
+			if instance.IamInstanceProfile != nil && instance.IamInstanceProfile.Arn != nil {
+				instanceProfileName, err := instanceProfileNameFromArn(*instance.IamInstanceProfile.Arn)
+				if err != nil {
+					return nil, err
+				}
+				ctx, cancel := context.WithTimeout(parent, _awsTimeout)
+				defer cancel()
+				output, err := client.GetInstanceProfileWithContext(ctx, &iam.GetInstanceProfileInput{
+					InstanceProfileName: aws.String(instanceProfileName),
+				})
+				if err != nil {
+					return nil, iidError.Wrap(err)
+				}
+				addSelectors(resolveInstanceProfile(output.InstanceProfile))
+			}
+		}
+	}
+
+	// build and sort selectors
+	selectors := new(common.Selectors)
+	for value := range selectorSet {
+		selectors.Entries = append(selectors.Entries, &common.Selector{
+			Type:  caws.PluginName,
+			Value: value,
+		})
+	}
+	util.SortSelectors(selectors.Entries)
+
+	return selectors, nil
+}
+
+func resolveTags(tags []*ec2.Tag) []string {
+	values := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if tag != nil {
+			values = append(values, fmt.Sprintf("tag:%s:%s", aws.StringValue(tag.Key), aws.StringValue(tag.Value)))
+		}
+	}
+	return values
+}
+
+func resolveSecurityGroups(sgs []*ec2.GroupIdentifier) []string {
+	values := make([]string, 0, len(sgs)*2)
+	for _, sg := range sgs {
+		if sg != nil {
+			values = append(values,
+				fmt.Sprintf("sg:id:%s", aws.StringValue(sg.GroupId)),
+				fmt.Sprintf("sg:name:%s", aws.StringValue(sg.GroupName)),
+			)
+		}
+	}
+	return values
+}
+
+func resolveInstanceProfile(instanceProfile *iam.InstanceProfile) []string {
+	if instanceProfile == nil {
+		return nil
+	}
+	values := make([]string, 0, len(instanceProfile.Roles))
+	for _, role := range instanceProfile.Roles {
+		if role != nil && role.Arn != nil {
+			values = append(values, fmt.Sprintf("iamrole:%s", aws.StringValue(role.Arn)))
+		}
+	}
+	return values
+}
+
+var reInstanceProfileARNResource = regexp.MustCompile(`instance-profile[/:](.+)`)
+
+func instanceProfileNameFromArn(profileArn string) (string, error) {
+	a, err := arn.Parse(profileArn)
+	if err != nil {
+		return "", iidError.Wrap(err)
+	}
+	m := reInstanceProfileARNResource.FindStringSubmatch(a.Resource)
+	if m == nil {
+		return "", iidError.New("arn is not for an instance profile")
+	}
+
+	return m[1], nil
 }
