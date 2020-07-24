@@ -19,7 +19,7 @@ import (
 var (
 	tdFlag           = flag.String("trustDomain", "domain.test", "server trust domain")
 	socketPathFlag   = flag.String("socketPath", "unix:///tmp/agent.sock", "agent socket path")
-	serverAddrFlag   = flag.String("serverAddr", "SPIRE-SERVER:8081", "server addr")
+	serverAddrFlag   = flag.String("serverAddr", "spire-server:8081", "server addr")
 	expectErrorsFlag = flag.Bool("expectErrors", false, "client is used to validate permission errors")
 )
 
