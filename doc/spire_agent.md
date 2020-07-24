@@ -45,7 +45,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_format`              | Format of logs, \<text\|json\>                                        | Text                 |
 | `server_address`          | DNS name or IP address of the SPIRE server                            |                      |
 | `server_port`             | Port number of the SPIRE server                                       |                      |
-| `socket_path`             | Location to bind the workload API socket                              | $PWD/spire_api       |
+| `socket_path`             | Location to bind the workload API socket                              | /tmp/agent.sock      |
 | `trust_bundle_path`       | Path to the SPIRE server CA bundle                                    |                      |
 | `trust_bundle_url`        | URL to download the initial SPIRE server trust bundle                 |                      |
 | `insecure_bootstrap`      | If true, the agent bootstraps without verifying the server's identity | false                |
