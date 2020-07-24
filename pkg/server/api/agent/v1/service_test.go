@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"testing"
 	"time"
@@ -1726,7 +1725,8 @@ func TestAttestAgent(t *testing.T) {
 			stream, err := test.client.AttestAgent(ctx)
 			require.NoError(t, err)
 			result, err := attest(t, stream, tt.request)
-			closeAttestStream(t, stream)
+			errClose := stream.CloseSend()
+			require.NoError(t, errClose)
 
 			if tt.retry {
 				// make sure that the first request went well
@@ -1739,7 +1739,8 @@ func TestAttestAgent(t *testing.T) {
 				stream, err = test.client.AttestAgent(ctx)
 				require.NoError(t, err)
 				result, err = attest(t, stream, tt.request)
-				closeAttestStream(t, stream)
+				errClose := stream.CloseSend()
+				require.NoError(t, errClose)
 			}
 
 			switch {
@@ -2050,12 +2051,4 @@ func attest(t *testing.T, stream agentpb.Agent_AttestAgentClient, request *agent
 		}
 		return result, err
 	}
-}
-
-func closeAttestStream(t *testing.T, stream agentpb.Agent_AttestAgentClient) {
-	err := stream.Send(&agentpb.AttestAgentRequest{})
-	require.EqualError(t, err, io.EOF.Error())
-
-	err = stream.CloseSend()
-	require.NoError(t, err)
 }
