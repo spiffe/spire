@@ -5,9 +5,10 @@ import (
 	"flag"
 	"log"
 	"crypto/ecdsa"
-"crypto/x509"
+	"crypto/x509"
+	"crypto/tls"
+
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-"crypto/tls"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
@@ -65,7 +66,6 @@ func New(ctx context.Context) *Client {
 func NewWithCert(ctx context.Context, cert x509.Certificate, key *ecdsa.PrivateKey) *Client {
 	flag.Parse()
 
-	//tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
 	tlsConfig := tls.Config{
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return &tls.Certificate{
@@ -87,6 +87,7 @@ func NewWithCert(ctx context.Context, cert x509.Certificate, key *ecdsa.PrivateK
 		connection: conn,
 	}
 }
+
 func (c *Client) Release() {
 	c.connection.Close()
 	c.source.Close()

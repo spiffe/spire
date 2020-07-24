@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"github.com/spiffe/spire/test/testkey"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -74,6 +77,7 @@ func testAgentApi(ctx context.Context, c *itclient.LocalServerClient) error {
 	// Re-connect over TCP, simulating a working spire-agent connection. Use the cert obtained through 
 	// attestation as the client cert (and don't bother validating the server cert)
 	agentRemoteConn := itclient.NewWithCert(ctx, *cert, key)
+	defer agentRemoteConn.Release()
 	agentRemoteClient := agentRemoteConn.AgentClient()
 
 	// Now renew the agent cert
