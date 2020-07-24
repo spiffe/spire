@@ -4,7 +4,7 @@ Known end users with notable contributions to the project include:
 
 * Bloomberg 
 * ByteDance 
-* Github
+* GitHub
 * Pinterest 
 * Square
 * Uber
@@ -57,6 +57,5 @@ https://youtu.be/plRkDK5xFpM
 ## Adding a name
 
 If you would like to add your name to this file, submit a pull request with your change. 
-
 
 
