@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -125,16 +126,20 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 
 	ds := c.Catalog.GetDataStore()
 	authorizedEntryFetcher := AuthorizedEntryFetcher(ds)
+	upstreamPublisher := UpstreamPublisher(c.Manager)
 
 	return &ExperimentalServers{
 		AgentServer: agentv1.New(agentv1.Config{
 			DataStore:   ds,
 			ServerCA:    c.ServerCA,
 			TrustDomain: c.TrustDomain,
+			Catalog:     c.Catalog,
+			Clock:       clock.New(),
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
-			TrustDomain: c.TrustDomain,
-			DataStore:   ds,
+			TrustDomain:       c.TrustDomain,
+			DataStore:         ds,
+			UpstreamPublisher: upstreamPublisher,
 		}),
 		EntryServer: entryv1.New(entryv1.Config{
 			DataStore:    ds,
@@ -144,6 +149,7 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 			TrustDomain:  c.TrustDomain,
 			EntryFetcher: authorizedEntryFetcher,
 			ServerCA:     c.ServerCA,
+			DataStore:    ds,
 		}),
 	}
 }

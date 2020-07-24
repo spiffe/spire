@@ -113,6 +113,7 @@ func TestAgentAuthorizer(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		failFetch      bool
+		failUpdate     bool
 		node           *common.AttestedNode
 		time           time.Time
 		expectedCode   codes.Code
@@ -132,13 +133,13 @@ func TestAgentAuthorizer(t *testing.T) {
 			name:         "fail fetch",
 			failFetch:    true,
 			expectedCode: codes.Internal,
-			expectedMsg:  "unable to look up agent information",
+			expectedMsg:  "unable to look up agent information: fetch failed",
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Unable to look up agent information",
 					Data: map[string]interface{}{
-						logrus.ErrorKey:   "ohno",
+						logrus.ErrorKey:   "fetch failed",
 						telemetry.AgentID: agentID.String(),
 					},
 				},
@@ -218,6 +219,39 @@ func TestAgentAuthorizer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "activates new SVID",
+			node: &common.AttestedNode{
+				SpiffeId:            agentID.String(),
+				CertSerialNumber:    "CURRENT",
+				NewCertSerialNumber: agentSVID.SerialNumber.String(),
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "failed to activate new SVID",
+			node: &common.AttestedNode{
+				SpiffeId:            agentID.String(),
+				CertSerialNumber:    "CURRENT",
+				NewCertSerialNumber: agentSVID.SerialNumber.String(),
+			},
+			failUpdate:   true,
+			expectedCode: codes.Internal,
+			expectedMsg:  `unable to activate the new agent SVID: update failed`,
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Unable to activate the new agent SVID",
+					Data: map[string]interface{}{
+						telemetry.AgentID:          agentID.String(),
+						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
+						telemetry.SerialNumber:     "CURRENT",
+						telemetry.NewSerialNumber:  agentSVID.SerialNumber.String(),
+						logrus.ErrorKey:            "update failed",
+					},
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -231,9 +265,19 @@ func TestAgentAuthorizer(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			if tt.failFetch {
-				ds.SetNextError(errors.New("ohno"))
-			}
+			ds.AppendNextError(func() error {
+				if tt.failFetch {
+					return errors.New("fetch failed")
+				}
+				return nil
+			}())
+
+			ds.AppendNextError(func() error {
+				if tt.failUpdate {
+					return errors.New("update failed")
+				}
+				return nil
+			}())
 
 			clk := clock.NewMock(t)
 			if !tt.time.IsZero() {
@@ -242,15 +286,31 @@ func TestAgentAuthorizer(t *testing.T) {
 			authorizer := AgentAuthorizer(log, ds, clk)
 			err := authorizer.AuthorizeAgent(context.Background(), agentID, agentSVID)
 			spiretest.RequireGRPCStatus(t, err, tt.expectedCode, tt.expectedMsg)
-			if tt.expectedCode == codes.PermissionDenied {
+			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectedLogs)
+
+			switch tt.expectedCode {
+			case codes.OK:
+			case codes.PermissionDenied:
 				// Assert that the expected permission denied reason is returned
 				assert.Equal(t, []interface{}{
 					&types.PermissionDeniedDetails{
 						Reason: tt.expectedReason,
 					},
 				}, status.Convert(err).Details())
+				return
+			case codes.Internal:
+				return
+			default:
+				require.Fail(t, "unexpected error code")
 			}
-			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectedLogs)
+
+			// Assert the new SVID serial number (if existed) is now set as current
+			resp, err := ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
+				SpiffeId: tt.node.SpiffeId,
+			})
+			require.NoError(t, err)
+			require.Equal(t, agentSVID.SerialNumber.String(), resp.Node.CertSerialNumber)
+			require.Empty(t, resp.Node.NewCertSerialNumber)
 		})
 	}
 }

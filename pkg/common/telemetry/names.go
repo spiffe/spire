@@ -38,6 +38,26 @@ const (
 	// to add clarity
 	Fetch = "fetch"
 
+	// FetchPrivateKey related to fetching a private in the KeyManager plugin interface
+	// (agent)
+	FetchPrivateKey = "fetch_private_key"
+
+	// GenerateKey related to generating a key  in the KeyManager plugin interface
+	// (server)
+	GenerateKey = "generate_key"
+
+	// GenerateKeyPair related to generating a key pair in the KeyManager plugin interface
+	// (agent)
+	GenerateKeyPair = "generate_key_pair"
+
+	// GetPublicKey related to getting a key in the KeyManager plugin interface
+	// (server)
+	GetPublicKey = "get_public_key"
+
+	// GetPublicKeys related to getting keys in the KeyManager plugin interface
+	// (server)
+	GetPublicKeys = "get_public_keys"
+
 	// List functionality related to listing some objects; should be used
 	// with other tags to add clarity
 	List = "list"
@@ -66,6 +86,14 @@ const (
 	// Sign functionality related to signing a token / cert; should be used with other tags
 	// to add clarity
 	Sign = "sign"
+
+	// SignData related to signing data in the KeyManager plugin interface
+	// (server)
+	SignData = "sign_data"
+
+	// StorePrivateKey related to storing a private key in the KeyManager plugin interface
+	// (agent or server)
+	StorePrivateKey = "store_private_key"
 
 	// Sync functionality for syncing (such as CA manager updates). Should
 	// be used with other tags to add clarity
@@ -170,6 +198,9 @@ const (
 
 	// Kid tags some key ID
 	Kid = "kid"
+
+	// NewSerialNumber tags a certificate new serial number
+	NewSerialNumber = "new_serial_num"
 
 	// NodeAttestorType declares the type of node attestation.
 	NodeAttestorType = "node_attestor_type"
@@ -328,6 +359,9 @@ const (
 	// to add clarity
 	Bundle = "bundle"
 
+	// BundleManager functionality related to a Bundle manager
+	BundleManager = "bundle_manager"
+
 	// BundlesUpdate functionality related to updating bundles
 	BundlesUpdate = "bundles_update"
 
@@ -439,6 +473,9 @@ const (
 // Operation metric tags or labels that are typically a specific
 // operation or API
 const (
+	// AgentKeyManager attached to all operations related to the Agent KeyManger interface
+	AgentKeyManager = "agent_key_manager"
+
 	// AuthorizeCall functionality related to authorizing an incoming call
 	AuthorizeCall = "authorize_call"
 
@@ -541,6 +578,9 @@ const (
 	// SDSAPI functionality related to SDS; should be used with other tags
 	// to add clarity
 	SDSAPI = "sds_api"
+
+	// ServerKeyManager attached to all operations related to the server KeyManager interface
+	ServerKeyManager = "server_key_manager"
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"

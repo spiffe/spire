@@ -13,10 +13,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	agentpb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
+	bundlepb "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
+	entrypb "github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
+	svidpb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
-
 	"google.golang.org/grpc"
 )
 
@@ -34,7 +37,7 @@ type JWTSVID struct {
 
 type Client interface {
 	FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest, forRotation bool) (*Update, error)
-	FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) (*JWTSVID, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -51,14 +54,22 @@ type Config struct {
 
 	// RotMtx is used to prevent the creation of new connections during SVID rotations
 	RotMtx *sync.RWMutex
+
+	// Use experimental api
+	ExperimentalAPIEnabled bool
 }
 
 type client struct {
-	c        *Config
-	nodeConn *nodeConn
-	m        sync.Mutex
+	c           *Config
+	connections *nodeConn
+	m           sync.Mutex
 	// Constructor used for testing purposes.
-	createNewNodeClient func(*grpc.ClientConn) node.NodeClient
+	createNewNodeClient   func(grpc.ClientConnInterface) node.NodeClient
+	createNewEntryClient  func(grpc.ClientConnInterface) entrypb.EntryClient
+	createNewBundleClient func(grpc.ClientConnInterface) bundlepb.BundleClient
+	createNewSVIDClient   func(grpc.ClientConnInterface) svidpb.SVIDClient
+	createNewAgentClient  func(grpc.ClientConnInterface) agentpb.AgentClient
+
 	// Constructor used for testing purposes.
 	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
@@ -70,8 +81,12 @@ func New(c *Config) Client {
 
 func newClient(c *Config) *client {
 	return &client{
-		c:                   c,
-		createNewNodeClient: node.NewNodeClient,
+		c:                     c,
+		createNewNodeClient:   node.NewNodeClient,
+		createNewEntryClient:  entrypb.NewEntryClient,
+		createNewBundleClient: bundlepb.NewBundleClient,
+		createNewSVIDClient:   svidpb.NewSVIDClient,
+		createNewAgentClient:  agentpb.NewAgentClient,
 	}
 }
 
@@ -82,6 +97,15 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	if !forRotation {
 		c.c.RotMtx.RLock()
 		defer c.c.RotMtx.RUnlock()
+	}
+
+	if c.c.ExperimentalAPIEnabled {
+		resp, err := c.fetchUpdates(ctx, req, forRotation)
+		if err != nil {
+			c.c.Log.WithError(err).Error("Failed to fetch updates")
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	nodeClient, nodeConn, err := c.newNodeClient(ctx)
@@ -155,12 +179,16 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	}, nil
 }
 
-func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error) {
+func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) (*JWTSVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
+
+	if c.c.ExperimentalAPIEnabled {
+		return c.fetchJWTSVID(ctx, jsr, entryID)
+	}
 
 	nodeClient, nodeConn, err := c.newNodeClient(ctx)
 	if err != nil {
@@ -207,9 +235,9 @@ func (c *client) Release() {
 func (c *client) release(conn *nodeConn) {
 	c.m.Lock()
 	defer c.m.Unlock()
-	if c.nodeConn != nil && (conn == nil || conn == c.nodeConn) {
-		c.nodeConn.Release()
-		c.nodeConn = nil
+	if c.connections != nil && (conn == nil || conn == c.connections) {
+		c.connections.Release()
+		c.connections = nil
 	}
 }
 
@@ -218,15 +246,15 @@ func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, *nodeConn,
 	defer c.m.Unlock()
 
 	// open a new connection
-	if c.nodeConn == nil {
+	if c.connections == nil {
 		conn, err := c.dial(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
-		c.nodeConn = newNodeConn(conn)
+		c.connections = newNodeConn(conn)
 	}
-	c.nodeConn.AddRef()
-	return c.createNewNodeClient(c.nodeConn.conn), c.nodeConn, nil
+	c.connections.AddRef()
+	return c.createNewNodeClient(c.connections.conn), c.connections, nil
 }
 
 func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {

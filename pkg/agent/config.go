@@ -25,6 +25,9 @@ type Config struct {
 	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
 	DefaultSVIDName string
 
+	// Enable experimental API
+	ExperimentalAPIEnabled bool
+
 	// If true, the agent will bootstrap insecurely with the server
 	InsecureBootstrap bool
 

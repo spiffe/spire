@@ -73,7 +73,9 @@ func init() {
 	proto.RegisterType((*JoinToken)(nil), "spire.types.JoinToken")
 }
 
-func init() { proto.RegisterFile("spire-next/types/jointoken.proto", fileDescriptor_b999a2f5b0f320be) }
+func init() {
+	proto.RegisterFile("spire-next/types/jointoken.proto", fileDescriptor_b999a2f5b0f320be)
+}
 
 var fileDescriptor_b999a2f5b0f320be = []byte{
 	// 153 bytes of a gzipped FileDescriptorProto

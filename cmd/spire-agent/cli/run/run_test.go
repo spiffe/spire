@@ -483,11 +483,11 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "socket_path should default to ./spire_api if not set",
+			msg:       "socket_path should default to /tmp/agent.sock if not set",
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "./spire_api", c.Agent.SocketPath)
+				require.Equal(t, "/tmp/agent.sock", c.Agent.SocketPath)
 			},
 		},
 		{
@@ -793,6 +793,15 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.EqualValues(t, 2045000000, c.SyncInterval)
+			},
+		},
+		{
+			msg: "experimental api enabled",
+			input: func(c *Config) {
+				c.Agent.Experimental.EnableAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.True(t, c.ExperimentalAPIEnabled)
 			},
 		},
 		{

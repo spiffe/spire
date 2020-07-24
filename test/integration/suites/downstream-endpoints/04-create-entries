@@ -1,0 +1,21 @@
+#!/bin/bash
+
+log-debug "creating downstream registration entry..."
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/downstream" \
+    -selector "unix:uid:1001" \
+    -downstream \
+    -ttl 0
+check-synced-entry "spire-agent" "spiffe://domain.test/downstream"
+
+log-debug "creating workload registration entry..."
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload" \
+    -selector "unix:uid:1002" \
+    -ttl 0
+check-synced-entry "spire-agent" "spiffe://domain.test/workload"
+

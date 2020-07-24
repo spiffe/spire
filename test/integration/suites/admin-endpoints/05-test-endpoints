@@ -1,0 +1,9 @@
+#!/bin/bash
+
+log-debug "test admin workload..."
+docker-compose exec -u 1001 -T spire-agent \
+	/opt/spire/conf/agent/adminclient || fail-now "failed to check admin endpoints"
+
+log-debug "test regular workload..."
+docker-compose exec -u 1002 -T spire-agent \
+	/opt/spire/conf/agent/adminclient -expectErrors || fail-now "failed to check admin endpoints"

@@ -154,7 +154,9 @@ func init() {
 	proto.RegisterType((*SelectorMatch)(nil), "spire.types.SelectorMatch")
 }
 
-func init() { proto.RegisterFile("spire-next/types/selector.proto", fileDescriptor_db3686cdbd811d0c) }
+func init() {
+	proto.RegisterFile("spire-next/types/selector.proto", fileDescriptor_db3686cdbd811d0c)
+}
 
 var fileDescriptor_db3686cdbd811d0c = []byte{
 	// 239 bytes of a gzipped FileDescriptorProto
