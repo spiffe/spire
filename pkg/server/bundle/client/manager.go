@@ -7,6 +7,8 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 )
@@ -34,6 +36,7 @@ type TrustDomainConfig struct {
 
 type ManagerConfig struct {
 	Log          logrus.FieldLogger
+	Metrics      telemetry.Metrics
 	DataStore    datastore.DataStore
 	Clock        clock.Clock
 	TrustDomains map[string]TrustDomainConfig
@@ -44,6 +47,7 @@ type ManagerConfig struct {
 
 type Manager struct {
 	log      logrus.FieldLogger
+	metrics  telemetry.Metrics
 	clock    clock.Clock
 	updaters map[string]BundleUpdater
 }
@@ -67,6 +71,7 @@ func NewManager(config ManagerConfig) *Manager {
 
 	return &Manager{
 		log:      config.Log,
+		metrics:  config.Metrics,
 		clock:    config.Clock,
 		updaters: updaters,
 	}
@@ -98,6 +103,7 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain string, updater Bu
 
 		switch {
 		case endpointBundle != nil:
+			telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain)
 			log.Info("Bundle refreshed")
 			nextRefresh = calculateNextUpdate(endpointBundle)
 		case localBundle != nil:
