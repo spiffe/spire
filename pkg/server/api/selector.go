@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 )
 
 // SelectorsFromProto converts a slice of types.Selector to

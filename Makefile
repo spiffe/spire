@@ -145,20 +145,20 @@ protos := \
 	proto/spire/server/noderesolver/noderesolver.proto \
 	proto/spire/server/notifier/notifier.proto \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto \
-	proto/spire-next/api/server/agent/v1/agent.proto \
-	proto/spire-next/api/server/bundle/v1/bundle.proto \
-	proto/spire-next/api/server/entry/v1/entry.proto \
-	proto/spire-next/api/server/svid/v1/svid.proto \
-	proto/spire-next/types/agent.proto \
-	proto/spire-next/types/attestation.proto \
-	proto/spire-next/types/bundle.proto \
-	proto/spire-next/types/entry.proto \
-	proto/spire-next/types/jointoken.proto \
-	proto/spire-next/types/jwtsvid.proto \
-	proto/spire-next/types/selector.proto \
-	proto/spire-next/types/spiffeid.proto \
-	proto/spire-next/types/status.proto \
-	proto/spire-next/types/x509svid.proto \
+	proto/spire/api/server/agent/v1/agent.proto \
+	proto/spire/api/server/bundle/v1/bundle.proto \
+	proto/spire/api/server/entry/v1/entry.proto \
+	proto/spire/api/server/svid/v1/svid.proto \
+	proto/spire/types/agent.proto \
+	proto/spire/types/attestation.proto \
+	proto/spire/types/bundle.proto \
+	proto/spire/types/entry.proto \
+	proto/spire/types/jointoken.proto \
+	proto/spire/types/jwtsvid.proto \
+	proto/spire/types/selector.proto \
+	proto/spire/types/spiffeid.proto \
+	proto/spire/types/status.proto \
+	proto/spire/types/x509svid.proto \
 
 # The following three variables define the plugin, service, and hostservice
 # interfaces. The syntax of each entry is as follows:

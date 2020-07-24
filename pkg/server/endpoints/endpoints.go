@@ -24,12 +24,12 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	datastore_pb "github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	agentv1_pb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
-	bundlev1_pb "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
-	entryv1_pb "github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
-	svidv1_pb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
+	agentv1_pb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	bundlev1_pb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	entryv1_pb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	svidv1_pb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 )
 
 // This is the maximum amount of time an agent connection may exist before

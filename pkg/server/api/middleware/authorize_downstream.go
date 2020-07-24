@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
