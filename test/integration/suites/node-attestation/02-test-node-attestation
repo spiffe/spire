@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Test node attestation api
+docker-compose exec -u 1001 -T spire-server \
+	/opt/spire/conf/server/node-attestation || fail-now "fail to check node attestation api"
+

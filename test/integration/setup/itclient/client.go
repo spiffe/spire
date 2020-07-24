@@ -60,13 +60,23 @@ func New(ctx context.Context) *Client {
 		connection: conn,
 		source:     source,
 	}
-}
+} 
 
 func NewWithCert(ctx context.Context, cert x509.Certificate, key *ecdsa.PrivateKey) *Client {
 	flag.Parse()
 
-	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
-	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
+	//tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
+	tlsConfig := tls.Config{
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return &tls.Certificate{
+				Certificate: [][]byte{cert.Raw},
+				PrivateKey: key,
+			}, nil
+		},
+		InsecureSkipVerify: true,
+		VerifyPeerCertificate: nil,
+	}
+	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)
 	}

@@ -1,0 +1,6 @@
+#!/bin/bash
+echo ${ROOTDIR}
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+"${ROOTDIR}/setup/node-attestation/build.sh" "${RUNDIR}/conf/server/node-attestation"
+
