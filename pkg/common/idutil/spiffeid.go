@@ -301,13 +301,13 @@ func normalizeSpiffeIDURL(u *url.URL) *url.URL {
 	return &c
 }
 
-// TrustDomainID creates an trust domain SPIFFE ID given a trust domain. If the passed
+// TrustDomainID creates a trust domain SPIFFE ID given a trust domain name. If the passed
 // trust domain already is a trust domain ID, it is returned unchanged.
 func TrustDomainID(trustDomain string) string {
 	return TrustDomainURI(trustDomain).String()
 }
 
-// TrustDomainURI creates an trust domain SPIFFE URI given a trust domain or trust domain ID.
+// TrustDomainURI creates a trust domain SPIFFE URI given a trust domain name or trust domain ID.
 func TrustDomainURI(trustDomain string) *url.URL {
 	trustDomain = strings.TrimPrefix(trustDomain, "spiffe://")
 	return &url.URL{
