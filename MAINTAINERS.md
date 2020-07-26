@@ -148,13 +148,13 @@ The product manager must:
 * Work with the maintainers to continually ensure a high-quality release of the projects including owning project management, issue triage and identifying all features in the current release cycle
 * Regularly attend maintainer sync calls
 * Participate actively in Request for Comments and feature proposal processes 
-* Track not just features, but ongoing community wide efforts (The word “Effort” is used purposefully. While much work is focused on new or improved features, there is other important ongoing work that isn’t so clearly feature oriented.)
-* Coordinating changes that result from new work across the larger project and provide clarity on the acceptance, prioritization and timeline for all workstreams and efforts
-* Communicating major decisions involving release planning to the developer and end user communities through the project media, communication channels, and community events
-* Managing the relationship between SPIFFE/SPIRE and the CNCF
+* Track feature development and ongoing community undertakings
+* Coordinate changes that result from new work across the larger project and provide clarity on the acceptance, prioritization and timeline for all workstreams and efforts
+* Communicate major decisions involving release planning to the developer and end user communities through the project media, communication channels, and community events
+* Manage the relationship between SPIFFE/SPIRE and the CNCF
 * Support the marketing and promotion of the SPIFFE and SPIRE project through the CNCF with the objective to foster a more secure cloud native ecosystem
 * Coordinate and facilitate discussions on policy review and changes with the TSC
-* Onboarding contributors and welcoming them into the community
+* Onboard contributors and welcoming them into the community
 
 The product manager makes the same pledge as maintainers do to act in the best interest at all times and its seat follows the same change guidelines as maintainer seats as described in the governance document. Unseating a product manager against their will requires a unanimous vote by the maintainers.
 
