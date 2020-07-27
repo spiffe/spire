@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"testing"
 	"time"
@@ -25,9 +24,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	agentpb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
@@ -1726,7 +1725,8 @@ func TestAttestAgent(t *testing.T) {
 			stream, err := test.client.AttestAgent(ctx)
 			require.NoError(t, err)
 			result, err := attest(t, stream, tt.request)
-			closeAttestStream(t, stream)
+			errClose := stream.CloseSend()
+			require.NoError(t, errClose)
 
 			if tt.retry {
 				// make sure that the first request went well
@@ -1739,7 +1739,8 @@ func TestAttestAgent(t *testing.T) {
 				stream, err = test.client.AttestAgent(ctx)
 				require.NoError(t, err)
 				result, err = attest(t, stream, tt.request)
-				closeAttestStream(t, stream)
+				errClose := stream.CloseSend()
+				require.NoError(t, errClose)
 			}
 
 			switch {
@@ -2050,12 +2051,4 @@ func attest(t *testing.T, stream agentpb.Agent_AttestAgentClient, request *agent
 		}
 		return result, err
 	}
-}
-
-func closeAttestStream(t *testing.T, stream agentpb.Agent_AttestAgentClient) {
-	err := stream.Send(&agentpb.AttestAgentRequest{})
-	require.EqualError(t, err, io.EOF.Error())
-
-	err = stream.CloseSend()
-	require.NoError(t, err)
 }

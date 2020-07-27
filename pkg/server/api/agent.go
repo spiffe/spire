@@ -4,8 +4,8 @@ import (
 	"errors"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 )
 
 func ProtoFromAttestedNode(n *common.AttestedNode) (*types.Agent, error) {

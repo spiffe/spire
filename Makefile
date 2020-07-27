@@ -145,20 +145,20 @@ protos := \
 	proto/spire/server/noderesolver/noderesolver.proto \
 	proto/spire/server/notifier/notifier.proto \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto \
-	proto/spire-next/api/server/agent/v1/agent.proto \
-	proto/spire-next/api/server/bundle/v1/bundle.proto \
-	proto/spire-next/api/server/entry/v1/entry.proto \
-	proto/spire-next/api/server/svid/v1/svid.proto \
-	proto/spire-next/types/agent.proto \
-	proto/spire-next/types/attestation.proto \
-	proto/spire-next/types/bundle.proto \
-	proto/spire-next/types/entry.proto \
-	proto/spire-next/types/jointoken.proto \
-	proto/spire-next/types/jwtsvid.proto \
-	proto/spire-next/types/selector.proto \
-	proto/spire-next/types/spiffeid.proto \
-	proto/spire-next/types/status.proto \
-	proto/spire-next/types/x509svid.proto \
+	proto/spire/api/server/agent/v1/agent.proto \
+	proto/spire/api/server/bundle/v1/bundle.proto \
+	proto/spire/api/server/entry/v1/entry.proto \
+	proto/spire/api/server/svid/v1/svid.proto \
+	proto/spire/types/agent.proto \
+	proto/spire/types/attestation.proto \
+	proto/spire/types/bundle.proto \
+	proto/spire/types/entry.proto \
+	proto/spire/types/jointoken.proto \
+	proto/spire/types/jwtsvid.proto \
+	proto/spire/types/selector.proto \
+	proto/spire/types/spiffeid.proto \
+	proto/spire/types/status.proto \
+	proto/spire/types/x509svid.proto \
 
 # The following three variables define the plugin, service, and hostservice
 # interfaces. The syntax of each entry is as follows:
@@ -196,7 +196,7 @@ mockgen_mocks = \
 	test/mock/proto/api/registration,github.com/spiffe/spire/proto/spire/api/registration,RegistrationClient,RegistrationServer \
 	test/mock/proto/api/workload,github.com/spiffe/go-spiffe/proto/spiffe/workload,SpiffeWorkloadAPIClient,SpiffeWorkloadAPIServer,SpiffeWorkloadAPI_FetchX509SVIDClient,SpiffeWorkloadAPI_FetchX509SVIDServer,SpiffeWorkloadAPI_FetchJWTBundlesServer \
 	test/mock/proto/api/node,github.com/spiffe/spire/proto/spire/api/node,NodeClient,Node_AttestClient,Node_AttestServer,Node_FetchX509SVIDClient,NodeServer,Node_FetchX509SVIDServer \
-	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,EC2Client \
+	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,Client \
 	test/mock/agent/manager,github.com/spiffe/spire/pkg/agent/manager,Manager \
 	test/mock/agent/manager/cache,github.com/spiffe/spire/pkg/agent/manager/cache,Subscriber \
 	test/mock/agent/client,github.com/spiffe/spire/pkg/agent/client,Client \

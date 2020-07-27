@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 )
 
 var (
