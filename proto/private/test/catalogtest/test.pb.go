@@ -135,11 +135,11 @@ var fileDescriptor_57a70e6f6968aac9 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // PluginClient is the client API for Plugin service.
 //
@@ -150,10 +150,10 @@ type PluginClient interface {
 }
 
 type pluginClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewPluginClient(cc *grpc.ClientConn) PluginClient {
+func NewPluginClient(cc grpc.ClientConnInterface) PluginClient {
 	return &pluginClient{cc}
 }
 
@@ -257,10 +257,10 @@ type ServiceClient interface {
 }
 
 type serviceClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewServiceClient(cc *grpc.ClientConn) ServiceClient {
+func NewServiceClient(cc grpc.ClientConnInterface) ServiceClient {
 	return &serviceClient{cc}
 }
 
@@ -329,10 +329,10 @@ type HostServiceClient interface {
 }
 
 type hostServiceClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewHostServiceClient(cc *grpc.ClientConn) HostServiceClient {
+func NewHostServiceClient(cc grpc.ClientConnInterface) HostServiceClient {
 	return &hostServiceClient{cc}
 }
 

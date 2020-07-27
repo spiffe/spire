@@ -153,7 +153,9 @@ func init() {
 	proto.RegisterType((*PermissionDeniedDetails)(nil), "spire.types.PermissionDeniedDetails")
 }
 
-func init() { proto.RegisterFile("spire-next/types/status.proto", fileDescriptor_10eae4360536be2c) }
+func init() {
+	proto.RegisterFile("spire-next/types/status.proto", fileDescriptor_10eae4360536be2c)
+}
 
 var fileDescriptor_10eae4360536be2c = []byte{
 	// 274 bytes of a gzipped FileDescriptorProto

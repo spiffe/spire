@@ -5,7 +5,7 @@ go 1.14
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
 require (
-	cloud.google.com/go v0.38.0
+	cloud.google.com/go/storage v1.6.0
 	github.com/Azure/azure-sdk-for-go v44.0.0+incompatible
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Azure/go-autorest/autorest v0.11.0
@@ -29,13 +29,13 @@ require (
 	github.com/docker/docker v1.4.2-0.20191008235115-448db5a783a0
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473
+	github.com/envoyproxy/go-control-plane v0.9.4
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/gogo/protobuf v1.3.1
-	github.com/golang/mock v1.3.1
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/mock v1.4.3
+	github.com/golang/protobuf v1.3.5
 	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
 	github.com/hashicorp/go-hclog v0.13.1-0.20200518165504-8476a63db2c6
@@ -65,13 +65,13 @@ require (
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20191004110552-13f9640d40b9
-	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82
-	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	golang.org/x/tools v0.0.0-20191127201027-ecd32218bd7f
-	google.golang.org/api v0.6.0
-	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
-	google.golang.org/grpc v1.27.1
+	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
+	golang.org/x/sys v0.0.0-20200331124033-c3d80250170d
+	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
+	golang.org/x/tools v0.0.0-20200331025713-a30bf2db82d4
+	google.golang.org/api v0.29.0
+	google.golang.org/genproto v0.0.0-20200331122359-1ee6d9798940
+	google.golang.org/grpc v1.30.0
 	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637

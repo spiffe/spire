@@ -270,7 +270,9 @@ func init() {
 	proto.RegisterType((*BundleMask)(nil), "spire.types.BundleMask")
 }
 
-func init() { proto.RegisterFile("spire-next/types/bundle.proto", fileDescriptor_b58f394bd239e4dc) }
+func init() {
+	proto.RegisterFile("spire-next/types/bundle.proto", fileDescriptor_b58f394bd239e4dc)
+}
 
 var fileDescriptor_b58f394bd239e4dc = []byte{
 	// 383 bytes of a gzipped FileDescriptorProto

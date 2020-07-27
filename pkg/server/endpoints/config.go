@@ -126,6 +126,7 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 
 	ds := c.Catalog.GetDataStore()
 	authorizedEntryFetcher := AuthorizedEntryFetcher(ds)
+	upstreamPublisher := UpstreamPublisher(c.Manager)
 
 	return &ExperimentalServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -136,8 +137,9 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 			Clock:       clock.New(),
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
-			TrustDomain: c.TrustDomain,
-			DataStore:   ds,
+			TrustDomain:       c.TrustDomain,
+			DataStore:         ds,
+			UpstreamPublisher: upstreamPublisher,
 		}),
 		EntryServer: entryv1.New(entryv1.Config{
 			DataStore:    ds,
@@ -147,6 +149,7 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 			TrustDomain:  c.TrustDomain,
 			EntryFetcher: authorizedEntryFetcher,
 			ServerCA:     c.ServerCA,
+			DataStore:    ds,
 		}),
 	}
 }

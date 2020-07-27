@@ -1,0 +1,9 @@
+#!/bin/bash
+
+log-debug "test downstream workload..."
+docker-compose exec -u 1001 -T spire-agent \
+	/opt/spire/conf/agent/downstreamclient || fail-now "failed to check downstream endpoints"
+
+log-debug "Test regular workload..."
+docker-compose exec -u 1002 -T spire-agent \
+	/opt/spire/conf/agent/downstreamclient -expectErrors || fail-now "failed to check permission errors on downstream endpoints"

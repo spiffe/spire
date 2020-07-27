@@ -67,7 +67,7 @@ func TestFetchUpdates(t *testing.T) {
 						Selectors: []*types.Selector{
 							{Type: "S", Value: "1"},
 						},
-						FederatesWith:  []string{"spiffe://domain1.com"},
+						FederatesWith:  []string{"domain1.com"},
 						RevisionNumber: 1234,
 					},
 					// This entry should be ignored since it is missing an entry ID
@@ -80,7 +80,7 @@ func TestFetchUpdates(t *testing.T) {
 						Selectors: []*types.Selector{
 							{Type: "S", Value: "2"},
 						},
-						FederatesWith: []string{"spiffe://domain2.com"},
+						FederatesWith: []string{"domain2.com"},
 					},
 					// This entry should be ignored since it is missing a SPIFFE ID
 					{
@@ -359,7 +359,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 						Selectors: []*types.Selector{
 							{Type: "S", Value: "1"},
 						},
-						FederatesWith:  []string{"spiffe://domain1.com"},
+						FederatesWith:  []string{"domain1.com"},
 						RevisionNumber: 1234,
 					},
 					// This entry should be ignored since it is missing an entry ID
@@ -372,7 +372,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 						Selectors: []*types.Selector{
 							{Type: "S", Value: "2"},
 						},
-						FederatesWith: []string{"spiffe://domain2.com"},
+						FederatesWith: []string{"domain2.com"},
 					},
 					// This entry should be ignored since it is missing a SPIFFE ID
 					{
@@ -914,20 +914,20 @@ func createClient(tb testing.TB) (*client, *testClient) {
 		KeysAndBundle: keysAndBundle,
 		RotMtx:        new(sync.RWMutex),
 	})
-	client.createNewNodeClient = func(conn *grpc.ClientConn) node.NodeClient {
+	client.createNewNodeClient = func(conn grpc.ClientConnInterface) node.NodeClient {
 		return tc.nodeClient
 	}
-	client.createNewAgentClient = func(conn *grpc.ClientConn) agentpb.AgentClient {
+	client.createNewAgentClient = func(conn grpc.ClientConnInterface) agentpb.AgentClient {
 		return tc.agentClient
 	}
 
-	client.createNewBundleClient = func(conn *grpc.ClientConn) bundlepb.BundleClient {
+	client.createNewBundleClient = func(conn grpc.ClientConnInterface) bundlepb.BundleClient {
 		return tc.bundleClient
 	}
-	client.createNewEntryClient = func(conn *grpc.ClientConn) entrypb.EntryClient {
+	client.createNewEntryClient = func(conn grpc.ClientConnInterface) entrypb.EntryClient {
 		return tc.entryClient
 	}
-	client.createNewSVIDClient = func(conn *grpc.ClientConn) svidpb.SVIDClient {
+	client.createNewSVIDClient = func(conn grpc.ClientConnInterface) svidpb.SVIDClient {
 		return tc.svidClient
 	}
 

@@ -93,7 +93,9 @@ func init() {
 	proto.RegisterType((*JWTSVID)(nil), "spire.types.JWTSVID")
 }
 
-func init() { proto.RegisterFile("spire-next/types/jwtsvid.proto", fileDescriptor_d6831dd1e4547260) }
+func init() {
+	proto.RegisterFile("spire-next/types/jwtsvid.proto", fileDescriptor_d6831dd1e4547260)
+}
 
 var fileDescriptor_d6831dd1e4547260 = []byte{
 	// 209 bytes of a gzipped FileDescriptorProto
