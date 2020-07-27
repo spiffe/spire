@@ -43,7 +43,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 		return nil, fmt.Errorf("error sending attestation request to SPIRE server: %v", err)
 	}
 
-	attestResp := new(agent.AttestAgentResponse)
+	var attestResp *agent.AttestAgentResponse
 	for {
 		// if the response has no additional data then break out and parse
 		// the response.
