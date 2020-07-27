@@ -23,9 +23,9 @@ import (
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
@@ -48,16 +48,18 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog           catalog.Catalog
-	Metrics           telemetry.Metrics
-	JoinToken         string
-	TrustDomain       url.URL
-	TrustBundle       []*x509.Certificate
-	InsecureBootstrap bool
-	BundleCachePath   string
-	SVIDCachePath     string
-	Log               logrus.FieldLogger
-	ServerAddress     string
+	Catalog               catalog.Catalog
+	Metrics               telemetry.Metrics
+	JoinToken             string
+	TrustDomain           url.URL
+	TrustBundle           []*x509.Certificate
+	InsecureBootstrap     bool
+	BundleCachePath       string
+	SVIDCachePath         string
+	Log                   logrus.FieldLogger
+	ServerAddress         string
+	CreateNewAgentClient  func(grpc.ClientConnInterface) agent.AgentClient
+	CreateNewBundleClient func(grpc.ClientConnInterface) bundle.BundleClient
 
 	// Use experimental API
 	ExperimentalAPIEnabled bool
@@ -67,20 +69,11 @@ type attestor struct {
 	c *Config
 
 	// Used for testing purposes.
-	createNewAgentClient  func(*grpc.ClientConn) agent.AgentClient
-	createNewBundleClient func(*grpc.ClientConn) bundle.BundleClient
+
 }
 
 func New(config *Config) Attestor {
-	return newAttestor(config)
-}
-
-func newAttestor(config *Config) *attestor {
-	return &attestor{
-		c:                     config,
-		createNewAgentClient:  agent.NewAgentClient,
-		createNewBundleClient: bundle.NewBundleClient,
-	}
+	return &attestor{c: config}
 }
 
 func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
@@ -133,7 +126,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 
 	privateKeyExists := len(fetchRes.PrivateKey) > 0
 	svidExists := svid != nil
-	svidIsExpired := isSVIDExpired(svid, time.Now)
+	svidIsExpired := IsSVIDExpired(svid, time.Now)
 
 	switch {
 	case privateKeyExists && svidExists && !svidIsExpired:
@@ -163,7 +156,8 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 	return nil, key, nil
 }
 
-func isSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
+// IsSVIDExpired returns true if the X.509 SVID provided is expired
+func IsSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
 	if len(svid) == 0 {
 		return false
 	}

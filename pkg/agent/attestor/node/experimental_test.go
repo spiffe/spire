@@ -1,4 +1,4 @@
-package attestor
+package attestor_test
 
 import (
 	"context"
@@ -11,10 +11,11 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	agentpb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
@@ -49,192 +50,267 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 
 	testCases := []struct {
 		name                        string
-		challengeResponses          []string
 		bootstrapBundle             *x509.Certificate
-		svid                        *types.X509SVID
-		bundle                      *types.Bundle
 		insecureBootstrap           bool
 		cachedBundle                []byte
 		cachedSVID                  []byte
-		joinToken                   string
 		err                         string
 		storeKey                    crypto.PrivateKey
 		failFetchingAttestationData bool
-		failAttestCall              bool
-		recvErr                     error
-		sendErr                     error
-		closeSendErr                error
-		getBundleErr                error
+		agentClient                 *fakeAgentClient
+		bundleClient                *fakeBundleClient
 	}{
 		{
 			name:              "insecure bootstrap",
 			insecureBootstrap: true,
-			svid:              svid,
-			bundle:            bundle,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:         "cached bundle empty",
 			cachedBundle: []byte(""),
 			err:          "load bundle: no certs in bundle",
-			svid: &types.X509SVID{
-				Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-				CertChain: [][]byte{agentCert.Raw},
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					CertChain: [][]byte{agentCert.Raw},
+				},
 			},
-			bundle: bundle,
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:         "cached bundle malformed",
 			cachedBundle: []byte("INVALID DER BYTES"),
 			err:          "load bundle: error parsing bundle",
+			agentClient:  &fakeAgentClient{},
+			bundleClient: &fakeBundleClient{},
 		},
 		{
 			name:                        "fail fetching attestation data",
 			bootstrapBundle:             caCert,
 			err:                         "fetching attestation data purposefully failed",
 			failFetchingAttestationData: true,
+			agentClient:                 &fakeAgentClient{},
+			bundleClient:                &fakeBundleClient{},
 		},
 		{
-			name:            "response missing svid update",
+			name:            "attest response is missing SVID",
 			bootstrapBundle: caCert,
-			bundle:          bundle,
-			err:             "failed to parse attestation response: missing svid update",
+			agentClient:     &fakeAgentClient{},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "failed to parse attestation response: attest response is missing SVID",
 		},
 		{
-			name:            "response svid has invalid cert chain",
+			name:            "response SVID has invalid cert chain",
 			bootstrapBundle: caCert,
-			svid:            &types.X509SVID{CertChain: [][]byte{{11, 22, 33}}},
-			bundle:          bundle,
-			err:             "failed to parse attestation response: invalid svid cert chain",
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{CertChain: [][]byte{{11, 22, 33}}},
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "failed to parse attestation response: invalid SVID cert chain",
 		},
 		{
-			name:            "response svid has empty cert chain",
+			name:            "response SVID has empty cert chain",
 			bootstrapBundle: caCert,
-			svid:            &types.X509SVID{},
-			bundle:          bundle,
-			err:             "failed to parse attestation response: empty svid cert chain",
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{},
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "failed to parse attestation response: empty SVID cert chain",
 		},
 		{
 			name:            "response missing trust domain bundle",
 			bootstrapBundle: caCert,
-			svid: &types.X509SVID{
-				Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-				CertChain: [][]byte{agentCert.Raw},
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					CertChain: [][]byte{agentCert.Raw},
+				},
 			},
-			err: "failed to get updated bundle: failed to parse trust domain bundle: no bundle provided",
+			bundleClient: &fakeBundleClient{},
+			err:          "failed to get updated bundle: failed to parse trust domain bundle: no bundle provided",
 		},
 		{
 			name:            "response has malformed trust domain bundle",
 			bootstrapBundle: caCert,
-			svid:            svid,
-			bundle: &types.Bundle{
-				TrustDomain:     "spiffe://example.org",
-				X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+			agentClient: &fakeAgentClient{
+				svid: svid,
 			},
-			err: "failed to get updated bundle: failed to parse trust domain bundle: unable to parse X.509 authority",
+			bundleClient: &fakeBundleClient{
+				bundle: &types.Bundle{
+					TrustDomain:     "spiffe://example.org",
+					X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+				},
+			},
+			err: "failed to get updated bundle: invalid trust domain bundle: unable to parse root CA",
 		},
 		{
 			name:            "success with bootstrap bundle",
 			bootstrapBundle: caCert,
-			svid:            svid,
-			bundle:          bundle,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:         "success with cached bundle",
 			cachedBundle: caCert.Raw,
-			svid:         svid,
-			bundle:       bundle,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:            "success with expired cached bundle",
 			bootstrapBundle: caCert,
 			cachedSVID:      expiredCert.Raw,
-			svid:            svid,
-			bundle:          bundle,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:            "success with join token",
 			bootstrapBundle: caCert,
-			joinToken:       "JOINTOKEN",
-			svid: &types.X509SVID{
-				Id:        &types.SPIFFEID{TrustDomain: "domain.test", Path: "/join_token/JOINTOKEN"},
-				CertChain: [][]byte{createAgentCertificate(t, caCert, "/join_token/JOINTOKEN").Raw},
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{
+					Id:        &types.SPIFFEID{TrustDomain: "domain.test", Path: "/join_token/JOINTOKEN"},
+					CertChain: [][]byte{createAgentCertificate(t, caCert, "/join_token/JOINTOKEN").Raw},
+				},
+				joinToken: "JOINTOKEN",
 			},
-			bundle: bundle,
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
-			name:               "success with challenge response",
-			bootstrapBundle:    caCert,
-			challengeResponses: []string{"FOO", "BAR", "BAZ"},
-			svid:               svid,
-			bundle:             bundle,
+			name:            "success with challenge response",
+			bootstrapBundle: caCert,
+			agentClient: &fakeAgentClient{
+				svid:               svid,
+				challengeResponses: []string{"FOO", "BAR", "BAZ"},
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:              "cached svid and private key but missing bundle",
 			insecureBootstrap: true,
 			cachedSVID:        agentCert.Raw,
 			storeKey:          testKey,
-			svid:              svid,
-			bundle:            bundle,
-			err:               "SVID loaded but no bundle in cache",
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "SVID loaded but no bundle in cache",
 		},
 		{
-			name:           "success with cached svid, private key, and bundle",
-			cachedBundle:   caCert.Raw,
-			cachedSVID:     agentCert.Raw,
-			storeKey:       testKey,
-			svid:           svid,
-			bundle:         bundle,
-			failAttestCall: true,
+			name:         "success with cached svid, private key, and bundle",
+			cachedBundle: caCert.Raw,
+			cachedSVID:   agentCert.Raw,
+			storeKey:     testKey,
+			agentClient: &fakeAgentClient{
+				svid:            svid,
+				failAttestAgent: true,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:            "malformed cached svid ignored",
 			bootstrapBundle: caCert,
 			cachedSVID:      []byte("INVALID"),
 			storeKey:        testKey,
-			failAttestCall:  true,
-			svid:            svid,
-			bundle:          bundle,
-			err:             "attestation has been purposefully failed",
+			agentClient: &fakeAgentClient{
+				svid:            svid,
+				failAttestAgent: true,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "attestation has been purposefully failed",
 		},
 		{
 			name:            "missing key in keymanager ignored",
 			bootstrapBundle: caCert,
 			cachedSVID:      agentCert.Raw,
-			failAttestCall:  true,
-			svid:            svid,
-			bundle:          bundle,
-			err:             "attestation has been purposefully failed",
+			agentClient: &fakeAgentClient{
+				svid:            svid,
+				failAttestAgent: true,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "attestation has been purposefully failed",
 		},
 		{
 			name:            "send error",
 			bootstrapBundle: caCert,
-			svid:            svid,
-			bundle:          bundle,
-			err:             "error in Send",
-			sendErr:         errors.New("error in Send"),
+			agentClient: &fakeAgentClient{
+				svid:    svid,
+				sendErr: errors.New("error in Send"),
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "error in Send",
 		},
 		{
 			name:            "recv error",
 			bootstrapBundle: caCert,
-			svid:            svid,
-			bundle:          bundle,
-			err:             "error in Recv",
-			recvErr:         errors.New("error in Recv"),
+			agentClient: &fakeAgentClient{
+				svid:    svid,
+				recvErr: errors.New("error in Recv"),
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "error in Recv",
 		},
 		{
 			name:            "close send error",
 			bootstrapBundle: caCert,
-			svid:            svid,
-			bundle:          bundle,
-			err:             "error in CloseSend",
-			closeSendErr:    errors.New("error in CloseSend"),
+			agentClient: &fakeAgentClient{
+				svid:         svid,
+				closeSendErr: errors.New("error in CloseSend"),
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "error in CloseSend",
 		},
 		{
 			name:            "get bundle error",
 			bootstrapBundle: caCert,
-			svid:            svid,
-			err:             "error in GetBundle",
-			getBundleErr:    errors.New("error in GetBundle"),
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				getBundleErr: errors.New("error in GetBundle"),
+			},
+			err: "error in GetBundle",
 		},
 	}
 
@@ -251,7 +327,7 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 			// load up the fake agent-side node attestor
 			agentNA, agentNADone := prepareAgentNA(t, fakeagentnodeattestor.Config{
 				Fail:      testCase.failFetchingAttestationData,
-				Responses: testCase.challengeResponses,
+				Responses: testCase.agentClient.challengeResponses,
 			})
 			defer agentNADone()
 
@@ -262,7 +338,7 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 					"TEST": "foo",
 				},
 				Challenges: map[string][]string{
-					"foo": testCase.challengeResponses,
+					"foo": testCase.agentClient.challengeResponses,
 				},
 			})
 			defer serverNADone()
@@ -280,20 +356,16 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 			serverAddr, serverDone := startNodeServer(t, tlsConfig, fakeNodeAPIConfig{
 				CACert:         caCert,
 				Attestor:       serverNA,
-				FailAttestCall: testCase.failAttestCall,
+				FailAttestCall: testCase.agentClient.failAttestAgent,
 			})
 			defer serverDone()
 
 			// create the attestor
 			log, _ := test.NewNullLogger()
-			ta := &testAttestor{
-				agentClient:  &fakeAgentClient{},
-				bundleClient: &fakeBundleClient{},
-			}
-			attestor := newAttestor(&Config{
+			attestor := attestor.New(&attestor.Config{
 				Catalog:         catalog,
 				Metrics:         telemetry.Blackhole{},
-				JoinToken:       testCase.joinToken,
+				JoinToken:       testCase.agentClient.joinToken,
 				SVIDCachePath:   svidCachePath,
 				BundleCachePath: bundleCachePath,
 				Log:             log,
@@ -305,23 +377,9 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 				InsecureBootstrap:      testCase.insecureBootstrap,
 				ServerAddress:          serverAddr,
 				ExperimentalAPIEnabled: true,
+				CreateNewAgentClient:   func(conn grpc.ClientConnInterface) agentpb.AgentClient { return testCase.agentClient },
+				CreateNewBundleClient:  func(conn grpc.ClientConnInterface) bundlepb.BundleClient { return testCase.bundleClient },
 			})
-			attestor.createNewAgentClient = func(conn *grpc.ClientConn) agentpb.AgentClient {
-				return ta.agentClient
-			}
-			attestor.createNewBundleClient = func(conn *grpc.ClientConn) bundlepb.BundleClient {
-				return ta.bundleClient
-			}
-
-			ta.agentClient.joinToken = testCase.joinToken
-			ta.agentClient.challengeResponses = testCase.challengeResponses
-			ta.agentClient.svid = testCase.svid
-			ta.agentClient.failAttestAgent = testCase.failAttestCall
-			ta.agentClient.recvErr = testCase.recvErr
-			ta.agentClient.sendErr = testCase.sendErr
-			ta.agentClient.closeSendErr = testCase.closeSendErr
-			ta.bundleClient.getBundleErr = testCase.getBundleErr
-			ta.bundleClient.bundle = testCase.bundle
 
 			// perform attestation
 			result, err := attestor.Attest(context.Background())
@@ -333,8 +391,8 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 			require.NotNil(result)
 			require.Len(result.SVID, 1)
 			require.Len(result.SVID[0].URIs, 1)
-			if testCase.joinToken != "" {
-				require.Equal("spiffe://domain.test/spire/agent/join_token/"+testCase.joinToken, result.SVID[0].URIs[0].String())
+			if testCase.agentClient.joinToken != "" {
+				require.Equal("spiffe://domain.test/spire/agent/join_token/"+testCase.agentClient.joinToken, result.SVID[0].URIs[0].String())
 			} else {
 				require.Equal("spiffe://domain.test/spire/agent/test/foo", result.SVID[0].URIs[0].String())
 			}
@@ -358,11 +416,6 @@ type fakeAgentClient struct {
 	closeSendErr       error
 
 	agentpb.AgentClient
-}
-
-type testAttestor struct {
-	agentClient  *fakeAgentClient
-	bundleClient *fakeBundleClient
 }
 
 type fakeBundleClient struct {

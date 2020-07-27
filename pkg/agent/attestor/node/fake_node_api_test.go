@@ -1,4 +1,4 @@
-package attestor
+package attestor_test
 
 import (
 	"context"

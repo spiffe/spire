@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
@@ -81,7 +82,7 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 
 	bundles := make(map[string]*common.Bundle)
 	for _, b := range protoBundles {
-		bundle, err := bundleFormProto(b)
+		bundle, err := bundleutil.CommonBundleFromProto(b)
 		if err != nil {
 			c.c.Log.WithError(err).WithField(telemetry.TrustDomainID, b.TrustDomain).Warn("Received malformed bundle from SPIRE server")
 			continue
