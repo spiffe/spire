@@ -73,6 +73,16 @@ type attestor struct {
 }
 
 func New(config *Config) Attestor {
+	// Defaults for CreateNewAgentClient and CreateNewBundleClient functions
+	if config != nil {
+		if config.CreateNewAgentClient == nil {
+			config.CreateNewAgentClient = agent.NewAgentClient
+		}
+		if config.CreateNewBundleClient == nil {
+			config.CreateNewBundleClient = bundle.NewBundleClient
+		}
+	}
+
 	return &attestor{c: config}
 }
 
