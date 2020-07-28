@@ -24,6 +24,8 @@ import (
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
@@ -46,23 +48,41 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog           catalog.Catalog
-	Metrics           telemetry.Metrics
-	JoinToken         string
-	TrustDomain       url.URL
-	TrustBundle       []*x509.Certificate
-	InsecureBootstrap bool
-	BundleCachePath   string
-	SVIDCachePath     string
-	Log               logrus.FieldLogger
-	ServerAddress     string
+	Catalog               catalog.Catalog
+	Metrics               telemetry.Metrics
+	JoinToken             string
+	TrustDomain           url.URL
+	TrustBundle           []*x509.Certificate
+	InsecureBootstrap     bool
+	BundleCachePath       string
+	SVIDCachePath         string
+	Log                   logrus.FieldLogger
+	ServerAddress         string
+	CreateNewAgentClient  func(grpc.ClientConnInterface) agent.AgentClient
+	CreateNewBundleClient func(grpc.ClientConnInterface) bundle.BundleClient
+
+	// Use experimental API
+	ExperimentalAPIEnabled bool
 }
 
 type attestor struct {
 	c *Config
+
+	// Used for testing purposes.
+
 }
 
 func New(config *Config) Attestor {
+	// Defaults for CreateNewAgentClient and CreateNewBundleClient functions
+	if config != nil {
+		if config.CreateNewAgentClient == nil {
+			config.CreateNewAgentClient = agent.NewAgentClient
+		}
+		if config.CreateNewBundleClient == nil {
+			config.CreateNewBundleClient = bundle.NewBundleClient
+		}
+	}
+
 	return &attestor{c: config}
 }
 
@@ -116,7 +136,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 
 	privateKeyExists := len(fetchRes.PrivateKey) > 0
 	svidExists := svid != nil
-	svidIsExpired := isSVIDExpired(svid, time.Now)
+	svidIsExpired := IsSVIDExpired(svid, time.Now)
 
 	switch {
 	case privateKeyExists && svidExists && !svidIsExpired:
@@ -146,7 +166,8 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 	return nil, key, nil
 }
 
-func isSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
+// IsSVIDExpired returns true if the X.509 SVID provided is expired
+func IsSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
 	if len(svid) == 0 {
 		return false
 	}
@@ -258,16 +279,34 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	}
 	defer conn.Close()
 
-	nodeClient := node.NewNodeClient(conn)
-
-	attestStream, err := nodeClient.Attest(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("opening stream for attestation: %v", err)
-	}
-
 	csr, err := util.MakeCSRWithoutURISAN(key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate CSR for attestation: %v", err)
+	}
+
+	if a.c.ExperimentalAPIEnabled {
+		svid, err := a.getSVID(ctx, conn, csr, fetchStream)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get SVID: %v", err)
+		}
+		bundle, err := a.getBundle(ctx, conn)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get updated bundle: %v", err)
+		}
+		return svid, bundle, nil
+	}
+
+	svid, bundle, err := a.getSVIDAndBundle(ctx, conn, csr, fetchStream)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get SVID and bundle: %v", err)
+	}
+	return svid, bundle, nil
+}
+
+func (a *attestor) getSVIDAndBundle(ctx context.Context, conn *grpc.ClientConn, csr []byte, fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+	attestStream, err := node.NewNodeClient(conn).Attest(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create new node client for attestation: %v", err)
 	}
 
 	attestResp := new(node.AttestResponse)

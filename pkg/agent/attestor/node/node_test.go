@@ -1,4 +1,4 @@
-package attestor
+package attestor_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	agentnodeattestor "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
@@ -260,7 +261,7 @@ func TestAttestor(t *testing.T) {
 
 			// create the attestor
 			log, _ := test.NewNullLogger()
-			attestor := New(&Config{
+			attestor := attestor.New(&attestor.Config{
 				Catalog:         catalog,
 				Metrics:         telemetry.Blackhole{},
 				JoinToken:       testCase.joinToken,
@@ -431,7 +432,7 @@ func makeTrustBundle(bootstrapCert *x509.Certificate) []*x509.Certificate {
 	return trustBundle
 }
 
-func TestIsSVIDValid(t *testing.T) {
+func TestIsSVIDExpired(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
@@ -465,7 +466,7 @@ func TestIsSVIDValid(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.Desc, func(t *testing.T) {
-			isExpired := isSVIDExpired(tt.SVID, func() time.Time { return now })
+			isExpired := attestor.IsSVIDExpired(tt.SVID, func() time.Time { return now })
 			require.Equal(t, tt.ExpectExpired, isExpired)
 		})
 	}
