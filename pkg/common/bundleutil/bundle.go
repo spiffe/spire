@@ -9,8 +9,10 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	hclog "github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/zeebo/errs"
 )
 
@@ -59,6 +61,44 @@ func BundleFromRootCA(trustDomainID string, rootCA *x509.Certificate) *Bundle {
 
 func BundleFromRootCAs(trustDomainID string, rootCAs []*x509.Certificate) *Bundle {
 	return bundleFromRootCAs(trustDomainID, rootCAs...)
+}
+
+func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
+	if b == nil {
+		return nil, errors.New("no bundle provided")
+	}
+
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	var rootCAs []*common.Certificate
+	for _, rootCA := range b.X509Authorities {
+		rootCAs = append(rootCAs, &common.Certificate{
+			DerBytes: rootCA.Asn1,
+		})
+	}
+
+	var jwtKeys []*common.PublicKey
+	for _, key := range b.JwtAuthorities {
+		if key.KeyId == "" {
+			return nil, errors.New("missing key ID")
+		}
+
+		jwtKeys = append(jwtKeys, &common.PublicKey{
+			PkixBytes: key.PublicKey,
+			Kid:       key.KeyId,
+			NotAfter:  key.ExpiresAt,
+		})
+	}
+
+	return &common.Bundle{
+		TrustDomainId:  td.IDString(),
+		RefreshHint:    b.RefreshHint,
+		RootCas:        rootCAs,
+		JwtSigningKeys: jwtKeys,
+	}, nil
 }
 
 func bundleFromRootCAs(trustDomainID string, rootCAs ...*x509.Certificate) *Bundle {

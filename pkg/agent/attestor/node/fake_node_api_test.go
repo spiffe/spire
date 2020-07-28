@@ -1,4 +1,4 @@
-package attestor
+package attestor_test
 
 import (
 	"context"
@@ -86,7 +86,7 @@ func (n *fakeNodeAPI) Attest(stream node.Node_AttestServer) error {
 			return err
 		}
 
-		if req.AttestationData.Type == "join_token" {
+		if req.AttestationData != nil && req.AttestationData.Type == "join_token" {
 			resp, err := n.createAttestResponse(csr, idutil.AgentID("domain.test", "/join_token/"+string(req.AttestationData.Data)))
 			if err != nil {
 				return err
