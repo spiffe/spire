@@ -21,9 +21,7 @@ func TestRegistrationAPISource(t *testing.T) {
 
 	api := &fakeRegistrationAPIServer{}
 
-	// Create a temporary directory to host the socket
-	socketPath, closeServer := spiretest.StartRegistrationAPIOnTempSocket(t, api)
-	defer closeServer()
+	socketPath := spiretest.StartRegistrationAPIOnTempSocket(t, api)
 
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)

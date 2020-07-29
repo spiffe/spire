@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -62,9 +60,7 @@ type handler struct {
 }
 
 type whandler struct {
-	dir        string
 	socketPath string
-	server     *grpc.Server
 }
 
 type testHandler struct {
@@ -79,25 +75,8 @@ func (h *testHandler) startTestServers(t *testing.T) {
 	h.wapiServer.startWAPITestServer(t)
 }
 
-func (h *testHandler) stopTestServers() {
-	h.napiServer.server.Stop()
-	os.RemoveAll(h.wapiServer.dir)
-}
-
 func (w *whandler) startWAPITestServer(t *testing.T) {
-	dir, err := ioutil.TempDir("", "upstreamca-spire-test-")
-	require.NoError(t, err)
-	w.dir = dir
-	w.socketPath = filepath.Join(dir, "test.sock")
-
-	w.server = grpc.NewServer()
-
-	w_pb.RegisterSpiffeWorkloadAPIServer(w.server, w)
-
-	l, err := net.Listen("unix", w.socketPath)
-	require.NoError(t, err)
-
-	go func() { _ = w.server.Serve(l) }()
+	w.socketPath = spiretest.StartWorkloadAPIOnTempSocket(t, w)
 }
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
@@ -289,8 +268,7 @@ func TestSpirePlugin_Configure(t *testing.T) {
 }
 
 func TestSpirePlugin_GetPluginInfo(t *testing.T) {
-	m, done := newWithDefault(t, "", "")
-	defer done()
+	m := newWithDefault(t, "", "")
 
 	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
@@ -344,9 +322,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			// Setup servers
 			server := testHandler{}
 			server.startTestServers(t)
-			defer server.stopTestServers()
-			p, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
-			defer done()
+			p := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
 
 			// Send initial request and get stream
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -401,9 +377,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	// Setup servers
 	server := testHandler{}
 	server.startTestServers(t)
-	defer server.stopTestServers()
-	p, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
-	defer done()
+	p := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
 
 	// Send initial request and get stream
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -445,7 +419,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	require.Contains(t, err.Error(), "rpc error: code = Canceled desc = context canceled")
 }
 
-func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, func()) {
+func newWithDefault(t *testing.T, addr string, socketPath string) upstreamauthority.Plugin {
 	host, port, _ := net.SplitHostPort(addr)
 
 	config := Configuration{
@@ -463,13 +437,12 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 	}
 
 	var plugin upstreamauthority.Plugin
-	done := spiretest.LoadPlugin(t, BuiltIn(), &plugin)
+	spiretest.LoadPlugin(t, BuiltIn(), &plugin)
 	if _, err = plugin.Configure(ctx, pluginConfig); err != nil {
-		done()
 		require.NoError(t, err)
 	}
 
 	clk = mockClock
 
-	return plugin, done
+	return plugin
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -35,15 +36,9 @@ type Suite struct {
 func (s *Suite) SetupTest() {
 	// initialize a temp directory and a subdirectory within (to aid with
 	// persistence failure testing)
-	var err error
-	s.tmpDir, err = ioutil.TempDir("", "server-keymanager-disk-")
-	s.Require().NoError(err)
+	s.tmpDir = spiretest.TempDir(s.T())
 	s.Require().NoError(os.MkdirAll(s.keysDir(), 0755))
 	s.createManager()
-}
-
-func (s *Suite) TearDownTest() {
-	os.RemoveAll(s.tmpDir)
 }
 
 func (s *Suite) createManager() {

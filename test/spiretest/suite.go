@@ -1,8 +1,6 @@
 package spiretest
 
 import (
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -11,60 +9,25 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type suiteMethods interface {
-	initSuite()
-	closeSuite()
-}
-
 func Run(t *testing.T, s suite.TestingSuite) {
-	if m, ok := s.(suiteMethods); ok {
-		m.initSuite()
-		defer m.closeSuite()
-	}
 	suite.Run(t, s)
 }
 
 type Suite struct {
 	suite.Suite
-	init bool
-
-	closers []func()
 }
 
-func (s *Suite) initSuite() {
-	s.init = true
-}
-
-func (s *Suite) closeSuite() {
-	for _, closer := range s.closers {
-		closer()
-	}
-}
-
-func (s *Suite) checkInit() {
-	if !s.init {
-		s.Require().FailNow("Suite must be run with spiretest.Run()")
-	}
-}
-
-func (s *Suite) AppendCloser(closer func()) {
-	s.checkInit()
-	s.closers = append(s.closers, closer)
+func (s *Suite) Cleanup(cleanup func()) {
+	s.T().Cleanup(cleanup)
 }
 
 func (s *Suite) TempDir() string {
-	dir, err := ioutil.TempDir("", "spire-test-")
-	s.Require().NoError(err)
-	s.AppendCloser(func() {
-		os.RemoveAll(dir)
-	})
-	return dir
+	return TempDir(s.T())
 }
 
 func (s *Suite) LoadPlugin(builtin catalog.Plugin, x interface{}, opts ...PluginOption) {
 	s.T().Helper()
-	closer := LoadPlugin(s.T(), builtin, x, opts...)
-	s.AppendCloser(closer)
+	LoadPlugin(s.T(), builtin, x, opts...)
 }
 
 func (s *Suite) RequireErrorContains(err error, contains string) {

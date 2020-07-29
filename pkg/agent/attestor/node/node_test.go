@@ -218,18 +218,16 @@ func TestAttestor(t *testing.T) {
 			require := require.New(t)
 
 			// prepare the temp directory holding the cached bundle/svid
-			svidCachePath, bundleCachePath, removeDir := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
-			defer removeDir()
+			svidCachePath, bundleCachePath := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
 
 			// load up the fake agent-side node attestor
-			agentNA, agentNADone := prepareAgentNA(t, fakeagentnodeattestor.Config{
+			agentNA := prepareAgentNA(t, fakeagentnodeattestor.Config{
 				Fail:      testCase.failFetchingAttestationData,
 				Responses: testCase.challengeResponses,
 			})
-			defer agentNADone()
 
 			// load up the fake server-side node attestor
-			serverNA, serverNADone := prepareServerNA(t, fakeservernodeattestor.Config{
+			serverNA := prepareServerNA(t, fakeservernodeattestor.Config{
 				TrustDomain: "domain.test",
 				Data: map[string]string{
 					"TEST": "foo",
@@ -238,11 +236,9 @@ func TestAttestor(t *testing.T) {
 					"foo": testCase.challengeResponses,
 				},
 			})
-			defer serverNADone()
 
 			// load up an in-memory key manager
-			km, kmDone := prepareKeyManager(t, testCase.storeKey)
-			defer kmDone()
+			km := prepareKeyManager(t, testCase.storeKey)
 
 			// initialize the catalog
 			catalog := fakeagentcatalog.New()
@@ -302,16 +298,8 @@ func TestAttestor(t *testing.T) {
 	}
 }
 
-func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, string, func()) {
-	dir, err := ioutil.TempDir("", "spire-agent-node-attestor-")
-	require.NoError(t, err)
-
-	ok := false
-	defer func() {
-		if !ok {
-			os.RemoveAll(dir)
-		}
-	}()
+func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, string) {
+	dir := spiretest.TempDir(t)
 
 	svidCachePath := filepath.Join(dir, "svid.der")
 	bundleCachePath := filepath.Join(dir, "bundle.der")
@@ -322,45 +310,32 @@ func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, stri
 		writeFile(t, bundleCachePath, cachedBundle, 0644)
 	}
 
-	ok = true
-	return svidCachePath, bundleCachePath, func() {
-		os.RemoveAll(dir)
-	}
+	return svidCachePath, bundleCachePath
 }
 
-func prepareAgentNA(t *testing.T, config fakeagentnodeattestor.Config) (agentnodeattestor.NodeAttestor, func()) {
+func prepareAgentNA(t *testing.T, config fakeagentnodeattestor.Config) agentnodeattestor.NodeAttestor {
 	var agentNA agentnodeattestor.NodeAttestor
-	agentNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+	spiretest.LoadPlugin(t, catalog.MakePlugin("test",
 		agentnodeattestor.PluginServer(fakeagentnodeattestor.New(config)),
 	), &agentNA)
-	return agentNA, agentNADone
+	return agentNA
 }
 
-func prepareServerNA(t *testing.T, config fakeservernodeattestor.Config) (servernodeattestor.NodeAttestor, func()) {
+func prepareServerNA(t *testing.T, config fakeservernodeattestor.Config) servernodeattestor.NodeAttestor {
 	var serverNA servernodeattestor.NodeAttestor
-	serverNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+	spiretest.LoadPlugin(t, catalog.MakePlugin("test",
 		servernodeattestor.PluginServer(fakeservernodeattestor.New("test", config)),
 	), &serverNA)
-	return serverNA, serverNADone
+	return serverNA
 }
 
-func prepareKeyManager(t *testing.T, key crypto.PrivateKey) (keymanager.KeyManager, func()) {
+func prepareKeyManager(t *testing.T, key crypto.PrivateKey) keymanager.KeyManager {
 	var km keymanager.KeyManager
-	kmDone := spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
-
-	ok := false
-	defer func() {
-		if !ok {
-			kmDone()
-		}
-	}()
-
+	spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
 	if key != nil {
 		storePrivateKey(t, km, key)
 	}
-
-	ok = true
-	return km, kmDone
+	return km
 }
 
 func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {

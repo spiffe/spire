@@ -3,9 +3,7 @@ package endpoints
 import (
 	"context"
 	"crypto/tls"
-	"io/ioutil"
 	"net"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sync"
@@ -33,6 +31,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,12 +63,6 @@ func TestNew(t *testing.T) {
 	cat := fakeservercatalog.New()
 	cat.SetDataStore(ds)
 
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer func() {
-		os.RemoveAll(dir)
-	}()
-
 	clk := clock.NewMock(t)
 
 	serverCA := fakeserverca.New(t, testTD.String(), nil)
@@ -77,7 +70,7 @@ func TestNew(t *testing.T) {
 		CA:          serverCA,
 		Catalog:     cat,
 		TrustDomain: *testTD.ID().URL(),
-		Dir:         dir,
+		Dir:         spiretest.TempDir(t),
 		Log:         log,
 		Metrics:     metrics,
 		Clock:       clk,
@@ -122,16 +115,11 @@ func TestListenAndServe(t *testing.T) {
 	adminSVID := ca.CreateX509SVID(adminID)
 	downstreamSVID := ca.CreateX509SVID(downstreamID)
 
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer func() {
-		os.RemoveAll(dir)
-	}()
-
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	require.NoError(t, listener.Close())
 
+	dir := spiretest.TempDir(t)
 	udsPath := filepath.Join(dir, "socket")
 
 	ds := fakedatastore.New(t)

@@ -3,15 +3,14 @@ package peertracker
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"net"
-	"os"
 	"path"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -35,20 +34,15 @@ func TestListenerTestSuite(t *testing.T) {
 type ListenerTestSuite struct {
 	suite.Suite
 
-	tempDir  string
 	ul       *Listener
 	unixAddr *net.UnixAddr
 }
 
 func (p *ListenerTestSuite) SetupTest() {
-	var err error
-
-	p.tempDir, err = ioutil.TempDir("", "spire-listener-test")
-	p.Require().NoError(err)
-
+	tempDir := spiretest.TempDir(p.T())
 	p.unixAddr = &net.UnixAddr{
 		Net:  "unix",
-		Name: path.Join(p.tempDir, "test.sock"),
+		Name: path.Join(tempDir, "test.sock"),
 	}
 }
 
@@ -59,8 +53,6 @@ func (p *ListenerTestSuite) TearDownTest() {
 		p.NoError(err)
 		p.ul = nil
 	}
-	err := os.Remove(p.tempDir)
-	p.NoError(err)
 }
 
 func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {

@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -106,16 +105,11 @@ func (s *AttestorSuite) SetupSuite() {
 	}, nil)
 	s.Require().NoError(err)
 
-	s.dir, err = ioutil.TempDir("", "spire-server-nodeattestor-k8s-sat-")
-	s.Require().NoError(err)
+	s.dir = s.TempDir()
 
 	// generate a self-signed certificate for signing tokens
 	s.Require().NoError(createAndWriteSelfSignedCert("FOO", s.fooKey, s.fooCertPath()))
 	s.Require().NoError(createAndWriteSelfSignedCert("BAR", s.barKey, s.barCertPath()))
-}
-
-func (s *AttestorSuite) TearDownSuite() {
-	os.RemoveAll(s.dir)
 }
 
 func (s *AttestorSuite) SetupTest() {

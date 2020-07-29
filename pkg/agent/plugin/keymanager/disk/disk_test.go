@@ -16,6 +16,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 var (
@@ -23,11 +24,10 @@ var (
 )
 
 func TestDisk_GenerateKeyPair(t *testing.T) {
+	tempDir := spiretest.TempDir(t)
+
 	plugin := New()
-	tempDir, err := ioutil.TempDir("", "km-disk-test")
-	require.NoError(t, err)
 	plugin.dir = tempDir
-	defer os.RemoveAll(tempDir)
 
 	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, err)
@@ -46,11 +46,10 @@ func TestDisk_GenerateKeyPair(t *testing.T) {
 }
 
 func TestDisk_FetchPrivateKey(t *testing.T) {
+	tempDir := spiretest.TempDir(t)
+
 	plugin := New()
-	tempDir, err := ioutil.TempDir("", "km-disk-test")
-	require.NoError(t, err)
 	plugin.dir = tempDir
-	defer os.RemoveAll(tempDir)
 
 	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, err)
@@ -63,10 +62,7 @@ func TestDisk_FetchPrivateKey(t *testing.T) {
 }
 
 func TestDisk_Configure(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "km-disk-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
+	tempDir := spiretest.TempDir(t)
 	keysDir := filepath.Join(tempDir, "keys")
 
 	plugin := New()

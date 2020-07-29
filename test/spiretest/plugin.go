@@ -36,7 +36,7 @@ func HostService(hostService catalog.HostServiceServer) PluginOption {
 	})
 }
 
-func LoadPlugin(tb testing.TB, plugin catalog.Plugin, x interface{}, opts ...PluginOption) (done func()) {
+func LoadPlugin(tb testing.TB, plugin catalog.Plugin, x interface{}, opts ...PluginOption) {
 	config := &pluginConfig{}
 	for _, opt := range opts {
 		opt.setOption(config)
@@ -48,10 +48,9 @@ func LoadPlugin(tb testing.TB, plugin catalog.Plugin, x interface{}, opts ...Plu
 		HostServices: config.hostServices,
 	})
 	require.NoError(tb, err, "unable to load plugin")
+	tb.Cleanup(p.Close)
 
 	if err := p.Fill(x); err != nil {
-		p.Close()
 		require.NoError(tb, err, "unable to satisfy plugin client")
 	}
-	return p.Close
 }

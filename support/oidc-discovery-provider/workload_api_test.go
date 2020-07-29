@@ -21,9 +21,7 @@ func TestWorkloadAPISource(t *testing.T) {
 
 	api := &fakeWorkloadAPIServer{}
 
-	// Create a temporary directory to host the socket
-	socketPath, closeServer := spiretest.StartWorkloadAPIOnTempSocket(t, api)
-	defer closeServer()
+	socketPath := spiretest.StartWorkloadAPIOnTempSocket(t, api)
 
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)

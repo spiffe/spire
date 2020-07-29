@@ -2808,8 +2808,7 @@ func (s *PluginSuite) TestConfigure() {
 			p := New()
 
 			var ds datastore.Plugin
-			pluginDone := spiretest.LoadPlugin(t, builtin(p), &ds)
-			defer pluginDone()
+			spiretest.LoadPlugin(t, builtin(p), &ds)
 
 			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")
 

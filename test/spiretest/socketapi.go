@@ -1,7 +1,6 @@
 package spiretest
 
 import (
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -13,61 +12,37 @@ import (
 	"google.golang.org/grpc"
 )
 
-func StartRegistrationAPIOnTempSocket(t *testing.T, server registration.RegistrationServer) (string, func()) {
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
+func StartRegistrationAPIOnTempSocket(t *testing.T, server registration.RegistrationServer) string {
+	dir := TempDir(t)
 	socketPath := filepath.Join(dir, "registration.sock")
 
-	ok := false
-	defer func() {
-		if !ok {
-			os.RemoveAll(dir)
-		}
-	}()
+	StartRegistrationAPIOnSocket(t, socketPath, server)
 
-	closeServer := StartRegistrationAPIOnSocket(t, socketPath, server)
-
-	ok = true
-	return socketPath, func() {
-		closeServer()
-		os.RemoveAll(dir)
-	}
+	return socketPath
 }
 
-func StartRegistrationAPIOnSocket(t *testing.T, socketPath string, server registration.RegistrationServer) func() {
-	return StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
+func StartRegistrationAPIOnSocket(t *testing.T, socketPath string, server registration.RegistrationServer) {
+	StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
 		registration.RegisterRegistrationServer(s, server)
 	})
 }
 
-func StartWorkloadAPIOnTempSocket(t *testing.T, server workload.SpiffeWorkloadAPIServer) (string, func()) {
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
+func StartWorkloadAPIOnTempSocket(t *testing.T, server workload.SpiffeWorkloadAPIServer) string {
+	dir := TempDir(t)
 	socketPath := filepath.Join(dir, "workload.sock")
 
-	ok := false
-	defer func() {
-		if !ok {
-			os.RemoveAll(dir)
-		}
-	}()
+	StartWorkloadAPIOnSocket(t, socketPath, server)
 
-	closeServer := StartWorkloadAPIOnSocket(t, socketPath, server)
-
-	ok = true
-	return socketPath, func() {
-		closeServer()
-		os.RemoveAll(dir)
-	}
+	return socketPath
 }
 
-func StartWorkloadAPIOnSocket(t *testing.T, socketPath string, server workload.SpiffeWorkloadAPIServer) func() {
-	return StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
+func StartWorkloadAPIOnSocket(t *testing.T, socketPath string, server workload.SpiffeWorkloadAPIServer) {
+	StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
 		workload.RegisterSpiffeWorkloadAPIServer(s, server)
 	})
 }
 
-func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) func() {
+func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) {
 	// ensure the directory holding the socket exists
 	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0755))
 
@@ -75,12 +50,6 @@ func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *g
 	// gRPC server owns it.
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
-	started := false
-	defer func() {
-		if !started {
-			listener.Close()
-		}
-	}()
 
 	server := grpc.NewServer()
 	registerFn(server)
@@ -89,9 +58,8 @@ func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *g
 	go func() {
 		errCh <- server.Serve(listener)
 	}()
-	started = true
-	return func() {
+	t.Cleanup(func() {
 		server.Stop()
 		require.NoError(t, <-errCh)
-	}
+	})
 }

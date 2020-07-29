@@ -22,6 +22,7 @@ import (
 
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,9 +37,7 @@ xrHoko3NlsLMmZn282gMYb+0Au9R+IXllaYy8+vuW9R7VctQwmaAgGU4
 )
 
 func TestServer(t *testing.T) {
-	dir, err := ioutil.TempDir("", "k8s-workload-registrar-server-")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := spiretest.TempDir(t)
 
 	keyPath := filepath.Join(dir, "key.pem")
 	certPath := filepath.Join(dir, "cert.pem")

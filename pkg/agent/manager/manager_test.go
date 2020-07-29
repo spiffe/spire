@@ -8,10 +8,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/url"
-	"os"
 	"path"
 	"reflect"
 	"sync"
@@ -33,6 +31,7 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 
@@ -42,8 +41,7 @@ import (
 )
 
 const (
-	tmpSubdirName = "manager-test"
-	trustDomain   = "example.org"
+	trustDomain = "example.org"
 )
 
 var (
@@ -56,8 +54,7 @@ var (
 )
 
 func TestInitializationFailure(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
@@ -81,8 +78,7 @@ func TestInitializationFailure(t *testing.T) {
 }
 
 func TestStoreBundleOnStartup(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
@@ -135,8 +131,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 }
 
 func TestStoreSVIDOnStartup(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
@@ -187,8 +182,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 }
 
 func TestStoreKeyOnStartup(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk, trustDomain)
@@ -242,8 +236,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 }
 
 func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -332,8 +325,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 }
 
 func TestSVIDRotation(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -446,8 +438,7 @@ func TestSVIDRotation(t *testing.T) {
 }
 
 func TestSynchronization(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -591,8 +582,7 @@ func TestSynchronization(t *testing.T) {
 }
 
 func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -660,8 +650,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 }
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -728,8 +717,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 }
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -794,8 +782,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 }
 
 func TestSurvivesCARotation(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -865,8 +852,7 @@ func TestSurvivesCARotation(t *testing.T) {
 }
 
 func TestFetchJWTSVID(t *testing.T) {
-	dir := createTempDir(t)
-	defer removeTempDir(dir)
+	dir := spiretest.TempDir(t)
 
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
@@ -1342,18 +1328,6 @@ func (h *mockNodeAPIHandler) getCertFromCtx(ctx context.Context) (certificate *x
 	}
 
 	return chain[0], nil
-}
-
-func createTempDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", tmpSubdirName)
-	if err != nil {
-		t.Fatalf("could not create temp dir: %v", err)
-	}
-	return dir
-}
-
-func removeTempDir(dir string) {
-	os.RemoveAll(dir)
 }
 
 func createCA(t *testing.T, clk clock.Clock, trustDomain string) (*x509.Certificate, *ecdsa.PrivateKey) {

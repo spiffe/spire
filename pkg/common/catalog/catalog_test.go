@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/private/test/catalogtest"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -65,17 +65,7 @@ type CatalogSuite struct {
 func (s *CatalogSuite) SetupSuite() {
 	require := s.Require()
 
-	// tear down the suite if setup fails
-	ok := false
-	defer func() {
-		if !ok {
-			s.TearDownSuite()
-		}
-	}()
-
-	var err error
-	s.dir, err = ioutil.TempDir("", "catalog-test-")
-	require.NoError(err)
+	s.dir = spiretest.TempDir(s.T())
 
 	s.path = filepath.Join(s.dir, "pluginbin")
 	buildOutput, err := exec.Command("go", "build", "-o", s.path, "catalog_test_plugin.go").CombinedOutput() //nolint: gosec // false positive
@@ -87,14 +77,6 @@ func (s *CatalogSuite) SetupSuite() {
 	// calculate the checksum used in loading
 	s.checksum, err = calculateChecksum(s.path)
 	require.NoError(err, "unable to calculate plugin checksum")
-	ok = true
-}
-
-func (s *CatalogSuite) TearDownSuite() {
-	// clean up the temporary directory
-	if s.dir != "" {
-		os.RemoveAll(s.dir)
-	}
 }
 
 func (s *CatalogSuite) SetupTest() {
