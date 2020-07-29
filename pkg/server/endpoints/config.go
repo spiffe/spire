@@ -142,6 +142,7 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 			UpstreamPublisher: upstreamPublisher,
 		}),
 		EntryServer: entryv1.New(entryv1.Config{
+			TrustDomain:  c.TrustDomain,
 			DataStore:    ds,
 			EntryFetcher: authorizedEntryFetcher,
 		}),

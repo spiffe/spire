@@ -2,10 +2,11 @@ package entry
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -25,6 +26,7 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
+	TrustDomain  spiffeid.TrustDomain
 	EntryFetcher api.AuthorizedEntryFetcher
 	DataStore    datastore.DataStore
 }
@@ -32,6 +34,7 @@ type Config struct {
 // New creates a new entry service
 func New(config Config) *Service {
 	return &Service{
+		td: config.TrustDomain,
 		ds: config.DataStore,
 		ef: config.EntryFetcher,
 	}
@@ -39,6 +42,7 @@ func New(config Config) *Service {
 
 // Service implements the v1 entry service
 type Service struct {
+	td spiffeid.TrustDomain
 	ds datastore.DataStore
 	ef api.AuthorizedEntryFetcher
 }
@@ -46,9 +50,49 @@ type Service struct {
 func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
 	log := rpccontext.Logger(ctx)
 
-	listReq, err := buildListEntriesRequest(req)
-	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse request", err)
+	listReq := &datastore.ListRegistrationEntriesRequest{}
+
+	if req.PageSize > 0 {
+		listReq.Pagination = &datastore.Pagination{
+			PageSize: req.PageSize,
+			Token:    req.PageToken,
+		}
+	}
+
+	if req.Filter != nil {
+		if req.Filter.ByParentId != nil {
+			parentID, err := api.TrustDomainMemberIDFromProto(s.td, req.Filter.ByParentId)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
+			}
+			listReq.ByParentId = &wrappers.StringValue{
+				Value: parentID.String(),
+			}
+		}
+
+		if req.Filter.BySpiffeId != nil {
+			spiffeID, err := api.TrustDomainWorkloadIDFromProto(s.td, req.Filter.BySpiffeId)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
+			}
+			listReq.BySpiffeId = &wrappers.StringValue{
+				Value: spiffeID.String(),
+			}
+		}
+
+		if req.Filter.BySelectors != nil {
+			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", err)
+			}
+			if len(dsSelectors) == 0 {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
+			}
+			listReq.BySelectors = &datastore.BySelectors{
+				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
+				Selectors: dsSelectors,
+			}
+		}
 	}
 
 	dsResp, err := s.ds.ListRegistrationEntries(ctx, listReq)
@@ -115,7 +159,7 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entry.BatchCreateEn
 func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *types.EntryMask) *entry.BatchCreateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
 
-	cEntry, err := api.ProtoToRegistrationEntry(e)
+	cEntry, err := api.ProtoToRegistrationEntry(s.td, e)
 	if err != nil {
 		return &entry.BatchCreateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
@@ -294,51 +338,6 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	}
 }
 
-func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegistrationEntriesRequest, error) {
-	listReq := &datastore.ListRegistrationEntriesRequest{}
-
-	if req.PageSize > 0 {
-		listReq.Pagination = &datastore.Pagination{
-			PageSize: req.PageSize,
-			Token:    req.PageToken,
-		}
-	}
-
-	if req.Filter != nil {
-		if req.Filter.ByParentId != nil {
-			var err error
-			listReq.ByParentId, err = api.StringValueFromSPIFFEID(req.Filter.ByParentId)
-			if err != nil {
-				return nil, fmt.Errorf("malformed ByParentId: %v", err)
-			}
-		}
-
-		if req.Filter.BySpiffeId != nil {
-			var err error
-			listReq.BySpiffeId, err = api.StringValueFromSPIFFEID(req.Filter.BySpiffeId)
-			if err != nil {
-				return nil, fmt.Errorf("malformed BySpiffeId: %v", err)
-			}
-		}
-
-		if req.Filter.BySelectors != nil {
-			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
-			if err != nil {
-				return nil, fmt.Errorf("malformed BySelectors: %v", err)
-			}
-			if len(dsSelectors) == 0 {
-				return nil, fmt.Errorf("malformed BySelectors: empty selector set")
-			}
-			listReq.BySelectors = &datastore.BySelectors{
-				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
-				Selectors: dsSelectors,
-			}
-		}
-	}
-
-	return listReq, nil
-}
-
 func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry, log logrus.FieldLogger) *types.Status {
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
@@ -366,7 +365,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	log := rpccontext.Logger(ctx)
 	log = log.WithField(telemetry.RegistrationID, e.Id)
 
-	convEntry, err := api.ProtoToRegistrationEntryWithMask(e, inputMask)
+	convEntry, err := api.ProtoToRegistrationEntryWithMask(s.td, e, inputMask)
 	if err != nil {
 		return &entry.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),

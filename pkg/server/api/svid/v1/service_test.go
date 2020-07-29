@@ -187,8 +187,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  `invalid SPIFFE ID in CSR: "spiffe://another.org/workload1" does not belong to trust domain "example.org"`,
-			msg:  `Invalid argument: invalid SPIFFE ID in CSR`,
+			err:  `CSR URI SAN is invalid: "spiffe://another.org/workload1" is not a member of trust domain "example.org"`,
+			msg:  `Invalid argument: CSR URI SAN is invalid`,
 		},
 		{
 			name: "SPIFFE ID is not for a workload in the trust domain",
@@ -198,8 +198,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  `invalid SPIFFE ID in CSR: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
-			msg:  `Invalid argument: invalid SPIFFE ID in CSR`,
+			err:  `CSR URI SAN is invalid: "spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
+			msg:  `Invalid argument: CSR URI SAN is invalid`,
 		},
 		{
 			name: "invalid DNS",
@@ -259,7 +259,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			require.NotEmpty(t, certChain)
 			svid := certChain[0]
 
-			id, err := api.IDFromProto(resp.Svid.Id)
+			id, err := api.TrustDomainWorkloadIDFromProto(td, resp.Svid.Id)
 			require.NoError(t, err)
 
 			require.Equal(t, workloadID, id)
@@ -316,24 +316,25 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.ID{},
-			err:      "failed to parse SPIFFE ID: spiffeid: trust domain is empty",
-			logMsg:   "Invalid argument: failed to parse SPIFFE ID",
+			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
 			name:     "invalid trust domain",
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.Must("invalid.test", "workload1"),
-			err:      `invalid SPIFFE ID: "spiffe://invalid.test/workload1" does not belong to trust domain "example.org"`,
-			logMsg:   `Invalid argument: invalid SPIFFE ID`,
+			err:      `invalid SPIFFE ID: "spiffe://invalid.test/workload1" is not a member of trust domain "example.org"`,
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
 			name:     "SPIFFE ID is not for a workload in the trust domain",
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.Must("example.org"),
-			err:      `invalid SPIFFE ID: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
-			logMsg:   `Invalid argument: invalid SPIFFE ID`},
+			err:      `invalid SPIFFE ID: "spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
+		},
 		{
 			name:      "no audience",
 			code:      codes.InvalidArgument,
@@ -441,8 +442,8 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			entry:    invalidEntry,
-			err:      "failed to parse SPIFFE ID: spiffeid: trust domain is empty",
-			logMsg:   "Invalid argument: failed to parse SPIFFE ID",
+			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
 			name:   "no audience",
@@ -1159,7 +1160,7 @@ func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID,
 	err = token.UnsafeClaimsWithoutVerification(&claims)
 	require.NoError(t, err)
 
-	jwtsvidID, err := api.IDFromProto(jwtsvid.Id)
+	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(td, jwtsvid.Id)
 	require.NoError(t, err)
 	require.Equal(t, id, jwtsvidID)
 	require.Equal(t, id.String(), claims.Subject)

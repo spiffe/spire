@@ -109,7 +109,7 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
-		if isReservedPath(id.Path) {
+		if IsReservedPath(id.Path) {
 			return validationError(`invalid path: "/spire/*" namespace is reserved`)
 		}
 	case serverID:
@@ -140,7 +140,7 @@ func IsAgentPath(path string) bool {
 	return strings.HasPrefix(path, "/spire/agent/")
 }
 
-func isReservedPath(path string) bool {
+func IsReservedPath(path string) bool {
 	return path == "/spire" || strings.HasPrefix(path, "/spire/")
 }
 
@@ -356,7 +356,7 @@ func ValidateTrustDomainWorkload(id spiffeid.ID, td spiffeid.TrustDomain) error 
 	if id.Path() == "" {
 		return fmt.Errorf("invalid workload SPIFFE ID %q: path is empty", id.String())
 	}
-	if isReservedPath(id.Path()) {
+	if IsReservedPath(id.Path()) {
 		return fmt.Errorf(`%q is not a valid workload SPIFFE ID: invalid path: "/spire/*" namespace is reserved`, id.String())
 	}
 
