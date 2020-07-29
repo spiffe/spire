@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -102,18 +103,12 @@ func TestJournal(t *testing.T) {
 }
 
 type JournalSuite struct {
-	suite.Suite
+	spiretest.Suite
 	dir string
 }
 
 func (s *JournalSuite) SetupTest() {
-	dir, err := ioutil.TempDir("", "spire-server-ca-journal")
-	s.Require().NoError(err)
-	s.dir = dir
-}
-
-func (s *JournalSuite) TearDownTest() {
-	os.RemoveAll(s.dir)
+	s.dir = s.TempDir()
 }
 
 func (s *JournalSuite) TestNew() {

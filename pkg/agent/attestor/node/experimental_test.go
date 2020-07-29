@@ -321,18 +321,16 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 			require := require.New(t)
 
 			// prepare the temp directory holding the cached bundle/svid
-			svidCachePath, bundleCachePath, removeDir := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
-			defer removeDir()
+			svidCachePath, bundleCachePath := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
 
 			// load up the fake agent-side node attestor
-			agentNA, agentNADone := prepareAgentNA(t, fakeagentnodeattestor.Config{
+			agentNA := prepareAgentNA(t, fakeagentnodeattestor.Config{
 				Fail:      testCase.failFetchingAttestationData,
 				Responses: testCase.agentClient.challengeResponses,
 			})
-			defer agentNADone()
 
 			// load up the fake server-side node attestor
-			serverNA, serverNADone := prepareServerNA(t, fakeservernodeattestor.Config{
+			serverNA := prepareServerNA(t, fakeservernodeattestor.Config{
 				TrustDomain: "domain.test",
 				Data: map[string]string{
 					"TEST": "foo",
@@ -341,11 +339,9 @@ func TestAttestorWithExperimentalAPI(t *testing.T) {
 					"foo": testCase.agentClient.challengeResponses,
 				},
 			})
-			defer serverNADone()
 
 			// load up an in-memory key manager
-			km, kmDone := prepareKeyManager(t, testCase.storeKey)
-			defer kmDone()
+			km := prepareKeyManager(t, testCase.storeKey)
 
 			// initialize the catalog
 			catalog := fakeagentcatalog.New()

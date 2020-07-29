@@ -134,8 +134,7 @@ func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.
 	s.catalog = fakeservercatalog.New()
 	s.catalog.SetDataStore(s.ds)
 	if upstreamAuthorityConfig != nil {
-		upstreamAuthority, _, uaDone := fakeupstreamauthority.Load(s.T(), *upstreamAuthorityConfig)
-		s.AppendCloser(uaDone)
+		upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), *upstreamAuthorityConfig)
 		s.catalog.SetUpstreamAuthority(fakeservercatalog.UpstreamAuthority(
 			"fakeupstreamauthority",
 			upstreamAuthority,

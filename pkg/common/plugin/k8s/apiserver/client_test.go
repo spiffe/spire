@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -146,14 +145,11 @@ func (s *ClientSuite) SetupTest() {
 	s.mockAuthV1 = mock_authv1.NewMockAuthenticationV1Interface(s.mockCtrl)
 	s.mockTokenReviews = mock_tokenreview.NewMockTokenReviewInterface(s.mockCtrl)
 
-	var err error
-	s.dir, err = ioutil.TempDir("", "spire-k8s-client-test-")
-	s.Require().NoError(err)
+	s.dir = s.TempDir()
 }
 
 func (s *ClientSuite) TearDownTest() {
 	s.mockCtrl.Finish()
-	os.RemoveAll(s.dir)
 }
 
 func (s *ClientSuite) TestGetPodFailsIfNamespaceIsEmpty() {

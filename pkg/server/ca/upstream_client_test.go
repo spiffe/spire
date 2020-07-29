@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -22,12 +23,10 @@ var (
 )
 
 func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
-	client, updater, ua, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+	client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain:     "example.org",
 		UseIntermediate: true,
 	})
-	defer client.Close()
-	defer uaDone()
 
 	x509CA, err := client.MintX509CA(context.Background(), csr, 0)
 	require.NoError(t, err)
@@ -79,12 +78,10 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			client, _, _, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+			client, _, _ := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 				TrustDomain:              "example.org",
 				MutateMintX509CAResponse: tt.mutate,
 			})
-			defer client.Close()
-			defer uaDone()
 
 			_, err := client.MintX509CA(context.Background(), csr, 0)
 			require.Error(t, err)
@@ -125,7 +122,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			var first bool
-			client, updater, ua, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+			client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 				TrustDomain: "example.org",
 				MutateMintX509CAResponse: func(resp *upstreamauthority.MintX509CAResponse) {
 					if !first {
@@ -135,8 +132,6 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 					tt.mutate(resp)
 				},
 			})
-			defer client.Close()
-			defer uaDone()
 
 			x509CA, err := client.MintX509CA(context.Background(), csr, 0)
 			require.NoError(t, err)
@@ -156,11 +151,9 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 }
 
 func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
-	client, updater, ua, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+	client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain: "example.org",
 	})
-	defer client.Close()
-	defer uaDone()
 
 	key1 := &common.PublicKey{
 		Kid: "KEY1",
@@ -183,26 +176,29 @@ func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 }
 
 func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
-	client, _, _, uaDone := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+	client, _, _ := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain:           "example.org",
 		DisallowPublishJWTKey: true,
 	})
-	defer client.Close()
-	defer uaDone()
 
 	jwtKeys, err := client.PublishJWTKey(context.Background(), &common.PublicKey{Kid: "KEY"})
 	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "disallowed")
 	require.Nil(t, jwtKeys)
 }
 
-func setUpUpstreamClientTest(t *testing.T, config fakeupstreamauthority.Config) (*ca.UpstreamClient, *fakeBundleUpdater, *fakeupstreamauthority.UpstreamAuthority, func()) {
-	plugin, upstreamAuthority, done := fakeupstreamauthority.Load(t, config)
+func setUpUpstreamClientTest(t *testing.T, config fakeupstreamauthority.Config) (*ca.UpstreamClient, *fakeBundleUpdater, *fakeupstreamauthority.UpstreamAuthority) {
+	plugin, upstreamAuthority := fakeupstreamauthority.Load(t, config)
 	updater := newFakeBundleUpdater()
 
-	return ca.NewUpstreamClient(ca.UpstreamClientConfig{
+	client := ca.NewUpstreamClient(ca.UpstreamClientConfig{
 		UpstreamAuthority: plugin,
 		BundleUpdater:     updater,
-	}), updater, upstreamAuthority, done
+	})
+	t.Cleanup(func() {
+		assert.NoError(t, client.Close())
+	})
+
+	return client, updater, upstreamAuthority
 }
 
 type bundleUpdateErr struct {

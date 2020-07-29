@@ -2,10 +2,10 @@ package main
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,13 +20,11 @@ var (
 func TestLoadConfig(t *testing.T) {
 	require := require.New(t)
 
-	dir, err := ioutil.TempDir("", "spire-adm-webhook-config-")
-	require.NoError(err)
-	defer os.RemoveAll(dir)
+	dir := spiretest.TempDir(t)
 
 	confPath := filepath.Join(dir, "test.conf")
 
-	_, err = LoadConfig(confPath)
+	_, err := LoadConfig(confPath)
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 

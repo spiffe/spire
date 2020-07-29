@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -187,9 +187,7 @@ type stubbedAPI struct {
 }
 
 func newStubbedAPI(t *testing.T) *stubbedAPI {
-	dir, err := ioutil.TempDir("", "workload-test")
-	require.NoError(t, err)
-
+	dir := spiretest.TempDir(t)
 	return &stubbedAPI{
 		T:          t,
 		SocketPath: path.Join(dir, "workload_api.sock"),

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/x509"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -194,9 +194,7 @@ func (s *ExperimentalBundleSuite) TestSetCannotLoadBundleFromFile() {
 }
 
 func (s *ExperimentalBundleSuite) TestSetCreatesBundleFromFile() {
-	tmpDir, err := ioutil.TempDir("", "spire-server-cli-test-")
-	s.Require().NoError(err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := spiretest.TempDir(s.T())
 
 	bundlePath := filepath.Join(tmpDir, "bundle.pem")
 

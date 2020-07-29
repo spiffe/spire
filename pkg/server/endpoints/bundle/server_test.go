@@ -152,8 +152,7 @@ func TestServer(t *testing.T) {
 }
 
 func TestACMEAuth(t *testing.T) {
-	dir, err := ioutil.TempDir("", "spire-server-endpoints-bundle-acme-")
-	require.NoError(t, err)
+	dir := spiretest.TempDir(t)
 
 	bundle := bundleutil.New("spiffe://domain.test")
 	km := memory.New()

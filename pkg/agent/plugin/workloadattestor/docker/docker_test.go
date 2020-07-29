@@ -374,15 +374,13 @@ func doAttest(t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*wo
 
 func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	var wp workloadattestor.Plugin
-	done := spiretest.LoadPlugin(t, builtin(p), &wp)
-	defer done()
+	spiretest.LoadPlugin(t, builtin(p), &wp)
 	return wp.Attest(ctx, req)
 }
 
 func doConfigure(t *testing.T, p *Plugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	var wp workloadattestor.Plugin
-	done := spiretest.LoadPlugin(t, builtin(p), &wp)
-	defer done()
+	spiretest.LoadPlugin(t, builtin(p), &wp)
 	return wp.Configure(context.Background(), req)
 }
 

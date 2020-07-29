@@ -84,9 +84,8 @@ func TestConfigure(t *testing.T) {
 
 			raw := New()
 			var plugin notifier.Plugin
-			pluginDone := spiretest.LoadPlugin(t, builtIn(raw), &plugin,
+			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
 				spiretest.HostService(hostservices.IdentityProviderHostServiceServer(idp)))
-			defer pluginDone()
 
 			resp, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{Configuration: tt.config})
 			if tt.code != codes.OK {
@@ -238,9 +237,8 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) er
 
 			// Load the instance as a plugin
 			var plugin notifier.Plugin
-			pluginDone := spiretest.LoadPlugin(t, builtIn(raw), &plugin,
+			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
 				spiretest.HostService(hostservices.IdentityProviderHostServiceServer(idp)))
-			defer pluginDone()
 
 			if !tt.skipConfigure {
 				_, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{
