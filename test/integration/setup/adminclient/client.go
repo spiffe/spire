@@ -61,98 +61,53 @@ func main() {
 	c := itclient.New(ctx)
 	defer c.Release()
 
-	failures := make(map[string]error)
+	type failure struct {
+		name string
+		err  error
+	}
+
+	var failures []failure
+	testRPC := func(rpcName string, rpcFn func(context.Context, *itclient.Client) error) {
+		if rpcErr := rpcFn(ctx, c); rpcErr != nil {
+			failures = append(failures, failure{
+				name: rpcName,
+				err:  rpcErr,
+			})
+		}
+	}
 
 	// SVID Client tests
-	if err := mintX509SVID(ctx, c); err != nil {
-		failures["MintX509SVID"] = err
-	}
-
-	if err := mintJWTSVID(ctx, c); err != nil {
-		failures["MintJWTSVID"] = err
-	}
-
+	testRPC("MintX509SVID", mintX509SVID)
+	testRPC("MintJWTSVID", mintJWTSVID)
 	// Bundle Client tests
-	if err := appendBundle(ctx, c); err != nil {
-		failures["AppendBundle"] = err
-	}
-
-	if err := batchCreateFederatedBundle(ctx, c); err != nil {
-		failures["BatchCreateFederatedBundle"] = err
-	}
-
-	if err := batchUpdateFederatedBundle(ctx, c); err != nil {
-		failures["BatchUpdateFederatedBundle"] = err
-	}
-
-	if err := batchSetFederatedBundle(ctx, c); err != nil {
-		failures["BatchSetFederatedBundle"] = err
-	}
-
-	if err := listFederatedBundles(ctx, c); err != nil {
-		failures["ListFederatedBundles"] = err
-	}
-
-	if err := getFederatedBundle(ctx, c); err != nil {
-		failures["GetFederatedBundle"] = err
-	}
-
-	if err := batchDeleteFederatedBundle(ctx, c); err != nil {
-		failures["BatchDeleteFederatedBundle"] = err
-	}
-
+	testRPC("AppendBundle", appendBundle)
+	testRPC("BatchCreateFederatedBundle", batchCreateFederatedBundle)
+	testRPC("BatchUpdateFederatedBundle", batchUpdateFederatedBundle)
+	testRPC("BatchSetFederatedBundle", batchSetFederatedBundle)
+	testRPC("ListFederatedBundles", listFederatedBundles)
+	testRPC("GetFederatedBundle", getFederatedBundle)
+	testRPC("BatchDeleteFederatedBundle", batchDeleteFederatedBundle)
 	// Entry client tests
-	if err := batchCreateEntry(ctx, c); err != nil {
-		failures["BatchCreateEntry"] = err
-	}
-
-	if err := listEntries(ctx, c); err != nil {
-		failures["listEntries"] = err
-	}
-
-	if err := getEntry(ctx, c); err != nil {
-		failures["GetEntry"] = err
-	}
-
-	if err := batchUpdateEntry(ctx, c); err != nil {
-		failures["BatchUpdateEntry"] = err
-	}
-
-	if err := batchDeleteEntry(ctx, c); err != nil {
-		failures["BatchDeleteEntry"] = err
-	}
-
+	testRPC("BatchCreateEntry", batchCreateEntry)
+	testRPC("ListEntries", listEntries)
+	testRPC("GetEntry", getEntry)
+	testRPC("BatchUpdateEntry", batchUpdateEntry)
+	testRPC("BatchDeleteEntry", batchDeleteEntry)
 	// Agent client tests
-	if err := createJoinToken(ctx, c); err != nil {
-		failures["CreateJoinToken"] = err
-	}
-
-	if err := listAgents(ctx, c); err != nil {
-		failures["ListAgents"] = err
-	}
-
-	if err := getAgent(ctx, c); err != nil {
-		failures["GetAgent"] = err
-	}
-
-	if err := banAgent(ctx, c); err != nil {
-		failures["BanAgent"] = err
-	}
-
-	if err := deleteAgent(ctx, c); err != nil {
-		failures["DeleteAgent"] = err
-	}
-
+	testRPC("CreateJoinToken", createJoinToken)
+	testRPC("ListAgents", listAgents)
+	testRPC("GetAgent", getAgent)
+	testRPC("BanAgent", banAgent)
+	testRPC("DeleteAgent", deleteAgent)
 	if len(failures) == 0 {
 		log.Println("Admin client finished successfully")
 		return
 	}
 
-	msg := ""
-	for rpcName, err := range failures {
-		msg += fmt.Sprintf("RPC %q: %v\n", rpcName, err)
+	for _, failure := range failures {
+		log.Printf("RPC %q: %v\n", failure.name, failure.err)
 	}
-	log.Fatal(msg)
+	log.Fatalln("Admin tests failed")
 }
 
 func mintX509SVID(ctx context.Context, c *itclient.Client) error {
@@ -669,7 +624,7 @@ func batchDeleteEntry(ctx context.Context, c *itclient.Client) error {
 func createJoinToken(ctx context.Context, c *itclient.Client) error {
 	id := &types.SPIFFEID{
 		TrustDomain: c.Td.String(),
-		Path:        "/spire/agent/host",
+		Path:        "/agent-alias",
 	}
 
 	resp, err := c.AgentClient().CreateJoinToken(ctx, &agent.CreateJoinTokenRequest{
