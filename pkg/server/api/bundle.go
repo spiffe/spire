@@ -61,7 +61,7 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 		return nil, err
 	}
 
-	rootCas, err := parseX509Authorities(b.X509Authorities)
+	rootCas, err := ParseX509Authorities(b.X509Authorities)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse X.509 authority: %v", err)
 	}
@@ -93,7 +93,7 @@ func ProtoToBundleMask(mask *types.BundleMask) *common.BundleMask {
 	}
 }
 
-func parseX509Authorities(certs []*types.X509Certificate) ([]*common.Certificate, error) {
+func ParseX509Authorities(certs []*types.X509Certificate) ([]*common.Certificate, error) {
 	var rootCAs []*common.Certificate
 	for _, rootCA := range certs {
 		if _, err := x509.ParseCertificates(rootCA.Asn1); err != nil {

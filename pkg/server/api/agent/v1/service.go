@@ -85,8 +85,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
 			if err != nil {
-				log.WithError(err).Error("Failed to parse selectors")
-				return nil, status.Errorf(codes.InvalidArgument, "failed to parse selectors: %v", err)
+				return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
 			}
 			listReq.BySelectorMatch = &datastore.BySelectors{
 				Match:     datastore.BySelectors_MatchBehavior(filter.BySelectorMatch.Match),
@@ -105,8 +104,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 
 	dsResp, err := s.ds.ListAttestedNodes(ctx, listReq)
 	if err != nil {
-		log.WithError(err).Error("Failed to list agents")
-		return nil, status.Errorf(codes.Internal, "failed to list agents: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to list agents", err)
 	}
 
 	resp := &agent.ListAgentsResponse{}
@@ -119,7 +117,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 	for _, node := range dsResp.Nodes {
 		a, err := api.ProtoFromAttestedNode(node)
 		if err != nil {
-			log.WithError(err).WithField(telemetry.SPIFFEID, node.SpiffeId).Warn("Unable to parse attested node")
+			log.WithError(err).WithField(telemetry.SPIFFEID, node.SpiffeId).Warn("Failed to parse agent")
 			continue
 		}
 
@@ -135,14 +133,12 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 
 	agentID, err := api.IDFromProto(req.Id)
 	if err != nil {
-		log.WithError(err).Error("Failed to parse agent ID")
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent ID: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse agent ID", err)
 	}
 
 	err = idutil.ValidateSpiffeID(agentID.String(), idutil.AllowTrustDomainAgent(s.td.String()))
 	if err != nil {
-		log.WithError(err).Error("Not a valid agent ID")
-		return nil, status.Errorf(codes.Internal, "not a valid agent ID: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "not a valid agent ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, agentID.String())
@@ -150,25 +146,21 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 		SpiffeId: agentID.String(),
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch node")
-		return nil, status.Errorf(codes.Internal, "failed to fetch node: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
 
 	if resp.Node == nil {
-		log.Error("Agent not found")
-		return nil, status.Error(codes.NotFound, "agent not found")
+		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	}
 
 	selectors, err := s.getSelectorsFromAgentID(ctx, resp.Node.SpiffeId)
 	if err != nil {
-		log.WithError(err).Error("Failed to get selectors from attested node")
-		return nil, status.Errorf(codes.Internal, "failed to get selectors from attested node: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to get selectors from agent", err)
 	}
 
 	agent, err := api.AttestedNodeToProto(resp.Node, selectors)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert from attested node")
-		return nil, status.Errorf(codes.Internal, "failed to convert from attested node: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to convert attested node to agent", err)
 	}
 
 	applyMask(agent, req.OutputMask)
@@ -180,20 +172,17 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 
 	id, err := api.IDFromProto(req.Id)
 	if err != nil {
-		log.WithError(err).Error("Invalid request: invalid SPIFFE ID")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
 	if !idutil.IsAgentPath(id.Path()) {
-		log.Error("Invalid request: not an agent ID")
-		return nil, status.Error(codes.InvalidArgument, "not an agent ID")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "not an agent ID", nil)
 	}
 
 	if !id.MemberOf(s.td) {
-		log.Error("Invalid request: cannot delete an agent that does not belong to this trust domain")
-		return nil, status.Errorf(codes.InvalidArgument, "cannot delete an agent that does not belong to this trust domain")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "cannot delete an agent that does not belong to this trust domain", nil)
 	}
 
 	_, err = s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{
@@ -204,11 +193,9 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 		log.Info("Agent deleted")
 		return &empty.Empty{}, nil
 	case codes.NotFound:
-		log.WithError(err).Error("Agent not found")
-		return nil, status.Error(codes.NotFound, "agent not found")
+		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
-		log.WithError(err).Error("Failed to remove agent")
-		return nil, status.Errorf(codes.Internal, "failed to remove agent: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to remove agent", err)
 	}
 }
 
@@ -217,20 +204,17 @@ func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*em
 
 	id, err := api.IDFromProto(req.Id)
 	if err != nil {
-		log.WithError(err).Error("Invalid request: invalid SPIFFE ID")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
 	if !idutil.IsAgentPath(id.Path()) {
-		log.Error("Invalid request: not an agent ID")
-		return nil, status.Error(codes.InvalidArgument, "not an agent ID")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "not an agent ID", nil)
 	}
 
 	if !id.MemberOf(s.td) {
-		log.Error("Invalid request: cannot ban an agent that does not belong to this trust domain")
-		return nil, status.Errorf(codes.InvalidArgument, "cannot ban an agent that does not belong to this trust domain")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "cannot ban an agent that does not belong to this trust domain", nil)
 	}
 
 	// The agent "Banned" state is pointed out by setting its
@@ -248,11 +232,9 @@ func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*em
 		log.Info("Agent banned")
 		return &empty.Empty{}, nil
 	case codes.NotFound:
-		log.WithError(err).Error("Agent not found")
-		return nil, status.Errorf(codes.NotFound, "agent not found: %v", err)
+		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
-		log.WithError(err).Error("Unable to ban agent")
-		return nil, status.Errorf(codes.Internal, "unable to ban agent: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to ban agent", err)
 	}
 }
 
@@ -261,21 +243,18 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		log.WithError(err).Error("Rejecting request due to attest agent rate limiting")
-		return err
+		return api.MakeErr(log, status.Code(err), "rejecting request due to attest agent rate limiting", err)
 	}
 
 	req, err := stream.Recv()
 	if err != nil {
-		log.WithError(err).Error("Failed to receive request from stream")
-		return status.Errorf(codes.InvalidArgument, "failed to receive request from stream: %v", err)
+		return api.MakeErr(log, codes.InvalidArgument, "failed to receive request from stream", err)
 	}
 
 	// validate
 	params := req.GetParams()
 	if err := validateAttestAgentParams(params); err != nil {
-		log.WithError(err).Error("Invalid request: malformed param")
-		return status.Errorf(codes.InvalidArgument, "malformed param: %v", err)
+		return api.MakeErr(log, codes.InvalidArgument, "malformed param", err)
 	}
 
 	log = log.WithField(telemetry.NodeAttestorType, params.Data.Type)
@@ -297,8 +276,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	agentID := attestResp.AgentId
 	agentSpiffeID, err := spiffeid.FromString(agentID)
 	if err != nil {
-		log.WithError(err).Error("Invalid agent id")
-		return status.Error(codes.Internal, "invalid agent id")
+		return api.MakeErr(log, codes.Internal, "invalid agent id", err)
 	}
 	log = log.WithField(telemetry.AgentID, agentID)
 
@@ -307,13 +285,11 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 		SpiffeId: agentID,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch agent")
-		return status.Error(codes.Internal, "failed to fetch agent")
+		return api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
 
 	if attestedNode.Node != nil && nodeutil.IsAgentBanned(attestedNode.Node) {
-		log.Error("Failed to attest: agent is banned")
-		return status.Error(codes.PermissionDenied, "failed to attest: agent is banned")
+		return api.MakeErr(log, codes.PermissionDenied, "failed to attest: agent is banned", nil)
 	}
 
 	// parse and sign CSR
@@ -325,8 +301,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	// augment selectors with resolver
 	augmentedSels, err := s.augmentSelectors(ctx, agentID, attestResp.Selectors, params.Data.Type)
 	if err != nil {
-		log.WithError(err).Error("Failed to augment selectors")
-		return status.Error(codes.Internal, "failed to augment selectors")
+		return api.MakeErr(log, codes.Internal, "failed to augment selectors", err)
 	}
 	// store augmented selectors
 	_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
@@ -336,8 +311,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 		},
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to update selectors")
-		return status.Error(codes.Internal, "failed to update selectors")
+		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
 
 	// create or update attested entry
@@ -350,8 +324,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 				CertSerialNumber:    svid[0].SerialNumber.String(),
 			}}
 		if _, err := s.ds.CreateAttestedNode(ctx, req); err != nil {
-			log.WithError(err).Error("Failed to create attested agent")
-			return status.Error(codes.Internal, "failed to create attested agent")
+			return api.MakeErr(log, codes.Internal, "failed to create attested agent", err)
 		}
 	} else {
 		req := &datastore.UpdateAttestedNodeRequest{
@@ -360,8 +333,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 			CertSerialNumber: svid[0].SerialNumber.String(),
 		}
 		if _, err := s.ds.UpdateAttestedNode(ctx, req); err != nil {
-			log.WithError(err).Error("Failed to update attested agent")
-			return status.Error(codes.Internal, "failed to update attested agent")
+			return api.MakeErr(log, codes.Internal, "failed to update attested agent", err)
 		}
 	}
 
@@ -374,8 +346,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	log.Info("Agent attestation request completed")
 
 	if err := stream.Send(response); err != nil {
-		log.WithError(err).Error("Failed to send response over stream")
-		return status.Errorf(codes.Internal, "failed to send response over stream: %v", err)
+		return api.MakeErr(log, codes.Internal, "failed to send response over stream", err)
 	}
 
 	return nil
@@ -385,25 +356,21 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		log.WithError(err).Error("Rejecting request due to renew agent rate limiting")
-		return nil, err
+		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to renew agent rate limiting", err)
 	}
 
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		log.Error("Caller ID missing from request context")
-		return nil, status.Error(codes.Internal, "caller ID missing from request context")
+		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
 	log.Debug("Renewing agent SVID")
 
 	if req.Params == nil {
-		log.Error("Invalid argument: params cannot be nil")
-		return nil, status.Error(codes.InvalidArgument, "params cannot be nil")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "params cannot be nil", nil)
 	}
 	if len(req.Params.Csr) == 0 {
-		log.Error("Invalid argument: missing CSR")
-		return nil, status.Error(codes.InvalidArgument, "missing CSR")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
 
 	agentSVID, err := s.signSvid(ctx, &callerID, req.Params.Csr, log)
@@ -437,20 +404,20 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinToke
 	log := rpccontext.Logger(ctx)
 
 	if req.Ttl < 1 {
-		log.Error("TTL is required")
-		return nil, status.Error(codes.InvalidArgument, "ttl is required, you must provide one")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "ttl is required, you must provide one", nil)
 	}
 
 	// If provided, check that the AgentID is valid BEFORE creating the join token so we can fail early
 	var agentID spiffeid.ID
 	var err error
 	if req.AgentId != nil {
+		log.WithField(telemetry.SPIFFEID, req.AgentId.String())
 		agentID, err = api.IDFromProto(req.AgentId)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid spiffe ID: %v", err)
+			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid spiffe ID", err)
 		}
 		if agentID.TrustDomain() != s.td {
-			return nil, status.Errorf(codes.InvalidArgument, "requested agent SPIFFE ID does not match server trust domain")
+			return nil, api.MakeErr(log, codes.InvalidArgument, "requested agent SPIFFE ID does not match server trust domain", nil)
 		}
 	}
 
@@ -458,8 +425,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinToke
 	if req.Token == "" {
 		u, err := uuid.NewV4()
 		if err != nil {
-			log.WithError(err).Error("Failed to generate token UUID")
-			return nil, status.Errorf(codes.Internal, "failed to generate token UUID: %v", err)
+			return nil, api.MakeErr(log, codes.Internal, "failed to generate token UUID", err)
 		}
 		req.Token = u.String()
 	}
@@ -473,14 +439,13 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinToke
 		},
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to create token")
-		return nil, status.Errorf(codes.Internal, "failed to create token: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to create token", err)
 	}
 
 	if req.AgentId != nil {
 		err := s.createJoinTokenRegistrationEntry(ctx, req.Token, agentID.String())
 		if err != nil {
-			return nil, err
+			return nil, api.MakeErr(log, codes.Internal, "failed to create join token registration entry", err)
 		}
 	}
 
@@ -500,7 +465,7 @@ func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token st
 	}
 	_, err := s.ds.CreateRegistrationEntry(ctx, req)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to create join token registration entry: %v", err)
+		return err
 	}
 	return nil
 }
@@ -511,19 +476,16 @@ func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateA
 	case codes.OK:
 		return nil
 	case codes.NotFound:
-		log.WithError(err).Error("Agent not found")
-		return status.Errorf(codes.NotFound, "agent not found: %v", err)
+		return api.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
-		log.WithError(err).Error("Failed to update agent")
-		return status.Errorf(codes.Internal, "failed to update agent: %v", err)
+		return api.MakeErr(log, codes.Internal, "failed to update agent", err)
 	}
 }
 
 func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
 	parsedCsr, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
-		log.WithError(err).Error("Invalid argument: failed to parse CSR")
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse CSR: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse CSR", err)
 	}
 
 	// Sign a new X509 SVID
@@ -532,8 +494,7 @@ func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte
 		PublicKey: parsedCsr.PublicKey,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to sign X509 SVID")
-		return nil, status.Errorf(codes.Internal, "failed to sign X509 SVID: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509 SVID", err)
 	}
 
 	return x509Svid, nil
@@ -558,11 +519,9 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 	})
 	switch {
 	case err != nil:
-		log.WithError(err).Error("Failed to fetch join token")
-		return nil, status.Error(codes.Internal, "failed to fetch join token")
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
 	case resp.JoinToken == nil:
-		log.Error("Failed to attest: join token does not exist or has already been used")
-		return nil, status.Error(codes.InvalidArgument, "failed to attest: join token does not exist or has already been used")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
 	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
@@ -570,11 +529,9 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 	})
 	switch {
 	case err != nil:
-		log.WithError(err).Error("Failed to delete join token")
-		return nil, status.Error(codes.Internal, "failed to delete join token")
+		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
 	case time.Unix(resp.JoinToken.Expiry, 0).Before(s.clk.Now()):
-		log.Error("Join token expired")
-		return nil, status.Error(codes.InvalidArgument, "join token expired")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
 	tokenPath := path.Join("spire", "agent", "join_token", token)
@@ -589,14 +546,12 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 
 	nodeAttestor, ok := s.cat.GetNodeAttestorNamed(attestorType)
 	if !ok {
-		log.Error("Could not find node attestor type")
-		return nil, status.Errorf(codes.FailedPrecondition, "could not find node attestor type %q", attestorType)
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "could not find node attestor type", nil)
 	}
 
 	attestorStream, err := nodeAttestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Unable to open stream with attestor")
-		return nil, status.Error(codes.Internal, "unable to open stream with attestor")
+		return nil, api.MakeErr(log, codes.Internal, "failed to open stream with attestor", err)
 	}
 
 	attestRequest := &nodeattestor.AttestRequest{
@@ -610,8 +565,7 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 	for {
 		attestResp, err = attest(attestorStream, attestRequest)
 		if err != nil {
-			log.WithError(err).Error("Failed to attest")
-			return nil, status.Error(codes.Internal, "failed to attest")
+			return nil, api.MakeErr(log, codes.Internal, "failed to attest", err)
 		}
 		// Without a challenge we are done. Otherwise we need to continue the challenge/response flow
 		if attestResp.Challenge == nil {
@@ -624,14 +578,12 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 			},
 		}
 		if err := agentStream.Send(resp); err != nil {
-			log.WithError(err).Error("Failed to send challenge to agent")
-			return nil, status.Error(codes.Internal, "failed to send challenge to agent")
+			return nil, api.MakeErr(log, codes.Internal, "failed to send challenge to agent", err)
 		}
 
 		req, err := agentStream.Recv()
 		if err != nil {
-			log.WithError(err).Error("Failed to receive challenge from agent")
-			return nil, status.Error(codes.Internal, "failed to receive challenge from agent")
+			return nil, api.MakeErr(log, codes.Internal, "failed to receive challenge from agent", err)
 		}
 
 		attestRequest = &nodeattestor.AttestRequest{
@@ -640,13 +592,11 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 	}
 
 	if attestResp.AgentId == "" {
-		log.WithError(err).Error("Failed to attest: AgentID response should not be empty")
-		return nil, status.Error(codes.Internal, "failed to attest: AgentID response should not be empty")
+		return nil, api.MakeErr(log, codes.Internal, "failed to attest: AgentID response should not be empty", nil)
 	}
 
 	if err := attestorStream.CloseSend(); err != nil {
-		log.WithError(err).Error("Failed to close send stream")
-		return nil, status.Errorf(codes.Internal, "failed to close send stream: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to close send stream", err)
 	}
 	if _, err := attestorStream.Recv(); err != io.EOF {
 		log.WithError(err).Warn("Expected EOF on attestation stream")
