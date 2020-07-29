@@ -262,11 +262,8 @@ func appendBundle(ctx context.Context, c *itclient.Client) error {
 	}
 
 	resp, err := c.BundleClient().AppendBundle(ctx, &bundle.AppendBundleRequest{
-		Bundle: &types.Bundle{
-			TrustDomain:     c.Td.String(),
-			X509Authorities: []*types.X509Certificate{{Asn1: blk.Bytes}},
-			JwtAuthorities:  []*types.JWTKey{jwtKey},
-		},
+		X509Authorities: []*types.X509Certificate{{Asn1: blk.Bytes}},
+		JwtAuthorities:  []*types.JWTKey{jwtKey},
 	})
 	switch {
 	case c.ExpectErrors:

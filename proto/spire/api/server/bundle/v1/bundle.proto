@@ -66,12 +66,11 @@ message GetBundleRequest {
 }
 
 message AppendBundleRequest {
-    // Required. The bundle to append. Must be the bundle for the trust domain
-    // of the server.
-    spire.types.Bundle bundle = 1;
+    // X.509 authorities to append.
+    repeated spire.types.X509Certificate x509_authorities = 1;
 
-    // An input mask indicating which bundle fields should be appended.
-    spire.types.BundleMask input_mask = 2;
+    // JWT authorities to append.
+    repeated spire.types.JWTKey jwt_authorities = 2;
 
     // An output mask indicating which bundle fields are set in the response.
     spire.types.BundleMask output_mask = 3;

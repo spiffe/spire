@@ -349,7 +349,7 @@ func TestListAgents(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to parse selectors",
+					Message: "Invalid argument: failed to parse selectors",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing selector type",
 					},
@@ -429,7 +429,7 @@ func TestBanAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid SPIFFE ID",
+					Message: "Invalid argument: invalid SPIFFE ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "request must specify SPIFFE ID",
 					},
@@ -446,7 +446,7 @@ func TestBanAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid SPIFFE ID",
+					Message: "Invalid argument: invalid SPIFFE ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
 					},
@@ -462,7 +462,7 @@ func TestBanAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: not an agent ID",
+					Message: "Invalid argument: not an agent ID",
 					Data: logrus.Fields{
 						telemetry.SPIFFEID: spiffeid.RequireTrustDomainFromString(agentTrustDomain).IDString(),
 					},
@@ -479,7 +479,7 @@ func TestBanAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: not an agent ID",
+					Message: "Invalid argument: not an agent ID",
 					Data: logrus.Fields{
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "agent-1").String(),
 					},
@@ -496,7 +496,7 @@ func TestBanAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: cannot ban an agent that does not belong to this trust domain",
+					Message: "Invalid argument: cannot ban an agent that does not belong to this trust domain",
 					Data: logrus.Fields{
 						telemetry.SPIFFEID: spiffeid.Must("another-example.org", agentPath).String(),
 					},
@@ -509,13 +509,12 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: agentTrustDomain,
 				Path:        "/spire/agent/agent-2",
 			},
-			expectedErr: status.Error(codes.NotFound, "agent not found: rpc error: code = NotFound desc = datastore-sql: record not found"),
+			expectedErr: status.Error(codes.NotFound, "agent not found"),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "rpc error: code = NotFound desc = datastore-sql: record not found",
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "spire/agent/agent-2").String(),
 					},
 				},
@@ -528,11 +527,11 @@ func TestBanAgent(t *testing.T) {
 				Path:        agentPath,
 			},
 			dsError:     errors.New("unknown datastore error"),
-			expectedErr: status.Error(codes.Internal, "unable to ban agent: unknown datastore error"),
+			expectedErr: status.Error(codes.Internal, "failed to ban agent: unknown datastore error"),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Unable to ban agent",
+					Message: "Failed to ban agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "unknown datastore error",
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
@@ -632,7 +631,7 @@ func TestDeleteAgent(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid SPIFFE ID",
+					Message: "Invalid argument: invalid SPIFFE ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "spiffeid: trust domain is empty",
 					},
@@ -654,7 +653,6 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "rpc error: code = NotFound desc = datastore-sql: record not found",
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/notfound",
 					},
 				},
@@ -673,7 +671,7 @@ func TestDeleteAgent(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: not an agent ID",
+					Message: "Invalid argument: not an agent ID",
 					Data: logrus.Fields{
 						telemetry.SPIFFEID: "spiffe://example.org/host",
 					},
@@ -693,7 +691,7 @@ func TestDeleteAgent(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: cannot delete an agent that does not belong to this trust domain",
+					Message: "Invalid argument: cannot delete an agent that does not belong to this trust domain",
 					Data: logrus.Fields{
 						telemetry.SPIFFEID: "spiffe://another.org/spire/agent/node1",
 					},
@@ -823,7 +821,7 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to parse agent ID",
+					Message: "Invalid argument: failed to parse agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "request must specify SPIFFE ID",
 					},
@@ -838,7 +836,7 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to parse agent ID",
+					Message: "Invalid argument: failed to parse agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
 					},
@@ -868,14 +866,14 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch node",
+					Message: "Failed to fetch agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "datastore error",
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-1",
 					},
 				},
 			},
-			err:     "failed to fetch node: datastore error",
+			err:     "failed to fetch agent: datastore error",
 			code:    codes.Internal,
 			dsError: errors.New("datastore error"),
 		},
@@ -956,13 +954,13 @@ func TestRenewAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Rejecting request due to renew agent rate limiting",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = Unknown desc = rate limit fails",
+						logrus.ErrorKey: "rate limit fails",
 					},
 				},
 			},
 			paramReq:       &agentpb.RenewAgentRequest{},
-			paramsError:    status.Error(codes.Unknown, "rate limit fails"),
-			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
+			paramsError:    status.Error(codes.Unknown, "rejecting request due to renew agent rate limiting: rate limit fails"),
+			rateLimiterErr: errors.New("rate limit fails"),
 		},
 		{
 			name:       "no caller ID",
@@ -984,9 +982,6 @@ func TestRenewAgent(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = NotFound desc = datastore-sql: record not found",
-					},
 				},
 			},
 			paramReq: &agentpb.RenewAgentRequest{
@@ -994,7 +989,7 @@ func TestRenewAgent(t *testing.T) {
 					Csr: csr,
 				},
 			},
-			paramsError: status.Error(codes.NotFound, "agent not found: rpc error: code = NotFound desc = datastore-sql: record not found"),
+			paramsError: status.Error(codes.NotFound, "agent not found"),
 		},
 		{
 			name:       "missing CSR",
@@ -1266,7 +1261,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing params",
 					},
@@ -1286,7 +1281,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing attestation data",
 					},
@@ -1310,7 +1305,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing X509-SVID parameters",
 					},
@@ -1335,7 +1330,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing attestation data type",
 					},
@@ -1360,7 +1355,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing CSR",
 					},
@@ -1393,7 +1388,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to attest: join token does not exist or has already been used",
+					Message: "Invalid argument: failed to attest: join token does not exist or has already been used",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 					},
@@ -1432,7 +1427,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Join token expired",
+					Message: "Invalid argument: join token expired",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 					},
@@ -1449,7 +1444,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to attest: join token does not exist or has already been used",
+					Message: "Invalid argument: failed to attest: join token does not exist or has already been used",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 					},
@@ -1516,7 +1511,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:        "attest with bad attestor",
-			expectedErr: "could not find node attestor type \"bad_type\"",
+			expectedErr: "could not find node attestor type",
 			request:     getAttestAgentRequest("bad_type", "payload_with_result", testCsr),
 			code:        codes.FailedPrecondition,
 			expectedLogMsgs: []spiretest.LogEntry{

@@ -57,45 +57,37 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 	log := rpccontext.Logger(ctx)
 
 	if len(req.Csr) == 0 {
-		log.Error("Request missing CSR")
-		return nil, status.Errorf(codes.InvalidArgument, "request missing CSR")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
 
 	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
-		log.WithError(err).Error("Malformed CSR")
-		return nil, status.Errorf(codes.InvalidArgument, "malformed CSR: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "malformed CSR", err)
 	}
 
 	if err := csr.CheckSignature(); err != nil {
-		log.WithError(err).Error("Invalid CSR: signature verify failed")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: signature verify failed")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to verify CSR signature", err)
 	}
 
 	switch {
 	case len(csr.URIs) == 0:
-		log.Error("Invalid CSR: URI SAN is required")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: URI SAN is required")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is required", nil)
 	case len(csr.URIs) > 1:
-		log.Error("Invalid CSR: only one URI SAN is expected")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: only one URI SAN is expected")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "only one URI SAN is expected", nil)
 	}
 
 	id, err := spiffeid.FromURI(csr.URIs[0])
 	if err != nil {
-		log.WithError(err).Error("Invalid CSR: URI SAN is not a valid SPIFFE ID")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: URI SAN is not a valid SPIFFE ID: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is not a valid SPIFFE ID", err)
 	}
 
 	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
-		log.Errorf("Invalid SPIFFE ID in CSR: %v", err)
-		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID in CSR: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID in CSR", err)
 	}
 
 	for _, dnsName := range csr.DNSNames {
 		if err := x509util.ValidateDNS(dnsName); err != nil {
-			log.WithError(err).Error("Invalid CSR: DNS name is not valid")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid CSR: DNS name is not valid: %v", err)
+			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is not valid", err)
 		}
 	}
 
@@ -107,8 +99,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 		Subject:   csr.Subject,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to sign X509-SVID")
-		return nil, status.Errorf(codes.Internal, "failed to sign X509-SVID: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
 
 	return &svid.MintX509SVIDResponse{
@@ -135,13 +126,11 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SV
 	log := rpccontext.Logger(ctx)
 
 	if len(req.Params) == 0 {
-		log.Error("Request missing parameters")
-		return nil, status.Error(codes.InvalidArgument, "request missing parameters")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "missing parameters", nil)
 	}
 
 	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
-		log.WithError(err).Error("Rejecting request due to certificate signing rate limiting")
-		return nil, err
+		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to certificate signing rate limiting", err)
 	}
 
 	// Fetch authorized entries
@@ -163,14 +152,12 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SV
 func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map[string]*types.Entry, error) {
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		log.Error("Caller ID missing from request context")
-		return nil, status.Error(codes.Internal, "caller ID missing from request context")
+		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
 	entries, err := s.ef.FetchAuthorizedEntries(ctx, callerID)
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch registration entries")
-		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch registration entries", err)
 	}
 
 	entriesMap := make(map[string]*types.Entry, len(entries))
@@ -187,14 +174,12 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 
 	switch {
 	case param.EntryId == "":
-		log.Error("Invalid request: missing entry ID")
 		return &svid.BatchNewX509SVIDResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "missing entry ID"),
+			Status: api.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
 		}
 	case len(param.Csr) == 0:
-		log.Error("Invalid request: missing CSR")
 		return &svid.BatchNewX509SVIDResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "missing CSR"),
+			Status: api.MakeStatus(log, codes.InvalidArgument, "missing CSR", nil),
 		}
 	}
 
@@ -202,33 +187,29 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 
 	entry, ok := typeEntries[param.EntryId]
 	if !ok {
-		log.Error("Invalid request: entry not found or not authorized")
 		return &svid.BatchNewX509SVIDResponse_Result{
-			Status: api.CreateStatus(codes.NotFound, "entry not found or not authorized"),
+			Status: api.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
 		}
 	}
 
 	csr, err := x509.ParseCertificateRequest(param.Csr)
 	if err != nil {
-		log.WithError(err).Error("Invalid request: malformed CSR")
 		return &svid.BatchNewX509SVIDResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "malformed CSR: %v", err),
+			Status: api.MakeStatus(log, codes.InvalidArgument, "malformed CSR", err),
 		}
 	}
 
 	if err := csr.CheckSignature(); err != nil {
-		log.WithError(err).Error("Invalid request: invalid CSR signature")
 		return &svid.BatchNewX509SVIDResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "invalid CSR signature"),
+			Status: api.MakeStatus(log, codes.InvalidArgument, "invalid CSR signature", err),
 		}
 	}
 
 	spiffeID, err := api.IDFromProto(entry.SpiffeId)
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
-		log.WithError(err).Error("Entry has malformed SPIFFE ID")
 		return &svid.BatchNewX509SVIDResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "entry has malformed SPIFFE ID"),
+			Status: api.MakeStatus(log, codes.Internal, "entry has malformed SPIFFE ID", err),
 		}
 	}
 	log = log.WithField(telemetry.SPIFFEID, spiffeID.String())
@@ -240,9 +221,8 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to sign X509-SVID")
 		return &svid.BatchNewX509SVIDResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "failed to sign X509-SVID: %v", err),
+			Status: api.MakeStatus(log, codes.Internal, "failed to sign X509-SVID", err),
 		}
 	}
 
@@ -261,20 +241,17 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 
 	id, err := api.IDFromProto(protoID)
 	if err != nil {
-		log.WithError(err).Error("Failed to parse SPIFFE ID")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse SPIFFE ID", err)
 	}
 
 	if err := idutil.ValidateTrustDomainWorkload(id, s.td); err != nil {
-		log.Errorf("Invalid SPIFFE ID: %v", err)
-		return nil, status.Errorf(codes.InvalidArgument, "invalid SPIFFE ID: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
 	if len(audience) == 0 {
-		log.Error("At least one audience is required")
-		return nil, status.Error(codes.InvalidArgument, "at least one audience is required")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "at least one audience is required", nil)
 	}
 
 	token, err := s.ca.SignJWTSVID(ctx, ca.JWTSVIDParams{
@@ -283,14 +260,12 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 		Audience: audience,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to sign JWT-SVID")
-		return nil, status.Errorf(codes.Internal, "failed to sign JWT-SVID: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to sign JWT-SVID", err)
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
-		log.WithError(err).Error("Failed to get JWT-SVID expiry")
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, api.MakeErr(log, codes.Internal, "failed to get JWT-SVID expiry", err)
 	}
 
 	return &types.JWTSVID{
@@ -305,8 +280,7 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		log.WithError(err).Error("Rejecting request due to JWT signing request rate limiting")
-		return nil, err
+		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to JWT signing request rate limiting", err)
 	}
 
 	// Fetch authorized entries
@@ -317,8 +291,7 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (
 
 	entry, ok := entriesMap[req.EntryId]
 	if !ok {
-		log.Error("Invalid request: entry not found")
-		return nil, status.Error(codes.NotFound, "entry not found or not authorized")
+		return nil, api.MakeErr(log, codes.NotFound, "entry not found or not authorized", nil)
 	}
 
 	jwtsvid, err := s.mintJWTSVID(ctx, entry.SpiffeId, req.Audience, entry.Ttl)
@@ -335,14 +308,12 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		log.WithError(err).Error("Rejecting request due to downstream CA signing rate limit")
-		return nil, err
+		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to downstream CA signing rate limit", err)
 	}
 
 	downstreamEntries, isDownstream := rpccontext.CallerDownstreamEntries(ctx)
 	if !isDownstream {
-		log.Error("Caller is not a downstream workload")
-		return nil, status.Error(codes.Internal, "caller is not a downstream workload")
+		return nil, api.MakeErr(log, codes.Internal, "caller is not a downstream workload", nil)
 	}
 
 	entry := downstreamEntries[0]
@@ -358,21 +329,18 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to sign downstream X.509 CA")
-		return nil, status.Errorf(codes.Internal, "failed to sign downstream X.509 CA: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
 	}
 
 	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: s.td.IDString(),
 	})
 	if err != nil {
-		log.Errorf("Failed to fetch bundle: %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to fetch bundle: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
 	}
 
 	if dsResp.Bundle == nil {
-		log.Error("Bundle not found")
-		return nil, status.Error(codes.Internal, "bundle not found")
+		return nil, api.MakeErr(log, codes.NotFound, "bundle not found", nil)
 	}
 
 	rawRootCerts := make([][]byte, 0, len(dsResp.Bundle.RootCas))
@@ -391,13 +359,11 @@ func parseAndCheckCSR(ctx context.Context, csrBytes []byte) (*x509.CertificateRe
 
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
-		log.WithError(err).Error("Invalid request: malformed CSR")
-		return nil, status.Errorf(codes.InvalidArgument, "malformed CSR: %v", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "malformed CSR", err)
 	}
 
 	if err := csr.CheckSignature(); err != nil {
-		log.WithError(err).Error("Invalid request: invalid CSR signature")
-		return nil, status.Error(codes.InvalidArgument, "invalid CSR signature")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid CSR signature", err)
 	}
 
 	return csr, nil

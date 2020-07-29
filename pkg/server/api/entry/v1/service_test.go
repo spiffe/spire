@@ -222,9 +222,9 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad ByParentId",
-			err:    "invalid request: malformed ByParentId: spiffeid: invalid scheme",
+			err:    "failed to parse request: malformed ByParentId: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid request",
+			logMsg: "Invalid argument: failed to parse request",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					ByParentId: badID,
@@ -233,9 +233,9 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad BySpiffeId",
-			err:    "invalid request: malformed BySpiffeId: spiffeid: invalid scheme",
+			err:    "failed to parse request: malformed BySpiffeId: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid request",
+			logMsg: "Invalid argument: failed to parse request",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySpiffeId: badID,
@@ -244,8 +244,9 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:            "bad BySelectors (no selectors)",
-			err:             "invalid request: malformed BySelectors: empty selector set",
+			err:             "failed to parse request: malformed BySelectors: empty selector set",
 			code:            codes.InvalidArgument,
+			logMsg:          "Invalid argument: failed to parse request",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -255,9 +256,9 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad BySelectors (bad selector)",
-			err:    "invalid request: malformed BySelectors: missing selector type",
+			err:    "failed to parse request: malformed BySelectors: missing selector type",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid request",
+			logMsg: "Invalid argument: failed to parse request",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
@@ -277,6 +278,10 @@ func TestListEntries(t *testing.T) {
 			entries, err := test.client.ListEntries(context.Background(), tt.request)
 
 			// assert
+			if tt.logMsg != "" {
+				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
+			}
+
 			if tt.err != "" {
 				require.Nil(t, entries)
 				require.Error(t, err)
@@ -288,9 +293,6 @@ func TestListEntries(t *testing.T) {
 			require.NotNil(t, entries)
 			spiretest.AssertProtoListEqual(t, tt.expectedEntries, entries.Entries)
 			assert.Equal(t, tt.expectedNextPageToken, entries.NextPageToken)
-			if tt.logMsg != "" {
-				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
-			}
 		})
 	}
 }
@@ -393,7 +395,7 @@ func TestGetEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: missing ID",
+					Message: "Invalid argument: missing ID",
 				},
 			},
 		},
@@ -541,7 +543,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert entry",
+					Message: "Invalid argument: failed to convert entry",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "invalid DNS name: empty or only whitespace",
 					},
@@ -699,6 +701,15 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Entry already exists",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://example.org/bar",
+					},
+				},
+			},
 			reqEntries: []*types.Entry{
 				{
 					ParentId: api.ProtoFromID(entryParentID),
@@ -725,7 +736,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert entry",
+					Message: "Invalid argument: failed to convert entry",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "invalid parent ID: spiffeid: trust domain is empty",
 					},
@@ -768,7 +779,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Unable to convert registration entry",
+					Message: "Failed to convert entry",
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "spiffeid: invalid scheme",
 						telemetry.SPIFFEID: "spiffe://example.org/workload",
@@ -779,7 +790,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
-						Message: "unable to convert registration entry: spiffeid: invalid scheme",
+						Message: "failed to convert entry: spiffeid: invalid scheme",
 					},
 				},
 			},
@@ -882,7 +893,16 @@ func TestBatchDeleteEntry(t *testing.T) {
 					Id:     m[barSpiffeID].EntryId,
 				})
 
-				return results, nil
+				expectedLogs := []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Entry not found",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: "not found",
+						},
+					},
+				}
+				return results, expectedLogs
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{m[fooSpiffeID].EntryId, "not found", m[barSpiffeID].EntryId}
@@ -912,7 +932,7 @@ func TestBatchDeleteEntry(t *testing.T) {
 					}, []spiretest.LogEntry{
 						{
 							Level:   logrus.ErrorLevel,
-							Message: "Invalid request: missing entry ID",
+							Message: "Invalid argument: missing entry ID",
 						},
 					}
 			},
@@ -953,14 +973,22 @@ func TestBatchDeleteEntry(t *testing.T) {
 			expectDs: dsEntries,
 			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
 				return []*entrypb.BatchDeleteEntryResponse_Result{
-					{
-						Status: &types.Status{
-							Code:    int32(codes.NotFound),
-							Message: "entry not found",
+						{
+							Status: &types.Status{
+								Code:    int32(codes.NotFound),
+								Message: "entry not found",
+							},
+							Id: "invalid id",
 						},
-						Id: "invalid id",
-					},
-				}, nil
+					}, []spiretest.LogEntry{
+						{
+							Level:   logrus.ErrorLevel,
+							Message: "Entry not found",
+							Data: logrus.Fields{
+								telemetry.RegistrationID: "invalid id",
+							},
+						},
+					}
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{"invalid id"}
@@ -1108,13 +1136,13 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		},
 		{
 			name:       "error",
-			err:        "failed to fetch registration entries",
+			err:        "failed to fetch entries",
 			code:       codes.Internal,
 			fetcherErr: "fetcher fails",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch registration entries",
+					Message: "Failed to fetch entries",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "rpc error: code = Internal desc = fetcher fails",
 					},
@@ -1633,7 +1661,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "invalid spiffe ID: spiffeid: trust domain is empty",
@@ -1663,7 +1691,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "invalid parent ID: spiffeid: trust domain is empty",
@@ -1693,7 +1721,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							"error":                  "invalid parent ID: spiffeid: trust domain is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
@@ -1723,7 +1751,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							"error":                  "invalid spiffe ID: spiffeid: trust domain is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
@@ -1753,7 +1781,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							"error":                  "selector list is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
@@ -1783,7 +1811,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "failed to update entry",
+						Message: "Failed to update entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "datastore error",
