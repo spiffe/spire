@@ -760,8 +760,7 @@ func TestDeleteAgent(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			id, err := api.UncheckedIDFromProto(tt.req.Id)
-			require.NoError(t, err)
+			id := spiffeid.Must(tt.req.Id.TrustDomain, tt.req.Id.Path)
 
 			node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
 				SpiffeId: id.String(),

@@ -75,6 +75,11 @@ func TestIDFromProto(t *testing.T) {
 				spiffeID:   api.ProtoFromID(agent),
 				expectedID: agent,
 			},
+			{
+				name:        "no path",
+				spiffeID:    &types.SPIFFEID{TrustDomain: "domain.test"},
+				expectedErr: `"spiffe://domain.test" is not a member of trust domain "domain.test"; path is empty`,
+			},
 		})
 	})
 
@@ -95,6 +100,11 @@ func TestIDFromProto(t *testing.T) {
 				spiffeID:   api.ProtoFromID(agent),
 				expectedID: agent,
 			},
+			{
+				name:        "no path",
+				spiffeID:    &types.SPIFFEID{TrustDomain: "domain.test"},
+				expectedErr: `"spiffe://domain.test" is not an agent in trust domain "domain.test"; path is empty`,
+			},
 		})
 	})
 
@@ -114,6 +124,11 @@ func TestIDFromProto(t *testing.T) {
 				name:        "agent is not a workload",
 				spiffeID:    api.ProtoFromID(agent),
 				expectedErr: `"spiffe://domain.test/spire/agent/foo" is not a workload in trust domain "domain.test"; path is in the reserved namespace`,
+			},
+			{
+				name:        "no path",
+				spiffeID:    &types.SPIFFEID{TrustDomain: "domain.test"},
+				expectedErr: `"spiffe://domain.test" is not a workload in trust domain "domain.test"; path is empty`,
 			},
 		})
 	})

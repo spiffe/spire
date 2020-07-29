@@ -10,7 +10,7 @@ import (
 )
 
 func TrustDomainMemberIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := UncheckedIDFromProto(protoID)
+	id, err := idFromProto(protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -31,7 +31,7 @@ func VerifyTrustDomainMemberID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 }
 
 func TrustDomainAgentIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := UncheckedIDFromProto(protoID)
+	id, err := idFromProto(protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -55,7 +55,7 @@ func VerifyTrustDomainAgentID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 }
 
 func TrustDomainWorkloadIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := UncheckedIDFromProto(protoID)
+	id, err := idFromProto(protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -78,16 +78,6 @@ func VerifyTrustDomainWorkloadID(td spiffeid.TrustDomain, id spiffeid.ID) error 
 	return nil
 }
 
-// UncheckedIDFromProto converts a SPIFFE ID from the given types.SPIFFEID to
-// spiffeid.ID. It does not do any validation outside of ensuring that the ID
-// is well-formed.
-func UncheckedIDFromProto(protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	if protoID == nil {
-		return spiffeid.ID{}, errors.New("request must specify SPIFFE ID")
-	}
-	return spiffeid.New(protoID.TrustDomain, protoID.Path)
-}
-
 // ProtoFromID converts a SPIFFE ID from the given spiffeid.ID to
 // types.SPIFFEID
 func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
@@ -95,4 +85,11 @@ func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 		TrustDomain: id.TrustDomain().String(),
 		Path:        id.Path(),
 	}
+}
+
+func idFromProto(protoID *types.SPIFFEID) (spiffeid.ID, error) {
+	if protoID == nil {
+		return spiffeid.ID{}, errors.New("request must specify SPIFFE ID")
+	}
+	return spiffeid.New(protoID.TrustDomain, protoID.Path)
 }
