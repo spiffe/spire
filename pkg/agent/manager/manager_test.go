@@ -41,8 +41,7 @@ import (
 )
 
 const (
-	tmpSubdirName = "manager-test"
-	trustDomain   = "example.org"
+	trustDomain = "example.org"
 )
 
 var (

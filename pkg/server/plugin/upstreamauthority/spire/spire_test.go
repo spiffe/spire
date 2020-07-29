@@ -60,7 +60,6 @@ type handler struct {
 }
 
 type whandler struct {
-	dir        string
 	socketPath string
 }
 
