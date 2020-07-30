@@ -132,7 +132,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 
 	agentID, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse agent ID", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, agentID.String())

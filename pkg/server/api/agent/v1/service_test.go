@@ -820,7 +820,7 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: failed to parse agent ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "request must specify SPIFFE ID",
 					},
@@ -835,7 +835,7 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: failed to parse agent ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
 					},
