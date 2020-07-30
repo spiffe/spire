@@ -21,6 +21,10 @@ const (
 	serverID
 )
 
+const (
+	ServerIDPath = "/spire/server"
+)
+
 // ValidateSpiffeID validates the SPIFFE ID according to the SPIFFE
 // specification. The validation mode controls the type of validation.
 func ValidateSpiffeID(spiffeID string, mode ValidationMode) error {
@@ -342,7 +346,7 @@ func ServerURI(trustDomain string) *url.URL {
 	return &url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
-		Path:   path.Join("spire", "server"),
+		Path:   ServerIDPath,
 	}
 }
 

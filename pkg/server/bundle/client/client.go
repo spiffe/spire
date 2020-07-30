@@ -7,10 +7,11 @@ import (
 	"io"
 	"net/http"
 
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
 )
 
@@ -47,25 +48,36 @@ type client struct {
 	client *http.Client
 }
 
-func NewClient(config ClientConfig) Client {
+func NewClient(config ClientConfig) (Client, error) {
 	httpClient := &http.Client{}
 	if config.SPIFFEAuth != nil {
 		spiffeID := config.SPIFFEAuth.EndpointSpiffeID
 		if spiffeID == "" {
 			spiffeID = idutil.ServerID(config.TrustDomain)
 		}
-		peer := &spiffe_tls.TLSPeer{
-			SpiffeIDs:  []string{spiffeID},
-			TrustRoots: util.NewCertPool(config.SPIFFEAuth.RootCAs...),
+
+		td, err := spiffeid.TrustDomainFromString(config.TrustDomain)
+		if err != nil {
+			return nil, err
 		}
+
+		endpointID, err := spiffeid.FromString(spiffeID)
+		if err != nil {
+			return nil, err
+		}
+
+		bundle := x509bundle.FromX509Authorities(td, config.SPIFFEAuth.RootCAs)
+
+		authorizer := tlsconfig.AuthorizeID(endpointID)
+
 		httpClient.Transport = &http.Transport{
-			TLSClientConfig: peer.NewTLSConfig(nil),
+			TLSClientConfig: tlsconfig.TLSClientConfig(bundle, authorizer),
 		}
 	}
 	return &client{
 		c:      config,
 		client: httpClient,
-	}
+	}, nil
 }
 
 func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {

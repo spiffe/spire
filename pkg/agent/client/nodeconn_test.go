@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,7 @@ func newTestConn(t *testing.T) *grpc.ClientConn {
 	client := newClient(&Config{
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   url.URL{Scheme: "spiffe", Host: "example.org"},
 	})
 	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 		// make a normal grpc dial but without any of the provided options that may cause it to fail

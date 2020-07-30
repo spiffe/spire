@@ -11,11 +11,11 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/go-spiffe/spiffetest"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/util"
 )
 
@@ -100,8 +100,8 @@ func TestPruneBundle(t *testing.T) {
 
 func TestCommonBundleFromProto(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
-	ca := spiffetest.NewCA(t)
-	rootCA := ca.Roots()[0]
+	ca := testca.New(t, td)
+	rootCA := ca.X509Authorities()[0]
 	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
 	require.NoError(t, err)
 

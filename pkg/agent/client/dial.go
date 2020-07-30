@@ -2,14 +2,19 @@ package client
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/spiffe/go-spiffe/spiffe"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
@@ -39,40 +44,19 @@ type DialServerConfig struct {
 }
 
 func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn, error) {
-	tlsConfig := &tls.Config{
-		// Disable standard verification. The VerifyPeerCertificate callback
-		// will implement SPIFFE authentication.
-		InsecureSkipVerify: true, //nolint: gosec
-
-		// Perform SPIFFE authentication against the latest bundle for the
-		// trust domain. The peer certificate must present the server SPIFFE
-		// ID for the trust domain.
-		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			roots := x509.NewCertPool()
-			for _, c := range config.GetBundle() {
-				roots.AddCert(c)
-			}
-			trustDomainRoots := map[string]*x509.CertPool{
-				idutil.TrustDomainID(config.TrustDomain): roots,
-			}
-			var serverChain []*x509.Certificate
-			for _, rawCert := range rawCerts {
-				cert, err := x509.ParseCertificate(rawCert)
-				if err != nil {
-					return err
-				}
-				serverChain = append(serverChain, cert)
-			}
-
-			_, err := spiffe.VerifyPeerCertificate(serverChain, trustDomainRoots, spiffe.ExpectPeer(idutil.ServerID(config.TrustDomain)))
-			return err
-		},
+	td, err := spiffeid.TrustDomainFromString(config.TrustDomain)
+	if err != nil {
+		return nil, err
 	}
+	bundleSource := newBundleSource(td, config.GetBundle)
+	serverID := td.NewID(idutil.ServerIDPath)
+	authorizer := tlsconfig.AuthorizeID(serverID)
 
-	if config.GetAgentCertificate != nil {
-		tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return config.GetAgentCertificate(), nil
-		}
+	var tlsConfig *tls.Config
+	if config.GetAgentCertificate == nil {
+		tlsConfig = tlsconfig.TLSClientConfig(bundleSource, authorizer)
+	} else {
+		tlsConfig = tlsconfig.MTLSClientConfig(newX509SVIDSource(config.GetAgentCertificate), bundleSource, authorizer)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, _defaultDialTimeout)
@@ -98,4 +82,51 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		return nil, fmt.Errorf("failed to dial %s: %v", config.Address, err)
 	}
 	return client, nil
+}
+
+type bundleSource struct {
+	td     spiffeid.TrustDomain
+	getter func() []*x509.Certificate
+}
+
+func newBundleSource(td spiffeid.TrustDomain, getter func() []*x509.Certificate) x509bundle.Source {
+	return &bundleSource{td: td, getter: getter}
+}
+
+func (s *bundleSource) GetX509BundleForTrustDomain(trustDomain spiffeid.TrustDomain) (*x509bundle.Bundle, error) {
+	bundle := x509bundle.FromX509Authorities(s.td, s.getter())
+	return bundle.GetX509BundleForTrustDomain(trustDomain)
+}
+
+type x509SVIDSource struct {
+	getter func() *tls.Certificate
+}
+
+func newX509SVIDSource(getter func() *tls.Certificate) x509svid.Source {
+	return &x509SVIDSource{getter: getter}
+}
+
+func (s *x509SVIDSource) GetX509SVID() (*x509svid.SVID, error) {
+	tlsCert := s.getter()
+
+	certificates, err := x509util.RawCertsToCertificates(tlsCert.Certificate)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := x509svid.IDFromCert(certificates[0])
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, ok := tlsCert.PrivateKey.(crypto.Signer)
+	if !ok {
+		return nil, fmt.Errorf("agent certificate private key type %T is unexpectedly not a signer", tlsCert.PrivateKey)
+	}
+
+	return &x509svid.SVID{
+		ID:           id,
+		Certificates: certificates,
+		PrivateKey:   privateKey,
+	}, nil
 }
