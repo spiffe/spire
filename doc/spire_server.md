@@ -98,8 +98,8 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 ## Federation configuration
 
-SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.  
-A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.  
+SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
+A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
 Using the `federation` section you will be able to configure the bundle endpoints as follows:
 ```hcl
 server {
@@ -360,6 +360,30 @@ Typically, you may want at least:
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-config`     | Path to a SPIRE server configuration file                          | server.conf    |
 | `-expandEnv`  | Expand environment $VARIABLES in the config file                   | false          |
+
+### `spire-server x509 mint`
+
+Mints an X509-SVID.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-dns`        | A DNS name that will be included in SVID. Can be used more than once | |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-spiffeID`   | The SPIFFE ID of the X509-SVID                                     | |
+| `-ttl`        | The TTL of the X509-SVID                                           | |
+| `-write`      | Directory to write output to instead of stdout                     | |
+
+### `spire-server jwt mint`
+
+Mints a JWT-SVID.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-audience`   | Audience claim that will be included in the SVID. Can be used more than once | |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-spiffeID`   | The SPIFFE ID of the JWT-SVID                                      | |
+| `-ttl`        | The TTL of the JWT-SVID                                            | |
+| `-write`      | File to write token to instead of stdout                           | |
 
 ### `spire-server experimental bundle show`
 
