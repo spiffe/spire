@@ -51,6 +51,7 @@ type Endpoints struct {
 	UDSAddr             *net.UnixAddr
 	SVIDObserver        svid.Observer
 	TrustDomain         spiffeid.TrustDomain
+	SVIDTTL             time.Duration
 	DataStore           datastore.DataStore
 	RegistrationServer  registration_pb.RegistrationServer
 	NodeServer          node_pb.NodeServer
@@ -79,6 +80,7 @@ func New(c Config) (*Endpoints, error) {
 		UDSAddr:             c.UDSAddr,
 		SVIDObserver:        c.SVIDObserver,
 		TrustDomain:         c.TrustDomain,
+		SVIDTTL:             c.SVIDTTL,
 		DataStore:           c.Catalog.GetDataStore(),
 		RegistrationServer:  c.makeRegistrationHandler(),
 		NodeServer:          nodeHandler,

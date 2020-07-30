@@ -98,8 +98,8 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 ## Federation configuration
 
-SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.  
-A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.  
+SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
+A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
 Using the `federation` section you will be able to configure the bundle endpoints as follows:
 ```hcl
 server {
@@ -234,7 +234,7 @@ Creates registration entries.
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The value configured in `default_svid_ttl` |
 
 ### `spire-server entry update`
 
@@ -253,7 +253,7 @@ Updates registration entries.
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The value configured in `default_svid_ttl` |
 
 ### `spire-server entry delete`
 

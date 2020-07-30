@@ -56,6 +56,9 @@ func TestNew(t *testing.T) {
 
 	svidObserver := newSVIDObserver(nil)
 
+	svidTTL, err := time.ParseDuration("1h")
+	require.NoError(t, err)
+
 	log, _ := test.NewNullLogger()
 	metrics := fakemetrics.New()
 	ds := fakedatastore.New(t)
@@ -81,6 +84,7 @@ func TestNew(t *testing.T) {
 		UDSAddr:               udsAddr,
 		SVIDObserver:          svidObserver,
 		TrustDomain:           testTD,
+		SVIDTTL:               svidTTL,
 		Catalog:               cat,
 		ServerCA:              serverCA,
 		BundleEndpoint:        bundle.EndpointConfig{Address: tcpAddr},
@@ -94,6 +98,7 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, udsAddr, endpoints.UDSAddr)
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
+	assert.Equal(t, svidTTL, endpoints.SVIDTTL)
 	assert.NotNil(t, endpoints.RegistrationServer)
 	assert.NotNil(t, endpoints.NodeServer)
 	if assert.NotNil(t, endpoints.ExperimentalServers) {

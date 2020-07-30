@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -39,6 +40,9 @@ type Config struct {
 	// The server's configured trust domain. Used for validation, server SVID, etc.
 	TrustDomain spiffeid.TrustDomain
 
+	// The server's configured default svid ttl. Used for managing entry, etc.
+	SVIDTTL time.Duration
+
 	// Plugin catalog
 	Catalog catalog.Catalog
 
@@ -67,6 +71,7 @@ func (c *Config) makeRegistrationHandler() *registration.Handler {
 		Metrics:     c.Metrics,
 		Catalog:     c.Catalog,
 		TrustDomain: *c.TrustDomain.ID().URL(),
+		SVIDTTL:     c.SVIDTTL,
 		ServerCA:    c.ServerCA,
 	}
 }

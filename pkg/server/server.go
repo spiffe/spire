@@ -305,6 +305,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		UDSAddr:                     s.config.BindUDSAddress,
 		SVIDObserver:                svidObserver,
 		TrustDomain:                 spiffeid.RequireTrustDomainFromURI(&s.config.TrustDomain),
+		SVIDTTL:                     s.config.SVIDTTL,
 		Catalog:                     catalog,
 		ServerCA:                    serverCA,
 		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),

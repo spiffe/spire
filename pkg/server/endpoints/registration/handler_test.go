@@ -74,6 +74,7 @@ type HandlerSuite struct {
 	ds       *fakedatastore.DataStore
 	serverCA *fakeserverca.CA
 	handler  registration.RegistrationClient
+	svidTTL  time.Duration
 }
 
 func (s *HandlerSuite) SetupTest() {
@@ -82,6 +83,10 @@ func (s *HandlerSuite) SetupTest() {
 	s.ds = fakedatastore.New(s.T())
 	s.serverCA = fakeserverca.New(s.T(), "example.org", nil)
 
+	svidTTL, err := time.ParseDuration("1h")
+	s.Require().NoError(err)
+	s.svidTTL = svidTTL
+
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(s.ds)
 
@@ -89,6 +94,7 @@ func (s *HandlerSuite) SetupTest() {
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
 		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
+		SVIDTTL:     s.svidTTL,
 		Catalog:     catalog,
 		ServerCA:    s.serverCA,
 	}
@@ -412,6 +418,16 @@ func (s *HandlerSuite) TestCreateEntry() {
 			},
 			Err: status.Error(codes.AlreadyExists, "entry already exists").Error(),
 		},
+		{
+			Name: "SuccessWhenSpecifyingTTL",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "C", Value: "c"}},
+				DnsNames:  []string{"abcd.ef"},
+				Ttl:       7200,
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -432,6 +448,11 @@ func (s *HandlerSuite) TestCreateEntry() {
 			require.NotNil(t, entry)
 			// set ID (unknown before fetch) to do comparison
 			testCase.Entry.EntryId = entry.Entry.EntryId
+			// If ttl is not set, The SVIDTTL of the handler is set to the entry ttl by CreateEntry.
+			// so set the SVIDTTL to the expected value here.
+			if testCase.Entry.Ttl == 0 {
+				testCase.Entry.Ttl = int32(s.svidTTL.Seconds())
+			}
 			t.Logf("actual=%+v expected=%+v", entry.Entry, testCase.Entry)
 			require.True(t, proto.Equal(entry.Entry, testCase.Entry))
 		})
@@ -527,6 +548,7 @@ func (s *HandlerSuite) TestUpdateEntry() {
 			PrepareEntry: func(e *common.RegistrationEntry) {
 				e.Selectors = []*common.Selector{{Type: "B", Value: "b"}}
 				e.DnsNames = []string{"wxyz.2-a"}
+				e.Ttl = 7200
 			},
 		},
 	}
@@ -548,6 +570,11 @@ func (s *HandlerSuite) TestUpdateEntry() {
 			}
 			require.NoError(t, err)
 			entry.RevisionNumber++
+			// If ttl is not set, The SVIDTTL of the handler is set to the entry ttl by UpdateEntry.
+			// so set the SVIDTTL to the expected value here.
+			if entry.Ttl == 0 {
+				entry.Ttl = int32(s.svidTTL.Seconds())
+			}
 			t.Logf("actual=%+v expected=%+v", resp, entry)
 			require.True(t, proto.Equal(resp, entry))
 		})

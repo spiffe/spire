@@ -41,6 +41,7 @@ type Handler struct {
 	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
+	SVIDTTL     time.Duration
 	ServerCA    ca.ServerCA
 }
 
@@ -835,6 +836,11 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
 	if err != nil {
 		return nil, err
+	}
+
+	// If ttl is not set, Set `default_svid_ttl` in the server configuration
+	if entry.Ttl == 0 {
+		entry.Ttl = int32(h.SVIDTTL.Seconds())
 	}
 
 	return entry, nil
