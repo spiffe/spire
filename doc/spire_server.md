@@ -234,7 +234,7 @@ Creates registration entries.
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
 ### `spire-server entry update`
 
@@ -253,7 +253,7 @@ Updates registration entries.
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
 ### `spire-server entry delete`
 
@@ -370,7 +370,7 @@ Mints an X509-SVID.
 | `-dns`        | A DNS name that will be included in SVID. Can be used more than once | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-spiffeID`   | The SPIFFE ID of the X509-SVID                                     | |
-| `-ttl`        | The TTL of the X509-SVID                                           | |
+| `-ttl`        | The TTL of the X509-SVID                                           | The TTL configured with `default_svid_ttl` |
 | `-write`      | Directory to write output to instead of stdout                     | |
 
 ### `spire-server jwt mint`
