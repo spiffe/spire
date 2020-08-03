@@ -53,8 +53,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/prometheus/client_golang v1.4.0
-	github.com/shirou/gopsutil v2.18.12+incompatible
-	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
+	github.com/shirou/gopsutil v2.20.7-0.20200724130941-7e94bb8bcde0+incompatible
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
 	github.com/spiffe/go-spiffe/v2 v2.0.0-alpha.4

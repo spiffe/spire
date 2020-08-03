@@ -40,6 +40,7 @@ func builtin(p *Plugin) catalog.Plugin {
 type processInfo interface {
 	Uids() ([]int32, error)
 	Gids() ([]int32, error)
+	Groups() ([]int32, error)
 	Exe() (string, error)
 	NamespacedExe() string
 }
@@ -112,6 +113,19 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 
 	if group, ok := p.getGroupName(gid); ok {
 		selectors = append(selectors, makeSelector("group", group))
+	}
+
+	sgIDs, err := p.getSupplementaryGroupsIDs(proc)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, sgID := range sgIDs {
+		selectors = append(selectors, makeSelector("supplementary_gid", sgID))
+
+		if sGroup, ok := p.getGroupName(sgID); ok {
+			selectors = append(selectors, makeSelector("supplementary_group", sGroup))
+		}
 	}
 
 	// obtaining the workload process path and digest are behind a config flag
@@ -215,6 +229,20 @@ func (p *Plugin) getGroupName(gid string) (string, bool) {
 		return "", false
 	}
 	return g.Name, true
+}
+
+func (p *Plugin) getSupplementaryGroupsIDs(proc processInfo) ([]string, error) {
+	groups, err := proc.Groups()
+	if err != nil {
+		return nil, unixErr.New("Supplementary GIDs lookup: %v", err)
+	}
+
+	res := []string{}
+	for _, gID := range groups {
+		res = append(res, fmt.Sprint(gID))
+	}
+
+	return res, nil
 }
 
 func (p *Plugin) getPath(proc processInfo) (string, error) {
