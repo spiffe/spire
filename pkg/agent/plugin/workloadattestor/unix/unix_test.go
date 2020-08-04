@@ -188,7 +188,7 @@ func (s *Suite) TestAttest() {
 		{
 			name: "fail to get supplementary gids",
 			pid:  14,
-			err:  "unix: Supplementary GIDs lookup: some error for PID 14",
+			err:  "unix: supplementary GIDs lookup: some error for PID 14",
 		},
 	}
 

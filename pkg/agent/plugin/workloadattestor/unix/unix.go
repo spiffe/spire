@@ -234,12 +234,12 @@ func (p *Plugin) getGroupName(gid string) (string, bool) {
 func (p *Plugin) getSupplementaryGroupsIDs(proc processInfo) ([]string, error) {
 	groups, err := proc.Groups()
 	if err != nil {
-		return nil, unixErr.New("Supplementary GIDs lookup: %v", err)
+		return nil, unixErr.New("supplementary GIDs lookup: %v", err)
 	}
 
 	res := []string{}
 	for _, gID := range groups {
-		res = append(res, fmt.Sprint(gID))
+		res = append(res, strconv.Itoa(int(gID)))
 	}
 
 	return res, nil
