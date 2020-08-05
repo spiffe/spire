@@ -3,7 +3,7 @@
 *Must be used in conjunction with the agent-side gcp_iit plugin*
 
 The `gcp_iit` plugin automatically attests instances using the [GCP Instance Identity Token](https://cloud.google.com/compute/docs/instances/verifying-instance-identity). It also allows an operator to use GCP Instance IDs when defining SPIFFE ID attestation policies.
-Agents attested by the gcp_iit attestor will be issued a SPIFFE ID like `spiffe://TRUST_DOMAIN/agent/gcp_iit/PROJECT_ID/INSTANCE_ID`
+Agents attested by the gcp_iit attestor will be issued a SPIFFE ID like `spiffe://TRUST_DOMAIN/spire/agent/gcp_iit/PROJECT_ID/INSTANCE_ID`
 This plugin requires a whitelist of ProjectID from which nodes can be attested. This also means that you shouldn't run multiple trust domains from the same GCP project.
 
 ## Configuration
@@ -42,7 +42,7 @@ If `use_instance_metadata` is true, then the Google Compute Engine API is querie
 | Selector                   | Example                                                      | Description                                                                     |
 | -------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------|
 | `gcp_iit:tag`              | `gcp_iit:tag:blog-server`                                    | Instance tag (one selector per)
-| `gcp_iit:sa`               | `gcp_iit:sa:123456789-compute@developer.gserviceaccount.com` | Service account (one selector per) 
+| `gcp_iit:sa`               | `gcp_iit:sa:123456789-compute@developer.gserviceaccount.com` | Service account (one selector per)
 | `gcp_iit:label`            | `gcp_iit:label:key:value`                                    | Instance label
 | `gcp_iit:metadata`         | `gcp_iit:metadata:key:value`                                 | Instance metadata (see caveat below)
 
