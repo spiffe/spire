@@ -53,8 +53,7 @@ type PSProcessInfo struct {
 }
 
 func (ps PSProcessInfo) NamespacedExe() string {
-	procPath := getProcPath()
-	return filepath.Join(procPath, strconv.Itoa(int(ps.Pid)), "exe")
+	return getProcPath(ps.Pid, "exe")
 }
 
 // Groups returns the supplementary group IDs
@@ -65,9 +64,7 @@ func (ps PSProcessInfo) Groups() ([]string, error) {
 		return []string{}, nil
 	}
 
-	procPath := getProcPath()
-	pid := strconv.FormatInt(int64(ps.Pid), 10)
-	statusPath := filepath.Join(procPath, pid, "status")
+	statusPath := getProcPath(ps.Pid, "status")
 
 	f, err := os.Open(statusPath)
 	if err != nil {
@@ -88,6 +85,10 @@ func (ps PSProcessInfo) Groups() ([]string, error) {
 			value := strings.TrimSpace(parts[1])
 			return strings.Fields(value), nil
 		}
+	}
+
+	if err := scnr.Err(); err != nil {
+		return nil, err
 	}
 
 	return []string{}, nil
@@ -311,10 +312,10 @@ func makeSelector(kind, value string) *common.Selector {
 	}
 }
 
-func getProcPath() string {
-	if procPath := os.Getenv("HOST_PROC"); procPath != "" {
-		return procPath
+func getProcPath(pID int32, lastPath string) string {
+	procPath := os.Getenv("HOST_PROC")
+	if procPath == "" {
+		procPath = "/proc"
 	}
-
-	return "/proc"
+	return filepath.Join(procPath, strconv.FormatInt(int64(pID), 10), lastPath)
 }

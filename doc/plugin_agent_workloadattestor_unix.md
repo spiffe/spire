@@ -19,14 +19,14 @@ sufficient permissions.
 
 General selectors:
 
-| Selector                   | Value                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| `unix:uid`                 | The user ID of the workload (e.g. `unix:uid:1000`)                                      |
-| `unix:user`                | The user name of the workload (e.g. `unix:user:nginx`)                                  |
-| `unix:gid`                 | The group ID of the workload (e.g. `unix:gid:1000`)                                     |
-| `unix:group`               | The group name of the workload (e.g. `unix:group:www-data`)                             |
-| `unix:supplementary_gid`   | The supplementary group ID of the workload (e.g. `unix:supplementary_gid:2000`)         |
-| `unix:supplementary_group` | The supplementary group name of the workload (e.g. `unix:supplementary_group:www-data`) |
+| Selector                   | Value                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `unix:uid`                 | The user ID of the workload (e.g. `unix:uid:1000`)                                                                             |
+| `unix:user`                | The user name of the workload (e.g. `unix:user:nginx`)                                                                         |
+| `unix:gid`                 | The group ID of the workload (e.g. `unix:gid:1000`)                                                                            |
+| `unix:group`               | The group name of the workload (e.g. `unix:group:www-data`)                                                                    |
+| `unix:supplementary_gid`   | **Currently only supported on linux:** The supplementary group ID of the workload (e.g. `unix:supplementary_gid:2000`)         |
+| `unix:supplementary_group` | **Currently only supported on linux:** The supplementary group name of the workload (e.g. `unix:supplementary_group:www-data`) |
 
 Workload path enabled selectors (available when configured with `discover_workload_path = true`):
 
