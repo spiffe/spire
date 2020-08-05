@@ -2,25 +2,29 @@ package itclient
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"log"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	agent "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	bundle "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	entry "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	svid "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 var (
-	tdFlag           = flag.String("trustDomain", "domain.test", "server trust domain")
-	socketPathFlag   = flag.String("socketPath", "unix:///tmp/agent.sock", "agent socket path")
-	serverAddrFlag   = flag.String("serverAddr", "spire-server:8081", "server addr")
-	expectErrorsFlag = flag.Bool("expectErrors", false, "client is used to validate permission errors")
+	tdFlag               = flag.String("trustDomain", "domain.test", "server trust domain")
+	socketPathFlag       = flag.String("socketPath", "unix:///tmp/agent.sock", "agent socket path")
+	serverAddrFlag       = flag.String("serverAddr", "spire-server:8081", "server addr")
+	serverSocketPathFlag = flag.String("serverSocketPath", "unix:///tmp/spire-registration.sock", "server socket path")
+	expectErrorsFlag     = flag.Bool("expectErrors", false, "client is used to validate permission errors")
 )
 
 type Client struct {
@@ -53,19 +57,57 @@ func New(ctx context.Context) *Client {
 	return &Client{
 		Td:           td,
 		ExpectErrors: *expectErrorsFlag,
+		connection:   conn,
+		source:       source,
+	}
+}
 
-		connection: conn,
-		source:     source,
+func NewInsecure(ctx context.Context) *Client {
+	flag.Parse()
+	tlsConfig := tls.Config{
+		InsecureSkipVerify: true, // nolint: gosec
+	}
+	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
+	if err != nil {
+		log.Fatalf("Error creating dial: %v", err)
+	}
+
+	return &Client{
+		ExpectErrors: *expectErrorsFlag,
+		connection:   conn,
+	}
+}
+
+func NewWithCert(ctx context.Context, cert *x509.Certificate, key *ecdsa.PrivateKey) *Client {
+	flag.Parse()
+
+	tlsConfig := tls.Config{
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return &tls.Certificate{
+				Certificate: [][]byte{cert.Raw},
+				PrivateKey:  key,
+			}, nil
+		},
+		InsecureSkipVerify: true, // nolint: gosec
+	}
+	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
+	if err != nil {
+		log.Fatalf("Error creating dial: %v", err)
+	}
+
+	return &Client{
+		ExpectErrors: *expectErrorsFlag,
+		connection:   conn,
 	}
 }
 
 func (c *Client) Release() {
-	c.connection.Close()
-	c.source.Close()
-}
-
-func (c *Client) AgentClient() agent.AgentClient {
-	return agent.NewAgentClient(c.connection)
+	if c.connection != nil {
+		c.connection.Close()
+	}
+	if c.source != nil {
+		c.source.Close()
+	}
 }
 
 func (c *Client) BundleClient() bundle.BundleClient {
@@ -75,6 +117,37 @@ func (c *Client) BundleClient() bundle.BundleClient {
 func (c *Client) EntryClient() entry.EntryClient {
 	return entry.NewEntryClient(c.connection)
 }
+
 func (c *Client) SVIDClient() svid.SVIDClient {
 	return svid.NewSVIDClient(c.connection)
+}
+
+func (c *Client) AgentClient() agent.AgentClient {
+	return agent.NewAgentClient(c.connection)
+}
+
+// Open a client ON THE SPIRE-SERVER container
+// Used for creating join tokens
+type LocalServerClient struct {
+	connection *grpc.ClientConn
+}
+
+func (c *LocalServerClient) AgentClient() agent.AgentClient {
+	return agent.NewAgentClient(c.connection)
+}
+
+func (c *LocalServerClient) Release() {
+	c.connection.Close()
+}
+
+func NewLocalServerClient(ctx context.Context) *LocalServerClient {
+	flag.Parse()
+	conn, err := grpc.DialContext(ctx, *serverSocketPathFlag, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("Error creating dial: %v", err)
+	}
+
+	return &LocalServerClient{
+		connection: conn,
+	}
 }
