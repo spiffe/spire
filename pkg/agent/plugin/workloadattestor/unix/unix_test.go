@@ -282,14 +282,14 @@ func (p fakeProcess) Gids() ([]int32, error) {
 	}
 }
 
-func (p fakeProcess) Groups() ([]int32, error) {
+func (p fakeProcess) Groups() ([]string, error) {
 	switch p.pid {
 	case 13:
-		return []int32{2000, 2100, 2200, 2300}, nil
+		return []string{"2000", "2100", "2200", "2300"}, nil
 	case 14:
 		return nil, fmt.Errorf("some error for PID %d", p.pid)
 	default:
-		return []int32{}, nil
+		return []string{}, nil
 	}
 }
 

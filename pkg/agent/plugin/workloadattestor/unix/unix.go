@@ -1,6 +1,7 @@
 package unix
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,7 +10,9 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -40,7 +43,7 @@ func builtin(p *Plugin) catalog.Plugin {
 type processInfo interface {
 	Uids() ([]int32, error)
 	Gids() ([]int32, error)
-	Groups() ([]int32, error)
+	Groups() ([]string, error)
 	Exe() (string, error)
 	NamespacedExe() string
 }
@@ -50,11 +53,44 @@ type PSProcessInfo struct {
 }
 
 func (ps PSProcessInfo) NamespacedExe() string {
-	procPath := os.Getenv("HOST_PROC")
-	if procPath == "" {
-		procPath = "/proc"
-	}
+	procPath := getProcPath()
 	return filepath.Join(procPath, strconv.Itoa(int(ps.Pid)), "exe")
+}
+
+// Groups returns the supplementary group IDs
+// This is a custom implementation that only works for linux until the next issue is fixed
+// https://github.com/shirou/gopsutil/issues/913
+func (ps PSProcessInfo) Groups() ([]string, error) {
+	if runtime.GOOS != "linux" {
+		return []string{}, nil
+	}
+
+	procPath := getProcPath()
+	pid := strconv.FormatInt(int64(ps.Pid), 10)
+	statusPath := filepath.Join(procPath, pid, "status")
+
+	f, err := os.Open(statusPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	scnr := bufio.NewScanner(f)
+	for scnr.Scan() {
+		row := scnr.Text()
+		parts := strings.SplitN(row, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.ToLower(strings.TrimSpace(parts[0]))
+		if key == "groups" {
+			value := strings.TrimSpace(parts[1])
+			return strings.Fields(value), nil
+		}
+	}
+
+	return []string{}, nil
 }
 
 type Configuration struct {
@@ -115,9 +151,9 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		selectors = append(selectors, makeSelector("group", group))
 	}
 
-	sgIDs, err := p.getSupplementaryGroupsIDs(proc)
+	sgIDs, err := proc.Groups()
 	if err != nil {
-		return nil, err
+		return nil, unixErr.New("supplementary GIDs lookup: %v", err)
 	}
 
 	for _, sgID := range sgIDs {
@@ -231,20 +267,6 @@ func (p *Plugin) getGroupName(gid string) (string, bool) {
 	return g.Name, true
 }
 
-func (p *Plugin) getSupplementaryGroupsIDs(proc processInfo) ([]string, error) {
-	groups, err := proc.Groups()
-	if err != nil {
-		return nil, unixErr.New("supplementary GIDs lookup: %v", err)
-	}
-
-	res := []string{}
-	for _, gID := range groups {
-		res = append(res, strconv.Itoa(int(gID)))
-	}
-
-	return res, nil
-}
-
 func (p *Plugin) getPath(proc processInfo) (string, error) {
 	path, err := proc.Exe()
 	if err != nil {
@@ -287,4 +309,12 @@ func makeSelector(kind, value string) *common.Selector {
 		Type:  pluginName,
 		Value: fmt.Sprintf("%s:%s", kind, value),
 	}
+}
+
+func getProcPath() string {
+	if procPath := os.Getenv("HOST_PROC"); procPath != "" {
+		return procPath
+	}
+
+	return "/proc"
 }
