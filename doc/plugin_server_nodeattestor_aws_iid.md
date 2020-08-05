@@ -6,7 +6,7 @@ The `aws_iid` plugin automatically attests instances using the AWS Instance
 Metadata API and the AWS Instance Identity document. It also allows an operator
 to use AWS Instance IDs when defining SPIFFE ID attestation policies. Agents
 attested by the aws_iid attestor will be issued a SPIFFE ID like
-`spiffe://example.org/agent/aws_iid/ACCOUNT_ID/REGION/INSTANCE_ID`. Additionally,
+`spiffe://example.org/spire/agent/aws_iid/ACCOUNT_ID/REGION/INSTANCE_ID`. Additionally,
 this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors.
 
 | Configuration       | Description | Default                 |
