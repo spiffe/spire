@@ -285,7 +285,7 @@ Displays the bundle for the trust domain of the server.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
-| `-format` | The format to show the bundle. Either `x509` or `jwks` | x509 |
+| `-format` | The format to show the bundle. Either `pem` or `jwks` | x509 |
 
 ### `spire-server bundle list`
 
@@ -295,7 +295,7 @@ Displays federated bundles.
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
-| `-format` | The format to show the federated bundles. Either `x509` or `jwks` | x509 |
+| `-format` | The format to show the federated bundles. Either `pem` or `jwks` | x509 |
 
 ### `spire-server bundle set`
 
@@ -306,7 +306,7 @@ Creates or updates bundle data for a trust domain. This command cannot be used t
 | `-id`         | The trust domain SPIFFE ID of the bundle to set. | |
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
-| `-format` | The format of the bundle to set. Either `x509` or `jwks` | x509 |
+| `-format` | The format of the bundle to set. Either `pem` or `jwks` | x509 |
 
 ### `spire-server bundle delete`
 
