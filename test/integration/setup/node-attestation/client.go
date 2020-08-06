@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	mathrand "math/rand"
 	"time"
@@ -175,9 +176,9 @@ func doBanStep(ctx context.Context) {
 // - Delete agent
 // - Reattest deleted agent
 // - Ban agent
-// - Reattest banned agent (must fails because it is banned)
+// - Reattest banned agent (must fail because it is banned)
 // - Delete agent
-// - Reattest deleted agent (must success after removing)
+// - Reattest deleted agent (must succeed after removing)
 func doX509popStep(ctx context.Context) {
 	c := itclient.New(ctx)
 	// Create an admin client to ban/delete agent
@@ -218,10 +219,10 @@ func doX509popStep(ctx context.Context) {
 		log.Fatal("Error expected when attesting banned agent")
 	case codes.PermissionDenied:
 		if status.Convert(err).Message() != "failed to attest: agent is banned" {
-			log.Fatalf("Unnexpected error returned: %v", err)
+			log.Fatalf("Unexpected error returned: %v", err)
 		}
 	default:
-		log.Fatalf("Unnexpected error returned: %v", err)
+		log.Fatalf("Unexpected error returned: %v", err)
 	}
 
 	// Delete banned agent
@@ -229,14 +230,14 @@ func doX509popStep(ctx context.Context) {
 		log.Fatalf("Failed to delete agent: %v", err)
 	}
 
-	// Reattest deleted agent, now MUST be success
+	// Reattest deleted agent, now MUST be successful
 	_, err = x509popAttest(ctx)
 	if err != nil {
 		log.Fatalf("Failed to attest deleted agent: %v", err)
 	}
 }
 
-// x509popAttest attest agent using x509pop
+// x509popAttest attests agent using x509pop
 func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 	log.Println("Attesting agent...")
 
@@ -314,6 +315,10 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 	resp, err = stream.Recv()
 	if err != nil {
 		return nil, err
+	}
+
+	if _, err := stream.Recv(); err != io.EOF {
+		return nil, fmt.Errorf("expect stream to close after challenge complete: %v", err)
 	}
 
 	return resp.GetResult().Svid, nil
