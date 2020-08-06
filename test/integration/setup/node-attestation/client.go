@@ -168,7 +168,7 @@ func doBanStep(ctx context.Context) {
 	// This doesn't return anything
 }
 
-// doX509popStep emulates a attestation using x509pop,
+// doX509popStep tests attestation using x509pop
 // Steps:
 // - Attest agent
 // - Renew agent
@@ -230,7 +230,7 @@ func doX509popStep(ctx context.Context) {
 	}
 
 	// Reattest deleted agent, now MUST be success
-	svidResp, err = x509popAttest(ctx)
+	_, err = x509popAttest(ctx)
 	if err != nil {
 		log.Fatalf("Failed to attest deleted agent: %v", err)
 	}
@@ -265,7 +265,7 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 
 	stream, err := client.AttestAgent(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create stream: %v", err)
+		return nil, fmt.Errorf("failed to create stream: %v", err)
 	}
 	if err := stream.Send(&agent.AttestAgentRequest{
 		Step: &agent.AttestAgentRequest_Params_{
@@ -330,7 +330,7 @@ func x509popRenew(ctx context.Context, x509Svid *types.X509SVID) error {
 
 	cert, err := x509.ParseCertificate(x509Svid.CertChain[0])
 	if err != nil {
-		return fmt.Errorf("failed to parse cert: %v\n", err)
+		return fmt.Errorf("failed to parse cert: %v", err)
 	}
 
 	conn := itclient.NewWithCert(ctx, cert, key)
