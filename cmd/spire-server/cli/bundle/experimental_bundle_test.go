@@ -18,32 +18,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const (
-	otherDomainJWKS = `{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-            ]
-        },
-        {
-            "use": "jwt-svid",
-            "kty": "EC",
-            "kid": "KID",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
-        }
-    ]
-}
-`
-)
-
 func TestExperimentalBundleCommands(t *testing.T) {
 	suite.Run(t, new(ExperimentalBundleSuite))
 }
@@ -118,7 +92,7 @@ func (s *ExperimentalBundleSuite) AfterTest(suiteName, testName string) {
 
 func (s *ExperimentalBundleSuite) TestShowHelp() {
 	s.showCmd.Help()
-	s.Require().Equal(`Usage of experimental bundle show:
+	s.Require().Equal(`Usage of experimental bundle show (deprecated - please use "bundle show" instead):
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
 `, s.stderr.String())
@@ -135,27 +109,12 @@ func (s *ExperimentalBundleSuite) TestShow() {
 
 	s.Require().Equal(0, s.showCmd.Run([]string{}))
 
-	s.Require().Equal(`{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-            ]
-        }
-    ],
-    "spiffe_refresh_hint": 60
-}
-`, s.stdout.String())
+	s.Require().Equal(cert1JWKS, s.stdout.String())
 }
 
 func (s *ExperimentalBundleSuite) TestSetHelp() {
 	s.setCmd.Help()
-	s.Require().Equal(`Usage of experimental bundle set:
+	s.Require().Equal(`Usage of experimental bundle set (deprecated - please use "bundle set" instead):
   -id string
     	SPIFFE ID of the trust domain
   -path string
@@ -204,7 +163,7 @@ func (s *ExperimentalBundleSuite) TestSetCreatesBundleFromFile() {
 
 func (s *ExperimentalBundleSuite) TestListHelp() {
 	s.listCmd.Help()
-	s.Require().Equal(`Usage of experimental bundle list:
+	s.Require().Equal(`Usage of experimental bundle list (deprecated - please use "bundle list" instead):
   -id string
     	SPIFFE ID of the trust domain
   -registrationUDSPath string
@@ -230,51 +189,7 @@ func (s *ExperimentalBundleSuite) TestListAll() {
 	})
 
 	s.Require().Equal(0, s.listCmd.Run([]string{}))
-
-	s.Require().Equal(`****************************************
-* spiffe://domain1.test
-****************************************
-{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-            ]
-        },
-        {
-            "use": "jwt-svid",
-            "kty": "EC",
-            "kid": "KID",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
-        }
-    ]
-}
-
-****************************************
-* spiffe://domain2.test
-****************************************
-{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
-            "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
-            ]
-        }
-    ]
-}
-`, s.stdout.String())
+	s.Require().Equal(allBundlesJWKS, s.stdout.String())
 }
 
 func (s *ExperimentalBundleSuite) TestListOne() {
@@ -292,22 +207,7 @@ func (s *ExperimentalBundleSuite) TestListOne() {
 	})
 
 	s.Require().Equal(0, s.listCmd.Run([]string{"-id", "spiffe://domain2.test"}))
-
-	s.Require().Equal(`{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
-            "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
-            ]
-        }
-    ]
-}
-`, s.stdout.String())
+	s.Require().Equal(cert2JWKS, s.stdout.String())
 }
 
 func (s *ExperimentalBundleSuite) assertBundleSet(args ...string) {

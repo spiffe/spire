@@ -3,6 +3,7 @@ package bundle
 import (
 	"context"
 	"flag"
+	"fmt"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -18,6 +19,7 @@ func newShowCommand(env *env, clientsMaker clientsMaker) cli.Command {
 }
 
 type showCommand struct {
+	format string
 }
 
 func (c *showCommand) name() string {
@@ -29,6 +31,7 @@ func (c *showCommand) synopsis() string {
 }
 
 func (c *showCommand) appendFlags(fs *flag.FlagSet) {
+	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format to show the bundle. Either %q or %q.", formatPEM, formatJWKS))
 }
 
 func (c *showCommand) run(ctx context.Context, env *env, clients *clients) error {
@@ -36,5 +39,6 @@ func (c *showCommand) run(ctx context.Context, env *env, clients *clients) error
 	if err != nil {
 		return err
 	}
-	return printCertificates(env.stdout, resp.Bundle.RootCas)
+
+	return printRegistrationBundle(env.stdout, resp, c.format, false)
 }

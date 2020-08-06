@@ -4,19 +4,13 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
-)
-
-const (
-	headerFmt = `****************************************
-* %s
-****************************************
-`
 )
 
 // NewListCommand creates a new "list" subcommand for "bundle" command.
@@ -29,8 +23,8 @@ func newListCommand(env *env, clientsMaker clientsMaker) cli.Command {
 }
 
 type listCommand struct {
-	// SPIFFE ID of the trust bundle
-	id string
+	id     string // SPIFFE ID of the trust bundle
+	format string
 }
 
 func (c *listCommand) name() string {
@@ -38,11 +32,12 @@ func (c *listCommand) name() string {
 }
 
 func (c *listCommand) synopsis() string {
-	return "Lists bundle data"
+	return "Lists federated bundle data"
 }
 
 func (c *listCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
+	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format to list federated bundles. Either %q or %q.", formatPEM, formatJWKS))
 }
 
 func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error {
@@ -57,7 +52,7 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 		if err != nil {
 			return err
 		}
-		return printCertificates(env.stdout, resp.Bundle.RootCas)
+		return printCommonBundle(env.stdout, resp.Bundle, c.format, false)
 	}
 
 	stream, err := clients.r.ListFederatedBundles(ctx, &common.Empty{})
@@ -84,10 +79,7 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 			}
 		}
 
-		if err := env.Printf(headerFmt, bundle.TrustDomainId); err != nil {
-			return err
-		}
-		if err := printCertificates(env.stdout, bundle.RootCas); err != nil {
+		if err := printCommonBundle(env.stdout, bundle, c.format, true); err != nil {
 			return err
 		}
 	}

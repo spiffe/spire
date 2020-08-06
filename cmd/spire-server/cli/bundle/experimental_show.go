@@ -5,7 +5,6 @@ import (
 	"flag"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // NewExperimentalShowCommand creates a new "show" subcommand for "bundle" command.
@@ -21,20 +20,20 @@ type experimentalShowCommand struct {
 }
 
 func (c *experimentalShowCommand) name() string {
-	return "experimental bundle show"
+	return `experimental bundle show (deprecated - please use "bundle show" instead)`
 }
 
 func (c *experimentalShowCommand) synopsis() string {
-	return "Prints server CA bundle to stdout"
+	return `Prints server CA bundle to stdout. This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the "bundle show" command.`
 }
 
 func (c *experimentalShowCommand) appendFlags(fs *flag.FlagSet) {
 }
 
 func (c *experimentalShowCommand) run(ctx context.Context, env *env, clients *clients) error {
-	bundle, err := clients.r.FetchBundle(ctx, &common.Empty{})
-	if err != nil {
-		return err
+	showCommand := showCommand{
+		format: formatJWKS,
 	}
-	return printBundle(env.stdout, bundle.Bundle, false)
+
+	return showCommand.run(ctx, env, clients)
 }
