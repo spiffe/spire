@@ -408,7 +408,6 @@ func TestSet(t *testing.T) {
 						{DerBytes: []byte("BOGUSCERTS")},
 					},
 				})
-
 			}
 
 			test.stdin.WriteString(tt.stdin)
