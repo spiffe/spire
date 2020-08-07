@@ -311,7 +311,6 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		Metrics:                     metrics,
 		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
-		EnableExperimentalAPI:       s.config.Experimental.EnableAPI,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

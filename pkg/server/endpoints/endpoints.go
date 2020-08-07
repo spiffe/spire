@@ -47,20 +47,24 @@ type Server interface {
 }
 
 type Endpoints struct {
-	TCPAddr             *net.TCPAddr
-	UDSAddr             *net.UnixAddr
-	SVIDObserver        svid.Observer
-	TrustDomain         spiffeid.TrustDomain
-	DataStore           datastore.DataStore
-	RegistrationServer  registration_pb.RegistrationServer
-	NodeServer          node_pb.NodeServer
-	BundleServer        Server
-	ExperimentalServers *ExperimentalServers
-	Log                 logrus.FieldLogger
-	Metrics             telemetry.Metrics
+	TCPAddr      *net.TCPAddr
+	UDSAddr      *net.UnixAddr
+	SVIDObserver svid.Observer
+	TrustDomain  spiffeid.TrustDomain
+	DataStore    datastore.DataStore
+	OldAPIServers
+	APIServers           APIServers
+	BundleEndpointServer Server
+	Log                  logrus.FieldLogger
+	Metrics              telemetry.Metrics
 }
 
-type ExperimentalServers struct {
+type OldAPIServers struct {
+	RegistrationServer registration_pb.RegistrationServer
+	NodeServer         node_pb.NodeServer
+}
+
+type APIServers struct {
 	AgentServer  agentv1_pb.AgentServer
 	BundleServer bundlev1_pb.BundleServer
 	EntryServer  entryv1_pb.EntryServer
@@ -69,23 +73,22 @@ type ExperimentalServers struct {
 
 // New creates new endpoints struct
 func New(c Config) (*Endpoints, error) {
-	nodeHandler, err := c.makeNodeHandler()
+	oldAPIServers, err := c.makeOldAPIServers()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Endpoints{
-		TCPAddr:             c.TCPAddr,
-		UDSAddr:             c.UDSAddr,
-		SVIDObserver:        c.SVIDObserver,
-		TrustDomain:         c.TrustDomain,
-		DataStore:           c.Catalog.GetDataStore(),
-		RegistrationServer:  c.makeRegistrationHandler(),
-		NodeServer:          nodeHandler,
-		BundleServer:        c.maybeMakeBundleServer(),
-		ExperimentalServers: c.maybeMakeExperimentalServers(),
-		Log:                 c.Log,
-		Metrics:             c.Metrics,
+		TCPAddr:              c.TCPAddr,
+		UDSAddr:              c.UDSAddr,
+		SVIDObserver:         c.SVIDObserver,
+		TrustDomain:          c.TrustDomain,
+		DataStore:            c.Catalog.GetDataStore(),
+		OldAPIServers:        oldAPIServers,
+		APIServers:           c.makeAPIServers(),
+		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
+		Log:                  c.Log,
+		Metrics:              c.Metrics,
 	}, nil
 }
 
@@ -101,20 +104,20 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
 	udsServer := e.createUDSServer(unaryInterceptor, streamInterceptor)
 
-	node_pb.RegisterNodeServer(tcpServer, e.NodeServer)
-	registration_pb.RegisterRegistrationServer(tcpServer, e.RegistrationServer)
-	registration_pb.RegisterRegistrationServer(udsServer, e.RegistrationServer)
+	// Old APIs
+	node_pb.RegisterNodeServer(tcpServer, e.OldAPIServers.NodeServer)
+	registration_pb.RegisterRegistrationServer(tcpServer, e.OldAPIServers.RegistrationServer)
+	registration_pb.RegisterRegistrationServer(udsServer, e.OldAPIServers.RegistrationServer)
 
-	if ss := e.ExperimentalServers; ss != nil {
-		agentv1_pb.RegisterAgentServer(tcpServer, ss.AgentServer)
-		agentv1_pb.RegisterAgentServer(udsServer, ss.AgentServer)
-		bundlev1_pb.RegisterBundleServer(tcpServer, ss.BundleServer)
-		bundlev1_pb.RegisterBundleServer(udsServer, ss.BundleServer)
-		entryv1_pb.RegisterEntryServer(tcpServer, ss.EntryServer)
-		entryv1_pb.RegisterEntryServer(udsServer, ss.EntryServer)
-		svidv1_pb.RegisterSVIDServer(tcpServer, ss.SVIDServer)
-		svidv1_pb.RegisterSVIDServer(udsServer, ss.SVIDServer)
-	}
+	// New APIs
+	agentv1_pb.RegisterAgentServer(tcpServer, e.APIServers.AgentServer)
+	agentv1_pb.RegisterAgentServer(udsServer, e.APIServers.AgentServer)
+	bundlev1_pb.RegisterBundleServer(tcpServer, e.APIServers.BundleServer)
+	bundlev1_pb.RegisterBundleServer(udsServer, e.APIServers.BundleServer)
+	entryv1_pb.RegisterEntryServer(tcpServer, e.APIServers.EntryServer)
+	entryv1_pb.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
+	svidv1_pb.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
+	svidv1_pb.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
 
 	tasks := []func(context.Context) error{
 		func(ctx context.Context) error {
@@ -125,8 +128,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		},
 	}
 
-	if e.BundleServer != nil {
-		tasks = append(tasks, e.BundleServer.ListenAndServe)
+	if e.BundleEndpointServer != nil {
+		tasks = append(tasks, e.BundleEndpointServer.ListenAndServe)
 	}
 
 	err := util.RunTasks(ctx, tasks...)
@@ -285,9 +288,6 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	oldUnary, oldStream := auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall
-	if e.ExperimentalServers == nil {
-		return oldUnary, oldStream
-	}
 
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 

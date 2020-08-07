@@ -51,9 +51,6 @@ type Config struct {
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
-	// EnableExperimentalAPI enables the experimental API
-	EnableExperimentalAPI bool
-
 	// CA Manager
 	Manager *ca.Manager
 
@@ -61,18 +58,16 @@ type Config struct {
 	Metrics telemetry.Metrics
 }
 
-func (c *Config) makeRegistrationHandler() *registration.Handler {
-	return &registration.Handler{
+func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
+	registrationHandler := &registration.Handler{
 		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
 		Metrics:     c.Metrics,
 		Catalog:     c.Catalog,
 		TrustDomain: *c.TrustDomain.ID().URL(),
 		ServerCA:    c.ServerCA,
 	}
-}
 
-func (c *Config) makeNodeHandler() (*node.Handler, error) {
-	return node.NewHandler(node.HandlerConfig{
+	nodeHandler, err := node.NewHandler(node.HandlerConfig{
 		Log:                         c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
 		Metrics:                     c.Metrics,
 		Catalog:                     c.Catalog,
@@ -81,9 +76,17 @@ func (c *Config) makeNodeHandler() (*node.Handler, error) {
 		Manager:                     c.Manager,
 		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
 	})
+	if err != nil {
+		return OldAPIServers{}, err
+	}
+
+	return OldAPIServers{
+		RegistrationServer: registrationHandler,
+		NodeServer:         nodeHandler,
+	}, nil
 }
 
-func (c *Config) maybeMakeBundleServer() Server {
+func (c *Config) maybeMakeBundleEndpointServer() Server {
 	if c.BundleEndpoint.Address == nil {
 		return nil
 	}
@@ -119,16 +122,12 @@ func (c *Config) maybeMakeBundleServer() Server {
 	})
 }
 
-func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
-	if !c.EnableExperimentalAPI {
-		return nil
-	}
-
+func (c *Config) makeAPIServers() APIServers {
 	ds := c.Catalog.GetDataStore()
 	authorizedEntryFetcher := AuthorizedEntryFetcher(ds)
 	upstreamPublisher := UpstreamPublisher(c.Manager)
 
-	return &ExperimentalServers{
+	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
 			DataStore:   ds,
 			ServerCA:    c.ServerCA,

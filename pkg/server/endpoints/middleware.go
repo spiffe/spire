@@ -207,7 +207,7 @@ func RateLimits() map[string]api.RateLimiter {
 
 func unaryInterceptorMux(oldInterceptor, newInterceptor grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-		if isExperimentalAPI(info.FullMethod) {
+		if !isOldAPI(info.FullMethod) {
 			return newInterceptor(ctx, req, info, handler)
 		}
 		return oldInterceptor(ctx, req, info, handler)
@@ -216,14 +216,14 @@ func unaryInterceptorMux(oldInterceptor, newInterceptor grpc.UnaryServerIntercep
 
 func streamInterceptorMux(oldInterceptor, newInterceptor grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if isExperimentalAPI(info.FullMethod) {
+		if !isOldAPI(info.FullMethod) {
 			return newInterceptor(srv, ss, info, handler)
 		}
 		return oldInterceptor(srv, ss, info, handler)
 	}
 }
 
-func isExperimentalAPI(fullMethod string) bool {
-	return !strings.HasPrefix(fullMethod, "/spire.api.node.") &&
-		!strings.HasPrefix(fullMethod, "/spire.api.registration.")
+func isOldAPI(fullMethod string) bool {
+	return strings.HasPrefix(fullMethod, "/spire.api.node.") ||
+		strings.HasPrefix(fullMethod, "/spire.api.registration.")
 }
