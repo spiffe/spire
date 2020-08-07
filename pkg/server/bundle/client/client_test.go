@@ -37,7 +37,7 @@ func TestClient(t *testing.T) {
 		{
 			name:        "SPIFFE ID override",
 			spiffeID:    idutil.ServerID("otherdomain.test"),
-			errContains: "SPIFFE ID mismatch",
+			errContains: `unexpected ID "spiffe://domain.test/spire/server"`,
 		},
 		{
 			name:        "non-200 status",
@@ -73,7 +73,7 @@ func TestClient(t *testing.T) {
 			server.StartTLS()
 			defer server.Close()
 
-			client := NewClient(ClientConfig{
+			client, err := NewClient(ClientConfig{
 				TrustDomain:     "domain.test",
 				EndpointAddress: server.Listener.Addr().String(),
 				SPIFFEAuth: &SPIFFEAuthConfig{
@@ -81,6 +81,7 @@ func TestClient(t *testing.T) {
 					RootCAs:          []*x509.Certificate{serverCert},
 				},
 			})
+			require.NoError(t, err)
 
 			bundle, err := client.FetchBundle(context.Background())
 			if testCase.errContains != "" {

@@ -7,9 +7,9 @@ services:
       - ./conf/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   spire-agent:
-    image: alpine:latest
+    image: spire-agent:latest-local
     hostname: spire-agent
     depends_on: ["spire-server"]
     volumes:
       - ./conf/agent:/opt/spire/conf/agent
-    command: ["tail","-f","/dev/null"]
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]

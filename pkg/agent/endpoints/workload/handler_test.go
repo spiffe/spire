@@ -10,7 +10,7 @@ import (
 	"github.com/golang/mock/gomock"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -196,11 +196,10 @@ func (s *HandlerTestSuite) TestComposeX509Response() {
 	s.Require().NoError(err)
 
 	svidMsg := &workload.X509SVID{
-		SpiffeId:      "spiffe://example.org/foo",
-		X509Svid:      update.Identities[0].SVID[0].Raw,
-		X509SvidKey:   keyData,
-		Bundle:        update.Bundle.RootCAs()[0].Raw,
-		FederatesWith: []string{"spiffe://otherdomain.test"},
+		SpiffeId:    "spiffe://example.org/foo",
+		X509Svid:    update.Identities[0].SVID[0].Raw,
+		X509SvidKey: keyData,
+		Bundle:      update.Bundle.RootCAs()[0].Raw,
 	}
 	apiMsg := &workload.X509SVIDResponse{
 		Svids: []*workload.X509SVID{svidMsg},

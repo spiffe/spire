@@ -1,6 +1,7 @@
 package unix
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,7 +10,9 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -40,6 +43,7 @@ func builtin(p *Plugin) catalog.Plugin {
 type processInfo interface {
 	Uids() ([]int32, error)
 	Gids() ([]int32, error)
+	Groups() ([]string, error)
 	Exe() (string, error)
 	NamespacedExe() string
 }
@@ -49,11 +53,45 @@ type PSProcessInfo struct {
 }
 
 func (ps PSProcessInfo) NamespacedExe() string {
-	procPath := os.Getenv("HOST_PROC")
-	if procPath == "" {
-		procPath = "/proc"
+	return getProcPath(ps.Pid, "exe")
+}
+
+// Groups returns the supplementary group IDs
+// This is a custom implementation that only works for linux until the next issue is fixed
+// https://github.com/shirou/gopsutil/issues/913
+func (ps PSProcessInfo) Groups() ([]string, error) {
+	if runtime.GOOS != "linux" {
+		return []string{}, nil
 	}
-	return filepath.Join(procPath, strconv.Itoa(int(ps.Pid)), "exe")
+
+	statusPath := getProcPath(ps.Pid, "status")
+
+	f, err := os.Open(statusPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	scnr := bufio.NewScanner(f)
+	for scnr.Scan() {
+		row := scnr.Text()
+		parts := strings.SplitN(row, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.ToLower(strings.TrimSpace(parts[0]))
+		if key == "groups" {
+			value := strings.TrimSpace(parts[1])
+			return strings.Fields(value), nil
+		}
+	}
+
+	if err := scnr.Err(); err != nil {
+		return nil, err
+	}
+
+	return []string{}, nil
 }
 
 type Configuration struct {
@@ -112,6 +150,19 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 
 	if group, ok := p.getGroupName(gid); ok {
 		selectors = append(selectors, makeSelector("group", group))
+	}
+
+	sgIDs, err := proc.Groups()
+	if err != nil {
+		return nil, unixErr.New("supplementary GIDs lookup: %v", err)
+	}
+
+	for _, sgID := range sgIDs {
+		selectors = append(selectors, makeSelector("supplementary_gid", sgID))
+
+		if sGroup, ok := p.getGroupName(sgID); ok {
+			selectors = append(selectors, makeSelector("supplementary_group", sGroup))
+		}
 	}
 
 	// obtaining the workload process path and digest are behind a config flag
@@ -259,4 +310,12 @@ func makeSelector(kind, value string) *common.Selector {
 		Type:  pluginName,
 		Value: fmt.Sprintf("%s:%s", kind, value),
 	}
+}
+
+func getProcPath(pID int32, lastPath string) string {
+	procPath := os.Getenv("HOST_PROC")
+	if procPath == "" {
+		procPath = "/proc"
+	}
+	return filepath.Join(procPath, strconv.FormatInt(int64(pID), 10), lastPath)
 }

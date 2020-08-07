@@ -2,7 +2,7 @@ package spireplugin
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -10,10 +10,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -128,36 +130,48 @@ func (m *Plugin) dialNodeAPI(ctx context.Context, wCert []byte, wKey []byte, wBu
 }
 
 func (m *Plugin) getGrpcTransportCreds(wCert []byte, wKey []byte, wBundle []byte) (credentials.TransportCredentials, error) {
-	var tlsCerts []tls.Certificate
-	var tlsConfig *tls.Config
-	var err error
-
 	svid, err := x509.ParseCertificates(wCert)
 	if err != nil {
-		return credentials.NewTLS(nil), err
+		return nil, err
+	}
+	if len(svid) == 0 {
+		return nil, errors.New("workload API returned no X509-SVID certs")
 	}
 
 	key, err := x509.ParsePKCS8PrivateKey(wKey)
 	if err != nil {
-		return credentials.NewTLS(nil), err
+		return nil, err
+	}
+	signer, ok := key.(crypto.Signer)
+	if !ok {
+		return nil, fmt.Errorf("workload X509-SVID key type %T is not a signer", key)
 	}
 
 	bundle, err := x509.ParseCertificates(wBundle)
 	if err != nil {
-		return credentials.NewTLS(nil), err
+		return nil, err
 	}
 
-	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{idutil.ServerID(m.trustDomain.Host)},
-		TrustRoots: util.NewCertPool(bundle...),
+	td, err := spiffeid.TrustDomainFromURI(&m.trustDomain)
+	if err != nil {
+		return nil, err
 	}
 
-	tlsCert := tls.Certificate{PrivateKey: key}
-	for _, cert := range svid {
-		tlsCert.Certificate = append(tlsCert.Certificate, cert.Raw)
+	id, err := x509svid.IDFromCert(svid[0])
+	if err != nil {
+		return nil, err
 	}
-	tlsCerts = append(tlsCerts, tlsCert)
-	tlsConfig = spiffePeer.NewTLSConfig(tlsCerts)
+
+	tlsConfig := tlsconfig.MTLSClientConfig(
+		&x509svid.SVID{
+			ID:           id,
+			Certificates: svid,
+			PrivateKey:   signer,
+		},
+		x509bundle.FromX509Authorities(td, bundle),
+		tlsconfig.AuthorizeID(td.NewID(idutil.ServerIDPath)),
+	)
+
 	return credentials.NewTLS(tlsConfig), nil
 }
 

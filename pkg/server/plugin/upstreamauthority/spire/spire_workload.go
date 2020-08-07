@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/hashicorp/go-hclog"
-	proto "github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	proto "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/api/workload"
 )
 

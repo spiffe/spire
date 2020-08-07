@@ -3,8 +3,8 @@ package spireplugin
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	w_pb "github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	w_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -44,11 +44,12 @@ const (
 	keyFilePath        = "_test_data/keys/private_key.pem"
 	certFilePath       = "_test_data/keys/cert.pem"
 	serverCertFilePath = "_test_data/keys/server.pem"
+	caFilePath         = "_test_data/keys/ca.pem"
 )
 
 var (
-	ctx                   = context.Background()
-	mockClock *clock.Mock = clock.NewMock()
+	ctx       = context.Background()
+	mockClock = clock.NewMock()
 )
 
 type handler struct {
@@ -80,39 +81,31 @@ func (w *whandler) startWAPITestServer(t *testing.T) {
 }
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
-	keyPEM, err := ioutil.ReadFile(keyFilePath)
+	key, err := pemutil.LoadPrivateKey(keyFilePath)
 	if err != nil {
-		fmt.Println("error" + err.Error())
-		return nil
-	}
-	keyblock, rest := pem.Decode(keyPEM)
-
-	if keyblock == nil {
-		return errors.New("error : invalid key format")
+		return err
 	}
 
-	if len(rest) > 0 {
-		return errors.New("error : invalid key format - too many keys")
-	}
-
-	certPEM, err := ioutil.ReadFile(certFilePath)
+	cert, err := pemutil.LoadCertificate(certFilePath)
 	if err != nil {
-		return errors.New("error : unable to read cert file")
+		return err
 	}
 
-	block, rest := pem.Decode(certPEM)
-	if block == nil {
-		return errors.New("error : invalid cert format")
+	caCert, err := pemutil.LoadCertificate(caFilePath)
+	if err != nil {
+		return err
 	}
-	if len(rest) > 0 {
-		return errors.New("error : invalid key format - too many certs")
+
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return err
 	}
 
 	svid := &w_pb.X509SVID{
 		SpiffeId:    "spiffe://localhost/workload",
-		X509Svid:    block.Bytes,
-		X509SvidKey: keyblock.Bytes,
-		Bundle:      block.Bytes,
+		X509Svid:    cert.Raw,
+		X509SvidKey: keyBytes,
+		Bundle:      caCert.Raw,
 	}
 
 	resp := new(w_pb.X509SVIDResponse)
@@ -152,7 +145,7 @@ func (h *handler) startNodeAPITestServer(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	h.addr = l.Addr().String()
-	go func() { _ = h.server.Serve(l) }()
+	go func() { err := h.server.Serve(l); panic(err) }()
 }
 
 func (h *handler) loadInitialBundle(t *testing.T) {
@@ -161,7 +154,7 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 	b, err := bundleutil.Unmarshal("spiffe://localhost", jwksBytes)
 	require.NoError(t, err)
 
-	caCert, err := pemutil.LoadCertificate(certFilePath)
+	caCert, err := pemutil.LoadCertificate(caFilePath)
 	require.NoError(t, err)
 	b.AppendRootCA(caCert)
 
@@ -202,7 +195,7 @@ func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		return nil, fmt.Errorf("unable to load test CA key")
 	}
 
-	caCert, err := pemutil.LoadCertificate(certFilePath)
+	caCert, err := pemutil.LoadCertificate(caFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load test CA certificate")
 	}

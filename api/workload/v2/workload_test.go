@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
