@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	workload_dial "github.com/spiffe/spire/api/workload/dial"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/cli"

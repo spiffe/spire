@@ -101,8 +101,8 @@ func TestBundleUpdater(t *testing.T) {
 					EndpointAddress:  "ENDPOINT_ADDRESS",
 					EndpointSpiffeID: "ENDPOINT_SPIFFEID",
 				},
-				newClient: func(client ClientConfig) Client {
-					return testCase.client
+				newClient: func(client ClientConfig) (Client, error) {
+					return testCase.client, nil
 				},
 			})
 

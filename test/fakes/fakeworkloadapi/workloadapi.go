@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"

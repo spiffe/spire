@@ -8,7 +8,7 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

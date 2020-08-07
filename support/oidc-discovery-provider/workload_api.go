@@ -4,18 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	workload_pb "github.com/spiffe/go-spiffe/proto/spiffe/workload"
-	"github.com/spiffe/go-spiffe/workload"
-	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"gopkg.in/square/go-jose.v2"
 )
 
@@ -32,16 +30,16 @@ type WorkloadAPISourceConfig struct {
 }
 
 type WorkloadAPISource struct {
-	log           logrus.FieldLogger
-	clock         clock.Clock
-	trustDomainID string
-	cancel        context.CancelFunc
+	log         logrus.FieldLogger
+	clock       clock.Clock
+	trustDomain spiffeid.TrustDomain
+	cancel      context.CancelFunc
 
-	mu      sync.RWMutex
-	wg      sync.WaitGroup
-	bundle  []byte
-	jwks    *jose.JSONWebKeySet
-	modTime time.Time
+	mu        sync.RWMutex
+	wg        sync.WaitGroup
+	rawBundle []byte
+	jwks      *jose.JSONWebKeySet
+	modTime   time.Time
 }
 
 func NewWorkloadAPISource(config WorkloadAPISourceConfig) (*WorkloadAPISource, error) {
@@ -51,25 +49,30 @@ func NewWorkloadAPISource(config WorkloadAPISourceConfig) (*WorkloadAPISource, e
 	if config.Clock == nil {
 		config.Clock = clock.New()
 	}
-	var opts []workload.DialOption
+	var opts []workloadapi.ClientOption
 	if config.SocketPath != "" {
-		opts = append(opts, workload.WithAddr("unix://"+config.SocketPath))
+		opts = append(opts, workloadapi.WithAddr("unix://"+config.SocketPath))
 	}
 
-	conn, err := workload.Dial(opts...)
+	trustDomain, err := spiffeid.TrustDomainFromString(config.TrustDomain)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+
+	client, err := workloadapi.New(context.Background(), opts...)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &WorkloadAPISource{
-		log:           config.Log,
-		clock:         config.Clock,
-		cancel:        cancel,
-		trustDomainID: idutil.TrustDomainID(config.TrustDomain),
+		log:         config.Log,
+		clock:       config.Clock,
+		cancel:      cancel,
+		trustDomain: trustDomain,
 	}
 
-	go s.pollEvery(ctx, conn, config.PollInterval)
+	go s.pollEvery(ctx, client, config.PollInterval)
 	return s, nil
 }
 
@@ -88,14 +91,11 @@ func (s *WorkloadAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool)
 	return s.jwks, s.modTime, true
 }
 
-func (s *WorkloadAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, interval time.Duration) {
+func (s *WorkloadAPISource) pollEvery(ctx context.Context, client *workloadapi.Client, interval time.Duration) {
 	s.wg.Add(1)
 	defer s.wg.Done()
 
-	defer conn.Close()
-
-	client := workload_pb.NewSpiffeWorkloadAPIClient(conn)
-	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("workload.spiffe.io", "true"))
+	defer client.Close()
 
 	s.log.WithField("interval", interval).Debug("Polling started")
 	for {
@@ -109,51 +109,43 @@ func (s *WorkloadAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn
 	}
 }
 
-func (s *WorkloadAPISource) pollOnce(ctx context.Context, client workload_pb.SpiffeWorkloadAPIClient) {
-	// Ensure the stream gets cleaned up
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	stream, err := client.FetchJWTBundles(ctx, &workload_pb.JWTBundlesRequest{})
+func (s *WorkloadAPISource) pollOnce(ctx context.Context, client *workloadapi.Client) {
+	jwtBundles, err := client.FetchJWTBundles(ctx)
 	if err != nil {
 		s.log.WithError(err).Warn("Failed to fetch JWKS from the Workload API")
 		return
 	}
 
-	resp, err := stream.Recv()
-	if err != nil {
-		if err == io.EOF {
-			s.log.Warn("Workload API stream closed before bundle received")
-			return
-		}
-		s.log.WithError(err).Warn("Failed to fetch JWKS from the Workload API")
+	jwtBundle, ok := jwtBundles.Get(s.trustDomain)
+	if !ok {
+		s.log.WithField(telemetry.TrustDomainID, s.trustDomain.IDString()).Error("No bundle for trust domain in Workload API response")
 		return
 	}
 
-	s.parseBundle(resp.Bundles[s.trustDomainID])
+	s.setJWKS(jwtBundle)
 }
 
-func (s *WorkloadAPISource) parseBundle(bundle []byte) {
-	if bundle == nil {
-		s.log.WithField("trust_domain_id", s.trustDomainID).Error("No bundle for trust domain in Workload API response")
+func (s *WorkloadAPISource) setJWKS(bundle *jwtbundle.Bundle) {
+	rawBundle, err := bundle.Marshal()
+	if err != nil {
+		s.log.WithError(err).Error("Failed to marshal JWKS bundle received from the Workload API")
 		return
 	}
 
 	// If the bundle hasn't changed, don't bother continuing
 	s.mu.RLock()
-	if s.bundle != nil && bytes.Equal(s.bundle, bundle) {
-		s.mu.RUnlock()
-		return
-	}
+	unchanged := s.rawBundle != nil && bytes.Equal(s.rawBundle, rawBundle)
 	s.mu.RUnlock()
-
-	jwks := new(jose.JSONWebKeySet)
-	if err := json.Unmarshal(bundle, jwks); err != nil {
-		s.log.WithError(err).Error("Failed to parse trust domain bundle received from the Workload API")
+	if unchanged {
 		return
 	}
 
 	// Clean the JWKS
+	jwks := new(jose.JSONWebKeySet)
+	if err := json.Unmarshal(rawBundle, jwks); err != nil {
+		s.log.WithError(err).Error("Failed to parse trust domain bundle received from the Workload API")
+		return
+	}
 	for i, key := range jwks.Keys {
 		key.Use = ""
 		jwks.Keys[i] = key
@@ -161,7 +153,7 @@ func (s *WorkloadAPISource) parseBundle(bundle []byte) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.bundle = bundle
+	s.rawBundle = rawBundle
 	s.jwks = jwks
 	s.modTime = s.clock.Now()
 }

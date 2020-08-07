@@ -10,7 +10,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/api/workload/dial"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
