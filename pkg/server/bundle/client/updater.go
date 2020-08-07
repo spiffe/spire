@@ -17,7 +17,7 @@ type BundleUpdaterConfig struct {
 	DataStore   datastore.DataStore
 
 	// newClient is a test hook for injecting client behavior
-	newClient func(ClientConfig) Client
+	newClient func(ClientConfig) (Client, error)
 }
 
 type BundleUpdater interface {
@@ -90,7 +90,7 @@ func (u *bundleUpdater) newClient(localBundleOrNil *bundleutil.Bundle) (Client, 
 			RootCAs:          localBundleOrNil.RootCAs(),
 		}
 	}
-	return u.c.newClient(config), nil
+	return u.c.newClient(config)
 }
 
 func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain string) (*bundleutil.Bundle, error) {

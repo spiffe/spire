@@ -2,7 +2,7 @@ FROM spire-agent:latest-local as spire-agent
 
 FROM alpine/socat:latest AS socat-latest
 
-FROM squareup/ghostunnel:latest AS socat-ghostunnel-agent-mashup
+FROM ghostunnel/ghostunnel:latest AS socat-ghostunnel-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
 COPY --from=socat-latest /usr/bin/socat /usr/bin/socat
 RUN apk --no-cache add dumb-init

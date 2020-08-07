@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
-	"github.com/spiffe/go-spiffe/spiffe"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 )
 
@@ -207,7 +209,7 @@ func parseX509SVIDResponse(resp *workload.X509SVIDResponse) ([]*X509SVID, error)
 	return svids, nil
 }
 
-func parseX509SVID(svid *workload.X509SVID, allFederatedBundles map[string][]*x509.Certificate) (*X509SVID, error) {
+func parseX509SVID(svid *workload.X509SVID, federatedBundles map[string][]*x509.Certificate) (*X509SVID, error) {
 	certificates, err := x509.ParseCertificates(svid.X509Svid)
 	if err != nil {
 		return nil, err
@@ -231,15 +233,6 @@ func parseX509SVID(svid *workload.X509SVID, allFederatedBundles map[string][]*x5
 		return nil, errors.New("no certificates in trust bundle")
 	}
 
-	federatedBundles := make(map[string][]*x509.Certificate)
-	for _, federatesWith := range svid.FederatesWith {
-		bundle, ok := allFederatedBundles[federatesWith]
-		if !ok {
-			return nil, fmt.Errorf("missing bundle for federated domain %q", federatesWith)
-		}
-		federatedBundles[federatesWith] = bundle
-	}
-
 	return &X509SVID{
 		SPIFFEID:         svid.SpiffeId,
 		PrivateKey:       signer,
@@ -259,21 +252,16 @@ func validateX509SVIDs(svids []*X509SVID) error {
 }
 
 func validateX509SVID(svid *X509SVID) error {
-	id, err := spiffe.ParseID(svid.SPIFFEID, spiffe.AllowAny())
+	id, err := spiffeid.FromString(svid.SPIFFEID)
 	if err != nil {
-		return fmt.Errorf("malformed SPIFFE ID %q: %v", svid.SPIFFEID, err)
+		return err
 	}
-	trustDomainID := spiffe.TrustDomainID(id.Host)
 
-	roots := x509.NewCertPool()
-	for _, cert := range svid.Bundle {
-		roots.AddCert(cert)
-	}
-	_, err = spiffe.VerifyPeerCertificate(svid.Certificates, map[string]*x509.CertPool{
-		trustDomainID: roots,
-	}, spiffe.ExpectPeerInDomain(id.Host))
-	if err != nil {
+	bundle := x509bundle.FromX509Authorities(id.TrustDomain(), svid.Bundle)
+
+	if _, _, err := x509svid.Verify(svid.Certificates, bundle); err != nil {
 		return fmt.Errorf("%q SVID failed verification against bundle: %v", svid.SPIFFEID, err)
 	}
+
 	return nil
 }

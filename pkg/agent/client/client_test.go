@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,8 @@ import (
 
 var (
 	log, _ = test.NewNullLogger()
+
+	trustDomainURL = url.URL{Scheme: "spiffe", Host: "example.org"}
 )
 
 func TestFetchUpdates(t *testing.T) {
@@ -639,6 +642,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
 func TestNewClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	nodeClient, nodeConn, err := client.newNodeClient(context.Background())
 	require.Error(t, err)
@@ -650,6 +654,7 @@ func TestNewClientFailsDial(t *testing.T) {
 func TestNewAgentClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newAgentClient(context.Background())
 	require.Error(t, err)
@@ -661,6 +666,7 @@ func TestNewAgentClientFailsDial(t *testing.T) {
 func TestNewBundleClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newBundleClient(context.Background())
 	require.Error(t, err)
@@ -672,6 +678,7 @@ func TestNewBundleClientFailsDial(t *testing.T) {
 func TestNewEntryClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newEntryClient(context.Background())
 	require.Error(t, err)
@@ -683,6 +690,7 @@ func TestNewEntryClientFailsDial(t *testing.T) {
 func TestNewSVIDClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newSVIDClient(context.Background())
 	require.Error(t, err)
@@ -913,6 +921,7 @@ func createClient(tb testing.TB) (*client, *testClient) {
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 		RotMtx:        new(sync.RWMutex),
+		TrustDomain:   trustDomainURL,
 	})
 	client.createNewNodeClient = func(conn grpc.ClientConnInterface) node.NodeClient {
 		return tc.nodeClient
