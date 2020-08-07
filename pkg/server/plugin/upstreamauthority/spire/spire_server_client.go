@@ -76,12 +76,12 @@ func (c *serverClient) release() {
 
 	if c.conn != nil {
 		c.conn.Close()
+		c.conn = nil
 	}
 	if c.source != nil {
 		c.source.Close()
+		c.source = nil
 	}
-	c.conn = nil
-	c.source = nil
 	c.bundleClient = nil
 	c.svidClient = nil
 }
