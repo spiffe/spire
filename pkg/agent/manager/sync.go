@@ -106,9 +106,7 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	req := &node.FetchX509SVIDRequest{
-		Csrs: make(map[string][]byte),
-	}
+	csrsIn := make(map[string][]byte)
 
 	privateKeys := make(map[string]*ecdsa.PrivateKey, len(csrs))
 	for _, csr := range csrs {
@@ -129,16 +127,16 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 			return nil, err
 		}
 		privateKeys[csr.EntryID] = privateKey
-		req.Csrs[csr.EntryID] = csrBytes
+		csrsIn[csr.EntryID] = csrBytes
 	}
 
-	update, err := m.client.FetchUpdates(ctx, req, false)
+	svidsOut, err := m.client.NewX509SVIDs(ctx, csrsIn)
 	if err != nil {
 		return nil, err
 	}
 
-	byEntryID := make(map[string]*cache.X509SVID, len(update.SVIDs))
-	for entryID, svid := range update.SVIDs {
+	byEntryID := make(map[string]*cache.X509SVID, len(svidsOut))
+	for entryID, svid := range svidsOut {
 		privateKey, ok := privateKeys[entryID]
 		if !ok {
 			continue
@@ -163,11 +161,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, err
 	counter := telemetry_agent.StartManagerFetchEntriesUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	req := &node.FetchX509SVIDRequest{
-		Csrs: make(map[string][]byte),
-	}
-
-	update, err := m.client.FetchUpdates(ctx, req, false)
+	update, err := m.client.FetchUpdates(ctx)
 	if err != nil {
 		return nil, err
 	}
