@@ -6,7 +6,7 @@ echo ${ROOTDIR}
 mv conf/agent.key.pem conf/agent/test.key.pem
 mv conf/agent.crt.pem conf/agent/test.crt.pem
 # add read access to prevent error when reading with user 1001
-chmod +x conf/agent/test.key.pem
+chmod +r conf/agent/test.key.pem
 
 "${ROOTDIR}/setup/node-attestation/build.sh" "${RUNDIR}/conf/server/node-attestation"
 "${ROOTDIR}/setup/node-attestation/build.sh" "${RUNDIR}/conf/agent/node-attestation"
