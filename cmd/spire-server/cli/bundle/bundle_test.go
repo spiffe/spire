@@ -178,9 +178,7 @@ type bundleTest struct {
 
 	ds                 *fakedatastore.DataStore
 	registrationClient *fakeregistrationclient.Client
-	stdin              *bytes.Buffer
-	stdout             *bytes.Buffer
-	stderr             *bytes.Buffer
+	testEnv            *env
 
 	showCmd   cli.Command
 	setCmd    cli.Command
@@ -198,17 +196,13 @@ func setupTest(t *testing.T) *bundleTest {
 	cert2, err := pemutil.ParseCertificate([]byte(cert2PEM))
 	require.NoError(t, err)
 
-	stdin := new(bytes.Buffer)
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-
 	ds := fakedatastore.New(t)
 	registrationClient := fakeregistrationclient.New(t, "spiffe://example.test", ds, nil)
 
 	testEnv := &env{
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
+		stdin:  new(bytes.Buffer),
+		stdout: new(bytes.Buffer),
+		stderr: new(bytes.Buffer),
 	}
 	clientMaker := func(string) (*clients, error) {
 		return &clients{
@@ -216,15 +210,17 @@ func setupTest(t *testing.T) *bundleTest {
 		}, nil
 	}
 
+	t.Cleanup(func() {
+		registrationClient.Close()
+	})
+
 	return &bundleTest{
 		cert1:              cert1,
 		cert2:              cert2,
 		key1Pkix:           key1Pkix,
 		ds:                 ds,
 		registrationClient: fakeregistrationclient.New(t, "spiffe://example.test", ds, nil),
-		stdin:              stdin,
-		stdout:             stdout,
-		stderr:             stderr,
+		testEnv:            testEnv,
 		showCmd:            newShowCommand(testEnv, clientMaker),
 		setCmd:             newSetCommand(testEnv, clientMaker),
 		listCmd:            newListCommand(testEnv, clientMaker),
@@ -232,29 +228,23 @@ func setupTest(t *testing.T) *bundleTest {
 	}
 }
 
-func (s *bundleTest) cleanup() {
-	// gotta close the registration client or we will leak a goroutine
-	s.registrationClient.Close()
-}
-
 func (s *bundleTest) AfterTest(t *testing.T, suiteName, testName string) {
 	t.Logf("SUITE: %s TEST:%s", suiteName, testName)
-	t.Logf("STDOUT:\n%s", s.stdout.String())
-	t.Logf("STDIN:\n%s", s.stdin.String())
-	t.Logf("STDERR:\n%s", s.stderr.String())
+	t.Logf("STDOUT:\n%s", s.testEnv.stdout.(*bytes.Buffer).String())
+	t.Logf("STDIN:\n%s", s.testEnv.stdin.(*bytes.Buffer).String())
+	t.Logf("STDERR:\n%s", s.testEnv.stderr.(*bytes.Buffer).String())
 }
 
 func TestShowHelp(t *testing.T) {
 	test := setupTest(t)
-	defer test.cleanup()
 
 	test.showCmd.Help()
 	require.Equal(t, `Usage of bundle show:
   -format string
-    	The format to show the bundle. Either "pem" or "jwks". (default "pem")
+    	The format to show the bundle. Either "pem" or "spiffe". (default "pem")
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.stderr.String())
+`, test.testEnv.stderr.(*bytes.Buffer).String())
 }
 
 func TestShow(t *testing.T) {
@@ -273,45 +263,42 @@ func TestShow(t *testing.T) {
 			expectedOut: cert1PEM,
 		},
 		{
-			name:        "jwks",
-			args:        []string{"-format", formatJWKS},
+			name:        "spiffe",
+			args:        []string{"-format", formatSPIFFE},
 			expectedOut: cert1JWKS,
 		},
 	} {
-		test := setupTest(t)
-		defer test.cleanup()
-
-		test.createBundle(t, &common.Bundle{
-			TrustDomainId: "spiffe://example.test",
-			RootCas: []*common.Certificate{
-				{DerBytes: test.cert1.Raw},
-			},
-			RefreshHint: 60,
-		})
-
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t)
+			test.createBundle(t, &common.Bundle{
+				TrustDomainId: "spiffe://example.test",
+				RootCas: []*common.Certificate{
+					{DerBytes: test.cert1.Raw},
+				},
+				RefreshHint: 60,
+			})
+
 			require.Equal(t, 0, test.showCmd.Run(tt.args))
-			require.Equal(t, test.stdout.String(), tt.expectedOut)
+			require.Equal(t, test.testEnv.stdout.(*bytes.Buffer).String(), tt.expectedOut)
 		})
 	}
 }
 
 func TestSetHelp(t *testing.T) {
 	test := setupTest(t)
-	defer test.cleanup()
 
 	test.setCmd.Help()
 	require.Equal(t, `Usage of bundle set:
   -format string
-    	The format of the bundle data. Either "pem" or "jwks". (default "pem")
+    	The format of the bundle data. Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
   -path string
     	Path to the bundle data
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.stderr.String())
+`, test.testEnv.stderr.(*bytes.Buffer).String())
 }
 
 func TestSet(t *testing.T) {
@@ -350,7 +337,7 @@ func TestSet(t *testing.T) {
 		{
 			name:  "create bundle (jwks)",
 			stdin: otherDomainJWKS,
-			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatJWKS},
+			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
 		},
 		{
 			name:  "update bundle (default)",
@@ -365,7 +352,7 @@ func TestSet(t *testing.T) {
 		{
 			name:  "update bundle (jwks)",
 			stdin: otherDomainJWKS,
-			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatJWKS},
+			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
 		},
 		{
 			name:           "invalid file name",
@@ -384,20 +371,18 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:     "create from file (jwks)",
-			args:     []string{"-id", "spiffe://otherdomain.test", "-format", formatJWKS},
+			args:     []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
 			fileData: otherDomainJWKS,
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t)
-			defer test.cleanup()
-
 			rc := test.setCmd.Run(tt.args)
 
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, rc)
-				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, tt.expectedStderr, test.testEnv.stderr.(*bytes.Buffer).String())
 				return
 			}
 
@@ -410,7 +395,7 @@ func TestSet(t *testing.T) {
 				})
 			}
 
-			test.stdin.WriteString(tt.stdin)
+			test.testEnv.stdin.(*bytes.Buffer).WriteString(tt.stdin)
 			if tt.fileData != "" {
 				tmpDir := spiretest.TempDir(t)
 				bundlePath := filepath.Join(tmpDir, "bundle_data")
@@ -424,17 +409,16 @@ func TestSet(t *testing.T) {
 
 func TestListHelp(t *testing.T) {
 	test := setupTest(t)
-	defer test.cleanup()
 
 	test.listCmd.Help()
 	require.Equal(t, `Usage of bundle list:
   -format string
-    	The format to list federated bundles. Either "pem" or "jwks". (default "pem")
+    	The format to list federated bundles. Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.stderr.String())
+`, test.testEnv.stderr.(*bytes.Buffer).String())
 }
 
 func TestList(t *testing.T) {
@@ -454,7 +438,7 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:           "all bundles (jwks)",
-			args:           []string{"-format", formatJWKS},
+			args:           []string{"-format", formatSPIFFE},
 			expectedStdout: allBundlesJWKS,
 		},
 		{
@@ -469,15 +453,13 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:           "one bundle (jwks)",
-			args:           []string{"-id", "spiffe://domain2.test", "-format", formatJWKS},
+			args:           []string{"-id", "spiffe://domain2.test", "-format", formatSPIFFE},
 			expectedStdout: cert2JWKS,
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t)
-			defer test.cleanup()
-
 			test.createBundle(t, &common.Bundle{
 				TrustDomainId: "spiffe://domain1.test",
 				RootCas: []*common.Certificate{
@@ -495,14 +477,13 @@ func TestList(t *testing.T) {
 			})
 
 			require.Equal(t, 0, test.listCmd.Run(tt.args))
-			require.Equal(t, tt.expectedStdout, test.stdout.String())
+			require.Equal(t, tt.expectedStdout, test.testEnv.stdout.(*bytes.Buffer).String())
 		})
 	}
 }
 
 func TestDeleteHelp(t *testing.T) {
 	test := setupTest(t)
-	defer test.cleanup()
 
 	test.deleteCmd.Help()
 	require.Equal(t, `Usage of bundle delete:
@@ -512,7 +493,7 @@ func TestDeleteHelp(t *testing.T) {
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.stderr.String())
+`, test.testEnv.stderr.(*bytes.Buffer).String())
 }
 
 func TestDelete(t *testing.T) {
@@ -565,8 +546,6 @@ func TestDelete(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t)
-			defer test.cleanup()
-
 			test.createBundle(t, &common.Bundle{
 				TrustDomainId: "spiffe://domain1.test",
 				RootCas: []*common.Certificate{
@@ -585,7 +564,7 @@ func TestDelete(t *testing.T) {
 
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, test.deleteCmd.Run(tt.args))
-				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, tt.expectedStderr, test.testEnv.stderr.(*bytes.Buffer).String())
 
 				_, err := test.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 					TrustDomainId: "spiffe://domain1.test",
@@ -595,7 +574,7 @@ func TestDelete(t *testing.T) {
 			}
 
 			require.Equal(t, 0, test.deleteCmd.Run(tt.args))
-			require.Equal(t, tt.expectedStdout, test.stdout.String())
+			require.Equal(t, tt.expectedStdout, test.testEnv.stdout.(*bytes.Buffer).String())
 
 			resp, err := test.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 				TrustDomainId: "spiffe://domain1.test",
@@ -610,7 +589,7 @@ func TestDelete(t *testing.T) {
 func (s *bundleTest) assertBundleSet(t *testing.T, args []string) {
 	rc := s.setCmd.Run(args)
 	require.Equal(t, 0, rc)
-	require.Equal(t, "bundle set.\n", s.stdout.String())
+	require.Equal(t, "bundle set.\n", s.testEnv.stdout.(*bytes.Buffer).String())
 
 	// make sure it made it into the datastore
 	resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{

@@ -37,7 +37,7 @@ func (c *listCommand) synopsis() string {
 
 func (c *listCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
-	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format to list federated bundles. Either %q or %q.", formatPEM, formatJWKS))
+	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format to list federated bundles. Either %q or %q.", formatPEM, formatSPIFFE))
 }
 
 func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error {

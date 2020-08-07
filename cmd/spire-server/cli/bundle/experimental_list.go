@@ -36,7 +36,7 @@ func (c *experimentalListCommand) appendFlags(fs *flag.FlagSet) {
 func (c *experimentalListCommand) run(ctx context.Context, env *env, clients *clients) error {
 	listCommand := listCommand{
 		id:     c.id,
-		format: formatJWKS,
+		format: formatSPIFFE,
 	}
 
 	return listCommand.run(ctx, env, clients)

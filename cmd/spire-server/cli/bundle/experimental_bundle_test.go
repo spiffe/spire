@@ -220,13 +220,23 @@ func (s *ExperimentalBundleSuite) assertBundleSet(args ...string) {
 		TrustDomainId: "spiffe://otherdomain.test",
 	})
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().NotNil(resp.Bundle)
-	s.Require().Len(resp.Bundle.RootCas, 1)
-	s.Require().Equal(s.cert1.Raw, resp.Bundle.RootCas[0].DerBytes)
-	s.Require().Len(resp.Bundle.JwtSigningKeys, 1)
-	s.Require().Equal("KID", resp.Bundle.JwtSigningKeys[0].Kid)
-	s.Require().Equal(s.key1Pkix, resp.Bundle.JwtSigningKeys[0].PkixBytes)
+	expectedResp := &datastore.FetchBundleResponse{
+		Bundle: &common.Bundle{
+			TrustDomainId: "spiffe://otherdomain.test",
+			RootCas: []*common.Certificate{
+				{
+					DerBytes: s.cert1.Raw,
+				},
+			},
+			JwtSigningKeys: []*common.PublicKey{
+				{
+					PkixBytes: s.key1Pkix,
+					Kid:       "KID",
+				},
+			},
+		},
+	}
+	spiretest.RequireProtoEqual(s.T(), expectedResp, resp)
 }
 
 func (s *ExperimentalBundleSuite) createBundle(bundle *common.Bundle) {

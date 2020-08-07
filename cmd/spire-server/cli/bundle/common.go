@@ -24,8 +24,8 @@ const (
 * %s
 ****************************************
 `
-	formatPEM  = "pem"
-	formatJWKS = "jwks"
+	formatPEM    = "pem"
+	formatSPIFFE = "spiffe"
 )
 
 var (
@@ -217,29 +217,6 @@ func printBundle(out io.Writer, bundle *common.Bundle) error {
 	return nil
 }
 
-func printRegistrationBundle(out io.Writer, bundle *registration.Bundle, format string, header bool) error {
-	if bundle == nil {
-		return errors.New("no bundle provided")
-	}
-
-	format, err := validateFormat(format)
-	if err != nil {
-		return err
-	}
-
-	if header {
-		if _, err := fmt.Fprintf(out, headerFmt, bundle.Bundle.TrustDomainId); err != nil {
-			return err
-		}
-	}
-
-	if strings.ToLower(format) == formatPEM {
-		return printCertificates(out, bundle.Bundle.RootCas)
-	}
-
-	return printBundle(out, bundle.Bundle)
-}
-
 func printCommonBundle(out io.Writer, bundle *common.Bundle, format string, header bool) error {
 	if bundle == nil {
 		return errors.New("no bundle provided")
@@ -256,7 +233,7 @@ func printCommonBundle(out io.Writer, bundle *common.Bundle, format string, head
 		}
 	}
 
-	if strings.ToLower(format) == formatPEM {
+	if format == formatPEM {
 		return printCertificates(out, bundle.RootCas)
 	}
 
@@ -270,9 +247,11 @@ func validateFormat(format string) (string, error) {
 		format = formatPEM
 	}
 
-	switch strings.ToLower(format) {
+	format = strings.ToLower(format)
+
+	switch format {
 	case formatPEM:
-	case formatJWKS:
+	case formatSPIFFE:
 	default:
 		return "", fmt.Errorf("invalid format: %q", format)
 	}

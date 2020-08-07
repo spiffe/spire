@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -44,7 +43,7 @@ func (c *setCommand) synopsis() string {
 func (c *setCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 	fs.StringVar(&c.path, "path", "", "Path to the bundle data")
-	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", formatPEM, formatJWKS))
+	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", formatPEM, formatSPIFFE))
 }
 
 func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error {
@@ -69,7 +68,8 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 		return fmt.Errorf("unable to load bundle data: %v", err)
 	}
 
-	if strings.ToLower(format) == formatPEM {
+	switch format {
+	case formatPEM:
 		rootCAs, err := pemutil.ParseCertificates(bundleBytes)
 		if err != nil {
 			return fmt.Errorf("unable to parse bundle data: %v", err)
@@ -78,7 +78,7 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 		bundle = &registration.FederatedBundle{
 			Bundle: bundleutil.BundleProtoFromRootCAs(id, rootCAs),
 		}
-	} else {
+	default:
 		commonBundle, err := parseBundle(c.id, bundleBytes)
 		if err != nil {
 			return err

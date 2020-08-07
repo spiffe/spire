@@ -32,7 +32,7 @@ func (c *experimentalShowCommand) appendFlags(fs *flag.FlagSet) {
 
 func (c *experimentalShowCommand) run(ctx context.Context, env *env, clients *clients) error {
 	showCommand := showCommand{
-		format: formatJWKS,
+		format: formatSPIFFE,
 	}
 
 	return showCommand.run(ctx, env, clients)

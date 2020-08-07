@@ -41,7 +41,7 @@ func (c *experimentalSetCommand) run(ctx context.Context, env *env, clients *cli
 	setCommand := setCommand{
 		id:     c.id,
 		path:   c.path,
-		format: formatJWKS,
+		format: formatSPIFFE,
 	}
 
 	return setCommand.run(ctx, env, clients)
