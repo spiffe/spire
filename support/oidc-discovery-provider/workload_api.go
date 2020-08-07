@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2"
 )
@@ -117,7 +118,7 @@ func (s *WorkloadAPISource) pollOnce(ctx context.Context, client *workloadapi.Cl
 
 	jwtBundle, ok := jwtBundles.Get(s.trustDomain)
 	if !ok {
-		s.log.WithField("trust_domain_id", s.trustDomain.IDString()).Error("No bundle for trust domain in Workload API response")
+		s.log.WithField(telemetry.TrustDomainID, s.trustDomain.IDString()).Error("No bundle for trust domain in Workload API response")
 		return
 	}
 
