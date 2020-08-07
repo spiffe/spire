@@ -77,32 +77,29 @@ func TestNew(t *testing.T) {
 	})
 
 	endpoints, err := New(Config{
-		TCPAddr:               tcpAddr,
-		UDSAddr:               udsAddr,
-		SVIDObserver:          svidObserver,
-		TrustDomain:           testTD,
-		Catalog:               cat,
-		ServerCA:              serverCA,
-		BundleEndpoint:        bundle.EndpointConfig{Address: tcpAddr},
-		EnableExperimentalAPI: true,
-		Manager:               manager,
-		Log:                   log,
-		Metrics:               metrics,
+		TCPAddr:        tcpAddr,
+		UDSAddr:        udsAddr,
+		SVIDObserver:   svidObserver,
+		TrustDomain:    testTD,
+		Catalog:        cat,
+		ServerCA:       serverCA,
+		BundleEndpoint: bundle.EndpointConfig{Address: tcpAddr},
+		Manager:        manager,
+		Log:            log,
+		Metrics:        metrics,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
 	assert.Equal(t, udsAddr, endpoints.UDSAddr)
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
-	assert.NotNil(t, endpoints.RegistrationServer)
-	assert.NotNil(t, endpoints.NodeServer)
-	if assert.NotNil(t, endpoints.ExperimentalServers) {
-		assert.NotNil(t, endpoints.ExperimentalServers.AgentServer)
-		assert.NotNil(t, endpoints.ExperimentalServers.BundleServer)
-		assert.NotNil(t, endpoints.ExperimentalServers.EntryServer)
-		assert.NotNil(t, endpoints.ExperimentalServers.SVIDServer)
-	}
-	assert.NotNil(t, endpoints.BundleServer)
+	assert.NotNil(t, endpoints.OldAPIServers.RegistrationServer)
+	assert.NotNil(t, endpoints.OldAPIServers.NodeServer)
+	assert.NotNil(t, endpoints.APIServers.AgentServer)
+	assert.NotNil(t, endpoints.APIServers.BundleServer)
+	assert.NotNil(t, endpoints.APIServers.EntryServer)
+	assert.NotNil(t, endpoints.APIServers.SVIDServer)
+	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
 	assert.Equal(t, metrics, endpoints.Metrics)
@@ -128,25 +125,27 @@ func TestListenAndServe(t *testing.T) {
 
 	registrationServer := newRegistrationServer()
 	nodeServer := newNodeServer()
-	bundleServer := newBundleServer()
+	bundleEndpointServer := newBundleEndpointServer()
 
 	endpoints := Endpoints{
-		TCPAddr:            listener.Addr().(*net.TCPAddr),
-		UDSAddr:            &net.UnixAddr{Name: udsPath, Net: "unix"},
-		SVIDObserver:       newSVIDObserver(serverSVID),
-		TrustDomain:        testTD,
-		DataStore:          ds,
-		RegistrationServer: registrationServer,
-		NodeServer:         nodeServer,
-		ExperimentalServers: &ExperimentalServers{
+		TCPAddr:      listener.Addr().(*net.TCPAddr),
+		UDSAddr:      &net.UnixAddr{Name: udsPath, Net: "unix"},
+		SVIDObserver: newSVIDObserver(serverSVID),
+		TrustDomain:  testTD,
+		DataStore:    ds,
+		OldAPIServers: OldAPIServers{
+			RegistrationServer: registrationServer,
+			NodeServer:         nodeServer,
+		},
+		APIServers: APIServers{
 			AgentServer:  &agentv1.UnimplementedAgentServer{},
 			BundleServer: &bundlev1.UnimplementedBundleServer{},
 			EntryServer:  &entryv1.UnimplementedEntryServer{},
 			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
 		},
-		BundleServer: bundleServer,
-		Log:          log,
-		Metrics:      metrics,
+		BundleEndpointServer: bundleEndpointServer,
+		Log:                  log,
+		Metrics:              metrics,
 	}
 
 	// Prime the datastore with the:
@@ -224,8 +223,8 @@ func TestListenAndServe(t *testing.T) {
 		testSVIDAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 
-	// Assert that the bundle server was called to listen and serve
-	require.True(t, bundleServer.Used(), "bundle server was not called to listen and serve")
+	// Assert that the bundle endpoint server was called to listen and serve
+	require.True(t, bundleEndpointServer.Used(), "bundle server was not called to listen and serve")
 
 	// Cancel the context to bring down the endpoints and ensure they shut
 	// down cleanly.
@@ -704,23 +703,23 @@ func (t *callTracker) Reset() {
 	t.peers = nil
 }
 
-type bundleServer struct {
+type bundleEndpointServer struct {
 	mtx  sync.Mutex
 	used bool
 }
 
-func newBundleServer() *bundleServer {
-	return &bundleServer{}
+func newBundleEndpointServer() *bundleEndpointServer {
+	return &bundleEndpointServer{}
 }
 
-func (s *bundleServer) ListenAndServe(ctx context.Context) error {
+func (s *bundleEndpointServer) ListenAndServe(ctx context.Context) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	s.used = true
 	return nil
 }
 
-func (s *bundleServer) Used() bool {
+func (s *bundleEndpointServer) Used() bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	return s.used
