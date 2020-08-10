@@ -285,15 +285,17 @@ Displays the bundle for the trust domain of the server.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-format` | The format to show the bundle. Either `pem` or `spiffe` | pem |
 
 ### `spire-server bundle list`
 
-Displays bundles from other trust domains.
+Displays federated bundles.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-format` | The format to show the federated bundles. Either `pem` or `spiffe` | pem |
 
 ### `spire-server bundle set`
 
@@ -304,6 +306,7 @@ Creates or updates bundle data for a trust domain. This command cannot be used t
 | `-id`         | The trust domain SPIFFE ID of the bundle to set. | |
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-format` | The format of the bundle to set. Either `pem` or `spiffe` | pem |
 
 ### `spire-server bundle delete`
 
@@ -387,7 +390,9 @@ Mints a JWT-SVID.
 
 ### `spire-server experimental bundle show`
 
-(Experimental) Displays the bundle for the trust domain of the server as a JWKS document
+(Experimental) This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the `bundle show` command.
+
+Displays the bundle for the trust domain of the server as a JWKS document.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -395,7 +400,9 @@ Mints a JWT-SVID.
 
 ### `spire-server experimental bundle list`
 
-(Experimental) Displays bundles from other trust domains as JWKS documents
+(Experimental) This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the `bundle list` command.
+
+Displays bundles from other trust domains as JWKS documents.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -404,7 +411,9 @@ Mints a JWT-SVID.
 
 ### `spire-server experimental bundle set`
 
-(Experimental) Creates or updates bundle data for a trust domain. This command cannot be used to alter the server trust domain bundle, only bundles for other trust domains.
+(Experimental) This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the `bundle set` command.
+
+Creates or updates bundle data for a trust domain. This command cannot be used to alter the server trust domain bundle, only bundles for other trust domains.
 
 Bundle data read from stdin or the path is expected to be a JWKS document.
 
