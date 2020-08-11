@@ -263,7 +263,6 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 			RegistrationEntries: []*common.RegistrationEntry{
 				{
 					EntryId:  "ENTRYID1",
-					ParentId: "spiffe://example.org/host",
 					SpiffeId: "spiffe://example.org/id1",
 					Selectors: []*common.Selector{
 						{Type: "S", Value: "1"},
@@ -275,7 +274,6 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 				},
 				// This entry should be ignored since it is missing an entry ID
 				{
-					ParentId: "spiffe://example.org/host",
 					SpiffeId: "spiffe://example.org/id2",
 					Selectors: []*common.Selector{
 						{Type: "S", Value: "2"},
@@ -286,8 +284,7 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 				},
 				// This entry should be ignored since it is missing a SPIFFE ID
 				{
-					EntryId:  "ENTRYID3",
-					ParentId: "spiffe://example.org/host",
+					EntryId: "ENTRYID3",
 					Selectors: []*common.Selector{
 						{Type: "S", Value: "3"},
 					},
@@ -295,7 +292,6 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 				// This entry should be ignored since it is missing selectors
 				{
 					EntryId:  "ENTRYID4",
-					ParentId: "spiffe://example.org/host",
 					SpiffeId: "spiffe://example.org/id4",
 				},
 			},

@@ -137,7 +137,14 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	}
 	defer connection.Release()
 
-	resp, err := entryClient.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{})
+	resp, err := entryClient.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{
+		OutputMask: &types.EntryMask{
+			SpiffeId:       true,
+			Selectors:      true,
+			FederatesWith:  true,
+			RevisionNumber: true,
+		},
+	})
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
