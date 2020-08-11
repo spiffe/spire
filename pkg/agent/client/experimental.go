@@ -230,7 +230,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 			}).Warn("Fails to mint X509 SVID")
 		}
 
-		svids = append(svids, r.Bundle)
+		svids = append(svids, r.Svid)
 	}
 
 	return svids, nil
