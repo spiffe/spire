@@ -876,7 +876,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				expect := tt.expectResults[i]
 
 				if expect.status != nil {
-					require.Nil(t, result.Bundle)
+					require.Nil(t, result.Svid)
 					require.Equal(t, expect.status.Code, result.Status.Code)
 					require.Contains(t, result.Status.Message, expect.status.Message)
 
@@ -887,14 +887,14 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				}
 				spiretest.AssertProtoEqual(t, &types.Status{Code: int32(codes.OK), Message: "OK"}, result.Status)
 
-				require.NotNil(t, result.Bundle)
+				require.NotNil(t, result.Svid)
 
 				entry := expect.entry
 
-				require.Equal(t, entry.SpiffeId.TrustDomain, result.Bundle.Id.TrustDomain)
-				require.Equal(t, entry.SpiffeId.Path, result.Bundle.Id.Path)
+				require.Equal(t, entry.SpiffeId.TrustDomain, result.Svid.Id.TrustDomain)
+				require.Equal(t, entry.SpiffeId.Path, result.Svid.Id.Path)
 
-				certChain, err := x509util.RawCertsToCertificates(result.Bundle.CertChain)
+				certChain, err := x509util.RawCertsToCertificates(result.Svid.CertChain)
 				require.NoError(t, err)
 				require.NotEmpty(t, certChain)
 				svid := certChain[0]
@@ -910,7 +910,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				expiresAt := now.Add(ttl)
 
 				require.Equal(t, expiresAt, svid.NotAfter)
-				require.Equal(t, expiresAt.UTC().Unix(), result.Bundle.ExpiresAt)
+				require.Equal(t, expiresAt.UTC().Unix(), result.Svid.ExpiresAt)
 
 				require.Equal(t, entry.DnsNames, svid.DNSNames)
 

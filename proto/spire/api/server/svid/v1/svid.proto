@@ -89,7 +89,7 @@ message BatchNewX509SVIDResponse {
         spire.types.Status status = 1;
 
         // The newly created X509-SVID. This will be set if the status is OK.
-        spire.types.X509SVID bundle = 2;
+        spire.types.X509SVID svid = 2;
     }
 
     // Result for each X509-SVID requested.
