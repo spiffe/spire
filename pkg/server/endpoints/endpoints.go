@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	datastore_pb "github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -78,6 +79,11 @@ func New(c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
+	apiServers, err := c.makeAPIServers()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Endpoints{
 		TCPAddr:              c.TCPAddr,
 		UDSAddr:              c.UDSAddr,
@@ -85,7 +91,7 @@ func New(c Config) (*Endpoints, error) {
 		TrustDomain:          c.TrustDomain,
 		DataStore:            c.Catalog.GetDataStore(),
 		OldAPIServers:        oldAPIServers,
-		APIServers:           c.makeAPIServers(),
+		APIServers:           apiServers,
 		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
 		Log:                  c.Log,
 		Metrics:              c.Metrics,
@@ -247,7 +253,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
 func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	resp, err := e.DataStore.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{
+	resp, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), &datastore_pb.FetchBundleRequest{
 		TrustDomainId: e.TrustDomain.IDString(),
 	})
 	if err != nil {
