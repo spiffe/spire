@@ -98,6 +98,9 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		// the values in `update` now belong to the cache. DO NOT MODIFY.
 		m.cache.UpdateSVIDs(update)
 	}
+
+	// Set last success sync
+	m.setLastSync()
 	return nil
 }
 

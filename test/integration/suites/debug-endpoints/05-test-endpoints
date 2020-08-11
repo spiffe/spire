@@ -1,0 +1,25 @@
+#!/bin/bash
+
+MAXCHECKS=10
+CHECKINTERVAL=1
+# Call debug endpoints every 1s for 30s
+for ((i=1; i<=MAXCHECKS;i++)); do
+	log-info "test server debug endpoints ($i of $MAXCHECKS max)..."
+	docker-compose exec -T spire-server \
+		/opt/spire/conf/server/debugclient || fail-now "failed to check server debug endpoints"
+
+	log-info "test agent debug endpoints ($i of $MAXCHECKS max)..."
+	docker-compose exec -T spire-agent \
+		/opt/spire/conf/agent/debugclient || fail-now "failed to check agent debug endpoints"
+	 sleep $CHECKINTERVAL
+done
+
+# Verify server TCP server does not implements Debug endpoint
+docker-compose exec -u 1001 -T spire-agent \
+	/opt/spire/conf/agent/debugclient -testCase "serverWithWorkload" || fail-now "failed to check server debug endpoints using admin workload"
+
+docker-compose exec -u 1002 -T spire-agent \
+	/opt/spire/conf/agent/debugclient -testCase "serverWithWorkload" || fail-now "failed to check server debug endpoints using regular workload"
+
+docker-compose exec -T spire-agent \
+	/opt/spire/conf/agent/debugclient -testCase "serverWithInsecure" || fail-now "failed to check server debug endpoints using insecure connection"

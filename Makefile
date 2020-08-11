@@ -145,8 +145,10 @@ protos := \
 	proto/spire/server/noderesolver/noderesolver.proto \
 	proto/spire/server/notifier/notifier.proto \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto \
+	proto/spire/api/agent/debug/v1/debug.proto \
 	proto/spire/api/server/agent/v1/agent.proto \
 	proto/spire/api/server/bundle/v1/bundle.proto \
+	proto/spire/api/server/debug/v1/debug.proto \
 	proto/spire/api/server/entry/v1/entry.proto \
 	proto/spire/api/server/svid/v1/svid.proto \
 	proto/spire/types/agent.proto \

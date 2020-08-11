@@ -495,6 +495,97 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 	}
 }
 
+func (s *PluginSuite) TestCountBundles() {
+	// Count empty bundles
+	resp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountBundlesResponse{Bundles: 0}, resp)
+
+	// Create bundles
+	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle1,
+	})
+	s.Require().NoError(err)
+
+	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle2,
+	})
+	s.Require().NoError(err)
+
+	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle3,
+	})
+	s.Require().NoError(err)
+
+	// Count all
+	resp, err = s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountBundlesResponse{Bundles: 3}, resp)
+}
+
+func (s *PluginSuite) TestCountAttestedNodes() {
+	// Count empty attested nodes
+	resp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountAttestedNodesResponse{Nodes: 0}, resp)
+
+	// Create attested nodes
+	node := &common.AttestedNode{
+		SpiffeId:            "spiffe://example.org/foo",
+		AttestationDataType: "t1",
+		CertSerialNumber:    "1234",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	s.Require().NoError(err)
+
+	node2 := &common.AttestedNode{
+		SpiffeId:            "spiffe://example.org/bar",
+		AttestationDataType: "t2",
+		CertSerialNumber:    "5678",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node2})
+	s.Require().NoError(err)
+
+	// Count all
+	resp, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountAttestedNodesResponse{Nodes: 2}, resp)
+}
+
+func (s *PluginSuite) TestCountRegistrationEntries() {
+	// Count empty registration entries
+	resp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountRegistrationEntriesResponse{Entries: 0}, resp)
+
+	// Create attested nodes
+	entry := &common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/agent",
+		SpiffeId:  "spiffe://example.org/foo",
+		Selectors: []*common.Selector{{Type: "a", Value: "1"}},
+	}
+	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+	s.Require().NoError(err)
+
+	entry2 := &common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/agent",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "a", Value: "2"}},
+	}
+	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
+	s.Require().NoError(err)
+
+	// Count all
+	resp, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountRegistrationEntriesResponse{Entries: 2}, resp)
+}
+
 func (s *PluginSuite) TestSetBundle() {
 	// create a couple of bundles for tests. the contents don't really matter
 	// as long as they are for the same trust domain but have different contents.

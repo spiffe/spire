@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	agentv1 "github.com/spiffe/spire/pkg/server/api/agent/v1"
 	bundlev1 "github.com/spiffe/spire/pkg/server/api/bundle/v1"
+	debugv1 "github.com/spiffe/spire/pkg/server/api/debug/v1"
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -60,6 +62,8 @@ type Config struct {
 
 	// RateLimit holds rate limiting configurations.
 	RateLimit RateLimitConfig
+
+	Uptime func() time.Duration
 }
 
 func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
@@ -134,6 +138,7 @@ func (c *Config) makeAPIServers() APIServers {
 		c.Metrics,
 		ds)
 	upstreamPublisher := UpstreamPublisher(c.Manager)
+	clock := clock.New()
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -141,7 +146,7 @@ func (c *Config) makeAPIServers() APIServers {
 			ServerCA:    c.ServerCA,
 			TrustDomain: c.TrustDomain,
 			Catalog:     c.Catalog,
-			Clock:       clock.New(),
+			Clock:       clock,
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain:       c.TrustDomain,
@@ -158,6 +163,13 @@ func (c *Config) makeAPIServers() APIServers {
 			EntryFetcher: entryFetcher,
 			ServerCA:     c.ServerCA,
 			DataStore:    ds,
+		}),
+		DebugServer: debugv1.New(debugv1.Config{
+			TrustDomain:  c.TrustDomain,
+			Clock:        clock,
+			DataStore:    ds,
+			SVIDObserver: c.SVIDObserver,
+			Uptime:       c.Uptime,
 		}),
 	}
 }
