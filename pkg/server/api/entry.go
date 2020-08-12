@@ -77,7 +77,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 
 // ProtoToRegistrationEntry converts and validate entry into common registration entry
 func ProtoToRegistrationEntry(td spiffeid.TrustDomain, e *types.Entry) (*common.RegistrationEntry, error) {
-	return ProtoToRegistrationEntryWithMask(td, e, protoutil.AllTrueEntryMask)
+	return ProtoToRegistrationEntryWithMask(td, e, nil)
 }
 
 // ProtoToRegistrationEntryWithMask converts and validate entry into common registration entry,
@@ -167,6 +167,11 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		ttl = e.Ttl
 	}
 
+	var revisionNumber int64
+	if mask.RevisionNumber {
+		revisionNumber = e.RevisionNumber
+	}
+
 	return &common.RegistrationEntry{
 		EntryId:        e.Id,
 		ParentId:       parentIDString,
@@ -178,6 +183,6 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		FederatesWith:  federatesWith,
 		Selectors:      selectors,
 		Ttl:            ttl,
-		RevisionNumber: e.RevisionNumber,
+		RevisionNumber: revisionNumber,
 	}, nil
 }
