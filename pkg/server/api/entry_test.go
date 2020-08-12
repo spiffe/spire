@@ -35,7 +35,10 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"spiffe://domain1.com",
-					"spiffe://domain2.com",
+					// common registration entries use the trust domain ID but
+					// we should assert that they are normalized to trust
+					// domain name either way.
+					"domain2.com",
 				},
 				Admin:       true,
 				EntryExpiry: expiresAt,
@@ -52,8 +55,8 @@ func TestRegistrationEntryToProto(t *testing.T) {
 					{Type: "unix", Value: "gid:1000"},
 				},
 				FederatesWith: []string{
-					"spiffe://domain1.com",
-					"spiffe://domain2.com",
+					"domain1.com",
+					"domain2.com",
 				},
 				Admin:      true,
 				ExpiresAt:  expiresAt,
@@ -110,7 +113,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 		mask        *types.EntryMask
 	}{
 		{
-			name: "success",
+			name: "mask including all fields",
 			entry: &types.Entry{
 				Id:       "entry1",
 				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
@@ -121,8 +124,11 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 					{Type: "unix", Value: "gid:1000"},
 				},
 				FederatesWith: []string{
-					"spiffe://domain1.com",
-					"domain2.com",
+					"domain1.com",
+					// types entries use the trust domain name but we should
+					// assert that they are normalized to trust domain ID
+					// either way.
+					"spiffe://domain2.com",
 				},
 				Admin:      true,
 				ExpiresAt:  expiresAt,
@@ -150,59 +156,22 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 			mask: protoutil.AllTrueEntryMask,
 		},
 		{
-			name: "success empty spiffe id",
+			name: "mask off all fields",
 			entry: &types.Entry{
-				Id:       "entry1",
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
-				Selectors: []*types.Selector{
-					{Type: "unix", Value: "uid:1000"},
-					{Type: "unix", Value: "gid:1000"},
-				},
+				Id:            "entry1",
+				ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				Selectors:     []*types.Selector{},
+				DnsNames:      []string{"name1"},
+				FederatesWith: []string{"domain.test"},
+				Ttl:           1,
+				Admin:         true,
+				Downstream:    true,
+				ExpiresAt:     4,
 			},
 			expectEntry: &common.RegistrationEntry{
-				EntryId:  "entry1",
-				ParentId: "spiffe://example.org/foo",
-				SpiffeId: "",
-				Selectors: []*common.Selector{
-					{Type: "unix", Value: "uid:1000"},
-					{Type: "unix", Value: "gid:1000"},
-				},
+				EntryId: "entry1",
 			},
-			mask: &types.EntryMask{
-				SpiffeId:  false,
-				ParentId:  true,
-				Selectors: true,
-			},
-		},
-		{
-			name: "success empty selectors, ignore spiffe id field",
-			entry: &types.Entry{
-				Id:        "entry1",
-				ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
-				Selectors: []*types.Selector{},
-			},
-			expectEntry: &common.RegistrationEntry{
-				EntryId:   "entry1",
-				ParentId:  "spiffe://example.org/foo",
-				Selectors: []*common.Selector{},
-			},
-			mask: &types.EntryMask{
-				SpiffeId:  false,
-				ParentId:  true,
-				Selectors: false,
-			},
-		},
-		{
-			name: "fail bad spiffe id",
-			entry: &types.Entry{
-				Id:       "entry1",
-				ParentId: &types.SPIFFEID{TrustDomain: "", Path: "/foo"},
-				Selectors: []*types.Selector{
-					{Type: "unix", Value: "uid:1000"},
-					{Type: "unix", Value: "gid:1000"},
-				},
-			},
-			err: "invalid parent ID: spiffeid: trust domain is empty",
+			mask: &types.EntryMask{},
 		},
 	} {
 		tt := tt
@@ -243,8 +212,11 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 					{Type: "unix", Value: "gid:1000"},
 				},
 				FederatesWith: []string{
-					"spiffe://domain1.com",
-					"domain2.com",
+					"domain1.com",
+					// types entries use the trust domain name but we should
+					// assert that they are normalized to trust domain ID
+					// either way.
+					"spiffe://domain2.com",
 				},
 				Admin:      true,
 				ExpiresAt:  expiresAt,

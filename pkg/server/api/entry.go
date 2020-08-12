@@ -43,6 +43,15 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		return nil, err
 	}
 
+	federatesWith := make([]string, 0, len(e.FederatesWith))
+	for _, trustDomainID := range e.FederatesWith {
+		td, err := spiffeid.TrustDomainFromString(trustDomainID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid federated trust domain: %v", err)
+		}
+		federatesWith = append(federatesWith, td.String())
+	}
+
 	var selectors []*types.Selector
 	for _, s := range e.Selectors {
 		selectors = append(selectors, &types.Selector{
@@ -57,11 +66,11 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		ParentId:       ProtoFromID(parentID),
 		Selectors:      selectors,
 		Ttl:            e.Ttl,
-		FederatesWith:  e.FederatesWith,
+		FederatesWith:  federatesWith,
 		Admin:          e.Admin,
 		Downstream:     e.Downstream,
 		ExpiresAt:      e.EntryExpiry,
-		DnsNames:       e.DnsNames,
+		DnsNames:       append([]string(nil), e.DnsNames...),
 		RevisionNumber: e.RevisionNumber,
 	}, nil
 }
@@ -77,43 +86,73 @@ func ProtoToRegistrationEntry(td spiffeid.TrustDomain, e *types.Entry) (*common.
 // This allows the user to not specify these fields while updating using a mask.
 // All other fields are allowed to be empty (with or without a mask).
 func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, mask *types.EntryMask) (*common.RegistrationEntry, error) {
-	var parentIDString string
 	if e == nil {
 		return nil, errors.New("missing entry")
 	}
-	if mask == nil || mask.ParentId {
+
+	if mask == nil {
+		mask = protoutil.AllTrueEntryMask
+	}
+
+	var parentIDString string
+	if mask.ParentId {
 		parentID, err := TrustDomainMemberIDFromProto(td, e.ParentId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid parent ID: %v", err)
 		}
 		parentIDString = parentID.String()
 	}
+
 	var spiffeIDString string
-	if mask == nil || mask.SpiffeId {
+	if mask.SpiffeId {
 		spiffeID, err := TrustDomainWorkloadIDFromProto(td, e.SpiffeId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid spiffe ID: %v", err)
 		}
 		spiffeIDString = spiffeID.String()
 	}
-	for _, dnsName := range e.DnsNames {
-		if err := x509util.ValidateDNS(dnsName); err != nil {
-			return nil, fmt.Errorf("invalid DNS name: %v", err)
+
+	var admin bool
+	if mask.Admin {
+		admin = e.Admin
+	}
+
+	var dnsNames []string
+	if mask.DnsNames {
+		dnsNames = make([]string, 0, len(e.DnsNames))
+		for _, dnsName := range e.DnsNames {
+			if err := x509util.ValidateDNS(dnsName); err != nil {
+				return nil, fmt.Errorf("invalid DNS name: %v", err)
+			}
+			dnsNames = append(dnsNames, dnsName)
 		}
 	}
 
-	// Validate and normalize TDs
-	for i, federatedWith := range e.FederatesWith {
-		td, err := spiffeid.TrustDomainFromString(federatedWith)
-		if err != nil {
-			return nil, fmt.Errorf("invalid federated trust domain: %v", err)
+	var downstream bool
+	if mask.Downstream {
+		downstream = e.Downstream
+	}
+
+	var expiresAt int64
+	if mask.ExpiresAt {
+		expiresAt = e.ExpiresAt
+	}
+
+	var federatesWith []string
+	if mask.FederatesWith {
+		federatesWith = make([]string, 0, len(e.FederatesWith))
+		for _, trustDomainName := range e.FederatesWith {
+			td, err := spiffeid.TrustDomainFromString(trustDomainName)
+			if err != nil {
+				return nil, fmt.Errorf("invalid federated trust domain: %v", err)
+			}
+			federatesWith = append(federatesWith, td.IDString())
 		}
-		e.FederatesWith[i] = td.IDString()
 	}
 
 	var selectors []*common.Selector
 	var err error
-	if mask == nil || mask.Selectors {
+	if mask.Selectors {
 		if len(e.Selectors) == 0 {
 			return nil, errors.New("selector list is empty")
 		}
@@ -123,16 +162,21 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		}
 	}
 
+	var ttl int32
+	if mask.Ttl {
+		ttl = e.Ttl
+	}
+
 	return &common.RegistrationEntry{
 		EntryId:       e.Id,
 		ParentId:      parentIDString,
 		SpiffeId:      spiffeIDString,
-		Admin:         e.Admin,
-		DnsNames:      e.DnsNames,
-		Downstream:    e.Downstream,
-		EntryExpiry:   e.ExpiresAt,
-		FederatesWith: e.FederatesWith,
+		Admin:         admin,
+		DnsNames:      dnsNames,
+		Downstream:    downstream,
+		EntryExpiry:   expiresAt,
+		FederatesWith: federatesWith,
 		Selectors:     selectors,
-		Ttl:           e.Ttl,
+		Ttl:           ttl,
 	}, nil
 }
