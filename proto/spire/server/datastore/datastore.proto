@@ -120,6 +120,15 @@ message GetNodeSelectorsResponse {
     NodeSelectors selectors = 1;
 }
 
+message ListNodeSelectorsRequest {
+    // When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
+    bool tolerate_stale = 1;
+}
+
+message ListNodeSelectorsResponse{
+    repeated NodeSelectors selectors = 1;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // AttestedNode Messages
 /////////////////////////////////////////////////////////////////////////////
@@ -334,6 +343,8 @@ service DataStore {
     rpc SetNodeSelectors(SetNodeSelectorsRequest) returns (SetNodeSelectorsResponse);
     // Gets the set of node selectors for a specific node id
     rpc GetNodeSelectors(GetNodeSelectorsRequest) returns (GetNodeSelectorsResponse);
+    // Lists all node selectors
+    rpc ListNodeSelectors(ListNodeSelectorsRequest) returns (ListNodeSelectorsResponse);
 
     // Creates a registration entry
     rpc CreateRegistrationEntry(CreateRegistrationEntryRequest) returns (CreateRegistrationEntryResponse);

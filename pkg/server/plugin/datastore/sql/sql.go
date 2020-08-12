@@ -299,6 +299,15 @@ func (ds *Plugin) GetNodeSelectors(ctx context.Context,
 	return getNodeSelectors(ctx, ds.db, req)
 }
 
+// ListNodeSelectors gets node (agent) selectors by SPIFFE ID
+func (ds *Plugin) ListNodeSelectors(ctx context.Context,
+	req *datastore.ListNodeSelectorsRequest) (resp *datastore.ListNodeSelectorsResponse, err error) {
+	if req.TolerateStale && ds.roDb != nil {
+		return listNodeSelectors(ctx, ds.roDb, req)
+	}
+	return listNodeSelectors(ctx, ds.db, req)
+}
+
 // CreateRegistrationEntry stores the given registration entry
 func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 	req *datastore.CreateRegistrationEntryRequest) (resp *datastore.CreateRegistrationEntryResponse, err error) {
@@ -1548,6 +1557,51 @@ func getNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.GetNodeSele
 			Selectors: selectors,
 		},
 	}, nil
+}
+
+func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {
+	query := maybeRebind(db.databaseType, "SELECT spiffe_id, type, value FROM node_resolver_map_entries ORDER BY spiffe_id")
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+	defer rows.Close()
+
+	resp := new(datastore.ListNodeSelectorsResponse)
+
+	var currentID string
+	var selectors []*common.Selector
+	push := func(spiffeID string, selector *common.Selector) {
+		switch {
+		case currentID == "":
+			currentID = spiffeID
+		case spiffeID != currentID:
+			resp.Selectors = append(resp.Selectors, &datastore.NodeSelectors{
+				SpiffeId:  currentID,
+				Selectors: selectors,
+			})
+			currentID = spiffeID
+			selectors = nil
+		}
+		selectors = append(selectors, selector)
+	}
+
+	for rows.Next() {
+		var spiffeID string
+		selector := new(common.Selector)
+		if err := rows.Scan(&spiffeID, &selector.Type, &selector.Value); err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+		push(spiffeID, selector)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	push("", nil)
+
+	return resp, nil
 }
 
 func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {

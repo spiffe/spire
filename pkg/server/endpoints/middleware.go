@@ -3,7 +3,10 @@ package endpoints
 import (
 	"crypto/x509"
 	"fmt"
+	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
@@ -117,6 +120,54 @@ func AuthorizedEntryFetcherWithCache(ds datastore.DataStore) (api.AuthorizedEntr
 		}
 		return api.RegistrationEntriesToProto(entries)
 	}), nil
+}
+
+func AuthorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore) api.AuthorizedEntryFetcher {
+	var mu sync.RWMutex
+	var loaded time.Time
+	var cache *entrycache.Cache
+
+	reloadInterval := time.Second * 5
+	if env := os.Getenv("SPIRE_ENTRY_RELOAD_INTERVAL"); env != "" {
+		if duration, err := time.ParseDuration(env); err == nil {
+			reloadInterval = duration
+		} else {
+			log.WithField("value", env).Warn("Invalid duration value for SPIRE_ENTRY_RELOAD_INTERVAL")
+		}
+	}
+	log.WithField("reload interval", reloadInterval).Info("Authorized entry cache configured")
+
+	rebuildCache := func(ctx context.Context) (_ *entrycache.Cache, err error) {
+		call := telemetry.StartCall(metrics, "entry", "cache", "reload")
+		defer call.Done(&err)
+		return entrycache.BuildFromDataStore(ctx, ds)
+	}
+
+	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+		now := time.Now()
+
+		mu.RLock()
+		if !loaded.IsZero() && now.Sub(loaded) < reloadInterval {
+			mu.RUnlock()
+			return cache.GetAuthorizedEntries(agentID), nil
+		}
+		mu.RUnlock()
+
+		mu.Lock()
+		defer mu.Unlock()
+		if loaded.IsZero() || now.Sub(loaded) >= reloadInterval {
+			log.Info("Reloading entry cache...")
+			newCache, err := rebuildCache(ctx)
+			if err != nil {
+				log.WithError(err).Error("Failed to reload entry cache.")
+				return nil, err
+			}
+			log.Info("Reloaded entry cache.")
+			cache = newCache
+			loaded = time.Now()
+		}
+		return cache.GetAuthorizedEntries(agentID), nil
+	})
 }
 
 func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
