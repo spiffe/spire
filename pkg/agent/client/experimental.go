@@ -52,7 +52,7 @@ func (c *client) fetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	regEntries := make(map[string]*common.RegistrationEntry)
 	federatesWith := make(map[string]bool)
 	for _, e := range protoEntries {
-		entry, err := registrationEntryFromProto(e)
+		entry, err := slicedEntryFromProto(e)
 		if err != nil {
 			c.c.Log.WithFields(logrus.Fields{
 				telemetry.RegistrationID: e.Id,
@@ -237,7 +237,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 			}).Warn("Fails to mint X509 SVID")
 		}
 
-		svids = append(svids, r.Bundle)
+		svids = append(svids, r.Svid)
 	}
 
 	return svids, nil

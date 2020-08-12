@@ -375,7 +375,7 @@ func TestGetEntry(t *testing.T) {
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
 				},
-				FederatesWith: []string{federatedTd.IDString()},
+				FederatesWith: []string{federatedTd.String()},
 				Admin:         true,
 				DnsNames:      []string{"dns1", "dns2"},
 				Downstream:    true,
@@ -625,7 +625,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						DnsNames:      []string{"dns1"},
 						Downstream:    true,
 						ExpiresAt:     expiresAt,
-						FederatesWith: []string{"spiffe://domain1.org"},
+						FederatesWith: []string{"domain1.org"},
 						Ttl:           60,
 					},
 				},
@@ -810,7 +810,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
-			// Create fedeated bundles, that we use on "FederatesWith"
+			// Create federated bundles, that we use on "FederatesWith"
 			createFederatedBundles(t, ds)
 			_ = createTestEntries(t, ds, defaultEntry)
 
@@ -1040,8 +1040,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			{Type: "unix", Value: "gid:1000"},
 		},
 		FederatesWith: []string{
-			"spiffe://domain1.com",
-			"spiffe://domain2.com",
+			"domain1.com",
+			"domain2.com",
 		},
 		Admin:      true,
 		ExpiresAt:  time.Now().Add(30 * time.Second).Unix(),
@@ -1058,8 +1058,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			{Type: "unix", Value: "gid:1001"},
 		},
 		FederatesWith: []string{
-			"spiffe://domain3.com",
-			"spiffe://domain4.com",
+			"domain3.com",
+			"domain4.com",
 		},
 		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
 		DnsNames:  []string{"dns3", "dns4"},
@@ -1268,7 +1268,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			{Type: "unix", Value: "uid:2000"},
 		},
 		FederatesWith: []string{
-			federatedTd.IDString(),
+			federatedTd.String(),
 		},
 		Admin:      true,
 		ExpiresAt:  expiresAt,
@@ -1878,7 +1878,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							{Type: "unix", Value: "uid:2000"},
 						},
 						FederatesWith: []string{
-							"spiffe://domain1.org",
+							"domain1.org",
 						},
 						Admin:          true,
 						ExpiresAt:      expiresAt,

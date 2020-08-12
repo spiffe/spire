@@ -23,7 +23,7 @@ func spiffeIDFromProto(protoID *types.SPIFFEID) (string, error) {
 	return id.String(), nil
 }
 
-func registrationEntryFromProto(e *types.Entry) (*common.RegistrationEntry, error) {
+func slicedEntryFromProto(e *types.Entry) (*common.RegistrationEntry, error) {
 	if e == nil {
 		return nil, errors.New("missing entry")
 	}
@@ -37,13 +37,13 @@ func registrationEntryFromProto(e *types.Entry) (*common.RegistrationEntry, erro
 		return nil, fmt.Errorf("invalid SPIFFE ID: %v", err)
 	}
 
-	// Validate and normalize TDs
-	for i, federatedWith := range e.FederatesWith {
-		td, err := spiffeid.TrustDomainFromString(federatedWith)
+	var federatesWith []string
+	for _, trustDomainName := range e.FederatesWith {
+		td, err := spiffeid.TrustDomainFromString(trustDomainName)
 		if err != nil {
 			return nil, fmt.Errorf("invalid federated trust domain: %v", err)
 		}
-		e.FederatesWith[i] = td.IDString()
+		federatesWith = append(federatesWith, td.IDString())
 	}
 
 	if len(e.Selectors) == 0 {
@@ -69,7 +69,7 @@ func registrationEntryFromProto(e *types.Entry) (*common.RegistrationEntry, erro
 	return &common.RegistrationEntry{
 		EntryId:        e.Id,
 		SpiffeId:       spiffeID,
-		FederatesWith:  e.FederatesWith,
+		FederatesWith:  federatesWith,
 		RevisionNumber: e.RevisionNumber,
 		Selectors:      selectors,
 	}, nil

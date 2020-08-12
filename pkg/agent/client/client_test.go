@@ -1031,7 +1031,7 @@ func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchN
 				Status: &types.Status{
 					Code: int32(codes.OK),
 				},
-				Bundle: svid,
+				Svid: svid,
 			})
 		default:
 			results = append(results, &svidpb.BatchNewX509SVIDResponse_Result{

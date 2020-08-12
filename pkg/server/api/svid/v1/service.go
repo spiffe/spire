@@ -227,7 +227,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 	}
 
 	return &svid.BatchNewX509SVIDResponse_Result{
-		Bundle: &types.X509SVID{
+		Svid: &types.X509SVID{
 			Id:        entry.SpiffeId,
 			CertChain: x509util.RawCertsFromCertificates(x509Svid),
 			ExpiresAt: x509Svid[0].NotAfter.UTC().Unix(),
