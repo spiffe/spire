@@ -168,15 +168,16 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 	}
 
 	return &common.RegistrationEntry{
-		EntryId:       e.Id,
-		ParentId:      parentIDString,
-		SpiffeId:      spiffeIDString,
-		Admin:         admin,
-		DnsNames:      dnsNames,
-		Downstream:    downstream,
-		EntryExpiry:   expiresAt,
-		FederatesWith: federatesWith,
-		Selectors:     selectors,
-		Ttl:           ttl,
+		EntryId:        e.Id,
+		ParentId:       parentIDString,
+		SpiffeId:       spiffeIDString,
+		Admin:          admin,
+		DnsNames:       dnsNames,
+		Downstream:     downstream,
+		EntryExpiry:    expiresAt,
+		FederatesWith:  federatesWith,
+		Selectors:      selectors,
+		Ttl:            ttl,
+		RevisionNumber: e.RevisionNumber,
 	}, nil
 }
