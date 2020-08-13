@@ -1,7 +1,4 @@
 {
-    "resp0" : {
-        "entries": []
-    },
     "resp1" : {
         "entries": [
             {
@@ -13,9 +10,7 @@
                 ],
                 "entry_id": "0001",
                 "spiffe_id": "spiffe://example.org/spire/agent",
-                "parent_id": "spiffe://example.org/spire/agent/join_token/abcd",
-                "ttl": 200,
-                "dns_names": ["name-0001"]
+				"revision_number": 1
             }
         ]
     },
@@ -30,8 +25,7 @@
                 ],
                 "entry_id": "0002",
                 "spiffe_id": "spiffe://example.org/blog",
-                "parent_id": "spiffe://example.org/spire/agent",
-                "ttl": 200
+				"revision_number": 1
             },
             {
                 "selectors": [
@@ -42,9 +36,7 @@
                 ],
                 "entry_id": "0003",
                 "spiffe_id": "spiffe://example.org/database",
-                "parent_id": "spiffe://example.org/spire/agent",
-                "ttl": 200,
-                "dns_names": ["name-0003"]
+				"revision_number": 1
             }
         ]
     },
@@ -59,8 +51,7 @@
                 ],
                 "entry_id": "0002",
                 "spiffe_id": "spiffe://example.org/blog",
-                "parent_id": "spiffe://example.org/spire/agent",
-                "ttl": 200
+				"revision_number": 1
             },
             {
                 "selectors": [
@@ -71,12 +62,9 @@
                 ],
                 "entry_id": "0003",
                 "spiffe_id": "spiffe://example.org/database",
-                "parent_id": "spiffe://example.org/spire/agent",
-                "ttl": 200,
                 "federates_with": ["spiffe://otherdomain.test"],
-                "dns_names": ["name-0003"]
+				"revision_number": 2
             }
         ]
     }
-
 }

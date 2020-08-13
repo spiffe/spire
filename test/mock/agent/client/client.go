@@ -35,34 +35,49 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// FetchJWTSVID mocks base method
-func (m *MockClient) FetchJWTSVID(arg0 context.Context, arg1 *node.JSR, arg2 string) (*client.JWTSVID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchJWTSVID", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*client.JWTSVID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchJWTSVID indicates an expected call of FetchJWTSVID
-func (mr *MockClientMockRecorder) FetchJWTSVID(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockClient)(nil).FetchJWTSVID), arg0, arg1, arg2)
-}
-
 // FetchUpdates mocks base method
-func (m *MockClient) FetchUpdates(arg0 context.Context, arg1 *node.FetchX509SVIDRequest, arg2 bool) (*client.Update, error) {
+func (m *MockClient) FetchUpdates(arg0 context.Context) (*client.Update, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchUpdates", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "FetchUpdates", arg0)
 	ret0, _ := ret[0].(*client.Update)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchUpdates indicates an expected call of FetchUpdates
-func (mr *MockClientMockRecorder) FetchUpdates(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) FetchUpdates(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUpdates", reflect.TypeOf((*MockClient)(nil).FetchUpdates), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUpdates", reflect.TypeOf((*MockClient)(nil).FetchUpdates), arg0)
+}
+
+// NewJWTSVID mocks base method
+func (m *MockClient) NewJWTSVID(arg0 context.Context, arg1 *node.JSR, arg2 string) (*client.JWTSVID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewJWTSVID", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*client.JWTSVID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewJWTSVID indicates an expected call of NewJWTSVID
+func (mr *MockClientMockRecorder) NewJWTSVID(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewJWTSVID", reflect.TypeOf((*MockClient)(nil).NewJWTSVID), arg0, arg1, arg2)
+}
+
+// NewX509SVIDs mocks base method
+func (m *MockClient) NewX509SVIDs(arg0 context.Context, arg1 map[string][]byte) (map[string]*node.X509SVID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewX509SVIDs", arg0, arg1)
+	ret0, _ := ret[0].(map[string]*node.X509SVID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewX509SVIDs indicates an expected call of NewX509SVIDs
+func (mr *MockClientMockRecorder) NewX509SVIDs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewX509SVIDs", reflect.TypeOf((*MockClient)(nil).NewX509SVIDs), arg0, arg1)
 }
 
 // Release mocks base method
@@ -75,4 +90,19 @@ func (m *MockClient) Release() {
 func (mr *MockClientMockRecorder) Release() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockClient)(nil).Release))
+}
+
+// RenewSVID mocks base method
+func (m *MockClient) RenewSVID(arg0 context.Context, arg1 []byte) (*node.X509SVID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenewSVID", arg0, arg1)
+	ret0, _ := ret[0].(*node.X509SVID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RenewSVID indicates an expected call of RenewSVID
+func (mr *MockClientMockRecorder) RenewSVID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenewSVID", reflect.TypeOf((*MockClient)(nil).RenewSVID), arg0, arg1)
 }

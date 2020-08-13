@@ -5,7 +5,7 @@
 package mock_telemetry
 
 import (
-	go_metrics "github.com/armon/go-metrics"
+	metrics "github.com/armon/go-metrics"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 	time "time"
@@ -47,7 +47,7 @@ func (mr *MockMetricsMockRecorder) AddSample(arg0, arg1 interface{}) *gomock.Cal
 }
 
 // AddSampleWithLabels mocks base method
-func (m *MockMetrics) AddSampleWithLabels(arg0 []string, arg1 float32, arg2 []go_metrics.Label) {
+func (m *MockMetrics) AddSampleWithLabels(arg0 []string, arg1 float32, arg2 []metrics.Label) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddSampleWithLabels", arg0, arg1, arg2)
 }
@@ -83,7 +83,7 @@ func (mr *MockMetricsMockRecorder) IncrCounter(arg0, arg1 interface{}) *gomock.C
 }
 
 // IncrCounterWithLabels mocks base method
-func (m *MockMetrics) IncrCounterWithLabels(arg0 []string, arg1 float32, arg2 []go_metrics.Label) {
+func (m *MockMetrics) IncrCounterWithLabels(arg0 []string, arg1 float32, arg2 []metrics.Label) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "IncrCounterWithLabels", arg0, arg1, arg2)
 }
@@ -107,7 +107,7 @@ func (mr *MockMetricsMockRecorder) MeasureSince(arg0, arg1 interface{}) *gomock.
 }
 
 // MeasureSinceWithLabels mocks base method
-func (m *MockMetrics) MeasureSinceWithLabels(arg0 []string, arg1 time.Time, arg2 []go_metrics.Label) {
+func (m *MockMetrics) MeasureSinceWithLabels(arg0 []string, arg1 time.Time, arg2 []metrics.Label) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "MeasureSinceWithLabels", arg0, arg1, arg2)
 }
@@ -131,7 +131,7 @@ func (mr *MockMetricsMockRecorder) SetGauge(arg0, arg1 interface{}) *gomock.Call
 }
 
 // SetGaugeWithLabels mocks base method
-func (m *MockMetrics) SetGaugeWithLabels(arg0 []string, arg1 float32, arg2 []go_metrics.Label) {
+func (m *MockMetrics) SetGaugeWithLabels(arg0 []string, arg1 float32, arg2 []metrics.Label) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetGaugeWithLabels", arg0, arg1, arg2)
 }
