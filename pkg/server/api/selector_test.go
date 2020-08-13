@@ -69,13 +69,23 @@ func TestSelectorsFromProto(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			stringValue, err := api.SelectorsFromProto(testCase.proto)
+			selectors, err := api.SelectorsFromProto(testCase.proto)
 			if testCase.err != "" {
 				require.EqualError(t, err, testCase.err)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, testCase.expected, stringValue)
+			require.Equal(t, testCase.expected, selectors)
+
+			// assert that a conversion in the opposite direction yields the
+			// original types slice. In the special case that the input slice
+			// is non-nil but empty, SelectorsFromProto returns nil so we
+			// need to adjust the expected type accordingly.
+			expected := testCase.proto
+			if len(testCase.proto) == 0 {
+				expected = nil
+			}
+			require.Equal(t, expected, api.ProtoFromSelectors(selectors))
 		})
 	}
 }

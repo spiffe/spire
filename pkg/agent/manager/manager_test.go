@@ -17,6 +17,7 @@ import (
 	"time"
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
@@ -967,14 +968,22 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.Nil(t, svid)
 }
 
-func makeGetAuthorizedEntriesResponse(t *testing.T, regEntryKeys ...string) *entryv1.GetAuthorizedEntriesResponse {
-	var regEntries []*common.RegistrationEntry
-	for _, regEntryKey := range regEntryKeys {
-		regEntries = append(regEntries, regEntriesMap[regEntryKey]...)
+func makeGetAuthorizedEntriesResponse(t *testing.T, respKeys ...string) *entryv1.GetAuthorizedEntriesResponse {
+	var entries []*types.Entry
+	for _, respKey := range respKeys {
+		for _, regEntry := range regEntriesMap[respKey] {
+			// Only some of the fields are populated by the client
+			spiffeID, err := spiffeid.FromString(regEntry.SpiffeId)
+			require.NoError(t, err)
+			entries = append(entries, &types.Entry{
+				Id:             regEntry.EntryId,
+				SpiffeId:       api.ProtoFromID(spiffeID),
+				FederatesWith:  regEntry.FederatesWith,
+				RevisionNumber: regEntry.RevisionNumber,
+				Selectors:      api.ProtoFromSelectors(regEntry.Selectors),
+			})
+		}
 	}
-
-	entries, err := api.RegistrationEntriesToProto(regEntries)
-	require.NoError(t, err)
 
 	return &entryv1.GetAuthorizedEntriesResponse{
 		Entries: entries,

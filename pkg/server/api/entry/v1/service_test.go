@@ -435,14 +435,14 @@ func TestGetEntry(t *testing.T) {
 			name:    "malformed entry",
 			code:    codes.Internal,
 			entryID: malformedEntry.Entry.EntryId,
-			err:     "failed to convert entry: spiffeid: invalid scheme",
+			err:     "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: malformedEntry.Entry.EntryId,
-						logrus.ErrorKey:          "spiffeid: invalid scheme",
+						logrus.ErrorKey:          "invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
 			},
@@ -781,7 +781,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "spiffeid: invalid scheme",
+						logrus.ErrorKey:    "invalid SPIFFE ID: spiffeid: invalid scheme",
 						telemetry.SPIFFEID: "spiffe://example.org/workload",
 					},
 				},
@@ -790,7 +790,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
-						Message: "failed to convert entry: spiffeid: invalid scheme",
+						Message: "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
 			},
