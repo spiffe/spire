@@ -7,13 +7,14 @@ import (
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
 const cacheFetchEntriesTTL = 1 * time.Second
 
-func FetchRegistrationEntriesWithCache(ctx context.Context, dataStore datastore.DataStore, cache RegistrationEntriesCache, spiffeID string) ([]*common.RegistrationEntry, error) {
+func FetchRegistrationEntriesWithCache(ctx context.Context, dataStore datastore.DataStore, cache entrycache.RegistrationEntriesCache, spiffeID string) ([]*common.RegistrationEntry, error) {
 	fetcher := newRegistrationEntryFetcher(dataStore, cache)
 	return fetcher.Fetch(ctx, spiffeID)
 }
@@ -25,10 +26,10 @@ func FetchRegistrationEntries(ctx context.Context, dataStore datastore.DataStore
 
 type registrationEntryFetcher struct {
 	dataStore datastore.DataStore
-	cache     RegistrationEntriesCache
+	cache     entrycache.RegistrationEntriesCache
 }
 
-func newRegistrationEntryFetcher(dataStore datastore.DataStore, cache RegistrationEntriesCache) *registrationEntryFetcher {
+func newRegistrationEntryFetcher(dataStore datastore.DataStore, cache entrycache.RegistrationEntriesCache) *registrationEntryFetcher {
 	return &registrationEntryFetcher{
 		dataStore: dataStore,
 		cache:     cache,

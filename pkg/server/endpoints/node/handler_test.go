@@ -25,10 +25,10 @@ import (
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -115,7 +115,7 @@ type HandlerSuite struct {
 	downstreamSVID                []*x509.Certificate
 	workloadSVID                  []*x509.Certificate
 	serverCA                      *fakeserverca.CA
-	fetchRegistrationEntriesCache *regentryutil.FetchRegistrationEntriesCache
+	fetchRegistrationEntriesCache *entrycache.FetchRegistrationEntriesCache
 }
 
 func (s *HandlerSuite) SetupTest() {
@@ -174,7 +174,7 @@ func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.
 	handler.limiter = s.limiter
 	cache, err := lru.New(100)
 	s.Require().NoError(err)
-	s.fetchRegistrationEntriesCache = &regentryutil.FetchRegistrationEntriesCache{
+	s.fetchRegistrationEntriesCache = &entrycache.FetchRegistrationEntriesCache{
 		Cache:   cache,
 		TimeNow: s.clock.Now,
 	}

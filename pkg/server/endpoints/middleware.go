@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"crypto/x509"
+	"fmt"
 	"strings"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -12,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
@@ -22,6 +24,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// Number of entries that can be cached
+const entriesCacheSize = 500_000
 
 func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock) middleware.Middleware {
 	return middleware.Chain(
@@ -98,6 +103,20 @@ func AuthorizedEntryFetcher(ds datastore.DataStore) api.AuthorizedEntryFetcher {
 		}
 		return api.RegistrationEntriesToProto(entries)
 	})
+}
+
+func AuthorizedEntryFetcherWithCache(ds datastore.DataStore) (api.AuthorizedEntryFetcher, error) {
+	cache, err := entrycache.NewFetchX509SVIDCache(entriesCacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("could not create cache: %v", err)
+	}
+	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+		entries, err := regentryutil.FetchRegistrationEntriesWithCache(ctx, ds, cache, agentID.String())
+		if err != nil {
+			return nil, err
+		}
+		return api.RegistrationEntriesToProto(entries)
+	}), nil
 }
 
 func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
