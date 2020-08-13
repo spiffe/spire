@@ -195,8 +195,9 @@ func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string)
 
 func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
 	// Handlers are expected to invoke the rate limiter unless they failed to
-	// parse parameters.
-	if handlerInvoked && status.Code(rpcErr) == codes.InvalidArgument {
+	// parse parameters. If the handler itself wasn't invoked then there is no
+	// need to check if rate limiting was invoked.
+	if !handlerInvoked || status.Code(rpcErr) == codes.InvalidArgument {
 		return
 	}
 
