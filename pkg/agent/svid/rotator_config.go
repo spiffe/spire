@@ -31,16 +31,11 @@ type RotatorConfig struct {
 
 	BundleStream *cache.BundleStream
 
-	SpiffeID string
-
 	// How long to wait between expiry checks
 	Interval time.Duration
 
 	// Clk is the clock that the rotator will use to create a ticker
 	Clk clock.Clock
-
-	// Experimental API enabled
-	ExperimentalAPIEnabled bool
 }
 
 func NewRotator(c *RotatorConfig) (Rotator, client.Client) {
@@ -82,7 +77,6 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 			}
 			return s.SVID, s.Key, rootCAs
 		},
-		ExperimentalAPIEnabled: c.ExperimentalAPIEnabled,
 	}
 	client := client.New(cfg)
 

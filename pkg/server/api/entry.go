@@ -35,12 +35,12 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 
 	spiffeID, err := spiffeid.FromString(e.SpiffeId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid SPIFFE ID: %v", err)
 	}
 
 	parentID, err := spiffeid.FromString(e.ParentId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid parent ID: %v", err)
 	}
 
 	federatesWith := make([]string, 0, len(e.FederatesWith))
@@ -52,19 +52,11 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		federatesWith = append(federatesWith, td.String())
 	}
 
-	var selectors []*types.Selector
-	for _, s := range e.Selectors {
-		selectors = append(selectors, &types.Selector{
-			Type:  s.Type,
-			Value: s.Value,
-		})
-	}
-
 	return &types.Entry{
 		Id:             e.EntryId,
 		SpiffeId:       ProtoFromID(spiffeID),
 		ParentId:       ProtoFromID(parentID),
-		Selectors:      selectors,
+		Selectors:      ProtoFromSelectors(e.Selectors),
 		Ttl:            e.Ttl,
 		FederatesWith:  federatesWith,
 		Admin:          e.Admin,

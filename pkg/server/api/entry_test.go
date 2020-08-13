@@ -76,7 +76,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				ParentId: "malformed ParentID",
 				SpiffeId: "spiffe://example.org/bar",
 			},
-			err: "spiffeid: invalid scheme",
+			err: "invalid parent ID: spiffeid: invalid scheme",
 		},
 		{
 			name: "malformed SpiffeId",
@@ -84,7 +84,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				ParentId: "spiffe://example.org/foo",
 				SpiffeId: "malformed SpiffeID",
 			},
-			err: "spiffeid: invalid scheme",
+			err: "invalid SPIFFE ID: spiffeid: invalid scheme",
 		},
 	} {
 		tt := tt
