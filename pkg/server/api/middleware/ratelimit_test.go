@@ -128,21 +128,13 @@ func TestPerIPLimitGC(t *testing.T) {
 }
 
 func TestRateLimits(t *testing.T) {
-	unaryInterceptor := UnaryInterceptor(
-		WithRateLimits(
-			map[string]api.RateLimiter{
-				"/fake.Service/NoLimit":   NoLimit(),
-				"/fake.Service/WithLimit": PerCallLimit(2),
-			},
-		),
-	)
-
 	for _, tt := range []struct {
 		name           string
 		method         string
 		prepareCtx     func(context.Context) context.Context
 		rateLimitCount int
 		returnErr      error
+		downstreamErr  error
 		expectLogs     []spiretest.LogEntry
 		expectCode     codes.Code
 		expectMsg      string
@@ -171,11 +163,18 @@ func TestRateLimits(t *testing.T) {
 			},
 		},
 		{
-			name:       "does not log if handler returns",
+			name:       "does not log if handler returns invalid argument",
 			method:     "/fake.Service/WithLimit",
 			returnErr:  status.Error(codes.InvalidArgument, "ohno!"),
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `ohno!`,
+		},
+		{
+			name:          "does not log if handler was never invoked",
+			method:        "/fake.Service/WithLimit",
+			downstreamErr: status.Error(codes.PermissionDenied, "permission denied"),
+			expectCode:    codes.PermissionDenied,
+			expectMsg:     `permission denied`,
 		},
 		{
 			name:           "logs when handler with no limit tries to rate limit",
@@ -227,6 +226,20 @@ func TestRateLimits(t *testing.T) {
 				}
 				return struct{}{}, nil
 			}
+
+			unaryInterceptor := UnaryInterceptor(Chain(
+				WithRateLimits(
+					map[string]api.RateLimiter{
+						"/fake.Service/NoLimit":   NoLimit(),
+						"/fake.Service/WithLimit": PerCallLimit(2),
+					},
+				),
+				// Install a middleware downstream so that we can test what
+				// happens in postprocess if the handler is never invoked.
+				Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+					return ctx, tt.downstreamErr
+				}),
+			))
 
 			resp, err := unaryInterceptor(ctx, struct{}{}, serverInfo, handler)
 			spiretest.AssertGRPCStatus(t, err, tt.expectCode, tt.expectMsg)

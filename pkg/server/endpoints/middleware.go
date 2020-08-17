@@ -32,8 +32,8 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 	return middleware.Chain(
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
-		middleware.WithRateLimits(RateLimits(rlConf)),
 		middleware.WithAuthorization(Authorization(log, ds, clk)),
+		middleware.WithRateLimits(RateLimits(rlConf)),
 	)
 }
 
