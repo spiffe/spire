@@ -57,6 +57,10 @@ type Config struct {
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// AttestLimit defines the maximum node attestations per second that
+	// the server can handle from a single IP.
+	AttestLimit int
 }
 
 func (c *Config) makeOldAPIServers() (OldAPIServers, error) {

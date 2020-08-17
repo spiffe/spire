@@ -73,6 +73,10 @@ type Config struct {
 	// Federation holds the configuration needed to federate with other
 	// trust domains.
 	Federation FederationConfig
+
+	// AttestLimit defines the maximum node attestations per second that
+	// the server can handle from a single IP.
+	AttestLimit int
 }
 
 type ExperimentalConfig struct {

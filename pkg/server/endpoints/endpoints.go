@@ -58,6 +58,7 @@ type Endpoints struct {
 	BundleEndpointServer Server
 	Log                  logrus.FieldLogger
 	Metrics              telemetry.Metrics
+	RateLimitConfig      *RateLimitConfig
 }
 
 type OldAPIServers struct {
@@ -70,6 +71,10 @@ type APIServers struct {
 	BundleServer bundlev1_pb.BundleServer
 	EntryServer  entryv1_pb.EntryServer
 	SVIDServer   svidv1_pb.SVIDServer
+}
+
+type RateLimitConfig struct {
+	AttestLimit int
 }
 
 // New creates new endpoints struct
@@ -95,6 +100,7 @@ func New(c Config) (*Endpoints, error) {
 		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
 		Log:                  c.Log,
 		Metrics:              c.Metrics,
+		RateLimitConfig:      &RateLimitConfig{AttestLimit: c.AttestLimit},
 	}, nil
 }
 
@@ -297,7 +303,7 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New()))
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimitConfig))
 
 	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }

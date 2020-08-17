@@ -40,6 +40,7 @@ const (
 	defaultSocketPath         = "/tmp/spire-registration.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
+	defaultAttestLimit        = 1
 )
 
 var (
@@ -74,6 +75,7 @@ type serverConfig struct {
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
+	AttestLimit         int                `hcl:"attest_limit"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -356,6 +358,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
 	sc.Log = logger
+
+	if c.Server.AttestLimit <= 0 {
+		// Zero is a valid value but probably unintended (no attestations allowed)
+		return nil, fmt.Errorf("attest_limit must be greater than zero")
+	}
+	sc.AttestLimit = c.Server.AttestLimit
 
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
 	if c.Server.Federation != nil {
@@ -685,6 +693,7 @@ func defaultConfig() *Config {
 			LogFormat:           log.DefaultFormat,
 			RegistrationUDSPath: defaultSocketPath,
 			Experimental:        experimentalConfig{},
+			AttestLimit:         defaultAttestLimit,
 		},
 	}
 }

@@ -126,7 +126,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
+	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager, s.config.AttestLimit)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager, attestLimit int) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
@@ -311,6 +311,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		Metrics:                     metrics,
 		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
+		AttestLimit:                 attestLimit,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
