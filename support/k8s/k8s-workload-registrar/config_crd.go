@@ -1,0 +1,162 @@
+package main
+
+import (
+	"context"
+	"io/ioutil"
+
+	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
+	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
+	"github.com/zeebo/errs"
+
+	ctrl "sigs.k8s.io/controller-runtime"
+)
+
+const (
+	defaultAddSvcDNSName   = true
+	defaultPodController   = true
+	defaultMetricsBindAddr = ":8080"
+	defaultWebhookCertDir  = "/run/spire/serving-certs"
+	defaultWebhookPort     = 9443
+	namespaceFile          = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+)
+
+type CRDMode struct {
+	CommonMode
+	AddSvcDNSName      bool     `hcl:"add_svc_dns_name"`
+	DisabledNamespaces []string `hcl:"disabled_namespaces"`
+	LeaderElection     bool     `hcl:"leader_election"`
+	MetricsBindAddr    string   `hcl:"metrics_bind_addr"`
+	PodController      bool     `hcl:"pod_controller"`
+	WebhookEnabled     bool     `hcl:"webhook_enabled"`
+	WebhookCertDir     string   `hcl:"webhook_cert_dir"`
+	WebhookPort        int      `hcl:"webhook_port"`
+}
+
+func (c *CRDMode) ParseConfig(hclConfig string) error {
+	c.PodController = defaultPodController
+	c.AddSvcDNSName = defaultAddSvcDNSName
+	if err := hcl.Decode(c, hclConfig); err != nil {
+		return errs.New("unable to decode configuration: %v", err)
+	}
+
+	if c.MetricsBindAddr == "" {
+		c.MetricsBindAddr = defaultMetricsBindAddr
+	}
+
+	if c.DisabledNamespaces == nil {
+		c.DisabledNamespaces = defaultDisabledNamespaces()
+	}
+
+	if c.WebhookCertDir == "" {
+		c.WebhookCertDir = defaultWebhookCertDir
+	}
+
+	if c.WebhookPort == 0 {
+		c.WebhookPort = defaultWebhookPort
+	}
+
+	return nil
+}
+
+func (c *CRDMode) Run(ctx context.Context) error {
+	if err := c.SetupLogger(); err != nil {
+		return errs.New("error setting up logging: %v", err)
+	}
+	defer c.log.Close()
+
+	if err := c.Dial(ctx); err != nil {
+		return errs.New("failed to dial server: %v", err)
+	}
+	defer c.serverConn.Close()
+
+	mgr, err := controllers.NewManager(c.LeaderElection, c.MetricsBindAddr, c.WebhookCertDir, c.WebhookPort)
+	if err != nil {
+		return err
+	}
+
+	c.log.Info("Initializing SPIFFE ID CRD Mode")
+	err = controllers.NewSpiffeIDReconciler(controllers.SpiffeIDReconcilerConfig{
+		Client:      mgr.GetClient(),
+		Cluster:     c.Cluster,
+		Ctx:         ctx,
+		Log:         c.log,
+		R:           registration.NewRegistrationClient(c.serverConn),
+		TrustDomain: c.TrustDomain,
+	}).SetupWithManager(mgr)
+	if err != nil {
+		return err
+	}
+
+	if c.WebhookEnabled {
+		err = spiffeidv1beta1.AddSpiffeIDWebhook(spiffeidv1beta1.SpiffeIDWebhookConfig{
+			Ctx:         ctx,
+			Log:         c.log,
+			Mgr:         mgr,
+			R:           registration.NewRegistrationClient(c.serverConn),
+			TrustDomain: c.TrustDomain,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.PodController {
+		err = controllers.NewNodeReconciler(controllers.NodeReconcilerConfig{
+			Client:      mgr.GetClient(),
+			Cluster:     c.Cluster,
+			Ctx:         ctx,
+			Log:         c.log,
+			Namespace:   getNamespace(),
+			Scheme:      mgr.GetScheme(),
+			TrustDomain: c.TrustDomain,
+		}).SetupWithManager(mgr)
+		if err != nil {
+			return err
+		}
+		err = controllers.NewPodReconciler(controllers.PodReconcilerConfig{
+			Client:             mgr.GetClient(),
+			Cluster:            c.Cluster,
+			Ctx:                ctx,
+			DisabledNamespaces: c.DisabledNamespaces,
+			Log:                c.log,
+			PodLabel:           c.PodLabel,
+			PodAnnotation:      c.PodAnnotation,
+			Scheme:             mgr.GetScheme(),
+			TrustDomain:        c.TrustDomain,
+		}).SetupWithManager(mgr)
+		if err != nil {
+			return err
+		}
+	}
+
+	if c.AddSvcDNSName {
+		err := controllers.NewEndpointReconciler(controllers.EndpointReconcilerConfig{
+			Client:             mgr.GetClient(),
+			Ctx:                ctx,
+			DisabledNamespaces: c.DisabledNamespaces,
+			Log:                c.log,
+			PodLabel:           c.PodLabel,
+			PodAnnotation:      c.PodAnnotation,
+		}).SetupWithManager(mgr)
+		if err != nil {
+			return err
+		}
+	}
+
+	return mgr.Start(ctrl.SetupSignalHandler())
+}
+
+func defaultDisabledNamespaces() []string {
+	return []string{"kube-system"}
+}
+
+func getNamespace() string {
+	content, err := ioutil.ReadFile(namespaceFile)
+	if err != nil {
+		return "default"
+	}
+
+	return string(content)
+}
