@@ -359,8 +359,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.Log = logger
 
-	if c.Server.AttestLimit <= 0 {
-		// Zero is a valid value but probably unintended (no attestations allowed)
+	if c.Server.AttestLimit < 0 {
 		return nil, fmt.Errorf("attest_limit must be greater than zero")
 	}
 	sc.AttestLimit = c.Server.AttestLimit
