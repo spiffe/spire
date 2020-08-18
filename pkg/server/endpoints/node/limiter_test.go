@@ -29,7 +29,7 @@ func TestLimit(t *testing.T) {
 
 				if len(log.Entries) > 0 {
 					msg, _ := log.LastEntry().String()
-					t.Errorf("expected no log lines; got %v", msg)
+					t.Errorf("expected no log lines; got %q", msg)
 				}
 				cancel()
 			}
@@ -41,7 +41,7 @@ func TestLimit(t *testing.T) {
 			assert.Error(t, err)
 
 			if len(log.Entries) != 1 {
-				t.Errorf("expected 1 log entry; got %v", len(log.Entries))
+				t.Errorf("expected 1 log entry; got %d", len(log.Entries))
 			}
 			cancel()
 
