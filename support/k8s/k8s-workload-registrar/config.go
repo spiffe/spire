@@ -13,9 +13,10 @@ import (
 const (
 	defaultLogLevel = "info"
 
-	modeCRD     = "crd"
-	modeWebhook = "webhook"
-	defaultMode = modeWebhook
+	modeCRD       = "crd"
+	modeWebhook   = "webhook"
+	modeReconcile = "reconcile"
+	defaultMode   = modeWebhook
 )
 
 type Mode interface {
@@ -58,8 +59,8 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	if c.PodLabel != "" && c.PodAnnotation != "" {
 		return errs.New("workload registration mode specification is incorrect, can't specify both pod_label and pod_annotation")
 	}
-	if c.Mode != modeCRD && c.Mode != modeWebhook {
-		return errs.New("invalid mode \"%s\", valid values are %s and %s", c.Mode, modeCRD, modeWebhook)
+	if c.Mode != modeCRD && c.Mode != modeWebhook && c.Mode != modeReconcile {
+		return errs.New("invalid mode \"%s\", valid values are %s, %s and %s", c.Mode, modeCRD, modeWebhook, modeReconcile)
 	}
 
 	return nil
@@ -91,6 +92,10 @@ func LoadMode(path string) (Mode, error) {
 
 	var mode Mode
 	switch c.Mode {
+	case modeReconcile:
+		mode = &ReconcileMode{
+			CommonMode: *c,
+		}
 	case modeCRD:
 		mode = &CRDMode{
 			CommonMode: *c,
