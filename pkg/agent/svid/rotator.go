@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -63,13 +64,16 @@ func (r *rotator) Run(ctx context.Context) error {
 
 func (r *rotator) runRotation(ctx context.Context) error {
 	for {
-		if err := r.rotateSVID(ctx); err != nil {
+		err := r.rotateSVID(ctx)
+
+		switch {
+		case err != nil && nodeutil.IsShutdownError(err):
 			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
-			if rotationutil.X509Expired(r.clk.Now(), r.state.Value().(State).SVID[0]) {
-				// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
-				return fmt.Errorf("current SVID has already expired and rotation failed: %v", err)
-			}
-		} else {
+			return err
+		case err != nil:
+			// Just log the error and wait for next rotation
+			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
+		default:
 			r.backoff.Reset()
 		}
 

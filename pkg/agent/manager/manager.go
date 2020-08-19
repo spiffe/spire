@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -97,12 +98,19 @@ func (m *manager) Initialize(ctx context.Context) error {
 
 	err := m.storePrivateKey(ctx, m.c.SVIDKey)
 	if err != nil {
-		return fmt.Errorf("fail to store private key: %v", err)
+		return fmt.Errorf("failed to store private key: %v", err)
 	}
 
 	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
 
-	return m.synchronize(ctx)
+	err = m.synchronize(ctx)
+	if nodeutil.IsShutdownError(err) {
+		m.c.Log.WithError(err).Error("Failed to synchronize: removing SVID")
+		if deleteErr := DeleteSVID(m.svidCachePath); deleteErr != nil {
+			m.c.Log.WithError(deleteErr).Error("Failed to remove SVID")
+		}
+	}
+	return err
 }
 
 func (m *manager) Run(ctx context.Context) error {
@@ -113,13 +121,23 @@ func (m *manager) Run(ctx context.Context) error {
 		m.runSVIDObserver,
 		m.runBundleObserver,
 		m.svid.Run)
-	if err != nil && err != context.Canceled {
-		m.c.Log.WithError(err).Error("cache manager crashed")
-		return err
-	}
 
-	m.c.Log.Info("cache manager stopped")
-	return nil
+	switch {
+	case err != nil && err != context.Canceled && nodeutil.IsShutdownError(err):
+		m.c.Log.WithError(err).Error("Cache manager crashed: removing SVID")
+		if deleteErr := DeleteSVID(m.svidCachePath); deleteErr != nil {
+			m.c.Log.WithError(deleteErr).Error("Failed to remove SVID")
+		}
+		return err
+
+	case err != nil && err != context.Canceled:
+		m.c.Log.WithError(err).Error("Cache manager crashed")
+		return err
+
+	default:
+		m.c.Log.Info("Cache manager stopped")
+		return nil
+	}
 }
 
 func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
@@ -203,11 +221,16 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		}
+
 		err := m.synchronize(ctx)
-		if err != nil {
+		switch {
+		case err != nil && nodeutil.IsShutdownError(err):
+			m.c.Log.WithError(err).Error("Synchronize failed")
+			return err
+		case err != nil:
 			// Just log the error and wait for next synchronization
-			m.c.Log.WithError(err).Error("synchronize failed")
-		} else {
+			m.c.Log.WithError(err).Error("Synchronize failed")
+		default:
 			m.backoff.Reset()
 		}
 	}

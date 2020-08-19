@@ -311,7 +311,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
-		return nil, fmt.Errorf("failed to fetch authorized entries: %v", err)
+		return nil, err
 	}
 
 	return resp.Entries, err
