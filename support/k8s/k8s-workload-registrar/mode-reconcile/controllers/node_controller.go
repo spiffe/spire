@@ -65,15 +65,15 @@ func (r *NodeReconciler) getSelectors(namespacedName types.NamespacedName) []*co
 
 func (r *NodeReconciler) getAllEntries(ctx context.Context) ([]*common.RegistrationEntry, error) {
 	// TODO: Move to some kind of poll and cache and notify system, so multiple controllers don't have to poll.
-	allEntries, err := r.SpireClient.FetchEntries(ctx, &common.Empty{})
+	serverChildEntries, err := r.SpireClient.ListByParentID(ctx, &registration.ParentID{Id: r.ServerID})
 	if err != nil {
 		return nil, err
 	}
 	var allNodeEntries []*common.RegistrationEntry
 	nodeIDPrefix := fmt.Sprintf("%s/", r.RootID)
 
-	for _, maybeNodeEntry := range allEntries.Entries {
-		if maybeNodeEntry.ParentId == r.ServerID && strings.HasPrefix(maybeNodeEntry.SpiffeId, nodeIDPrefix) {
+	for _, maybeNodeEntry := range serverChildEntries.Entries {
+		if strings.HasPrefix(maybeNodeEntry.SpiffeId, nodeIDPrefix) {
 			allNodeEntries = append(allNodeEntries, maybeNodeEntry)
 		}
 	}
