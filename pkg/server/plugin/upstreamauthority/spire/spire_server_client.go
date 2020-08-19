@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/logger"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -19,11 +21,12 @@ import (
 )
 
 // newServerClient creates a new spire-sever client
-func newServerClient(serverID spiffeid.ID, serverAddr string, workloadapiSocket string) *serverClient {
+func newServerClient(serverID spiffeid.ID, serverAddr string, workloadapiSocket string, log hclog.Logger) *serverClient {
 	return &serverClient{
 		serverID:          serverID,
 		serverAddr:        serverAddr,
 		workloadAPISocket: workloadapiSocket,
+		log:               &logAdapter{log: log},
 	}
 }
 
@@ -32,6 +35,7 @@ type serverClient struct {
 	conn              *grpc.ClientConn
 	serverAddr        string
 	workloadAPISocket string
+	log               logger.Logger
 
 	mtx    sync.RWMutex
 	source *workloadapi.X509Source
@@ -42,7 +46,8 @@ type serverClient struct {
 
 // start initializes spire-server endpoints client, it uses X509 source to keep an active connection
 func (c *serverClient) start(ctx context.Context) error {
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(c.workloadAPISocket)))
+	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(c.workloadAPISocket),
+		workloadapi.WithLogger(c.log)))
 	if err != nil {
 		return fmt.Errorf("unable to create X509Source: %v", err)
 	}
@@ -143,4 +148,24 @@ func (c *serverClient) getBundle(ctx context.Context) (*types.Bundle, error) {
 	}
 
 	return bundle, nil
+}
+
+type logAdapter struct {
+	log hclog.Logger
+}
+
+func (l *logAdapter) Debugf(format string, args ...interface{}) {
+	l.log.Debug(fmt.Sprintf(format, args...))
+}
+
+func (l *logAdapter) Infof(format string, args ...interface{}) {
+	l.log.Info(fmt.Sprintf(format, args...))
+}
+
+func (l *logAdapter) Warnf(format string, args ...interface{}) {
+	l.log.Warn(fmt.Sprintf(format, args...))
+}
+
+func (l *logAdapter) Errorf(format string, args ...interface{}) {
+	l.log.Error(fmt.Sprintf(format, args...))
 }
