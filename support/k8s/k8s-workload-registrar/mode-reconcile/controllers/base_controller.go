@@ -305,15 +305,16 @@ func (r *BaseReconciler) ensureDeleted(ctx context.Context, reqLogger logr.Logge
 func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []event.GenericEvent {
 	log.Info("Syncing spire entries")
 	start := time.Now()
-	seen := make(map[string]bool)
+
 	entries, err := r.getAllEntries(ctx)
-
-	var events []event.GenericEvent
-
 	if err != nil {
 		log.Error(err, "Unable to fetch entries")
-		return events
+		return nil
 	}
+
+	var events []event.GenericEvent
+	seen := make(map[string]bool)
+
 	for _, entry := range entries {
 		if namespacedName := r.selectorsToNamespacedName(entry.Selectors); namespacedName != nil {
 			reconcile := false
