@@ -105,10 +105,12 @@ func (r *NodeReconciler) selectorsToNamespacedName(selectors []*common.Selector)
 }
 
 func (r *NodeReconciler) fillEntryForObject(_ context.Context, entry *common.RegistrationEntry, _ ObjectWithMetadata) (*common.RegistrationEntry, error) {
+	// We don't add anything additional to entries for Nodes, so just pass back the base entry.
 	return entry, nil
 }
 
 func (r *NodeReconciler) SetupWithManager(_ ctrl.Manager, _ *ctrlBuilder.Builder) error {
+	// This controller doesn't need to do any additional setup
 	return nil
 }
 
