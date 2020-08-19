@@ -73,8 +73,11 @@ type APIServers struct {
 	SVIDServer   svidv1_pb.SVIDServer
 }
 
+// RateLimitConfig holds rate limiting configurations.
 type RateLimitConfig struct {
-	AttestLimit int
+	// Attestation defines the maximum node attestations per second that
+	// the server can handle from a single IP.
+	Attestation int
 }
 
 // New creates new endpoints struct
@@ -100,7 +103,7 @@ func New(c Config) (*Endpoints, error) {
 		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
 		Log:                  c.Log,
 		Metrics:              c.Metrics,
-		RateLimitConfig:      &RateLimitConfig{AttestLimit: c.AttestLimit},
+		RateLimitConfig:      c.RateLimit,
 	}, nil
 }
 

@@ -188,7 +188,7 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 
 func RateLimits(conf *RateLimitConfig) map[string]api.RateLimiter {
 	noLimit := middleware.NoLimit()
-	attestLimit := middleware.PerIPLimit(conf.AttestLimit)
+	attestLimit := middleware.PerIPLimit(conf.Attestation)
 	csrLimit := middleware.PerIPLimit(node_pb.CSRLimit)
 	jsrLimit := middleware.PerIPLimit(node_pb.JSRLimit)
 	pushJWTKeyLimit := middleware.PerIPLimit(node_pb.PushJWTKeyLimit)

@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
@@ -74,9 +75,8 @@ type Config struct {
 	// trust domains.
 	Federation FederationConfig
 
-	// AttestLimit defines the maximum node attestations per second that
-	// the server can handle from a single IP.
-	AttestLimit int
+	// RateLimit holds rate limiting configurations.
+	RateLimit endpoints.RateLimitConfig
 }
 
 type ExperimentalConfig struct {

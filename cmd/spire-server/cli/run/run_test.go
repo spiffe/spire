@@ -979,6 +979,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			msg:      "in ratelimit block",
+			confFile: "server_bad_ratelimit_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "ratelimit",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
