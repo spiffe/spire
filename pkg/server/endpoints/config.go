@@ -57,6 +57,9 @@ type Config struct {
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// RateLimit holds rate limiting configurations.
+	RateLimit *RateLimitConfig
 }
 
 func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
