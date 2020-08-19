@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
 	"github.com/zeebo/errs"
@@ -61,28 +60,29 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 }
 
 func (c *CRDMode) Run(ctx context.Context) error {
-	if err := c.SetupLogger(); err != nil {
+	log, err := c.SetupLogger()
+	if err != nil {
 		return errs.New("error setting up logging: %v", err)
 	}
-	defer c.log.Close()
+	defer log.Close()
 
-	if err := c.Dial(ctx); err != nil {
+	registrationClient, err := c.Dial(ctx, log)
+	if err != nil {
 		return errs.New("failed to dial server: %v", err)
 	}
-	defer c.serverConn.Close()
 
 	mgr, err := controllers.NewManager(c.LeaderElection, c.MetricsBindAddr, c.WebhookCertDir, c.WebhookPort)
 	if err != nil {
 		return err
 	}
 
-	c.log.Info("Initializing SPIFFE ID CRD Mode")
+	log.Info("Initializing SPIFFE ID CRD Mode")
 	err = controllers.NewSpiffeIDReconciler(controllers.SpiffeIDReconcilerConfig{
 		Client:      mgr.GetClient(),
 		Cluster:     c.Cluster,
 		Ctx:         ctx,
-		Log:         c.log,
-		R:           registration.NewRegistrationClient(c.serverConn),
+		Log:         log,
+		R:           registrationClient,
 		TrustDomain: c.TrustDomain,
 	}).SetupWithManager(mgr)
 	if err != nil {
@@ -92,9 +92,9 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	if c.WebhookEnabled {
 		err = spiffeidv1beta1.AddSpiffeIDWebhook(spiffeidv1beta1.SpiffeIDWebhookConfig{
 			Ctx:         ctx,
-			Log:         c.log,
+			Log:         log,
 			Mgr:         mgr,
-			R:           registration.NewRegistrationClient(c.serverConn),
+			R:           registrationClient,
 			TrustDomain: c.TrustDomain,
 		})
 		if err != nil {
@@ -107,7 +107,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			Client:      mgr.GetClient(),
 			Cluster:     c.Cluster,
 			Ctx:         ctx,
-			Log:         c.log,
+			Log:         log,
 			Namespace:   getNamespace(),
 			Scheme:      mgr.GetScheme(),
 			TrustDomain: c.TrustDomain,
@@ -120,7 +120,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			Cluster:            c.Cluster,
 			Ctx:                ctx,
 			DisabledNamespaces: c.DisabledNamespaces,
-			Log:                c.log,
+			Log:                log,
 			PodLabel:           c.PodLabel,
 			PodAnnotation:      c.PodAnnotation,
 			Scheme:             mgr.GetScheme(),
@@ -136,7 +136,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			Client:             mgr.GetClient(),
 			Ctx:                ctx,
 			DisabledNamespaces: c.DisabledNamespaces,
-			Log:                c.log,
+			Log:                log,
 			PodLabel:           c.PodLabel,
 			PodAnnotation:      c.PodAnnotation,
 		}).SetupWithManager(mgr)

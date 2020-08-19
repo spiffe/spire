@@ -37,6 +37,7 @@ func TestLoadMode(t *testing.T) {
 	require.Equal(&WebhookMode{
 		CommonMode: CommonMode{
 			ServerSocketPath: "SOCKETPATH",
+			ServerAddress:    "unix://SOCKETPATH",
 			TrustDomain:      "TRUSTDOMAIN",
 			Cluster:          "CLUSTER",
 			LogLevel:         defaultLogLevel,
@@ -61,6 +62,7 @@ func TestLoadMode(t *testing.T) {
 				CommonMode: CommonMode{
 					LogLevel:         defaultLogLevel,
 					ServerSocketPath: "SOCKETPATH",
+					ServerAddress:    "unix://SOCKETPATH",
 					TrustDomain:      "TRUSTDOMAIN",
 					Cluster:          "CLUSTER",
 					Mode:             "webhook",
@@ -92,6 +94,7 @@ func TestLoadMode(t *testing.T) {
 					LogLevel:         "LEVELOVERRIDE",
 					LogPath:          "PATHOVERRIDE",
 					ServerSocketPath: "SOCKETPATHOVERRIDE",
+					ServerAddress:    "unix://SOCKETPATHOVERRIDE",
 					TrustDomain:      "TRUSTDOMAINOVERRIDE",
 					Cluster:          "CLUSTEROVERRIDE",
 					PodLabel:         "PODLABEL",
@@ -110,12 +113,12 @@ func TestLoadMode(t *testing.T) {
 			err:  "unable to decode configuration",
 		},
 		{
-			name: "missing server_socket_path",
+			name: "missing server_socket_path/address",
 			in: `
 				trust_domain = "TRUSTDOMAIN"
 				cluster = "CLUSTER"
 			`,
-			err: "server_socket_path must be specified",
+			err: "server_address or server_socket_path must be specified",
 		},
 		{
 			name: "missing trust domain",

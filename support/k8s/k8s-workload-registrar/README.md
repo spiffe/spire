@@ -25,11 +25,13 @@ The configuration file is a **required** by the registrar. It contains
 | `log_level`                | string  | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
 | `log_path`                 | string  | optional | Path on disk to write the log | |
 | `trust_domain`             | string  | required | Trust domain of the SPIRE server | |
-| `server_socket_path`       | string  | required | Path to the Unix domain socket of the SPIRE server | |
+| `agent_socket_path`        | string  | optional | Path to the Unix domain socket of the SPIRE agent. Required if server_address is not a unix domain socket address. | |
+| `server_address`           | string  | required | Address of the spire server. A local socket can be specified using unix:///path/to/socket. This is not the same as the agent socket. | |
+| `server_socket_path`       | string  | optional | Path to the Unix domain socket of the SPIRE server, equivalent to specifying a server_address with a "unix://..." prefix | |
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string  | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string  | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
-| `mode`                     | string  | optional | How to run the registrar, either using a `"webhook"` or `"crd"`. See [Differences](#differences-between-webhook-and-crd-modes) for more details. | `"webhook"` |
+| `mode`                     | string  | optional | How to run the registrar, either using a `"webhook"`, `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | `"webhook"` |
 
 The following configuration directives are specific to `"webhook"` mode:
 
@@ -54,6 +56,15 @@ The following configuration directives are specific to `"crd"` mode:
 | `webhook_cert_dir`         | string  | optional | Directory for certificates when enabling validating webhook. The certificate and key must be named tls.crt and tls.key. | `"/run/spire/serving-certs"` |
 | `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
 
+The following configuration directives are specific to `"reconcile"` mode:
+
+| Key                        | Type    | Required? | Description                              | Default |
+| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
+| `leader_election`          | bool    | optional | Enable/disable leader election. Enable if you have multiple registrar replicas running. | false |
+| `metrics_addr`             | string  | optional | Address to expose metrics on, use `0` to disable. | 0 |
+| `controller_name`          | string  | optional | Forms part of the spiffe IDs used for parent IDs | `"spire-k8s-registrar"` |
+| `add_pod_dns_names`        | bool    | optional | Enable/disable adding k8s DNS names to pod SVIDs. | false |
+| `cluster_dns_zone`         | string  | optional | The DNS zone used for services in the k8s cluster. | `"cluster.local"` |
 
 ### Example
 
@@ -64,7 +75,88 @@ server_socket_path = "/run/spire/sockets/registration.sock"
 cluster = "production"
 ```
 
-## CRD Mode Configuration
+## Workload Registration
+When running in webhook, reconcile, or crd mode with `pod_controller=true` entries will be automatically created for
+Pods. There are three workload registration modes. If you use Service Account Based, don't specify either `pod_label`
+or `pod_annotation`. If you use Label Based, specify only `pod_label`. If you use Annotation Based,
+specify only `pod_annotation`.
+
+It may take several seconds for newly created SVIDs to become available to workloads.
+
+### Service Account Based Workload Registration
+
+The SPIFFE ID granted to the workload is derived from the 1) service
+account or 2) a configurable pod label or 3) a configurable pod annotation.
+
+Service account derived workload registration maps the service account into a
+SPIFFE ID of the form
+`spiffe://<TRUSTDOMAIN>/ns/<NAMESPACE>/sa/<SERVICEACCOUNT>`. For example, if a
+pod came in with the service account `blog` in the `production` namespace, the
+following registration entry would be created:
+
+```
+Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
+SPIFFE ID     : spiffe://example.org/ns/production/sa/blog
+Parent ID     : ...
+TTL           : default
+Selector      : k8s:ns:production
+Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
+```
+
+### Label Based Workload Registration
+
+Label based workload registration maps a pod label value into a SPIFFE ID of
+the form `spiffe://<TRUSTDOMAIN>/<LABELVALUE>`. For example if the registrar
+was configured with the `spire-workload` label and a pod came in with
+`spire-workload=example-workload`, the following registration entry would be
+created:
+
+```
+Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
+SPIFFE ID     : spiffe://example.org/example-workload
+Parent ID     : ...
+TTL           : default
+Selector      : k8s:ns:production
+Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
+```
+
+Pods that don't contain the pod label are ignored.
+
+### Annotation Based Workload Registration
+
+Annotation based workload registration maps a pod annotation value into a SPIFFE ID of
+the form `spiffe://<TRUSTDOMAIN>/<ANNOTATIONVALUE>`. By using this mode,
+it is possible to freely set the SPIFFE ID path. For example if the registrar
+was configured with the `spiffe.io/spiffe-id` annotation and a pod came in with
+`spiffe.io/spiffe-id: production/example-workload`, the following registration entry would be
+created:
+
+```
+Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
+SPIFFE ID     : spiffe://example.org/production/example-workload
+Parent ID     : ...
+TTL           : default
+Selector      : k8s:ns:production
+Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
+```
+
+Pods that don't contain the pod annotation are ignored.
+
+## Deployment
+
+The registrar can either be deployed as standalone deployment, or as a container in the SPIRE server pod.
+If it is deployed standalone then it will require manual creation of an admin registration entry which will match
+the registrar deployment.
+
+If it is deployed as a container within the SPIRE server pod then it talks to SPIRE server via a Unix domain socket. It will need access to a
+shared volume containing the socket file.
+
+
+### Reconcile Mode Configuration
+To use reconcile mode you need to create appropriate roles and bind them to the ServiceAccount you intend to run the controller as.
+An example can be found in `mode-reconcile/config/role.yaml`, which you would apply with `kubectl apply -f mode-reconcile/config/role.yaml`
+ 
+### CRD Mode Configuration
 
 The following configuration is required before `"crd"` mode can be used:
 
@@ -78,9 +170,84 @@ The following configuration is required before `"crd"` mode can be used:
    * Make sure to add your CA Bundle to the ValidatingWebhookConfiguration where it says `<INSERT BASE64 CA BUNDLE HERE>`
    * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
 
+#### CRD mode Security Considerations
+The SpiffeID custom resource is a namespaced resource. It is used internally by the controller to manage state, but it
+can also be used to create arbitrary registration entries. Since they can be used to create ANY registration entry, and
+thus issue any spiffeid to any workload, it is imperative that only trusted users are able to add/modify SpiffeID
+resources, regardless of the namespace in which they exist.
 
-### SPIFFE ID CRD Example
-A sample SPIFFE ID CRD is below:
+### Webhook Mode Configuration
+The registrar will need access to its server keypair and the CA certificate it uses to verify clients.
+
+The following K8S objects are required to set up the validating admission controller:
+* `Service` pointing to the registrar port within the spire-server container
+* `ValidatingWebhookConfiguration` configuring the registrar as a validating admission controller.
+
+Additionally, unless you disable client authentication (`insecure_skip_client_verification`), you will need:
+* `Config` with a user entry for the registrar service client containing the client certificate/key the API server should use to authenticate with the registrar.
+* `AdmissionConfiguration` describing where the API server can locate the file containing the `Config`. This file is passed to the API server via the `--admission-control-config-file` flag.
+
+For convenience, a command line utility is provided to generate authentication
+material and relevant Kubernetes configuration YAML.
+
+```
+$ go run generate-config.go
+.... YAML configuration dump ....
+```
+
+#### Webhook mode Security Considerations
+
+The registrar authenticates clients by default. This is a very important aspect
+of the overall security of the registrar since the registrar can be used to
+provide indirect access to the SPIRE server registration API, albeit scoped. It
+is *NOT* recommended to skip client verification (via the
+`insecure_skip_client_verification` configurable) unless you fully understand
+the risks.
+
+
+#### Migrating away from the webhook
+The k8s ValidatingWebhookConfiguration will need to be removed or pods may fail admission. If you used the default
+configuration this can be done with:
+
+`kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook`
+
+## DNS names
+Both `"reconcile"` and `"crd"` mode provide the ability to add DNS names to registration entries for pods. They
+currently have different ideas about what names should be added, with `"reconcile"` adding every possible name that can
+be used to access a pod (via a service or directly), and `"crd"` mode limiting itself to `<service>.<namespace>.svc`.
+This functionality defaults off for `"reconcile"` mode and on for `"crd"` mode.
+
+Warning: Some software is known to "validate" DNS and IP SANs provided in client certificates by using reverse DNS.
+There is no guarantee that a client in Kubernetes will be seen to connect from an IP address with valid reverse DNS
+matching one of the names generated by either of these DNS name implementation, in which case such validation will fail.
+If you are intending to use X509-SVIDs to authenticate clients to such services you will need to disable adding dns names
+to entries. This is known to affect etcd.
+
+## Differences between modes
+
+The `"webhook"` mode uses a Validating Admission Webhook to capture pod creation/deletion events at admission time. It
+was the first of the registrar implementations, but suffers from the following problems:
+* Race conditions between add and delete for StatefulSets will regularly lead to StatefulSets without entries;
+* Unavailability of the webhook either has to block admission entirely, or you'll end up with pods with no entries;
+* Spire server errors have to block admission entirely, or you'll end up with pods with no entries;
+* It will not clean up left behind entries for pods deleted while the webhook/spire-server was unavailable;
+* Entries are not parented to individual Nodes, all SVIDs are flooded to all agents in a cluster, which severely limits scalability.
+Use of the `"webhook"` mode is thus strongly discouraged, but it remains the default for backward compatibility reasons.
+
+The `"reconcile"` mode and `"crd"` mode both make use of reconciling controllers instead of webhooks. `"reconcile"` mode,
+and `"crd"` mode with the pod_controller enabled, have similar automated workload creation functionality to webhook, but
+they do not suffer from the same race conditions, are capable of recovering from (and cleaning up after) failure of the registrar,
+and both also ensure that automatically created entries for Pods are limited to the appropriate Nodes to prevent SVID
+flooding. When used in this way, `"reconcile"` may be slightly faster to create new entries than `"crd"` mode, and requires
+less configuration.
+ 
+`"crd"` mode additionally provides a namespaced SpiffeID custom resource. These are used internally by the
+registrar, but may also be manually created to allow creation of arbitrary Spire Entries. If you intend to manage
+SpiffeID custom resources directly then it is strongly encouraged to run the controller with the `"crd"` mode's webhook
+enabled.
+
+## SPIFFE ID Custom Resources
+A sample SPIFFE ID custom resource for `"crd"` mode is below:
 
 ```
 apiVersion: spiffeid.spiffe.io/v1beta1
@@ -111,128 +278,4 @@ The supported selectors are:
 
 Note: Specifying DNS Names is optional.
 
-## Node Registration
-
-On startup, the registrar creates a node registration entry that groups all
-PSAT attested nodes for the configured cluster. For example, if the configuration
-defines the `example-cluster`, the following node registration entry would
-be created and used as the parent for all workloads:
-
-```
-Entry ID      : 7f18a693-9f94-4e91-af7a-a8a61e9f4bce
-SPIFFE ID     : spiffe://example.org/k8s-workload-registrar/example-cluster/node
-Parent ID     : spiffe://example.org/spire/server
-TTL           : default
-Selector      : k8s_psat:cluster:example-cluster
-```
-
-## Workload Registration
-
-The registrar handles pod CREATE and DELETE admission review requests to create
-and delete registration entries for workloads running on those pods. The
-workload registration entries are configured to run on any node in the
-cluster.
-
-There are three workload registration modes.
-If you use Service Account Based, don't specify either `pod_label` or `pod_annotation`. If you use Label Based, specify only `pod_label`. If you use Annotation Based, specify only `pod_annotation`.
-
-### Service Account Based Workload Registration
-
-The SPIFFE ID granted to the workload is derived from the 1) service
-account or 2) a configurable pod label or 3) a configurable pod annotation.
-
-Service account derived workload registration maps the service account into a
-SPIFFE ID of the form
-`spiffe://<TRUSTDOMAIN>/ns/<NAMESPACE>/sa/<SERVICEACCOUNT>`. For example, if a
-pod came in with the service account `blog` in the `production` namespace, the
-following registration entry would be created:
-
-```
-Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
-SPIFFE ID     : spiffe://example.org/ns/production/sa/blog
-Parent ID     : spiffe://example.org/k8s-workload-registrar/example-cluster/node
-TTL           : default
-Selector      : k8s:ns:production
-Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
-```
-
-### Label Based Workload Registration
-
-Label based workload registration maps a pod label value into a SPIFFE ID of
-the form `spiffe://<TRUSTDOMAIN>/<LABELVALUE>`. For example if the registrar
-was configured with the `spire-workload` label and a pod came in with
-`spire-workload=example-workload`, the following registration entry would be
-created:
-
-```
-Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
-SPIFFE ID     : spiffe://example.org/example-workload
-Parent ID     : spiffe://example.org/k8s-workload-registrar/example-cluster/node
-TTL           : default
-Selector      : k8s:ns:production
-Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
-```
-
-Pods that don't contain the pod label are ignored.
-
-### Annotation Based Workload Registration
-
-Annotation based workload registration maps a pod annotation value into a SPIFFE ID of
-the form `spiffe://<TRUSTDOMAIN>/<ANNOTATIONVALUE>`. By using this mode,
-it is possible to freely set the SPIFFE ID path. For example if the registrar
-was configured with the `spiffe.io/spiffe-id` annotation and a pod came in with
-`spiffe.io/spiffe-id: production/example-workload`, the following registration entry would be
-created:
-
-```
-Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
-SPIFFE ID     : spiffe://example.org/production/example-workload
-Parent ID     : spiffe://example.org/k8s-workload-registrar/example-cluster/node
-TTL           : default
-Selector      : k8s:ns:production
-Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
-```
-
-Pods that don't contain the pod annotation are ignored.
-
-## Deployment
-
-The registrar should be deployed as a container in the SPIRE server pod, since
-it talks to SPIRE server via a Unix domain socket. It will need access to a
-shared volume containing the socket file. The registrar will also need access
-to its server keypair and the CA certificate it uses to verify clients.
-
-The following K8S objects are required to set up the validating admission controller:
-* `Service` pointing to the registrar port within the spire-server container
-* `ValidatingWebhookConfiguration` configuring the registrar as a validating admission controller.
-
-Additionally, unless you disable client authentication (`insecure_skip_client_verification`), you will need:
-* `Config` with a user entry for the registrar service client containing the client certificate/key the API server should use to authenticate with the registrar.
-* `AdmissionConfiguration` describing where the API server can locate the file containing the `Config`. This file is passed to the API server via the `--admission-control-config-file` flag.
-
-For convenience, a command line utility is provided to generate authentication
-material and relevant Kubernetes configuration YAML.
-
-```
-$ go run generate-config.go
-.... YAML configuration dump ....
-```
-
-## Security Considerations
-
-The registrar authenticates clients by default. This is a very important aspect
-of the overall security of the registrar since the registrar can be used to
-provide indirect access to the SPIRE server registration API, albeit scoped. It
-is *NOT* recommended to skip client verification (via the
-`insecure_skip_client_verification` configurable) unless you fully understand
-the risks.
-
-## Differences between webhook and crd modes
-
-The main difference is that `"crd"` mode uses a SPIFFE ID custom resource definition(CRD) along with controllers, instead of a Validating Admission Webhook.
-
-- A namespace scoped SpiffeID CRD is defined. A controller watches for create, update, delete, etc. events and creates entries on the SPIRE Server accordingly.
-- An optional pod controller (`pod_controller`) watches for POD events and creates/deletes SpiffeID CRDs accordingly. The pod controller sets the pod as the owner of the SPIFFE ID CRD so it is automatically garbage collected if the POD is deleted. The pod controller adds the pod name as the first DNS name, which SPIRE adds as both a DNS SAN and the CN field on the SVID.
-- An optional endpoint controller (`add_svc_dns_name`) watches for endpoint events and adds the Service Name as a DNS SAN to the SVID for all pods that are endpoints of the service. A pod can be an endpoint of multiple services and as a result can have multiple Service Names added as DNS SANs. If a service is removed, the Service Name is removed from the SVID of all endpoint Pods. The format of the DNS SAN is `<service_name>.<namespace>.svc`
-- An option to disable namespaces from auto-generation (`disabled_namespaces`). By default `kube-system` is disabled for auto-generation.
-- Auto generated entries are parented to the node, rather than to a cluster-wide parent.
+Spire enforces that spiffeId+parentId+selectors are unique. The optional `"crd"` mode webhook
