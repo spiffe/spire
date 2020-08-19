@@ -5,6 +5,7 @@ run:
   skip-dirs:
     - testdata$
     - test/mock
+    - support/k8s/k8s-workload-registrar/mode-crd/api
 
   skip-files:
     - ".*\\.pb\\.go"
