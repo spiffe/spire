@@ -217,7 +217,10 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	})
 	s.Assert().NoError(err)
 	s.Assert().Len(es.Entries, 1)
-	s.Assert().Equal([]string{"123-123-123-124.bar.pod.cluster.local"}, es.Entries[0].DnsNames)
+	s.Assert().Equal([]string{
+		"123-123-123-124.bar.pod.cluster.local",
+		"123-123-123-124.bar.pod",
+	}, es.Entries[0].DnsNames)
 
 	endpointsToCreate := corev1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
@@ -258,7 +261,22 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	})
 	s.Assert().NoError(err)
 	s.Assert().Len(es.Entries, 1)
-	s.Assert().ElementsMatch([]string{"123-123-123-124.bar.pod.cluster.local", "foo-svc.bar.svc.cluster.local", "foo.foo-svc.bar.svc.cluster.local", "123-123-123-123.foo-svc.bar.svc.cluster.local"}, es.Entries[0].DnsNames)
+	s.Assert().ElementsMatch([]string{
+		"123-123-123-124.bar.pod.cluster.local",
+		"foo-svc.bar.svc.cluster.local",
+		"foo.foo-svc.bar.svc.cluster.local",
+		"123-123-123-123.foo-svc.bar.svc.cluster.local",
+		"123-123-123-124.bar.pod",
+		"foo-svc.bar.svc",
+		"foo.foo-svc.bar.svc",
+		"123-123-123-123.foo-svc.bar.svc",
+		"foo-svc.bar",
+		"foo.foo-svc.bar",
+		"123-123-123-123.foo-svc.bar",
+		"foo-svc",
+		"foo.foo-svc",
+		"123-123-123-123.foo-svc",
+	}, es.Entries[0].DnsNames)
 	// It's important that the pod name is the first in the list so that it gets used as the DN
 	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es.Entries[0].DnsNames[0])
 }

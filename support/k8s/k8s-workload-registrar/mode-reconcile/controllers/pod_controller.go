@@ -116,6 +116,16 @@ func (r *PodReconciler) mungeIP(ip string) string {
 	return ip
 }
 
+func (r *PodReconciler) addSearchPathNamesForPrefix(prefix string, namespace string, names map[string]bool) {
+	// Kubernetes makes use of an unusual search path arrangement. We need to add names to allow all of the variants
+	// the search path permits.
+	// search $namespace.svc.$clusterDNSZone svc.$clusterDNSZone $clusterDNSZone ...
+	names[fmt.Sprintf("%s.%s.svc.%s", prefix, namespace, r.ClusterDNSZone)] = true
+	names[fmt.Sprintf("%s.%s.svc", prefix, namespace)] = true
+	names[fmt.Sprintf("%s.%s", prefix, namespace)] = true
+	names[prefix] = true
+}
+
 func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Pod) ([]string, error) {
 	names := make(map[string]bool)
 
@@ -130,19 +140,19 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 		// We cheat slightly and don't check the type of service (headless or not), we just add all possible names.
 
 		// 2.3.1 and 2.4.1: <service>.<ns>.svc.<zone>
-		names[fmt.Sprintf("%s.%s.svc.%s", endpoints.Name, endpoints.Namespace, r.ClusterDNSZone)] = true
+		r.addSearchPathNamesForPrefix(endpoints.Name, endpoints.Namespace, names)
 
 		r.forEachPodEndpointAddress(&endpoints, func(address corev1.EndpointAddress) {
 			if pod.Name == address.TargetRef.Name && pod.Namespace == address.TargetRef.Namespace {
 				// 2.4.1: <hostname>.<service>.<ns>.svc.<zone>
 				if address.Hostname != "" {
-					names[fmt.Sprintf("%s.%s.%s.svc.%s", address.Hostname, endpoints.Name, endpoints.Namespace, r.ClusterDNSZone)] = true
+					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.Hostname, endpoints.Name), endpoints.Namespace, names)
 				} else {
 					// The spec leaves this case up to the implementation, so here we copy CoreDns...
 					// CoreDNS has an endpoint_pod_names flag to switch between the following two options. We don't have that flag, so
 					// we'll just add both pod name and IP based name (the CoreDns default) for now.
-					names[fmt.Sprintf("%s.%s.%s.svc.%s", r.mungeIP(address.IP), endpoints.Name, endpoints.Namespace, r.ClusterDNSZone)] = true
-					names[fmt.Sprintf("%s.%s.%s.svc.%s", address.TargetRef.Name, endpoints.Name, endpoints.Namespace, r.ClusterDNSZone)] = true
+					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", r.mungeIP(address.IP), endpoints.Name), endpoints.Namespace, names)
+					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.TargetRef.Name, endpoints.Name), endpoints.Namespace, names)
 				}
 			}
 		})
@@ -187,7 +197,10 @@ func (r *PodReconciler) fillEntryForPod(ctx context.Context, entry *common.Regis
 	// name for daemonsets/deployments exposed by a service. This doesn't seem to be implemented by anything, and would
 	// clash with naming used for endpoints! We follow CoreDns here, and don't attempt to add that format of name.
 
-	entry.DnsNames = append([]string{fmt.Sprintf("%s.%s.pod.%s", r.mungeIP(pod.Status.PodIP), pod.Namespace, r.ClusterDNSZone)}, endpointNames...)
+	entry.DnsNames = append([]string{
+		fmt.Sprintf("%s.%s.pod.%s", r.mungeIP(pod.Status.PodIP), pod.Namespace, r.ClusterDNSZone),
+		fmt.Sprintf("%s.%s.pod", r.mungeIP(pod.Status.PodIP), pod.Namespace), // k8s search path contains $clusterDNSZone
+	}, endpointNames...)
 
 	return entry, nil
 }
