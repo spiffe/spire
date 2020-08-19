@@ -5,19 +5,13 @@ import (
 	"fmt"
 	"net/url"
 	"path"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 
-	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
@@ -36,13 +30,11 @@ const (
 
 type ReconcileMode struct {
 	CommonMode
-	MetricsAddr     string `hcl:"metrics_addr"`
-	AgentSocketPath string `hcl:"agent_socket_path"`
-	ServerAddress   string `hcl:"server_address"`
-	LeaderElection  bool   `hcl:"leader_election"`
-	ControllerName  string `hcl:"controller_name"`
-	AddPodDNSNames  bool   `hcl:"add_pod_dns_names"`
-	ClusterDNSZone  string `hcl:"cluster_dns_zone"`
+	MetricsAddr    string `hcl:"metrics_addr"`
+	LeaderElection bool   `hcl:"leader_election"`
+	ControllerName string `hcl:"controller_name"`
+	AddPodDNSNames bool   `hcl:"add_pod_dns_names"`
+	ClusterDNSZone string `hcl:"cluster_dns_zone"`
 }
 
 func (c *ReconcileMode) ParseConfig(hclConfig string) error {
@@ -50,27 +42,8 @@ func (c *ReconcileMode) ParseConfig(hclConfig string) error {
 		return errs.New("unable to decode configuration: %v", err)
 	}
 
-	if c.LogLevel == "" {
-		c.LogLevel = defaultLogLevel
-	}
 	if c.MetricsAddr == "" {
 		c.MetricsAddr = defaultMetricsAddr
-	}
-	if c.Cluster == "" {
-		return errs.New("cluster must be specified")
-	}
-	if c.ServerAddress == "" {
-		if c.ServerSocketPath != "" {
-			c.ServerAddress = fmt.Sprintf("unix://%s", c.ServerSocketPath)
-		} else {
-			return errs.New("server_address must be specified")
-		}
-	}
-	if !strings.HasPrefix(c.ServerAddress, "unix://") && c.AgentSocketPath == "" {
-		return errs.New("agent_socket_path must be specified if the server is not a local socket")
-	}
-	if c.TrustDomain == "" {
-		return errs.New("trust_domain must be specified")
 	}
 	if c.ControllerName == "" {
 		c.ControllerName = defaultControllerName
@@ -83,16 +56,18 @@ func (c *ReconcileMode) ParseConfig(hclConfig string) error {
 }
 
 func (c *ReconcileMode) Run(ctx context.Context) error {
-
+	// controller-runtime uses the logr interface for its logging. We could write a wrapper around logrus, but
+	// controller-runtime also ships with a zap encoder for k8s objects. This allows safe logging of k8s
+	// objects. Rather than reimplement all of that for logrus, we instead use zap throughout this controller.
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = true
 	}))
 	setupLog := ctrl.Log.WithName("setup")
 
 	//Connect to Spire Server
-	spireClient, err := ConnectSpire(ctx, setupLog, c.ServerAddress, c.AgentSocketPath)
+	spireClient, err := c.Dial(ctx, SpiffeLogWrapper{setupLog})
 	if err != nil {
-		setupLog.Error(err, "Unable to connect to SPIRE workload API")
+		setupLog.Error(err, "Unable to connect to SPIRE registration API")
 		return err
 	}
 	setupLog.Info("Connected to spire server.")
@@ -178,34 +153,6 @@ func (slw SpiffeLogWrapper) Warnf(format string, args ...interface{}) {
 }
 func (slw SpiffeLogWrapper) Errorf(format string, args ...interface{}) {
 	slw.delegate.Info(fmt.Sprintf(format, args...))
-}
-
-func ConnectSpire(ctx context.Context, log logr.Logger, serverAddress, agentSocketPath string) (registration.RegistrationClient, error) {
-	var conn *grpc.ClientConn
-	var err error
-
-	if strings.HasPrefix(serverAddress, "unix://") {
-		log.Info("Connecting to local workload API socket", "serverAddress", serverAddress)
-		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithInsecure())
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		log.Info("Connecting to remote workload API", "serverAddress", serverAddress, "agentSocketPath", agentSocketPath)
-		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+agentSocketPath)), workloadapi.WithClientOptions(workloadapi.WithLogger(SpiffeLogWrapper{log})))
-		if err != nil {
-			return nil, err
-		}
-
-		tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
-		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-
-		if err != nil {
-			return nil, err
-		}
-	}
-	spireClient := registration.NewRegistrationClient(conn)
-	return spireClient, nil
 }
 
 // ServerURI creates a server SPIFFE URI given a trustDomain.
