@@ -143,7 +143,7 @@ func (r *RegistrationAPIConnections) Dial(ctx context.Context, dialLog logger.Lo
 		}
 	} else {
 		dialLog.Infof("Connecting to remote registration server %s with credentials from agent socket %s", serverAddress, agentSocketPath)
-		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+agentSocketPath)), workloadapi.WithClientOptions(workloadapi.WithLogger(dialLog)))
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+agentSocketPath), workloadapi.WithLogger(dialLog)))
 		r.workloadConn = source
 		if err != nil {
 			return nil, err
