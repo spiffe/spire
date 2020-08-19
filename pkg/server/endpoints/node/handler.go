@@ -51,6 +51,7 @@ type HandlerConfig struct {
 	TrustDomain url.URL
 	Clock       clock.Clock
 	Manager     *ca.Manager
+	AttestLimit int
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -74,7 +75,7 @@ func NewHandler(config HandlerConfig) (*Handler, error) {
 
 	return &Handler{
 		c:                             config,
-		limiter:                       NewLimiter(config.Log),
+		limiter:                       NewLimiter(config.Log, config.AttestLimit),
 		fetchRegistrationEntriesCache: fetchX509SVIDCache,
 	}, nil
 }
