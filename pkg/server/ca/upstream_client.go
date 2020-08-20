@@ -79,7 +79,7 @@ func (u *UpstreamClient) MintX509CA(ctx context.Context, csr []byte, ttl time.Du
 		PreferredTtl: int32(ttl / time.Second),
 	}
 
-	firstResultCh := make(chan mintX509CAResult)
+	firstResultCh := make(chan mintX509CAResult, 1)
 	u.mintX509CAStream.Start(func(streamCtx context.Context) {
 		u.runMintX509CAStream(streamCtx, req, firstResultCh)
 	})
@@ -123,7 +123,7 @@ func (u *UpstreamClient) PublishJWTKey(ctx context.Context, jwtKey *common.Publi
 		JwtKey: jwtKey,
 	}
 
-	firstResultCh := make(chan publishJWTKeyResult)
+	firstResultCh := make(chan publishJWTKeyResult, 1)
 	u.publishJWTKeyStream.Start(func(streamCtx context.Context) {
 		u.runPublishJWTKeyStream(streamCtx, req, firstResultCh)
 	})
