@@ -8,6 +8,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/logger"
 	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
@@ -87,8 +88,12 @@ func (c *CommonMode) SetupLogger() (*log.Logger, error) {
 	return log.NewLogger(log.WithLevel(c.LogLevel), log.WithFormat(c.LogFormat), log.WithOutputFile(c.LogPath))
 }
 
-func (c *CommonMode) Dial(ctx context.Context, dialLogger logger.Logger) (registration.RegistrationClient, error) {
-	return c.registrationAPI.Dial(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
+func (c *CommonMode) RegistrationClient(ctx context.Context, dialLogger logger.Logger) (registration.RegistrationClient, error) {
+	return c.registrationAPI.RegistrationClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
+}
+
+func (c *CommonMode) EntryClient(ctx context.Context, dialLogger logger.Logger) (entry.EntryClient, error) {
+	return c.registrationAPI.EntryClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
 }
 
 func (c *CommonMode) Close() error {
@@ -131,7 +136,7 @@ type RegistrationAPIConnections struct {
 	workloadConn *workloadapi.X509Source
 }
 
-func (r *RegistrationAPIConnections) Dial(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (registration.RegistrationClient, error) {
+func (r *RegistrationAPIConnections) dial(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) error {
 	var conn *grpc.ClientConn
 	var err error
 
@@ -139,25 +144,42 @@ func (r *RegistrationAPIConnections) Dial(ctx context.Context, dialLog logger.Lo
 		dialLog.Infof("Connecting to local registration server socket %s", serverAddress)
 		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithInsecure())
 		if err != nil {
-			return nil, err
+			return err
 		}
 	} else {
 		dialLog.Infof("Connecting to remote registration server %s with credentials from agent socket %s", serverAddress, agentSocketPath)
 		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+agentSocketPath), workloadapi.WithLogger(dialLog)))
 		r.workloadConn = source
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
 		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	r.serverConn = conn
 
+	return nil
+}
+
+func (r *RegistrationAPIConnections) EntryClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (entry.EntryClient, error) {
+	if r.serverConn == nil {
+		if err := r.dial(ctx, dialLog, serverAddress, agentSocketPath); err != nil {
+			return nil, err
+		}
+	}
+	return entry.NewEntryClient(r.serverConn), nil
+}
+
+func (r *RegistrationAPIConnections) RegistrationClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (registration.RegistrationClient, error) {
+	if r.serverConn == nil {
+		if err := r.dial(ctx, dialLog, serverAddress, agentSocketPath); err != nil {
+			return nil, err
+		}
+	}
 	return registration.NewRegistrationClient(r.serverConn), nil
 }
 

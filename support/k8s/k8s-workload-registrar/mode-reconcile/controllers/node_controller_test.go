@@ -2,15 +2,17 @@ package controllers
 
 import (
 	"context"
-	"fmt"
+	"path"
 	"testing"
+
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/go-logr/logr"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	spiretypes "github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -23,7 +25,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 )
 
-const nodeControllerTestTrustDomain = "spiffe://example.test"
+const nodeControllerTestTrustDomain = "example.test"
 
 func TestNodeController(t *testing.T) {
 	spiretest.Run(t, new(NodeControllerTestSuite))
@@ -32,9 +34,9 @@ func TestNodeController(t *testing.T) {
 type NodeControllerTestSuite struct {
 	spiretest.Suite
 
-	ctrl               *gomock.Controller
-	ds                 *fakedatastore.DataStore
-	registrationClient *fakeregistrationclient.Client
+	ctrl        *gomock.Controller
+	ds          *fakedatastore.DataStore
+	entryClient *fakeentryclient.Client
 
 	k8sClient client.Client
 
@@ -45,7 +47,7 @@ func (s *NodeControllerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 
 	s.ds = fakedatastore.New(s.T())
-	s.registrationClient = fakeregistrationclient.New(s.T(), nodeControllerTestTrustDomain, s.ds, nil)
+	s.entryClient = fakeentryclient.New(s.T(), nodeControllerTestTrustDomain, s.ds, nil)
 
 	s.ctrl = mockCtrl
 
@@ -56,11 +58,14 @@ func (s *NodeControllerTestSuite) SetupTest() {
 
 func (s *NodeControllerTestSuite) TearDownTest() {
 	s.ctrl.Finish()
-	s.registrationClient.Close()
+	s.entryClient.Close()
 }
 
-func (s *NodeControllerTestSuite) makeNodeID(node string) string {
-	return fmt.Sprintf("%s/foo/node/%s", nodeControllerTestTrustDomain, node)
+func (s *NodeControllerTestSuite) makeNodeID(node string) *spiretypes.SPIFFEID {
+	return &spiretypes.SPIFFEID{
+		TrustDomain: nodeControllerTestTrustDomain,
+		Path:        path.Join("foo", "node", node),
+	}
 }
 
 func (s *NodeControllerTestSuite) TestAddRemoveNode() {
@@ -70,10 +75,16 @@ func (s *NodeControllerTestSuite) TestAddRemoveNode() {
 		s.k8sClient,
 		s.log,
 		scheme.Scheme,
-		fmt.Sprintf("%s/server", nodeControllerTestTrustDomain),
+		spiretypes.SPIFFEID{
+			TrustDomain: nodeControllerTestTrustDomain,
+			Path:        "/server",
+		},
 		"test-cluster",
-		fmt.Sprintf("%s/foo/node", nodeControllerTestTrustDomain),
-		s.registrationClient,
+		spiretypes.SPIFFEID{
+			TrustDomain: nodeControllerTestTrustDomain,
+			Path:        "/foo/node",
+		},
+		s.entryClient,
 	)
 
 	node := corev1.Node{
@@ -93,12 +104,11 @@ func (s *NodeControllerTestSuite) TestAddRemoveNode() {
 		},
 	})
 	s.Assert().NoError(err)
-
-	es, err := s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-		Id: s.makeNodeID("foo"),
+	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+		BySpiffeId: s.makeNodeID("foo"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es.Entries, 1)
+	s.Assert().Len(es, 1)
 
 	err = s.k8sClient.Delete(ctx, &node)
 	s.Assert().NoError(err)
@@ -111,11 +121,11 @@ func (s *NodeControllerTestSuite) TestAddRemoveNode() {
 	})
 	s.Assert().NoError(err)
 
-	es, err = s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-		Id: s.makeNodeID("foo"),
+	es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+		BySpiffeId: s.makeNodeID("foo"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es.Entries, 0)
+	s.Assert().Len(es, 0)
 }
 
 func (s *NodeControllerTestSuite) TestRequeuesMissingNode() {
@@ -125,10 +135,16 @@ func (s *NodeControllerTestSuite) TestRequeuesMissingNode() {
 		s.k8sClient,
 		s.log,
 		scheme.Scheme,
-		fmt.Sprintf("%s/server", nodeControllerTestTrustDomain),
+		spiretypes.SPIFFEID{
+			TrustDomain: nodeControllerTestTrustDomain,
+			Path:        "/server",
+		},
 		"test-cluster",
-		fmt.Sprintf("%s/foo/node", nodeControllerTestTrustDomain),
-		s.registrationClient,
+		spiretypes.SPIFFEID{
+			TrustDomain: nodeControllerTestTrustDomain,
+			Path:        "/foo/node",
+		},
+		s.entryClient,
 	)
 
 	node := corev1.Node{
@@ -149,11 +165,11 @@ func (s *NodeControllerTestSuite) TestRequeuesMissingNode() {
 	})
 	s.Assert().NoError(err)
 
-	es, err := s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-		Id: s.makeNodeID("foo"),
+	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+		BySpiffeId: s.makeNodeID("foo"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es.Entries, 1)
+	s.Assert().Len(es, 1)
 
 	s.Assert().Len(r.doPollSpire(ctx, s.log), 0)
 

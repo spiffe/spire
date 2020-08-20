@@ -18,14 +18,14 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"path"
 	"sort"
 	"strings"
 
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	spiretypes "github.com/spiffe/spire/proto/spire/types"
+
 	"github.com/go-logr/logr"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -51,8 +51,8 @@ type PodReconciler struct {
 	TrustDomain    string
 	Mode           PodReconcilerMode
 	Value          string
-	RootID         string
-	SpireClient    registration.RegistrationClient
+	RootID         spiretypes.SPIFFEID
+	SpireClient    entry.EntryClient
 	ClusterDNSZone string
 	AddPodDNSNames bool
 }
@@ -68,14 +68,14 @@ const endpointSubsetAddressReferenceField string = ".subsets.addresses.targetRef
 
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 
-func (r *PodReconciler) k8sWorkloadSelector(selector WorkloadSelectorSubType, value string) *common.Selector {
-	return &common.Selector{
+func (r *PodReconciler) k8sWorkloadSelector(selector WorkloadSelectorSubType, value string) *spiretypes.Selector {
+	return &spiretypes.Selector{
 		Type:  "k8s",
 		Value: fmt.Sprintf("%s:%s", selector, value),
 	}
 }
 
-func (r *PodReconciler) selectorsToNamespacedName(selectors []*common.Selector) *types.NamespacedName {
+func (r *PodReconciler) selectorsToNamespacedName(selectors []*spiretypes.Selector) *types.NamespacedName {
 	podNamespace := ""
 	podName := ""
 	for _, selector := range selectors {
@@ -100,7 +100,7 @@ func (r *PodReconciler) selectorsToNamespacedName(selectors []*common.Selector) 
 	return nil
 }
 
-func (r *PodReconciler) makeSpiffeID(obj ObjectWithMetadata) string {
+func (r *PodReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
 	return r.makeSpiffeIDForPod(obj.(*corev1.Pod))
 }
 
@@ -169,7 +169,7 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 	return namesSlice, nil
 }
 
-func (r *PodReconciler) fillEntryForPod(ctx context.Context, entry *common.RegistrationEntry, pod *corev1.Pod) (*common.RegistrationEntry, error) {
+func (r *PodReconciler) fillEntryForPod(ctx context.Context, entry *spiretypes.Entry, pod *corev1.Pod) (*spiretypes.Entry, error) {
 	if !r.AddPodDNSNames {
 		return entry, nil
 	}
@@ -205,71 +205,75 @@ func (r *PodReconciler) fillEntryForPod(ctx context.Context, entry *common.Regis
 	return entry, nil
 }
 
-func (r *PodReconciler) fillEntryForObject(ctx context.Context, entry *common.RegistrationEntry, obj ObjectWithMetadata) (*common.RegistrationEntry, error) {
+func (r *PodReconciler) fillEntryForObject(ctx context.Context, entry *spiretypes.Entry, obj ObjectWithMetadata) (*spiretypes.Entry, error) {
 	return r.fillEntryForPod(ctx, entry, obj.(*corev1.Pod))
 }
 
-func (r *PodReconciler) makeSpiffeIDForPod(pod *corev1.Pod) string {
-	spiffeID := ""
+func (r *PodReconciler) makeSpiffeIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID {
+	var spiffeID *spiretypes.SPIFFEID
 	switch r.Mode {
 	case PodReconcilerModeServiceAccount:
-		spiffeID = r.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+		spiffeID = r.makeID(path.Join("ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName))
 	case PodReconcilerModeLabel:
 		if val, ok := pod.GetLabels()[r.Value]; ok {
-			spiffeID = r.makeID("%s", val)
+			spiffeID = r.makeID(val)
 		}
 	case PodReconcilerModeAnnotation:
 		if val, ok := pod.GetAnnotations()[r.Value]; ok {
-			spiffeID = r.makeID("%s", val)
+			spiffeID = r.makeID(val)
 		}
 	}
 	return spiffeID
 }
 
-func (r *PodReconciler) makeID(pathFmt string, pathArgs ...interface{}) string {
-	id := url.URL{
-		Scheme: "spiffe",
-		Host:   r.TrustDomain,
-		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
+func (r *PodReconciler) makeID(path string) *spiretypes.SPIFFEID {
+	return &spiretypes.SPIFFEID{
+		TrustDomain: r.TrustDomain,
+		Path:        path,
 	}
-	return id.String()
 }
 
-func (r *PodReconciler) makeParentIDForPod(pod *corev1.Pod) string {
+func (r *PodReconciler) makeParentIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID {
 	nodeName := pod.Spec.NodeName
 	if nodeName == "" {
-		return ""
+		return nil
 	}
-	return fmt.Sprintf("%s/%s", r.RootID, nodeName)
+	return &spiretypes.SPIFFEID{
+		TrustDomain: r.RootID.TrustDomain,
+		Path:        path.Join(r.RootID.Path, nodeName),
+	}
 }
 
-func (r *PodReconciler) makeParentID(obj ObjectWithMetadata) string {
+func (r *PodReconciler) makeParentID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
 	return r.makeParentIDForPod(obj.(*corev1.Pod))
 }
 
-func (r *PodReconciler) getSelectors(namespacedName types.NamespacedName) []*common.Selector {
-	return []*common.Selector{
+func (r *PodReconciler) getSelectors(namespacedName types.NamespacedName) []*spiretypes.Selector {
+	return []*spiretypes.Selector{
 		r.k8sWorkloadSelector(PodNamespaceSelector, namespacedName.Namespace),
 		r.k8sWorkloadSelector(PodNameSelector, namespacedName.Name),
 	}
 }
 
-func (r *PodReconciler) getAllEntries(ctx context.Context) ([]*common.RegistrationEntry, error) {
+func (r *PodReconciler) getAllEntries(ctx context.Context) ([]*spiretypes.Entry, error) {
 	// Parents for an entry are not guaranteed to exist. This means we cannot do a search by parent ID
 	// starting from rootId to find nodes, then find pods parented to those nodes. Instead we have to
 	// get the full set of entries, and scan them for parentIds that match the format we use for a
 	// node's ID. This is probably faster anyway: most entries in spire are going to be for pods, so we
 	// may as well just load the whole lot.
 	// TODO: Move to some kind of poll and cache and notify system, so multiple controllers don't have to poll.
-	allEntries, err := r.SpireClient.FetchEntries(ctx, &common.Empty{})
+	allEntries, err := listEntries(ctx, r.SpireClient, nil)
 	if err != nil {
 		return nil, err
 	}
-	var allPodEntries []*common.RegistrationEntry
-	nodeIDPrefix := fmt.Sprintf("%s/", r.RootID)
+	var allPodEntries []*spiretypes.Entry
+	nodeIDPrefix := spiretypes.SPIFFEID{
+		TrustDomain: r.RootID.TrustDomain,
+		Path:        r.RootID.Path,
+	}
 
-	for _, maybePodEntry := range allEntries.Entries {
-		if strings.HasPrefix(maybePodEntry.ParentId, nodeIDPrefix) {
+	for _, maybePodEntry := range allEntries {
+		if spiffeIDHasPrefix(maybePodEntry.ParentId, &nodeIDPrefix) {
 			allPodEntries = append(allPodEntries, maybePodEntry)
 		}
 	}
@@ -332,7 +336,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, builder *ctrlBuilder.
 	return nil
 }
 
-func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID string, spireClient registration.RegistrationClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool) *BaseReconciler {
+func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID spiretypes.SPIFFEID, spireClient entry.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool) *BaseReconciler {
 	return &BaseReconciler{
 		Client:      client,
 		Scheme:      scheme,

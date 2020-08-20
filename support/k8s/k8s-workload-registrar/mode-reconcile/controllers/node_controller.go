@@ -18,11 +18,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	spiretypes "github.com/spiffe/spire/proto/spire/types"
+
 	"github.com/go-logr/logr"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,10 +35,10 @@ import (
 
 // NodeReconciler reconciles a Node object
 type NodeReconciler struct {
-	RootID      string
-	SpireClient registration.RegistrationClient
+	RootID      spiretypes.SPIFFEID
+	SpireClient entry.EntryClient
 	Cluster     string
-	ServerID    string
+	ServerID    spiretypes.SPIFFEID
 }
 
 type NodeSelectorSubType string
@@ -48,32 +50,40 @@ const (
 
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 
-func (r *NodeReconciler) makeSpiffeID(obj ObjectWithMetadata) string {
-	return fmt.Sprintf("%s/%s", r.RootID, obj.GetName())
+func (r *NodeReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
+	return &spiretypes.SPIFFEID{
+		TrustDomain: r.RootID.TrustDomain,
+		Path:        path.Join(r.RootID.Path, obj.GetName()),
+	}
 }
 
-func (r *NodeReconciler) makeParentID(_ ObjectWithMetadata) string {
-	return r.ServerID
+func (r *NodeReconciler) makeParentID(_ ObjectWithMetadata) *spiretypes.SPIFFEID {
+	return &r.ServerID
 }
 
-func (r *NodeReconciler) getSelectors(namespacedName types.NamespacedName) []*common.Selector {
-	return []*common.Selector{
+func (r *NodeReconciler) getSelectors(namespacedName types.NamespacedName) []*spiretypes.Selector {
+	return []*spiretypes.Selector{
 		r.k8sNodeSelector(NodeNameSelector, namespacedName.Name),
 		r.k8sNodeSelector(ClusterSelector, r.Cluster),
 	}
 }
 
-func (r *NodeReconciler) getAllEntries(ctx context.Context) ([]*common.RegistrationEntry, error) {
+func (r *NodeReconciler) getAllEntries(ctx context.Context) ([]*spiretypes.Entry, error) {
 	// TODO: Move to some kind of poll and cache and notify system, so multiple controllers don't have to poll.
-	serverChildEntries, err := r.SpireClient.ListByParentID(ctx, &registration.ParentID{Id: r.ServerID})
+	serverChildEntries, err := listEntries(ctx, r.SpireClient, &entry.ListEntriesRequest_Filter{
+		ByParentId: &r.ServerID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	var allNodeEntries []*common.RegistrationEntry
-	nodeIDPrefix := fmt.Sprintf("%s/", r.RootID)
+	var allNodeEntries []*spiretypes.Entry
+	nodeIDPrefix := spiretypes.SPIFFEID{
+		TrustDomain: r.RootID.TrustDomain,
+		Path:        r.RootID.Path,
+	}
 
-	for _, maybeNodeEntry := range serverChildEntries.Entries {
-		if strings.HasPrefix(maybeNodeEntry.SpiffeId, nodeIDPrefix) {
+	for _, maybeNodeEntry := range serverChildEntries {
+		if spiffeIDHasPrefix(maybeNodeEntry.SpiffeId, &nodeIDPrefix) {
 			allNodeEntries = append(allNodeEntries, maybeNodeEntry)
 		}
 	}
@@ -84,7 +94,14 @@ func (r *NodeReconciler) getObject() ObjectWithMetadata {
 	return &corev1.Node{}
 }
 
-func (r *NodeReconciler) selectorsToNamespacedName(selectors []*common.Selector) *types.NamespacedName {
+func (r *NodeReconciler) k8sNodeSelector(selector NodeSelectorSubType, value string) *spiretypes.Selector {
+	return &spiretypes.Selector{
+		Type:  "k8s_psat",
+		Value: fmt.Sprintf("%s:%s", selector, value),
+	}
+}
+
+func (r *NodeReconciler) selectorsToNamespacedName(selectors []*spiretypes.Selector) *types.NamespacedName {
 	nodeName := ""
 	for _, selector := range selectors {
 		if selector.Type == "k8s_psat" {
@@ -104,7 +121,7 @@ func (r *NodeReconciler) selectorsToNamespacedName(selectors []*common.Selector)
 	return nil
 }
 
-func (r *NodeReconciler) fillEntryForObject(_ context.Context, entry *common.RegistrationEntry, _ ObjectWithMetadata) (*common.RegistrationEntry, error) {
+func (r *NodeReconciler) fillEntryForObject(_ context.Context, entry *spiretypes.Entry, _ ObjectWithMetadata) (*spiretypes.Entry, error) {
 	// We don't add anything additional to entries for Nodes, so just pass back the base entry.
 	return entry, nil
 }
@@ -114,7 +131,7 @@ func (r *NodeReconciler) SetupWithManager(_ ctrl.Manager, _ *ctrlBuilder.Builder
 	return nil
 }
 
-func NewNodeReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, serverID string, cluster string, rootID string, spireClient registration.RegistrationClient) *BaseReconciler {
+func NewNodeReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, serverID spiretypes.SPIFFEID, cluster string, rootID spiretypes.SPIFFEID, spireClient entry.EntryClient) *BaseReconciler {
 	return &BaseReconciler{
 		Client:      client,
 		Scheme:      scheme,
