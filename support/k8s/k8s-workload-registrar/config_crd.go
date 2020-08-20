@@ -66,7 +66,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 	defer log.Close()
 
-	registrationClient, err := c.Dial(ctx, log)
+	registrationClient, err := c.RegistrationClient(ctx, log)
 	if err != nil {
 		return errs.New("failed to dial server: %v", err)
 	}
