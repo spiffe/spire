@@ -79,6 +79,7 @@ func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
 		ServerCA:                    c.ServerCA,
 		Manager:                     c.Manager,
 		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
+		AttestLimit:                 c.RateLimit.Attestation,
 	})
 	if err != nil {
 		return OldAPIServers{}, err
