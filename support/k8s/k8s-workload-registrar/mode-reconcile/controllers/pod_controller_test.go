@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/go-logr/logr"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	spiretypes "github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
+	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -32,9 +34,9 @@ func TestPodController(t *testing.T) {
 type PodControllerTestSuite struct {
 	spiretest.Suite
 
-	ctrl               *gomock.Controller
-	ds                 *fakedatastore.DataStore
-	registrationClient *fakeregistrationclient.Client
+	ctrl        *gomock.Controller
+	ds          *fakedatastore.DataStore
+	entryClient *fakeentryclient.Client
 
 	k8sClient client.Client
 
@@ -45,7 +47,7 @@ func (s *PodControllerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 
 	s.ds = fakedatastore.New(s.T())
-	s.registrationClient = fakeregistrationclient.New(s.T(), fmt.Sprintf("spiffe://%s", podControllerTestTrustDomain), s.ds, nil)
+	s.entryClient = fakeentryclient.New(s.T(), fmt.Sprintf("spiffe://%s", podControllerTestTrustDomain), s.ds, nil)
 
 	s.ctrl = mockCtrl
 
@@ -56,11 +58,14 @@ func (s *PodControllerTestSuite) SetupTest() {
 
 func (s *PodControllerTestSuite) TearDownTest() {
 	s.ctrl.Finish()
-	s.registrationClient.Close()
+	s.entryClient.Close()
 }
 
-func (s *PodControllerTestSuite) makePodID(name string) string {
-	return fmt.Sprintf("spiffe://%s/%s", podControllerTestTrustDomain, name)
+func (s *PodControllerTestSuite) makePodID(name string) *spiretypes.SPIFFEID {
+	return &spiretypes.SPIFFEID{
+		TrustDomain: nodeControllerTestTrustDomain,
+		Path:        name,
+	}
 }
 
 func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
@@ -84,8 +89,10 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				s.log,
 				scheme.Scheme,
 				podControllerTestTrustDomain,
-				fmt.Sprintf("spiffe://%s/foo/node", podControllerTestTrustDomain),
-				s.registrationClient,
+				spiretypes.SPIFFEID{
+					TrustDomain: nodeControllerTestTrustDomain,
+					Path:        "/foo/node",
+				}, s.entryClient,
 				tt.m,
 				"spiffe",
 				"",
@@ -120,11 +127,11 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			})
 			s.Assert().NoError(err)
 
-			es, err := s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-				Id: s.makePodID(tt.first),
+			es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+				BySpiffeId: s.makePodID(tt.first),
 			})
 			s.Assert().NoError(err)
-			s.Assert().Len(es.Entries, 1)
+			s.Assert().Len(es, 1)
 
 			pod.Labels["spiffe"] = "label2"
 			pod.Annotations["spiffe"] = "annotation2"
@@ -141,17 +148,17 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			})
 			s.Assert().NoError(err)
 
-			es, err = s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-				Id: s.makePodID(tt.first),
+			es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+				BySpiffeId: s.makePodID(tt.first),
 			})
 			s.Assert().NoError(err)
-			s.Assert().Len(es.Entries, 0)
+			s.Assert().Len(es, 0)
 
-			es, err = s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-				Id: s.makePodID(tt.second),
+			es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+				BySpiffeId: s.makePodID(tt.second),
 			})
 			s.Assert().NoError(err)
-			s.Assert().Len(es.Entries, 1)
+			s.Assert().Len(es, 1)
 
 			err = s.k8sClient.Delete(ctx, &pod)
 			s.Assert().NoError(err)
@@ -164,11 +171,11 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			})
 			s.Assert().NoError(err)
 
-			es, err = s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-				Id: s.makePodID(tt.second),
+			es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+				BySpiffeId: s.makePodID(tt.second),
 			})
 			s.Assert().NoError(err)
-			s.Assert().Len(es.Entries, 0)
+			s.Assert().Len(es, 0)
 		})
 	}
 }
@@ -181,8 +188,11 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
-		fmt.Sprintf("spiffe://%s/foo/node", podControllerTestTrustDomain),
-		s.registrationClient,
+		spiretypes.SPIFFEID{
+			TrustDomain: nodeControllerTestTrustDomain,
+			Path:        "/foo/node",
+		},
+		s.entryClient,
 		PodReconcilerModeServiceAccount,
 		"",
 		"cluster.local",
@@ -212,15 +222,15 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	})
 	s.Assert().NoError(err)
 
-	es, err := s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-		Id: s.makePodID("ns/bar/sa/sa1"),
+	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es.Entries, 1)
+	s.Assert().Len(es, 1)
 	s.Assert().Equal([]string{
 		"123-123-123-124.bar.pod.cluster.local",
 		"123-123-123-124.bar.pod",
-	}, es.Entries[0].DnsNames)
+	}, es[0].DnsNames)
 
 	endpointsToCreate := corev1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
@@ -256,11 +266,11 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	})
 	s.Assert().NoError(err)
 
-	es, err = s.registrationClient.ListBySpiffeID(ctx, &registration.SpiffeID{
-		Id: s.makePodID("ns/bar/sa/sa1"),
+	es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es.Entries, 1)
+	s.Assert().Len(es, 1)
 	s.Assert().ElementsMatch([]string{
 		"123-123-123-124.bar.pod.cluster.local",
 		"foo-svc.bar.svc.cluster.local",
@@ -276,7 +286,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		"foo-svc",
 		"foo.foo-svc",
 		"123-123-123-123.foo-svc",
-	}, es.Entries[0].DnsNames)
+	}, es[0].DnsNames)
 	// It's important that the pod name is the first in the list so that it gets used as the DN
-	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es.Entries[0].DnsNames[0])
+	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
 }

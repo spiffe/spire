@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
@@ -18,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	spiretypes "github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-reconcile/controllers"
 	"github.com/zeebo/errs"
 )
@@ -65,7 +65,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 	setupLog := ctrl.Log.WithName("setup")
 
 	//Connect to Spire Server
-	spireClient, err := c.RegistrationClient(ctx, SpiffeLogWrapper{setupLog})
+	spireClient, err := c.EntryClient(ctx, SpiffeLogWrapper{setupLog})
 	if err != nil {
 		setupLog.Error(err, "Unable to connect to SPIRE registration API")
 		return err
@@ -155,29 +155,17 @@ func (slw SpiffeLogWrapper) Errorf(format string, args ...interface{}) {
 	slw.delegate.Info(fmt.Sprintf(format, args...))
 }
 
-// ServerURI creates a server SPIFFE URI given a trustDomain.
-func ServerURI(trustDomain string) *url.URL {
-	return &url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   path.Join("spire", "server"),
-	}
-}
-
 // ServerID creates a server SPIFFE ID string given a trustDomain.
-func ServerID(trustDomain string) string {
-	return ServerURI(trustDomain).String()
-}
-
-func makeID(trustDomain string, pathFmt string, pathArgs ...interface{}) string {
-	id := url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
+func ServerID(trustDomain string) spiretypes.SPIFFEID {
+	return spiretypes.SPIFFEID{
+		TrustDomain: trustDomain,
+		Path:        path.Join("spire", "server"),
 	}
-	return id.String()
 }
 
-func nodeID(trustDomain string, controllerName string, cluster string) string {
-	return makeID(trustDomain, "%s/%s/node", controllerName, cluster)
+func nodeID(trustDomain string, controllerName string, cluster string) spiretypes.SPIFFEID {
+	return spiretypes.SPIFFEID{
+		TrustDomain: trustDomain,
+		Path:        path.Join(controllerName, cluster, "node"),
+	}
 }

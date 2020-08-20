@@ -17,13 +17,13 @@ package controllers
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	spiretypes "github.com/spiffe/spire/proto/spire/types"
+	"github.com/zeebo/errs"
+
 	"github.com/go-logr/logr"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -42,19 +42,19 @@ type ObjectReconciler interface {
 	// Returns an instance of the object type to be reconciled
 	getObject() ObjectWithMetadata
 	// Return a SPIFFE ID to register for the object, or "" if no registration should be created
-	makeSpiffeID(ObjectWithMetadata) string
+	makeSpiffeID(ObjectWithMetadata) *spiretypes.SPIFFEID
 	// Return the SPIFFE ID to be used as a parent for the object, or "" if no registration should be created
-	makeParentID(ObjectWithMetadata) string
+	makeParentID(ObjectWithMetadata) *spiretypes.SPIFFEID
 	// Return all registration entries owned by the controller
-	getAllEntries(context.Context) ([]*common.RegistrationEntry, error)
+	getAllEntries(context.Context) ([]*spiretypes.Entry, error)
 	// Return the selectors that should be used for a name
 	// For example, given a name of "foo" a reconciler might return a `k8s_psat:node-name:foo` selector.
-	getSelectors(types.NamespacedName) []*common.Selector
+	getSelectors(types.NamespacedName) []*spiretypes.Selector
 	// Parse the selectors to extract a namespaced name.
 	// For example, a list containing a `k8s_psat:node-name:foo` selector might result in a NamespacedName of "foo"
-	selectorsToNamespacedName([]*common.Selector) *types.NamespacedName
+	selectorsToNamespacedName([]*spiretypes.Selector) *types.NamespacedName
 	// Fill additional fields on a spire registration entry for a k8s object
-	fillEntryForObject(context.Context, *common.RegistrationEntry, ObjectWithMetadata) (*common.RegistrationEntry, error)
+	fillEntryForObject(context.Context, *spiretypes.Entry, ObjectWithMetadata) (*spiretypes.Entry, error)
 	// Perform any additional manager setup required
 	SetupWithManager(ctrl.Manager, *ctrlBuilder.Builder) error
 }
@@ -68,8 +68,8 @@ type BaseReconciler struct {
 	client.Client
 	ObjectReconciler
 	Scheme      *runtime.Scheme
-	RootID      string
-	SpireClient registration.RegistrationClient
+	RootID      spiretypes.SPIFFEID
+	SpireClient entry.EntryClient
 	Log         logr.Logger
 }
 
@@ -124,56 +124,54 @@ func (r *BaseReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var myEntryID string
 
 	if len(matchedEntries) == 0 {
-		createEntryIfNotExistsResponse, err := r.SpireClient.CreateEntryIfNotExists(ctx, myEntry)
+		createdEntry, preExisting, err := r.createEntry(ctx, myEntry)
 		if err != nil {
 			reqLogger.Error(err, "Failed to create or update spire entry")
 			return ctrl.Result{}, err
 		}
-		if createEntryIfNotExistsResponse.Preexisting {
+		if preExisting {
 			// This can only happen if multiple controllers are running, since any entry returned here should also have
 			// been in matchedEntries!
-			reqLogger.V(1).Info("Found existing identical spire entry", "entry", createEntryIfNotExistsResponse.Entry)
+			reqLogger.V(1).Info("Found existing identical spire entry", "entry", createdEntry)
 		} else {
-			reqLogger.Info("Created new spire entry", "entry", createEntryIfNotExistsResponse.Entry)
+			reqLogger.Info("Created new spire entry", "entry", createdEntry)
 		}
-		myEntryID = createEntryIfNotExistsResponse.Entry.EntryId
+		myEntryID = createdEntry.Id
 	} else {
 		// matchedEntries contains all entries created by this controller (based on parent ID) whose selectors match the object
 		// being reconciled. Typically there will be only one. One of these existing entries might already be just right, but
 		// if not, we choose one and update it (e.g. change spiffe ID or dns names, avoiding causing a period where the workload
 		// has no SVID.) We then delete all the others.
 		requiresUpdate := true
-		for _, entry := range matchedEntries {
-			if r.entryEquals(myEntry, entry) {
-				reqLogger.V(1).Info("Found existing identical enough spire entry", "entry", entry.EntryId)
-				myEntryID = entry.EntryId
+		for _, foundEntry := range matchedEntries {
+			if r.entryEquals(myEntry, foundEntry) {
+				reqLogger.V(1).Info("Found existing identical enough spire entry", "entry", foundEntry.Id)
+				myEntryID = foundEntry.Id
 				requiresUpdate = false
 				break
 			}
 		}
 		if requiresUpdate {
-			reqLogger.V(1).Info("Updating existing spire entry to match desired state", "entry", matchedEntries[0].EntryId)
+			reqLogger.V(1).Info("Updating existing spire entry to match desired state", "entry", matchedEntries[0].Id)
 			// It's important that if multiple instances are running they all pick the same entry here, otherwise
 			// we could have two instances of the registrar delete each others changes. This can only happen if both are
 			// also working off an up to date cache (otherwise the lagging one will pick up the other change later and correct
 			// the mistake.) If that happens then as long as they'd both pick to keep the same entry from the list, we can
 			// guarantee they wont end up deleting all the entries and not noticing: so we'll pick the entry with the
 			// "lowest" Entry ID.
-			myEntryID = matchedEntries[0].EntryId
-			for _, entry := range matchedEntries {
-				if entry.EntryId < myEntryID {
-					myEntryID = entry.EntryId
+			myEntryID = matchedEntries[0].Id
+			for _, foundEntry := range matchedEntries {
+				if foundEntry.Id < myEntryID {
+					myEntryID = foundEntry.Id
 				}
 			}
 
 			// myEntry is the entry we'd have created if we weren't updating an existing one, by giving it the chosen EntryId
 			// we can use it to update the existing entry to perfectly match what we want.
-			myEntry.EntryId = myEntryID
-			_, err := r.SpireClient.UpdateEntry(ctx, &registration.UpdateEntryRequest{
-				Entry: myEntry,
-			})
+			myEntry.Id = myEntryID
+			err := r.updateEntry(ctx, myEntry)
 			if err != nil {
-				reqLogger.Error(err, "Failed to update existing spire entry", "existingEntry", matchedEntries[0].EntryId)
+				reqLogger.Error(err, "Failed to update existing spire entry", "existingEntry", matchedEntries[0].Id)
 				return ctrl.Result{}, err
 			}
 		}
@@ -184,15 +182,43 @@ func (r *BaseReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, err
 }
 
-func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithMetadata) (*common.RegistrationEntry, error) {
+func (r *BaseReconciler) updateEntry(ctx context.Context, updatedEntry *spiretypes.Entry) error {
+	batchUpdateResponse, err := r.SpireClient.BatchUpdateEntry(ctx, &entry.BatchUpdateEntryRequest{
+		Entries: []*spiretypes.Entry{updatedEntry},
+	})
+	if err == nil {
+		err = status.Error(codes.Code(batchUpdateResponse.Results[0].Status.Code), batchUpdateResponse.Results[0].Status.Message)
+	}
+	return err
+}
+
+func (r *BaseReconciler) createEntry(ctx context.Context, entryToCreate *spiretypes.Entry) (*spiretypes.Entry, bool, error) {
+	createEntryResponse, err := r.SpireClient.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: []*spiretypes.Entry{entryToCreate}})
+	if err != nil {
+		return nil, false, err
+	}
+	result := createEntryResponse.Results[0]
+	statusCode := codes.Code(result.Status.Code)
+	resultEntry := result.Entry
+	if resultEntry == nil {
+		return nil, false, status.Error(statusCode, result.Status.Message)
+	}
+	preexisting := false
+	if statusCode == codes.AlreadyExists {
+		preexisting = true
+	}
+	return resultEntry, preexisting, nil
+}
+
+func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithMetadata) (*spiretypes.Entry, error) {
 	spiffeID := r.makeSpiffeID(obj)
 	parentID := r.makeParentID(obj)
 
-	if spiffeID == "" || parentID == "" {
+	if spiffeID == nil || parentID == nil {
 		return nil, nil
 	}
 
-	entry := common.RegistrationEntry{
+	newEntry := spiretypes.Entry{
 		Selectors: r.getSelectors(types.NamespacedName{
 			Namespace: obj.GetNamespace(),
 			Name:      obj.GetName(),
@@ -200,17 +226,17 @@ func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithM
 		ParentId: parentID,
 		SpiffeId: spiffeID,
 	}
-	return r.fillEntryForObject(ctx, &entry, obj)
+	return r.fillEntryForObject(ctx, &newEntry, obj)
 }
 
-func (r *BaseReconciler) entryEquals(myEntry *common.RegistrationEntry, in *common.RegistrationEntry) bool {
+func (r *BaseReconciler) entryEquals(myEntry *spiretypes.Entry, in *spiretypes.Entry) bool {
 	// We consider an entry to be "equal" if the fields we can update match.
 	// This doesn't include selectors, since those can never be updated. The caller is expected to only pass us
 	// entries whose selectors would match the same k8s resource.
-	if in.SpiffeId != myEntry.GetSpiffeId() {
+	if !spiffeIDsEqual(in.SpiffeId, myEntry.SpiffeId) {
 		return false
 	}
-	if in.ParentId != myEntry.GetParentId() {
+	if !spiffeIDsEqual(in.ParentId, myEntry.ParentId) {
 		return false
 	}
 	if len(in.DnsNames) != len(myEntry.DnsNames) {
@@ -228,78 +254,69 @@ func (r *BaseReconciler) entryEquals(myEntry *common.RegistrationEntry, in *comm
 	return true
 }
 
-func (r *BaseReconciler) deleteAllEntries(ctx context.Context, reqLogger logr.Logger, entries []*common.RegistrationEntry) error {
-	var errs []error
-	for _, entry := range entries {
-		err := r.ensureDeleted(ctx, reqLogger, entry.EntryId)
+func (r *BaseReconciler) deleteAllEntries(ctx context.Context, reqLogger logr.Logger, entries []*spiretypes.Entry) error {
+	entryIDs := make([]string, 0, len(entries))
+
+	for _, entryToDelete := range entries {
+		entryIDs = append(entryIDs, entryToDelete.Id)
+	}
+	return r.deleteEntriesByID(ctx, reqLogger, entryIDs)
+}
+
+func (r *BaseReconciler) deleteAllEntriesExcept(ctx context.Context, reqLogger logr.Logger, entries []*spiretypes.Entry, exceptEntryID string) error {
+	entryIDs := make([]string, 0, len(entries))
+
+	for _, entryToDelete := range entries {
+		if entryToDelete.Id != exceptEntryID {
+			entryIDs = append(entryIDs, entryToDelete.Id)
+		}
+	}
+	return r.deleteEntriesByID(ctx, reqLogger, entryIDs)
+}
+
+func (r *BaseReconciler) deleteEntriesByID(ctx context.Context, reqLogger logr.Logger, entryIDs []string) error {
+	errorGroup := errs.Group{}
+
+	batchDeleteEntryRequest := &entry.BatchDeleteEntryRequest{Ids: entryIDs}
+
+	results, err := r.SpireClient.BatchDeleteEntry(ctx, batchDeleteEntryRequest)
+	if err != nil {
+		return err
+	}
+	for _, result := range results.Results {
+		err := status.Error(codes.Code(result.Status.Code), result.Status.Message)
 		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("unable to delete all entries: %v", errs)
-	}
-	return nil
-}
-
-func (r *BaseReconciler) deleteAllEntriesExcept(ctx context.Context, reqLogger logr.Logger, entries []*common.RegistrationEntry, exceptEntryID string) error {
-	var errs []error
-	for _, entry := range entries {
-		if entry.EntryId != exceptEntryID {
-			err := r.ensureDeleted(ctx, reqLogger, entry.EntryId)
-			if err != nil {
-				errs = append(errs, err)
+			if status.Code(err) == codes.NotFound {
+				reqLogger.Info("Entry had already been deleted", "entryID", result.Id)
+			} else {
+				errorGroup.Add(err)
+				reqLogger.Error(err, "Failed to delete entry", "entryID", result.Id)
 			}
+		} else {
+			reqLogger.Info("Deleted entry", "entryID", result.Id)
 		}
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("unable to delete all entries: %v", errs)
-	}
-	return nil
+	return errorGroup.Err()
 }
 
-func (r *BaseReconciler) getMatchingEntries(ctx context.Context, reqLogger logr.Logger, namespacedName types.NamespacedName) ([]*common.RegistrationEntry, error) {
-	entries, err := r.SpireClient.ListBySelectors(ctx, &common.Selectors{
-		Entries: r.getSelectors(namespacedName),
+func (r *BaseReconciler) getMatchingEntries(ctx context.Context, reqLogger logr.Logger, namespacedName types.NamespacedName) ([]*spiretypes.Entry, error) {
+	entries, err := listEntries(ctx, r.SpireClient, &entry.ListEntriesRequest_Filter{
+		BySelectors: &spiretypes.SelectorMatch{
+			Selectors: r.getSelectors(namespacedName),
+			Match:     spiretypes.SelectorMatch_MATCH_EXACT,
+		},
 	})
 	if err != nil {
 		reqLogger.Error(err, "Failed to load entries")
 		return nil, err
 	}
-	var result []*common.RegistrationEntry
-	for _, entry := range entries.Entries {
-		if strings.HasPrefix(entry.ParentId, r.RootID) || strings.HasPrefix(entry.SpiffeId, r.RootID) {
-			result = append(result, entry)
+	var result []*spiretypes.Entry
+	for _, foundEntry := range entries {
+		if spiffeIDHasPrefix(foundEntry.ParentId, &r.RootID) || spiffeIDHasPrefix(foundEntry.SpiffeId, &r.RootID) {
+			result = append(result, foundEntry)
 		}
 	}
 	return result, nil
-}
-
-func (r *NodeReconciler) k8sNodeSelector(selector NodeSelectorSubType, value string) *common.Selector {
-	return &common.Selector{
-		Type:  "k8s_psat",
-		Value: fmt.Sprintf("%s:%s", selector, value),
-	}
-}
-
-func (r *BaseReconciler) ensureDeleted(ctx context.Context, reqLogger logr.Logger, entryID string) error {
-	if _, err := r.SpireClient.DeleteEntry(ctx, &registration.RegistrationEntryID{Id: entryID}); err != nil {
-		if status.Code(err) != codes.NotFound {
-			if status.Code(err) == codes.Internal {
-				// Spire server currently returns a 500 if delete fails due to the entry not existing. This is probably a bug.
-				// We work around it by attempting to fetch the entry, and if it's not found then all is good.
-				if _, err := r.SpireClient.FetchEntry(ctx, &registration.RegistrationEntryID{Id: entryID}); err != nil {
-					if status.Code(err) == codes.NotFound {
-						reqLogger.V(1).Info("Entry already deleted", "entry", entryID)
-						return nil
-					}
-				}
-			}
-			return err
-		}
-	}
-	reqLogger.Info("deleted entry", "entry", entryID)
-	return nil
 }
 
 func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []event.GenericEvent {
@@ -315,8 +332,8 @@ func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []eve
 	var events []event.GenericEvent
 	seen := make(map[string]bool)
 
-	for _, entry := range entries {
-		if namespacedName := r.selectorsToNamespacedName(entry.Selectors); namespacedName != nil {
+	for _, foundEntry := range entries {
+		if namespacedName := r.selectorsToNamespacedName(foundEntry.Selectors); namespacedName != nil {
 			reconcile := false
 			if seen[namespacedName.String()] {
 				// More than one entry found
@@ -336,7 +353,7 @@ func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []eve
 					if err != nil {
 						log.Error(err, "Unable to populate spire entry for object", "name", namespacedName)
 					}
-					if myEntry == nil || !r.entryEquals(myEntry, entry) {
+					if myEntry == nil || !r.entryEquals(myEntry, foundEntry) {
 						// No longer needs an entry or it doesn't match the expected entry
 						// This can trigger for various reasons, but it's OK to accidentally queue more than entirely necessary
 						reconcile = true
@@ -365,9 +382,9 @@ func (r *BaseReconciler) pollSpire(out chan event.GenericEvent, s <-chan struct{
 		case <-s:
 			return nil
 		case <-time.After(10 * time.Second):
-			for _, event := range r.doPollSpire(ctx, log) {
+			for _, pollEvent := range r.doPollSpire(ctx, log) {
 				select {
-				case out <- event:
+				case out <- pollEvent:
 				case <-s:
 					return nil
 				}
