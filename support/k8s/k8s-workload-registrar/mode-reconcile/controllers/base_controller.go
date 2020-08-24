@@ -55,6 +55,8 @@ type ObjectReconciler interface {
 	selectorsToNamespacedName([]*spiretypes.Selector) *types.NamespacedName
 	// Fill additional fields on a spire registration entry for a k8s object
 	fillEntryForObject(context.Context, *spiretypes.Entry, ObjectWithMetadata) (*spiretypes.Entry, error)
+	// Return true if we should continue to reconcile this request, false to skip
+	shouldProcess(req ctrl.Request) bool
 	// Perform any additional manager setup required
 	SetupWithManager(ctrl.Manager, *ctrlBuilder.Builder) error
 }
@@ -82,6 +84,9 @@ type ObjectWithMetadata interface {
 }
 
 func (r *BaseReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	if !r.shouldProcess(req) {
+		return ctrl.Result{}, nil
+	}
 	ctx := context.Background()
 	reqLogger := r.Log.WithValues("request", req.NamespacedName)
 

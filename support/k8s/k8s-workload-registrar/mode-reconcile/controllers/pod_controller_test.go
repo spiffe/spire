@@ -97,6 +97,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				"spiffe",
 				"",
 				false,
+				[]string{},
 			)
 
 			pod := corev1.Pod{
@@ -197,6 +198,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		"",
 		"cluster.local",
 		true,
+		[]string{},
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -308,6 +310,7 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 		"",
 		"cluster.local",
 		true,
+		[]string{},
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -397,6 +400,7 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 		"",
 		"cluster.local",
 		true,
+		[]string{},
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -459,4 +463,54 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 	}, es[0].DnsNames)
 	// It's important that the pod name is the first in the list so that it gets used as the DN
 	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
+}
+
+func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
+	ctx := context.TODO()
+
+	r := NewPodReconciler(
+		s.k8sClient,
+		s.log,
+		scheme.Scheme,
+		podControllerTestTrustDomain,
+		spiretypes.SPIFFEID{
+			TrustDomain: nodeControllerTestTrustDomain,
+			Path:        "/foo/node",
+		},
+		s.entryClient,
+		PodReconcilerModeServiceAccount,
+		"",
+		"cluster.local",
+		true,
+		[]string{"bar"},
+	)
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+		},
+		Spec: corev1.PodSpec{
+			NodeName:           "baz",
+			ServiceAccountName: "sa1",
+		},
+		Status: corev1.PodStatus{
+			PodIP: "123.123.123.124",
+		},
+	}
+	err := s.k8sClient.Create(ctx, &pod)
+	s.Assert().NoError(err)
+
+	_, err = r.Reconcile(ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "foo",
+			Namespace: "bar",
+		},
+	})
+	s.Assert().NoError(err)
+
+	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
+	})
+	s.Assert().NoError(err)
+	s.Assert().Len(es, 0)
 }

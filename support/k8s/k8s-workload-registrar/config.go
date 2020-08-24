@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/spiffe/go-spiffe/v2/logger"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
@@ -35,18 +37,19 @@ type Mode interface {
 }
 
 type CommonMode struct {
-	LogFormat        string `hcl:"log_format"`
-	LogLevel         string `hcl:"log_level"`
-	LogPath          string `hcl:"log_path"`
-	TrustDomain      string `hcl:"trust_domain"`
-	ServerSocketPath string `hcl:"server_socket_path"`
-	AgentSocketPath  string `hcl:"agent_socket_path"`
-	ServerAddress    string `hcl:"server_address"`
-	Cluster          string `hcl:"cluster"`
-	PodLabel         string `hcl:"pod_label"`
-	PodAnnotation    string `hcl:"pod_annotation"`
-	Mode             string `hcl:"mode"`
-	registrationAPI  RegistrationAPIConnections
+	LogFormat          string   `hcl:"log_format"`
+	LogLevel           string   `hcl:"log_level"`
+	LogPath            string   `hcl:"log_path"`
+	TrustDomain        string   `hcl:"trust_domain"`
+	ServerSocketPath   string   `hcl:"server_socket_path"`
+	AgentSocketPath    string   `hcl:"agent_socket_path"`
+	ServerAddress      string   `hcl:"server_address"`
+	Cluster            string   `hcl:"cluster"`
+	PodLabel           string   `hcl:"pod_label"`
+	PodAnnotation      string   `hcl:"pod_annotation"`
+	Mode               string   `hcl:"mode"`
+	DisabledNamespaces []string `hcl:"disabled_namespaces"`
+	registrationAPI    RegistrationAPIConnections
 }
 
 func (c *CommonMode) ParseConfig(hclConfig string) error {
@@ -80,8 +83,15 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	if c.Mode != modeCRD && c.Mode != modeWebhook && c.Mode != modeReconcile {
 		return errs.New("invalid mode \"%s\", valid values are %s, %s and %s", c.Mode, modeCRD, modeWebhook, modeReconcile)
 	}
+	if c.DisabledNamespaces == nil {
+		c.DisabledNamespaces = defaultDisabledNamespaces()
+	}
 
 	return nil
+}
+
+func defaultDisabledNamespaces() []string {
+	return []string{metav1.NamespaceSystem, metav1.NamespacePublic}
 }
 
 func (c *CommonMode) SetupLogger() (*log.Logger, error) {

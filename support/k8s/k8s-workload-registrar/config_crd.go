@@ -23,14 +23,13 @@ const (
 
 type CRDMode struct {
 	CommonMode
-	AddSvcDNSName      bool     `hcl:"add_svc_dns_name"`
-	DisabledNamespaces []string `hcl:"disabled_namespaces"`
-	LeaderElection     bool     `hcl:"leader_election"`
-	MetricsBindAddr    string   `hcl:"metrics_bind_addr"`
-	PodController      bool     `hcl:"pod_controller"`
-	WebhookEnabled     bool     `hcl:"webhook_enabled"`
-	WebhookCertDir     string   `hcl:"webhook_cert_dir"`
-	WebhookPort        int      `hcl:"webhook_port"`
+	AddSvcDNSName   bool   `hcl:"add_svc_dns_name"`
+	LeaderElection  bool   `hcl:"leader_election"`
+	MetricsBindAddr string `hcl:"metrics_bind_addr"`
+	PodController   bool   `hcl:"pod_controller"`
+	WebhookEnabled  bool   `hcl:"webhook_enabled"`
+	WebhookCertDir  string `hcl:"webhook_cert_dir"`
+	WebhookPort     int    `hcl:"webhook_port"`
 }
 
 func (c *CRDMode) ParseConfig(hclConfig string) error {
@@ -42,10 +41,6 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 
 	if c.MetricsBindAddr == "" {
 		c.MetricsBindAddr = defaultMetricsBindAddr
-	}
-
-	if c.DisabledNamespaces == nil {
-		c.DisabledNamespaces = defaultDisabledNamespaces()
 	}
 
 	if c.WebhookCertDir == "" {
@@ -146,10 +141,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 
 	return mgr.Start(ctrl.SetupSignalHandler())
-}
-
-func defaultDisabledNamespaces() []string {
-	return []string{"kube-system"}
 }
 
 func getNamespace() string {

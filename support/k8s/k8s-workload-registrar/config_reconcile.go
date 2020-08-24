@@ -123,6 +123,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 		value,
 		c.ClusterDNSZone,
 		c.AddPodDNSNames,
+		c.DisabledNamespaces,
 	).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "Pod")
 		return err

@@ -48,13 +48,14 @@ const (
 // PodReconciler reconciles a Pod object
 type PodReconciler struct {
 	client.Client
-	TrustDomain    string
-	Mode           PodReconcilerMode
-	Value          string
-	RootID         spiretypes.SPIFFEID
-	SpireClient    entry.EntryClient
-	ClusterDNSZone string
-	AddPodDNSNames bool
+	TrustDomain        string
+	Mode               PodReconcilerMode
+	Value              string
+	RootID             spiretypes.SPIFFEID
+	SpireClient        entry.EntryClient
+	ClusterDNSZone     string
+	AddPodDNSNames     bool
+	DisabledNamespaces map[string]bool
 }
 
 type WorkloadSelectorSubType string
@@ -67,6 +68,11 @@ const (
 const endpointSubsetAddressReferenceField string = ".subsets.addresses.targetRef.uid"
 
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
+
+func (r *PodReconciler) shouldProcess(req ctrl.Request) bool {
+	_, disabled := r.DisabledNamespaces[req.Namespace]
+	return !disabled
+}
 
 func (r *PodReconciler) k8sWorkloadSelector(selector WorkloadSelectorSubType, value string) *spiretypes.Selector {
 	return &spiretypes.Selector{
@@ -342,7 +348,12 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, builder *ctrlBuilder.
 	return nil
 }
 
-func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID spiretypes.SPIFFEID, spireClient entry.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool) *BaseReconciler {
+func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID spiretypes.SPIFFEID, spireClient entry.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
+	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
+	for _, ns := range disabledNamespaces {
+		disabledNamespacesMap[ns] = true
+	}
+
 	return &BaseReconciler{
 		Client:      client,
 		Scheme:      scheme,
@@ -350,14 +361,15 @@ func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Sch
 		SpireClient: spireClient,
 		Log:         log,
 		ObjectReconciler: &PodReconciler{
-			Client:         client,
-			RootID:         rootID,
-			SpireClient:    spireClient,
-			TrustDomain:    trustDomain,
-			Mode:           mode,
-			Value:          value,
-			ClusterDNSZone: clusterDNSZone,
-			AddPodDNSNames: addPodDNSNames,
+			Client:             client,
+			RootID:             rootID,
+			SpireClient:        spireClient,
+			TrustDomain:        trustDomain,
+			Mode:               mode,
+			Value:              value,
+			ClusterDNSZone:     clusterDNSZone,
+			AddPodDNSNames:     addPodDNSNames,
+			DisabledNamespaces: disabledNamespacesMap,
 		},
 	}
 }
