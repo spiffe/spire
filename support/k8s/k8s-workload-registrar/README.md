@@ -20,18 +20,19 @@ The registrar has the following command line flags:
 The configuration file is a **required** by the registrar. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                        | Type    | Required? | Description                              | Default |
-| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
-| `log_level`                | string  | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
-| `log_path`                 | string  | optional | Path on disk to write the log | |
-| `trust_domain`             | string  | required | Trust domain of the SPIRE server | |
-| `agent_socket_path`        | string  | optional | Path to the Unix domain socket of the SPIRE agent. Required if server_address is not a unix domain socket address. | |
-| `server_address`           | string  | required | Address of the spire server. A local socket can be specified using unix:///path/to/socket. This is not the same as the agent socket. | |
-| `server_socket_path`       | string  | optional | Path to the Unix domain socket of the SPIRE server, equivalent to specifying a server_address with a "unix://..." prefix | |
-| `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
-| `pod_label`                | string  | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
-| `pod_annotation`           | string  | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
-| `mode`                     | string  | optional | How to run the registrar, either using a `"webhook"`, `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | `"webhook"` |
+| Key                        | Type     | Required? | Description                              | Default |
+| -------------------------- | ---------| ---------| ----------------------------------------- | ------- |
+| `log_level`                | string   | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
+| `log_path`                 | string   | optional | Path on disk to write the log | |
+| `trust_domain`             | string   | required | Trust domain of the SPIRE server | |
+| `agent_socket_path`        | string   | optional | Path to the Unix domain socket of the SPIRE agent. Required if server_address is not a unix domain socket address. | |
+| `server_address`           | string   | required | Address of the spire server. A local socket can be specified using unix:///path/to/socket. This is not the same as the agent socket. | |
+| `server_socket_path`       | string   | optional | Path to the Unix domain socket of the SPIRE server, equivalent to specifying a server_address with a "unix://..." prefix | |
+| `cluster`                  | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
+| `pod_label`                | string   | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
+| `pod_annotation`           | string   | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
+| `mode`                     | string   | optional | How to run the registrar, either using a `"webhook"`, `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | `"webhook"` |
+| `disabled_namespaces`      | []string | optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
 
 The following configuration directives are specific to `"webhook"` mode:
 
@@ -48,7 +49,6 @@ The following configuration directives are specific to `"crd"` mode:
 | Key                        | Type    | Required? | Description                              | Default |
 | -------------------------- | --------| ---------| ----------------------------------------- | ------- |
 | `add_svc_dns_name`         | bool    | optional | Enable adding service names as SAN DNS names to endpoint pods | `true` |
-| `disabled_namespaces`      | []string| optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system"` |
 | `leader_election`          | bool    | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
 | `metrics_bind_addr`        | string  | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
 | `pod_controller`           | bool    | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
