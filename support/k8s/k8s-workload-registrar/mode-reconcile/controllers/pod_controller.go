@@ -132,6 +132,10 @@ func (r *PodReconciler) addSearchPathNamesForPrefix(prefix string, namespace str
 	names[prefix] = true
 }
 
+func (r *PodReconciler) isValidK8sDnsNameComponent(name string) bool {
+	return !strings.Contains(name, ".")
+}
+
 func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Pod) ([]string, error) {
 	names := make(map[string]bool)
 
@@ -142,7 +146,7 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 
 	for _, endpoints := range endpointsList.Items {
 		endpoints := endpoints
-		if strings.Contains(endpoints.Name, ".") || strings.Contains(endpoints.Namespace, ".") {
+		if !r.isValidK8sDnsNameComponent(endpoints.Name) || !r.isValidK8sDnsNameComponent(endpoints.Namespace) {
 			continue
 		}
 
@@ -155,14 +159,14 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 		r.forEachPodEndpointAddress(&endpoints, func(address corev1.EndpointAddress) {
 			if pod.Name == address.TargetRef.Name && pod.Namespace == address.TargetRef.Namespace {
 				// 2.4.1: <hostname>.<service>.<ns>.svc.<zone>
-				if address.Hostname != "" && !strings.Contains(address.Hostname, ".") {
+				if address.Hostname != "" && r.isValidK8sDnsNameComponent(address.Hostname) {
 					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.Hostname, endpoints.Name), endpoints.Namespace, names)
 				} else {
 					// The spec leaves this case up to the implementation, so here we copy CoreDns...
 					// CoreDNS has an endpoint_pod_names flag to switch between the following two options. We don't have that flag, so
 					// we'll just add both pod name and IP based name (the CoreDns default) for now.
 					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", r.mungeIP(address.IP), endpoints.Name), endpoints.Namespace, names)
-					if !strings.Contains(address.TargetRef.Name, ".") {
+					if r.isValidK8sDnsNameComponent(address.TargetRef.Name) {
 						r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.TargetRef.Name, endpoints.Name), endpoints.Namespace, names)
 					}
 				}
