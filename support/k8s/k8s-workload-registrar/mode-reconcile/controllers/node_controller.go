@@ -50,6 +50,10 @@ const (
 
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 
+func (r *NodeReconciler) shouldProcess(_ ctrl.Request) bool {
+	return true
+}
+
 func (r *NodeReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.RootID.TrustDomain,

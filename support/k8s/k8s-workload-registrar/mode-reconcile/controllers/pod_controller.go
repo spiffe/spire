@@ -48,13 +48,14 @@ const (
 // PodReconciler reconciles a Pod object
 type PodReconciler struct {
 	client.Client
-	TrustDomain    string
-	Mode           PodReconcilerMode
-	Value          string
-	RootID         spiretypes.SPIFFEID
-	SpireClient    entry.EntryClient
-	ClusterDNSZone string
-	AddPodDNSNames bool
+	TrustDomain        string
+	Mode               PodReconcilerMode
+	Value              string
+	RootID             spiretypes.SPIFFEID
+	SpireClient        entry.EntryClient
+	ClusterDNSZone     string
+	AddPodDNSNames     bool
+	DisabledNamespaces map[string]bool
 }
 
 type WorkloadSelectorSubType string
@@ -67,6 +68,11 @@ const (
 const endpointSubsetAddressReferenceField string = ".subsets.addresses.targetRef.uid"
 
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
+
+func (r *PodReconciler) shouldProcess(req ctrl.Request) bool {
+	_, disabled := r.DisabledNamespaces[req.Namespace]
+	return !disabled
+}
 
 func (r *PodReconciler) k8sWorkloadSelector(selector WorkloadSelectorSubType, value string) *spiretypes.Selector {
 	return &spiretypes.Selector{
@@ -126,6 +132,10 @@ func (r *PodReconciler) addSearchPathNamesForPrefix(prefix string, namespace str
 	names[prefix] = true
 }
 
+func (r *PodReconciler) isValidK8sDNSNameComponent(name string) bool {
+	return name != "" && !strings.Contains(name, ".")
+}
+
 func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Pod) ([]string, error) {
 	names := make(map[string]bool)
 
@@ -136,6 +146,10 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 
 	for _, endpoints := range endpointsList.Items {
 		endpoints := endpoints
+		if !r.isValidK8sDNSNameComponent(endpoints.Name) || !r.isValidK8sDNSNameComponent(endpoints.Namespace) {
+			continue
+		}
+
 		// Based on https://github.com/kubernetes/dns/blob/master/docs/specification.md
 		// We cheat slightly and don't check the type of service (headless or not), we just add all possible names.
 
@@ -145,14 +159,16 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 		r.forEachPodEndpointAddress(&endpoints, func(address corev1.EndpointAddress) {
 			if pod.Name == address.TargetRef.Name && pod.Namespace == address.TargetRef.Namespace {
 				// 2.4.1: <hostname>.<service>.<ns>.svc.<zone>
-				if address.Hostname != "" {
+				if r.isValidK8sDNSNameComponent(address.Hostname) {
 					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.Hostname, endpoints.Name), endpoints.Namespace, names)
 				} else {
 					// The spec leaves this case up to the implementation, so here we copy CoreDns...
 					// CoreDNS has an endpoint_pod_names flag to switch between the following two options. We don't have that flag, so
 					// we'll just add both pod name and IP based name (the CoreDns default) for now.
 					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", r.mungeIP(address.IP), endpoints.Name), endpoints.Namespace, names)
-					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.TargetRef.Name, endpoints.Name), endpoints.Namespace, names)
+					if r.isValidK8sDNSNameComponent(address.TargetRef.Name) {
+						r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.TargetRef.Name, endpoints.Name), endpoints.Namespace, names)
+					}
 				}
 			}
 		})
@@ -336,7 +352,12 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, builder *ctrlBuilder.
 	return nil
 }
 
-func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID spiretypes.SPIFFEID, spireClient entry.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool) *BaseReconciler {
+func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID spiretypes.SPIFFEID, spireClient entry.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
+	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
+	for _, ns := range disabledNamespaces {
+		disabledNamespacesMap[ns] = true
+	}
+
 	return &BaseReconciler{
 		Client:      client,
 		Scheme:      scheme,
@@ -344,14 +365,15 @@ func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Sch
 		SpireClient: spireClient,
 		Log:         log,
 		ObjectReconciler: &PodReconciler{
-			Client:         client,
-			RootID:         rootID,
-			SpireClient:    spireClient,
-			TrustDomain:    trustDomain,
-			Mode:           mode,
-			Value:          value,
-			ClusterDNSZone: clusterDNSZone,
-			AddPodDNSNames: addPodDNSNames,
+			Client:             client,
+			RootID:             rootID,
+			SpireClient:        spireClient,
+			TrustDomain:        trustDomain,
+			Mode:               mode,
+			Value:              value,
+			ClusterDNSZone:     clusterDNSZone,
+			AddPodDNSNames:     addPodDNSNames,
+			DisabledNamespaces: disabledNamespacesMap,
 		},
 	}
 }

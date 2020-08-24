@@ -56,13 +56,18 @@ func (c *WebhookMode) Run(ctx context.Context) error {
 		return errs.New("failed to dial server: %v", err)
 	}
 
+	disabledNamespacesMap := make(map[string]bool, len(c.DisabledNamespaces))
+	for _, ns := range c.DisabledNamespaces {
+		disabledNamespacesMap[ns] = true
+	}
 	controller := NewController(ControllerConfig{
-		Log:           log,
-		R:             registrationClient,
-		TrustDomain:   c.TrustDomain,
-		Cluster:       c.Cluster,
-		PodLabel:      c.PodLabel,
-		PodAnnotation: c.PodAnnotation,
+		Log:                log,
+		R:                  registrationClient,
+		TrustDomain:        c.TrustDomain,
+		Cluster:            c.Cluster,
+		PodLabel:           c.PodLabel,
+		PodAnnotation:      c.PodAnnotation,
+		DisabledNamespaces: disabledNamespacesMap,
 	})
 
 	log.Info("Initializing registrar")
