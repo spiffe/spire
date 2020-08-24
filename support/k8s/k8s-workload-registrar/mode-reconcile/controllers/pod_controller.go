@@ -132,8 +132,8 @@ func (r *PodReconciler) addSearchPathNamesForPrefix(prefix string, namespace str
 	names[prefix] = true
 }
 
-func (r *PodReconciler) isValidK8sDnsNameComponent(name string) bool {
-	return !strings.Contains(name, ".")
+func (r *PodReconciler) isValidK8sDNSNameComponent(name string) bool {
+	return name != "" && !strings.Contains(name, ".")
 }
 
 func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Pod) ([]string, error) {
@@ -146,7 +146,7 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 
 	for _, endpoints := range endpointsList.Items {
 		endpoints := endpoints
-		if !r.isValidK8sDnsNameComponent(endpoints.Name) || !r.isValidK8sDnsNameComponent(endpoints.Namespace) {
+		if !r.isValidK8sDNSNameComponent(endpoints.Name) || !r.isValidK8sDNSNameComponent(endpoints.Namespace) {
 			continue
 		}
 
@@ -159,14 +159,14 @@ func (r *PodReconciler) getNamesForEndpoints(ctx context.Context, pod *corev1.Po
 		r.forEachPodEndpointAddress(&endpoints, func(address corev1.EndpointAddress) {
 			if pod.Name == address.TargetRef.Name && pod.Namespace == address.TargetRef.Namespace {
 				// 2.4.1: <hostname>.<service>.<ns>.svc.<zone>
-				if address.Hostname != "" && r.isValidK8sDnsNameComponent(address.Hostname) {
+				if r.isValidK8sDNSNameComponent(address.Hostname) {
 					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.Hostname, endpoints.Name), endpoints.Namespace, names)
 				} else {
 					// The spec leaves this case up to the implementation, so here we copy CoreDns...
 					// CoreDNS has an endpoint_pod_names flag to switch between the following two options. We don't have that flag, so
 					// we'll just add both pod name and IP based name (the CoreDns default) for now.
 					r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", r.mungeIP(address.IP), endpoints.Name), endpoints.Namespace, names)
-					if r.isValidK8sDnsNameComponent(address.TargetRef.Name) {
+					if r.isValidK8sDNSNameComponent(address.TargetRef.Name) {
 						r.addSearchPathNamesForPrefix(fmt.Sprintf("%s.%s", address.TargetRef.Name, endpoints.Name), endpoints.Namespace, names)
 					}
 				}
