@@ -160,21 +160,22 @@ An example can be found in `mode-reconcile/config/role.yaml`, which you would ap
 
 The following configuration is required before `"crd"` mode can be used:
 
-1. The SPIFFE ID CRD needs to be applied: `kubectl apply -f mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml`
+1. The SpiffeId CRD needs to be applied: `kubectl apply -f mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml`
+   * The SpiffeId CRD is namespace scoped
 1. The appropriate ClusterRole need to be applied. `kubectl apply -f mode-crd/config/crd_role.yaml`
    * This creates a new ClusterRole named `spiffe-crd-role`
 1. The new ClusterRole needs a ClusterRoleBinding to the SPIRE Server ServiceAccount. Change the name of the ServiceAccount and then: `kubectl apply -f mode-crd/config/crd_role_binding.yaml` 
    * This creates a new ClusterRoleBinding named `spiffe-crd-rolebinding`
-1. If you would like to manually create CRDs, then a validating webhook is needed to prevent misconfigurations: `kubectl apply -f mode-crd/config/webhook.yaml`
+1. If you would like to manually create SpiffeId custom resources, then a validating webhook is needed to prevent misconfigurations and improve security: `kubectl apply -f mode-crd/config/webhook.yaml`
    * This creates a new ValidatingWebhookConfiguration and Service, both named `k8s-workload-registrar`
    * Make sure to add your CA Bundle to the ValidatingWebhookConfiguration where it says `<INSERT BASE64 CA BUNDLE HERE>`
    * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
 
 #### CRD mode Security Considerations
-The SpiffeID custom resource is a namespaced resource. It is used internally by the controller to manage state, but it
-can also be used to create arbitrary registration entries. Since they can be used to create ANY registration entry, and
-thus issue any spiffeid to any workload, it is imperative that only trusted users are able to add/modify SpiffeID
-resources, regardless of the namespace in which they exist.
+A Validating Webhook is used to provide security when allowing users to manually create SpiffeId custom resources using
+Roles and RoleBindings. It prevents users from creating arbitrary registration entries that can be issued to any workload. The Validating
+Webhook ensures that registration entries created have a namespace selector that matches the namespace the resource was created in.
+This ensures that the manually created entries can only be consumed to workloads within that namespace.
 
 ### Webhook Mode Configuration
 The registrar will need access to its server keypair and the CA certificate it uses to verify clients.
@@ -259,7 +260,7 @@ spec:
   dnsNames:
   - my-dns-name
   selector:
-    namespace: default
+    namespace: my-namespace
     podName: my-pod-name
   spiffeId: spiffe://example.org/my-spiffe-id
   parentId: spiffe://example.org/spire/server
