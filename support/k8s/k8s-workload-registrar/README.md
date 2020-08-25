@@ -177,6 +177,9 @@ Roles and RoleBindings. It prevents users from creating arbitrary registration e
 Webhook ensures that registration entries created have a namespace selector that matches the namespace the resource was created in.
 This ensures that the manually created entries can only be consumed to workloads within that namespace.
 
+Care should be taken when granting users access to create SpiffeId custom resources as those users will have the ability to issue SpiffeIDs
+to any pod within the namespace.
+
 ### Webhook Mode Configuration
 The registrar will need access to its server keypair and the CA certificate it uses to verify clients.
 
