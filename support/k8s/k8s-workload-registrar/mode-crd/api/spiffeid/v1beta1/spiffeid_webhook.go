@@ -91,7 +91,7 @@ func (s *SpiffeID) ValidateDelete() error {
 }
 
 // validateSpiffeID does basic checks to make sure the SPIFFE ID resource is formatted correctly
-func (s *SpiffeID) validateSpiffeID() error{
+func (s *SpiffeID) validateSpiffeID() error {
 	spiffeIDPrefix := "spiffe://" + c.TrustDomain
 
 	// Validate Spiffe and Parent IDs have the correct format
@@ -103,7 +103,7 @@ func (s *SpiffeID) validateSpiffeID() error{
 		return errs.New("spec.spiffeId must begin with " + spiffeIDPrefix)
 	}
 
-	if (s.Spec.Selector.Cluster != "" || s.Spec.Selector.AgentNodeUid != "") {
+	if s.Spec.Selector.Cluster != "" || s.Spec.Selector.AgentNodeUid != "" {
 		// k8s_psat selectors can only be used from the k8s-workload-registrar namespace
 		if s.ObjectMeta.Namespace != c.Namespace {
 			return errs.New("spec.Selector.Cluster and spec.Selector.AgentNodeUid can " +

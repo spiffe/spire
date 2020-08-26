@@ -172,13 +172,12 @@ The following configuration is required before `"crd"` mode can be used:
    * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
 
 #### CRD mode Security Considerations
-A Validating Webhook is used to provide security when allowing users to manually create SpiffeId custom resources using
-Roles and RoleBindings. It prevents users from creating arbitrary registration entries that can be issued to any workload. The Validating
-Webhook ensures that registration entries created have a namespace selector that matches the namespace the resource was created in.
-This ensures that the manually created entries can only be consumed to workloads within that namespace.
+It is imperative to only grant trusted users access to manually create SpiffeId custom resources. Users with access have the ability to issue any SpiffeId
+to any pod in the namespace.
 
-Care should be taken when granting users access to create SpiffeId custom resources as those users will have the ability to issue SpiffeIDs
-to any pod within the namespace.
+If allowing users to manually create SpiffeId custom resources it is important to use the ValidatingWebhook.  The Validating Webhook ensures that
+registration entries created have a namespace selector that matches the namespace the resource was created in.  This ensures that the manually created
+entries can only be consumed by workloads within that namespace.
 
 ### Webhook Mode Configuration
 The registrar will need access to its server keypair and the CA certificate it uses to verify clients.
