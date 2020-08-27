@@ -175,7 +175,7 @@ The following configuration is required before `"crd"` mode can be used:
 It is imperative to only grant trusted users access to manually create SpiffeId custom resources. Users with access have the ability to issue any SpiffeId
 to any pod in the namespace.
 
-If allowing users to manually create SpiffeId custom resources it is important to use the ValidatingWebhook.  The Validating Webhook ensures that
+If allowing users to manually create SpiffeId custom resources it is important to use the Validating Webhook.  The Validating Webhook ensures that
 registration entries created have a namespace selector that matches the namespace the resource was created in.  This ensures that the manually created
 entries can only be consumed by workloads within that namespace.
 
