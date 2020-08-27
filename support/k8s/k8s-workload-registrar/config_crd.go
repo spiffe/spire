@@ -71,6 +71,11 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		return err
 	}
 
+	myNamespace, err := getNamespace()
+	if err != nil {
+		return err
+	}
+
 	log.Info("Initializing SPIFFE ID CRD Mode")
 	err = controllers.NewSpiffeIDReconciler(controllers.SpiffeIDReconcilerConfig{
 		Client:      mgr.GetClient(),
@@ -89,6 +94,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			Ctx:         ctx,
 			Log:         log,
 			Mgr:         mgr,
+			Namespace:   myNamespace,
 			R:           registrationClient,
 			TrustDomain: c.TrustDomain,
 		})
@@ -103,7 +109,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			Cluster:     c.Cluster,
 			Ctx:         ctx,
 			Log:         log,
-			Namespace:   getNamespace(),
+			Namespace:   myNamespace,
 			Scheme:      mgr.GetScheme(),
 			TrustDomain: c.TrustDomain,
 		}).SetupWithManager(mgr)
@@ -143,11 +149,11 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	return mgr.Start(ctrl.SetupSignalHandler())
 }
 
-func getNamespace() string {
+func getNamespace() (string, error) {
 	content, err := ioutil.ReadFile(namespaceFile)
 	if err != nil {
-		return "default"
+		return "", err
 	}
 
-	return string(content)
+	return string(content), nil
 }
