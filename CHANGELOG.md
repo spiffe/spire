@@ -5,6 +5,7 @@
 ### What's New
 - Introduced refactored server APIs (#1533, #1548, #1563, #1567, #1568, #1571, #1575, #1576, #1577, #1578, #1582, #1585, #1586, #1587, #1588, #1589, #1590, #1591, #1592, #1593, #1594, #1595, #1597, #1604, #1606, #1607, #1613, #1615, #1617, #1622, #1623, #1628, #1630, #1633, #1641, #1643, #1646, #1647, #1654, #1659, #1667, #1673, #1674, #1683, #1684, #1689, #1690, #1692, #1693, #1694, #1701, #1708, #1727, #1728, #1730, #1733, #1734, #1739, #1749, #1753, #1768, #1772, #1779, #1783, #1787, #1788, #1789, #1790, #1791)
 - Unix workloads can now be attested using auxiliary group membership (#1771)
+- The Kubernetes Workload Registrar now supports two new registration modes (`crd` and `reconcile`)
 
 ### What's Changed
 - Federation is now a stable feature (#1656, #1737, #1777)
