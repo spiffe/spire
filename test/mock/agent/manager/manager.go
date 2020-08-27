@@ -7,7 +7,7 @@ package mock_manager
 import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
-	go_observer "github.com/imkira/go-observer"
+	observer "github.com/imkira/go-observer"
 	client "github.com/spiffe/spire/pkg/agent/client"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	svid "github.com/spiffe/spire/pkg/agent/svid"
@@ -179,10 +179,10 @@ func (mr *MockManagerMockRecorder) SubscribeToCacheChanges(arg0 interface{}) *go
 }
 
 // SubscribeToSVIDChanges mocks base method
-func (m *MockManager) SubscribeToSVIDChanges() go_observer.Stream {
+func (m *MockManager) SubscribeToSVIDChanges() observer.Stream {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SubscribeToSVIDChanges")
-	ret0, _ := ret[0].(go_observer.Stream)
+	ret0, _ := ret[0].(observer.Stream)
 	return ret0
 }
 

@@ -18,20 +18,12 @@ func ProtoFromAttestedNode(n *common.AttestedNode) (*types.Agent, error) {
 		return nil, err
 	}
 
-	var selectors []*types.Selector
-	for _, s := range n.Selectors {
-		selectors = append(selectors, &types.Selector{
-			Type:  s.Type,
-			Value: s.Value,
-		})
-	}
-
 	return &types.Agent{
 		AttestationType:      n.AttestationDataType,
 		Id:                   ProtoFromID(spiffeID),
 		X509SvidExpiresAt:    n.CertNotAfter,
 		X509SvidSerialNumber: n.CertSerialNumber,
 		Banned:               n.CertSerialNumber == "",
-		Selectors:            selectors,
+		Selectors:            ProtoFromSelectors(n.Selectors),
 	}, nil
 }

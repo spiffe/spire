@@ -58,13 +58,5 @@ func NodeSelectorsToProto(nodeSelectors *datastore.NodeSelectors) ([]*types.Sele
 		return nil, errors.New("missing node selectors")
 	}
 
-	var selectors []*types.Selector
-	for _, s := range nodeSelectors.Selectors {
-		selectors = append(selectors, &types.Selector{
-			Type:  s.Type,
-			Value: s.Value,
-		})
-	}
-
-	return selectors, nil
+	return ProtoFromSelectors(nodeSelectors.Selectors), nil
 }

@@ -1,4 +1,4 @@
-package regentryutil
+package entrycache
 
 import (
 	"testing"

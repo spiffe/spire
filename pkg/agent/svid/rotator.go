@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
 type Rotator interface {
@@ -65,19 +63,20 @@ func (r *rotator) Run(ctx context.Context) error {
 
 func (r *rotator) runRotation(ctx context.Context) error {
 	for {
+		if err := r.rotateSVID(ctx); err != nil {
+			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
+			if rotationutil.X509Expired(r.clk.Now(), r.state.Value().(State).SVID[0]) {
+				// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
+				return fmt.Errorf("current SVID has already expired and rotation failed: %v", err)
+			}
+		} else {
+			r.backoff.Reset()
+		}
+
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-r.clk.After(r.backoff.NextBackOff()):
-			if err := r.rotateSVID(ctx); err != nil {
-				r.c.Log.WithError(err).Error("Could not rotate agent SVID")
-				if rotationutil.X509Expired(r.clk.Now(), r.state.Value().(State).SVID[0]) {
-					// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
-					return fmt.Errorf("current SVID has already expired and rotation failed: %v", err)
-				}
-			} else {
-				r.backoff.Reset()
-			}
 		}
 	}
 }
@@ -131,32 +130,16 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	csr, err := util.MakeCSR(key, r.c.SpiffeID)
+	csr, err := util.MakeCSRWithoutURISAN(key)
 	if err != nil {
 		return err
 	}
 
-	update, err := r.client.FetchUpdates(ctx,
-		&node.FetchX509SVIDRequest{
-			// CSRS are expected to be keyed by entryID. Since it does not
-			// exist an entry ID for the agent spiffeID, the `r.c.SpiffeID`
-			// is used as a key in this particular case
-			Csrs: map[string][]byte{
-				r.c.SpiffeID: csr,
-			},
-		}, true)
+	svid, err := r.client.RenewSVID(ctx, csr)
 	if err != nil {
 		return err
 	}
 
-	if len(update.SVIDs) == 0 {
-		return errors.New("no SVID received when rotating agent SVID")
-	}
-
-	svid, ok := update.SVIDs[r.c.SpiffeID]
-	if !ok {
-		return errors.New("it was not possible to get agent SVID from FetchX509SVID response")
-	}
 	certs, err := x509.ParseCertificates(svid.CertChain)
 	if err != nil {
 		return err

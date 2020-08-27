@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	datastore_pb "github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -57,6 +58,7 @@ type Endpoints struct {
 	BundleEndpointServer Server
 	Log                  logrus.FieldLogger
 	Metrics              telemetry.Metrics
+	RateLimitConfig      *RateLimitConfig
 }
 
 type OldAPIServers struct {
@@ -71,9 +73,21 @@ type APIServers struct {
 	SVIDServer   svidv1_pb.SVIDServer
 }
 
+// RateLimitConfig holds rate limiting configurations.
+type RateLimitConfig struct {
+	// Attestation defines the maximum node attestations per second that
+	// the server can handle from a single IP.
+	Attestation int
+}
+
 // New creates new endpoints struct
 func New(c Config) (*Endpoints, error) {
 	oldAPIServers, err := c.makeOldAPIServers()
+	if err != nil {
+		return nil, err
+	}
+
+	apiServers, err := c.makeAPIServers()
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +99,11 @@ func New(c Config) (*Endpoints, error) {
 		TrustDomain:          c.TrustDomain,
 		DataStore:            c.Catalog.GetDataStore(),
 		OldAPIServers:        oldAPIServers,
-		APIServers:           c.makeAPIServers(),
+		APIServers:           apiServers,
 		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
 		Log:                  c.Log,
 		Metrics:              c.Metrics,
+		RateLimitConfig:      c.RateLimit,
 	}, nil
 }
 
@@ -247,7 +262,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
 func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	resp, err := e.DataStore.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{
+	resp, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), &datastore_pb.FetchBundleRequest{
 		TrustDomainId: e.TrustDomain.IDString(),
 	})
 	if err != nil {
@@ -291,7 +306,7 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New()))
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimitConfig))
 
 	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }

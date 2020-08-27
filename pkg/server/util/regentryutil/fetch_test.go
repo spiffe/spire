@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -20,7 +21,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	require := require.New(t)
 	dataStore := fakedatastore.New(t)
 
-	cache, err := NewFetchX509SVIDCache(10)
+	cache, err := entrycache.NewFetchX509SVIDCache(10)
 	assert.NoError(err)
 
 	createRegistrationEntry := func(entry *common.RegistrationEntry) *common.RegistrationEntry {
