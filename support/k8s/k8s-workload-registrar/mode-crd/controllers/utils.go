@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -53,6 +54,11 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 	}
 
 	return mgr, nil
+}
+
+func NewKubeClientset() (*kubernetes.Clientset, error) {
+	config := ctrl.GetConfigOrDie()
+	return kubernetes.NewForConfig(config)
 }
 
 // setOwnerRef sets the owner object as owner of a new SPIFFE ID resource locally
