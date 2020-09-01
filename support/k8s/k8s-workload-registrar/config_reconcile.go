@@ -83,6 +83,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 		Scheme:             scheme,
 		MetricsBindAddress: c.MetricsAddr,
 		LeaderElection:     c.LeaderElection,
+		LeaderElectionID:   fmt.Sprintf("%s-leader-election", c.ControllerName),
 	})
 	if err != nil {
 		setupLog.Error(err, "Unable to start manager")

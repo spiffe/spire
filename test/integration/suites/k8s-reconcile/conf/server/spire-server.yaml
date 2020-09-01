@@ -58,6 +58,16 @@ rules:
   resources: ["configmaps"]
   resourceNames: ["spire-bundle"]
   verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["spire-k8s-registrar-leader-election"]
+  verbs: ["update", "get"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
 
 ---
 
@@ -160,6 +170,7 @@ data:
     trust_domain = "example.org"
     cluster = "example-cluster"
     server_socket_path = "/run/spire/sockets/registration.sock"
+    leader_election = true
 
 ---
 
