@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-workload-registrar
+  namespace: spire
+data:
+  k8s-workload-registrar.conf: |
+    log_level = "debug"
+    trust_domain = "example.org"
+    agent_socket_path = "/run/spire/sockets/agent.sock"
+    server_socket_path = "/tmp/spire-registration.sock"
+    cluster = "demo-cluster"
+    pod_controller = true
+    add_svc_dns_names = true
+    mode = "crd"
+    webhook_enabled = true
+    pod_annotation = "spiffe.io/spiffe-id"

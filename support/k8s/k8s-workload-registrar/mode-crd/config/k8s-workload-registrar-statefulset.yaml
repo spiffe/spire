@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  serviceName: spire-server
+  template:
+    metadata:
+      namespace: spire
+      labels:
+        app: spire-server
+      annotations:
+        spiffe.io/spiffe-id: "ns/spire/id/spire-server"
+    spec:
+      serviceAccountName: spire-server
+      shareProcessNamespace: true
+      containers:
+        - name: spire-server
+          image: gcr.io/spiffe-io/spire-server:0.11.0
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          livenessProbe:
+            exec:
+              command: ["/opt/spire/bin/spire-server", "healthcheck"]
+            failureThreshold: 2
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 3
+          readinessProbe:
+            exec:
+              command: ["/opt/spire/bin/spire-server", "healthcheck", "--shallow"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          ports:
+            - containerPort: 8081
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-secrets
+              mountPath: /run/spire/secrets
+              readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+              readOnly: false
+            - name: spire-registration-socket
+              mountPath: /tmp
+              readOnly: false
+        - name: k8s-workload-registrar
+          image: fmemon/k8s-workload-registrar:latest
+          args:
+            - -config
+            - /run/spire/config/k8s-workload-registrar.conf
+          ports:
+            - containerPort: 9443
+              name: webhook
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /run/spire/config
+              name: k8s-workload-registrar-config
+              readOnly: true
+            - mountPath: /run/spire/sockets
+              name: spire-agent-socket
+              readOnly: true
+            - name: spire-registration-socket
+              mountPath: /tmp
+              readOnly: false
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-server
+        - name: spire-secrets
+          secret:
+            secretName: spire-server
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate
+        - name: k8s-workload-registrar-config
+          configMap:
+            name: k8s-workload-registrar
+        - name: spire-registration-socket
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: spire-data
+        namespace: spire
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi

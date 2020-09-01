@@ -53,8 +53,10 @@ The following configuration directives are specific to `"crd"` mode:
 | `metrics_bind_addr`        | string  | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
 | `pod_controller`           | bool    | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
 | `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. Only needed if manually creating entries | `false` |
-| `webhook_cert_dir`         | string  | optional | Directory for certificates when enabling validating webhook. The certificate and key must be named tls.crt and tls.key. | `"/run/spire/serving-certs"` |
+| `webhook_name`             | string  | optional | The name of the Kubernetes ValidatingWebhookConfiguration being used for the webhook. | `"k8s-workload-registrar"` |
+| `webhook_path`             | string  | optional | The path to use for the webhook, must match what is in the ValidatingWebhookConfiguration. | `"/validate-spiffeid-spiffe-io-v1beta1-spiffeid"` |
 | `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
+| `webhook_service_name`     | string  | optional | The name of the Kubernetes Service being used for the webhook. | `"k8s-workload-registrar"` |
 
 The following configuration directives are specific to `"reconcile"` mode:
 
@@ -158,26 +160,8 @@ An example can be found in `mode-reconcile/config/role.yaml`, which you would ap
  
 ### CRD Mode Configuration
 
-The following configuration is required before `"crd"` mode can be used:
+See [Quick Start for CRD Kubernetes Workload Registrar](mode-crd/README.md#quick-start)
 
-1. The SpiffeId CRD needs to be applied: `kubectl apply -f mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml`
-   * The SpiffeId CRD is namespace scoped
-1. The appropriate ClusterRole need to be applied. `kubectl apply -f mode-crd/config/crd_role.yaml`
-   * This creates a new ClusterRole named `spiffe-crd-role`
-1. The new ClusterRole needs a ClusterRoleBinding to the SPIRE Server ServiceAccount. Change the name of the ServiceAccount and then: `kubectl apply -f mode-crd/config/crd_role_binding.yaml` 
-   * This creates a new ClusterRoleBinding named `spiffe-crd-rolebinding`
-1. If you would like to manually create SpiffeId custom resources, then a validating webhook is needed to prevent misconfigurations and improve security: `kubectl apply -f mode-crd/config/webhook.yaml`
-   * This creates a new ValidatingWebhookConfiguration and Service, both named `k8s-workload-registrar`
-   * Make sure to add your CA Bundle to the ValidatingWebhookConfiguration where it says `<INSERT BASE64 CA BUNDLE HERE>`
-   * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
-
-#### CRD mode Security Considerations
-It is imperative to only grant trusted users access to manually create SpiffeId custom resources. Users with access have the ability to issue any SpiffeId
-to any pod in the namespace.
-
-If allowing users to manually create SpiffeId custom resources it is important to use the Validating Webhook.  The Validating Webhook ensures that
-registration entries created have a namespace selector that matches the namespace the resource was created in.  This ensures that the manually created
-entries can only be consumed by workloads within that namespace.
 
 ### Webhook Mode Configuration
 The registrar will need access to its server keypair and the CA certificate it uses to verify clients.
@@ -248,37 +232,3 @@ less configuration.
 registrar, but may also be manually created to allow creation of arbitrary Spire Entries. If you intend to manage
 SpiffeID custom resources directly then it is strongly encouraged to run the controller with the `"crd"` mode's webhook
 enabled.
-
-## SPIFFE ID Custom Resources
-A sample SPIFFE ID custom resource for `"crd"` mode is below:
-
-```
-apiVersion: spiffeid.spiffe.io/v1beta1
-kind: SpiffeID
-metadata:
-  name: my-spiffe-id
-  namespace: my-namespace
-spec:
-  dnsNames:
-  - my-dns-name
-  selector:
-    namespace: my-namespace
-    podName: my-pod-name
-  spiffeId: spiffe://example.org/my-spiffe-id
-  parentId: spiffe://example.org/spire/server
-```
-
-The supported selectors are:
-- arbitrary -- Arbitrary selectors
-- containerName -- Name of the container
-- containerImage -- Container image used
-- namespace -- Namespace to match for this SPIFFE ID
-- nodeName -- Node name to match for this SPIFFE ID
-- podLabel --  Pod label name/value to match for this SPIFFE ID
-- podName -- Pod name to match for this SPIFFE ID
-- podUID --  Pod UID to match for this SPIFFE ID
-- serviceAccount -- ServiceAccount to match for this SPIFFE ID
-
-Note: Specifying DNS Names is optional.
-
-Spire enforces that spiffeId+parentId+selectors are unique. The optional `"crd"` mode webhook

@@ -4,6 +4,8 @@ go 1.14
 
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
+replace github.com/spiffe/spiffe-helper => github.com/faisal-memon/spiffe-helper v0.0.0-20201023194901-26212da0922e
+
 require (
 	cloud.google.com/go/storage v1.6.0
 	github.com/Azure/azure-sdk-for-go v44.0.0+incompatible
@@ -48,13 +50,14 @@ require (
 	github.com/mattn/go-sqlite3 v1.10.0
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v1.0.0 // indirect
-	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/prometheus/client_golang v1.4.0
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spiffe/go-spiffe/v2 v2.0.0-alpha.5
+	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.1
+	github.com/spiffe/spiffe-helper v0.0.0-00010101000000-000000000000
 	github.com/spiffe/spire/proto/spire v0.10.1
 	github.com/stretchr/testify v1.5.1
 	github.com/uber-go/tally v3.3.12+incompatible
@@ -63,7 +66,7 @@ require (
 	go.uber.org/goleak v0.10.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
-	golang.org/x/sys v0.0.0-20200331124033-c3d80250170d
+	golang.org/x/sys v0.0.0-20200622214017-ed371f2e16b4
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.0.0-20200331025713-a30bf2db82d4
 	google.golang.org/api v0.29.0

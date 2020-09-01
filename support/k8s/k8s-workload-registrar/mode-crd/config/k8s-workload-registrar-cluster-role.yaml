@@ -1,0 +1,31 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-workload-registrar-role
+rules:
+- apiGroups: [""]
+  resources: ["endpoints", "nodes", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["spiffeid.spiffe.io"]
+  resources: ["spiffeids"]
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+- apiGroups: ["spiffeid.spiffe.io"]
+  resources: ["spiffeids/status"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["validatingwebhookconfigurations"]
+  verbs: ["get", "list", "update", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-workload-registrar-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-workload-registrar-role
+subjects:
+- kind: ServiceAccount
+  name: spire-server
+  namespace: spire
