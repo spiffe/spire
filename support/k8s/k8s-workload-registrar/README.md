@@ -44,21 +44,6 @@ The following configuration directives are specific to `"webhook"` mode:
 | `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
 | `insecure_skip_client_verification`  | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
 
-The following configuration directives are specific to `"crd"` mode:
-
-| Key                        | Type    | Required? | Description                              | Default |
-| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
-| `add_svc_dns_name`         | bool    | optional | Enable adding service names as SAN DNS names to endpoint pods | `true` |
-| `leader_election`          | bool    | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
-| `metrics_bind_addr`        | string  | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
-| `pod_controller`           | bool    | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
-| `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly formatted and there are no duplicates. Only needed if manually creating entries | `false` |
-| `webhook_cert_dir`         | string  | optional | Directory for certificates when enabling validating webhook. The certificate and key must be named tls.crt and tls.key. | `"/run/spire/serving-certs"` |
-| `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
-| `identity_template`        | string  | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) | `ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}` |
-| `identity_template_label`  | string  | optional | Pod label for selecting pods that get SVIDs whose SPIFFE IDs are defined by `identity_template` format. If not set, applies to all the pods when `identity_template` is set  |  |
-| `context`                  | map[string]string | optional | The map of key/value pairs of arbitrary string parameters to be used by `identity_template` | |
-
 The following configuration directives are specific to `"reconcile"` mode:
 
 | Key                        | Type    | Required? | Description                              | Default |
@@ -68,6 +53,8 @@ The following configuration directives are specific to `"reconcile"` mode:
 | `controller_name`          | string  | optional | Forms part of the spiffe IDs used for parent IDs | `"spire-k8s-registrar"` |
 | `add_pod_dns_names`        | bool    | optional | Enable/disable adding k8s DNS names to pod SVIDs. | false |
 | `cluster_dns_zone`         | string  | optional | The DNS zone used for services in the k8s cluster. | `"cluster.local"` |
+
+For CRD configuration directives see [CRD Mode Configuration](mode-crd/README.md#configuration)
 
 ### Example
 
@@ -179,58 +166,7 @@ Pods that don't contain the pod annotation are ignored.
 
 ### Identity Template Based Workload Registration
 
-Identity template based workload registration provides a way to customize the format of SPIFFE IDs. The identity format is scoped to a cluster.
-The template formatter is using Golang
-[text/template](https://pkg.go.dev/text/template) conventions,
-and it can reference arbitrary values provided in the `context` map of strings
-in addition to the following Pod-specific arguments:
-* Pod.Name
-* Pod.UID
-* Pod.Namespace
-* Pod.ServiceAccount
-* Pod.Hostname
-* Pod.NodeName
-
-For example if the registrar was configured with the following:
-```
-identity_template = "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/sa/{{.Pod.ServiceAccount}}/pod_name/{{.Pod.pod_name}}"
-context {
-  Region = "US-NORTH"
-  ClusterName = "MYCLUSTER"
-}
-```
-and the _example-workload_ pod was deployed in _production_ namespace and _myserviceacct_ service account, the following registration entry would be created:
-```
-Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
-SPIFFE ID     : spiffe://example.org/region/US-NORTH/cluster/MYCLUSTER/sa/myserviceacct/pod_name/example-workload
-Parent ID     : ...
-TTL           : default
-Selector      : k8s:ns:production
-Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
-```
-
-If `identity_template_label` is defined in the registrar configuration:
-
-```
-identity_template_label = "enable_identity_template"
-```
-
-only pods with the same label set to `true` would get identity SVID.
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    enable_identity_template: true
-spec:
-  containers:
-  ...
-```
-Pods that don't contain the pod label are ignored.
-
-If `identity_template_label` is empty or omitted, all the pods will receive the identity.
-
+This is specific to the `crd` mode. See [Identity Template Based Workload Registration](mode-crd/README.md#identity-template-based-workload-registration) in the `crd` mode documentation.
 
 ## Deployment
 
@@ -243,32 +179,13 @@ shared volume containing the socket file.
 
 
 ### Reconcile Mode Configuration
+
 To use reconcile mode you need to create appropriate roles and bind them to the ServiceAccount you intend to run the controller as.
 An example can be found in `mode-reconcile/config/role.yaml`, which you would apply with `kubectl apply -f mode-reconcile/config/role.yaml`
 
 ### CRD Mode Configuration
 
-The following configuration is required before `"crd"` mode can be used:
-
-1. The SpiffeId CRD needs to be applied: `kubectl apply -f mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml`
-   * The SpiffeId CRD is namespace scoped
-1. The appropriate ClusterRole need to be applied. `kubectl apply -f mode-crd/config/crd_role.yaml`
-   * This creates a new ClusterRole named `spiffe-crd-role`
-1. The new ClusterRole needs a ClusterRoleBinding to the SPIRE Server ServiceAccount. Change the name of the ServiceAccount and then: `kubectl apply -f mode-crd/config/crd_role_binding.yaml`
-   * This creates a new ClusterRoleBinding named `spiffe-crd-rolebinding`
-1. If you would like to manually create SpiffeId custom resources, then a validating webhook is needed to prevent misconfigurations and improve security: `kubectl apply -f mode-crd/config/webhook.yaml`
-   * This creates a new ValidatingWebhookConfiguration and Service, both named `k8s-workload-registrar`
-   * Make sure to add your CA Bundle to the ValidatingWebhookConfiguration where it says `<INSERT BASE64 CA BUNDLE HERE>`
-   * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
-1. The CRD mode allows custom format of the SVID via `identity_template` with Pod specific values, and provided `context` map of string arguments. See [Identity Template Based Workload Registration](#identity-template-based-workload-registration)
-
-#### CRD mode Security Considerations
-It is imperative to only grant trusted users access to manually create SpiffeId custom resources. Users with access have the ability to issue any SpiffeId
-to any pod in the namespace.
-
-If allowing users to manually create SpiffeId custom resources it is important to use the Validating Webhook.  The Validating Webhook ensures that
-registration entries created have a namespace selector that matches the namespace the resource was created in.  This ensures that the manually created
-entries can only be consumed by workloads within that namespace.
+See [Quick Start for CRD Kubernetes Workload Registrar](mode-crd/README.md#quick-start)
 
 ### Webhook Mode Configuration
 The registrar will need access to its server keypair and the CA certificate it uses to verify clients.
@@ -300,12 +217,14 @@ the risks.
 
 
 #### Migrating away from the webhook
+
 The k8s ValidatingWebhookConfiguration will need to be removed or pods may fail admission. If you used the default
 configuration this can be done with:
 
 `kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook`
 
 ## DNS names
+
 Both `"reconcile"` and `"crd"` mode provide the ability to add DNS names to registration entries for pods. They
 currently have different ideas about what names should be added, with `"reconcile"` adding every possible name that can
 be used to access a pod (via a service or directly), and `"crd"` mode limiting itself to `<service>.<namespace>.svc`.
@@ -339,39 +258,3 @@ less configuration.
 registrar, but may also be manually created to allow creation of arbitrary Spire Entries. If you intend to manage
 SpiffeID custom resources directly then it is strongly encouraged to run the controller with the `"crd"` mode's webhook
 enabled.
-
-## SPIFFE ID Custom Resources
-A sample SPIFFE ID custom resource for `"crd"` mode is below:
-
-```
-apiVersion: spiffeid.spiffe.io/v1beta1
-kind: SpiffeID
-metadata:
-  name: my-spiffe-id
-  namespace: my-namespace
-spec:
-  dnsNames:
-  - my-dns-name
-  federatesWith:
-  - example-third-party.org
-  selector:
-    namespace: my-namespace
-    podName: my-pod-name
-  spiffeId: spiffe://example.org/my-spiffe-id
-  parentId: spiffe://example.org/spire/server
-```
-
-The supported selectors are:
-- arbitrary -- Arbitrary selectors
-- containerName -- Name of the container
-- containerImage -- Container image used
-- namespace -- Namespace to match for this SPIFFE ID
-- nodeName -- Node name to match for this SPIFFE ID
-- podLabel --  Pod label name/value to match for this SPIFFE ID
-- podName -- Pod name to match for this SPIFFE ID
-- podUID --  Pod UID to match for this SPIFFE ID
-- serviceAccount -- ServiceAccount to match for this SPIFFE ID
-
-Note: Specifying DNS Names or Federation Domains is optional.
-
-Spire enforces that spiffeId+parentId+selectors are unique. The optional `"crd"` mode webhook
