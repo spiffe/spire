@@ -164,7 +164,7 @@ Note: If you don't already have Docker installed, please follow these [installat
     }
     ```
 
-10. Start the SPIRE Agent as a background process. Replace <generated-join-token> with the saved value from step #10 in the following command.
+10. Start the SPIRE Agent as a background process. Replace <generated-join-token> with the saved value from step #8 in the following command.
 
         ./bin/spire-agent run -joinToken <generated-join-token> &
 
