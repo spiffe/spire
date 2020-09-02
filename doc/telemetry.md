@@ -1,8 +1,8 @@
 # Telemetry
 
-The SPIRE Server and Agent can be configured to emit metrics that can be send to the supported metrics collectors. For instructions on how to configure them properly please refer to the [Telemetry Configuration](telemetry_config) guide.
+The SPIRE Server and Agent can be configured to emit metrics that can be sent to the supported metrics collectors. For instructions on how to configure them properly, please refer to the [Telemetry Configuration](telemetry_config.md) guide.
 
-The following metrics are emited:
+The following metrics are emitted:
 
 ## SPIRE Server
 
