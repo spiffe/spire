@@ -477,6 +477,8 @@ func TestBatchCreateEntry(t *testing.T) {
 	entrySpiffeID := td.NewID("bar")
 	expiresAt := time.Now().Unix()
 
+	useDefaultEntryId := "DEFAULT_ENTRY_ID"
+
 	defaultEntry := &common.RegistrationEntry{
 		ParentId: entryParentID.String(),
 		SpiffeId: entrySpiffeID.String(),
@@ -699,7 +701,16 @@ func TestBatchCreateEntry(t *testing.T) {
 						Code:    int32(codes.AlreadyExists),
 						Message: "entry already exists",
 					},
+					Entry: &types.Entry{
+						Id:       useDefaultEntryId,
+						ParentId: api.ProtoFromID(entryParentID),
+						SpiffeId: api.ProtoFromID(entrySpiffeID),
+					},
 				},
+			},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+				SpiffeId: true,
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -812,7 +823,7 @@ func TestBatchCreateEntry(t *testing.T) {
 
 			// Create federated bundles, that we use on "FederatesWith"
 			createFederatedBundles(t, ds)
-			_ = createTestEntries(t, ds, defaultEntry)
+			defaultEntryId := createTestEntries(t, ds, defaultEntry)[defaultEntry.SpiffeId].EntryId
 
 			// Setup fake
 			ds.customCreate = true
@@ -830,6 +841,13 @@ func TestBatchCreateEntry(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+			for i, res := range tt.expectResults {
+				if res.Entry != nil && res.Entry.Id == useDefaultEntryId {
+					tt.expectResults[i].Entry.Id = defaultEntryId
+				}
+			}
+
 			spiretest.AssertProtoEqual(t, &entrypb.BatchCreateEntryResponse{
 				Results: tt.expectResults,
 			}, resp)
