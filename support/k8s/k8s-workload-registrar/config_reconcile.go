@@ -161,13 +161,13 @@ func (slw SpiffeLogWrapper) Errorf(format string, args ...interface{}) {
 func ServerID(trustDomain string) spiretypes.SPIFFEID {
 	return spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
-		Path:        path.Join("spire", "server"),
+		Path:        path.Join("/", "spire", "server"),
 	}
 }
 
 func nodeID(trustDomain string, controllerName string, cluster string) spiretypes.SPIFFEID {
 	return spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
-		Path:        path.Join(controllerName, cluster, "node"),
+		Path:        path.Join("/", controllerName, cluster, "node"),
 	}
 }
