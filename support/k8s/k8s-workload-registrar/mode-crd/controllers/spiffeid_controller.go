@@ -219,7 +219,7 @@ func (r *SpiffeIDReconciler) deleteSpiffeID(ctx context.Context, spiffeID *spiff
 		}
 
 		r.c.Log.WithFields(logrus.Fields{
-			"entryID":  spiffeID.Status.EntryId,
+			"entryID":  *spiffeID.Status.EntryId,
 			"spiffeID": spiffeID.Spec.SpiffeId,
 		}).Info("Deleted entry")
 	}
