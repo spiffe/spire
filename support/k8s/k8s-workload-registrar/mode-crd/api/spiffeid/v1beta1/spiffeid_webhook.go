@@ -120,7 +120,7 @@ func (s *SpiffeID) validateSpiffeID() error {
 
 	for _, dnsName := range s.Spec.DnsNames {
 		if err := x509util.ValidateDNS(dnsName); err != nil {
-			return fmt.Errorf("invalid DNS name: %v", err)
+			return fmt.Errorf("invalid DNS name %q: %v", dnsName, err)
 		}
 	}
 
