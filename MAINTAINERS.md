@@ -173,7 +173,7 @@ The responsibilities of the community chair are as follows:
 * Encourage use of project official channels for all technical and non-technical discussions.
 * Periodically communicate marketing and community activity to maintainers and the TSC
 * Protect the privacy and confidentiality of non-public community information, including personal contact information such as email addresses and phone numbers.
-* Onboard contributors and welcoming them into the community.
+* Onboard contributors and welcome them into the community.
 
 
 
