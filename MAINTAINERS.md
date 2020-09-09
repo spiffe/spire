@@ -154,9 +154,27 @@ The product manager must:
 * Manage the relationship between SPIFFE/SPIRE and the CNCF
 * Support the marketing and promotion of the SPIFFE and SPIRE project through the CNCF with the objective to foster a more secure cloud native ecosystem
 * Coordinate and facilitate discussions on policy review and changes with the TSC
-* Onboard contributors and welcoming them into the community
 
 The product manager makes the same pledge as maintainers do to act in the best interest at all times and its seat follows the same change guidelines as maintainer seats as described in the governance document. Unseating a product manager against their will requires a unanimous vote by the maintainers.
+
+
+## Community Facilitation and Outreach
+
+The project designates a community chair to work with the product manager seat to focus on growing awareness of the project and increasing community engagement. In this role, the community chair is responsible for community outreach and outbound communication. 
+
+The responsibilities of the community chair are as follows:
+
+* Maintain, share with the community and execute a plan for proposed marketing and community outreach activities every release cycle.
+* Coordinate and facilitate community events (online and in-person).
+* Maintain and manage the spiffe.io website, ensuring that it stays available and up-to-date.
+* Coordinate social media communications. 
+* Ensure that all community events and meetings are recorded, and make the recordings available and discoverable on YouTube.
+* Ensure that all community meeting notes, discussions, and designs are easily discoverable on Google Docs.
+* Encourage use of project official channels for all technical and non-technical discussions.
+* Periodically communicate marketing and community activity to maintainers and the TSC
+* Protect the privacy and confidentiality of non-public community information, including personal contact information such as email addresses and phone numbers.
+* Onboard contributors and welcoming them into the community.
+
 
 
 [1]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md
