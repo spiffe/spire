@@ -17,9 +17,11 @@ package v1beta1
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
@@ -113,6 +115,12 @@ func (s *SpiffeID) validateSpiffeID() error {
 		// Ensure namespace selector matches namespace of Spiffe ID resource for k8s selectors
 		if s.ObjectMeta.Namespace != s.Spec.Selector.Namespace {
 			return errs.New("spec.Selector.Namespace must match namespace of resource")
+		}
+	}
+
+	for _, dnsName := range s.Spec.DnsNames {
+		if err := x509util.ValidateDNS(dnsName); err != nil {
+			return fmt.Errorf("invalid DNS name %q: %v", dnsName, err)
 		}
 	}
 
