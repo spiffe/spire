@@ -20,10 +20,17 @@ var (
 			return make(seenSet)
 		},
 	}
+
+	stringSetPool = sync.Pool{
+		New: func() interface{} {
+			return make(stringSet)
+		},
+	}
 )
 
 type selectorSet map[Selector]struct{}
 type seenSet map[spiffeID]struct{}
+type stringSet map[string]struct{}
 
 type Selector struct {
 	Type  string
@@ -67,7 +74,7 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 		aliasEntry
 		selectors selectorSet
 	}
-	bysel := make(map[Selector]aliasInfo)
+	bysel := make(map[Selector][]aliasInfo)
 
 	entries := make(map[spiffeID][]*types.Entry)
 	for entryIter.Next(ctx) {
@@ -82,7 +89,7 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 				selectors: selectorSetFromProto(entry.Selectors),
 			}
 			for selector := range alias.selectors {
-				bysel[selector] = alias
+				bysel[selector] = append(bysel[selector], alias)
 			}
 			continue
 		}
@@ -92,8 +99,8 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 		return nil, err
 	}
 
-	aliasSeen := allocSeenSet()
-	defer freeSeenSet(aliasSeen)
+	aliasSeen := allocStringSet()
+	defer freeStringSet(aliasSeen)
 
 	aliases := make(map[spiffeID][]aliasEntry)
 	for agentIter.Next(ctx) {
@@ -102,18 +109,16 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 		agentSelectors := selectorSetFromProto(agent.Selectors)
 		// track which aliases we've evaluated so far to make sure we don't
 		// add one twice.
-		clearSeenSet(aliasSeen)
+		clearStringSet(aliasSeen)
 		for s := range agentSelectors {
-			alias, ok := bysel[s]
-			if !ok {
-				continue
-			}
-			if _, ok := aliasSeen[alias.id]; ok {
-				continue
-			}
-			aliasSeen[alias.id] = struct{}{}
-			if isSubset(alias.selectors, agentSelectors) {
-				aliases[agentID] = append(aliases[agentID], alias.aliasEntry)
+			for _, alias := range bysel[s] {
+				if _, ok := aliasSeen[alias.entry.Id]; ok {
+					continue
+				}
+				aliasSeen[alias.entry.Id] = struct{}{}
+				if isSubset(alias.selectors, agentSelectors) {
+					aliases[agentID] = append(aliases[agentID], alias.aliasEntry)
+				}
 			}
 		}
 	}
@@ -210,6 +215,22 @@ func freeSeenSet(set seenSet) {
 }
 
 func clearSeenSet(set seenSet) {
+	for k := range set {
+		delete(set, k)
+	}
+}
+
+func allocStringSet() stringSet {
+	return stringSetPool.Get().(stringSet)
+
+}
+
+func freeStringSet(set stringSet) {
+	clearStringSet(set)
+	stringSetPool.Put(set)
+}
+
+func clearStringSet(set stringSet) {
 	for k := range set {
 		delete(set, k)
 	}
