@@ -168,7 +168,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 
 	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
 
-	existingEntry, unique, err := s.isEntryUnique(ctx, cEntry)
+	existingEntry, err := s.getExistingEntry(ctx, cEntry)
 	if err != nil {
 		return &entry.BatchCreateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to list entries", err),
@@ -178,7 +178,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	resultStatus := api.OK()
 	regEntry := existingEntry
 
-	if unique {
+	if existingEntry == nil {
 		// Create entry
 		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 			Entry: cEntry,
@@ -346,7 +346,7 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	}
 }
 
-func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
+func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
 			Value: e.SpiffeId,
@@ -361,16 +361,13 @@ func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry
 	})
 
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	existing := new(common.RegistrationEntry)
-	unique := len(resp.Entries) == 0
-	if !unique {
-		existing = resp.Entries[0]
+	if len(resp.Entries) > 0 {
+		return resp.Entries[0], nil
 	}
-
-	return existing, unique, nil
+	return nil, nil
 }
 
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entry.BatchUpdateEntryResponse_Result {
