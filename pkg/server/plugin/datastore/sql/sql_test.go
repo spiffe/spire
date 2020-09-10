@@ -2665,6 +2665,13 @@ func (s *PluginSuite) TestMigration() {
 	}
 }
 
+func (s *PluginSuite) TestPristineDatabaseMigrationValues() {
+	var m Migration
+	s.Require().NoError(s.sqlPlugin.db.First(&m).Error)
+	s.Equal(latestSchemaVersion, m.Version)
+	s.Equal(codeVersion.String(), m.CodeVersion)
+}
+
 func (s *PluginSuite) TestRace() {
 	next := int64(0)
 	exp := time.Now().Add(time.Hour).Unix()

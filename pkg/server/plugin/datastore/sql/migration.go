@@ -185,7 +185,10 @@ func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	if err := tx.Assign(Migration{Version: latestSchemaVersion}).FirstOrCreate(&Migration{}).Error; err != nil {
+	if err := tx.Assign(Migration{
+		Version:     latestSchemaVersion,
+		CodeVersion: codeVersion.String(),
+	}).FirstOrCreate(&Migration{}).Error; err != nil {
 		tx.Rollback()
 		return sqlError.Wrap(err)
 	}
