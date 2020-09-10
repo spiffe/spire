@@ -81,13 +81,9 @@ func (r *NodeReconciler) getAllEntries(ctx context.Context) ([]*spiretypes.Entry
 		return nil, err
 	}
 	var allNodeEntries []*spiretypes.Entry
-	nodeIDPrefix := spiretypes.SPIFFEID{
-		TrustDomain: r.RootID.TrustDomain,
-		Path:        r.RootID.Path,
-	}
 
 	for _, maybeNodeEntry := range serverChildEntries {
-		if spiffeIDHasPrefix(maybeNodeEntry.SpiffeId, &nodeIDPrefix) {
+		if spiffeIDHasPrefix(maybeNodeEntry.SpiffeId, &r.RootID) {
 			allNodeEntries = append(allNodeEntries, maybeNodeEntry)
 		}
 	}

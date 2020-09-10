@@ -83,6 +83,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 		Scheme:             scheme,
 		MetricsBindAddress: c.MetricsAddr,
 		LeaderElection:     c.LeaderElection,
+		LeaderElectionID:   fmt.Sprintf("%s-leader-election", c.ControllerName),
 	})
 	if err != nil {
 		setupLog.Error(err, "Unable to start manager")
@@ -160,13 +161,13 @@ func (slw SpiffeLogWrapper) Errorf(format string, args ...interface{}) {
 func ServerID(trustDomain string) spiretypes.SPIFFEID {
 	return spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
-		Path:        path.Join("spire", "server"),
+		Path:        path.Join("/", "spire", "server"),
 	}
 }
 
 func nodeID(trustDomain string, controllerName string, cluster string) spiretypes.SPIFFEID {
 	return spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
-		Path:        path.Join(controllerName, cluster, "node"),
+		Path:        path.Join("/", controllerName, cluster, "node"),
 	}
 }

@@ -43,6 +43,7 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		CertDir:            webhookCertDir,
 		LeaderElection:     leaderElection,
+		LeaderElectionID:   "spire-k8s-registrar-leader-election",
 		MetricsBindAddress: metricsBindAddr,
 		Port:               webhookPort,
 		Scheme:             scheme,

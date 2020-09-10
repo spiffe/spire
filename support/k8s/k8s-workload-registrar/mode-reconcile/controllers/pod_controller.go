@@ -229,14 +229,14 @@ func (r *PodReconciler) makeSpiffeIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID
 	var spiffeID *spiretypes.SPIFFEID
 	switch r.Mode {
 	case PodReconcilerModeServiceAccount:
-		spiffeID = r.makeID(path.Join("ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName))
+		spiffeID = r.makeID(path.Join("/ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName))
 	case PodReconcilerModeLabel:
 		if val, ok := pod.GetLabels()[r.Value]; ok {
-			spiffeID = r.makeID(val)
+			spiffeID = r.makeID(path.Join("/", val))
 		}
 	case PodReconcilerModeAnnotation:
 		if val, ok := pod.GetAnnotations()[r.Value]; ok {
-			spiffeID = r.makeID(val)
+			spiffeID = r.makeID(path.Join("/", val))
 		}
 	}
 	return spiffeID
