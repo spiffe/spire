@@ -197,6 +197,7 @@ func (as *PCAPluginSuite) Test_MintX509CA_WithSupplementalBundle() {
 	supplementalCert, err := pemutil.LoadCertificate("testdata/arbitrary_certificate.pem")
 	as.Require().NoError(err)
 	_, err = as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/arbitrary_certificate.pem"))
+	as.Require().NoError(err)
 
 	csr, expectedEncodedCsr := as.generateCSR()
 
