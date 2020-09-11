@@ -126,6 +126,13 @@ func (as *PCAPluginSuite) Test_Configure_DescribeCertificateAuthorityError() {
 	as.Require().Error(err)
 }
 
+func (as *PCAPluginSuite) Test_Configure_WithBadSupplementalBundle() {
+	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
+
+	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/i_am_not_a_certificate.txt"))
+	as.Assert().Error(err)
+}
+
 func (as *PCAPluginSuite) Test_Configure_Invalid() {
 	// Missing region
 	invalidConfig := `{

@@ -93,6 +93,7 @@ func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	}
 
 	if config.SupplementalBundlePath != "" {
+		m.log.Info("Loading supplemental certificates for inclusion in the bundle", "supplemental_bundle_path", config.SupplementalBundlePath)
 		m.supplementalBundle, err = pemutil.LoadCertificates(config.SupplementalBundlePath)
 		if err != nil {
 			return nil, err
@@ -229,16 +230,11 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 	upstreamRoot := certChain[len(certChain)-1]
 	bundle := x509util.DedupeCertificates([]*x509.Certificate{upstreamRoot}, m.supplementalBundle)
 
-	derBundle := [][]byte{}
-	for _, caCert := range bundle {
-		derBundle = append(derBundle, caCert.Raw)
-	}
+	derBundle := x509util.RawCertsFromCertificates(bundle)
 
 	// All else comprises the chain (including the issued certificate)
 	derChain := [][]byte{cert.Raw}
-	for _, caCert := range certChain[:len(certChain)-1] {
-		derChain = append(derChain, caCert.Raw)
-	}
+	derChain = append(derChain, x509util.RawCertsFromCertificates(certChain[:len(certChain)-1])...)
 
 	return stream.Send(&upstreamauthority.MintX509CAResponse{
 		X509CaChain:       derChain,
