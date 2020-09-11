@@ -13,7 +13,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/go-spiffe/spiffetest"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -21,11 +20,12 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	bundlepb "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -82,7 +82,7 @@ func TestGetFederatedBundle(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: trust domain argument is not valid",
+					Message: "Invalid argument: trust domain argument is not valid",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "",
 						logrus.ErrorKey:         "spiffeid: trust domain is empty",
@@ -98,7 +98,7 @@ func TestGetFederatedBundle(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: trust domain argument is not valid",
+					Message: "Invalid argument: trust domain argument is not valid",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
 						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
@@ -110,11 +110,11 @@ func TestGetFederatedBundle(t *testing.T) {
 			name:        "The given trust domain is server's own trust domain",
 			isAdmin:     true,
 			trustDomain: "example.org",
-			err:         "rpc error: code = InvalidArgument desc = getting a federated bundle for the server's own trust domain (example.org) s not allowed",
+			err:         "rpc error: code = InvalidArgument desc = getting a federated bundle for the server's own trust domain is not allowed",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: getting a federated bundle for the server's own trust domain is not allowed",
+					Message: "Invalid argument: getting a federated bundle for the server's own trust domain is not allowed",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: serverTrustDomain.String(),
 					},
@@ -125,7 +125,7 @@ func TestGetFederatedBundle(t *testing.T) {
 			name:        "Trust domain not found",
 			isAdmin:     true,
 			trustDomain: "another-example.org",
-			err:         `rpc error: code = NotFound desc = bundle for "another-example.org" not found`,
+			err:         `rpc error: code = NotFound desc = bundle not found`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -259,8 +259,8 @@ func TestGetBundle(t *testing.T) {
 }
 
 func TestAppendBundle(t *testing.T) {
-	ca := spiffetest.NewCA(t)
-	rootCA := ca.Roots()[0]
+	ca := testca.New(t, serverTrustDomain)
+	rootCA := ca.X509Authorities()[0]
 
 	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
 	require.NoError(t, err)
@@ -298,45 +298,34 @@ func TestAppendBundle(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
-		trustDomain  string
-		bundle       *types.Bundle
-		code         codes.Code
-		dsError      error
-		err          string
-		expectBundle *types.Bundle
-		expectLogs   []spiretest.LogEntry
-		invalidEntry bool
-		noBundle     bool
-		inputMask    *types.BundleMask
-		outputMask   *types.BundleMask
+		trustDomain     string
+		x509Authorities []*types.X509Certificate
+		jwtAuthorities  []*types.JWTKey
+		code            codes.Code
+		dsError         error
+		err             string
+		expectBundle    *types.Bundle
+		expectLogs      []spiretest.LogEntry
+		invalidEntry    bool
+		noBundle        bool
+		outputMask      *types.BundleMask
 	}{
 		{
-			name: "no input or output mask defined",
-			bundle: &types.Bundle{
-				TrustDomain: serverTrustDomain.String(),
-				X509Authorities: []*types.X509Certificate{
-					x509Cert,
-				},
-				JwtAuthorities: []*types.JWTKey{jwtKey2},
-				// SequenceNumber and refresh hint are ignored.
-				SequenceNumber: 10,
-				RefreshHint:    20,
-			},
+			name:            "no output mask defined",
+			x509Authorities: []*types.X509Certificate{x509Cert},
+			jwtAuthorities:  []*types.JWTKey{jwtKey2},
 			expectBundle: &types.Bundle{
 				TrustDomain:     defaultBundle.TrustDomain,
 				RefreshHint:     defaultBundle.RefreshHint,
+				SequenceNumber:  defaultBundle.SequenceNumber,
+				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
 				JwtAuthorities:  append(defaultBundle.JwtAuthorities, jwtKey2),
-				SequenceNumber:  defaultBundle.SequenceNumber,
-				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
 			},
 		},
 		{
-			name: "output mask defined",
-			bundle: &types.Bundle{
-				TrustDomain:     serverTrustDomain.String(),
-				X509Authorities: []*types.X509Certificate{x509Cert},
-				JwtAuthorities:  []*types.JWTKey{jwtKey2},
-			},
+			name:            "output mask defined",
+			x509Authorities: []*types.X509Certificate{x509Cert},
+			jwtAuthorities:  []*types.JWTKey{jwtKey2},
 			expectBundle: &types.Bundle{
 				TrustDomain:     defaultBundle.TrustDomain,
 				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
@@ -346,46 +335,32 @@ func TestAppendBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "inputMask defined",
-			bundle: &types.Bundle{
-				TrustDomain:     serverTrustDomain.String(),
-				X509Authorities: []*types.X509Certificate{x509Cert},
-				JwtAuthorities:  []*types.JWTKey{jwtKey2},
-			},
+			name:            "update only X.509 authorities",
+			x509Authorities: []*types.X509Certificate{x509Cert},
 			expectBundle: &types.Bundle{
 				TrustDomain:     defaultBundle.TrustDomain,
 				RefreshHint:     defaultBundle.RefreshHint,
-				JwtAuthorities:  defaultBundle.JwtAuthorities,
 				SequenceNumber:  defaultBundle.SequenceNumber,
+				JwtAuthorities:  defaultBundle.JwtAuthorities,
 				X509Authorities: append(defaultBundle.X509Authorities, x509Cert),
 			},
-			inputMask: &types.BundleMask{
-				X509Authorities: true,
+		},
+		{
+			name:           "update only JWT authorities",
+			jwtAuthorities: []*types.JWTKey{jwtKey2},
+			expectBundle: &types.Bundle{
+				TrustDomain:     defaultBundle.TrustDomain,
+				RefreshHint:     defaultBundle.RefreshHint,
+				SequenceNumber:  defaultBundle.SequenceNumber,
+				JwtAuthorities:  append(defaultBundle.JwtAuthorities, jwtKey2),
+				X509Authorities: defaultBundle.X509Authorities,
 			},
 		},
 		{
-			name: "input mask all false",
-			bundle: &types.Bundle{
-				TrustDomain:     serverTrustDomain.String(),
-				X509Authorities: []*types.X509Certificate{x509Cert},
-				JwtAuthorities:  []*types.JWTKey{jwtKey2},
-			},
-			expectBundle: defaultBundle,
-			inputMask: &types.BundleMask{
-				X509Authorities: false,
-				JwtAuthorities:  false,
-				RefreshHint:     false,
-				SequenceNumber:  false,
-			},
-		},
-		{
-			name: "output mask all false",
-			bundle: &types.Bundle{
-				TrustDomain:     serverTrustDomain.String(),
-				X509Authorities: []*types.X509Certificate{x509Cert},
-				JwtAuthorities:  []*types.JWTKey{jwtKey2},
-			},
-			expectBundle: &types.Bundle{TrustDomain: serverTrustDomain.String()},
+			name:            "output mask all false",
+			x509Authorities: []*types.X509Certificate{x509Cert},
+			jwtAuthorities:  []*types.JWTKey{jwtKey2},
+			expectBundle:    &types.Bundle{TrustDomain: serverTrustDomain.String()},
 			outputMask: &types.BundleMask{
 				X509Authorities: false,
 				JwtAuthorities:  false,
@@ -394,136 +369,89 @@ func TestAppendBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "no bundle",
+			name: "no authorities",
 			code: codes.InvalidArgument,
-			err:  "missing bundle",
+			err:  "no authorities to append",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: missing bundle",
-				},
-			},
-		},
-		{
-			name: "malformed trust domain",
-			bundle: &types.Bundle{
-				TrustDomain: "malformed id",
-			},
-			code: codes.InvalidArgument,
-			err:  `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: trust domain argument is not valid",
-					Data: logrus.Fields{
-						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
-					},
-				},
-			},
-		},
-		{
-			name: "not the server trust domain",
-			bundle: &types.Bundle{
-				TrustDomain: federatedTrustDomain.String(),
-			},
-			code: codes.InvalidArgument,
-			err:  "only the trust domain of the server can be appended",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: only the trust domain of the server can be appended",
-					Data: logrus.Fields{
-						telemetry.TrustDomainID: federatedTrustDomain.String(),
-					},
+					Message: "Invalid argument: no authorities to append",
 				},
 			},
 		},
 		{
 			name: "malformed X509 authority",
-			bundle: &types.Bundle{
-				TrustDomain: serverTrustDomain.String(),
-				X509Authorities: []*types.X509Certificate{
-					{
-						Asn1: []byte("malformed"),
-					},
+			x509Authorities: []*types.X509Certificate{
+				{
+					Asn1: []byte("malformed"),
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  `failed to convert bundle:`,
+			err:  `failed to convert X.509 authority:`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert bundle",
+					Message: "Invalid argument: failed to convert X.509 authority",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: serverTrustDomain.String(),
-						logrus.ErrorKey:         fmt.Sprintf("unable to parse X.509 authority: %v", expectedX509Err),
+						logrus.ErrorKey:         expectedX509Err.Error(),
 					},
 				},
 			},
 		},
 		{
 			name: "malformed JWT authority",
-			bundle: &types.Bundle{
-				TrustDomain: serverTrustDomain.String(),
-				JwtAuthorities: []*types.JWTKey{
-					{
-						PublicKey: []byte("malformed"),
-						ExpiresAt: expiresAt,
-						KeyId:     "kid2",
-					},
+			jwtAuthorities: []*types.JWTKey{
+				{
+					PublicKey: []byte("malformed"),
+					ExpiresAt: expiresAt,
+					KeyId:     "kid2",
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "failed to convert bundle",
+			err:  "failed to convert JWT authority",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert bundle",
+					Message: "Invalid argument: failed to convert JWT authority",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: serverTrustDomain.String(),
-						logrus.ErrorKey:         fmt.Sprintf("unable to parse JWT authority: %v", expectedJWTErr),
+						logrus.ErrorKey:         expectedJWTErr.Error(),
 					},
 				},
 			},
 		},
 		{
 			name: "invalid keyID jwt authority",
-			bundle: &types.Bundle{
-				TrustDomain: serverTrustDomain.String(),
-				JwtAuthorities: []*types.JWTKey{
-					{
-						PublicKey: jwtKey2.PublicKey,
-						KeyId:     "",
-					},
+			jwtAuthorities: []*types.JWTKey{
+				{
+					PublicKey: jwtKey2.PublicKey,
+					KeyId:     "",
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "failed to convert bundle",
+			err:  "failed to convert JWT authority",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert bundle",
+					Message: "Invalid argument: failed to convert JWT authority",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: serverTrustDomain.String(),
-						logrus.ErrorKey:         "unable to parse JWT authority: missing key ID",
+						logrus.ErrorKey:         "missing key ID",
 					},
 				},
 			},
 		},
 		{
-			name: "datasource fails",
-			bundle: &types.Bundle{
-				TrustDomain:     serverTrustDomain.String(),
-				X509Authorities: []*types.X509Certificate{x509Cert},
-			},
-			code:    codes.Internal,
-			dsError: errors.New("some error"),
-			err:     "failed to fetch server bundle: some error",
+			name:            "datasource fails",
+			x509Authorities: []*types.X509Certificate{x509Cert},
+			code:            codes.Internal,
+			dsError:         errors.New("some error"),
+			err:             "failed to append bundle: some error",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch server bundle",
+					Message: "Failed to append bundle",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: serverTrustDomain.String(),
 						logrus.ErrorKey:         "some error",
@@ -532,22 +460,15 @@ func TestAppendBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "server bundle not found",
-			bundle: &types.Bundle{
+			name:            "if bundle not found, a new bundle is created",
+			x509Authorities: []*types.X509Certificate{x509Cert},
+			jwtAuthorities:  []*types.JWTKey{jwtKey2},
+			expectBundle: &types.Bundle{
 				TrustDomain:     serverTrustDomain.String(),
 				X509Authorities: []*types.X509Certificate{x509Cert},
+				JwtAuthorities:  []*types.JWTKey{jwtKey2},
 			},
-			code: codes.NotFound,
-			err:  "failed to fetch server bundle: not found",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch server bundle: not found",
-					Data: logrus.Fields{
-						telemetry.TrustDomainID: serverTrustDomain.String(),
-					},
-				},
-			},
+			code:     codes.OK,
 			noBundle: true,
 		},
 	} {
@@ -570,22 +491,20 @@ func TestAppendBundle(t *testing.T) {
 				require.NoError(t, err)
 			}
 			resp, err := test.client.AppendBundle(context.Background(), &bundlepb.AppendBundleRequest{
-				Bundle:     tt.bundle,
-				InputMask:  tt.inputMask,
-				OutputMask: tt.outputMask,
+				X509Authorities: tt.x509Authorities,
+				JwtAuthorities:  tt.jwtAuthorities,
+				OutputMask:      tt.outputMask,
 			})
 
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 			if tt.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
 				require.Nil(t, resp)
-
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-
 			spiretest.AssertProtoEqual(t, tt.expectBundle, resp)
 		})
 	}
@@ -635,7 +554,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: trust domain argument is not valid",
+					Message: "Invalid argument: trust domain argument is not valid",
 					Data: logrus.Fields{
 						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
 						telemetry.TrustDomainID: "malformed TD",
@@ -659,7 +578,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: removing the bundle for the server trust domain is not allowed",
+					Message: "Invalid argument: removing the bundle for the server trust domain is not allowed",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: serverTrustDomain.String(),
 					},
@@ -686,6 +605,15 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 						Message: "bundle not found",
 					},
 					TrustDomain: "notfound.org",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Bundle not found",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "notfound.org",
+					},
 				},
 			},
 			expectDSBundles: dsBundles,
@@ -811,7 +739,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			jwtKey:         jwtKey1,
 			rateLimiterErr: status.Error(codes.Internal, "limit error"),
 			code:           codes.Internal,
-			err:            "limit error",
+			err:            "rejecting request due to key publishing rate limiting: rpc error: code = Internal desc = limit error",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -829,7 +757,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: missing JWT authority",
+					Message: "Invalid argument: missing JWT authority",
 				},
 			},
 		},
@@ -845,7 +773,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid JWT authority",
+					Message: "Invalid argument: invalid JWT authority",
 					Data: logrus.Fields{
 						logrus.ErrorKey: expectedJWTErr.Error(),
 					},
@@ -863,7 +791,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid JWT authority",
+					Message: "Invalid argument: invalid JWT authority",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing key ID",
 					},
@@ -1148,7 +1076,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: `Invalid request: trust domain argument is not valid`,
+					Message: `Invalid argument: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
 						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
@@ -1166,12 +1094,12 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `creating a federated bundle for the server's own trust domain (example.org) s not allowed`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `creating a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: `Invalid request: creating a federated bundle for the server's own trust domain is not allowed`,
+					Message: `Invalid argument: creating a federated bundle for the server's own trust domain is not allowed`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "example.org",
 					},
@@ -1243,7 +1171,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert bundle",
+					Message: "Invalid argument: failed to convert bundle",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 						logrus.ErrorKey:         fmt.Sprintf("unable to parse X.509 authority: %v", expectedX509Err),
@@ -1381,7 +1309,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: `Invalid request: trust domain argument is not valid`,
+					Message: `Invalid argument: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
 						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
@@ -1399,12 +1327,12 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `updating a federated bundle for the server's own trust domain (example.org) s not allowed`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `updating a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: `Invalid request: updating a federated bundle for the server's own trust domain is not allowed`,
+					Message: `Invalid argument: updating a federated bundle for the server's own trust domain is not allowed`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "example.org",
 					},
@@ -1434,12 +1362,12 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:         errors.New("datastore error"),
 			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.Internal, `unable to update bundle: datastore error`)},
+				{Status: api.CreateStatus(codes.Internal, `failed to update bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Unable to update bundle",
+					Message: "Failed to update bundle",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 						logrus.ErrorKey:         "datastore error",
@@ -1465,7 +1393,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert bundle",
+					Message: "Invalid argument: failed to convert bundle",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 						logrus.ErrorKey:         fmt.Sprintf("unable to parse X.509 authority: %v", expectedX509Err),
@@ -1673,12 +1601,12 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: "//notvalid"`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: trust domain is empty`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: `Invalid request: trust domain argument is not valid`,
+					Message: `Invalid argument: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "//notvalid",
 						logrus.ErrorKey:         "spiffeid: trust domain is empty",
@@ -1696,12 +1624,12 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `setting a federated bundle for the server's own trust domain (example.org) s not allowed`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `setting a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: `Invalid request: setting a federated bundle for the server's own trust domain is not allowed`,
+					Message: `Invalid argument: setting a federated bundle for the server's own trust domain is not allowed`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "example.org",
 					},
@@ -1713,12 +1641,12 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:      errors.New("datastore error"),
 			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.Internal, `unable to set bundle: datastore error`)},
+				{Status: api.CreateStatus(codes.Internal, `failed to set bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Unable to set bundle",
+					Message: "Failed to set bundle",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 						logrus.ErrorKey:         "datastore error",
@@ -1744,7 +1672,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert bundle",
+					Message: "Invalid argument: failed to convert bundle",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "another-example.org",
 						logrus.ErrorKey:         fmt.Sprintf("unable to parse X.509 authority: %v", expectedX509Err),

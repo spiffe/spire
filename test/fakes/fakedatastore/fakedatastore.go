@@ -29,9 +29,7 @@ var _ datastore.DataStore = (*DataStore)(nil)
 
 func New(tb testing.TB) *DataStore {
 	var ds datastore.Plugin
-
-	// TODO: clean up plugin when we move to go1.14.
-	_ = spiretest.LoadPlugin(tb, sql.BuiltIn(), &ds)
+	spiretest.LoadPlugin(tb, sql.BuiltIn(), &ds)
 
 	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: fmt.Sprintf(`

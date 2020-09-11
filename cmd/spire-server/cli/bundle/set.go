@@ -28,6 +28,8 @@ type setCommand struct {
 
 	// Path to the bundle on disk (optional). If empty, reads from stdin.
 	path string
+
+	format string
 }
 
 func (c *setCommand) name() string {
@@ -41,29 +43,50 @@ func (c *setCommand) synopsis() string {
 func (c *setCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 	fs.StringVar(&c.path, "path", "", "Path to the bundle data")
+	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", formatPEM, formatSPIFFE))
 }
 
 func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error {
 	if c.id == "" {
-		return errors.New("id is required")
+		return errors.New("id flag is required")
 	}
+
+	format, err := validateFormat(c.format)
+	if err != nil {
+		return err
+	}
+
 	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return err
 	}
 
-	rootCAsPEM, err := loadParamData(env.stdin, c.path)
+	var bundle *registration.FederatedBundle
+
+	bundleBytes, err := loadParamData(env.stdin, c.path)
 	if err != nil {
 		return fmt.Errorf("unable to load bundle data: %v", err)
 	}
 
-	rootCAs, err := pemutil.ParseCertificates(rootCAsPEM)
-	if err != nil {
-		return fmt.Errorf("unable to parse bundle data: %v", err)
-	}
+	switch format {
+	case formatPEM:
+		rootCAs, err := pemutil.ParseCertificates(bundleBytes)
+		if err != nil {
+			return fmt.Errorf("unable to parse bundle data: %v", err)
+		}
 
-	bundle := &registration.FederatedBundle{
-		Bundle: bundleutil.BundleProtoFromRootCAs(id, rootCAs),
+		bundle = &registration.FederatedBundle{
+			Bundle: bundleutil.BundleProtoFromRootCAs(id, rootCAs),
+		}
+	default:
+		commonBundle, err := parseBundle(c.id, bundleBytes)
+		if err != nil {
+			return err
+		}
+
+		bundle = &registration.FederatedBundle{
+			Bundle: commonBundle,
+		}
 	}
 
 	// pull the existing bundle to know if this should be a create or a update.

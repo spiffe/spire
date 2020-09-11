@@ -5,22 +5,19 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
-	"fmt"
-	"io"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	agentpb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
-	entrypb "github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
-	svidpb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/api/node"
+	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	mock_node "github.com/spiffe/spire/test/mock/proto/api/node"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -29,163 +26,129 @@ import (
 
 var (
 	log, _ = test.NewNullLogger()
+
+	trustDomainURL = url.URL{Scheme: "spiffe", Host: "example.org"}
 )
 
 func TestFetchUpdates(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
+	client, tc := createClient()
 
-	req := newTestFetchX509SVIDRequest()
 	res := newTestFetchX509SVIDResponse()
 
-	for _, tt := range []struct {
-		enableExperimental bool
-		setupExpect        func()
-	}{
+	tc.entryClient.entries = []*types.Entry{
 		{
-			enableExperimental: false,
-			setupExpect: func() {
-				nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(tc.ctrl)
-				tc.nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
-				nodeFsc.EXPECT().Send(req)
-				nodeFsc.EXPECT().CloseSend()
-				nodeFsc.EXPECT().Recv().Return(res, nil)
-				nodeFsc.EXPECT().Recv().Return(nil, io.EOF)
+			Id:       "ENTRYID1",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id1",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith:  []string{"domain1.com"},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id2",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{"domain2.com"},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			Id:       "ENTRYID3",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "3"},
 			},
 		},
+		// This entry should be ignored since it is missing selectors
 		{
-			enableExperimental: true,
-			setupExpect: func() {
-				tc.entryClient.entries = []*types.Entry{
-					{
-						Id:       "ENTRYID1",
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						SpiffeId: &types.SPIFFEID{
-							TrustDomain: "example.org",
-							Path:        "/id1",
-						},
-						Selectors: []*types.Selector{
-							{Type: "S", Value: "1"},
-						},
-						FederatesWith:  []string{"spiffe://domain1.com"},
-						RevisionNumber: 1234,
-					},
-					// This entry should be ignored since it is missing an entry ID
-					{
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						SpiffeId: &types.SPIFFEID{
-							TrustDomain: "example.org",
-							Path:        "/id2",
-						},
-						Selectors: []*types.Selector{
-							{Type: "S", Value: "2"},
-						},
-						FederatesWith: []string{"spiffe://domain2.com"},
-					},
-					// This entry should be ignored since it is missing a SPIFFE ID
-					{
-						Id:       "ENTRYID3",
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						Selectors: []*types.Selector{
-							{Type: "S", Value: "3"},
-						},
-					},
-					// This entry should be ignored since it is missing selectors
-					{
-						Id:       "ENTRYID4",
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						SpiffeId: &types.SPIFFEID{
-							TrustDomain: "example.org",
-							Path:        "/id4",
-						},
-					},
-				}
-
-				tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
-					"entry-id": {
-						Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-						CertChain: [][]byte{{11, 22, 33}},
-					},
-				}
-
-				tc.bundleClient.agentBundle = &types.Bundle{
-					TrustDomain:     "spiffe://example.org",
-					X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
-				}
-				tc.bundleClient.federatedBundles = map[string]*types.Bundle{
-					"spiffe://domain1.com": {
-						TrustDomain:     "spiffe://domain1.com",
-						X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
-					},
-					"spiffe://domain2.com": {
-						TrustDomain:     "spiffe://domain2.com",
-						X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
-					},
-				}
+			Id:       "ENTRYID4",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id4",
 			},
 		},
-	} {
-		tt := tt
-		name := fmt.Sprintf("experimental %v", tt.enableExperimental)
-		t.Run(name, func(t *testing.T) {
-			client.c.ExperimentalAPIEnabled = tt.enableExperimental
-			tt.setupExpect()
-
-			// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
-			client.c.RotMtx.Lock()
-
-			// Do the request in a different go routine
-			var wg sync.WaitGroup
-			var update *Update
-			err := errors.New("a not nil error")
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				update, err = client.FetchUpdates(context.Background(), req, false)
-			}()
-
-			// The request should wait until the SVID rotation finishes
-			require.Contains(t, "a not nil error", err.Error())
-			require.Nil(t, update)
-
-			// Simulate the end of the SVID rotation
-			client.c.RotMtx.Unlock()
-			wg.Wait()
-
-			// Assert results
-			require.Nil(t, err)
-			assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
-			assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
-			// Only the first registration entry should be returned since the rest are
-			// invalid for one reason or another
-			if assert.Len(t, update.Entries, 1) {
-				entry := res.SvidUpdate.RegistrationEntries[0]
-				assert.Equal(t, entry, update.Entries[entry.EntryId])
-			}
-			assertConnectionIsNotNil(t, client)
-		})
 	}
+
+	tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
+		"entry-id": {
+			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+			CertChain: [][]byte{{11, 22, 33}},
+		},
+	}
+
+	tc.bundleClient.agentBundle = &types.Bundle{
+		TrustDomain:     "example.org",
+		X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+	}
+	tc.bundleClient.federatedBundles = map[string]*types.Bundle{
+		"domain1.com": {
+			TrustDomain:     "domain1.com",
+			X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+		},
+		"domain2.com": {
+			TrustDomain:     "domain2.com",
+			X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+		},
+	}
+
+	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+	client.c.RotMtx.Lock()
+
+	// Do the request in a different go routine
+	var wg sync.WaitGroup
+	var update *Update
+	err := errors.New("a not nil error")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		update, err = client.FetchUpdates(context.Background())
+	}()
+
+	// The request should wait until the SVID rotation finishes
+	require.Contains(t, "a not nil error", err.Error())
+	require.Nil(t, update)
+
+	// Simulate the end of the SVID rotation
+	client.c.RotMtx.Unlock()
+	wg.Wait()
+
+	// Assert results
+	require.Nil(t, err)
+	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
+	// Only the first registration entry should be returned since the rest are
+	// invalid for one reason or another
+	if assert.Len(t, update.Entries, 1) {
+		entry := res.SvidUpdate.RegistrationEntries[0]
+		assert.Equal(t, entry, update.Entries[entry.EntryId])
+	}
+	assertConnectionIsNotNil(t, client)
 }
 
-func TestFetchUpdatesForRotation(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
+func TestRenewSVID(t *testing.T) {
+	client, tc := createClient()
 
 	for _, tt := range []struct {
 		name       string
 		agentErr   error
 		err        string
-		expectSVID map[string]*node.X509SVID
-		req        *node.FetchX509SVIDRequest
+		expectSVID *node.X509SVID
+		csr        []byte
 		agentSVID  *types.X509SVID
 	}{
 		{
 			name: "success",
-			req: &node.FetchX509SVIDRequest{
-				Csrs: map[string][]byte{
-					"spiffe://example.org/agent1": {0, 1, 2},
-				},
-			},
+			csr:  []byte{0, 1, 2},
 			agentSVID: &types.X509SVID{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
@@ -194,18 +157,14 @@ func TestFetchUpdatesForRotation(t *testing.T) {
 				CertChain: [][]byte{{1, 2, 3}},
 				ExpiresAt: 12345,
 			},
-			expectSVID: map[string]*node.X509SVID{
-				"spiffe://example.org/agent1": {
-					CertChain: []byte{1, 2, 3},
-					ExpiresAt: 12345,
-				},
+			expectSVID: &node.X509SVID{
+				CertChain: []byte{1, 2, 3},
+				ExpiresAt: 12345,
 			},
 		},
 		{
 			name: "no csr",
-			req: &node.FetchX509SVIDRequest{
-				Csrs: map[string][]byte{},
-			},
+			csr:  []byte(nil),
 			agentSVID: &types.X509SVID{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
@@ -214,43 +173,122 @@ func TestFetchUpdatesForRotation(t *testing.T) {
 				CertChain: [][]byte{{1, 2, 3}},
 				ExpiresAt: 12345,
 			},
-			expectSVID: map[string]*node.X509SVID{},
+			err: "malformed param",
 		},
 		{
-			name: "renew agent fails",
-			req: &node.FetchX509SVIDRequest{
-				Csrs: map[string][]byte{
-					"spiffe://example.org/agent1": {0, 1, 2},
-				},
-			},
+			name:     "renew agent fails",
+			csr:      []byte{0, 1, 2},
 			agentErr: errors.New("renew fails"),
 			err:      "renew fails",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			client.c.ExperimentalAPIEnabled = true
 			tc.agentClient.err = tt.agentErr
 			tc.agentClient.svid = tt.agentSVID
 
-			resp, err := client.FetchUpdates(context.Background(), tt.req, true)
+			svid, err := client.RenewSVID(context.Background(), tt.csr)
 			if tt.err != "" {
 				require.EqualError(t, err, tt.err)
-				require.Nil(t, resp)
+				require.Nil(t, svid)
 				return
 			}
 
 			require.Nil(t, err)
-			require.Equal(t, resp, &Update{SVIDs: tt.expectSVID})
+			require.Equal(t, tt.expectSVID, svid)
 
 			assertConnectionIsNotNil(t, client)
 		})
 	}
 }
-func newTestFetchX509SVIDRequest() *node.FetchX509SVIDRequest {
-	return &node.FetchX509SVIDRequest{
-		Csrs: map[string][]byte{
-			"entry-id": {1, 2, 3, 4}},
+
+func TestNewX509SVIDs(t *testing.T) {
+	client, tc := createClient()
+
+	res := newTestFetchX509SVIDResponse()
+
+	tc.entryClient.entries = []*types.Entry{
+		{
+			Id:       "ENTRYID1",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id1",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith:  []string{"domain1.com"},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id2",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{"domain2.com"},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			Id:       "ENTRYID3",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "3"},
+			},
+		},
+		// This entry should be ignored since it is missing selectors
+		{
+			Id:       "ENTRYID4",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id4",
+			},
+		},
+	}
+
+	tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
+		"entry-id": {
+			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+			CertChain: [][]byte{{11, 22, 33}},
+		},
+	}
+
+	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+	client.c.RotMtx.Lock()
+
+	// Do the request in a different go routine
+	var wg sync.WaitGroup
+	var svids map[string]*node.X509SVID
+	err := errors.New("a not nil error")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		svids, err = client.NewX509SVIDs(context.Background(), newTestCSRs())
+	}()
+
+	// The request should wait until the SVID rotation finishes
+	require.Contains(t, "a not nil error", err.Error())
+	require.Nil(t, svids)
+
+	// Simulate the end of the SVID rotation
+	client.c.RotMtx.Unlock()
+	wg.Wait()
+
+	// Assert results
+	require.Nil(t, err)
+	assert.Equal(t, res.SvidUpdate.Svids, svids)
+	assertConnectionIsNotNil(t, client)
+}
+
+func newTestCSRs() map[string][]byte {
+	return map[string][]byte{
+		"entry-id": {1, 2, 3, 4},
 	}
 }
 
@@ -260,7 +298,6 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 			RegistrationEntries: []*common.RegistrationEntry{
 				{
 					EntryId:  "ENTRYID1",
-					ParentId: "spiffe://example.org/host",
 					SpiffeId: "spiffe://example.org/id1",
 					Selectors: []*common.Selector{
 						{Type: "S", Value: "1"},
@@ -272,7 +309,6 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 				},
 				// This entry should be ignored since it is missing an entry ID
 				{
-					ParentId: "spiffe://example.org/host",
 					SpiffeId: "spiffe://example.org/id2",
 					Selectors: []*common.Selector{
 						{Type: "S", Value: "2"},
@@ -283,8 +319,7 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 				},
 				// This entry should be ignored since it is missing a SPIFFE ID
 				{
-					EntryId:  "ENTRYID3",
-					ParentId: "spiffe://example.org/host",
+					EntryId: "ENTRYID3",
 					Selectors: []*common.Selector{
 						{Type: "S", Value: "3"},
 					},
@@ -292,7 +327,6 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 				// This entry should be ignored since it is missing selectors
 				{
 					EntryId:  "ENTRYID4",
-					ParentId: "spiffe://example.org/host",
 					SpiffeId: "spiffe://example.org/id4",
 				},
 			},
@@ -320,145 +354,107 @@ func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
 }
 
 func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
+	client, tc := createClient()
 
-	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(tc.ctrl)
-
-	req := newTestFetchX509SVIDRequest()
 	res := newTestFetchX509SVIDResponse()
 
-	for _, tt := range []struct {
-		enableExperimental bool
-		setupExpect        func(release func())
-	}{
+	tc.entryClient.entries = []*types.Entry{
 		{
-			enableExperimental: false,
-			setupExpect: func(release func()) {
-				tc.nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
-				nodeFsc.EXPECT().Send(req).Do(func(interface{}) {
-					// simulate an uncoorindated call to Release mid-Fetch
-					go release()
-				})
-				nodeFsc.EXPECT().CloseSend()
-				nodeFsc.EXPECT().Recv().Return(res, nil)
-				nodeFsc.EXPECT().Recv().Return(nil, io.EOF)
+			Id:       "ENTRYID1",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id1",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith:  []string{"domain1.com"},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id2",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{"domain2.com"},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			Id:       "ENTRYID3",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "3"},
 			},
 		},
+		// This entry should be ignored since it is missing selectors
 		{
-			enableExperimental: true,
-			setupExpect: func(release func()) {
-				tc.entryClient.entries = []*types.Entry{
-					{
-						Id:       "ENTRYID1",
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						SpiffeId: &types.SPIFFEID{
-							TrustDomain: "example.org",
-							Path:        "/id1",
-						},
-						Selectors: []*types.Selector{
-							{Type: "S", Value: "1"},
-						},
-						FederatesWith:  []string{"spiffe://domain1.com"},
-						RevisionNumber: 1234,
-					},
-					// This entry should be ignored since it is missing an entry ID
-					{
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						SpiffeId: &types.SPIFFEID{
-							TrustDomain: "example.org",
-							Path:        "/id2",
-						},
-						Selectors: []*types.Selector{
-							{Type: "S", Value: "2"},
-						},
-						FederatesWith: []string{"spiffe://domain2.com"},
-					},
-					// This entry should be ignored since it is missing a SPIFFE ID
-					{
-						Id:       "ENTRYID3",
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						Selectors: []*types.Selector{
-							{Type: "S", Value: "3"},
-						},
-					},
-					// This entry should be ignored since it is missing selectors
-					{
-						Id:       "ENTRYID4",
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-						SpiffeId: &types.SPIFFEID{
-							TrustDomain: "example.org",
-							Path:        "/id4",
-						},
-					},
-				}
-
-				tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
-					"entry-id": {
-						Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-						CertChain: [][]byte{{11, 22, 33}},
-					},
-				}
-
-				tc.svidClient.simulateRelease = release
-				tc.bundleClient.agentBundle = &types.Bundle{
-					TrustDomain:     "spiffe://example.org",
-					X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
-				}
-				tc.bundleClient.federatedBundles = map[string]*types.Bundle{
-					"spiffe://domain1.com": {
-						TrustDomain:     "spiffe://domain1.com",
-						X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
-					},
-					"spiffe://domain2.com": {
-						TrustDomain:     "spiffe://domain2.com",
-						X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
-					},
-				}
+			Id:       "ENTRYID4",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id4",
 			},
 		},
-	} {
-		tt := tt
-		name := fmt.Sprintf("experimental %v", tt.enableExperimental)
-		t.Run(name, func(t *testing.T) {
-			waitForRelease := make(chan struct{})
-			releaseClientMidRequest := func() {
-				client.Release()
-				close(waitForRelease)
-			}
-			client.c.ExperimentalAPIEnabled = tt.enableExperimental
-			tt.setupExpect(releaseClientMidRequest)
-
-			update, err := client.FetchUpdates(context.Background(), req, false)
-			require.Nil(t, err)
-
-			assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
-			assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
-			// Only the first registration entry should be returned since the rest are
-			// invalid for one reason or another
-			if assert.Len(t, update.Entries, 1) {
-				entry := res.SvidUpdate.RegistrationEntries[0]
-				assert.Equal(t, entry, update.Entries[entry.EntryId])
-			}
-			<-waitForRelease
-			assertConnectionIsNil(t, client)
-		})
 	}
+
+	tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
+		"entry-id": {
+			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+			CertChain: [][]byte{{11, 22, 33}},
+		},
+	}
+
+	waitForRelease := make(chan struct{})
+	tc.bundleClient.simulateRelease = func() {
+		client.Release()
+		close(waitForRelease)
+	}
+
+	tc.bundleClient.agentBundle = &types.Bundle{
+		TrustDomain:     "example.org",
+		X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+	}
+	tc.bundleClient.federatedBundles = map[string]*types.Bundle{
+		"domain1.com": {
+			TrustDomain:     "domain1.com",
+			X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+		},
+		"domain2.com": {
+			TrustDomain:     "domain2.com",
+			X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
+		},
+	}
+
+	update, err := client.FetchUpdates(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
+	// Only the first registration entry should be returned since the rest are
+	// invalid for one reason or another
+	if assert.Len(t, update.Entries, 1) {
+		entry := res.SvidUpdate.RegistrationEntries[0]
+		assert.Equal(t, entry, update.Entries[entry.EntryId])
+	}
+	select {
+	case <-waitForRelease:
+	case <-time.After(time.Second * 5):
+		require.FailNow(t, "timed out waiting for release")
+	}
+	assertConnectionIsNil(t, client)
 }
 
 func TestNewNodeClientRelease(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
+	client, _ := createClient()
 
 	for i := 0; i < 3; i++ {
-		// Create node client and release
-		_, r, err := client.newNodeClient(context.Background())
-		require.NoError(t, err)
-		assertConnectionIsNotNil(t, client)
-		r.Release()
-
 		// Create agent client and release
-		_, r, err = client.newAgentClient(context.Background())
+		_, r, err := client.newAgentClient(context.Background())
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
@@ -491,21 +487,11 @@ func TestNewNodeClientRelease(t *testing.T) {
 }
 
 func TestNewNodeInternalClientRelease(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
+	client, _ := createClient()
 
 	for i := 0; i < 3; i++ {
-		// Create node client
-		_, conn, err := client.newNodeClient(context.Background())
-		require.NoError(t, err)
-		assertConnectionIsNotNil(t, client)
-
-		client.release(conn)
-		conn.Release()
-		assertConnectionIsNil(t, client)
-
 		// Create agent client
-		_, conn, err = client.newAgentClient(context.Background())
+		_, conn, err := client.newAgentClient(context.Background())
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -544,59 +530,31 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 
 func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 	for _, tt := range []struct {
-		name         string
-		experimental bool
-		err          string
-		setupTest    func(tc *testClient)
+		name      string
+		err       string
+		setupTest func(tc *testClient)
 	}{
 		{
-			name: "X509SVID",
-			setupTest: func(tc *testClient) {
-				tc.nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nil, errors.New("an error"))
-			},
-			err: "unable to get a stream",
-		},
-		{
-			name:         "Entries",
-			experimental: true,
+			name: "Entries",
 			setupTest: func(tc *testClient) {
 				tc.entryClient.err = errors.New("an error")
 			},
-			err: "failed to fetch authorized entries",
+			err: "failed to fetch authorized entries: an error",
 		},
 		{
-			name:         "Agent bundle",
-			experimental: true,
+			name: "Agent bundle",
 			setupTest: func(tc *testClient) {
 				tc.bundleClient.bundleErr = errors.New("an error")
 			},
-			err: "failed to fetch bundle",
-		},
-		{
-			name:         "SVID",
-			experimental: true,
-			setupTest: func(tc *testClient) {
-				tc.bundleClient.agentBundle = &types.Bundle{
-					TrustDomain:     "spiffe://example.org",
-					X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
-				}
-				tc.svidClient.batchSVIDErr = errors.New("an error")
-			},
-			err: "failed to batch new X509 SVID(s)",
+			err: "failed to fetch bundle: an error",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			client, tc := createClient(t)
-			defer tc.Release()
+			client, tc := createClient()
 			tt.setupTest(tc)
-			client.c.ExperimentalAPIEnabled = tt.experimental
 
-			update, err := client.FetchUpdates(context.Background(), &node.FetchX509SVIDRequest{
-				Csrs: map[string][]byte{
-					"entry-id": {1, 2},
-				},
-			}, false)
+			update, err := client.FetchUpdates(context.Background())
 			assert.Nil(t, update)
 			assert.EqualError(t, err, tt.err)
 			assertConnectionIsNil(t, client)
@@ -604,52 +562,21 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 	}
 }
 
-func TestFetchUpdatesReleaseConnectionIfItFailsToSendRequest(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
+func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
+	client, tc := createClient()
 
-	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(tc.ctrl)
-	req := &node.FetchX509SVIDRequest{}
-	nodeFsc.EXPECT().Send(req).Return(errors.New("an error"))
-	tc.nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
+	tc.entryClient.err = errors.New("an error")
 
-	update, err := client.FetchUpdates(context.Background(), req, false)
+	update, err := client.FetchUpdates(context.Background())
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
-}
-
-func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
-
-	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(tc.ctrl)
-	req := &node.FetchX509SVIDRequest{}
-	nodeFsc.EXPECT().Send(req).Return(nil)
-	nodeFsc.EXPECT().CloseSend().Return(nil)
-	nodeFsc.EXPECT().Recv().Return(nil, errors.New("an error"))
-	tc.nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
-
-	update, err := client.FetchUpdates(context.Background(), req, false)
-	assert.Nil(t, update)
-	assert.Error(t, err)
-	assertConnectionIsNil(t, client)
-}
-
-func TestNewClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-	})
-	nodeClient, nodeConn, err := client.newNodeClient(context.Background())
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "dial tcp: missing address")
-	require.Nil(t, nodeClient)
-	require.Nil(t, nodeConn)
 }
 
 func TestNewAgentClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newAgentClient(context.Background())
 	require.Error(t, err)
@@ -661,6 +588,7 @@ func TestNewAgentClientFailsDial(t *testing.T) {
 func TestNewBundleClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newBundleClient(context.Background())
 	require.Error(t, err)
@@ -672,6 +600,7 @@ func TestNewBundleClientFailsDial(t *testing.T) {
 func TestNewEntryClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newEntryClient(context.Background())
 	require.Error(t, err)
@@ -683,6 +612,7 @@ func TestNewEntryClientFailsDial(t *testing.T) {
 func TestNewSVIDClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
+		TrustDomain:   trustDomainURL,
 	})
 	agentClient, conn, err := client.newSVIDClient(context.Background())
 	require.Error(t, err)
@@ -692,114 +622,8 @@ func TestNewSVIDClientFailsDial(t *testing.T) {
 }
 
 func TestFetchJWTSVID(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
+	client, tc := createClient()
 	ctx := context.Background()
-
-	issuedAt := time.Now().Unix()
-	expiresAt := time.Now().Add(time.Minute).Unix()
-	for _, tt := range []struct {
-		name       string
-		setupTest  func(err error)
-		err        string
-		expectSVID *JWTSVID
-		fetchErr   error
-	}{
-		{
-			name: "success",
-			setupTest: func(err error) {
-				tc.nodeClient.EXPECT().FetchJWTSVID(gomock.Any(), gomock.Any()).Return(&node.FetchJWTSVIDResponse{
-					Svid: &node.JWTSVID{
-						Token:     "token",
-						ExpiresAt: expiresAt,
-						IssuedAt:  issuedAt,
-					},
-				}, nil)
-			},
-			expectSVID: &JWTSVID{
-				Token:     "token",
-				ExpiresAt: time.Unix(expiresAt, 0).UTC(),
-				IssuedAt:  time.Unix(issuedAt, 0).UTC(),
-			},
-		},
-		{
-			name: "client fails",
-			setupTest: func(err error) {
-				tc.nodeClient.EXPECT().FetchJWTSVID(gomock.Any(), gomock.Any()).Return(nil, err)
-			},
-			err:      "unable to get a stream",
-			fetchErr: errors.New("client fails"),
-		},
-		{
-			name: "empty response",
-			setupTest: func(err error) {
-				tc.nodeClient.EXPECT().FetchJWTSVID(gomock.Any(), gomock.Any()).Return(&node.FetchJWTSVIDResponse{}, nil)
-			},
-			err: "JWTSVID response missing SVID",
-		},
-		{
-			name: "missing issuedAt",
-			setupTest: func(err error) {
-				tc.nodeClient.EXPECT().FetchJWTSVID(gomock.Any(), gomock.Any()).Return(&node.FetchJWTSVIDResponse{
-					Svid: &node.JWTSVID{
-						Token:     "token",
-						ExpiresAt: expiresAt,
-					},
-				}, nil)
-			},
-			err: "JWTSVID missing issued at",
-		},
-		{
-			name: "missing expiredAt",
-			setupTest: func(err error) {
-				tc.nodeClient.EXPECT().FetchJWTSVID(gomock.Any(), gomock.Any()).Return(&node.FetchJWTSVIDResponse{
-					Svid: &node.JWTSVID{
-						Token:    "token",
-						IssuedAt: issuedAt,
-					},
-				}, nil)
-			},
-			err: "JWTSVID missing expires at",
-		},
-		{
-			name: "issued after expired",
-			setupTest: func(err error) {
-				tc.nodeClient.EXPECT().FetchJWTSVID(gomock.Any(), gomock.Any()).Return(&node.FetchJWTSVIDResponse{
-					Svid: &node.JWTSVID{
-						Token:     "token",
-						ExpiresAt: issuedAt,
-						IssuedAt:  expiresAt,
-					},
-				}, nil)
-			},
-			err: "JWTSVID issued after it has expired",
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupTest(tt.fetchErr)
-			resp, err := client.FetchJWTSVID(ctx, &node.JSR{
-				SpiffeId: "spiffe://example.org/host",
-				Audience: []string{"myAud"},
-			}, "entry-id")
-			if tt.err != "" {
-				require.Nil(t, resp)
-				require.EqualError(t, err, tt.err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Equal(t, tt.expectSVID, resp)
-		})
-	}
-}
-
-func TestFetchJWTSVIDExperimental(t *testing.T) {
-	client, tc := createClient(t)
-	defer tc.Release()
-	ctx := context.Background()
-	client.c.ExperimentalAPIEnabled = true
 
 	issuedAt := time.Now().Unix()
 	expiresAt := time.Now().Add(time.Minute).Unix()
@@ -880,7 +704,7 @@ func TestFetchJWTSVIDExperimental(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
-			resp, err := client.FetchJWTSVID(ctx, &node.JSR{
+			resp, err := client.NewJWTSVID(ctx, &node.JSR{
 				SpiffeId: "spiffe://example.org/host",
 				Audience: []string{"myAud"},
 			}, "entry-id")
@@ -898,11 +722,8 @@ func TestFetchJWTSVIDExperimental(t *testing.T) {
 }
 
 // createClient creates a sample client with mocked components for testing purposes
-func createClient(tb testing.TB) (*client, *testClient) {
-	ctrl := gomock.NewController(tb)
+func createClient() (*client, *testClient) {
 	tc := &testClient{
-		ctrl:         ctrl,
-		nodeClient:   mock_node.NewMockNodeClient(ctrl),
 		agentClient:  &fakeAgentClient{},
 		bundleClient: &fakeBundleClient{},
 		entryClient:  &fakeEntryClient{},
@@ -913,21 +734,18 @@ func createClient(tb testing.TB) (*client, *testClient) {
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 		RotMtx:        new(sync.RWMutex),
+		TrustDomain:   trustDomainURL,
 	})
-	client.createNewNodeClient = func(conn *grpc.ClientConn) node.NodeClient {
-		return tc.nodeClient
-	}
-	client.createNewAgentClient = func(conn *grpc.ClientConn) agentpb.AgentClient {
+	client.createNewAgentClient = func(conn grpc.ClientConnInterface) agentpb.AgentClient {
 		return tc.agentClient
 	}
-
-	client.createNewBundleClient = func(conn *grpc.ClientConn) bundlepb.BundleClient {
+	client.createNewBundleClient = func(conn grpc.ClientConnInterface) bundlepb.BundleClient {
 		return tc.bundleClient
 	}
-	client.createNewEntryClient = func(conn *grpc.ClientConn) entrypb.EntryClient {
+	client.createNewEntryClient = func(conn grpc.ClientConnInterface) entrypb.EntryClient {
 		return tc.entryClient
 	}
-	client.createNewSVIDClient = func(conn *grpc.ClientConn) svidpb.SVIDClient {
+	client.createNewSVIDClient = func(conn grpc.ClientConnInterface) svidpb.SVIDClient {
 		return tc.svidClient
 	}
 
@@ -976,11 +794,17 @@ type fakeBundleClient struct {
 	federatedBundles   map[string]*types.Bundle
 	bundleErr          error
 	federatedBundleErr error
+
+	simulateRelease func()
 }
 
 func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlepb.GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
 	if c.bundleErr != nil {
 		return nil, c.bundleErr
+	}
+
+	if c.simulateRelease != nil {
+		go c.simulateRelease()
 	}
 
 	return c.agentBundle, nil
@@ -1026,7 +850,7 @@ func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchN
 				Status: &types.Status{
 					Code: int32(codes.OK),
 				},
-				Bundle: svid,
+				Svid: svid,
 			})
 		default:
 			results = append(results, &svidpb.BatchNewX509SVIDResponse_Result{
@@ -1073,14 +897,8 @@ func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentpb.RenewAgent
 }
 
 type testClient struct {
-	nodeClient   *mock_node.MockNodeClient
-	ctrl         *gomock.Controller
 	agentClient  *fakeAgentClient
 	bundleClient *fakeBundleClient
 	entryClient  *fakeEntryClient
 	svidClient   *fakeSVIDClient
-}
-
-func (c *testClient) Release() {
-	c.ctrl.Finish()
 }

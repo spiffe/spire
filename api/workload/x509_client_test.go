@@ -9,7 +9,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/gogo/protobuf/proto"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,7 +156,6 @@ func TestStreamX509SVIDBackoffOnFetchFailure(t *testing.T) {
 
 func TestStreamX509SVIDBackoffOnRecvFailure(t *testing.T) {
 	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorAlways(errFake))
-	defer w.Close()
 
 	testStreamX509SVIDBackoff(t, w.Addr())
 }
@@ -208,7 +207,6 @@ func TestStreamX509SVIDFailsOnInvalidArgument(t *testing.T) {
 	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorOnce(
 		status.Error(codes.InvalidArgument, "invalid argument"),
 	))
-	defer w.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
@@ -224,7 +222,6 @@ func TestStreamX509SVIDFailsOnInvalidArgument(t *testing.T) {
 
 func TestStreamX509SVIDFailOnError(t *testing.T) {
 	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorOnce(errFake))
-	defer w.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
@@ -241,7 +238,6 @@ func TestStreamX509SVIDFailOnError(t *testing.T) {
 
 func TestStreamX509SVIDWritesUpdatesToChannel(t *testing.T) {
 	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDResponses(responseA, responseB, responseC))
-	defer w.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()

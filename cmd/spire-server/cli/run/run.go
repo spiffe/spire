@@ -47,6 +47,10 @@ var (
 		Country:      []string{"US"},
 		Organization: []string{"SPIFFE"},
 	}
+
+	defaultRateLimit = rateLimitConfig{
+		Attestation: 1,
+	}
 )
 
 // Config contains all available configurables, arranged by section
@@ -71,6 +75,7 @@ type serverConfig struct {
 	LogFile             string             `hcl:"log_file"`
 	LogLevel            string             `hcl:"log_level"`
 	LogFormat           string             `hcl:"log_format"`
+	RateLimit           rateLimitConfig    `hcl:"ratelimit"`
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
@@ -95,8 +100,6 @@ type experimentalConfig struct {
 	DeprecatedBundleEndpointPort    int                                      `hcl:"bundle_endpoint_port"`
 	DeprecatedBundleEndpointACME    *bundleEndpointACMEConfig                `hcl:"bundle_endpoint_acme"`
 	DeprecatedFederatesWith         map[string]deprecatedFederatesWithConfig `hcl:"federates_with"`
-
-	EnableAPI bool `hcl:"enable_api"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -148,6 +151,11 @@ type federatesWithBundleEndpointConfig struct {
 	SpiffeID   string   `hcl:"spiffe_id"`
 	UseWebPKI  bool     `hcl:"use_web_pki"`
 	UnusedKeys []string `hcl:",unusedKeys"`
+}
+
+type rateLimitConfig struct {
+	Attestation int      `hcl:"attestation"`
+	UnusedKeys  []string `hcl:",unusedKeys"`
 }
 
 func NewRunCommand(logOptions []log.Option, allowUnknownConfig bool) cli.Command {
@@ -359,6 +367,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.Log = logger
 
+	if c.Server.RateLimit.Attestation < 0 {
+		return nil, fmt.Errorf("attestation rate limit must be greater than zero")
+	}
+	sc.RateLimit.Attestation = c.Server.RateLimit.Attestation
+
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil {
@@ -396,10 +409,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			}
 		}
 		sc.Federation.FederatesWith = federatesWith
-	}
-	if c.Server.Experimental.EnableAPI {
-		sc.Experimental.EnableAPI = true
-		sc.Log.Info("Experimental API enabled")
 	}
 
 	sc.ProfilingEnabled = c.Server.ProfilingEnabled
@@ -609,6 +618,10 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 			detectedUnknown("ca_subject", cs.UnusedKeys)
 		}
 
+		if rl := c.Server.RateLimit; len(rl.UnusedKeys) != 0 {
+			detectedUnknown("ratelimit", rl.UnusedKeys)
+		}
+
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
@@ -691,6 +704,7 @@ func defaultConfig() *Config {
 			LogFormat:           log.DefaultFormat,
 			RegistrationUDSPath: defaultSocketPath,
 			Experimental:        experimentalConfig{},
+			RateLimit:           defaultRateLimit,
 		},
 	}
 }

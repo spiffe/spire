@@ -231,7 +231,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
-	f.IntVar(&c.TTL, "ttl", 3600, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
+	f.IntVar(&c.TTL, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
 
 	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional)")
 

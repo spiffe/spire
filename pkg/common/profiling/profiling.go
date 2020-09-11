@@ -93,7 +93,7 @@ func Run(ctx context.Context, conf *Config) error {
 	profM.Lock()
 	defer profM.Unlock()
 
-	if prof == nil {
+	if prof != nil {
 		return ErrProfilerAlreadyStarted
 	}
 

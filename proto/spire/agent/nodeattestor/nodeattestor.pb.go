@@ -152,11 +152,11 @@ var fileDescriptor_2fc45b58d44bef1c = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // NodeAttestorClient is the client API for NodeAttestor service.
 //
@@ -171,10 +171,10 @@ type NodeAttestorClient interface {
 }
 
 type nodeAttestorClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewNodeAttestorClient(cc *grpc.ClientConn) NodeAttestorClient {
+func NewNodeAttestorClient(cc grpc.ClientConnInterface) NodeAttestorClient {
 	return &nodeAttestorClient{cc}
 }
 

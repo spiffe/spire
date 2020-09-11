@@ -3,18 +3,14 @@ package healthcheck
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
-	"net"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/mitchellh/cli"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
-	"google.golang.org/grpc"
 )
 
 func TestHealthCheck(t *testing.T) {
@@ -92,8 +88,7 @@ Server is unhealthy: unable to fetch bundle
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
-	socketPath, done := s.serveRegistrationAPI(withBundle{})
-	defer done()
+	socketPath := spiretest.StartRegistrationAPIOnTempSocket(s.T(), withBundle{})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
@@ -101,8 +96,7 @@ func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetchedVerbose() {
-	socketPath, done := s.serveRegistrationAPI(withBundle{})
-	defer done()
+	socketPath := spiretest.StartRegistrationAPIOnTempSocket(s.T(), withBundle{})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath, "--verbose"})
 	s.Equal(0, code, "exit code")
 	s.Equal(`Fetching bundle via Registration API...
@@ -110,31 +104,6 @@ Successfully fetched bundle.
 Server is healthy.
 `, s.stdout.String(), "stdout")
 	s.Equal("", s.stderr.String(), "stderr")
-}
-
-func (s *HealthCheckSuite) serveRegistrationAPI(r registration.RegistrationServer) (string, func()) {
-	dir, err := ioutil.TempDir("", "server-healthcheck-test")
-	s.Require().NoError(err)
-
-	socketPath := filepath.Join(dir, "registration.sock")
-
-	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		os.RemoveAll(dir)
-		s.Require().NoError(err)
-	}
-
-	server := grpc.NewServer()
-	registration.RegisterRegistrationServer(server, r)
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- server.Serve(listener)
-	}()
-	return socketPath, func() {
-		server.Stop()
-		os.RemoveAll(dir)
-		s.Require().NoError(<-errCh)
-	}
 }
 
 type withBundle struct {

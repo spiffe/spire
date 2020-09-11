@@ -21,6 +21,7 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
@@ -36,7 +37,6 @@ const (
 	commandName = "run"
 
 	defaultConfigPath = "conf/agent/agent.conf"
-	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
 	defaultDataDir           = "."
@@ -89,7 +89,6 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
-	EnableAPI    bool   `hcl:"enable_api"`
 	SyncInterval string `hcl:"sync_interval"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
@@ -384,11 +383,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.Telemetry = c.Telemetry
 	ac.HealthChecks = c.HealthChecks
 
-	if c.Agent.Experimental.EnableAPI {
-		ac.ExperimentalAPIEnabled = c.Agent.Experimental.EnableAPI
-		ac.Log.Info("Experimental API enabled")
-	}
-
 	// TODO: remove deprecated configurable in 0.12.0
 	if c.Agent.DeprecatedEnableSDS != nil {
 		ac.Log.Warn("SDS support is now always on. The enable_sds configurable is ignored and should be removed.")
@@ -512,7 +506,7 @@ func defaultConfig() *Config {
 			DataDir:    defaultDataDir,
 			LogLevel:   defaultLogLevel,
 			LogFormat:  log.DefaultFormat,
-			SocketPath: defaultSocketPath,
+			SocketPath: common.DefaultSocketPath,
 			SDS: sdsConfig{
 				DefaultBundleName: defaultDefaultBundleName,
 				DefaultSVIDName:   defaultDefaultSVIDName,

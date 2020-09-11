@@ -25,13 +25,13 @@ import (
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/pkg/server/util/regentryutil"
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
@@ -115,7 +115,7 @@ type HandlerSuite struct {
 	downstreamSVID                []*x509.Certificate
 	workloadSVID                  []*x509.Certificate
 	serverCA                      *fakeserverca.CA
-	fetchRegistrationEntriesCache *regentryutil.FetchRegistrationEntriesCache
+	fetchRegistrationEntriesCache *entrycache.FetchRegistrationEntriesCache
 }
 
 func (s *HandlerSuite) SetupTest() {
@@ -134,8 +134,7 @@ func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.
 	s.catalog = fakeservercatalog.New()
 	s.catalog.SetDataStore(s.ds)
 	if upstreamAuthorityConfig != nil {
-		upstreamAuthority, _, uaDone := fakeupstreamauthority.Load(s.T(), *upstreamAuthorityConfig)
-		s.AppendCloser(uaDone)
+		upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), *upstreamAuthorityConfig)
 		s.catalog.SetUpstreamAuthority(fakeservercatalog.UpstreamAuthority(
 			"fakeupstreamauthority",
 			upstreamAuthority,
@@ -175,7 +174,7 @@ func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.
 	handler.limiter = s.limiter
 	cache, err := lru.New(100)
 	s.Require().NoError(err)
-	s.fetchRegistrationEntriesCache = &regentryutil.FetchRegistrationEntriesCache{
+	s.fetchRegistrationEntriesCache = &entrycache.FetchRegistrationEntriesCache{
 		Cache:   cache,
 		TimeNow: s.clock.Now,
 	}
@@ -489,7 +488,7 @@ func (s *HandlerSuite) TestAttestWithAlreadyUsedJoinToken() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: &common.AttestationData{Type: "join_token", Data: []byte("TOKEN")},
 		Csr:             s.makeCSR(joinTokenID),
-	}, codes.Unknown, "failed to attest: join token has already been used")
+	}, codes.Unknown, "failed to attest: join token does not exist or has already been used")
 
 	s.Equal(s.expectedMetrics.AllMetrics(), s.metrics.AllMetrics())
 }

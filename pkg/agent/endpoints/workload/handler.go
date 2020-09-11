@@ -14,7 +14,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
@@ -291,11 +291,10 @@ func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*worklo
 		}
 
 		svid := &workload.X509SVID{
-			SpiffeId:      id,
-			X509Svid:      x509util.DERFromCertificates(identity.SVID),
-			X509SvidKey:   keyData,
-			Bundle:        bundle,
-			FederatesWith: identity.Entry.FederatesWith,
+			SpiffeId:    id,
+			X509Svid:    x509util.DERFromCertificates(identity.SVID),
+			X509SvidKey: keyData,
+			Bundle:      bundle,
 		}
 
 		resp.Svids = append(resp.Svids, svid)

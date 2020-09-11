@@ -48,28 +48,33 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
 
-| Configuration               | Description                                                                   | Default                       |
-|:----------------------------|:------------------------------------------------------------------------------|:------------------------------|
-| `bind_address`              | IP address or DNS name of the SPIRE server                                    | 0.0.0.0                       |
-| `bind_port`                 | HTTP Port number of the SPIRE server                                          | 8081                          |
-| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\> | ec-p256 (Both X509 and JWT)   |
-| `ca_subject`                | The Subject that CA certificates should use (see below)                       |                               |
-| `ca_ttl`                    | The default CA/signing key TTL                                                | 24h                           |
-| `data_dir`                  | A directory the server can use for its runtime                                |                               |
-| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)|                      |
-| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                  |                               |
-| `log_file`                  | File to write logs to                                                         |                               |
-| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                           | INFO                          |
-| `log_format`                | Format of logs, \<text\|json\>                                                | text                          |
-| `registration_uds_path`     | Location to bind the registration API socket                                  | /tmp/spire-registration.sock  |
-| `default_svid_ttl`          | The default SVID TTL                                                          | 1h                            |
-| `trust_domain`              | The trust domain that this server belongs to                                  |                               |
+| Configuration               | Description                                                                                     | Default                       |
+|:----------------------------|:------------------------------------------------------------------------------------------------|:------------------------------|
+| `bind_address`              | IP address or DNS name of the SPIRE server                                                      | 0.0.0.0                       |
+| `bind_port`                 | HTTP Port number of the SPIRE server                                                            | 8081                          |
+| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                   | ec-p256 (Both X509 and JWT)   |
+| `ca_subject`                | The Subject that CA certificates should use (see below)                                         |                               |
+| `ca_ttl`                    | The default CA/signing key TTL                                                                  | 24h                           |
+| `data_dir`                  | A directory the server can use for its runtime                                                  |                               |
+| `default_svid_ttl`          | The default SVID TTL                                                                            | 1h                            |
+| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)         |                               |
+| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                    |                               |
+| `log_file`                  | File to write logs to                                                                           |                               |
+| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                             | INFO                          |
+| `log_format`                | Format of logs, \<text\|json\>                                                                  | text                          |
+| `ratelimit`                 | Rate limiting configurations, usually used when the sever is behind a load balancer (see below) |                               |
+| `registration_uds_path`     | Location to bind the registration API socket                                                    | /tmp/spire-registration.sock  |
+| `trust_domain`              | The trust domain that this server belongs to                                                    |                               |
 
-| ca_subject Configuration    | Description                    | Default        |
+| ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `country`                   | Array of `Country` values      |                |
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
+
+| ratelimit                   | Description                    | Default        |
+|:----------------------------|--------------------------------|----------------|
+| `attestation`               | Maximum node attestations per second that the server can handle from a single IP. If the attestation rate is higher, the limiter will put the requests on hold and process them according to the given rate. Notice that if the request queue is too large, some attestation calls could fail due to timeout.| 1 |
 
 ## Plugin configuration
 
@@ -98,8 +103,8 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 ## Federation configuration
 
-SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.  
-A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.  
+SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
+A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
 Using the `federation` section you will be able to configure the bundle endpoints as follows:
 ```hcl
 server {
@@ -115,18 +120,18 @@ server {
                 email = "mail@example.org"
             }
         }
-        federates_with "spiffe://domain1.test" {
+        federates_with "domain1.test" {
             bundle_endpoint {
                 address = "1.2.3.4"
                 port = 8443
                 use_web_pki = true
             }
         }
-        federates_with "spiffe://domain.test" {
+        federates_with "domain2.test" {
             bundle_endpoint {
                 address = "5.6.7.8"
                 port = 8443
-                spiffe_id = "spiffe://domain.test/beserver"
+                spiffe_id = "spiffe://domain2.test/beserver"
             }
         }
     }
@@ -234,7 +239,7 @@ Creates registration entries.
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
 ### `spire-server entry update`
 
@@ -253,7 +258,7 @@ Updates registration entries.
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
 ### `spire-server entry delete`
 
@@ -285,15 +290,17 @@ Displays the bundle for the trust domain of the server.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-format` | The format to show the bundle. Either `pem` or `spiffe` | pem |
 
 ### `spire-server bundle list`
 
-Displays bundles from other trust domains.
+Displays federated bundles.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-format` | The format to show the federated bundles. Either `pem` or `spiffe` | pem |
 
 ### `spire-server bundle set`
 
@@ -304,6 +311,7 @@ Creates or updates bundle data for a trust domain. This command cannot be used t
 | `-id`         | The trust domain SPIFFE ID of the bundle to set. | |
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-format` | The format of the bundle to set. Either `pem` or `spiffe` | pem |
 
 ### `spire-server bundle delete`
 
@@ -361,9 +369,35 @@ Typically, you may want at least:
 | `-config`     | Path to a SPIRE server configuration file                          | server.conf    |
 | `-expandEnv`  | Expand environment $VARIABLES in the config file                   | false          |
 
+### `spire-server x509 mint`
+
+Mints an X509-SVID.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-dns`        | A DNS name that will be included in SVID. Can be used more than once | |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-spiffeID`   | The SPIFFE ID of the X509-SVID                                     | |
+| `-ttl`        | The TTL of the X509-SVID                                           | The TTL configured with `default_svid_ttl` |
+| `-write`      | Directory to write output to instead of stdout                     | |
+
+### `spire-server jwt mint`
+
+Mints a JWT-SVID.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-audience`   | Audience claim that will be included in the SVID. Can be used more than once | |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-spiffeID`   | The SPIFFE ID of the JWT-SVID                                      | |
+| `-ttl`        | The TTL of the JWT-SVID                                            | |
+| `-write`      | File to write token to instead of stdout                           | |
+
 ### `spire-server experimental bundle show`
 
-(Experimental) Displays the bundle for the trust domain of the server as a JWKS document
+(Experimental) This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the `bundle show` command.
+
+Displays the bundle for the trust domain of the server as a JWKS document.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -371,7 +405,9 @@ Typically, you may want at least:
 
 ### `spire-server experimental bundle list`
 
-(Experimental) Displays bundles from other trust domains as JWKS documents
+(Experimental) This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the `bundle list` command.
+
+Displays bundles from other trust domains as JWKS documents.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -380,7 +416,9 @@ Typically, you may want at least:
 
 ### `spire-server experimental bundle set`
 
-(Experimental) Creates or updates bundle data for a trust domain. This command cannot be used to alter the server trust domain bundle, only bundles for other trust domains.
+(Experimental) This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the `bundle set` command.
+
+Creates or updates bundle data for a trust domain. This command cannot be used to alter the server trust domain bundle, only bundles for other trust domains.
 
 Bundle data read from stdin or the path is expected to be a JWKS document.
 

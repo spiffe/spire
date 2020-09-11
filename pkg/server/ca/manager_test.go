@@ -146,11 +146,10 @@ func (s *ManagerSuite) TestSelfSigning() {
 }
 
 func (s *ManagerSuite) TestUpstreamSigned() {
-	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 	})
-	defer upDone()
 
 	s.initUpstreamSignedManager(upstreamAuthority)
 
@@ -178,12 +177,11 @@ func (s *ManagerSuite) TestUpstreamSigned() {
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSigned() {
-	upstreamAuthority, fakeUA, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 		UseIntermediate:       true,
 	})
-	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority)
 
 	// X509 CA should be set up to be an intermediate and have two certs in
@@ -214,10 +212,9 @@ func (s *ManagerSuite) TestUpstreamAuthorityWithPublishJWTKeyImplemented() {
 	bundle := s.createBundle()
 	s.Require().Len(bundle.JwtSigningKeys, 0)
 
-	upstreamAuthority, ua, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, ua := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-	defer upDone()
 	s.initUpstreamSignedManager(upstreamAuthority)
 
 	s.AssertProtoListEqual(ua.JWTKeys(), s.fetchBundle().JwtSigningKeys)
@@ -529,10 +526,9 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 }
 
 func (s *ManagerSuite) TestAlternateKeyTypes() {
-	ua, _, upDone := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	ua, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-	defer upDone()
 
 	upstreamAuthority := fakeservercatalog.UpstreamAuthority(
 		"fakeupstreamauthority", ua)

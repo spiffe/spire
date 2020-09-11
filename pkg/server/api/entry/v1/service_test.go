@@ -16,9 +16,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	entrypb "github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -157,7 +157,7 @@ func TestListEntries(t *testing.T) {
 			request:         &entrypb.ListEntriesRequest{},
 		},
 		{
-			name:            "ByParentId",
+			name:            "filter by parent ID",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -166,7 +166,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "BySpiffeId",
+			name:            "filter by SPIFFE ID",
 			expectedEntries: []*types.Entry{expectedChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -175,7 +175,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "BySelectors with SelectorMatch_MATCH_EXACT",
+			name:            "filter by selectors exact match",
 			expectedEntries: []*types.Entry{expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -189,7 +189,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "BySelectors with SelectorMatch_MATCH_SUBSET",
+			name:            "filter by selectors subset match",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -205,7 +205,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:                  "PageSize",
+			name:                  "page",
 			expectedEntries:       []*types.Entry{expectedChild},
 			expectedNextPageToken: "1",
 			request: &entrypb.ListEntriesRequest{
@@ -221,10 +221,10 @@ func TestListEntries(t *testing.T) {
 			request: &entrypb.ListEntriesRequest{},
 		},
 		{
-			name:   "bad ByParentId",
-			err:    "invalid request: malformed ByParentId: spiffeid: invalid scheme",
+			name:   "bad parent ID filter",
+			err:    "malformed parent ID filter: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid request",
+			logMsg: "Invalid argument: malformed parent ID filter",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					ByParentId: badID,
@@ -232,10 +232,10 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:   "bad BySpiffeId",
-			err:    "invalid request: malformed BySpiffeId: spiffeid: invalid scheme",
+			name:   "bad SPIFFE ID filter",
+			err:    "malformed SPIFFE ID filter: spiffeid: invalid scheme",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid request",
+			logMsg: "Invalid argument: malformed SPIFFE ID filter",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySpiffeId: badID,
@@ -243,9 +243,10 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "bad BySelectors (no selectors)",
-			err:             "invalid request: malformed BySelectors: empty selector set",
+			name:            "bad selectors filter (no selectors)",
+			err:             "malformed selectors filter: empty selector set",
 			code:            codes.InvalidArgument,
+			logMsg:          "Invalid argument: malformed selectors filter",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
@@ -254,10 +255,10 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:   "bad BySelectors (bad selector)",
-			err:    "invalid request: malformed BySelectors: missing selector type",
+			name:   "bad selectors filter (bad selector)",
+			err:    "malformed selectors filter: missing selector type",
 			code:   codes.InvalidArgument,
-			logMsg: "Invalid request",
+			logMsg: "Invalid argument: malformed selectors filter",
 			request: &entrypb.ListEntriesRequest{
 				Filter: &entrypb.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
@@ -277,6 +278,10 @@ func TestListEntries(t *testing.T) {
 			entries, err := test.client.ListEntries(context.Background(), tt.request)
 
 			// assert
+			if tt.logMsg != "" {
+				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
+			}
+
 			if tt.err != "" {
 				require.Nil(t, entries)
 				require.Error(t, err)
@@ -288,9 +293,6 @@ func TestListEntries(t *testing.T) {
 			require.NotNil(t, entries)
 			spiretest.AssertProtoListEqual(t, tt.expectedEntries, entries.Entries)
 			assert.Equal(t, tt.expectedNextPageToken, entries.NextPageToken)
-			if tt.logMsg != "" {
-				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
-			}
 		})
 	}
 }
@@ -373,7 +375,7 @@ func TestGetEntry(t *testing.T) {
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
 				},
-				FederatesWith: []string{federatedTd.IDString()},
+				FederatesWith: []string{federatedTd.String()},
 				Admin:         true,
 				DnsNames:      []string{"dns1", "dns2"},
 				Downstream:    true,
@@ -393,7 +395,7 @@ func TestGetEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: missing ID",
+					Message: "Invalid argument: missing ID",
 				},
 			},
 		},
@@ -433,14 +435,14 @@ func TestGetEntry(t *testing.T) {
 			name:    "malformed entry",
 			code:    codes.Internal,
 			entryID: malformedEntry.Entry.EntryId,
-			err:     "failed to convert entry: spiffeid: invalid scheme",
+			err:     "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: malformedEntry.Entry.EntryId,
-						logrus.ErrorKey:          "spiffeid: invalid scheme",
+						logrus.ErrorKey:          "invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
 			},
@@ -541,7 +543,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert entry",
+					Message: "Invalid argument: failed to convert entry",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "invalid DNS name: empty or only whitespace",
 					},
@@ -623,7 +625,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						DnsNames:      []string{"dns1"},
 						Downstream:    true,
 						ExpiresAt:     expiresAt,
-						FederatesWith: []string{"spiffe://domain1.org"},
+						FederatesWith: []string{"domain1.org"},
 						Ttl:           60,
 					},
 				},
@@ -699,6 +701,15 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Entry already exists",
+					Data: logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://example.org/bar",
+					},
+				},
+			},
 			reqEntries: []*types.Entry{
 				{
 					ParentId: api.ProtoFromID(entryParentID),
@@ -725,7 +736,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: failed to convert entry",
+					Message: "Invalid argument: failed to convert entry",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "invalid parent ID: spiffeid: trust domain is empty",
 					},
@@ -768,9 +779,9 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Unable to convert registration entry",
+					Message: "Failed to convert entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "spiffeid: invalid scheme",
+						logrus.ErrorKey:    "invalid SPIFFE ID: spiffeid: invalid scheme",
 						telemetry.SPIFFEID: "spiffe://example.org/workload",
 					},
 				},
@@ -779,7 +790,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
-						Message: "unable to convert registration entry: spiffeid: invalid scheme",
+						Message: "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
 			},
@@ -799,7 +810,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
-			// Create fedeated bundles, that we use on "FederatesWith"
+			// Create federated bundles, that we use on "FederatesWith"
 			createFederatedBundles(t, ds)
 			_ = createTestEntries(t, ds, defaultEntry)
 
@@ -882,7 +893,16 @@ func TestBatchDeleteEntry(t *testing.T) {
 					Id:     m[barSpiffeID].EntryId,
 				})
 
-				return results, nil
+				expectedLogs := []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Entry not found",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: "not found",
+						},
+					},
+				}
+				return results, expectedLogs
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{m[fooSpiffeID].EntryId, "not found", m[barSpiffeID].EntryId}
@@ -912,7 +932,7 @@ func TestBatchDeleteEntry(t *testing.T) {
 					}, []spiretest.LogEntry{
 						{
 							Level:   logrus.ErrorLevel,
-							Message: "Invalid request: missing entry ID",
+							Message: "Invalid argument: missing entry ID",
 						},
 					}
 			},
@@ -953,14 +973,22 @@ func TestBatchDeleteEntry(t *testing.T) {
 			expectDs: dsEntries,
 			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
 				return []*entrypb.BatchDeleteEntryResponse_Result{
-					{
-						Status: &types.Status{
-							Code:    int32(codes.NotFound),
-							Message: "entry not found",
+						{
+							Status: &types.Status{
+								Code:    int32(codes.NotFound),
+								Message: "entry not found",
+							},
+							Id: "invalid id",
 						},
-						Id: "invalid id",
-					},
-				}, nil
+					}, []spiretest.LogEntry{
+						{
+							Level:   logrus.ErrorLevel,
+							Message: "Entry not found",
+							Data: logrus.Fields{
+								telemetry.RegistrationID: "invalid id",
+							},
+						},
+					}
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{"invalid id"}
@@ -1012,8 +1040,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			{Type: "unix", Value: "gid:1000"},
 		},
 		FederatesWith: []string{
-			"spiffe://domain1.com",
-			"spiffe://domain2.com",
+			"domain1.com",
+			"domain2.com",
 		},
 		Admin:      true,
 		ExpiresAt:  time.Now().Add(30 * time.Second).Unix(),
@@ -1030,8 +1058,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			{Type: "unix", Value: "gid:1001"},
 		},
 		FederatesWith: []string{
-			"spiffe://domain3.com",
-			"spiffe://domain4.com",
+			"domain3.com",
+			"domain4.com",
 		},
 		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
 		DnsNames:  []string{"dns3", "dns4"},
@@ -1108,13 +1136,13 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		},
 		{
 			name:       "error",
-			err:        "failed to fetch registration entries",
+			err:        "failed to fetch entries",
 			code:       codes.Internal,
 			fetcherErr: "fetcher fails",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch registration entries",
+					Message: "Failed to fetch entries",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "rpc error: code = Internal desc = fetcher fails",
 					},
@@ -1196,6 +1224,7 @@ func (s *serviceTest) Cleanup() {
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	ef := &entryFetcher{}
 	service := entry.New(entry.Config{
+		TrustDomain:  td,
 		DataStore:    ds,
 		EntryFetcher: ef,
 	})
@@ -1239,7 +1268,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			{Type: "unix", Value: "uid:2000"},
 		},
 		FederatesWith: []string{
-			federatedTd.IDString(),
+			federatedTd.String(),
 		},
 		Admin:      true,
 		ExpiresAt:  expiresAt,
@@ -1247,8 +1276,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 		Downstream: true,
 	}
 	updateEverythingEntry := &types.Entry{
-		ParentId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 		Ttl:      500000,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:9999"},
@@ -1285,13 +1314,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 			updateEntries: []*types.Entry{
 				{
 					// Trust domain will be normalized to lower case
-					ParentId: &types.SPIFFEID{TrustDomain: "exampleUPDATED.org", Path: "/parentUpdated"},
+					ParentId: &types.SPIFFEID{TrustDomain: "EXAMPLE.org", Path: "/parentUpdated"},
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
-				modifiedEntry.ParentId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/parentUpdated"}
+				modifiedEntry.ParentId = &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"}
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -1299,7 +1328,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						ParentId: &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/parentUpdated"}},
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"}},
 				},
 			},
 		},
@@ -1315,13 +1344,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 			updateEntries: []*types.Entry{
 				{
 					// Trust domain will be normalized to lower case
-					SpiffeId: &types.SPIFFEID{TrustDomain: "exampleUPDATED.org", Path: "/workloadUpdated"},
+					SpiffeId: &types.SPIFFEID{TrustDomain: "EXAMPLE.org", Path: "/workloadUpdated"},
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
-				modifiedEntry.SpiffeId = &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/workloadUpdated"}
+				modifiedEntry.SpiffeId = &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"}
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -1329,7 +1358,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						SpiffeId: &types.SPIFFEID{TrustDomain: "exampleupdated.org", Path: "/workloadUpdated"}},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"}},
 				},
 			},
 		},
@@ -1633,7 +1662,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "invalid spiffe ID: spiffeid: trust domain is empty",
@@ -1663,7 +1692,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "invalid parent ID: spiffeid: trust domain is empty",
@@ -1693,7 +1722,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							"error":                  "invalid parent ID: spiffeid: trust domain is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
@@ -1723,7 +1752,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							"error":                  "invalid spiffe ID: spiffeid: trust domain is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
@@ -1753,7 +1782,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to convert entry",
+						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							"error":                  "selector list is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
@@ -1770,7 +1799,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			updateEntries: []*types.Entry{
 				{
-					ParentId: &types.SPIFFEID{TrustDomain: "trustdomain", Path: "/workload"},
+					ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 				},
 			},
 			dsError: errors.New("datastore error"),
@@ -1783,7 +1812,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "failed to update entry",
+						Message: "Failed to update entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "datastore error",
@@ -1809,8 +1838,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						ParentId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
-						SpiffeId: &types.SPIFFEID{TrustDomain: "valid", Path: "/validUpdated"},
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 						Ttl:      500000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:9999"},
@@ -1849,7 +1878,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							{Type: "unix", Value: "uid:2000"},
 						},
 						FederatesWith: []string{
-							"spiffe://domain1.org",
+							"domain1.org",
 						},
 						Admin:          true,
 						ExpiresAt:      expiresAt,
@@ -1933,7 +1962,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			spiffeToIDMap := make(map[string]string)
 			updateEntries := tt.updateEntries
 			for i := range createResp.Results {
-				require.Equal(t, createResp.Results[i].Status, api.OK())
+				require.Equal(t, api.OK(), createResp.Results[i].Status)
 				updateEntries[i].Id = createResp.Results[i].Entry.Id
 				spiffeToIDMap[createResp.Results[i].Entry.SpiffeId.Path] = createResp.Results[i].Entry.Id
 			}

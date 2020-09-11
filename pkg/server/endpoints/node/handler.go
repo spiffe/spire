@@ -23,14 +23,16 @@ import (
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -49,6 +51,7 @@ type HandlerConfig struct {
 	TrustDomain url.URL
 	Clock       clock.Clock
 	Manager     *ca.Manager
+	AttestLimit int
 
 	// Allow agentless SPIFFE IDs when doing node attestation
 	AllowAgentlessNodeAttestors bool
@@ -58,23 +61,21 @@ type Handler struct {
 	c       HandlerConfig
 	limiter Limiter
 
-	dsCache                       *datastoreCache
-	fetchRegistrationEntriesCache *regentryutil.FetchRegistrationEntriesCache
+	fetchRegistrationEntriesCache *entrycache.FetchRegistrationEntriesCache
 }
 
 func NewHandler(config HandlerConfig) (*Handler, error) {
 	if config.Clock == nil {
 		config.Clock = clock.New()
 	}
-	fetchX509SVIDCache, err := regentryutil.NewFetchX509SVIDCache(fetchSVIDCacheSize)
+	fetchX509SVIDCache, err := entrycache.NewFetchX509SVIDCache(fetchSVIDCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create cache: %v", err)
 	}
 
 	return &Handler{
 		c:                             config,
-		limiter:                       NewLimiter(config.Log),
-		dsCache:                       newDatastoreCache(config.Catalog.GetDataStore(), config.Clock),
+		limiter:                       NewLimiter(config.Log, config.AttestLimit),
 		fetchRegistrationEntriesCache: fetchX509SVIDCache,
 	}, nil
 }
@@ -490,9 +491,6 @@ func (h *Handler) PushJWTKeyUpstream(ctx context.Context, req *node.PushJWTKeyUp
 		return nil, status.Errorf(codes.Internal, "error publishing new JWT key: %v", err)
 	}
 
-	// Ensure we invalidate the cached bundle because PublishJWTKey updated it.
-	h.dsCache.DeleteBundleEntry(h.c.TrustDomain.String())
-
 	return &node.PushJWTKeyUpstreamResponse{
 		JwtSigningKeys: jwtSigningKeys,
 	}, nil
@@ -744,7 +742,7 @@ func (h *Handler) attestToken(ctx context.Context, attestationData *common.Attes
 		h.c.Log.WithError(err).Error("Failed to determine if agent has already attested")
 		return nil, errorutil.WrapError(err, "failed to determine if agent has already attested")
 	case attestedBefore:
-		return nil, errors.New("join token has already been used")
+		return nil, errors.New("join token does not exist or has already been used")
 	}
 
 	ds := h.c.Catalog.GetDataStore()
@@ -1039,7 +1037,8 @@ func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common
 
 // getBundle fetches a bundle from the datastore, by trust domain, using a cache.
 func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
-	resp, err := h.dsCache.FetchBundle(ctx, &datastore.FetchBundleRequest{
+	ds := h.c.Catalog.GetDataStore()
+	resp, err := ds.FetchBundle(dscache.WithCache(ctx), &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,
 	})
 	if err != nil {

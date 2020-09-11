@@ -10,7 +10,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -65,7 +64,6 @@ func (s *RotatorTestSuite) SetupTest() {
 		Log:          log,
 		Metrics:      telemetry.Blackhole{},
 		TrustDomain:  td,
-		SpiffeID:     "spiffe://example.org/spire/agent/1234",
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 		Clk:          s.mockClock,
 	}
@@ -80,7 +78,7 @@ func (s *RotatorTestSuite) TearDownTest() {
 func (s *RotatorTestSuite) TestRun() {
 	cert, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
-	s.client.EXPECT().Release()
+	s.expectSVIDRotation(cert)
 
 	state := State{
 		SVID: []*x509.Certificate{cert},
@@ -187,13 +185,9 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 // the the provided certificate to the client.Client caller.
 func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 	s.client.EXPECT().
-		FetchUpdates(gomock.Any(), gomock.Any(), true).
-		Return(&client.Update{
-			SVIDs: map[string]*node.X509SVID{
-				s.r.c.SpiffeID: {
-					CertChain: cert.Raw,
-				},
-			},
+		RenewSVID(gomock.Any(), gomock.Any()).
+		Return(&node.X509SVID{
+			CertChain: cert.Raw,
 		}, nil)
 	s.client.EXPECT().Release().MaxTimes(2)
 }

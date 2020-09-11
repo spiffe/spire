@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -67,19 +66,15 @@ func TestMintHelp(t *testing.T) {
 }
 
 func TestMintRun(t *testing.T) {
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := spiretest.TempDir(t)
 
 	svidPath := filepath.Join(dir, "token")
 
 	api := new(FakeRegistrationAPI)
 
-	defaultServerDone := spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, util.DefaultSocketPath), api)
-	defer defaultServerDone()
+	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, util.DefaultSocketPath), api)
 
-	otherServerDone := spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, "other.sock"), api)
-	defer otherServerDone()
+	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, "other.sock"), api)
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.ES256,

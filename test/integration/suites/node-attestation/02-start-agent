@@ -1,0 +1,8 @@
+#!/bin/bash
+
+log-debug "bootstrapping agent..."
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+
+log-debug "starting agent..."
+docker-compose up -d "spire-agent" || fail-now "failed to bring up services."

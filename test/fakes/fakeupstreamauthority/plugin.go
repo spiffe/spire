@@ -10,17 +10,17 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 )
 
-func Load(t *testing.T, config Config) (upstreamauthority.UpstreamAuthority, *UpstreamAuthority, func()) {
+func Load(t *testing.T, config Config) (upstreamauthority.UpstreamAuthority, *UpstreamAuthority) {
 	fake := New(t, config)
 
 	var ua upstreamauthority.UpstreamAuthority
-	uaDone := spiretest.LoadPlugin(t, catalog.MakePlugin("fake",
+	spiretest.LoadPlugin(t, catalog.MakePlugin("fake",
 		upstreamauthority.PluginServer(&upstreamAuthorityPlugin{
 			UpstreamAuthority: fake,
 		}),
 	), &ua)
 
-	return ua, fake, uaDone
+	return ua, fake
 }
 
 type upstreamAuthorityPlugin struct {

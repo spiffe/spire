@@ -889,7 +889,9 @@ func init() {
 	proto.RegisterType((*AttestedNodeMask)(nil), "spire.common.AttestedNodeMask")
 }
 
-func init() { proto.RegisterFile("spire/common/common.proto", fileDescriptor_c11412a53cc81147) }
+func init() {
+	proto.RegisterFile("spire/common/common.proto", fileDescriptor_c11412a53cc81147)
+}
 
 var fileDescriptor_c11412a53cc81147 = []byte{
 	// 842 bytes of a gzipped FileDescriptorProto

@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
@@ -73,14 +74,14 @@ type Config struct {
 	// Federation holds the configuration needed to federate with other
 	// trust domains.
 	Federation FederationConfig
+
+	// RateLimit holds rate limiting configurations.
+	RateLimit endpoints.RateLimitConfig
 }
 
 type ExperimentalConfig struct {
 	// Skip agent id validation in node attestation
 	AllowAgentlessNodeAttestors bool
-
-	// EnableAPI enables experimental APIs
-	EnableAPI bool
 }
 
 type FederationConfig struct {

@@ -6,13 +6,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAtomicWriteFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "test")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := spiretest.TempDir(t)
 
 	tests := []struct {
 		name string

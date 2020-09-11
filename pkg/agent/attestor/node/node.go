@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"time"
 
@@ -23,7 +22,8 @@ import (
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
@@ -46,23 +46,38 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog           catalog.Catalog
-	Metrics           telemetry.Metrics
-	JoinToken         string
-	TrustDomain       url.URL
-	TrustBundle       []*x509.Certificate
-	InsecureBootstrap bool
-	BundleCachePath   string
-	SVIDCachePath     string
-	Log               logrus.FieldLogger
-	ServerAddress     string
+	Catalog               catalog.Catalog
+	Metrics               telemetry.Metrics
+	JoinToken             string
+	TrustDomain           url.URL
+	TrustBundle           []*x509.Certificate
+	InsecureBootstrap     bool
+	BundleCachePath       string
+	SVIDCachePath         string
+	Log                   logrus.FieldLogger
+	ServerAddress         string
+	CreateNewAgentClient  func(grpc.ClientConnInterface) agent.AgentClient
+	CreateNewBundleClient func(grpc.ClientConnInterface) bundle.BundleClient
 }
 
 type attestor struct {
 	c *Config
+
+	// Used for testing purposes.
+
 }
 
 func New(config *Config) Attestor {
+	// Defaults for CreateNewAgentClient and CreateNewBundleClient functions
+	if config != nil {
+		if config.CreateNewAgentClient == nil {
+			config.CreateNewAgentClient = agent.NewAgentClient
+		}
+		if config.CreateNewBundleClient == nil {
+			config.CreateNewBundleClient = bundle.NewBundleClient
+		}
+	}
+
 	return &attestor{c: config}
 }
 
@@ -116,7 +131,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 
 	privateKeyExists := len(fetchRes.PrivateKey) > 0
 	svidExists := svid != nil
-	svidIsExpired := isSVIDExpired(svid, time.Now)
+	svidIsExpired := IsSVIDExpired(svid, time.Now)
 
 	switch {
 	case privateKeyExists && svidExists && !svidIsExpired:
@@ -146,7 +161,8 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 	return nil, key, nil
 }
 
-func isSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
+// IsSVIDExpired returns true if the X.509 SVID provided is expired
+func IsSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
 	if len(svid) == 0 {
 		return false
 	}
@@ -228,7 +244,7 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
+func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	attestorName := ""
 	defer func() {
@@ -258,69 +274,20 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	}
 	defer conn.Close()
 
-	nodeClient := node.NewNodeClient(conn)
-
-	attestStream, err := nodeClient.Attest(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("opening stream for attestation: %v", err)
-	}
-
 	csr, err := util.MakeCSRWithoutURISAN(key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate CSR for attestation: %v", err)
 	}
 
-	attestResp := new(node.AttestResponse)
-	for {
-		data, err := a.fetchAttestationData(fetchStream, attestResp.Challenge)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		attestReq := &node.AttestRequest{
-			AttestationData: data.AttestationData,
-			Csr:             csr,
-			Response:        data.Response,
-		}
-
-		if err := attestStream.Send(attestReq); err != nil {
-			return nil, nil, fmt.Errorf("sending attestation request to SPIRE server: %v", err)
-		}
-
-		attestResp, err = attestStream.Recv()
-		if err != nil {
-			return nil, nil, fmt.Errorf("attesting to SPIRE server: %v", err)
-		}
-
-		// if the response has no additional data then break out and parse
-		// the response.
-		if attestResp.Challenge == nil {
-			break
-		}
-	}
-
-	if fetchStream != nil {
-		if err := fetchStream.CloseSend(); err != nil {
-			return nil, nil, fmt.Errorf("failed to close send on fetch stream: %v", err)
-		}
-		if _, err := fetchStream.Recv(); err != io.EOF {
-			a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
-		}
-	}
-	if err := attestStream.CloseSend(); err != nil {
-		return nil, nil, fmt.Errorf("failed to close send on attest stream: %v", err)
-	}
-
-	if _, err := attestStream.Recv(); err != io.EOF {
-		a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
-	}
-
-	svid, bundle, err := a.parseAttestationResponse(attestResp)
+	newSVID, err := a.getSVID(ctx, conn, csr, fetchStream)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse attestation response: %v", err)
+		return nil, nil, fmt.Errorf("failed to get SVID: %v", err)
 	}
-
-	return svid, bundle, nil
+	newBundle, err := a.getBundle(ctx, conn)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get updated bundle: %v", err)
+	}
+	return newSVID, newBundle, nil
 }
 
 func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*grpc.ClientConn, error) {
@@ -368,39 +335,4 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
-}
-
-func (a *attestor) parseAttestationResponse(r *node.AttestResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
-	if r.SvidUpdate == nil {
-		return nil, nil, errors.New("missing svid update")
-	}
-	if len(r.SvidUpdate.Svids) != 1 {
-		return nil, nil, fmt.Errorf("expected 1 svid; got %d", len(r.SvidUpdate.Svids))
-	}
-
-	var svidMsg *node.X509SVID
-	for _, svidMsg = range r.SvidUpdate.Svids {
-		break
-	}
-
-	svid, err := x509.ParseCertificates(svidMsg.CertChain)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid svid cert chain: %v", err)
-	}
-
-	if len(svid) == 0 {
-		return nil, nil, errors.New("empty svid cert chain")
-	}
-
-	bundleProto := r.SvidUpdate.Bundles[a.c.TrustDomain.String()]
-	if bundleProto == nil {
-		return nil, nil, errors.New("missing trust domain bundle")
-	}
-
-	bundle, err := bundleutil.BundleFromProto(bundleProto)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid trust domain bundle: %v", err)
-	}
-
-	return svid, bundle, nil
 }

@@ -79,8 +79,6 @@ type manager struct {
 	cache *cache.Cache
 	svid  svid.Rotator
 
-	spiffeID string
-
 	svidCachePath   string
 	bundleCachePath string
 
@@ -165,15 +163,12 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 		return cachedSVID, nil
 	}
 
-	var entryID string
-	if m.c.ExperimentalAPIEnabled {
-		entryID = m.getEntryID(spiffeID)
-		if entryID == "" {
-			return nil, errors.New("no entry found")
-		}
+	entryID := m.getEntryID(spiffeID)
+	if entryID == "" {
+		return nil, errors.New("no entry found")
 	}
 
-	newSVID, err := m.client.FetchJWTSVID(ctx, &node.JSR{
+	newSVID, err := m.client.NewJWTSVID(ctx, &node.JSR{
 		SpiffeId: spiffeID,
 		Audience: audience,
 	}, entryID)
@@ -200,6 +195,7 @@ func (m *manager) getEntryID(spiffeID string) string {
 	}
 	return ""
 }
+
 func (m *manager) runSynchronizer(ctx context.Context) error {
 	for {
 		select {

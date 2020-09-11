@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"

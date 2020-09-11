@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 )
 
 // SelectorsFromProto converts a slice of types.Selector to
@@ -29,4 +29,15 @@ func SelectorsFromProto(proto []*types.Selector) ([]*common.Selector, error) {
 	}
 
 	return selectors, nil
+}
+
+func ProtoFromSelectors(in []*common.Selector) []*types.Selector {
+	var out []*types.Selector
+	for _, s := range in {
+		out = append(out, &types.Selector{
+			Type:  s.Type,
+			Value: s.Value,
+		})
+	}
+	return out
 }

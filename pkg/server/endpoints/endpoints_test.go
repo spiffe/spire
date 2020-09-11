@@ -3,9 +3,7 @@ package endpoints
 import (
 	"context"
 	"crypto/tls"
-	"io/ioutil"
 	"net"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sync"
@@ -21,18 +19,19 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	agentv1 "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
-	bundlev1 "github.com/spiffe/spire/proto/spire-next/api/server/bundle/v1"
-	entryv1 "github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
-	svidv1 "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/api/registration"
+	agentv1 "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,6 +48,7 @@ var (
 	agentID      = testTD.NewID("/agent")
 	adminID      = testTD.NewID("/admin")
 	downstreamID = testTD.NewID("/downstream")
+	rateLimit    = &RateLimitConfig{Attestation: 1}
 )
 
 func TestNew(t *testing.T) {
@@ -64,12 +64,6 @@ func TestNew(t *testing.T) {
 	cat := fakeservercatalog.New()
 	cat.SetDataStore(ds)
 
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer func() {
-		os.RemoveAll(dir)
-	}()
-
 	clk := clock.NewMock(t)
 
 	serverCA := fakeserverca.New(t, testTD.String(), nil)
@@ -77,39 +71,37 @@ func TestNew(t *testing.T) {
 		CA:          serverCA,
 		Catalog:     cat,
 		TrustDomain: *testTD.ID().URL(),
-		Dir:         dir,
+		Dir:         spiretest.TempDir(t),
 		Log:         log,
 		Metrics:     metrics,
 		Clock:       clk,
 	})
 
 	endpoints, err := New(Config{
-		TCPAddr:               tcpAddr,
-		UDSAddr:               udsAddr,
-		SVIDObserver:          svidObserver,
-		TrustDomain:           testTD,
-		Catalog:               cat,
-		ServerCA:              serverCA,
-		BundleEndpoint:        bundle.EndpointConfig{Address: tcpAddr},
-		EnableExperimentalAPI: true,
-		Manager:               manager,
-		Log:                   log,
-		Metrics:               metrics,
+		TCPAddr:        tcpAddr,
+		UDSAddr:        udsAddr,
+		SVIDObserver:   svidObserver,
+		TrustDomain:    testTD,
+		Catalog:        cat,
+		ServerCA:       serverCA,
+		BundleEndpoint: bundle.EndpointConfig{Address: tcpAddr},
+		Manager:        manager,
+		Log:            log,
+		Metrics:        metrics,
+		RateLimit:      rateLimit,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
 	assert.Equal(t, udsAddr, endpoints.UDSAddr)
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
-	assert.NotNil(t, endpoints.RegistrationServer)
-	assert.NotNil(t, endpoints.NodeServer)
-	if assert.NotNil(t, endpoints.ExperimentalServers) {
-		assert.NotNil(t, endpoints.ExperimentalServers.AgentServer)
-		assert.NotNil(t, endpoints.ExperimentalServers.BundleServer)
-		assert.NotNil(t, endpoints.ExperimentalServers.EntryServer)
-		assert.NotNil(t, endpoints.ExperimentalServers.SVIDServer)
-	}
-	assert.NotNil(t, endpoints.BundleServer)
+	assert.NotNil(t, endpoints.OldAPIServers.RegistrationServer)
+	assert.NotNil(t, endpoints.OldAPIServers.NodeServer)
+	assert.NotNil(t, endpoints.APIServers.AgentServer)
+	assert.NotNil(t, endpoints.APIServers.BundleServer)
+	assert.NotNil(t, endpoints.APIServers.EntryServer)
+	assert.NotNil(t, endpoints.APIServers.SVIDServer)
+	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
 	assert.Equal(t, metrics, endpoints.Metrics)
@@ -122,16 +114,11 @@ func TestListenAndServe(t *testing.T) {
 	adminSVID := ca.CreateX509SVID(adminID)
 	downstreamSVID := ca.CreateX509SVID(downstreamID)
 
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer func() {
-		os.RemoveAll(dir)
-	}()
-
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	require.NoError(t, listener.Close())
 
+	dir := spiretest.TempDir(t)
 	udsPath := filepath.Join(dir, "socket")
 
 	ds := fakedatastore.New(t)
@@ -140,25 +127,28 @@ func TestListenAndServe(t *testing.T) {
 
 	registrationServer := newRegistrationServer()
 	nodeServer := newNodeServer()
-	bundleServer := newBundleServer()
+	bundleEndpointServer := newBundleEndpointServer()
 
 	endpoints := Endpoints{
-		TCPAddr:            listener.Addr().(*net.TCPAddr),
-		UDSAddr:            &net.UnixAddr{Name: udsPath, Net: "unix"},
-		SVIDObserver:       newSVIDObserver(serverSVID),
-		TrustDomain:        testTD,
-		DataStore:          ds,
-		RegistrationServer: registrationServer,
-		NodeServer:         nodeServer,
-		ExperimentalServers: &ExperimentalServers{
+		TCPAddr:      listener.Addr().(*net.TCPAddr),
+		UDSAddr:      &net.UnixAddr{Name: udsPath, Net: "unix"},
+		SVIDObserver: newSVIDObserver(serverSVID),
+		TrustDomain:  testTD,
+		DataStore:    ds,
+		OldAPIServers: OldAPIServers{
+			RegistrationServer: registrationServer,
+			NodeServer:         nodeServer,
+		},
+		APIServers: APIServers{
 			AgentServer:  &agentv1.UnimplementedAgentServer{},
 			BundleServer: &bundlev1.UnimplementedBundleServer{},
 			EntryServer:  &entryv1.UnimplementedEntryServer{},
 			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
 		},
-		BundleServer: bundleServer,
-		Log:          log,
-		Metrics:      metrics,
+		BundleEndpointServer: bundleEndpointServer,
+		Log:                  log,
+		Metrics:              metrics,
+		RateLimitConfig:      rateLimit,
 	}
 
 	// Prime the datastore with the:
@@ -236,8 +226,8 @@ func TestListenAndServe(t *testing.T) {
 		testSVIDAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 
-	// Assert that the bundle server was called to listen and serve
-	require.True(t, bundleServer.Used(), "bundle server was not called to listen and serve")
+	// Assert that the bundle endpoint server was called to listen and serve
+	require.True(t, bundleEndpointServer.Used(), "bundle server was not called to listen and serve")
 
 	// Cancel the context to bring down the endpoints and ensure they shut
 	// down cleanly.
@@ -716,23 +706,23 @@ func (t *callTracker) Reset() {
 	t.peers = nil
 }
 
-type bundleServer struct {
+type bundleEndpointServer struct {
 	mtx  sync.Mutex
 	used bool
 }
 
-func newBundleServer() *bundleServer {
-	return &bundleServer{}
+func newBundleEndpointServer() *bundleEndpointServer {
+	return &bundleEndpointServer{}
 }
 
-func (s *bundleServer) ListenAndServe(ctx context.Context) error {
+func (s *bundleEndpointServer) ListenAndServe(ctx context.Context) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	s.used = true
 	return nil
 }
 
-func (s *bundleServer) Used() bool {
+func (s *bundleEndpointServer) Used() bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	return s.used

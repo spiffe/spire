@@ -44,16 +44,10 @@ type AttestorSuite struct {
 }
 
 func (s *AttestorSuite) SetupTest() {
-	var err error
-	s.dir, err = ioutil.TempDir("", "spire-k8s-psat-test-")
-	s.Require().NoError(err)
+	s.dir = s.TempDir()
 
 	s.newAttestor()
 	s.configure(AttestorConfig{})
-}
-
-func (s *AttestorSuite) TearDownTest() {
-	os.RemoveAll(s.dir)
 }
 
 func (s *AttestorSuite) TestFetchAttestationDataNotConfigured() {

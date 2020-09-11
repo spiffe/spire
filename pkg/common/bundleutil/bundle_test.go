@@ -3,22 +3,23 @@ package bundleutil
 // Basic imports
 import (
 	"crypto/x509"
+	"encoding/base64"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/stretchr/testify/require"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/util"
 )
 
-func TestBundleUtilSuite(t *testing.T) {
-	spiretest.Run(t, new(BundleUtilSuite))
-}
-
-type BundleUtilSuite struct {
-	spiretest.Suite
+type bundleTest struct {
 	currentTime      time.Time
 	certNotExpired   *x509.Certificate
 	certExpired      *x509.Certificate
@@ -26,89 +27,196 @@ type BundleUtilSuite struct {
 	jwtKeyNotExpired *common.PublicKey
 }
 
-func (s *BundleUtilSuite) SetupTest() {
-	// currentTime is a point in time between expired and not-expired certs and keys
-	var err error
-	s.currentTime, err = time.Parse(time.RFC3339, "2018-02-10T01:35:00+00:00")
-	s.Require().NoError(err)
+func TestPruneBundle(t *testing.T) {
+	test := setupTest(t)
 
-	s.certNotExpired, _, err = util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	s.certExpired, _, err = util.LoadCAFixture()
-	s.Require().NoError(err)
-
-	expiredKeyTime, err := time.Parse(time.RFC3339, "2018-01-10T01:35:00+00:00")
-	s.Require().NoError(err)
-	s.jwtKeyExpired = &common.PublicKey{NotAfter: expiredKeyTime.Unix()}
-
-	nonExpiredKeyTime, err := time.Parse(time.RFC3339, "2018-03-10T01:35:00+00:00")
-	s.Require().NoError(err)
-	s.jwtKeyNotExpired = &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()}
+	for _, tt := range []struct {
+		name        string
+		bundle      *common.Bundle
+		newBundle   *common.Bundle
+		expiration  time.Time
+		changed     bool
+		expectedErr string
+	}{
+		{
+			name:        "current bundle is nil",
+			expiration:  time.Now(),
+			expectedErr: "current bundle is nil",
+		},
+		{
+			name: "fail if timeis zero",
+			bundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+			),
+			expiration:  time.Time{},
+			expectedErr: "expiration time is zero value",
+		},
+		{
+			name: "fail if all X509 certs expired",
+			bundle: createBundle(
+				[]*x509.Certificate{test.certExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+			),
+			expiration:  test.currentTime,
+			expectedErr: "would prune all certificates",
+		},
+		{
+			name: "fail if all JWT expired",
+			bundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				[]*common.PublicKey{test.jwtKeyExpired},
+			),
+			expiration:  test.currentTime,
+			expectedErr: "would prune all JWT signing keys",
+		},
+		{
+			name: "succeeds",
+			bundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+			),
+			newBundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired},
+			),
+			expiration: test.currentTime,
+			changed:    true,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			newBundle, changed, err := PruneBundle(tt.bundle, tt.expiration, hclog.NewNullLogger())
+			require.Equal(t, tt.newBundle, newBundle)
+			require.Equal(t, tt.changed, changed)
+			if tt.expectedErr != "" {
+				require.EqualError(t, errors.New(tt.expectedErr), err.Error())
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
-func (s *BundleUtilSuite) TestPruneBundleFailIfNilBundle() {
-	newBundle, changed, err := PruneBundle(nil, time.Now(), hclog.NewNullLogger())
-	s.AssertErrorContains(err, "current bundle is nil")
-	s.Nil(newBundle)
-	s.False(changed)
+func TestCommonBundleFromProto(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	rootCA := ca.X509Authorities()[0]
+	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
+	require.NoError(t, err)
+
+	_, expectedX509Err := x509.ParseCertificates([]byte("malformed"))
+	require.Error(t, expectedX509Err)
+	_, expectedJWTErr := x509.ParsePKIXPublicKey([]byte("malformed"))
+	require.Error(t, expectedJWTErr)
+
+	for _, tt := range []struct {
+		name         string
+		bundle       *types.Bundle
+		expectBundle *common.Bundle
+		expectError  string
+	}{
+		{
+			name: "success",
+			bundle: &types.Bundle{
+				TrustDomain: td.String(),
+				RefreshHint: 10,
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: rootCA.Raw,
+					},
+				},
+				JwtAuthorities: []*types.JWTKey{
+					{
+						PublicKey: pkixBytes,
+						KeyId:     "key-id-1",
+						ExpiresAt: 1590514224,
+					},
+				},
+			},
+			expectBundle: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RefreshHint:   10,
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "key-id-1",
+						NotAfter:  1590514224,
+					},
+				},
+			},
+		},
+		{
+			name: "Empty key ID",
+			bundle: &types.Bundle{
+				TrustDomain: td.String(),
+				RefreshHint: 10,
+				JwtAuthorities: []*types.JWTKey{
+					{
+						PublicKey: pkixBytes,
+						ExpiresAt: 1590514224,
+					},
+				},
+			},
+			expectError: "missing key ID",
+		},
+		{
+			name:        "no bundle",
+			expectError: "no bundle provided",
+		},
+		{
+			name: "invalid trust domain",
+			bundle: &types.Bundle{
+				TrustDomain: "invalid TD",
+			},
+			expectError: `spiffeid: unable to parse: parse "spiffe://invalid TD": invalid character " " in host name`,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			bundle, err := CommonBundleFromProto(tt.bundle)
+
+			if tt.expectError != "" {
+				require.EqualError(t, err, tt.expectError)
+				require.Nil(t, bundle)
+				return
+			}
+
+			require.NoError(t, err)
+			spiretest.AssertProtoEqual(t, tt.expectBundle, bundle)
+		})
+	}
 }
 
-func (s *BundleUtilSuite) TestPruneBundleFailIfTimeIsZero() {
-	bundle := s.createBundle(
-		[]*x509.Certificate{s.certNotExpired, s.certExpired},
-		[]*common.PublicKey{s.jwtKeyNotExpired, s.jwtKeyExpired},
-	)
-
-	newBundle, changed, err := PruneBundle(bundle, time.Time{}, hclog.NewNullLogger())
-	s.AssertErrorContains(err, "expiration time is zero value")
-	s.Nil(newBundle)
-	s.False(changed)
-}
-
-func (s *BundleUtilSuite) TestPruneBundleFailIfAllCertExpired() {
-	bundle := s.createBundle(
-		[]*x509.Certificate{s.certExpired},
-		[]*common.PublicKey{s.jwtKeyNotExpired, s.jwtKeyExpired},
-	)
-
-	newBundle, changed, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
-	s.AssertErrorContains(err, "would prune all certificates")
-	s.Nil(newBundle)
-	s.False(changed)
-}
-
-func (s *BundleUtilSuite) TestPruneBundleFailIfAllJWTExpired() {
-	bundle := s.createBundle(
-		[]*x509.Certificate{s.certNotExpired, s.certExpired},
-		[]*common.PublicKey{s.jwtKeyExpired},
-	)
-
-	newBundle, changed, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
-	s.AssertErrorContains(err, "would prune all JWT signing keys")
-	s.Nil(newBundle)
-	s.False(changed)
-}
-
-func (s *BundleUtilSuite) TestPruneBundleSucceeds() {
-	bundle := s.createBundle(
-		[]*x509.Certificate{s.certNotExpired, s.certExpired},
-		[]*common.PublicKey{s.jwtKeyNotExpired, s.jwtKeyExpired},
-	)
-
-	expectedBundle := s.createBundle(
-		[]*x509.Certificate{s.certNotExpired},
-		[]*common.PublicKey{s.jwtKeyNotExpired},
-	)
-
-	newBundle, changed, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
-	s.NoError(err)
-	s.Equal(expectedBundle, newBundle)
-	s.True(changed)
-}
-
-func (s *BundleUtilSuite) createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey) *common.Bundle {
+func createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey) *common.Bundle {
 	bundle := BundleProtoFromRootCAs("spiffe://foo", certs)
 	bundle.JwtSigningKeys = jwtKeys
 	return bundle
+}
+
+func setupTest(t *testing.T) *bundleTest {
+	// currentTime is a point in time between expired and not-expired certs and keys
+	currentTime, err := time.Parse(time.RFC3339, "2018-02-10T01:35:00+00:00")
+	require.NoError(t, err)
+
+	certNotExpired, _, err := util.LoadSVIDFixture()
+	require.NoError(t, err)
+
+	certExpired, _, err := util.LoadCAFixture()
+	require.NoError(t, err)
+
+	expiredKeyTime, err := time.Parse(time.RFC3339, "2018-01-10T01:35:00+00:00")
+	require.NoError(t, err)
+
+	nonExpiredKeyTime, err := time.Parse(time.RFC3339, "2018-03-10T01:35:00+00:00")
+	require.NoError(t, err)
+
+	return &bundleTest{
+		currentTime:      currentTime,
+		certNotExpired:   certNotExpired,
+		certExpired:      certExpired,
+		jwtKeyExpired:    &common.PublicKey{NotAfter: expiredKeyTime.Unix()},
+		jwtKeyNotExpired: &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()},
+	}
 }

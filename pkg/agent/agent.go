@@ -22,6 +22,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
 )
@@ -165,41 +167,38 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 
 func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*attestor.AttestationResult, error) {
 	config := attestor.Config{
-		Catalog:           cat,
-		Metrics:           metrics,
-		JoinToken:         a.c.JoinToken,
-		TrustDomain:       a.c.TrustDomain,
-		TrustBundle:       a.c.TrustBundle,
-		InsecureBootstrap: a.c.InsecureBootstrap,
-		BundleCachePath:   a.bundleCachePath(),
-		SVIDCachePath:     a.agentSVIDPath(),
-		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
-		ServerAddress:     a.c.ServerAddress,
+		Catalog:               cat,
+		Metrics:               metrics,
+		JoinToken:             a.c.JoinToken,
+		TrustDomain:           a.c.TrustDomain,
+		TrustBundle:           a.c.TrustBundle,
+		InsecureBootstrap:     a.c.InsecureBootstrap,
+		BundleCachePath:       a.bundleCachePath(),
+		SVIDCachePath:         a.agentSVIDPath(),
+		Log:                   a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
+		ServerAddress:         a.c.ServerAddress,
+		CreateNewAgentClient:  agent.NewAgentClient,
+		CreateNewBundleClient: bundle.NewBundleClient,
 	}
 	return attestor.New(&config).Attest(ctx)
 }
 
 func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *attestor.AttestationResult) (manager.Manager, error) {
 	config := &manager.Config{
-		SVID:                   as.SVID,
-		SVIDKey:                as.Key,
-		Bundle:                 as.Bundle,
-		Catalog:                cat,
-		TrustDomain:            a.c.TrustDomain,
-		ServerAddr:             a.c.ServerAddress,
-		Log:                    a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
-		Metrics:                metrics,
-		BundleCachePath:        a.bundleCachePath(),
-		SVIDCachePath:          a.agentSVIDPath(),
-		SyncInterval:           a.c.SyncInterval,
-		ExperimentalAPIEnabled: a.c.ExperimentalAPIEnabled,
+		SVID:            as.SVID,
+		SVIDKey:         as.Key,
+		Bundle:          as.Bundle,
+		Catalog:         cat,
+		TrustDomain:     a.c.TrustDomain,
+		ServerAddr:      a.c.ServerAddress,
+		Log:             a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
+		Metrics:         metrics,
+		BundleCachePath: a.bundleCachePath(),
+		SVIDCachePath:   a.agentSVIDPath(),
+		SyncInterval:    a.c.SyncInterval,
 	}
 
-	mgr, err := manager.New(config)
-	if err != nil {
-		return nil, err
-	}
-
+	mgr := manager.New(config)
 	if err := mgr.Initialize(ctx); err != nil {
 		return nil, err
 	}

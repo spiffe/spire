@@ -1,4 +1,4 @@
-package attestor
+package attestor_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"net/url"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	agentnodeattestor "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
@@ -24,13 +27,15 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	servernodeattestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/api/node"
-	"github.com/spiffe/spire/proto/spire/common"
+	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 var (
@@ -48,6 +53,14 @@ func TestAttestor(t *testing.T) {
 	serverCert := createServerCertificate(t, caCert)
 	agentCert := createAgentCertificate(t, caCert, "/test/foo")
 	expiredCert := createExpiredCertificate(t, caCert)
+	bundle := &types.Bundle{
+		TrustDomain:     "domain.test",
+		X509Authorities: []*types.X509Certificate{{Asn1: caCert.Raw}},
+	}
+	svid := &types.X509SVID{
+		Id:        &types.SPIFFEID{TrustDomain: "domain.test", Path: "/test/foo"},
+		CertChain: [][]byte{agentCert.Raw},
+	}
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{
@@ -60,188 +73,298 @@ func TestAttestor(t *testing.T) {
 
 	testCases := []struct {
 		name                        string
-		challengeResponses          []string
 		bootstrapBundle             *x509.Certificate
 		insecureBootstrap           bool
 		cachedBundle                []byte
 		cachedSVID                  []byte
-		joinToken                   string
 		err                         string
-		omitSVIDUpdate              bool
-		overrideSVIDUpdate          *node.X509SVIDUpdate
 		storeKey                    crypto.PrivateKey
 		failFetchingAttestationData bool
-		failAttestCall              bool
+		agentClient                 *fakeAgentClient
+		bundleClient                *fakeBundleClient
 	}{
 		{
 			name:              "insecure bootstrap",
 			insecureBootstrap: true,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:         "cached bundle empty",
 			cachedBundle: []byte(""),
 			err:          "load bundle: no certs in bundle",
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					CertChain: [][]byte{agentCert.Raw},
+				},
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:         "cached bundle malformed",
 			cachedBundle: []byte("INVALID DER BYTES"),
 			err:          "load bundle: error parsing bundle",
+			agentClient:  &fakeAgentClient{},
+			bundleClient: &fakeBundleClient{},
 		},
 		{
 			name:                        "fail fetching attestation data",
 			bootstrapBundle:             caCert,
 			err:                         "fetching attestation data purposefully failed",
 			failFetchingAttestationData: true,
+			agentClient:                 &fakeAgentClient{},
+			bundleClient:                &fakeBundleClient{},
 		},
 		{
-			name:            "response missing svid update",
+			name:            "attest response is missing SVID",
 			bootstrapBundle: caCert,
-			omitSVIDUpdate:  true,
-			err:             "failed to parse attestation response: missing svid update",
-		},
-		{
-			name:            "response has more than one svid",
-			bootstrapBundle: caCert,
-			overrideSVIDUpdate: &node.X509SVIDUpdate{
-				Svids: map[string]*node.X509SVID{
-					"spiffe://domain.test/not/used":      {},
-					"spiffe://domain.test/also/not/used": {},
-				},
+			agentClient:     &fakeAgentClient{},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
 			},
-			err: "failed to parse attestation response: expected 1 svid; got 2",
+			err: "failed to parse attestation response: attest response is missing SVID",
 		},
 		{
-			name:            "response svid has invalid cert chain",
+			name:            "response SVID has invalid cert chain",
 			bootstrapBundle: caCert,
-			overrideSVIDUpdate: &node.X509SVIDUpdate{
-				Svids: map[string]*node.X509SVID{
-					"spiffe://domain.test/not/used": {CertChain: []byte("INVALID")},
-				},
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{CertChain: [][]byte{{11, 22, 33}}},
 			},
-			err: "failed to parse attestation response: invalid svid cert chain",
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "failed to parse attestation response: invalid SVID cert chain",
 		},
 		{
-			name:            "response svid has empty cert chain",
+			name:            "response SVID has empty cert chain",
 			bootstrapBundle: caCert,
-			overrideSVIDUpdate: &node.X509SVIDUpdate{
-				Svids: map[string]*node.X509SVID{
-					"spiffe://domain.test/not/used": {},
-				},
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{},
 			},
-			err: "failed to parse attestation response: empty svid cert chain",
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "failed to parse attestation response: empty SVID cert chain",
 		},
 		{
 			name:            "response missing trust domain bundle",
 			bootstrapBundle: caCert,
-			overrideSVIDUpdate: &node.X509SVIDUpdate{
-				Svids: map[string]*node.X509SVID{
-					"spiffe://domain.test/not/used": {CertChain: agentCert.Raw},
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					CertChain: [][]byte{agentCert.Raw},
 				},
 			},
-			err: "failed to parse attestation response: missing trust domain bundle",
+			bundleClient: &fakeBundleClient{},
+			err:          "failed to get updated bundle: failed to parse trust domain bundle: no bundle provided",
 		},
 		{
 			name:            "response has malformed trust domain bundle",
 			bootstrapBundle: caCert,
-			overrideSVIDUpdate: &node.X509SVIDUpdate{
-				Svids: map[string]*node.X509SVID{
-					"spiffe://domain.test/not/used": {CertChain: agentCert.Raw},
-				},
-				Bundles: map[string]*common.Bundle{
-					"spiffe://domain.test": {
-						RootCas: []*common.Certificate{
-							{DerBytes: []byte("INVALID")},
-						},
-					},
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: &types.Bundle{
+					TrustDomain:     "spiffe://example.org",
+					X509Authorities: []*types.X509Certificate{{Asn1: []byte{10, 20, 30, 40}}},
 				},
 			},
-			err: "failed to parse attestation response: invalid trust domain bundle",
+			err: "failed to get updated bundle: invalid trust domain bundle: unable to parse root CA",
 		},
 		{
 			name:            "success with bootstrap bundle",
 			bootstrapBundle: caCert,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:         "success with cached bundle",
 			cachedBundle: caCert.Raw,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:            "success with expired cached bundle",
 			bootstrapBundle: caCert,
 			cachedSVID:      expiredCert.Raw,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:            "success with join token",
 			bootstrapBundle: caCert,
-			joinToken:       "JOINTOKEN",
+			agentClient: &fakeAgentClient{
+				svid: &types.X509SVID{
+					Id:        &types.SPIFFEID{TrustDomain: "domain.test", Path: "/join_token/JOINTOKEN"},
+					CertChain: [][]byte{createAgentCertificate(t, caCert, "/join_token/JOINTOKEN").Raw},
+				},
+				joinToken: "JOINTOKEN",
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
-			name:               "success with challenge response",
-			bootstrapBundle:    caCert,
-			challengeResponses: []string{"FOO", "BAR", "BAZ"},
+			name:            "success with challenge response",
+			bootstrapBundle: caCert,
+			agentClient: &fakeAgentClient{
+				svid:               svid,
+				challengeResponses: []string{"FOO", "BAR", "BAZ"},
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:              "cached svid and private key but missing bundle",
 			insecureBootstrap: true,
 			cachedSVID:        agentCert.Raw,
 			storeKey:          testKey,
-			err:               "SVID loaded but no bundle in cache",
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "SVID loaded but no bundle in cache",
 		},
 		{
-			name:           "success with cached svid, private key, and bundle",
-			cachedBundle:   caCert.Raw,
-			cachedSVID:     agentCert.Raw,
-			storeKey:       testKey,
-			failAttestCall: true,
+			name:         "success with cached svid, private key, and bundle",
+			cachedBundle: caCert.Raw,
+			cachedSVID:   agentCert.Raw,
+			storeKey:     testKey,
+			agentClient: &fakeAgentClient{
+				svid:            svid,
+				failAttestAgent: true,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
 		},
 		{
 			name:            "malformed cached svid ignored",
 			bootstrapBundle: caCert,
 			cachedSVID:      []byte("INVALID"),
 			storeKey:        testKey,
-			failAttestCall:  true,
-			err:             "attestation has been purposefully failed",
+			agentClient: &fakeAgentClient{
+				svid:            svid,
+				failAttestAgent: true,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "attestation has been purposefully failed",
 		},
 		{
 			name:            "missing key in keymanager ignored",
 			bootstrapBundle: caCert,
 			cachedSVID:      agentCert.Raw,
-			failAttestCall:  true,
-			err:             "attestation has been purposefully failed",
+			agentClient: &fakeAgentClient{
+				svid:            svid,
+				failAttestAgent: true,
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "attestation has been purposefully failed",
+		},
+		{
+			name:            "send error",
+			bootstrapBundle: caCert,
+			agentClient: &fakeAgentClient{
+				svid:    svid,
+				sendErr: errors.New("error in Send"),
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "error in Send",
+		},
+		{
+			name:            "recv error",
+			bootstrapBundle: caCert,
+			agentClient: &fakeAgentClient{
+				svid:    svid,
+				recvErr: errors.New("error in Recv"),
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "error in Recv",
+		},
+		{
+			name:            "close send error",
+			bootstrapBundle: caCert,
+			agentClient: &fakeAgentClient{
+				svid:         svid,
+				closeSendErr: errors.New("error in CloseSend"),
+			},
+			bundleClient: &fakeBundleClient{
+				bundle: bundle,
+			},
+			err: "error in CloseSend",
+		},
+		{
+			name:            "get bundle error",
+			bootstrapBundle: caCert,
+			agentClient: &fakeAgentClient{
+				svid: svid,
+			},
+			bundleClient: &fakeBundleClient{
+				getBundleErr: errors.New("error in GetBundle"),
+			},
+			err: "error in GetBundle",
 		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase
+
 		t.Run(testCase.name, func(t *testing.T) {
 			require := require.New(t)
 
 			// prepare the temp directory holding the cached bundle/svid
-			svidCachePath, bundleCachePath, removeDir := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
-			defer removeDir()
+			svidCachePath, bundleCachePath := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
 
 			// load up the fake agent-side node attestor
-			agentNA, agentNADone := prepareAgentNA(t, fakeagentnodeattestor.Config{
+			agentNA := prepareAgentNA(t, fakeagentnodeattestor.Config{
 				Fail:      testCase.failFetchingAttestationData,
-				Responses: testCase.challengeResponses,
+				Responses: testCase.agentClient.challengeResponses,
 			})
-			defer agentNADone()
 
 			// load up the fake server-side node attestor
-			serverNA, serverNADone := prepareServerNA(t, fakeservernodeattestor.Config{
+			serverNA := prepareServerNA(t, fakeservernodeattestor.Config{
 				TrustDomain: "domain.test",
 				Data: map[string]string{
 					"TEST": "foo",
 				},
 				Challenges: map[string][]string{
-					"foo": testCase.challengeResponses,
+					"foo": testCase.agentClient.challengeResponses,
 				},
 			})
-			defer serverNADone()
 
 			// load up an in-memory key manager
-			km, kmDone := prepareKeyManager(t, testCase.storeKey)
-			defer kmDone()
+			km := prepareKeyManager(t, testCase.storeKey)
 
 			// initialize the catalog
 			catalog := fakeagentcatalog.New()
@@ -250,20 +373,18 @@ func TestAttestor(t *testing.T) {
 
 			// kick off the gRPC server serving the node API
 			serverAddr, serverDone := startNodeServer(t, tlsConfig, fakeNodeAPIConfig{
-				CACert:             caCert,
-				Attestor:           serverNA,
-				OmitSVIDUpdate:     testCase.omitSVIDUpdate,
-				OverrideSVIDUpdate: testCase.overrideSVIDUpdate,
-				FailAttestCall:     testCase.failAttestCall,
+				CACert:         caCert,
+				Attestor:       serverNA,
+				FailAttestCall: testCase.agentClient.failAttestAgent,
 			})
 			defer serverDone()
 
 			// create the attestor
 			log, _ := test.NewNullLogger()
-			attestor := New(&Config{
+			attestor := attestor.New(&attestor.Config{
 				Catalog:         catalog,
 				Metrics:         telemetry.Blackhole{},
-				JoinToken:       testCase.joinToken,
+				JoinToken:       testCase.agentClient.joinToken,
 				SVIDCachePath:   svidCachePath,
 				BundleCachePath: bundleCachePath,
 				Log:             log,
@@ -271,9 +392,11 @@ func TestAttestor(t *testing.T) {
 					Scheme: "spiffe",
 					Host:   "domain.test",
 				},
-				TrustBundle:       makeTrustBundle(testCase.bootstrapBundle),
-				InsecureBootstrap: testCase.insecureBootstrap,
-				ServerAddress:     serverAddr,
+				TrustBundle:           makeTrustBundle(testCase.bootstrapBundle),
+				InsecureBootstrap:     testCase.insecureBootstrap,
+				ServerAddress:         serverAddr,
+				CreateNewAgentClient:  func(conn grpc.ClientConnInterface) agentpb.AgentClient { return testCase.agentClient },
+				CreateNewBundleClient: func(conn grpc.ClientConnInterface) bundlepb.BundleClient { return testCase.bundleClient },
 			})
 
 			// perform attestation
@@ -286,8 +409,8 @@ func TestAttestor(t *testing.T) {
 			require.NotNil(result)
 			require.Len(result.SVID, 1)
 			require.Len(result.SVID[0].URIs, 1)
-			if testCase.joinToken != "" {
-				require.Equal("spiffe://domain.test/spire/agent/join_token/"+testCase.joinToken, result.SVID[0].URIs[0].String())
+			if testCase.agentClient.joinToken != "" {
+				require.Equal("spiffe://domain.test/spire/agent/join_token/"+testCase.agentClient.joinToken, result.SVID[0].URIs[0].String())
 			} else {
 				require.Equal("spiffe://domain.test/spire/agent/test/foo", result.SVID[0].URIs[0].String())
 			}
@@ -301,16 +424,99 @@ func TestAttestor(t *testing.T) {
 	}
 }
 
-func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, string, func()) {
-	dir, err := ioutil.TempDir("", "spire-agent-node-attestor-")
-	require.NoError(t, err)
+type fakeAgentClient struct {
+	failAttestAgent    bool
+	challengeResponses []string
+	joinToken          string
+	svid               *types.X509SVID
+	recvErr            error
+	sendErr            error
+	closeSendErr       error
 
-	ok := false
-	defer func() {
-		if !ok {
-			os.RemoveAll(dir)
+	agentpb.AgentClient
+}
+
+type fakeBundleClient struct {
+	bundle       *types.Bundle
+	getBundleErr error
+
+	bundlepb.BundleClient
+}
+
+type agentClientStream struct {
+	svid               *types.X509SVID
+	challengeResponses []string
+	joinToken          string
+	recvErr            error
+	closeSendErr       error
+	sendErr            error
+
+	agentpb.Agent_AttestAgentClient
+}
+
+func (s *agentClientStream) CloseSend() error {
+	return s.closeSendErr
+}
+
+func (s *agentClientStream) Send(*agentpb.AttestAgentRequest) error {
+	return s.sendErr
+}
+
+func (s *agentClientStream) Recv() (*agentpb.AttestAgentResponse, error) {
+	if s.recvErr != nil {
+		return nil, s.recvErr
+	}
+
+	if s.joinToken != "" {
+		if s.svid.Id.Path != "/join_token/"+s.joinToken {
+			return nil, fmt.Errorf("expected to have path %q", "/join_token/"+s.joinToken)
 		}
-	}()
+	}
+
+	if len(s.challengeResponses) > 0 {
+		challengeResponse := s.challengeResponses[0]
+		s.challengeResponses = s.challengeResponses[1:]
+		return &agentpb.AttestAgentResponse{
+			Step: &agentpb.AttestAgentResponse_Challenge{
+				Challenge: []byte(challengeResponse),
+			},
+		}, nil
+	}
+
+	return &agentpb.AttestAgentResponse{
+		Step: &agentpb.AttestAgentResponse_Result_{
+			Result: &agentpb.AttestAgentResponse_Result{
+				Svid: s.svid,
+			},
+		},
+	}, nil
+}
+
+func (c *fakeAgentClient) AttestAgent(ctx context.Context, opts ...grpc.CallOption) (agentpb.Agent_AttestAgentClient, error) {
+	if c.failAttestAgent {
+		return nil, errors.New("attestation has been purposefully failed")
+	}
+
+	return &agentClientStream{
+		joinToken:          c.joinToken,
+		svid:               c.svid,
+		recvErr:            c.recvErr,
+		sendErr:            c.sendErr,
+		closeSendErr:       c.closeSendErr,
+		challengeResponses: c.challengeResponses,
+	}, nil
+}
+
+func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlepb.GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
+	if c.getBundleErr != nil {
+		return nil, c.getBundleErr
+	}
+
+	return c.bundle, nil
+}
+
+func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, string) {
+	dir := spiretest.TempDir(t)
 
 	svidCachePath := filepath.Join(dir, "svid.der")
 	bundleCachePath := filepath.Join(dir, "bundle.der")
@@ -321,45 +527,32 @@ func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, stri
 		writeFile(t, bundleCachePath, cachedBundle, 0644)
 	}
 
-	ok = true
-	return svidCachePath, bundleCachePath, func() {
-		os.RemoveAll(dir)
-	}
+	return svidCachePath, bundleCachePath
 }
 
-func prepareAgentNA(t *testing.T, config fakeagentnodeattestor.Config) (agentnodeattestor.NodeAttestor, func()) {
+func prepareAgentNA(t *testing.T, config fakeagentnodeattestor.Config) agentnodeattestor.NodeAttestor {
 	var agentNA agentnodeattestor.NodeAttestor
-	agentNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+	spiretest.LoadPlugin(t, catalog.MakePlugin("test",
 		agentnodeattestor.PluginServer(fakeagentnodeattestor.New(config)),
 	), &agentNA)
-	return agentNA, agentNADone
+	return agentNA
 }
 
-func prepareServerNA(t *testing.T, config fakeservernodeattestor.Config) (servernodeattestor.NodeAttestor, func()) {
+func prepareServerNA(t *testing.T, config fakeservernodeattestor.Config) servernodeattestor.NodeAttestor {
 	var serverNA servernodeattestor.NodeAttestor
-	serverNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+	spiretest.LoadPlugin(t, catalog.MakePlugin("test",
 		servernodeattestor.PluginServer(fakeservernodeattestor.New("test", config)),
 	), &serverNA)
-	return serverNA, serverNADone
+	return serverNA
 }
 
-func prepareKeyManager(t *testing.T, key crypto.PrivateKey) (keymanager.KeyManager, func()) {
+func prepareKeyManager(t *testing.T, key crypto.PrivateKey) keymanager.KeyManager {
 	var km keymanager.KeyManager
-	kmDone := spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
-
-	ok := false
-	defer func() {
-		if !ok {
-			kmDone()
-		}
-	}()
-
+	spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
 	if key != nil {
 		storePrivateKey(t, km, key)
 	}
-
-	ok = true
-	return km, kmDone
+	return km
 }
 
 func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {
@@ -431,7 +624,7 @@ func makeTrustBundle(bootstrapCert *x509.Certificate) []*x509.Certificate {
 	return trustBundle
 }
 
-func TestIsSVIDValid(t *testing.T) {
+func TestIsSVIDExpired(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
@@ -465,7 +658,7 @@ func TestIsSVIDValid(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.Desc, func(t *testing.T) {
-			isExpired := isSVIDExpired(tt.SVID, func() time.Time { return now })
+			isExpired := attestor.IsSVIDExpired(tt.SVID, func() time.Time { return now })
 			require.Equal(t, tt.ExpectExpired, isExpired)
 		})
 	}

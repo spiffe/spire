@@ -16,6 +16,7 @@ import (
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
@@ -51,28 +52,26 @@ type Config struct {
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
-	// EnableExperimentalAPI enables the experimental API
-	EnableExperimentalAPI bool
-
 	// CA Manager
 	Manager *ca.Manager
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// RateLimit holds rate limiting configurations.
+	RateLimit *RateLimitConfig
 }
 
-func (c *Config) makeRegistrationHandler() *registration.Handler {
-	return &registration.Handler{
+func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
+	registrationHandler := &registration.Handler{
 		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
 		Metrics:     c.Metrics,
 		Catalog:     c.Catalog,
 		TrustDomain: *c.TrustDomain.ID().URL(),
 		ServerCA:    c.ServerCA,
 	}
-}
 
-func (c *Config) makeNodeHandler() (*node.Handler, error) {
-	return node.NewHandler(node.HandlerConfig{
+	nodeHandler, err := node.NewHandler(node.HandlerConfig{
 		Log:                         c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
 		Metrics:                     c.Metrics,
 		Catalog:                     c.Catalog,
@@ -80,10 +79,19 @@ func (c *Config) makeNodeHandler() (*node.Handler, error) {
 		ServerCA:                    c.ServerCA,
 		Manager:                     c.Manager,
 		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
+		AttestLimit:                 c.RateLimit.Attestation,
 	})
+	if err != nil {
+		return OldAPIServers{}, err
+	}
+
+	return OldAPIServers{
+		RegistrationServer: registrationHandler,
+		NodeServer:         nodeHandler,
+	}, nil
 }
 
-func (c *Config) maybeMakeBundleServer() Server {
+func (c *Config) maybeMakeBundleEndpointServer() Server {
 	if c.BundleEndpoint.Address == nil {
 		return nil
 	}
@@ -104,7 +112,7 @@ func (c *Config) maybeMakeBundleServer() Server {
 		Log:     c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
 		Address: c.BundleEndpoint.Address.String(),
 		Getter: bundle.GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
-			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+			resp, err := ds.FetchBundle(dscache.WithCache(ctx), &datastore.FetchBundleRequest{
 				TrustDomainId: c.TrustDomain.IDString(),
 			})
 			if err != nil {
@@ -119,16 +127,15 @@ func (c *Config) maybeMakeBundleServer() Server {
 	})
 }
 
-func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
-	if !c.EnableExperimentalAPI {
-		return nil
-	}
-
+func (c *Config) makeAPIServers() (APIServers, error) {
 	ds := c.Catalog.GetDataStore()
-	authorizedEntryFetcher := AuthorizedEntryFetcher(ds)
+	authorizedEntryFetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
+	if err != nil {
+		return APIServers{}, err
+	}
 	upstreamPublisher := UpstreamPublisher(c.Manager)
 
-	return &ExperimentalServers{
+	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
 			DataStore:   ds,
 			ServerCA:    c.ServerCA,
@@ -142,14 +149,15 @@ func (c *Config) maybeMakeExperimentalServers() *ExperimentalServers {
 			UpstreamPublisher: upstreamPublisher,
 		}),
 		EntryServer: entryv1.New(entryv1.Config{
+			TrustDomain:  c.TrustDomain,
 			DataStore:    ds,
-			EntryFetcher: authorizedEntryFetcher,
+			EntryFetcher: authorizedEntryFetcherWithCache,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,
-			EntryFetcher: authorizedEntryFetcher,
+			EntryFetcher: authorizedEntryFetcherWithCache,
 			ServerCA:     c.ServerCA,
 			DataStore:    ds,
 		}),
-	}
+	}, nil
 }

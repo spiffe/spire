@@ -6,7 +6,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/spiffe/spire)](https://goreportcard.com/report/github.com/spiffe/spire)
 [![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
 
-SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a toolchain of APIs for establishing trust between software systems across a wide variety of hosting platforms. SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/master/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them.  This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token. SPIRE can also enable workloads to securely authenticate to a secret store, a database, or a cloud provider service.
+SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a toolchain of APIs for establishing trust between software systems across a wide variety of hosting platforms. SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/master/v2/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them.  This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token. SPIRE can also enable workloads to securely authenticate to a secret store, a database, or a cloud provider service.
 
 
 - [Get SPIRE](#get-spire)
@@ -18,7 +18,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 
 
 
-SPIRE was adopted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF) as a [sandbox-level project in 2018](https://www.cncf.io/blog/2018/03/29/cncf-to-host-the-spiffe-project/). If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF.
+SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF)  [as an incubation-level project](https://www.cncf.io/blog/2020/06/22/toc-approves-spiffe-and-spire-to-incubation/). If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF.
 
 ## Get SPIRE
 
@@ -29,7 +29,7 @@ SPIRE was adopted by the [Cloud Native Computing Foundation](https://cncf.io) (C
 
 - Before trying SPIRE, it's a good idea to learn about its [architecture](https://spiffe.io/spire/) and design goals.
 - Once ready to get started, see the [Quickstart Guides](https://spiffe.io/spire/try/) for Kubernetes, Linux, and MacOS.
-- There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) repository.
+- There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) and [spire-tutorials](https://github.com/spiffe/spire-tutorials) repositories.
 - Check [ADOPTERS.md](./ADOPTERS.md) for a list of production SPIRE adopters, a view of the ecosystem, and use cases.
 - See the [SPIRE Roadmap](https://github.com/spiffe/spire/wiki/Roadmap) for a list of planned features and enhancements.
 - [Join](https://slack.spiffe.io/) the SPIFFE community on Slack. If you have any questions about how SPIRE works, or how to get it up and running, the best places to ask questions are the [SPIFFE Slack channels](https://spiffe.slack.com).

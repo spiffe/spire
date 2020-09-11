@@ -21,6 +21,10 @@ const (
 	serverID
 )
 
+const (
+	ServerIDPath = "/spire/server"
+)
+
 // ValidateSpiffeID validates the SPIFFE ID according to the SPIFFE
 // specification. The validation mode controls the type of validation.
 func ValidateSpiffeID(spiffeID string, mode ValidationMode) error {
@@ -109,7 +113,7 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 		if id.Path == "" {
 			return validationError("path is empty")
 		}
-		if isReservedPath(id.Path) {
+		if IsReservedPath(id.Path) {
 			return validationError(`invalid path: "/spire/*" namespace is reserved`)
 		}
 	case serverID:
@@ -140,7 +144,7 @@ func IsAgentPath(path string) bool {
 	return strings.HasPrefix(path, "/spire/agent/")
 }
 
-func isReservedPath(path string) bool {
+func IsReservedPath(path string) bool {
 	return path == "/spire" || strings.HasPrefix(path, "/spire/")
 }
 
@@ -301,13 +305,15 @@ func normalizeSpiffeIDURL(u *url.URL) *url.URL {
 	return &c
 }
 
-// TrustDomainID creates an trust domain SPIFFE ID given a trust domain.
+// TrustDomainID creates a trust domain SPIFFE ID given a trust domain name. If the passed
+// trust domain already is a trust domain ID, it is returned unchanged.
 func TrustDomainID(trustDomain string) string {
 	return TrustDomainURI(trustDomain).String()
 }
 
-// TrustDomainURI creates an trust domain SPIFFE URI given a trust domain.
+// TrustDomainURI creates a trust domain SPIFFE URI given a trust domain name or trust domain ID.
 func TrustDomainURI(trustDomain string) *url.URL {
+	trustDomain = strings.TrimPrefix(trustDomain, "spiffe://")
 	return &url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
@@ -340,7 +346,7 @@ func ServerURI(trustDomain string) *url.URL {
 	return &url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
-		Path:   path.Join("spire", "server"),
+		Path:   ServerIDPath,
 	}
 }
 
@@ -354,7 +360,7 @@ func ValidateTrustDomainWorkload(id spiffeid.ID, td spiffeid.TrustDomain) error 
 	if id.Path() == "" {
 		return fmt.Errorf("invalid workload SPIFFE ID %q: path is empty", id.String())
 	}
-	if isReservedPath(id.Path()) {
+	if IsReservedPath(id.Path()) {
 		return fmt.Errorf(`%q is not a valid workload SPIFFE ID: invalid path: "/spire/*" namespace is reserved`, id.String())
 	}
 

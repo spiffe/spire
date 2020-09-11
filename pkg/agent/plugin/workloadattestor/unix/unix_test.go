@@ -167,6 +167,29 @@ func (s *Suite) TestAttest() {
 				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
 			},
 		},
+		{
+			name: "pid with supplementary gids",
+			pid:  13,
+			selectors: []string{
+				"uid:1000",
+				"user:u1000",
+				"gid:2000",
+				"group:g2000",
+				"supplementary_gid:2000",
+				"supplementary_group:g2000",
+				"supplementary_gid:2100",
+				"supplementary_group:g2100",
+				"supplementary_gid:2200",
+				"supplementary_group:g2200",
+				"supplementary_gid:2300",
+				"supplementary_group:g2300",
+			},
+		},
+		{
+			name: "fail to get supplementary gids",
+			pid:  14,
+			err:  "unix: supplementary GIDs lookup: some error for PID 14",
+		},
 	}
 
 	// prepare the "exe" for hashing
@@ -233,7 +256,7 @@ func (p fakeProcess) Uids() ([]int32, error) {
 		return nil, fmt.Errorf("unable to get UIDs for PID %d", p.pid)
 	case 3:
 		return []int32{1999}, nil
-	case 4, 5, 6, 7, 9, 10, 11, 12:
+	case 4, 5, 6, 7, 9, 10, 11, 12, 13, 14:
 		return []int32{1000}, nil
 	case 8:
 		return []int32{1000, 1100}, nil
@@ -250,12 +273,23 @@ func (p fakeProcess) Gids() ([]int32, error) {
 		return nil, fmt.Errorf("unable to get GIDs for PID %d", p.pid)
 	case 6:
 		return []int32{2999}, nil
-	case 3, 7, 9, 10, 11, 12:
+	case 3, 7, 9, 10, 11, 12, 13, 14:
 		return []int32{2000}, nil
 	case 8:
 		return []int32{2000, 2100}, nil
 	default:
 		return nil, fmt.Errorf("unhandled gid test case %d", p.pid)
+	}
+}
+
+func (p fakeProcess) Groups() ([]string, error) {
+	switch p.pid {
+	case 13:
+		return []string{"2000", "2100", "2200", "2300"}, nil
+	case 14:
+		return nil, fmt.Errorf("some error for PID %d", p.pid)
+	default:
+		return []string{}, nil
 	}
 }
 
@@ -302,6 +336,10 @@ func fakeLookupGroupByID(gid string) (*user.Group, error) {
 		return &user.Group{Name: "g2000"}, nil
 	case "2100":
 		return &user.Group{Name: "g2100"}, nil
+	case "2200":
+		return &user.Group{Name: "g2200"}, nil
+	case "2300":
+		return &user.Group{Name: "g2300"}, nil
 	default:
 		return nil, fmt.Errorf("no group with GID %s", gid)
 	}

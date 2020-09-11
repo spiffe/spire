@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Test node attestation api
+jointoken=`docker-compose exec -u 1001 -T spire-server /opt/spire/conf/server/node-attestation -testStep jointoken`
+echo "Created Join Token" $jointoken
+
+svid1=`docker-compose exec -u 1001 -T spire-agent /opt/spire/conf/agent/node-attestation -testStep jointokenattest -tokenName $jointoken`
+if [[ $? -ne 0 ]];
+then
+	fail-now "Failed to do initial join token attestation"
+fi
+echo "Received initial SVID:" $svid1
+
+svid2=`docker-compose exec -u 1001 -T spire-agent /opt/spire/conf/agent/node-attestation -testStep renew -certificate "${svid1}"`
+if [[ $? -ne 0 ]];
+then
+	fail-now "Failed to do SVID renewal"
+fi
+echo "Received renewed SVID:" $svid2
+
+docker-compose exec -u 1001 -T spire-server /opt/spire/conf/server/node-attestation -testStep ban -tokenName ${jointoken} 
+if [[ $? -ne 0 ]];
+then
+	fail-now "Failed to do initial join token attestation"
+fi
+echo "Agent banned"
+
+if docker-compose exec -u 1001 -T spire-server /opt/spire/conf/server/node-attestation -testStep renew -certificate "${svid2}" 
+then
+	fail-now "Expected agent to be banned"
+fi

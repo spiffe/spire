@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
 	"github.com/stretchr/testify/suite"
@@ -88,7 +88,6 @@ Workload API returned rpc error: code = Unavailable desc = connection error: des
 
 func (s *HealthCheckSuite) TestSucceedsOnPermissionDenied() {
 	w := s.makeFailedWorkloadAPI(status.Error(codes.PermissionDenied, "permission denied"))
-	defer w.Close()
 	code := s.cmd.Run([]string{"--socketPath", w.Addr().Name})
 	s.Equal(0, code, "exit code")
 	s.Equal("Agent is healthy.\n", s.stdout.String(), "stdout")
@@ -97,7 +96,6 @@ func (s *HealthCheckSuite) TestSucceedsOnPermissionDenied() {
 
 func (s *HealthCheckSuite) TestSucceedsOnUnknown() {
 	w := s.makeFailedWorkloadAPI(status.Error(codes.Unknown, "unknown"))
-	defer w.Close()
 	code := s.cmd.Run([]string{"--socketPath", w.Addr().Name})
 	s.Equal(0, code, "exit code")
 	s.Equal("Agent is healthy.\n", s.stdout.String(), "stdout")
@@ -106,7 +104,6 @@ func (s *HealthCheckSuite) TestSucceedsOnUnknown() {
 
 func (s *HealthCheckSuite) TestSucceedsOnGoodResponse() {
 	w := s.makeGoodWorkloadAPI()
-	defer w.Close()
 	code := s.cmd.Run([]string{"--socketPath", w.Addr().Name})
 	s.Equal(0, code, "exit code")
 	s.Equal("Agent is healthy.\n", s.stdout.String(), "stdout")
@@ -115,7 +112,6 @@ func (s *HealthCheckSuite) TestSucceedsOnGoodResponse() {
 
 func (s *HealthCheckSuite) TestSucceedsOnGoodResponseVerbose() {
 	w := s.makeGoodWorkloadAPI()
-	defer w.Close()
 	code := s.cmd.Run([]string{"--socketPath", w.Addr().Name, "--verbose"})
 	s.Equal(0, code, "exit code")
 	s.Equal(`Contacting Workload API...

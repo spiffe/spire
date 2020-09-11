@@ -661,11 +661,11 @@ var fileDescriptor_084159595519e72a = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // KeyManagerClient is the client API for KeyManager service.
 //
@@ -686,10 +686,10 @@ type KeyManagerClient interface {
 }
 
 type keyManagerClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewKeyManagerClient(cc *grpc.ClientConn) KeyManagerClient {
+func NewKeyManagerClient(cc grpc.ClientConnInterface) KeyManagerClient {
 	return &keyManagerClient{cc}
 }
 

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -21,9 +21,7 @@ func TestWorkloadAPISource(t *testing.T) {
 
 	api := &fakeWorkloadAPIServer{}
 
-	// Create a temporary directory to host the socket
-	socketPath, closeServer := spiretest.StartWorkloadAPIOnTempSocket(t, api)
-	defer closeServer()
+	socketPath := spiretest.StartWorkloadAPIOnTempSocket(t, api)
 
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)

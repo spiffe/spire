@@ -13,8 +13,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/proto/spire-next/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
@@ -86,24 +86,29 @@ func TestAuthorizedEntryFetcher(t *testing.T) {
 	})
 
 	fetcher := AuthorizedEntryFetcher(ds)
+	fetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
+	require.NoError(t, err)
 
-	t.Run("success", func(t *testing.T) {
-		ds.SetNextError(nil)
-		entries, err := fetcher.FetchAuthorizedEntries(context.Background(), agentID)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, []*types.Entry{
-			nodeAliasEntry,
-			workload1Entry,
-			workload2Entry,
-		}, entries)
-	})
+	for _, f := range []api.AuthorizedEntryFetcher{fetcher, fetcherWithCache} {
+		f := f
+		t.Run("success", func(t *testing.T) {
+			ds.SetNextError(nil)
+			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, []*types.Entry{
+				nodeAliasEntry,
+				workload1Entry,
+				workload2Entry,
+			}, entries)
+		})
 
-	t.Run("failure", func(t *testing.T) {
-		ds.SetNextError(errors.New("ohno"))
-		entries, err := fetcher.FetchAuthorizedEntries(context.Background(), agentID)
-		assert.EqualError(t, err, "ohno")
-		assert.Nil(t, entries)
-	})
+		t.Run("failure", func(t *testing.T) {
+			ds.SetNextError(errors.New("ohno"))
+			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
+			assert.EqualError(t, err, "ohno")
+			assert.Nil(t, entries)
+		})
+	}
 }
 
 func TestAgentAuthorizer(t *testing.T) {

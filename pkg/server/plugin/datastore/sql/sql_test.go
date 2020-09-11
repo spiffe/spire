@@ -2665,6 +2665,13 @@ func (s *PluginSuite) TestMigration() {
 	}
 }
 
+func (s *PluginSuite) TestPristineDatabaseMigrationValues() {
+	var m Migration
+	s.Require().NoError(s.sqlPlugin.db.First(&m).Error)
+	s.Equal(latestSchemaVersion, m.Version)
+	s.Equal(codeVersion.String(), m.CodeVersion)
+}
+
 func (s *PluginSuite) TestRace() {
 	next := int64(0)
 	exp := time.Now().Add(time.Hour).Unix()
@@ -2808,8 +2815,7 @@ func (s *PluginSuite) TestConfigure() {
 			p := New()
 
 			var ds datastore.Plugin
-			pluginDone := spiretest.LoadPlugin(t, builtin(p), &ds)
-			defer pluginDone()
+			spiretest.LoadPlugin(t, builtin(p), &ds)
 
 			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")
 

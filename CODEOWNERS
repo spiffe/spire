@@ -1,25 +1,36 @@
 * @evan2645 @amartinezfayo @azdagron @APTy @mcpherrinm
 
+#documentation
+/README.md      @evan2645 @amartinezfayo @azdagron @APTy @marcosy @ajessup
+/doc/           @evan2645 @amartinezfayo @azdagron @APTy @marcosy @ajessup
+
+##########################################
+# Maintainers
+##########################################
+
 # Evan Gilman
 # Hewlett-Packard Enterprise
 # @evan2645
 
 # Agustin Martínez Fayó
 # Hewlett-Packard Enterprise	
-# amartinezfayo
+# @amartinezfayo
 
 # Andrew Harding
 # Hewlett-Packard Enterprise
-# azdagron
+# @azdagron
 
 # Tyler Julian
-# Uber Technologies, Inc
-# APTy
+# fast.co
+# @APTy
 
 # Matthew McPherrin
-# Square, Inc.
-# mcpherrinm
+# @mcpherrinm
 
-# documentation
-/README.md      @evan2645 @amartinezfayo @azdagron @APTy @marcosy @ajessup
-/doc/           @evan2645 @amartinezfayo @azdagron @APTy @marcosy @ajessup
+##########################################
+# Product Manager
+##########################################
+
+# Andres Vega
+# VMware, Inc
+# @anvega

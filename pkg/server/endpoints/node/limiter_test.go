@@ -2,12 +2,12 @@ package node
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,46 +15,53 @@ import (
 )
 
 func TestLimit(t *testing.T) {
-	l, log := newTestLimiter()
+	limits := []int{1, 5, 10}
+	for _, limit := range limits {
+		limit := limit
+		t.Run(fmt.Sprintf("limit = %d", limit), func(t *testing.T) {
+			l, log := newTestLimiter(limit)
 
-	// Messages under limit are processed "immediately" without logging
-	for i := 1; i <= node.AttestLimit; i++ {
-		ctx, cancel := context.WithTimeout(newTestContext(), 50*time.Millisecond)
-		err := l.Limit(ctx, AttestMsg, 1)
-		assert.NoError(t, err)
+			// Messages under limit are processed "immediately" without logging
+			for i := 1; i <= limit; i++ {
+				ctx, cancel := context.WithTimeout(newTestContext(), 50*time.Millisecond)
+				err := l.Limit(ctx, AttestMsg, 1)
+				assert.NoError(t, err)
 
-		if len(log.Entries) > 0 {
-			msg, _ := log.LastEntry().String()
-			t.Errorf("expected no log lines; got %v", msg)
-		}
-		cancel()
+				if len(log.Entries) > 0 {
+					msg, _ := log.LastEntry().String()
+					t.Errorf("expected no log lines; got %q", msg)
+				}
+				cancel()
+			}
+
+			// Messages over the limit must wait
+			// Bucket exhausted by above loop
+			ctx, cancel := context.WithTimeout(newTestContext(), 50*time.Millisecond)
+			err := l.Limit(ctx, AttestMsg, 1)
+			assert.Error(t, err)
+
+			if len(log.Entries) != 1 {
+				t.Errorf("expected 1 log entry; got %d", len(log.Entries))
+			}
+			cancel()
+
+			// Can't exceed burst size
+			count := limit + 1
+			err = l.Limit(newTestContext(), AttestMsg, count)
+			assert.Error(t, err)
+		})
 	}
-
-	// Messages over the limit must wait
-	// Bucket exhausted by above loop
-	ctx, cancel := context.WithTimeout(newTestContext(), 50*time.Millisecond)
-	err := l.Limit(ctx, AttestMsg, 1)
-	assert.Error(t, err)
-
-	if len(log.Entries) != 1 {
-		t.Errorf("expected 1 log entry; got %v", len(log.Entries))
-	}
-	cancel()
-
-	// Can't exceed burst size
-	count := node.AttestLimit + 1
-	err = l.Limit(newTestContext(), AttestMsg, count)
-	assert.Error(t, err)
 }
 
 func TestLimiterFor(t *testing.T) {
-	l, _ := newTestLimiter()
+	limit := 1
+	l, _ := newTestLimiter(limit)
 
 	// New caller for valid message type gets the right limiter
 	li, err := l.limiterFor(AttestMsg, "evan")
 	require.NoError(t, err)
 	require.NotNil(t, li)
-	assert.Equal(t, node.AttestLimit, li.Burst())
+	assert.Equal(t, limit, li.Burst())
 	assert.Equal(t, l.attestRate, li.Limit())
 
 	// Gets the same limiter when asked for it
@@ -69,7 +76,7 @@ func TestLimiterFor(t *testing.T) {
 }
 
 func TestCallerID(t *testing.T) {
-	l, _ := newTestLimiter()
+	l, _ := newTestLimiter(1)
 	p := newTestPeer()
 
 	id, err := l.callerID(peer.NewContext(context.Background(), p))
@@ -91,7 +98,7 @@ func TestCallerID(t *testing.T) {
 }
 
 func TestNotify(t *testing.T) {
-	l, log := newTestLimiter()
+	l, log := newTestLimiter(1)
 
 	// First time caller gets logged
 	l.notify("evan", AttestMsg)
@@ -113,7 +120,7 @@ func newTestPeer() *peer.Peer {
 	}
 }
 
-func newTestLimiter() (*limiter, *test.Hook) {
+func newTestLimiter(limit int) (*limiter, *test.Hook) {
 	log, hook := test.NewNullLogger()
-	return newLimiter(log), hook
+	return newLimiter(log, limit), hook
 }

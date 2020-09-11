@@ -135,6 +135,29 @@ Considering the above, optimism and friendliness should be liberally applied to 
 
 This is a very important aspect of SPIRE maintainership. Adoption and contribution decisions are often made on the basis of the attitude (and timeliness) of maintainer responses. This applies not just to GitHub PRs and Issues, but also to the Slack channel and community events. Discouraging or disparaging speech in any arena, like that described in the [code of conduct][6], is unacceptable whether it be intentional or unintentional.
 
+## Product Management and Roadmap Curation
+
+In addition to the maintainer seats, the SPIRE project designates one product manager seat. While maintainers strive to ensure that project development and direction is a function of community needs, and interact with end users and contributors on a daily basis, the product manager works to clarify user needs by gathering additional information and context. This includes, but is not limited to, conducting user research and field testing to better inform maintainers, and communicating project development information to the community.
+
+Maintainers are expected to have heavy participation in the community, but it may be impractical to dedicate themselves to gathering and analyzing community feedback and end-user pain points. Based on data collection, the role of the product manager is intended to aid maintainers to validate the desirability, feasibility, and viability of efforts to help drive project direction and priorities in long term planning. 
+
+The role has three primary areas of focus: roadmap management and curation (to ensure the project direction is representative of the community's needs), program management (to help the project deliver on its strategy and meet its intended outcomes), and project management (to align day-to-day activities to meet the SPIRE project requirements).
+
+The product manager must:
+
+* Work with the maintainers to continually ensure a high-quality release of the projects including owning project management, issue triage and identifying all features in the current release cycle
+* Regularly attend maintainer sync calls
+* Participate actively in Request for Comments and feature proposal processes 
+* Track feature development and ongoing community undertakings
+* Coordinate changes that result from new work across the larger project and provide clarity on the acceptance, prioritization and timeline for all workstreams and efforts
+* Communicate major decisions involving release planning to the developer and end user communities through the project media, communication channels, and community events
+* Manage the relationship between SPIFFE/SPIRE and the CNCF
+* Support the marketing and promotion of the SPIFFE and SPIRE project through the CNCF with the objective to foster a more secure cloud native ecosystem
+* Coordinate and facilitate discussions on policy review and changes with the TSC
+* Onboard contributors and welcoming them into the community
+
+The product manager makes the same pledge as maintainers do to act in the best interest at all times and its seat follows the same change guidelines as maintainer seats as described in the governance document. Unseating a product manager against their will requires a unanimous vote by the maintainers.
+
 
 [1]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md
 [2]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md#maintainers

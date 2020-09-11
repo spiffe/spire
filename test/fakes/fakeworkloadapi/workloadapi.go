@@ -3,16 +3,13 @@ package fakeworkloadapi
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"net"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -52,9 +49,7 @@ func FetchX509SVIDResponses(responses ...*workload.X509SVIDResponse) Result {
 }
 
 type WorkloadAPI struct {
-	dir    string
-	addr   *net.UnixAddr
-	server *grpc.Server
+	addr *net.UnixAddr
 
 	mu                   sync.Mutex
 	fetchX509SVIDResults []fetchX509SVIDResult
@@ -72,36 +67,12 @@ func New(t *testing.T, results ...Result) *WorkloadAPI {
 		}
 	}
 
-	var err error
-	w.dir, err = ioutil.TempDir("", "api-workload-tests")
-	if err != nil {
-		w.Close()
-		require.NoError(t, err)
-	}
 	w.addr = &net.UnixAddr{
 		Net:  "unix",
-		Name: filepath.Join(w.dir, "agent.sock"),
+		Name: spiretest.StartWorkloadAPIOnTempSocket(t, w),
 	}
 
-	listener, err := net.Listen("unix", w.addr.Name)
-	if err != nil {
-		w.Close()
-		require.NoError(t, err)
-	}
-
-	w.server = grpc.NewServer()
-	workload.RegisterSpiffeWorkloadAPIServer(w.server, w)
-	go func() { _ = w.server.Serve(listener) }()
 	return w
-}
-
-func (w *WorkloadAPI) Close() {
-	if w.server != nil {
-		w.server.Stop()
-	}
-	if w.dir != "" {
-		os.RemoveAll(w.dir)
-	}
 }
 
 func (w *WorkloadAPI) Addr() *net.UnixAddr {

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -77,9 +76,7 @@ func TestMintHelp(t *testing.T) {
 }
 
 func TestMintRun(t *testing.T) {
-	dir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := spiretest.TempDir(t)
 
 	svidPath := filepath.Join(dir, "svid.pem")
 	keyPath := filepath.Join(dir, "key.pem")
@@ -100,11 +97,9 @@ func TestMintRun(t *testing.T) {
 
 	api := new(FakeRegistrationAPI)
 
-	defaultServerDone := spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, util.DefaultSocketPath), api)
-	defer defaultServerDone()
+	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, util.DefaultSocketPath), api)
 
-	otherServerDone := spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, "other.sock"), api)
-	defer otherServerDone()
+	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, "other.sock"), api)
 
 	testCases := []struct {
 		name string

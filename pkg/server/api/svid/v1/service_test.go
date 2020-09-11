@@ -21,9 +21,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	svidpb "github.com/spiffe/spire/proto/spire-next/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
@@ -120,8 +120,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 		{
 			name: "no CSR",
 			code: codes.InvalidArgument,
-			err:  "request missing CSR",
-			msg:  "Request missing CSR",
+			err:  "missing CSR",
+			msg:  "Invalid argument: missing CSR",
 		},
 		{
 			name: "malformed CSR",
@@ -130,7 +130,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return []byte{1, 2, 3}
 			},
 			err: "malformed CSR: asn1:",
-			msg: "Malformed CSR",
+			msg: "Invalid argument: malformed CSR",
 		},
 		{
 			name: "invalid signature",
@@ -144,8 +144,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				return csr
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: signature verify failed",
-			msg:  "Invalid CSR: signature verify failed",
+			err:  "failed to verify CSR signature",
+			msg:  "Invalid argument: failed to verify CSR signature",
 		},
 		{
 			name: "no URIs",
@@ -153,8 +153,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: URI SAN is required",
-			msg:  "Invalid CSR: URI SAN is required",
+			err:  "CSR URI SAN is required",
+			msg:  "Invalid argument: CSR URI SAN is required",
 		},
 		{
 			name: "multiple URIs",
@@ -165,8 +165,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: only one URI SAN is expected",
-			msg:  "Invalid CSR: only one URI SAN is expected",
+			err:  "only one URI SAN is expected",
+			msg:  "Invalid argument: only one URI SAN is expected",
 		},
 		{
 			name: "invalid SPIFFE ID",
@@ -176,8 +176,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: URI SAN is not a valid SPIFFE ID: spiffeid: invalid scheme",
-			msg:  "Invalid CSR: URI SAN is not a valid SPIFFE ID",
+			err:  "CSR URI SAN is not a valid SPIFFE ID: spiffeid: invalid scheme",
+			msg:  "Invalid argument: CSR URI SAN is not a valid SPIFFE ID",
 		},
 		{
 			name: "different trust domain",
@@ -187,8 +187,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  `invalid SPIFFE ID in CSR: "spiffe://another.org/workload1" does not belong to trust domain "example.org"`,
-			msg:  `Invalid SPIFFE ID in CSR: "spiffe://another.org/workload1" does not belong to trust domain "example.org"`,
+			err:  `CSR URI SAN is invalid: "spiffe://another.org/workload1" is not a member of trust domain "example.org"`,
+			msg:  `Invalid argument: CSR URI SAN is invalid`,
 		},
 		{
 			name: "SPIFFE ID is not for a workload in the trust domain",
@@ -198,8 +198,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  `invalid SPIFFE ID in CSR: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
-			msg:  `Invalid SPIFFE ID in CSR: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
+			err:  `CSR URI SAN is invalid: "spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
+			msg:  `Invalid argument: CSR URI SAN is invalid`,
 		},
 		{
 			name: "invalid DNS",
@@ -208,8 +208,8 @@ func TestServiceMintX509SVID(t *testing.T) {
 				DNSNames: []string{"abc-"},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid CSR: DNS name is not valid: label does not match regex: abc-",
-			msg:  "Invalid CSR: DNS name is not valid",
+			err:  "CSR DNS name is not valid: label does not match regex: abc-",
+			msg:  "Invalid argument: CSR DNS name is not valid",
 		},
 		{
 			name: "signing fails",
@@ -259,7 +259,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			require.NotEmpty(t, certChain)
 			svid := certChain[0]
 
-			id, err := api.IDFromProto(resp.Svid.Id)
+			id, err := api.TrustDomainWorkloadIDFromProto(td, resp.Svid.Id)
 			require.NoError(t, err)
 
 			require.Equal(t, workloadID, id)
@@ -316,29 +316,30 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.ID{},
-			err:      "spiffeid: trust domain is empty",
-			logMsg:   "Failed to parse SPIFFE ID",
+			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
 			name:     "invalid trust domain",
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.Must("invalid.test", "workload1"),
-			err:      `invalid SPIFFE ID: "spiffe://invalid.test/workload1" does not belong to trust domain "example.org"`,
-			logMsg:   `Invalid SPIFFE ID: "spiffe://invalid.test/workload1" does not belong to trust domain "example.org"`,
+			err:      `invalid SPIFFE ID: "spiffe://invalid.test/workload1" is not a member of trust domain "example.org"`,
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
 			name:     "SPIFFE ID is not for a workload in the trust domain",
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.Must("example.org"),
-			err:      `invalid SPIFFE ID: invalid workload SPIFFE ID "spiffe://example.org": path is empty`,
-			logMsg:   `Invalid SPIFFE ID: invalid workload SPIFFE ID "spiffe://example.org": path is empty`},
+			err:      `invalid SPIFFE ID: "spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
+		},
 		{
 			name:      "no audience",
 			code:      codes.InvalidArgument,
 			err:       "at least one audience is required",
-			logMsg:    "At least one audience is required",
+			logMsg:    "Invalid argument: at least one audience is required",
 			expiresAt: expiresAt,
 			id:        workloadID,
 		},
@@ -441,14 +442,14 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			entry:    invalidEntry,
-			err:      "spiffeid: trust domain is empty",
-			logMsg:   "Failed to parse SPIFFE ID",
+			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
 			name:   "no audience",
 			code:   codes.InvalidArgument,
 			err:    "at least one audience is required",
-			logMsg: "At least one audience is required",
+			logMsg: "Invalid argument: at least one audience is required",
 			entry:  entry,
 		},
 		{
@@ -475,7 +476,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			audience: []string{"AUDIENCE"},
 			entry:    &types.Entry{Id: "non-existent-entry"},
 			err:      "entry not found or not authorized",
-			logMsg:   "Invalid request: entry not found",
+			logMsg:   "Entry not found or not authorized",
 		},
 		{
 			name:        "fails minting",
@@ -635,11 +636,11 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			name: "no parameters",
 			reqs: []string{},
 			code: codes.InvalidArgument,
-			err:  "request missing parameters",
+			err:  "missing parameters",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Request missing parameters",
+					Message: "Invalid argument: missing parameters",
 				},
 			},
 		}, {
@@ -686,7 +687,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: missing entry ID",
+					Message: "Invalid argument: missing entry ID",
 				},
 			},
 		}, {
@@ -703,7 +704,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: missing CSR",
+					Message: "Invalid argument: missing CSR",
 				},
 			},
 			mutateCSR: func([]byte) []byte {
@@ -723,7 +724,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: entry not found or not authorized",
+					Message: "Entry not found or not authorized",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: "invalid entry",
 					},
@@ -743,7 +744,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed CSR",
+					Message: "Invalid argument: malformed CSR",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: "workload",
 						logrus.ErrorKey:          invalidCsrErr.Error(),
@@ -767,7 +768,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid CSR signature",
+					Message: "Invalid argument: invalid CSR signature",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: "workload",
 						logrus.ErrorKey:          "x509: ECDSA verification failure",
@@ -875,7 +876,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				expect := tt.expectResults[i]
 
 				if expect.status != nil {
-					require.Nil(t, result.Bundle)
+					require.Nil(t, result.Svid)
 					require.Equal(t, expect.status.Code, result.Status.Code)
 					require.Contains(t, result.Status.Message, expect.status.Message)
 
@@ -886,14 +887,14 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				}
 				spiretest.AssertProtoEqual(t, &types.Status{Code: int32(codes.OK), Message: "OK"}, result.Status)
 
-				require.NotNil(t, result.Bundle)
+				require.NotNil(t, result.Svid)
 
 				entry := expect.entry
 
-				require.Equal(t, entry.SpiffeId.TrustDomain, result.Bundle.Id.TrustDomain)
-				require.Equal(t, entry.SpiffeId.Path, result.Bundle.Id.Path)
+				require.Equal(t, entry.SpiffeId.TrustDomain, result.Svid.Id.TrustDomain)
+				require.Equal(t, entry.SpiffeId.Path, result.Svid.Id.Path)
 
-				certChain, err := x509util.RawCertsToCertificates(result.Bundle.CertChain)
+				certChain, err := x509util.RawCertsToCertificates(result.Svid.CertChain)
 				require.NoError(t, err)
 				require.NotEmpty(t, certChain)
 				svid := certChain[0]
@@ -909,7 +910,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				expiresAt := now.Add(ttl)
 
 				require.Equal(t, expiresAt, svid.NotAfter)
-				require.Equal(t, expiresAt.UTC().Unix(), result.Bundle.ExpiresAt)
+				require.Equal(t, expiresAt.UTC().Unix(), result.Svid.ExpiresAt)
 
 				require.Equal(t, entry.DnsNames, svid.DNSNames)
 
@@ -990,7 +991,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			err:            "bundle not found",
 			failSigning:    false,
 			csrTemplate:    &x509.CertificateRequest{},
-			code:           codes.Internal,
+			code:           codes.NotFound,
 			fetcherErr:     "",
 			entry:          downstreamEntry1,
 			failDataStore:  true,
@@ -1159,7 +1160,7 @@ func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID,
 	err = token.UnsafeClaimsWithoutVerification(&claims)
 	require.NoError(t, err)
 
-	jwtsvidID, err := api.IDFromProto(jwtsvid.Id)
+	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(td, jwtsvid.Id)
 	require.NoError(t, err)
 	require.Equal(t, id, jwtsvidID)
 	require.Equal(t, id.String(), claims.Subject)

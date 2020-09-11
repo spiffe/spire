@@ -2,17 +2,18 @@ package entry
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/proto/spire-next/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,6 +26,7 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
+	TrustDomain  spiffeid.TrustDomain
 	EntryFetcher api.AuthorizedEntryFetcher
 	DataStore    datastore.DataStore
 }
@@ -32,6 +34,7 @@ type Config struct {
 // New creates a new entry service
 func New(config Config) *Service {
 	return &Service{
+		td: config.TrustDomain,
 		ds: config.DataStore,
 		ef: config.EntryFetcher,
 	}
@@ -39,6 +42,7 @@ func New(config Config) *Service {
 
 // Service implements the v1 entry service
 type Service struct {
+	td spiffeid.TrustDomain
 	ds datastore.DataStore
 	ef api.AuthorizedEntryFetcher
 }
@@ -46,16 +50,54 @@ type Service struct {
 func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
 	log := rpccontext.Logger(ctx)
 
-	listReq, err := buildListEntriesRequest(req)
-	if err != nil {
-		log.WithError(err).Error("Invalid request")
-		return nil, status.Errorf(codes.InvalidArgument, "invalid request: %v", err)
+	listReq := &datastore.ListRegistrationEntriesRequest{}
+
+	if req.PageSize > 0 {
+		listReq.Pagination = &datastore.Pagination{
+			PageSize: req.PageSize,
+			Token:    req.PageToken,
+		}
+	}
+
+	if req.Filter != nil {
+		if req.Filter.ByParentId != nil {
+			parentID, err := api.TrustDomainMemberIDFromProto(s.td, req.Filter.ByParentId)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
+			}
+			listReq.ByParentId = &wrappers.StringValue{
+				Value: parentID.String(),
+			}
+		}
+
+		if req.Filter.BySpiffeId != nil {
+			spiffeID, err := api.TrustDomainWorkloadIDFromProto(s.td, req.Filter.BySpiffeId)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
+			}
+			listReq.BySpiffeId = &wrappers.StringValue{
+				Value: spiffeID.String(),
+			}
+		}
+
+		if req.Filter.BySelectors != nil {
+			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", err)
+			}
+			if len(dsSelectors) == 0 {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
+			}
+			listReq.BySelectors = &datastore.BySelectors{
+				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
+				Selectors: dsSelectors,
+			}
+		}
 	}
 
 	dsResp, err := s.ds.ListRegistrationEntries(ctx, listReq)
 	if err != nil {
-		log.WithError(err).Error("Failed to list entries")
-		return nil, status.Errorf(codes.Internal, "failed to list entries: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to list entries", err)
 	}
 
 	resp := &entry.ListEntriesResponse{}
@@ -80,27 +122,23 @@ func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*ty
 	log := rpccontext.Logger(ctx)
 
 	if req.Id == "" {
-		log.Error("Invalid request: missing ID")
-		return nil, status.Error(codes.InvalidArgument, "missing ID")
+		return nil, api.MakeErr(log, codes.InvalidArgument, "missing ID", nil)
 	}
 	log = log.WithField(telemetry.RegistrationID, req.Id)
 	dsResp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
 		EntryId: req.Id,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch entry")
-		return nil, status.Errorf(codes.Internal, "failed to fetch entry: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch entry", err)
 	}
 
 	if dsResp.Entry == nil {
-		log.Error("Entry not found")
-		return nil, status.Error(codes.NotFound, "entry not found")
+		return nil, api.MakeErr(log, codes.NotFound, "entry not found", nil)
 	}
 
 	entry, err := api.RegistrationEntryToProto(dsResp.Entry)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert entry")
-		return nil, status.Errorf(codes.Internal, "failed to convert entry: %v", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to convert entry", err)
 	}
 	applyMask(entry, req.OutputMask)
 
@@ -121,18 +159,17 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entry.BatchCreateEn
 func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *types.EntryMask) *entry.BatchCreateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
 
-	cEntry, err := api.ProtoToRegistrationEntry(e)
+	cEntry, err := api.ProtoToRegistrationEntry(s.td, e)
 	if err != nil {
-		log.WithError(err).Error("Invalid request: failed to convert entry")
 		return &entry.BatchCreateEntryResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert entry: %v", err),
+			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
 		}
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
 
 	// Validates that there is no similar entry
-	if isUniqueStatus := s.isEntryUnique(ctx, cEntry); isUniqueStatus != nil {
+	if isUniqueStatus := s.isEntryUnique(ctx, cEntry, log); isUniqueStatus != nil {
 		return &entry.BatchCreateEntryResponse_Result{
 			Status: isUniqueStatus,
 		}
@@ -143,17 +180,15 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 		Entry: cEntry,
 	})
 	if err != nil {
-		log.WithError(err).Error("Failed to create entry")
 		return &entry.BatchCreateEntryResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "failed to create entry: %v", err),
+			Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
 		}
 	}
 
 	tEntry, err := api.RegistrationEntryToProto(resp.Entry)
 	if err != nil {
-		log.WithError(err).Error("Unable to convert registration entry")
 		return &entry.BatchCreateEntryResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "unable to convert registration entry: %v", err),
+			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry", err),
 		}
 	}
 
@@ -193,10 +228,9 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDelete
 	log := rpccontext.Logger(ctx)
 
 	if id == "" {
-		log.Error("Invalid request: missing entry ID")
 		return &entry.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.CreateStatus(codes.InvalidArgument, "missing entry ID"),
+			Status: api.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
 		}
 	}
 
@@ -214,13 +248,12 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDelete
 	case codes.NotFound:
 		return &entry.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.CreateStatus(codes.NotFound, "entry not found"),
+			Status: api.MakeStatus(log, codes.NotFound, "entry not found", nil),
 		}
 	default:
-		log.WithError(err).Error("Failed to delete entry")
 		return &entry.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.CreateStatus(codes.Internal, "failed to delete entry: %v", err),
+			Status: api.MakeStatus(log, codes.Internal, "failed to delete entry", err),
 		}
 	}
 }
@@ -248,14 +281,12 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthor
 func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]*types.Entry, error) {
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		log.Error("Caller ID missing from request context")
-		return nil, status.Error(codes.Internal, "caller ID missing from request context")
+		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
 	entries, err := s.ef.FetchAuthorizedEntries(ctx, callerID)
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch registration entries")
-		return nil, status.Error(codes.Internal, "failed to fetch registration entries")
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch entries", err)
 	}
 
 	return entries, nil
@@ -307,52 +338,7 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	}
 }
 
-func buildListEntriesRequest(req *entry.ListEntriesRequest) (*datastore.ListRegistrationEntriesRequest, error) {
-	listReq := &datastore.ListRegistrationEntriesRequest{}
-
-	if req.PageSize > 0 {
-		listReq.Pagination = &datastore.Pagination{
-			PageSize: req.PageSize,
-			Token:    req.PageToken,
-		}
-	}
-
-	if req.Filter != nil {
-		if req.Filter.ByParentId != nil {
-			var err error
-			listReq.ByParentId, err = api.StringValueFromSPIFFEID(req.Filter.ByParentId)
-			if err != nil {
-				return nil, fmt.Errorf("malformed ByParentId: %v", err)
-			}
-		}
-
-		if req.Filter.BySpiffeId != nil {
-			var err error
-			listReq.BySpiffeId, err = api.StringValueFromSPIFFEID(req.Filter.BySpiffeId)
-			if err != nil {
-				return nil, fmt.Errorf("malformed BySpiffeId: %v", err)
-			}
-		}
-
-		if req.Filter.BySelectors != nil {
-			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
-			if err != nil {
-				return nil, fmt.Errorf("malformed BySelectors: %v", err)
-			}
-			if len(dsSelectors) == 0 {
-				return nil, fmt.Errorf("malformed BySelectors: empty selector set")
-			}
-			listReq.BySelectors = &datastore.BySelectors{
-				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
-				Selectors: dsSelectors,
-			}
-		}
-	}
-
-	return listReq, nil
-}
-
-func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry) *types.Status {
+func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry, log logrus.FieldLogger) *types.Status {
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
 			Value: e.SpiffeId,
@@ -366,10 +352,10 @@ func (s *Service) isEntryUnique(ctx context.Context, e *common.RegistrationEntry
 		},
 	})
 	if err != nil {
-		return api.CreateStatus(codes.Internal, "failed to list entries: %v", err)
+		return api.MakeStatus(log, codes.Internal, "failed to list entries", err)
 	}
 	if len(resp.Entries) != 0 {
-		return api.CreateStatus(codes.AlreadyExists, "entry already exists")
+		return api.MakeStatus(log, codes.AlreadyExists, "entry already exists", nil)
 	}
 
 	return nil
@@ -379,11 +365,10 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	log := rpccontext.Logger(ctx)
 	log = log.WithField(telemetry.RegistrationID, e.Id)
 
-	convEntry, err := api.ProtoToRegistrationEntryWithMask(e, inputMask)
+	convEntry, err := api.ProtoToRegistrationEntryWithMask(s.td, e, inputMask)
 	if err != nil {
-		log.WithError(err).Error("Failed to convert entry")
 		return &entry.BatchUpdateEntryResponse_Result{
-			Status: api.CreateStatus(codes.InvalidArgument, "failed to convert entry: %v", err),
+			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
 		}
 	}
 
@@ -407,17 +392,15 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	}
 
 	if err != nil {
-		log.WithError(err).Error("failed to update entry")
 		return &entry.BatchUpdateEntryResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "failed to update entry: %v", err),
+			Status: api.MakeStatus(log, codes.Internal, "failed to update entry", err),
 		}
 	}
 
 	tEntry, err := api.RegistrationEntryToProto(resp.Entry)
 	if err != nil {
-		log.WithError(err).Error("unable to convert registration entry to proto")
 		return &entry.BatchUpdateEntryResponse_Result{
-			Status: api.CreateStatus(codes.Internal, "unable to convert registration entry in updateEntry: %v", err),
+			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry in updateEntry", err),
 		}
 	}
 

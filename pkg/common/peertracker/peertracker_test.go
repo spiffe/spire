@@ -2,7 +2,6 @@ package peertracker
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -12,6 +11,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -23,18 +23,14 @@ type PeerTrackerTestSuite struct {
 	suite.Suite
 
 	childPath string
-	tempDir   string
 	ul        *Listener
 	unixAddr  *net.UnixAddr
 }
 
 func (p *PeerTrackerTestSuite) SetupTest() {
-	var err error
+	tempDir := spiretest.TempDir(p.T())
 
-	p.tempDir, err = ioutil.TempDir("", "spire-peertracker-test")
-	p.NoError(err)
-
-	p.childPath = path.Join(p.tempDir, "child")
+	p.childPath = path.Join(tempDir, "child")
 	buildOutput, err := exec.Command("go", "build", "-o", p.childPath, "peertracker_test_child.go").CombinedOutput() //nolint: gosec // false positive
 	if err != nil {
 		p.T().Logf("build output:\n%v\n", string(buildOutput))
@@ -43,7 +39,7 @@ func (p *PeerTrackerTestSuite) SetupTest() {
 
 	p.unixAddr = &net.UnixAddr{
 		Net:  "unix",
-		Name: path.Join(p.tempDir, "test.sock"),
+		Name: path.Join(tempDir, "test.sock"),
 	}
 
 	p.ul, err = (&ListenerFactory{}).ListenUnix(p.unixAddr.Network(), p.unixAddr)
@@ -58,9 +54,6 @@ func (p *PeerTrackerTestSuite) TearDownTest() {
 	}
 
 	err := os.Remove(p.childPath)
-	p.NoError(err)
-
-	err = os.Remove(p.tempDir)
 	p.NoError(err)
 }
 

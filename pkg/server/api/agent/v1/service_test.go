@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"testing"
 	"time"
@@ -25,9 +24,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	agentpb "github.com/spiffe/spire/proto/spire-next/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire-next/types"
+	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
@@ -350,7 +349,7 @@ func TestListAgents(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to parse selectors",
+					Message: "Invalid argument: failed to parse selectors",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing selector type",
 					},
@@ -426,11 +425,11 @@ func TestBanAgent(t *testing.T) {
 		{
 			name:        "Ban agent fails if ID is nil",
 			reqID:       nil,
-			expectedErr: status.Error(codes.InvalidArgument, "invalid SPIFFE ID: request must specify SPIFFE ID"),
+			expectedErr: status.Error(codes.InvalidArgument, "invalid agent ID: request must specify SPIFFE ID"),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid SPIFFE ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "request must specify SPIFFE ID",
 					},
@@ -443,11 +442,11 @@ func TestBanAgent(t *testing.T) {
 				Path:        agentPath,
 				TrustDomain: "ex ample.org",
 			},
-			expectedErr: status.Error(codes.InvalidArgument, `invalid SPIFFE ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`),
+			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid SPIFFE ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
 					},
@@ -459,13 +458,13 @@ func TestBanAgent(t *testing.T) {
 			reqID: &types.SPIFFEID{
 				TrustDomain: agentTrustDomain,
 			},
-			expectedErr: status.Error(codes.InvalidArgument, "not an agent ID"),
+			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: "spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: not an agent ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: spiffeid.RequireTrustDomainFromString(agentTrustDomain).IDString(),
+						logrus.ErrorKey: `"spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`,
 					},
 				},
 			},
@@ -476,13 +475,13 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: agentTrustDomain,
 				Path:        "agent-1",
 			},
-			expectedErr: status.Error(codes.InvalidArgument, "not an agent ID"),
+			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: "spiffe://example.org/agent-1" is not an agent in trust domain "example.org"; path is not in the agent namespace`),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: not an agent ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "agent-1").String(),
+						logrus.ErrorKey: `"spiffe://example.org/agent-1" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
 					},
 				},
 			},
@@ -493,13 +492,13 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: "another-example.org",
 				Path:        agentPath,
 			},
-			expectedErr: status.Error(codes.InvalidArgument, "cannot ban an agent that does not belong to this trust domain"),
+			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: "spiffe://another-example.org/spire/agent/agent-1" is not a member of trust domain "example.org"`),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: cannot ban an agent that does not belong to this trust domain",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: spiffeid.Must("another-example.org", agentPath).String(),
+						logrus.ErrorKey: `"spiffe://another-example.org/spire/agent/agent-1" is not a member of trust domain "example.org"`,
 					},
 				},
 			},
@@ -510,13 +509,12 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: agentTrustDomain,
 				Path:        "/spire/agent/agent-2",
 			},
-			expectedErr: status.Error(codes.NotFound, "agent not found: rpc error: code = NotFound desc = datastore-sql: record not found"),
+			expectedErr: status.Error(codes.NotFound, "agent not found"),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "rpc error: code = NotFound desc = datastore-sql: record not found",
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "spire/agent/agent-2").String(),
 					},
 				},
@@ -529,11 +527,11 @@ func TestBanAgent(t *testing.T) {
 				Path:        agentPath,
 			},
 			dsError:     errors.New("unknown datastore error"),
-			expectedErr: status.Error(codes.Internal, "unable to ban agent: unknown datastore error"),
+			expectedErr: status.Error(codes.Internal, "failed to ban agent: unknown datastore error"),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Unable to ban agent",
+					Message: "Failed to ban agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "unknown datastore error",
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
@@ -633,14 +631,14 @@ func TestDeleteAgent(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: invalid SPIFFE ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "spiffeid: trust domain is empty",
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			err:  "invalid agent ID: spiffeid: trust domain is empty",
 			req: &agentpb.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "",
@@ -655,7 +653,6 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "rpc error: code = NotFound desc = datastore-sql: record not found",
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/notfound",
 					},
 				},
@@ -670,18 +667,18 @@ func TestDeleteAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "no agent ID",
+			name: "not an agent ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: not an agent ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: "spiffe://example.org/host",
+						logrus.ErrorKey: `"spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "not an agent ID",
+			err:  `invalid agent ID: "spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
 			req: &agentpb.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
@@ -690,18 +687,18 @@ func TestDeleteAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "no member of trust domain",
+			name: "not member of trust domain",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: cannot delete an agent that does not belong to this trust domain",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: "spiffe://another.org/spire/agent/node1",
+						logrus.ErrorKey: `"spiffe://another.org/spire/agent/node1" is not a member of trust domain "example.org"`,
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "cannot delete an agent that does not belong to this trust domain",
+			err:  `invalid agent ID: "spiffe://another.org/spire/agent/node1" is not a member of trust domain "example.org"`,
 			req: &agentpb.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "another.org",
@@ -763,8 +760,7 @@ func TestDeleteAgent(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			id, err := api.IDFromProto(tt.req.Id)
-			require.NoError(t, err)
+			id := spiffeid.Must(tt.req.Id.TrustDomain, tt.req.Id.Path)
 
 			node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
 				SpiffeId: id.String(),
@@ -824,7 +820,7 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to parse agent ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "request must specify SPIFFE ID",
 					},
@@ -839,7 +835,7 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to parse agent ID",
+					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
 					},
@@ -869,14 +865,14 @@ func TestGetAgent(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to fetch node",
+					Message: "Failed to fetch agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "datastore error",
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-1",
 					},
 				},
 			},
-			err:     "failed to fetch node: datastore error",
+			err:     "failed to fetch agent: datastore error",
 			code:    codes.Internal,
 			dsError: errors.New("datastore error"),
 		},
@@ -957,13 +953,13 @@ func TestRenewAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Rejecting request due to renew agent rate limiting",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = Unknown desc = rate limit fails",
+						logrus.ErrorKey: "rate limit fails",
 					},
 				},
 			},
 			paramReq:       &agentpb.RenewAgentRequest{},
-			paramsError:    status.Error(codes.Unknown, "rate limit fails"),
-			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
+			paramsError:    status.Error(codes.Unknown, "rejecting request due to renew agent rate limiting: rate limit fails"),
+			rateLimiterErr: errors.New("rate limit fails"),
 		},
 		{
 			name:       "no caller ID",
@@ -985,9 +981,6 @@ func TestRenewAgent(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = NotFound desc = datastore-sql: record not found",
-					},
 				},
 			},
 			paramReq: &agentpb.RenewAgentRequest{
@@ -995,7 +988,7 @@ func TestRenewAgent(t *testing.T) {
 					Csr: csr,
 				},
 			},
-			paramsError: status.Error(codes.NotFound, "agent not found: rpc error: code = NotFound desc = datastore-sql: record not found"),
+			paramsError: status.Error(codes.NotFound, "agent not found"),
 		},
 		{
 			name:       "missing CSR",
@@ -1223,7 +1216,7 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 		AgentId: &types.SPIFFEID{TrustDomain: "badtd.org", Path: "invalid"},
 	})
 	require.Error(t, err)
-	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "requested agent SPIFFE ID does not match server trust domain")
+	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `invalid agent ID: "spiffe://badtd.org/invalid" is not a member of trust domain "example.org"`)
 
 	token, err := test.client.CreateJoinToken(context.Background(), &agentpb.CreateJoinTokenRequest{
 		Ttl:     1000,
@@ -1267,7 +1260,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing params",
 					},
@@ -1287,7 +1280,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing attestation data",
 					},
@@ -1311,7 +1304,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing X509-SVID parameters",
 					},
@@ -1336,7 +1329,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing attestation data type",
 					},
@@ -1361,7 +1354,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid request: malformed param",
+					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing CSR",
 					},
@@ -1394,7 +1387,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to attest: join token does not exist or has already been used",
+					Message: "Invalid argument: failed to attest: join token does not exist or has already been used",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 					},
@@ -1433,7 +1426,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Join token expired",
+					Message: "Invalid argument: join token expired",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 					},
@@ -1450,7 +1443,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to attest: join token does not exist or has already been used",
+					Message: "Invalid argument: failed to attest: join token does not exist or has already been used",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 					},
@@ -1517,7 +1510,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:        "attest with bad attestor",
-			expectedErr: "could not find node attestor type \"bad_type\"",
+			expectedErr: "could not find node attestor type",
 			request:     getAttestAgentRequest("bad_type", "payload_with_result", testCsr),
 			code:        codes.FailedPrecondition,
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1726,7 +1719,8 @@ func TestAttestAgent(t *testing.T) {
 			stream, err := test.client.AttestAgent(ctx)
 			require.NoError(t, err)
 			result, err := attest(t, stream, tt.request)
-			closeAttestStream(t, stream)
+			errClose := stream.CloseSend()
+			require.NoError(t, errClose)
 
 			if tt.retry {
 				// make sure that the first request went well
@@ -1739,7 +1733,8 @@ func TestAttestAgent(t *testing.T) {
 				stream, err = test.client.AttestAgent(ctx)
 				require.NoError(t, err)
 				result, err = attest(t, stream, tt.request)
-				closeAttestStream(t, stream)
+				errClose := stream.CloseSend()
+				require.NoError(t, errClose)
 			}
 
 			switch {
@@ -2050,12 +2045,4 @@ func attest(t *testing.T, stream agentpb.Agent_AttestAgentClient, request *agent
 		}
 		return result, err
 	}
-}
-
-func closeAttestStream(t *testing.T, stream agentpb.Agent_AttestAgentClient) {
-	err := stream.Send(&agentpb.AttestAgentRequest{})
-	require.EqualError(t, err, io.EOF.Error())
-
-	err = stream.CloseSend()
-	require.NoError(t, err)
 }
