@@ -43,6 +43,8 @@ const (
 	"server_port":"_test_data/keys/cert.pem",
 	"server_agent_address":"8090"
 }`
+
+	testTimeout = time.Minute
 )
 
 var (
@@ -440,7 +442,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			p := newWithDefault(t, serverAddr, socketPath)
 
 			// Send initial request and get stream
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 			csr, pubKey := c.getCSR()
 			stream, err := p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
 			require.NoError(t, err)
@@ -501,7 +503,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	p := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.socketPath)
 
 	// Send initial request and get stream
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	stream, err := p.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{
 		JwtKey: &common.PublicKey{
 			Kid: "kid-2",
@@ -539,7 +541,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	require.Nil(t, resp)
 	require.Contains(t, err.Error(), "rpc error: code = Canceled desc = context canceled")
 
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 	server.sAPIServer.err = errors.New("some error")
 	stream, err = p.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{
