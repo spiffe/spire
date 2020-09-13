@@ -311,7 +311,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch authorized entries: %w", err)
 	}
 
 	return resp.Entries, err
@@ -370,7 +370,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("failed to batch new X509 SVID(s)")
-		return nil, fmt.Errorf("failed to batch new X509 SVID(s): %v", err)
+		return nil, fmt.Errorf("failed to batch new X509 SVID(s): %w", err)
 	}
 
 	okStatus := int32(codes.OK)

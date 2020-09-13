@@ -539,7 +539,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 			setupTest: func(tc *testClient) {
 				tc.entryClient.err = errors.New("an error")
 			},
-			err: "an error",
+			err: "failed to fetch authorized entries: an error",
 		},
 		{
 			name: "Agent bundle",

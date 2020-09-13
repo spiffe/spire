@@ -1,6 +1,8 @@
 package nodeutil
 
 import (
+	"errors"
+
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
@@ -13,19 +15,21 @@ func IsAgentBanned(node *common.AttestedNode) bool {
 	return node.CertSerialNumber == ""
 }
 
-// IsShutdownError returns true if the Server returned an error worth rebooting the Agent
-func IsShutdownError(err error) bool {
-	errStatus := status.Convert(err)
+// ShouldAgentReattest returns true if the Server returned an error worth rebooting the Agent
+func ShouldAgentReattest(err error) bool {
+	errStatus := status.Convert(errors.Unwrap(err))
 	if errStatus.Code() != codes.PermissionDenied {
 		return false
 	}
 
 	for _, errDetail := range errStatus.Details() {
-		errReason, _ := errDetail.(*types.PermissionDeniedDetails)
-		if errReason.Reason == types.PermissionDeniedDetails_AGENT_EXPIRED ||
-			errReason.Reason == types.PermissionDeniedDetails_AGENT_NOT_ACTIVE ||
-			errReason.Reason == types.PermissionDeniedDetails_AGENT_NOT_ATTESTED {
-			return true
+		if details, ok := errDetail.(*types.PermissionDeniedDetails); ok {
+			switch details.Reason {
+			case types.PermissionDeniedDetails_AGENT_EXPIRED,
+				types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
+				types.PermissionDeniedDetails_AGENT_NOT_ATTESTED:
+				return true
+			}
 		}
 	}
 	return false

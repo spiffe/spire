@@ -104,11 +104,9 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
 
 	err = m.synchronize(ctx)
-	if nodeutil.IsShutdownError(err) {
-		m.c.Log.WithError(err).Error("Failed to synchronize: removing SVID")
-		if deleteErr := DeleteSVID(m.svidCachePath); deleteErr != nil {
-			m.c.Log.WithError(deleteErr).Error("Failed to remove SVID")
-		}
+	if nodeutil.ShouldAgentReattest(err) {
+		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
+		m.deleteSVID()
 	}
 	return err
 }
@@ -123,20 +121,16 @@ func (m *manager) Run(ctx context.Context) error {
 		m.svid.Run)
 
 	switch {
-	case err != nil && err != context.Canceled && nodeutil.IsShutdownError(err):
-		m.c.Log.WithError(err).Error("Cache manager crashed: removing SVID")
-		if deleteErr := DeleteSVID(m.svidCachePath); deleteErr != nil {
-			m.c.Log.WithError(deleteErr).Error("Failed to remove SVID")
-		}
-		return err
-
-	case err != nil && err != context.Canceled:
-		m.c.Log.WithError(err).Error("Cache manager crashed")
-		return err
-
-	default:
+	case err == nil || err == context.Canceled:
 		m.c.Log.Info("Cache manager stopped")
 		return nil
+	case nodeutil.ShouldAgentReattest(err):
+		m.c.Log.WithError(err).Warn("Agent needs to re-attest; removing SVID and shutting down")
+		m.deleteSVID()
+		return err
+	default:
+		m.c.Log.WithError(err).Error("Cache manager crashed")
+		return err
 	}
 }
 
@@ -224,7 +218,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 		err := m.synchronize(ctx)
 		switch {
-		case err != nil && nodeutil.IsShutdownError(err):
+		case err != nil && nodeutil.ShouldAgentReattest(err):
 			m.c.Log.WithError(err).Error("Synchronize failed")
 			return err
 		case err != nil:
@@ -299,4 +293,10 @@ func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) er
 	}
 
 	return nil
+}
+
+func (m *manager) deleteSVID() {
+	if err := DeleteSVID(m.svidCachePath); err != nil {
+		m.c.Log.WithError(err).Error("Failed to remove SVID")
+	}
 }
