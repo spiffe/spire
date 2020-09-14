@@ -201,9 +201,10 @@ func (as *PCAPluginSuite) Test_MintX509CA_WithSupplementalBundle() {
 	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
 
 	// Load and configure supplemental bundle
-	supplementalCert, err := pemutil.LoadCertificate("testdata/arbitrary_certificate.pem")
+	// This fixture includes a copy of the upstream root to test deduplication
+	supplementalCert, err := pemutil.LoadCertificates("testdata/arbitrary_certificate_with_upstream_root.pem")
 	as.Require().NoError(err)
-	_, err = as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/arbitrary_certificate.pem"))
+	_, err = as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/arbitrary_certificate_with_upstream_root.pem"))
 	as.Require().NoError(err)
 
 	csr, expectedEncodedCsr := as.generateCSR()
@@ -231,8 +232,8 @@ func (as *PCAPluginSuite) Test_MintX509CA_WithSupplementalBundle() {
 	as.Require().NotNil(response)
 	as.Require().NoError(err)
 
-	// Response should include both upstream root and supplemental root
-	expectedBundle := [][]byte{upstreamRoot.Raw, supplementalCert.Raw}
+	// Response should include one copy of the upstream root and supplemental root
+	expectedBundle := [][]byte{upstreamRoot.Raw, supplementalCert[0].Raw}
 	as.Assert().Equal(expectedBundle, response.UpstreamX509Roots)
 }
 
