@@ -477,6 +477,8 @@ func TestBatchCreateEntry(t *testing.T) {
 	entrySpiffeID := td.NewID("bar")
 	expiresAt := time.Now().Unix()
 
+	useDefaultEntryID := "DEFAULT_ENTRY_ID"
+
 	defaultEntry := &common.RegistrationEntry{
 		ParentId: entryParentID.String(),
 		SpiffeId: entrySpiffeID.String(),
@@ -692,23 +694,23 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
-			name: "fails creating similar entry",
+			name: "returns existing similar entry",
 			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.AlreadyExists),
-						Message: "entry already exists",
+						Message: "similar entry already exists",
+					},
+					Entry: &types.Entry{
+						Id:       useDefaultEntryID,
+						ParentId: api.ProtoFromID(entryParentID),
+						SpiffeId: api.ProtoFromID(entrySpiffeID),
 					},
 				},
 			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Entry already exists",
-					Data: logrus.Fields{
-						telemetry.SPIFFEID: "spiffe://example.org/bar",
-					},
-				},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+				SpiffeId: true,
 			},
 			reqEntries: []*types.Entry{
 				{
@@ -812,7 +814,7 @@ func TestBatchCreateEntry(t *testing.T) {
 
 			// Create federated bundles, that we use on "FederatesWith"
 			createFederatedBundles(t, ds)
-			_ = createTestEntries(t, ds, defaultEntry)
+			defaultEntryID := createTestEntries(t, ds, defaultEntry)[defaultEntry.SpiffeId].EntryId
 
 			// Setup fake
 			ds.customCreate = true
@@ -830,6 +832,13 @@ func TestBatchCreateEntry(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+			for i, res := range tt.expectResults {
+				if res.Entry != nil && res.Entry.Id == useDefaultEntryID {
+					tt.expectResults[i].Entry.Id = defaultEntryID
+				}
+			}
+
 			spiretest.AssertProtoEqual(t, &entrypb.BatchCreateEntryResponse{
 				Results: tt.expectResults,
 			}, resp)
