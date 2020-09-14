@@ -190,7 +190,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 		}
 		regEntry = resp.Entry
 	} else {
-		resultStatus = api.MakeStatus(log, codes.AlreadyExists, "entry already exists", nil)
+		resultStatus = api.CreateStatus(codes.AlreadyExists, codes.AlreadyExists.String())
 	}
 
 	tEntry, err := api.RegistrationEntryToProto(regEntry)

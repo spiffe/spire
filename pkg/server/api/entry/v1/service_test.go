@@ -694,12 +694,12 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
-			name: "fails creating similar entry",
+			name: "returns existing creating similar entry",
 			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.AlreadyExists),
-						Message: "entry already exists",
+						Message: codes.AlreadyExists.String(),
 					},
 					Entry: &types.Entry{
 						Id:       useDefaultEntryID,
@@ -711,15 +711,6 @@ func TestBatchCreateEntry(t *testing.T) {
 			outputMask: &types.EntryMask{
 				ParentId: true,
 				SpiffeId: true,
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Entry already exists",
-					Data: logrus.Fields{
-						telemetry.SPIFFEID: "spiffe://example.org/bar",
-					},
-				},
 			},
 			reqEntries: []*types.Entry{
 				{
