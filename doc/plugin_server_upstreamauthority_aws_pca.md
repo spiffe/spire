@@ -13,6 +13,7 @@ The plugin accepts the following configuration options:
 | signing_algorithm         | (Optional) Signing algorithm to use for the server's CA. Defaults to the CA's default. See [Issue Certificate](https://docs.aws.amazon.com/cli/latest/reference/acm-pca/issue-certificate.html) for possible values. |
 | assume_role_arn           | (Optional) ARN of an IAM role to assume                           |
 | endpoint                  | (Optional) Endpoint as hostname or fully-qualified URI that overrides the default endpoint.  See [AWS SDK Config docs](https://docs.aws.amazon.com/sdk-for-go/api/aws/#Config) for more information. |
+| supplemental_bundle_path  | (Optional) Path to a file containing PEM-encoded CA certificates that should be additionally included in the bundle. |
 
 The plugin will attempt to load AWS credentials using the default provider chain. This includes credentials from environment variables, shared credentials files, and EC2 instance roles. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for the full default credentials chain.
 
