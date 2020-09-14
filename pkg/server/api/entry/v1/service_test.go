@@ -694,12 +694,12 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
-			name: "returns existing creating similar entry",
+			name: "returns existing similar entry",
 			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.AlreadyExists),
-						Message: codes.AlreadyExists.String(),
+						Message: "similar entry already exists",
 					},
 					Entry: &types.Entry{
 						Id:       useDefaultEntryID,
