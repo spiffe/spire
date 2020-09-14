@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acmpca"
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
@@ -30,6 +31,7 @@ const (
 	validCASigningTemplateARN    = "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1"
 	validSigningAlgorithm        = "SHA256WITHRSA"
 	validAssumeRoleARN           = "arn:aws:iam::123456789012:role/spire-server-role"
+	validSupplementalBundlePath  = ""
 	// The header and footer type for a PEM-encoded certificate
 	certificateType = "CERTIFICATE"
 
@@ -90,7 +92,7 @@ func (as *PCAPluginSuite) Test_Configure_Default_SigningAlgorithm() {
 
 	// If the configuration does not contain a signing algorithm, we'll fall
 	// back to the CA's pre-configured value
-	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest("", validCASigningTemplateARN))
+	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest("", validCASigningTemplateARN, validSupplementalBundlePath))
 	as.Require().NoError(err)
 	as.Require().Equal("defaultSigningAlgorithm", as.rawPlugin.signingAlgorithm)
 }
@@ -100,7 +102,7 @@ func (as *PCAPluginSuite) Test_Configure_Default_CASigningTemplateARN() {
 
 	// If the configuration does not contain a CA signing template ARN, we'll fall
 	// back to the default value.
-	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, ""))
+	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, "", validSupplementalBundlePath))
 	as.Require().NoError(err)
 	as.Require().Equal(defaultCASigningTemplateArn, as.rawPlugin.caSigningTemplateArn)
 }
@@ -122,6 +124,13 @@ func (as *PCAPluginSuite) Test_Configure_DescribeCertificateAuthorityError() {
 
 	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
 	as.Require().Error(err)
+}
+
+func (as *PCAPluginSuite) Test_Configure_WithBadSupplementalBundle() {
+	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
+
+	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/i_am_not_a_certificate.txt"))
+	as.Assert().Error(err)
 }
 
 func (as *PCAPluginSuite) Test_Configure_Invalid() {
@@ -186,6 +195,46 @@ func (as *PCAPluginSuite) Test_MintX509CA() {
 	as.Require().NotNil(response)
 	as.Require().Equal([][]byte{expectedCert.Raw, expectedIntermediate.Raw}, response.X509CaChain)
 	as.Require().Equal([][]byte{expectedRoot.Raw}, response.UpstreamX509Roots)
+}
+
+func (as *PCAPluginSuite) Test_MintX509CA_WithSupplementalBundle() {
+	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
+
+	// Load and configure supplemental bundle
+	// This fixture includes a copy of the upstream root to test deduplication
+	supplementalCert, err := pemutil.LoadCertificates("testdata/arbitrary_certificate_with_upstream_root.pem")
+	as.Require().NoError(err)
+	_, err = as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/arbitrary_certificate_with_upstream_root.pem"))
+	as.Require().NoError(err)
+
+	csr, expectedEncodedCsr := as.generateCSR()
+
+	// Should send an issue request
+	as.verifyIssueCertificate(expectedEncodedCsr, nil)
+
+	// Should wait for the certificate to reach the issued state
+	as.verifyWaitUntilCertificateIssued(nil)
+
+	// Should get the contents of the certificate once issued
+	_, encodedCert := as.SVIDFixture()
+	upstreamRoot, encodedUpstreamRoot := as.certificateAuthorityFixture()
+	encodedCertChain := new(bytes.Buffer)
+	_, err = encodedCertChain.Write(encodedUpstreamRoot.Bytes())
+	as.Require().NoError(err)
+	_, err = encodedCertChain.Write(encodedUpstreamRoot.Bytes())
+	as.Require().NoError(err)
+	as.verifyGetCertificate(encodedCert, encodedCertChain, nil)
+
+	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+		Csr:          csr,
+		PreferredTtl: testTTL,
+	})
+	as.Require().NotNil(response)
+	as.Require().NoError(err)
+
+	// Response should include one copy of the upstream root and supplemental root
+	expectedBundle := [][]byte{upstreamRoot.Raw, supplementalCert[0].Raw}
+	as.Assert().Equal(expectedBundle, response.UpstreamX509Roots)
 }
 
 func (as *PCAPluginSuite) Test_MintX509CA_IssuanceError() {
@@ -359,24 +408,26 @@ func (as *PCAPluginSuite) configurePlugin() {
 }
 
 func (as *PCAPluginSuite) defaultSerializedConfiguration() string {
-	config := as.serializedConfiguration(validRegion, validCertificateAuthorityARN, validCASigningTemplateARN, validSigningAlgorithm, validAssumeRoleARN)
+	config := as.serializedConfiguration(validRegion, validCertificateAuthorityARN, validCASigningTemplateARN, validSigningAlgorithm, validAssumeRoleARN, validSupplementalBundlePath)
 	fmt.Println("Config: ", config)
 	return config
 }
 
-func (as *PCAPluginSuite) serializedConfiguration(region, certificateAuthorityARN, caSigningTemplateARN, signingAlgorithm, assumeRoleARN string) string {
+func (as *PCAPluginSuite) serializedConfiguration(region, certificateAuthorityARN, caSigningTemplateARN, signingAlgorithm, assumeRoleARN, supplementalBundlePath string) string {
 	return fmt.Sprintf(`{
 		"region": "%s",
 		"certificate_authority_arn": "%s",
 		"ca_signing_template_arn":"%s",
 		"signing_algorithm":"%s",
-		"assume_role_arn":"%s"
+		"assume_role_arn":"%s",
+		"supplemental_bundle_path": "%s"
 		}`,
 		region,
 		certificateAuthorityARN,
 		caSigningTemplateARN,
 		signingAlgorithm,
-		assumeRoleARN)
+		assumeRoleARN,
+		supplementalBundlePath)
 }
 
 func (as *PCAPluginSuite) defaultConfigureRequest() *spi.ConfigureRequest {
@@ -388,9 +439,9 @@ func (as *PCAPluginSuite) defaultConfigureRequest() *spi.ConfigureRequest {
 	}
 }
 
-func (as *PCAPluginSuite) optionalConfigureRequest(signingAlgorithm, caSigningTemplateARN string) *spi.ConfigureRequest {
+func (as *PCAPluginSuite) optionalConfigureRequest(signingAlgorithm, caSigningTemplateARN, supplementalBundlePath string) *spi.ConfigureRequest {
 	return &spi.ConfigureRequest{
-		Configuration: as.serializedConfiguration(validRegion, validCertificateAuthorityARN, caSigningTemplateARN, signingAlgorithm, validAssumeRoleARN),
+		Configuration: as.serializedConfiguration(validRegion, validCertificateAuthorityARN, caSigningTemplateARN, signingAlgorithm, validAssumeRoleARN, supplementalBundlePath),
 		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{
 			TrustDomain: validTrustDomain,
 		},

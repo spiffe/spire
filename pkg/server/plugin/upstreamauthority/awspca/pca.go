@@ -3,6 +3,7 @@ package awspca
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
@@ -48,6 +50,7 @@ type PCAPluginConfiguration struct {
 	SigningAlgorithm        string `hcl:"signing_algorithm" json:"signing_algorithm"`
 	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn"`
 	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn"`
+	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path"`
 }
 
 // PCAPlugin is the main representation of this upstreamauthority plugin
@@ -58,6 +61,7 @@ type PCAPlugin struct {
 	certificateAuthorityArn string
 	signingAlgorithm        string
 	caSigningTemplateArn    string
+	supplementalBundle      []*x509.Certificate
 
 	hooks struct {
 		clock     clock.Clock
@@ -86,6 +90,14 @@ func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	config, err := m.validateConfig(req)
 	if err != nil {
 		return nil, err
+	}
+
+	if config.SupplementalBundlePath != "" {
+		m.log.Info("Loading supplemental certificates for inclusion in the bundle", "supplemental_bundle_path", config.SupplementalBundlePath)
+		m.supplementalBundle, err = pemutil.LoadCertificates(config.SupplementalBundlePath)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Create the client
@@ -214,18 +226,19 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 	// See https://docs.aws.amazon.com/cli/latest/reference/acm-pca/import-certificate-authority-certificate.html
 	// and https://docs.aws.amazon.com/cli/latest/reference/acm-pca/get-certificate.html
 
-	// The last certificate returned from the chain is the bundle.
-	bundle := [][]byte{certChain[len(certChain)-1].Raw}
+	// The last certificate returned from the chain is the root.
+	upstreamRoot := certChain[len(certChain)-1]
+	bundle := x509util.DedupeCertificates([]*x509.Certificate{upstreamRoot}, m.supplementalBundle)
+
+	derBundle := x509util.RawCertsFromCertificates(bundle)
 
 	// All else comprises the chain (including the issued certificate)
-	chain := [][]byte{cert.Raw}
-	for _, caCert := range certChain[:len(certChain)-1] {
-		chain = append(chain, caCert.Raw)
-	}
+	derChain := [][]byte{cert.Raw}
+	derChain = append(derChain, x509util.RawCertsFromCertificates(certChain[:len(certChain)-1])...)
 
 	return stream.Send(&upstreamauthority.MintX509CAResponse{
-		X509CaChain:       chain,
-		UpstreamX509Roots: bundle,
+		X509CaChain:       derChain,
+		UpstreamX509Roots: derBundle,
 	})
 }
 
