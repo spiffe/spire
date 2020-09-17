@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -97,12 +98,17 @@ func (m *manager) Initialize(ctx context.Context) error {
 
 	err := m.storePrivateKey(ctx, m.c.SVIDKey)
 	if err != nil {
-		return fmt.Errorf("fail to store private key: %v", err)
+		return fmt.Errorf("failed to store private key: %v", err)
 	}
 
 	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
 
-	return m.synchronize(ctx)
+	err = m.synchronize(ctx)
+	if nodeutil.ShouldAgentReattest(err) {
+		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
+		m.deleteSVID()
+	}
+	return err
 }
 
 func (m *manager) Run(ctx context.Context) error {
@@ -113,13 +119,19 @@ func (m *manager) Run(ctx context.Context) error {
 		m.runSVIDObserver,
 		m.runBundleObserver,
 		m.svid.Run)
-	if err != nil && err != context.Canceled {
-		m.c.Log.WithError(err).Error("cache manager crashed")
+
+	switch {
+	case err == nil || err == context.Canceled:
+		m.c.Log.Info("Cache manager stopped")
+		return nil
+	case nodeutil.ShouldAgentReattest(err):
+		m.c.Log.WithError(err).Warn("Agent needs to re-attest; removing SVID and shutting down")
+		m.deleteSVID()
+		return err
+	default:
+		m.c.Log.WithError(err).Error("Cache manager crashed")
 		return err
 	}
-
-	m.c.Log.Info("cache manager stopped")
-	return nil
 }
 
 func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
@@ -203,11 +215,16 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		}
+
 		err := m.synchronize(ctx)
-		if err != nil {
+		switch {
+		case err != nil && nodeutil.ShouldAgentReattest(err):
+			m.c.Log.WithError(err).Error("Synchronize failed")
+			return err
+		case err != nil:
 			// Just log the error and wait for next synchronization
-			m.c.Log.WithError(err).Error("synchronize failed")
-		} else {
+			m.c.Log.WithError(err).Error("Synchronize failed")
+		default:
 			m.backoff.Reset()
 		}
 	}
@@ -276,4 +293,10 @@ func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) er
 	}
 
 	return nil
+}
+
+func (m *manager) deleteSVID() {
+	if err := DeleteSVID(m.svidCachePath); err != nil {
+		m.c.Log.WithError(err).Error("Failed to remove SVID")
+	}
 }

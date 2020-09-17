@@ -173,13 +173,13 @@ func TestRenewSVID(t *testing.T) {
 				CertChain: [][]byte{{1, 2, 3}},
 				ExpiresAt: 12345,
 			},
-			err: "malformed param",
+			err: "failed to renew agent: malformed param",
 		},
 		{
 			name:     "renew agent fails",
 			csr:      []byte{0, 1, 2},
 			agentErr: errors.New("renew fails"),
-			err:      "renew fails",
+			err:      "failed to renew agent: renew fails",
 		},
 	} {
 		tt := tt
@@ -655,7 +655,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			setupTest: func(err error) {
 				tc.svidClient.newJWTSVID = err
 			},
-			err:      "failure fetching JWT SVID: client fails",
+			err:      "failed to fetch JWT SVID: client fails",
 			fetchErr: errors.New("client fails"),
 		},
 		{
