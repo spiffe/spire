@@ -31,37 +31,13 @@ var (
 )
 
 type agentTest struct {
-	client       agentpb.AgentClient
-	done         func()
-	ds           *fakedatastore.DataStore
-	ca           *fakeserverca.CA
-	cat          *fakeservercatalog.Catalog
-	logHook      *test.Hook
-	withCallerID bool
-	pluginCloser func()
-
+	client  agentpb.AgentClient
+	ds      *fakedatastore.DataStore
 	testEnv *common_cli.Env
+
 	evictCmd,
-	listCmd, showCmd cli.Command
-}
-
-func (s *agentTest) AfterTest(t *testing.T, suiteName, testName string) {
-	t.Logf("SUITE: %s TEST:%s", suiteName, testName)
-	t.Logf("STDOUT:\n%s", s.testEnv.Stdout.(*bytes.Buffer).String())
-	t.Logf("STDIN:\n%s", s.testEnv.Stdin.(*bytes.Buffer).String())
-	t.Logf("STDERR:\n%s", s.testEnv.Stderr.(*bytes.Buffer).String())
-}
-
-func TestEvictHelp(t *testing.T) {
-	test := setupTest(t)
-
-	test.evictCmd.Help()
-	require.Equal(t, `Usage of agent evict:
-  -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
-  -spiffeID string
-    	The SPIFFE ID of the agent to evict (agent identity)
-`, test.testEnv.Stderr.(*bytes.Buffer).String())
+	listCmd,
+	showCmd cli.Command
 }
 
 func TestEvict(t *testing.T) {
@@ -105,16 +81,6 @@ func TestEvict(t *testing.T) {
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
 	}
-}
-
-func TestListHelp(t *testing.T) {
-	test := setupTest(t)
-
-	test.listCmd.Help()
-	require.Equal(t, `Usage of agent list:
-  -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.testEnv.Stderr.(*bytes.Buffer).String())
 }
 
 func TestList(t *testing.T) {
@@ -220,19 +186,17 @@ func TestShow(t *testing.T) {
 }
 
 func setupTest(t *testing.T) *agentTest {
-	ca := fakeserverca.New(t, td.String(), &fakeserverca.Options{})
 	ds := fakedatastore.New(t)
-	cat := fakeservercatalog.New()
 
 	service := agent.New(agent.Config{
-		ServerCA:    ca,
+		ServerCA:    fakeserverca.New(t, td.String(), &fakeserverca.Options{}),
 		DataStore:   ds,
 		TrustDomain: td,
 		Clock:       clock.NewMock(t),
-		Catalog:     cat,
+		Catalog:     fakeservercatalog.New(),
 	})
 
-	log, logHook := test.NewNullLogger()
+	log, _ := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 	registerFn := func(s *grpc.Server) {
 		agent.RegisterService(s, service)
@@ -245,10 +209,7 @@ func setupTest(t *testing.T) *agentTest {
 	}
 
 	test := &agentTest{
-		ca:      ca,
 		ds:      ds,
-		cat:     cat,
-		logHook: logHook,
 		testEnv: testEnv,
 	}
 
@@ -264,11 +225,14 @@ func setupTest(t *testing.T) *agentTest {
 		}, nil
 	}
 
-	test.done = done
 	test.client = agentpb.NewAgentClient(conn)
 	test.evictCmd = newEvictCommand(testEnv, clientMaker)
 	test.listCmd = newListCommand(testEnv, clientMaker)
 	test.showCmd = newShowCommand(testEnv, clientMaker)
+
+	t.Cleanup(func() {
+		done()
+	})
 
 	return test
 }
