@@ -78,7 +78,7 @@ type Command interface {
 	Run(context.Context, *common_cli.Env, *Clients) error
 }
 
-type adapter struct {
+type Adapter struct {
 	env          *common_cli.Env
 	clientsMaker ClientsMaker
 	cmd          Command
@@ -88,8 +88,8 @@ type adapter struct {
 }
 
 // AdaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
-func AdaptCommand(env *common_cli.Env, clientsMaker ClientsMaker, cmd Command) *adapter {
-	a := &adapter{
+func AdaptCommand(env *common_cli.Env, clientsMaker ClientsMaker, cmd Command) *Adapter {
+	a := &Adapter{
 		clientsMaker: clientsMaker,
 		cmd:          cmd,
 		env:          env,
@@ -104,7 +104,7 @@ func AdaptCommand(env *common_cli.Env, clientsMaker ClientsMaker, cmd Command) *
 	return a
 }
 
-func (a *adapter) Run(args []string) int {
+func (a *Adapter) Run(args []string) int {
 	ctx := context.Background()
 
 	if err := a.flags.Parse(args); err != nil {
@@ -126,10 +126,10 @@ func (a *adapter) Run(args []string) int {
 	return 0
 }
 
-func (a *adapter) Help() string {
+func (a *Adapter) Help() string {
 	return a.flags.Parse([]string{"-h"}).Error()
 }
 
-func (a *adapter) Synopsis() string {
+func (a *Adapter) Synopsis() string {
 	return a.cmd.Synopsis()
 }
