@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 
 	"golang.org/x/net/context"
 )
@@ -19,6 +21,8 @@ type EvictConfig struct {
 	RegistrationUDSPath string
 	// SpiffeID of the agent being evicted
 	SpiffeID string
+
+	agentID *types.SPIFFEID
 }
 
 // Validate will perform a basic validation on config fields
@@ -32,18 +36,21 @@ func (c *EvictConfig) Validate() (err error) {
 	}
 
 	// make sure SPIFFE ID is well formed
-	c.SpiffeID, err = idutil.NormalizeSpiffeID(c.SpiffeID, idutil.AllowAnyTrustDomainAgent())
+	agentID, err := spiffeid.FromString(c.SpiffeID)
 	if err != nil {
+		return fmt.Errorf("invalid SPIFFE ID: %v", err)
+	}
+
+	if err := api.VerifyAnyTrustDomainAgentID(agentID); err != nil {
 		return err
 	}
 
+	c.agentID = api.ProtoFromID(agentID)
 	return nil
 }
 
 //EvictCLI command for node eviction
-type EvictCLI struct {
-	registrationClient registration.RegistrationClient
-}
+type EvictCLI struct{}
 
 func (EvictCLI) Synopsis() string {
 	return "Evicts an attested agent given its SPIFFE ID"
@@ -69,21 +76,17 @@ func (c EvictCLI) Run(args []string) int {
 		return 1
 	}
 
-	if c.registrationClient == nil {
-		c.registrationClient, err = util.NewRegistrationClient(config.RegistrationUDSPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error establishing connection to the Registration API: %v \n", err)
-			return 1
-		}
-	}
-	evictResponse, err := c.registrationClient.EvictAgent(ctx, &registration.EvictAgentRequest{SpiffeID: config.SpiffeID})
+	serverConn, err := util.Dial(config.RegistrationUDSPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error evicting agent: %v \n", err)
+		fmt.Fprintf(os.Stderr, "Failed to dial SPIRE server: %v\n", err)
 		return 1
 	}
+	defer serverConn.Close()
 
-	if evictResponse.Node == nil {
-		fmt.Fprintln(os.Stderr, "Failed to evict agent")
+	agentClient := agent.NewAgentClient(serverConn)
+
+	if _, err := agentClient.DeleteAgent(ctx, &agent.DeleteAgentRequest{Id: config.agentID}); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to evict agent: %v\n", err)
 		return 1
 	}
 

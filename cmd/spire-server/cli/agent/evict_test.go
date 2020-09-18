@@ -1,84 +1,87 @@
 package agent
 
 import (
-	"errors"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/common"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"gotest.tools/assert"
 
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 
-	"github.com/golang/mock/gomock"
-	mock_registration "github.com/spiffe/spire/test/mock/proto/api/registration"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
-type EvictTestSuite struct {
-	suite.Suite
-	cli        *EvictCLI
-	mockClient *mock_registration.MockRegistrationClient
-	mockCtrl   *gomock.Controller
-}
+func TestEvict(t *testing.T) {
+	server := &evictServer{}
 
-func (s *EvictTestSuite) SetupTest() {
-	s.mockCtrl = gomock.NewController(s.T())
-	s.mockClient = mock_registration.NewMockRegistrationClient(s.mockCtrl)
-	s.cli = &EvictCLI{
-		registrationClient: s.mockClient,
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+		agent.RegisterAgentServer(s, server)
+	})
+
+	for _, tt := range []struct {
+		name         string
+		args         []string
+		evictErr     error
+		expectedCode int
+	}{
+		{
+			name:         "missing SPIFFE ID",
+			args:         []string{},
+			expectedCode: 1,
+		},
+		{
+			name:         "empty UDS path",
+			args:         []string{"-registrationUDSPath", ""},
+			expectedCode: 1,
+		},
+		{
+			name:         "bad UDS path",
+			args:         []string{"-registrationUDSPath", "does-not-exist.sock", "-spiffeID", "spiffe://example.org/spire/agent/foo"},
+			expectedCode: 1,
+		},
+		{
+			name:         "malformed ID",
+			args:         []string{"-spiffeID", "bad ID"},
+			expectedCode: 1,
+		},
+		{
+			name:         "not an agent ID",
+			args:         []string{"-spiffeID", "spiffe://example.org/workload"},
+			expectedCode: 1,
+		},
+		{
+			name:         "failed to evict",
+			args:         []string{"-spiffeID", "spiffe://example.org/spire/agent/foo"},
+			evictErr:     status.Error(codes.NotFound, "agent not found"),
+			expectedCode: 1,
+		},
+		{
+			name: "success",
+			args: []string{"-spiffeID", "spiffe://example.org/spire/agent/foo"},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			server.evictErr = tt.evictErr
+
+			cli := EvictCLI{}
+			args := append([]string{"-registrationUDSPath", socketPath}, tt.args...)
+			code := cli.Run(args)
+			assert.Equal(t, code, tt.expectedCode, "command did not exit with the expected code")
+		})
 	}
 }
 
-func (s *EvictTestSuite) TearDownTest() {
-	s.mockCtrl.Finish()
+type evictServer struct {
+	agent.UnimplementedAgentServer
+
+	evictErr error
 }
 
-func TestEvictTestSuite(t *testing.T) {
-	suite.Run(t, new(EvictTestSuite))
-}
-
-func (s *EvictTestSuite) TestRun() {
-	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
-	args := []string{"-spiffeID", spiffeIDToRemove}
-
-	req := &registration.EvictAgentRequest{
-		SpiffeID: spiffeIDToRemove,
-	}
-
-	resp := &registration.EvictAgentResponse{
-		Node: &common.AttestedNode{SpiffeId: spiffeIDToRemove},
-	}
-
-	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(resp, nil)
-	s.Require().Equal(0, s.cli.Run(args))
-}
-
-func (s *EvictTestSuite) TestRunExitsWithNonZeroCodeOnError() {
-	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
-	args := []string{"-spiffeID", spiffeIDToRemove}
-
-	req := &registration.EvictAgentRequest{
-		SpiffeID: spiffeIDToRemove,
-	}
-
-	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(nil, errors.New("some error"))
-	s.Require().Equal(1, s.cli.Run(args))
-}
-
-func (s *EvictTestSuite) TestRunExitsWithNonZeroCodeOnDeleteFailed() {
-	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
-	args := []string{"-spiffeID", spiffeIDToRemove}
-
-	req := &registration.EvictAgentRequest{
-		SpiffeID: spiffeIDToRemove,
-	}
-	resp := &registration.EvictAgentResponse{}
-
-	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(resp, nil)
-	s.Require().Equal(1, s.cli.Run(args))
-}
-
-func (s *EvictTestSuite) TestRunValidatesSpiffeID() {
-	spiffeIDToRemove := "not//an//spiffe/id"
-	args := []string{"-spiffeID", spiffeIDToRemove}
-	s.Require().Equal(1, s.cli.Run(args))
+func (s *evictServer) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.evictErr
 }

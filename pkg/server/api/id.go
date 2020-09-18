@@ -54,6 +54,16 @@ func VerifyTrustDomainAgentID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 	return nil
 }
 
+func VerifyAnyTrustDomainAgentID(id spiffeid.ID) error {
+	if id.Path() == "" {
+		return fmt.Errorf("%q is not an agent in a trust domain; path is empty", id)
+	}
+	if !idutil.IsAgentPath(id.Path()) {
+		return fmt.Errorf("%q is not an agent in a trust domain; path is not in the agent namespace", id)
+	}
+	return nil
+}
+
 func TrustDomainWorkloadIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	id, err := idFromProto(protoID)
 	if err != nil {

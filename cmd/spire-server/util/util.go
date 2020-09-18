@@ -1,8 +1,8 @@
 package util
 
 import (
+	"context"
 	"net"
-	"time"
 
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"google.golang.org/grpc"
@@ -12,16 +12,28 @@ const (
 	DefaultSocketPath = "/tmp/spire-registration.sock"
 )
 
+func Dial(socketPath string) (*grpc.ClientConn, error) {
+	if socketPath == "" {
+		socketPath = DefaultSocketPath
+	}
+	return grpc.Dial(socketPath,
+		grpc.WithInsecure(),
+		grpc.WithContextDialer(dialer),
+		grpc.WithBlock(),
+		grpc.FailOnNonTempDialError(true),
+		grpc.WithReturnConnectionError())
+}
+
 func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer)) //nolint: staticcheck
+	conn, err := Dial(socketPath)
 	if err != nil {
 		return nil, err
 	}
 	return registration.NewRegistrationClient(conn), err
 }
 
-func dialer(addr string, timeout time.Duration) (net.Conn, error) {
-	return net.DialTimeout("unix", addr, timeout)
+func dialer(ctx context.Context, addr string) (net.Conn, error) {
+	return (&net.Dialer{}).DialContext(ctx, "unix", addr)
 }
 
 // Pluralizer concatenates `singular` to `msg` when `val` is one, and
