@@ -76,6 +76,12 @@ func TestEvict(t *testing.T) {
 			expectedStderr:     "rpc error: code = NotFound desc = agent not found\n",
 		},
 		{
+			name:               "agent does not exist - no agents",
+			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
+			expectedReturnCode: 1,
+			expectedStderr:     "rpc error: code = NotFound desc = agent not found\n",
+		},
+		{
 			name:               "no spiffe id",
 			expectedReturnCode: 1,
 			existentAgent:      "spiffe://example.org/spire/agent/agent1",
@@ -85,7 +91,10 @@ func TestEvict(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t)
-			test.createAgent(t, tt.existentAgent)
+
+			if tt.existentAgent != "" {
+				test.createAgent(t, tt.existentAgent)
+			}
 
 			returnCode := test.evictCmd.Run(tt.args)
 			require.Equal(t, tt.expectedStdout, test.testEnv.Stdout.(*bytes.Buffer).String())
