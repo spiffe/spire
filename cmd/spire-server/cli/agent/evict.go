@@ -3,100 +3,59 @@ package agent
 import (
 	"errors"
 	"flag"
-	"fmt"
-	"os"
+
+	"github.com/mitchellh/cli"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 
 	"golang.org/x/net/context"
 )
 
-//EvictConfig holds configuration for EvictCLI
-type EvictConfig struct {
-	// Socket path of registration API
-	RegistrationUDSPath string
-	// SpiffeID of the agent being evicted
-	SpiffeID string
+type evictCommand struct {
+	// SPIFFE ID of the agent being evicted
+	spiffeID string
 }
 
-// Validate will perform a basic validation on config fields
-func (c *EvictConfig) Validate() (err error) {
-	if c.RegistrationUDSPath == "" {
-		return errors.New("a socket path for registration api is required")
-	}
+// NewEvictCommand creates a new "evict" subcommand for "agent" command.
+func NewEvictCommand() cli.Command {
+	return newEvictCommand(common_cli.DefaultEnv, util.NewClients)
+}
 
-	if c.SpiffeID == "" {
+func newEvictCommand(env *common_cli.Env, clientsMaker util.ClientsMaker) cli.Command {
+	return util.AdaptCommand(env, clientsMaker, new(evictCommand))
+}
+
+func (*evictCommand) Name() string {
+	return "agent evict"
+}
+
+func (evictCommand) Synopsis() string {
+	return "Evicts an attested agent given its SPIFFE ID"
+}
+
+//Run evicts an agent given its SPIFFE ID
+func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, clients *util.Clients) error {
+	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
 	}
 
-	// make sure SPIFFE ID is well formed
-	c.SpiffeID, err = idutil.NormalizeSpiffeID(c.SpiffeID, idutil.AllowAnyTrustDomainAgent())
+	id, err := spiffeid.FromString(c.spiffeID)
 	if err != nil {
 		return err
 	}
 
-	return nil
-}
-
-//EvictCLI command for node eviction
-type EvictCLI struct {
-	registrationClient registration.RegistrationClient
-}
-
-func (EvictCLI) Synopsis() string {
-	return "Evicts an attested agent given its SPIFFE ID"
-}
-
-func (c EvictCLI) Help() string {
-	_, err := c.parseConfig([]string{"-h"})
-	return err.Error()
-}
-
-//Run will evict an agent given its spiffeID
-func (c EvictCLI) Run(args []string) int {
-	ctx := context.Background()
-
-	config, err := c.parseConfig(args)
+	_, err = clients.AgentClient.DeleteAgent(ctx, &agent.DeleteAgentRequest{Id: api.ProtoFromID(id)})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		return err
 	}
 
-	if err = config.Validate(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-
-	if c.registrationClient == nil {
-		c.registrationClient, err = util.NewRegistrationClient(config.RegistrationUDSPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error establishing connection to the Registration API: %v \n", err)
-			return 1
-		}
-	}
-	evictResponse, err := c.registrationClient.EvictAgent(ctx, &registration.EvictAgentRequest{SpiffeID: config.SpiffeID})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error evicting agent: %v \n", err)
-		return 1
-	}
-
-	if evictResponse.Node == nil {
-		fmt.Fprintln(os.Stderr, "Failed to evict agent")
-		return 1
-	}
-
-	fmt.Println("Agent evicted successfully")
-	return 0
+	return env.Println("Agent evicted successfully")
 }
 
-func (EvictCLI) parseConfig(args []string) (*EvictConfig, error) {
-	f := flag.NewFlagSet("agent evict", flag.ContinueOnError)
-	c := &EvictConfig{}
-
-	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
-	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (agent identity)")
-
-	return c, f.Parse(args)
+func (c *evictCommand) AppendFlags(fs *flag.FlagSet) {
+	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (agent identity)")
 }
