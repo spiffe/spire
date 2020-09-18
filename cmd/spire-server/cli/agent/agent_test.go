@@ -40,6 +40,18 @@ type agentTest struct {
 	showCmd cli.Command
 }
 
+func TestEvictHelp(t *testing.T) {
+	test := setupTest(t)
+
+	test.evictCmd.Help()
+	require.Equal(t, `Usage of agent evict:
+  -registrationUDSPath string
+    	Registration API UDS path (default "/tmp/spire-registration.sock")
+  -spiffeID string
+    	The SPIFFE ID of the agent to evict (agent identity)
+`, test.testEnv.Stderr.(*bytes.Buffer).String())
+}
+
 func TestEvict(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
@@ -83,6 +95,16 @@ func TestEvict(t *testing.T) {
 	}
 }
 
+func TestListHelp(t *testing.T) {
+	test := setupTest(t)
+
+	test.listCmd.Help()
+	require.Equal(t, `Usage of agent list:
+  -registrationUDSPath string
+    	Registration API UDS path (default "/tmp/spire-registration.sock")
+`, test.testEnv.Stderr.(*bytes.Buffer).String())
+}
+
 func TestList(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
@@ -123,6 +145,18 @@ func TestList(t *testing.T) {
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
 	}
+}
+
+func TestShowHelp(t *testing.T) {
+	test := setupTest(t)
+
+	test.showCmd.Help()
+	require.Equal(t, `Usage of agent show:
+  -registrationUDSPath string
+    	Registration API UDS path (default "/tmp/spire-registration.sock")
+  -spiffeID string
+    	The SPIFFE ID of the agent to show (agent identity)
+`, test.testEnv.Stderr.(*bytes.Buffer).String())
 }
 
 func TestShow(t *testing.T) {
