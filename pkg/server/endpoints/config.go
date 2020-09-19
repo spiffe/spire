@@ -127,7 +127,7 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 	})
 }
 
-func (c *Config) makeAPIServers() (APIServers, error) {
+func (c *Config) makeAPIServers() APIServers {
 	ds := c.Catalog.GetDataStore()
 	entryFetcher := AuthorizedEntryFetcherWithFullCache(
 		c.Log.WithField(telemetry.SubsystemName, "entrycache"),
@@ -159,5 +159,5 @@ func (c *Config) makeAPIServers() (APIServers, error) {
 			ServerCA:     c.ServerCA,
 			DataStore:    ds,
 		}),
-	}, nil
+	}
 }

@@ -9,12 +9,6 @@ import (
 )
 
 var (
-	selectorSetPool = sync.Pool{
-		New: func() interface{} {
-			return make(selectorSet)
-		},
-	}
-
 	seenSetPool = sync.Pool{
 		New: func() interface{} {
 			return make(seenSet)
@@ -28,35 +22,82 @@ var (
 	}
 )
 
+var _ Cache = (*FullEntryCache)(nil)
+
+// Cache contains a snapshot of all registration entries and Agent selectors from the data source
+// at a particular moment in time.
+type Cache interface {
+	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
+}
+
+// Selector is a key-value attribute of a node or workload.
+type Selector struct {
+	// Type is the type of the selector.
+	Type string
+	// Value is the value of the selector.
+	Value string
+}
+
+// EntryIterator is used to iterate through registration entries from a data source.
+// The usage pattern of the iterator is as follows:
+//   for it.Next() {
+//       entry := it.Entry()
+//       // process entry
+//   }
+//
+//   if it.Err() {
+//       // handle error
+//   }
+type EntryIterator interface {
+	// Next returns true if there are any remaining registration entries in the data source and returns false otherwise.
+	Next(ctx context.Context) bool
+	// Entry returns the next entry from the data source.
+	Entry() *types.Entry
+	// Err returns an error encountered when attempting to process entries from the data source.
+	Err() error
+}
+
+// AgentIterator is used to iterate through Agent selectors from a data source.
+// The usage pattern of the iterator is as follows:
+//   for it.Next() {
+//       agent := it.Agent()
+//       // process agent
+//   }
+//
+//   if it.Err() {
+//       // handle error
+//   }
+type AgentIterator interface {
+	// Next returns true if there are any remaining agents in the data source and returns false otherwise.
+	Next(ctx context.Context) bool
+	// Agent returns the next agent from the data source.
+	Agent() Agent
+	// Err returns an error encountered when attempting to process agents from the data source.
+	Err() error
+}
+
+// Agent represents the association of selectors to an agent SPIFFE ID.
+type Agent struct {
+	// ID is the Agent's SPIFFE ID.
+	ID spiffeid.ID
+	// Selectors is the Agent's selectors.
+	Selectors []*types.Selector
+}
+
+type FullEntryCache struct {
+	aliases map[spiffeID][]aliasEntry
+	entries map[spiffeID][]*types.Entry
+}
+
 type selectorSet map[Selector]struct{}
 type seenSet map[spiffeID]struct{}
 type stringSet map[string]struct{}
 
-type Selector struct {
-	Type  string
-	Value string
-}
-
-type EntryIterator interface {
-	Next(ctx context.Context) bool
-	Entry() *types.Entry
-	Err() error
-}
-
-type AgentIterator interface {
-	Next(ctx context.Context) bool
-	Agent() Agent
-	Err() error
-}
-
-type Agent struct {
-	ID        spiffeid.ID
-	Selectors []*types.Selector
-}
-
 type spiffeID struct {
+	// TrustDomain is the trust domain of the SPIFFE ID.
 	TrustDomain string
-	Path        string
+	// Path is the path of the SPIFFE ID.
+	Path string
 }
 
 type aliasEntry struct {
@@ -64,12 +105,9 @@ type aliasEntry struct {
 	entry *types.Entry
 }
 
-type Cache struct {
-	aliases map[spiffeID][]aliasEntry
-	entries map[spiffeID][]*types.Entry
-}
-
-func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator) (*Cache, error) {
+// Build queries the data source for all registration entries and Agent selectors and builds an in-memory
+// representation of the data that can be used for efficient lookups.
+func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator) (*FullEntryCache, error) {
 	type aliasInfo struct {
 		aliasEntry
 		selectors selectorSet
@@ -126,20 +164,21 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 		return nil, err
 	}
 
-	return &Cache{
+	return &FullEntryCache{
 		aliases: aliases,
 		entries: entries,
 	}, nil
 }
 
-func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+// GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
+func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
 	return c.getAuthorizedEntries(spiffeIDFromID(agentID), seen)
 }
 
-func (c *Cache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
+func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
 	entries := c.crawl(id, seen)
 	for _, descendant := range entries {
 		entries = append(entries, c.getAuthorizedEntries(spiffeIDFromProto(descendant.SpiffeId), seen)...)
@@ -152,7 +191,7 @@ func (c *Cache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []
 	return entries
 }
 
-func (c *Cache) crawl(parentID spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
+func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
 	if _, ok := seen[parentID]; ok {
 		return nil
 	}
@@ -188,25 +227,8 @@ func selectorSetFromProto(selectors []*types.Selector) selectorSet {
 	return set
 }
 
-func allocSelectorSet() selectorSet {
-	return selectorSetPool.Get().(selectorSet)
-
-}
-
-func freeSelectorSet(set selectorSet) {
-	clearSelectorSet(set)
-	selectorSetPool.Put(set)
-}
-
-func clearSelectorSet(set selectorSet) {
-	for k := range set {
-		delete(set, k)
-	}
-}
-
 func allocSeenSet() seenSet {
 	return seenSetPool.Get().(seenSet)
-
 }
 
 func freeSeenSet(set seenSet) {
@@ -222,7 +244,6 @@ func clearSeenSet(set seenSet) {
 
 func allocStringSet() stringSet {
 	return stringSetPool.Get().(stringSet)
-
 }
 
 func freeStringSet(set stringSet) {

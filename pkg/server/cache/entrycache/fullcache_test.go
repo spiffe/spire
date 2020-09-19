@@ -3,563 +3,510 @@ package entrycache
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"net/url"
+	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	sqlds "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	td = spiffeid.RequireTrustDomainFromString("domain.test")
+const (
+	spiffeScheme     = "spiffe"
+	trustDomain      = "example.org"
+	testNodeAttestor = "test-nodeattestor"
 )
 
-const (
-	mysqlConnString = "spire:test@tcp(localhost:9999)/spire?parseTime=true"
+var (
+	_  EntryIterator = (*entryIterator)(nil)
+	_  AgentIterator = (*agentIterator)(nil)
+	_  EntryIterator = (*errorEntryIterator)(nil)
+	_  AgentIterator = (*errorAgentIterator)(nil)
+	td               = spiffeid.RequireTrustDomainFromString("domain.test")
+	// The following are set by the linker during integration tests to
+	// run these unit tests against various SQL backends.
+	TestDialect      string
+	TestConnString   string
+	TestROConnString string
 )
 
 func TestCache(t *testing.T) {
-	assert := assert.New(t)
-	require := require.New(t)
 	ds := fakedatastore.New(t)
 	ctx := context.Background()
 
-	createRegistrationEntry := func(entry *common.RegistrationEntry) *common.RegistrationEntry {
-		resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-			Entry: entry,
-		})
-		require.NoError(err)
-		return resp.Entry
-	}
+	const rootID = "spiffe://example.org/root"
+	const serverID = "spiffe://example.org/spire/server"
+	const numEntries = 5
+	entryIDs := make([]string, numEntries)
+	for i := 0; i < numEntries; i++ {
+		entryIDURI := url.URL{
+			Scheme: spiffeScheme,
+			Host:   trustDomain,
+			Path:   strconv.Itoa(i),
+		}
 
-	setNodeSelectors := func(spiffeID string, selectors ...*common.Selector) {
-		_, err := ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-			Selectors: &datastore.NodeSelectors{
-				SpiffeId:  spiffeID,
-				Selectors: selectors,
-			},
-		})
-		assert.NoError(err)
+		entryIDs[i] = entryIDURI.String()
 	}
-
-	rootID := "spiffe://example.org/root"
-	oneID := "spiffe://example.org/1"
-	twoID := "spiffe://example.org/2"
-	threeID := "spiffe://example.org/3"
-	fourID := "spiffe://example.org/4"
-	fiveID := "spiffe://example.org/5"
-	serverID := "spiffe://example.org/spire/server"
 
 	a1 := &common.Selector{Type: "a", Value: "1"}
 	b2 := &common.Selector{Type: "b", Value: "2"}
 
+	irrelevantSelectors := []*common.Selector{
+		{Type: "not", Value: "relevant"},
+	}
+
 	//
-	//        root             4(a1,b2)
+	//        root             3(a1,b2)
 	//        /   \           /
-	//       1     2         5
+	//       0     1         4
 	//            /
-	//           3
+	//           2
 	//
-	// node resolvers map from 2 to 4
+	// node resolvers map from 1 to 3
 
-	oneEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  rootID,
-		SpiffeId:  oneID,
-		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-	})
+	entriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId:  rootID,
+			SpiffeId:  entryIDs[0],
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  rootID,
+			SpiffeId:  entryIDs[1],
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  entryIDs[1],
+			SpiffeId:  entryIDs[2],
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  serverID,
+			SpiffeId:  entryIDs[3],
+			Selectors: []*common.Selector{a1, b2},
+		},
+		{
 
-	twoEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  rootID,
-		SpiffeId:  twoID,
-		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-	})
+			ParentId:  entryIDs[3],
+			SpiffeId:  entryIDs[4],
+			Selectors: irrelevantSelectors,
+		},
+	}
 
-	threeEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  twoID,
-		SpiffeId:  threeID,
-		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-	})
+	entries := make([]*common.RegistrationEntry, len(entriesToCreate))
+	for i, e := range entriesToCreate {
+		entries[i] = createRegistrationEntry(ctx, t, ds, e)
+	}
 
-	fourEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  serverID,
-		SpiffeId:  fourID,
-		Selectors: []*common.Selector{a1, b2},
-	})
+	node := &common.AttestedNode{
+		SpiffeId:            entryIDs[1],
+		AttestationDataType: "test-nodeattestor",
+		CertSerialNumber:    "node-1",
+		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+	}
 
-	fiveEntry := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  fourID,
-		SpiffeId:  fiveID,
-		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-	})
+	createAttestedNode(t, ds, node)
+	setNodeSelectors(ctx, t, ds, entryIDs[1], a1, b2)
 
-	setNodeSelectors(twoID, a1, b2)
+	expected, err := api.RegistrationEntriesToProto(entries)
+	require.NoError(t, err)
 
-	expected, err := api.RegistrationEntriesToProto([]*common.RegistrationEntry{
-		oneEntry,
-		twoEntry,
-		threeEntry,
-		fourEntry,
-		fiveEntry,
-	})
-	require.NoError(err)
-
-	cache, err := Build(context.Background(), makeEntryIteratorDS(ds), makeAgentIteratorDS(ds))
-	assert.NoError(err)
+	cache, err := BuildFromDataStore(context.Background(), ds)
+	assert.NoError(t, err)
 
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
 
-	assert.Equal(expected, actual)
+	assert.Equal(t, expected, actual)
 }
 
 func TestFullCacheNodeAliasing(t *testing.T) {
-	assert := assert.New(t)
-	require := require.New(t)
 	ds := fakedatastore.New(t)
+	ctx := context.Background()
 
-	createRegistrationEntry := func(entry *common.RegistrationEntry) *common.RegistrationEntry {
-		resp, err := ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-			Entry: entry,
-		})
-		require.NoError(err)
-		return resp.Entry
+	const serverID = "spiffe://example.org/spire/server"
+	agentIDs := []spiffeid.ID{
+		spiffeid.RequireFromString("spiffe://example.org/spire/agent/agent1"),
+		spiffeid.RequireFromString("spiffe://example.org/spire/agent/agent2"),
+		spiffeid.RequireFromString("spiffe://example.org/spire/agent/agent3"),
 	}
-
-	setNodeSelectors := func(spiffeID string, selectors ...*common.Selector) {
-		_, err := ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
-			Selectors: &datastore.NodeSelectors{
-				SpiffeId:  spiffeID,
-				Selectors: selectors,
-			},
-		})
-		assert.NoError(err)
-	}
-
-	agent1ID := spiffeid.RequireFromString("spiffe://example.org/spire/agent/agent1")
-	agent2ID := spiffeid.RequireFromString("spiffe://example.org/spire/agent/agent2")
-	agent3ID := spiffeid.RequireFromString("spiffe://example.org/spire/agent/agent3")
 
 	s1 := &common.Selector{Type: "s", Value: "1"}
 	s2 := &common.Selector{Type: "s", Value: "2"}
 	s3 := &common.Selector{Type: "s", Value: "3"}
 
-	alias1 := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  "spiffe://example.org/spire/server",
-		SpiffeId:  "spiffe://example.org/agent1",
-		Selectors: []*common.Selector{s1, s2},
-	})
+	irrelevantSelectors := []*common.Selector{
+		{Type: "not", Value: "relevant"},
+	}
 
-	alias2 := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  "spiffe://example.org/spire/server",
-		SpiffeId:  "spiffe://example.org/agent2",
-		Selectors: []*common.Selector{s1},
-	})
+	nodeAliasEntriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId:  serverID,
+			SpiffeId:  "spiffe://example.org/agent1",
+			Selectors: []*common.Selector{s1, s2},
+		},
+		{
+			ParentId:  serverID,
+			SpiffeId:  "spiffe://example.org/agent2",
+			Selectors: []*common.Selector{s1},
+		},
+	}
 
-	workload1 := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  alias1.SpiffeId,
-		SpiffeId:  "spiffe://example.org/workload1",
-		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-	})
+	nodeAliasEntries := make([]*common.RegistrationEntry, len(nodeAliasEntriesToCreate))
+	for i, e := range nodeAliasEntriesToCreate {
+		nodeAliasEntries[i] = createRegistrationEntry(ctx, t, ds, e)
+	}
 
-	workload2 := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  alias2.SpiffeId,
-		SpiffeId:  "spiffe://example.org/workload2",
-		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-	})
+	workloadEntriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId:  nodeAliasEntries[0].SpiffeId,
+			SpiffeId:  "spiffe://example.org/workload1",
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  nodeAliasEntries[1].SpiffeId,
+			SpiffeId:  "spiffe://example.org/workload2",
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  agentIDs[2].String(),
+			SpiffeId:  "spiffe://example.org/workload3",
+			Selectors: irrelevantSelectors,
+		},
+	}
 
-	workload3 := createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:  agent3ID.String(),
-		SpiffeId:  "spiffe://example.org/workload3",
-		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-	})
+	workloadEntries := make([]*common.RegistrationEntry, len(workloadEntriesToCreate))
+	for i, e := range workloadEntriesToCreate {
+		workloadEntries[i] = createRegistrationEntry(ctx, t, ds, e)
+	}
 
-	setNodeSelectors(agent1ID.String(), s1, s2)
-	setNodeSelectors(agent2ID.String(), s1, s3)
+	for i, agentID := range agentIDs {
+		node := &common.AttestedNode{
+			SpiffeId:            agentID.String(),
+			AttestationDataType: testNodeAttestor,
+			CertSerialNumber:    strconv.Itoa(i),
+			CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+		}
 
-	cache, err := Build(context.Background(), makeEntryIteratorDS(ds), makeAgentIteratorDS(ds))
-	assert.NoError(err)
+		createAttestedNode(t, ds, node)
+	}
+
+	setNodeSelectors(ctx, t, ds, agentIDs[0].String(), s1, s2)
+	setNodeSelectors(ctx, t, ds, agentIDs[1].String(), s1, s3)
+
+	cache, err := BuildFromDataStore(context.Background(), ds)
+	assert.NoError(t, err)
 
 	assertAuthorizedEntries := func(agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
 		expected, err := api.RegistrationEntriesToProto(entries)
-		require.NoError(err)
-		assert.Equal(expected, cache.GetAuthorizedEntries(agentID))
+		require.NoError(t, err)
+		assert.ElementsMatch(t, expected, cache.GetAuthorizedEntries(agentID))
 	}
 
-	assertAuthorizedEntries(agent1ID, alias1, workload1, alias2, workload2)
-	assertAuthorizedEntries(agent2ID, alias2, workload2)
-	assertAuthorizedEntries(agent3ID, workload3)
+	assertAuthorizedEntries(agentIDs[0], append(nodeAliasEntries, workloadEntries[:2]...)...)
+	assertAuthorizedEntries(agentIDs[1], nodeAliasEntries[1], workloadEntries[1])
+	assertAuthorizedEntries(agentIDs[2], workloadEntries[2])
 }
 
-//func TestBuildMem(t *testing.T) {
-//	staticSelector1 := &types.Selector{
-//		Type:  "static",
-//		Value: "static-1",
-//	}
-//	staticSelector2 := &types.Selector{
-//		Type:  "static",
-//		Value: "static-1",
-//	}
-//
-//	aliasID1 := &types.SPIFFEID{
-//		TrustDomain: "domain.test",
-//		Path:        "/alias1",
-//	}
-//
-//	aliasID2 := &types.SPIFFEID{
-//		TrustDomain: "domain.test",
-//		Path:        "/alias2",
-//	}
-//
-//	var agents []Agent
-//	for i := 0; i < 50000; i++ {
-//		agents = append(agents, Agent{
-//			ID: makeAgentID(i),
-//			Selectors: []*types.Selector{
-//				staticSelector1,
-//			},
-//		})
-//	}
-//
-//	var allEntries = []*types.Entry{
-//		// Alias
-//		{
-//			Id:       "alias1",
-//			SpiffeId: aliasID1,
-//			ParentId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        "/spire/server",
-//			},
-//			Selectors: []*types.Selector{
-//				staticSelector1,
-//			},
-//		},
-//		// False alias
-//		{
-//			Id:       "alias2",
-//			SpiffeId: aliasID2,
-//			ParentId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        "/spire/server",
-//			},
-//			Selectors: []*types.Selector{
-//				staticSelector2,
-//			},
-//		},
-//	}
-//
-//	var workloadEntries1 []*types.Entry
-//	for i := 0; i < 300; i++ {
-//		workloadEntries1 = append(workloadEntries1, &types.Entry{
-//			Id: fmt.Sprintf("workload%d", i),
-//			SpiffeId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        fmt.Sprintf("workload%d", i),
-//			},
-//			ParentId: aliasID1,
-//			Selectors: []*types.Selector{
-//				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
-//			},
-//		})
-//	}
-//
-//	var workloadEntries2 []*types.Entry
-//	for i := 0; i < 300; i++ {
-//		workloadEntries2 = append(workloadEntries2, &types.Entry{
-//			Id: fmt.Sprintf("workload%d", i),
-//			SpiffeId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        fmt.Sprintf("workload%d", i),
-//			},
-//			ParentId: aliasID2,
-//			Selectors: []*types.Selector{
-//				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
-//			},
-//		})
-//	}
-//
-//	allEntries = append(allEntries, workloadEntries1...)
-//	allEntries = append(allEntries, workloadEntries2...)
-//
-//	PrintMemUsage()
-//	_, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//	PrintMemUsage()
-//
-//}
-//
-//// of garage collection cycles completed.
-//func PrintMemUsage() {
-//	var m runtime.MemStats
-//	runtime.ReadMemStats(&m)
-//	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-//	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
-//	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
-//	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
-//	fmt.Printf("\tNumGC = %v\n", m.NumGC)
-//}
-//
-//func bToMb(b uint64) uint64 {
-//	return b / 1024 / 1024
-//}
-//
-//func BenchmarkBuild(b *testing.B) {
-//	staticSelector1 := &types.Selector{
-//		Type:  "static",
-//		Value: "static-1",
-//	}
-//	staticSelector2 := &types.Selector{
-//		Type:  "static",
-//		Value: "static-1",
-//	}
-//
-//	aliasID1 := &types.SPIFFEID{
-//		TrustDomain: "domain.test",
-//		Path:        "/alias1",
-//	}
-//
-//	aliasID2 := &types.SPIFFEID{
-//		TrustDomain: "domain.test",
-//		Path:        "/alias2",
-//	}
-//
-//	var agents []Agent
-//	for i := 0; i < 50000; i++ {
-//		agents = append(agents, Agent{
-//			ID: makeAgentID(i),
-//			Selectors: []*types.Selector{
-//				staticSelector1,
-//			},
-//		})
-//	}
-//
-//	var allEntries = []*types.Entry{
-//		// Alias
-//		{
-//			Id:       "alias1",
-//			SpiffeId: aliasID1,
-//			ParentId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        "/spire/server",
-//			},
-//			Selectors: []*types.Selector{
-//				staticSelector1,
-//			},
-//		},
-//		// False alias
-//		{
-//			Id:       "alias2",
-//			SpiffeId: aliasID2,
-//			ParentId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        "/spire/server",
-//			},
-//			Selectors: []*types.Selector{
-//				staticSelector2,
-//			},
-//		},
-//	}
-//
-//	var workloadEntries1 []*types.Entry
-//	for i := 0; i < 300; i++ {
-//		workloadEntries1 = append(workloadEntries1, &types.Entry{
-//			Id: fmt.Sprintf("workload%d", i),
-//			SpiffeId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        fmt.Sprintf("workload%d", i),
-//			},
-//			ParentId: aliasID1,
-//			Selectors: []*types.Selector{
-//				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
-//			},
-//		})
-//	}
-//
-//	var workloadEntries2 []*types.Entry
-//	for i := 0; i < 300; i++ {
-//		workloadEntries2 = append(workloadEntries2, &types.Entry{
-//			Id: fmt.Sprintf("workload%d", i),
-//			SpiffeId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        fmt.Sprintf("workload%d", i),
-//			},
-//			ParentId: aliasID2,
-//			Selectors: []*types.Selector{
-//				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
-//			},
-//		})
-//	}
-//
-//	allEntries = append(allEntries, workloadEntries1...)
-//	allEntries = append(allEntries, workloadEntries2...)
-//
-//	//for i := 0; i < b.N; i++ {
-//	cache, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
-//	cache = cache
-//	if err != nil {
-//		b.Fatal(err)
-//	}
-//	//}
-//
-//	b.ResetTimer()
-//	for i := 0; i < b.N; i++ {
-//		actual := cache.GetAuthorizedEntries(agents[i%len(agents)].ID)
-//		actual = actual
-//		//require.Equal(b, workloadEntries, actual)
-//	}
-//}
-//
-//func XBenchmarkBuildOnMySQL(b *testing.B) {
-//	staticSelector1 := &types.Selector{
-//		Type:  "static",
-//		Value: "static-1",
-//	}
-//	staticSelector2 := &types.Selector{
-//		Type:  "static",
-//		Value: "static-1",
-//	}
-//
-//	aliasID1 := &types.SPIFFEID{
-//		TrustDomain: "domain.test",
-//		Path:        "/alias1",
-//	}
-//
-//	aliasID2 := &types.SPIFFEID{
-//		TrustDomain: "domain.test",
-//		Path:        "/alias2",
-//	}
-//
-//	var agents []Agent
-//	for i := 0; i < 50000; i++ {
-//		agents = append(agents, Agent{
-//			ID: makeAgentID(i),
-//			Selectors: []*types.Selector{
-//				staticSelector1,
-//			},
-//		})
-//	}
-//
-//	var allEntries = []*types.Entry{
-//		// Alias
-//		{
-//			Id:       "alias1",
-//			SpiffeId: aliasID1,
-//			ParentId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        "/spire/server",
-//			},
-//			Selectors: []*types.Selector{
-//				staticSelector1,
-//			},
-//		},
-//		// False alias
-//		{
-//			Id:       "alias2",
-//			SpiffeId: aliasID2,
-//			ParentId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        "/spire/server",
-//			},
-//			Selectors: []*types.Selector{
-//				staticSelector2,
-//			},
-//		},
-//	}
-//
-//	var workloadEntries1 []*types.Entry
-//	for i := 0; i < 300; i++ {
-//		workloadEntries1 = append(workloadEntries1, &types.Entry{
-//			Id: fmt.Sprintf("workload%d", i),
-//			SpiffeId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        fmt.Sprintf("workload%d", i),
-//			},
-//			ParentId: aliasID1,
-//			Selectors: []*types.Selector{
-//				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
-//			},
-//		})
-//	}
-//
-//	var workloadEntries2 []*types.Entry
-//	for i := 0; i < 300; i++ {
-//		workloadEntries2 = append(workloadEntries2, &types.Entry{
-//			Id: fmt.Sprintf("workload%d", i),
-//			SpiffeId: &types.SPIFFEID{
-//				TrustDomain: "domain.test",
-//				Path:        fmt.Sprintf("workload%d", i),
-//			},
-//			ParentId: aliasID2,
-//			Selectors: []*types.Selector{
-//				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
-//			},
-//		})
-//	}
-//
-//	allEntries = append(allEntries, workloadEntries1...)
-//	allEntries = append(allEntries, workloadEntries2...)
-//
-//	//wipeMySQL(b, mysqlConnString)
-//
-//	ds := sqlDS.New()
-//	ds.SetLogger(hclog.New(nil))
-//	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-//		Configuration: fmt.Sprintf(`
-//	database_type = "mysql"
-//	connection_string = %q`, mysqlConnString),
-//	})
-//	require.NoError(b, err)
-//
-//	//	fmt.Println("CREATING ENTRIES")
-//	//	for i, entry := range allEntries {
-//	//		e, _ := api.ProtoToRegistrationEntry(td, entry)
-//	//		_, err = ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-//	//			Entry: e,
-//	//		})
-//	//		if i%100 == 0 {
-//	//			fmt.Print(".")
-//	//		}
-//	//		require.NoError(b, err)
-//	//	}
-//	//
-//	//	fmt.Println("CREATING AGENTS")
-//	//	for i, agent := range agents {
-//	//		ss, _ := api.SelectorsFromProto(agent.Selectors)
-//	//		_, err = ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
-//	//			Selectors: &datastore.NodeSelectors{
-//	//				SpiffeId:  agent.ID.String(),
-//	//				Selectors: ss,
-//	//			},
-//	//		})
-//	//		if i%100 == 0 {
-//	//			fmt.Print(".")
-//	//		}
-//	//		require.NoError(b, err)
-//	//	}
-//
-//	b.ResetTimer()
-//	for i := 0; i < b.N; i++ {
-//		cache, err := Build(context.Background(), makeEntryIteratorDS(ds), makeAgentIteratorDS(ds))
-//		cache = cache
-//		if err != nil {
-//			b.Fatal(err)
-//		}
-//	}
-//
-//	//	b.ResetTimer()
-//	//	for i := 0; i < b.N; i++ {
-//	//		actual := cache.GetAuthorizedEntries(agents[i%len(agents)].ID)
-//	//		actual = actual
-//	//		//require.Equal(b, workloadEntries, actual)
-//	//	}
-//}
-//
+func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T) {
+	// This test verifies that the cache contains no workloads parented to alias entries
+	// that are only associated with an expired agent.
+	//
+	// Data used in this test:
+	//
+	// Registration entry graph:
+	// (agent SPIFFE IDs are shown as parented to the root for simplicity of illustrating the hierarchy)
+	//
+	//           ---------------------------root------------------------
+	//          /             |              |               |          \
+	//   group/0          group/1         group/2      agent/active    agent/expired
+	//      |                |              |                |            \
+	//  workload/0       workload/1     workload/2      workload/3     workload/4
+	//
+	// Agents:
+	// - agent/active - has a CertNotAfter that is still valid
+	// - agent/expired - has a CertNotAfter that expired
+	//
+	// agent/active maps to group/0 and group/1 based on selector subset matches.
+	// agent/expired maps to group/0 and group/2 based on selector subset matches.
+	//
+	// Normally, agent/expired should be authorized to receive group/0, workload/0, group/2, workload/2, and workload/4.
+	// However, the cache filters out all entries related to the expired agent other than ones shared with other Agents
+	// through node selector subset matching - in this case, just workload/0.
+	// In reality, an expired agent should not be able to request its authorized entries because endpoint security
+	// (mTLS on connection establishment and authorization middleware on subsequent requests over the connection)
+	// will prevent the RPC from being handled.
+	// The main point of this test is to demonstrate that the cache is capable of filtering out data that will never be
+	// used by clients in order to minimize the memory footprint.
+	// This is a mitigation for performance problems that arise when hydrating the cache today
+	// due to stale expired Agent data remaining in the datastore: https://github.com/spiffe/spire/issues/1836
+
+	ds := fakedatastore.New(t)
+	ctx := context.Background()
+	serverURI := &url.URL{
+		Scheme: spiffeScheme,
+		Host:   trustDomain,
+		Path:   "/spire/server",
+	}
+
+	serverID := spiffeid.RequireFromURI(serverURI)
+	buildAgentID := func(agentName string) spiffeid.ID {
+		agentURI := &url.URL{
+			Scheme: spiffeScheme,
+			Host:   trustDomain,
+			Path:   fmt.Sprintf("/spire/agent/%s", agentName),
+		}
+
+		return spiffeid.RequireFromURI(agentURI)
+	}
+
+	expiredAgentID := buildAgentID("expired-1")
+	expiredAgentIDStr := expiredAgentID.String()
+	expiredAgent := &common.AttestedNode{
+		SpiffeId:            expiredAgentIDStr,
+		AttestationDataType: testNodeAttestor,
+		CertSerialNumber:    "expired-agent",
+		CertNotAfter:        time.Now().Add(-24 * time.Hour).Unix(),
+	}
+
+	activeAgentID := buildAgentID("active-1")
+	activeAgentIDStr := activeAgentID.String()
+	activeAgent := &common.AttestedNode{
+		SpiffeId:            activeAgentIDStr,
+		AttestationDataType: testNodeAttestor,
+		CertSerialNumber:    "active-agent",
+		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+	}
+
+	createAttestedNode(t, ds, expiredAgent)
+	createAttestedNode(t, ds, activeAgent)
+
+	globalSelectors := []*common.Selector{
+		{
+			Type:  "static",
+			Value: "global",
+		},
+	}
+
+	const nodeGroupSelectorType = "node-group"
+	expiredAgentSelectors := []*common.Selector{
+		{
+			Type:  nodeGroupSelectorType,
+			Value: "group-1",
+		},
+	}
+
+	expiredAgentSelectors = append(expiredAgentSelectors, globalSelectors...)
+	activeAgentSelectors := []*common.Selector{
+		{
+			Type:  nodeGroupSelectorType,
+			Value: "group-2",
+		},
+	}
+
+	activeAgentSelectors = append(activeAgentSelectors, globalSelectors...)
+
+	setNodeSelectors(ctx, t, ds, expiredAgentIDStr, expiredAgentSelectors...)
+	setNodeSelectors(ctx, t, ds, activeAgentIDStr, activeAgentSelectors...)
+
+	const numAliasEntries = 3
+	aliasEntryIDs := make([]string, numAliasEntries)
+	for i := 0; i < numAliasEntries; i++ {
+		entryURI := &url.URL{
+			Scheme: spiffeScheme,
+			Host:   trustDomain,
+			Path:   fmt.Sprintf("/group/%d", i),
+		}
+
+		aliasEntryIDs[i] = spiffeid.RequireFromURI(entryURI).String()
+	}
+
+	aliasEntriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId:  serverID.String(),
+			SpiffeId:  aliasEntryIDs[0],
+			Selectors: globalSelectors,
+		},
+		{
+			ParentId:  serverID.String(),
+			SpiffeId:  aliasEntryIDs[1],
+			Selectors: activeAgentSelectors,
+		},
+		{
+			ParentId:  serverID.String(),
+			SpiffeId:  aliasEntryIDs[2],
+			Selectors: expiredAgentSelectors,
+		},
+	}
+
+	aliasEntries := make([]*common.RegistrationEntry, numAliasEntries)
+	for i := 0; i < numAliasEntries; i++ {
+		aliasEntries[i] = createRegistrationEntry(ctx, t, ds, aliasEntriesToCreate[i])
+	}
+
+	const numWorkloadEntries = 5
+	workloadEntryIDs := make([]string, numWorkloadEntries)
+	for i := 0; i < numWorkloadEntries; i++ {
+		entryURI := &url.URL{
+			Scheme: spiffeScheme,
+			Host:   trustDomain,
+			Path:   fmt.Sprintf("/workload/%d", i),
+		}
+
+		workloadEntryIDs[i] = spiffeid.RequireFromURI(entryURI).String()
+	}
+
+	irrelevantSelectors := []*common.Selector{
+		{
+			Type:  "doesn't",
+			Value: "matter",
+		},
+	}
+
+	workloadEntriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId:  aliasEntries[0].SpiffeId,
+			SpiffeId:  workloadEntryIDs[0],
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  aliasEntries[1].SpiffeId,
+			SpiffeId:  workloadEntryIDs[1],
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  aliasEntries[2].SpiffeId,
+			SpiffeId:  workloadEntryIDs[2],
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  activeAgentIDStr,
+			SpiffeId:  workloadEntryIDs[3],
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  expiredAgentIDStr,
+			SpiffeId:  workloadEntryIDs[4],
+			Selectors: irrelevantSelectors,
+		},
+	}
+
+	workloadEntries := make([]*common.RegistrationEntry, numWorkloadEntries)
+	for i := 0; i < numWorkloadEntries; i++ {
+		workloadEntries[i] = createRegistrationEntry(ctx, t, ds, workloadEntriesToCreate[i])
+	}
+
+	c, err := BuildFromDataStore(ctx, ds)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	entries := c.GetAuthorizedEntries(expiredAgentID)
+	require.Len(t, entries, 1)
+
+	expectedEntry, err := api.RegistrationEntryToProto(workloadEntries[numWorkloadEntries-1])
+	require.NoError(t, err)
+	assert.Equal(t, expectedEntry, entries[0])
+}
+
+func TestBuildIteratorError(t *testing.T) {
+	tests := []struct {
+		desc    string
+		entryIt EntryIterator
+		agentIt AgentIterator
+	}{
+		{
+			desc:    "entry iterator error",
+			entryIt: &errorEntryIterator{},
+			agentIt: makeAgentIterator(nil),
+		},
+		{
+			desc:    "agent iterator error",
+			entryIt: makeEntryIterator(nil),
+			agentIt: &errorAgentIterator{},
+		},
+	}
+
+	ctx := context.Background()
+	for _, tt := range tests {
+		entryIt := tt.entryIt
+		agentIt := tt.agentIt
+		t.Run(tt.desc, func(t *testing.T) {
+			cache, err := Build(ctx, entryIt, agentIt)
+			assert.Error(t, err)
+			assert.Nil(t, cache)
+		})
+	}
+}
+
+func BenchmarkBuildInMemory(b *testing.B) {
+	allEntries, agents := buildBenchmarkData()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
+	allEntries, agents := buildBenchmarkData()
+	cache, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
+	require.NoError(b, err)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cache.GetAuthorizedEntries(agents[i%len(agents)].ID)
+	}
+}
+
+// To run this benchmark against a real MySQL or Postgres database, set the following flags in your test run,
+// substituting in the required connection string parameters for each of the ldflags:
+// -bench 'BenchmarkBuildSQL' -benchtime <some-reasonable-time-limit> -ldflags "-X github.com/spiffe/spire/pkg/server/cache/entrycache.TestDialect=<mysql|postgres> -X github.com/spiffe/spire/pkg/server/cache/entrycache.TestConnString=<CONNECTION_STRING_HERE> -X github.com/spiffe/spire/pkg/server/cache/entrycache.TestROConnString=<CONNECTION_STRING_HERE>"
+func BenchmarkBuildSQL(b *testing.B) {
+	allEntries, agents := buildBenchmarkData()
+	ctx := context.Background()
+	ds := newSQLPlugin(ctx, b)
+
+	for _, entry := range allEntries {
+		e, _ := api.ProtoToRegistrationEntry(td, entry)
+		createRegistrationEntry(ctx, b, ds, e)
+	}
+
+	for i, agent := range agents {
+		agentIDStr := agent.ID.String()
+		node := &common.AttestedNode{
+			SpiffeId:            agent.ID.String(),
+			AttestationDataType: testNodeAttestor,
+			CertSerialNumber:    strconv.Itoa(i),
+			CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+		}
+
+		createAttestedNode(b, ds, node)
+		ss, _ := api.SelectorsFromProto(agent.Selectors)
+		setNodeSelectors(ctx, b, ds, agentIDStr, ss...)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := BuildFromDataStore(ctx, ds)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func makeAgentID(i int) spiffeid.ID {
 	return spiffeid.RequireFromString(fmt.Sprintf("spiffe://domain.test/spire/agent/%04d", i))
 }
@@ -575,7 +522,7 @@ func makeEntryIterator(entries []*types.Entry) *entryIterator {
 	}
 }
 
-func (it *entryIterator) Next(ctx context.Context) bool {
+func (it *entryIterator) Next(context.Context) bool {
 	if it.next >= len(it.entries) {
 		return false
 	}
@@ -602,7 +549,7 @@ func makeAgentIterator(agents []Agent) *agentIterator {
 	}
 }
 
-func (it *agentIterator) Next(ctx context.Context) bool {
+func (it *agentIterator) Next(context.Context) bool {
 	if it.next >= len(it.agents) {
 		return false
 	}
@@ -618,7 +565,35 @@ func (it *agentIterator) Err() error {
 	return nil
 }
 
-func __wipePostgres(tb testing.TB, connString string) {
+type errorEntryIterator struct{}
+
+func (e *errorEntryIterator) Next(context.Context) bool {
+	return false
+}
+
+func (e *errorEntryIterator) Err() error {
+	return errors.New("some entry iterator error")
+}
+
+func (e *errorEntryIterator) Entry() *types.Entry {
+	return nil
+}
+
+type errorAgentIterator struct{}
+
+func (e *errorAgentIterator) Next(context.Context) bool {
+	return false
+}
+
+func (e *errorAgentIterator) Err() error {
+	return errors.New("some agent iterator error")
+}
+
+func (e *errorAgentIterator) Agent() Agent {
+	return Agent{}
+}
+
+func wipePostgres(tb testing.TB, connString string) {
 	db, err := sql.Open("postgres", connString)
 	require.NoError(tb, err)
 	defer db.Close()
@@ -630,7 +605,7 @@ func __wipePostgres(tb testing.TB, connString string) {
 	dropTablesInRows(tb, db, rows)
 }
 
-func __wipeMySQL(tb testing.TB, connString string) {
+func wipeMySQL(tb testing.TB, connString string) {
 	db, err := sql.Open("mysql", connString)
 	require.NoError(tb, err)
 	defer db.Close()
@@ -651,4 +626,163 @@ func dropTablesInRows(tb testing.TB, db *sql.DB, rows *sql.Rows) {
 		require.NoError(tb, err)
 	}
 	require.NoError(tb, rows.Err())
+}
+
+func createRegistrationEntry(ctx context.Context, tb testing.TB, ds datastore.DataStore, entry *common.RegistrationEntry) *common.RegistrationEntry {
+	resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	require.NoError(tb, err)
+	return resp.Entry
+}
+
+func setNodeSelectors(ctx context.Context, tb testing.TB, ds datastore.DataStore, spiffeID string, selectors ...*common.Selector) {
+	_, err := ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+		Selectors: &datastore.NodeSelectors{
+			SpiffeId:  spiffeID,
+			Selectors: selectors,
+		},
+	})
+	require.NoError(tb, err)
+}
+
+func buildBenchmarkData() ([]*types.Entry, []Agent) {
+	staticSelector1 := &types.Selector{
+		Type:  "static",
+		Value: "static-1",
+	}
+	staticSelector2 := &types.Selector{
+		Type:  "static",
+		Value: "static-1",
+	}
+
+	aliasID1 := &types.SPIFFEID{
+		TrustDomain: "domain.test",
+		Path:        "/alias1",
+	}
+
+	aliasID2 := &types.SPIFFEID{
+		TrustDomain: "domain.test",
+		Path:        "/alias2",
+	}
+
+	const numAgents = 50000
+	agents := make([]Agent, 0, numAgents)
+	for i := 0; i < numAgents; i++ {
+		agents = append(agents, Agent{
+			ID: makeAgentID(i),
+			Selectors: []*types.Selector{
+				staticSelector1,
+			},
+		})
+	}
+
+	var allEntries = []*types.Entry{
+		// Alias
+		{
+			Id:       "alias1",
+			SpiffeId: aliasID1,
+			ParentId: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/spire/server",
+			},
+			Selectors: []*types.Selector{
+				staticSelector1,
+			},
+		},
+		// False alias
+		{
+			Id:       "alias2",
+			SpiffeId: aliasID2,
+			ParentId: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/spire/server",
+			},
+			Selectors: []*types.Selector{
+				staticSelector2,
+			},
+		},
+	}
+
+	var workloadEntries1 []*types.Entry
+	for i := 0; i < 300; i++ {
+		workloadEntries1 = append(workloadEntries1, &types.Entry{
+			Id: fmt.Sprintf("workload%d", i),
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        fmt.Sprintf("workload%d", i),
+			},
+			ParentId: aliasID1,
+			Selectors: []*types.Selector{
+				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
+			},
+		})
+	}
+
+	var workloadEntries2 []*types.Entry
+	for i := 0; i < 300; i++ {
+		workloadEntries2 = append(workloadEntries2, &types.Entry{
+			Id: fmt.Sprintf("workload%d", i),
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        fmt.Sprintf("workload%d", i),
+			},
+			ParentId: aliasID2,
+			Selectors: []*types.Selector{
+				{Type: "unix", Value: fmt.Sprintf("uid:%d", i)},
+			},
+		})
+	}
+
+	allEntries = append(allEntries, workloadEntries1...)
+	allEntries = append(allEntries, workloadEntries2...)
+	return allEntries, agents
+}
+
+func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.Plugin {
+	p := sqlds.BuiltIn()
+	var ds datastore.Plugin
+	spiretest.LoadPlugin(tb, p, &ds)
+
+	// When the test suite is executed normally, we test against sqlite3 since
+	// it requires no external dependencies. The integration test framework
+	// builds the test harness for a specific dialect and connection string
+	var cfg string
+	switch TestDialect {
+	case "":
+		dbPath := filepath.Join(spiretest.TempDir(tb), "db.sqlite3")
+		cfg = fmt.Sprintf(`
+				database_type = "sqlite3"
+				log_sql = true
+				connection_string = "%s"
+				`, dbPath)
+	case "mysql":
+		require.NotEmpty(tb, TestConnString, "connection string must be set")
+		wipeMySQL(tb, TestConnString)
+		cfg = fmt.Sprintf(`
+				database_type = "mysql"
+				log_sql = true
+				connection_string = "%s"
+				ro_connection_string = "%s"
+				`, TestConnString, TestROConnString)
+	case "postgres":
+		require.NotEmpty(tb, TestConnString, "connection string must be set")
+		wipePostgres(tb, TestConnString)
+		cfg = fmt.Sprintf(`
+				database_type = "postgres"
+				log_sql = true
+				connection_string = "%s"
+				ro_connection_string = "%s"
+				`, TestConnString, TestROConnString)
+	default:
+		require.FailNowf(tb, "Unsupported external test dialect %q", TestDialect)
+	}
+
+	cfgReq := &spi.ConfigureRequest{
+		Configuration: cfg,
+	}
+	_, err := ds.Configure(ctx, cfgReq)
+	require.NoError(tb, err)
+
+	return ds
 }
