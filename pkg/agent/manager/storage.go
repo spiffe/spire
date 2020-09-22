@@ -71,3 +71,9 @@ func StoreSVID(svidCachePath string, svidChain []*x509.Certificate) error {
 	}
 	return diskutil.AtomicWriteFile(svidCachePath, data.Bytes(), 0600)
 }
+
+// DeleteSVID deletes the svid from disk at svidCachePath. Returns nil if all went
+// fine, otherwise it returns an error.
+func DeleteSVID(svidCachePath string) error {
+	return os.Remove(svidCachePath)
+}
