@@ -48,6 +48,7 @@ var (
 	agentID      = testTD.NewID("/agent")
 	adminID      = testTD.NewID("/admin")
 	downstreamID = testTD.NewID("/downstream")
+	rateLimit    = &RateLimitConfig{Attestation: 1}
 )
 
 func TestNew(t *testing.T) {
@@ -87,6 +88,7 @@ func TestNew(t *testing.T) {
 		Manager:        manager,
 		Log:            log,
 		Metrics:        metrics,
+		RateLimit:      rateLimit,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
@@ -146,6 +148,7 @@ func TestListenAndServe(t *testing.T) {
 		BundleEndpointServer: bundleEndpointServer,
 		Log:                  log,
 		Metrics:              metrics,
+		RateLimitConfig:      rateLimit,
 	}
 
 	// Prime the datastore with the:

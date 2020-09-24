@@ -2,12 +2,9 @@ package bundle
 
 import (
 	"context"
-	"errors"
 	"flag"
-	"fmt"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 )
 
 // NewExperimentalSetCommand creates a new "set" subcommand for "bundle" command.
@@ -28,11 +25,11 @@ type experimentalSetCommand struct {
 }
 
 func (c *experimentalSetCommand) name() string {
-	return "experimental bundle set"
+	return `experimental bundle set (deprecated - please use "bundle set" instead)`
 }
 
 func (c *experimentalSetCommand) synopsis() string {
-	return "Creates or updates bundle data"
+	return `Creates or updates bundle data. This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the "bundle set" command.`
 }
 
 func (c *experimentalSetCommand) appendFlags(fs *flag.FlagSet) {
@@ -41,38 +38,11 @@ func (c *experimentalSetCommand) appendFlags(fs *flag.FlagSet) {
 }
 
 func (c *experimentalSetCommand) run(ctx context.Context, env *env, clients *clients) error {
-	if c.id == "" {
-		return errors.New("id flag is required")
-	}
-	jwksBytes, err := loadParamData(env.stdin, c.path)
-	if err != nil {
-		return fmt.Errorf("unable to load bundle data: %v", err)
+	setCommand := setCommand{
+		id:     c.id,
+		path:   c.path,
+		format: formatSPIFFE,
 	}
 
-	bundle, err := parseBundle(c.id, jwksBytes)
-	if err != nil {
-		return err
-	}
-
-	federatedBundle := &registration.FederatedBundle{
-		Bundle: bundle,
-	}
-
-	// pull the existing bundle to know if this should be a create or a update.
-	// at some point it might be nice to have a create-or-update style API.
-	_, err = clients.r.FetchFederatedBundle(ctx, &registration.FederatedBundleID{
-		Id: bundle.TrustDomainId,
-	})
-
-	// assume that an error is because the bundle does not exist
-	if err == nil {
-		_, err = clients.r.UpdateFederatedBundle(ctx, federatedBundle)
-	} else {
-		_, err = clients.r.CreateFederatedBundle(ctx, federatedBundle)
-	}
-	if err != nil {
-		return err
-	}
-
-	return env.Println("bundle set.")
+	return setCommand.run(ctx, env, clients)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -57,7 +58,7 @@ type Service struct {
 func (s *Service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx)
 
-	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+	dsResp, err := s.ds.FetchBundle(dscache.WithCache(ctx), &datastore.FetchBundleRequest{
 		TrustDomainId: s.td.IDString(),
 	})
 	if err != nil {
@@ -136,9 +137,6 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJW
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to publish JWT key", err)
 	}
-
-	// TODO: after pushing authoriry, may we reset dsCache? (Track on #1631)
-	// dsCache.DeleteBundleEntry(s.td.String())
 
 	return &bundle.PublishJWTAuthorityResponse{
 		JwtAuthorities: api.PublicKeysToProto(resp),

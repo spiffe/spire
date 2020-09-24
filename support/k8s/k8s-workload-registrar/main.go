@@ -5,11 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-
-	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/zeebo/errs"
-	"google.golang.org/grpc"
 )
 
 var (
@@ -25,49 +20,12 @@ func main() {
 }
 
 func run(ctx context.Context, configPath string) error {
-	config, err := LoadConfig(configPath)
+	mode, err := LoadMode(configPath)
 	if err != nil {
 		return err
 	}
 
-	log, err := log.NewLogger(log.WithLevel(config.LogLevel), log.WithFormat(config.LogFormat), log.WithOutputFile(config.LogPath))
-	if err != nil {
-		return err
-	}
-	defer log.Close()
+	defer mode.Close()
 
-	log.WithField("socket_path", config.ServerSocketPath).Info("Dialing server")
-	serverConn, err := grpc.DialContext(ctx, "unix://"+config.ServerSocketPath, grpc.WithInsecure())
-	if err != nil {
-		return errs.New("failed to dial server: %v", err)
-	}
-	defer serverConn.Close()
-
-	controller := NewController(ControllerConfig{
-		Log:           log,
-		R:             registration.NewRegistrationClient(serverConn),
-		TrustDomain:   config.TrustDomain,
-		Cluster:       config.Cluster,
-		PodLabel:      config.PodLabel,
-		PodAnnotation: config.PodAnnotation,
-	})
-
-	log.Info("Initializing registrar")
-	if err := controller.Initialize(ctx); err != nil {
-		return err
-	}
-
-	server, err := NewServer(ServerConfig{
-		Log:                            log,
-		Addr:                           config.Addr,
-		Handler:                        NewWebhookHandler(controller),
-		CertPath:                       config.CertPath,
-		KeyPath:                        config.KeyPath,
-		CaCertPath:                     config.CaCertPath,
-		InsecureSkipClientVerification: config.InsecureSkipClientVerification,
-	})
-	if err != nil {
-		return err
-	}
-	return server.Run(ctx)
+	return mode.Run(ctx)
 }

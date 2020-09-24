@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
@@ -201,6 +203,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
 	}
 	p.DataStore.DataStore = datastore_telemetry.WithMetrics(p.DataStore.DataStore, config.Metrics)
+	p.DataStore.DataStore = dscache.New(p.DataStore.DataStore, clock.New())
 	p.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
 
 	return &Repository{

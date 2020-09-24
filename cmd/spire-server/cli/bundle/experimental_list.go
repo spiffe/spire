@@ -3,12 +3,8 @@ package bundle
 import (
 	"context"
 	"flag"
-	"io"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // NewExperimentalListCommand creates a new "list" subcommand for "bundle" command.
@@ -26,11 +22,11 @@ type experimentalListCommand struct {
 }
 
 func (c *experimentalListCommand) name() string {
-	return "experimental bundle list"
+	return `experimental bundle list (deprecated - please use "bundle list" instead)`
 }
 
 func (c *experimentalListCommand) synopsis() string {
-	return "Lists bundle data"
+	return `Lists bundle data. This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the "bundle list" command.`
 }
 
 func (c *experimentalListCommand) appendFlags(fs *flag.FlagSet) {
@@ -38,43 +34,10 @@ func (c *experimentalListCommand) appendFlags(fs *flag.FlagSet) {
 }
 
 func (c *experimentalListCommand) run(ctx context.Context, env *env, clients *clients) error {
-	if c.id != "" {
-		id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
-		if err != nil {
-			return err
-		}
-		bundle, err := clients.r.FetchFederatedBundle(ctx, &registration.FederatedBundleID{
-			Id: id,
-		})
-		if err != nil {
-			return err
-		}
-		return printBundle(env.stdout, bundle.Bundle, false)
+	listCommand := listCommand{
+		id:     c.id,
+		format: formatSPIFFE,
 	}
 
-	stream, err := clients.r.ListFederatedBundles(ctx, &common.Empty{})
-	if err != nil {
-		return err
-	}
-
-	for i := 0; ; i++ {
-		bundle, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-
-		if i != 0 {
-			if err := env.Println(); err != nil {
-				return err
-			}
-		}
-
-		if err := printBundle(env.stdout, bundle.Bundle, true); err != nil {
-			return err
-		}
-	}
-	return nil
+	return listCommand.run(ctx, env, clients)
 }

@@ -3,6 +3,7 @@ package spireplugin
 import (
 	"context"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -15,17 +16,19 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	w_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	"github.com/spiffe/spire/proto/spire/api/node"
-	node_pb "github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,40 +43,58 @@ const (
 	"server_port":"_test_data/keys/cert.pem",
 	"server_agent_address":"8090"
 }`
-	trustDomain        = "example.com"
-	keyFilePath        = "_test_data/keys/private_key.pem"
-	certFilePath       = "_test_data/keys/cert.pem"
-	serverCertFilePath = "_test_data/keys/server.pem"
-	caFilePath         = "_test_data/keys/ca.pem"
 )
 
 var (
-	ctx       = context.Background()
-	mockClock = clock.NewMock()
+	ctx         = context.Background()
+	mockClock   = clock.NewMock()
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.com")
 )
 
 type handler struct {
+	svid.SVIDServer
+	bundle.BundleServer
+
 	server *grpc.Server
 	addr   string
 
 	bundleMtx sync.RWMutex
-	bundle    common.Bundle
+	bundle    types.Bundle
+
+	ca   *testca.CA
+	cert []*x509.Certificate
+	key  crypto.Signer
+
+	err error
+
+	// Custom downstream response
+	downstreamResponse *svid.NewDownstreamX509CAResponse
 }
 
 type whandler struct {
+	w_pb.SpiffeWorkloadAPIServer
+
 	socketPath string
+
+	ca   *testca.CA
+	cert []*x509.Certificate
+	key  crypto.Signer
+
+	svidCert []byte
+	svidKey  []byte
 }
 
 type testHandler struct {
-	wapiServer *whandler
-	napiServer *handler
+	wAPIServer *whandler
+	sAPIServer *handler
 }
 
-func (h *testHandler) startTestServers(t *testing.T) {
-	h.wapiServer = &whandler{}
-	h.napiServer = &handler{}
-	h.napiServer.startNodeAPITestServer(t)
-	h.wapiServer.startWAPITestServer(t)
+func (h *testHandler) startTestServers(t *testing.T, ca *testca.CA, serverCert []*x509.Certificate, serverKey crypto.Signer,
+	svidCert []byte, svidKey []byte) {
+	h.wAPIServer = &whandler{cert: serverCert, key: serverKey, ca: ca, svidCert: svidCert, svidKey: svidKey}
+	h.sAPIServer = &handler{cert: serverCert, key: serverKey, ca: ca}
+	h.sAPIServer.startServerAPITestServer(t)
+	h.wAPIServer.startWAPITestServer(t)
 }
 
 func (w *whandler) startWAPITestServer(t *testing.T) {
@@ -81,66 +102,37 @@ func (w *whandler) startWAPITestServer(t *testing.T) {
 }
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
-	key, err := pemutil.LoadPrivateKey(keyFilePath)
-	if err != nil {
-		return err
-	}
-
-	cert, err := pemutil.LoadCertificate(certFilePath)
-	if err != nil {
-		return err
-	}
-
-	caCert, err := pemutil.LoadCertificate(caFilePath)
-	if err != nil {
-		return err
-	}
-
-	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		return err
-	}
-
 	svid := &w_pb.X509SVID{
-		SpiffeId:    "spiffe://localhost/workload",
-		X509Svid:    cert.Raw,
-		X509SvidKey: keyBytes,
-		Bundle:      caCert.Raw,
+		SpiffeId:    trustDomain.NewID("workload").String(),
+		X509Svid:    w.svidCert,
+		X509SvidKey: w.svidKey,
+		Bundle:      w.cert[0].Raw,
 	}
 
 	resp := new(w_pb.X509SVIDResponse)
 	resp.Svids = []*w_pb.X509SVID{}
 	resp.Svids = append(resp.Svids, svid)
 
-	err = stream.Send(resp)
+	err := stream.Send(resp)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (w *whandler) ValidateJWTSVID(ctx context.Context, req *w_pb.ValidateJWTSVIDRequest) (*w_pb.ValidateJWTSVIDResponse, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
-}
-
-func (w *whandler) FetchJWTSVID(ctx context.Context, req *w_pb.JWTSVIDRequest) (*w_pb.JWTSVIDResponse, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
-}
-
-func (w *whandler) FetchJWTBundles(req *w_pb.JWTBundlesRequest, stream w_pb.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
-	return errors.New("NOT IMPLEMENTED")
-}
-
-func (h *handler) startNodeAPITestServer(t *testing.T) {
+func (h *handler) startServerAPITestServer(t *testing.T) {
 	h.loadInitialBundle(t)
 
-	creds, err := credentials.NewServerTLSFromFile(serverCertFilePath, keyFilePath)
-	require.NoError(t, err)
+	creds := credentials.NewServerTLSFromCert(&tls.Certificate{
+		Certificate: [][]byte{h.cert[0].Raw},
+		PrivateKey:  h.key,
+	})
 
 	opts := grpc.Creds(creds)
 	h.server = grpc.NewServer(opts)
 
-	node_pb.RegisterNodeServer(h.server, h)
+	svid.RegisterSVIDServer(h.server, h)
+	bundle.RegisterBundleServer(h.server, h)
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -151,59 +143,76 @@ func (h *handler) startNodeAPITestServer(t *testing.T) {
 func (h *handler) loadInitialBundle(t *testing.T) {
 	jwksBytes, err := ioutil.ReadFile("_test_data/keys/jwks.json")
 	require.NoError(t, err)
-	b, err := bundleutil.Unmarshal("spiffe://localhost", jwksBytes)
+	b, err := bundleutil.Unmarshal(trustDomain.IDString(), jwksBytes)
 	require.NoError(t, err)
 
-	caCert, err := pemutil.LoadCertificate(caFilePath)
-	require.NoError(t, err)
-	b.AppendRootCA(caCert)
+	// Append X509 authorities
+	for _, rootCA := range h.ca.Bundle().X509Authorities() {
+		b.AppendRootCA(rootCA)
+	}
 
-	h.setBundle(*b.Proto())
+	// Parse common bundle into types
+	p := b.Proto()
+	var jwtAuthorities []*types.JWTKey
+	for _, k := range p.JwtSigningKeys {
+		jwtAuthorities = append(jwtAuthorities, &types.JWTKey{
+			PublicKey: k.PkixBytes,
+			ExpiresAt: k.NotAfter,
+			KeyId:     k.Kid,
+		})
+	}
+
+	var x509Authorities []*types.X509Certificate
+	for _, cert := range p.RootCas {
+		x509Authorities = append(x509Authorities, &types.X509Certificate{
+			Asn1: cert.DerBytes,
+		})
+	}
+
+	h.setBundle(types.Bundle{
+		TrustDomain:     p.TrustDomainId,
+		RefreshHint:     p.RefreshHint,
+		JwtAuthorities:  jwtAuthorities,
+		X509Authorities: x509Authorities,
+	})
 }
 
-func (h *handler) appendKey(key *common.PublicKey) {
+func (h *handler) appendKey(key *types.JWTKey) {
 	h.bundleMtx.Lock()
 	defer h.bundleMtx.Unlock()
-	h.bundle.JwtSigningKeys = append(h.bundle.JwtSigningKeys, key)
+	h.bundle.JwtAuthorities = append(h.bundle.JwtAuthorities, key)
 }
 
-func (h *handler) appendRootCA(rootCA *common.Certificate) {
+func (h *handler) appendRootCA(rootCA *types.X509Certificate) {
 	h.bundleMtx.Lock()
 	defer h.bundleMtx.Unlock()
-	h.bundle.RootCas = append(h.bundle.RootCas, rootCA)
+	h.bundle.X509Authorities = append(h.bundle.X509Authorities, rootCA)
 }
 
-func (h *handler) getBundle() common.Bundle {
+func (h *handler) getBundle() types.Bundle {
 	h.bundleMtx.RLock()
 	defer h.bundleMtx.RUnlock()
 	return h.bundle
 }
 
-func (h *handler) setBundle(b common.Bundle) {
+func (h *handler) setBundle(b types.Bundle) {
 	h.bundleMtx.Lock()
 	defer h.bundleMtx.Unlock()
 	h.bundle = b
 }
 
-func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
-	return errors.New("NOT IMPLEMENTED")
-}
-
-func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVIDRequest) (*node.FetchX509CASVIDResponse, error) {
-	caKey, err := pemutil.LoadPrivateKey(keyFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load test CA key")
+func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
+	if h.err != nil {
+		return nil, h.err
 	}
 
-	caCert, err := pemutil.LoadCertificate(caFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load test CA certificate")
+	if h.downstreamResponse != nil {
+		return h.downstreamResponse, nil
 	}
 
-	// configure upstream ca
 	ca := x509svid.NewUpstreamCA(
-		x509util.NewMemoryKeypair(caCert, caKey),
-		"localhost",
+		x509util.NewMemoryKeypair(h.cert[0], h.key),
+		trustDomain.String(),
 		x509svid.UpstreamCAOptions{})
 
 	cert, err := ca.SignCSR(ctx, req.Csr, 0)
@@ -211,53 +220,95 @@ func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		return nil, fmt.Errorf("unable to sign CSR: %v", err)
 	}
 
-	return &node.FetchX509CASVIDResponse{
-		Svid: &node_pb.X509SVID{
-			CertChain: cert.Raw,
-			ExpiresAt: cert.NotAfter.Unix(),
-		},
-		Bundle: &common.Bundle{
-			TrustDomainId: "spiffe://localhost",
-			RootCas: []*common.Certificate{
-				{DerBytes: caCert.Raw},
-			},
-		},
+	var bundles [][]byte
+	for _, b := range h.ca.X509Authorities() {
+		bundles = append(bundles, b.Raw)
+	}
+
+	return &svid.NewDownstreamX509CAResponse{
+		CaCertChain:     [][]byte{cert.Raw},
+		X509Authorities: bundles,
 	}, nil
 }
 
-func (h *handler) FetchJWTSVID(ctx context.Context, req *node_pb.FetchJWTSVIDRequest) (*node_pb.FetchJWTSVIDResponse, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
-}
-
-func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
-	return errors.New("NOT IMPLEMENTED")
-}
-
-// PushJWTKeyUpstream fakes the real implementation (node endpoint) for testing purposes
-func (h *handler) PushJWTKeyUpstream(ctx context.Context, req *node_pb.PushJWTKeyUpstreamRequest) (*node_pb.PushJWTKeyUpstreamResponse, error) {
-	h.appendKey(req.JwtKey)
-	return &node_pb.PushJWTKeyUpstreamResponse{
-		JwtSigningKeys: h.getBundle().JwtSigningKeys,
-	}, nil
-}
-
-func (h *handler) FetchBundle(ctx context.Context, req *node_pb.FetchBundleRequest) (*node_pb.FetchBundleResponse, error) {
+func (h *handler) GetBundle(context.Context, *bundle.GetBundleRequest) (*types.Bundle, error) {
+	if h.err != nil {
+		return nil, h.err
+	}
 	b := h.getBundle()
-	return &node_pb.FetchBundleResponse{
-		Bundle: &b,
+	return &b, nil
+}
+
+func (h *handler) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
+	if h.err != nil {
+		return nil, h.err
+	}
+
+	h.appendKey(req.JwtAuthority)
+	return &bundle.PublishJWTAuthorityResponse{
+		JwtAuthorities: h.getBundle().JwtAuthorities,
 	}, nil
 }
 
 func TestSpirePlugin_Configure(t *testing.T) {
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: config,
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain},
-	}
+	for _, tt := range []struct {
+		name string
+		req  *spi.ConfigureRequest
+		err  string
+	}{
+		{
+			name: "success",
+			req: &spi.ConfigureRequest{
+				Configuration: config,
+				GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain.String()},
+			},
+		},
+		{
+			name: "malformed configuration",
+			req: &spi.ConfigureRequest{
+				Configuration: "{1}",
+			},
+			err: "expected: STRING got: NUMBER",
+		},
+		{
+			name: "no global config",
+			req: &spi.ConfigureRequest{
+				Configuration: config,
+			},
+			err: "global configuration is required",
+		},
+		{
+			name: "no trust domain",
+			req: &spi.ConfigureRequest{
+				Configuration: config,
+				GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{},
+			},
+			err: "trust_domain is required",
+		},
+		{
+			name: "malformed trust domain",
+			req: &spi.ConfigureRequest{
+				Configuration: config,
+				GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "malformed td"},
+			},
+			err: "malformed trustdomain: spiffeid: unable to parse: parse \"spiffe://malformed td\": invalid character \" \" in host name",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			m := New()
+			resp, err := m.Configure(ctx, tt.req)
 
-	m := New()
-	resp, err := m.Configure(ctx, pluginConfig)
-	require.NoError(t, err)
-	require.Equal(t, &spi.ConfigureResponse{}, resp)
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, &spi.ConfigureResponse{}, resp)
+		})
+	}
 }
 
 func TestSpirePlugin_GetPluginInfo(t *testing.T) {
@@ -269,18 +320,49 @@ func TestSpirePlugin_GetPluginInfo(t *testing.T) {
 }
 
 func TestSpirePlugin_MintX509CA(t *testing.T) {
+	ca := testca.New(t, trustDomain)
+
+	// Create SVID returned when fetching
+	s := ca.CreateX509SVID(trustDomain.NewID("workload"))
+	svidCert, svidKey, err := s.MarshalRaw()
+	require.NoError(t, err)
+
+	// Create sever's CA
+	serverCert, serverKey := ca.CreateX509Certificate(testca.WithURIs(trustDomain.NewID("/spire/server").URL()))
+
+	csr, pubKey, err := util.NewCSRTemplate(trustDomain.IDString())
+	require.NoError(t, err)
+
 	cases := []struct {
-		name        string
-		getCSR      func() ([]byte, crypto.PublicKey)
-		expectedErr string
+		name             string
+		getCSR           func() ([]byte, crypto.PublicKey)
+		expectedErr      string
+		sAPIError        error
+		downstreamResp   *svid.NewDownstreamX509CAResponse
+		customSocketPath string
+		customServerAddr string
 	}{
 		{
 			name: "valid CSR",
 			getCSR: func() ([]byte, crypto.PublicKey) {
-				csr, pubKey, err := util.NewCSRTemplate("spiffe://localhost")
-				require.NoError(t, err)
 				return csr, pubKey
 			},
+		},
+		{
+			name: "invalid socket path",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return csr, pubKey
+			},
+			customSocketPath: "malformed path",
+			expectedErr:      "rpc error: code = Unknown desc = failed to start server client: unable to create X509Source:",
+		},
+		{
+			name: "invalid server address",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return csr, pubKey
+			},
+			customServerAddr: "localhost",
+			expectedErr:      `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp :0`,
 		},
 		{
 			name: "invalid scheme",
@@ -298,7 +380,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 				require.NoError(t, err)
 				return csr, pubKey
 			},
-			expectedErr: `rpc error: code = Unknown desc = unable to sign CSR: "spiffe://not-trusted" does not belong to trust domain "localhost"`,
+			expectedErr: `rpc error: code = Unknown desc = unable to sign CSR: "spiffe://not-trusted" does not belong to trust domain "example.com"`,
 		},
 		{
 			name: "invalid CSR",
@@ -307,6 +389,34 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			},
 			expectedErr: `rpc error: code = Unknown desc = unable to sign CSR: unable to parse CSR`,
 		},
+		{
+			name: "failed to call server",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return csr, pubKey
+			},
+			sAPIError:   errors.New("some error"),
+			expectedErr: "rpc error: code = Unknown desc = some error",
+		},
+		{
+			name: "downstream returns malformed X509 authorities",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return csr, pubKey
+			},
+			downstreamResp: &svid.NewDownstreamX509CAResponse{
+				X509Authorities: [][]byte{[]byte("malformed")},
+			},
+			expectedErr: "rpc error: code = Unknown desc = unable to parse X509 authorities: asn1: structure error",
+		},
+		{
+			name: "downstream returns malformed CA chain",
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return csr, pubKey
+			},
+			downstreamResp: &svid.NewDownstreamX509CAResponse{
+				CaCertChain: [][]byte{[]byte("malformed")},
+			},
+			expectedErr: "rpc error: code = Unknown desc = unable to parse CA cert chain: asn1: structure error",
+		},
 	}
 
 	for _, c := range cases {
@@ -314,8 +424,20 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup servers
 			server := testHandler{}
-			server.startTestServers(t)
-			p := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+			server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
+			server.sAPIServer.err = c.sAPIError
+			server.sAPIServer.downstreamResponse = c.downstreamResp
+
+			serverAddr := server.sAPIServer.addr
+			socketPath := server.wAPIServer.socketPath
+			if c.customServerAddr != "" {
+				serverAddr = c.customServerAddr
+			}
+			if c.customSocketPath != "" {
+				socketPath = c.customSocketPath
+			}
+
+			p := newWithDefault(t, serverAddr, socketPath)
 
 			// Send initial request and get stream
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -343,7 +465,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			require.True(t, isEqual)
 
 			// Update bundle to trigger another response
-			server.napiServer.appendRootCA(&common.Certificate{DerBytes: []byte("new-root-bytes")})
+			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: []byte("new-root-bytes")})
 			// Move clock forward to avoid slow down tests
 			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(internalPollFreq)
@@ -367,10 +489,16 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 }
 
 func TestSpirePlugin_PublishJWTKey(t *testing.T) {
+	ca := testca.New(t, trustDomain)
+	serverCert, serverKey := ca.CreateX509Certificate(testca.WithURIs(trustDomain.NewID("/spire/server").URL()))
+	s := ca.CreateX509SVID(trustDomain.NewID("workload"))
+	svidCert, svidKey, err := s.MarshalRaw()
+	require.NoError(t, err)
+
 	// Setup servers
 	server := testHandler{}
-	server.startTestServers(t)
-	p := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+	server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
+	p := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.socketPath)
 
 	// Send initial request and get stream
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -392,7 +520,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	assert.Equal(t, firstResp.UpstreamJwtKeys[2].Kid, "kid-2")
 
 	// Update bundle to trigger another response
-	server.napiServer.appendKey(&common.PublicKey{Kid: "kid-3"})
+	server.sAPIServer.appendKey(&types.JWTKey{KeyId: "kid-3"})
 	// Move clock forward to avoid slow down tests
 	mockClock.Add(upstreamPollFreq)
 	mockClock.Add(internalPollFreq)
@@ -410,6 +538,21 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	resp, err = stream.Recv()
 	require.Nil(t, resp)
 	require.Contains(t, err.Error(), "rpc error: code = Canceled desc = context canceled")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	server.sAPIServer.err = errors.New("some error")
+	stream, err = p.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{
+		JwtKey: &common.PublicKey{
+			Kid: "kid-2",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	resp, err = stream.Recv()
+	require.Nil(t, resp)
+	require.EqualError(t, err, "rpc error: code = Unknown desc = some error")
 }
 
 func newWithDefault(t *testing.T, addr string, socketPath string) upstreamauthority.Plugin {
@@ -426,7 +569,7 @@ func newWithDefault(t *testing.T, addr string, socketPath string) upstreamauthor
 
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
+		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain.String()},
 	}
 
 	var plugin upstreamauthority.Plugin

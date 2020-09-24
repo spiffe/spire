@@ -17,55 +17,63 @@ var (
 `
 )
 
-func TestLoadConfig(t *testing.T) {
+func TestLoadMode(t *testing.T) {
 	require := require.New(t)
 
 	dir := spiretest.TempDir(t)
 
 	confPath := filepath.Join(dir, "test.conf")
 
-	_, err := LoadConfig(confPath)
+	_, err := LoadMode(confPath)
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
 	err = ioutil.WriteFile(confPath, []byte(testMinimalConfig), 0600)
 	require.NoError(err)
 
-	config, err := LoadConfig(confPath)
+	config, err := LoadMode(confPath)
 	require.NoError(err)
 
-	require.Equal(&Config{
-		LogLevel:         defaultLogLevel,
-		Addr:             ":8443",
-		CertPath:         defaultCertPath,
-		KeyPath:          defaultKeyPath,
-		CaCertPath:       defaultCaCertPath,
-		ServerSocketPath: "SOCKETPATH",
-		TrustDomain:      "TRUSTDOMAIN",
-		Cluster:          "CLUSTER",
+	require.Equal(&WebhookMode{
+		CommonMode: CommonMode{
+			ServerSocketPath:   "SOCKETPATH",
+			ServerAddress:      "unix://SOCKETPATH",
+			TrustDomain:        "TRUSTDOMAIN",
+			Cluster:            "CLUSTER",
+			LogLevel:           defaultLogLevel,
+			Mode:               "webhook",
+			DisabledNamespaces: []string{"kube-system", "kube-public"},
+		},
+		Addr:       ":8443",
+		CertPath:   defaultCertPath,
+		KeyPath:    defaultKeyPath,
+		CaCertPath: defaultCaCertPath,
 	}, config)
-}
 
-func TestParseConfig(t *testing.T) {
 	testCases := []struct {
 		name string
 		in   string
-		out  *Config
+		out  *WebhookMode
 		err  string
 	}{
 		{
 			name: "defaults",
 			in:   testMinimalConfig,
-			out: &Config{
-				LogLevel:                       defaultLogLevel,
+			out: &WebhookMode{
+				CommonMode: CommonMode{
+					LogLevel:           defaultLogLevel,
+					ServerSocketPath:   "SOCKETPATH",
+					ServerAddress:      "unix://SOCKETPATH",
+					TrustDomain:        "TRUSTDOMAIN",
+					Cluster:            "CLUSTER",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+				},
 				Addr:                           ":8443",
 				CertPath:                       defaultCertPath,
 				KeyPath:                        defaultKeyPath,
 				CaCertPath:                     defaultCaCertPath,
 				InsecureSkipClientVerification: false,
-				ServerSocketPath:               "SOCKETPATH",
-				TrustDomain:                    "TRUSTDOMAIN",
-				Cluster:                        "CLUSTER",
 			},
 		},
 		{
@@ -83,18 +91,23 @@ func TestParseConfig(t *testing.T) {
 				cluster = "CLUSTEROVERRIDE"
 				pod_label = "PODLABEL"
 			`,
-			out: &Config{
-				LogLevel:                       "LEVELOVERRIDE",
-				LogPath:                        "PATHOVERRIDE",
+			out: &WebhookMode{
+				CommonMode: CommonMode{
+					LogLevel:           "LEVELOVERRIDE",
+					LogPath:            "PATHOVERRIDE",
+					ServerSocketPath:   "SOCKETPATHOVERRIDE",
+					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
+					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					Cluster:            "CLUSTEROVERRIDE",
+					PodLabel:           "PODLABEL",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+				},
 				Addr:                           ":1234",
 				CertPath:                       "CERTOVERRIDE",
 				KeyPath:                        "KEYOVERRIDE",
 				CaCertPath:                     "CACERTOVERRIDE",
 				InsecureSkipClientVerification: true,
-				ServerSocketPath:               "SOCKETPATHOVERRIDE",
-				TrustDomain:                    "TRUSTDOMAINOVERRIDE",
-				Cluster:                        "CLUSTEROVERRIDE",
-				PodLabel:                       "PODLABEL",
 			},
 		},
 		{
@@ -103,12 +116,12 @@ func TestParseConfig(t *testing.T) {
 			err:  "unable to decode configuration",
 		},
 		{
-			name: "missing server_socket_path",
+			name: "missing server_socket_path/address",
 			in: `
 				trust_domain = "TRUSTDOMAIN"
 				cluster = "CLUSTER"
 			`,
-			err: "server_socket_path must be specified",
+			err: "server_address or server_socket_path must be specified",
 		},
 		{
 			name: "missing trust domain",
@@ -139,14 +152,17 @@ func TestParseConfig(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		t.Run(testCase.name, func(t *testing.T) {
-			actual, err := ParseConfig(testCase.in)
+			err := ioutil.WriteFile(confPath, []byte(testCase.in), 0600)
+			require.NoError(err)
+
+			actual, err := LoadMode(confPath)
 			if testCase.err != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), testCase.err)
+				require.Error(err)
+				require.Contains(err.Error(), testCase.err)
 				return
 			}
-			require.NoError(t, err)
-			require.Equal(t, testCase.out, actual)
+			require.NoError(err)
+			require.Equal(testCase.out, actual)
 		})
 	}
 }

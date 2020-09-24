@@ -4,17 +4,28 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
+)
+
+const (
+	headerFmt = `****************************************
+* %s
+****************************************
+`
+	formatPEM    = "pem"
+	formatSPIFFE = "spiffe"
 )
 
 var (
@@ -188,13 +199,7 @@ func parseBundle(trustDomainID string, jwksBytes []byte) (*common.Bundle, error)
 	return bundle.Proto(), nil
 }
 
-func printBundle(out io.Writer, bundle *common.Bundle, header bool) error {
-	if header {
-		if _, err := fmt.Fprintf(out, headerFmt, bundle.TrustDomainId); err != nil {
-			return err
-		}
-	}
-
+func printBundle(out io.Writer, bundle *common.Bundle) error {
 	b, err := bundleutil.BundleFromProto(bundle)
 	if err != nil {
 		return err
@@ -210,4 +215,46 @@ func printBundle(out io.Writer, bundle *common.Bundle, header bool) error {
 	}
 
 	return nil
+}
+
+func printCommonBundle(out io.Writer, bundle *common.Bundle, format string, header bool) error {
+	if bundle == nil {
+		return errors.New("no bundle provided")
+	}
+
+	format, err := validateFormat(format)
+	if err != nil {
+		return err
+	}
+
+	if header {
+		if _, err := fmt.Fprintf(out, headerFmt, bundle.TrustDomainId); err != nil {
+			return err
+		}
+	}
+
+	if format == formatPEM {
+		return printCertificates(out, bundle.RootCas)
+	}
+
+	return printBundle(out, bundle)
+}
+
+// validateFormat validates that the provided format is a valid format.
+// If no format is provided, the default format is returned
+func validateFormat(format string) (string, error) {
+	if format == "" {
+		format = formatPEM
+	}
+
+	format = strings.ToLower(format)
+
+	switch format {
+	case formatPEM:
+	case formatSPIFFE:
+	default:
+		return "", fmt.Errorf("invalid format: %q", format)
+	}
+
+	return format, nil
 }

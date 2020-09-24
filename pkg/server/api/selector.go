@@ -30,3 +30,14 @@ func SelectorsFromProto(proto []*types.Selector) ([]*common.Selector, error) {
 
 	return selectors, nil
 }
+
+func ProtoFromSelectors(in []*common.Selector) []*types.Selector {
+	var out []*types.Selector
+	for _, s := range in {
+		out = append(out, &types.Selector{
+			Type:  s.Type,
+			Value: s.Value,
+		})
+	}
+	return out
+}

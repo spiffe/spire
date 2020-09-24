@@ -8,6 +8,7 @@ run:
 
   skip-files:
     - ".*\\.pb\\.go"
+    - support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1/spiffeid_types.go
 
 linters:
   enable:

@@ -1,0 +1,139 @@
+/*
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controllers
+
+import (
+	"context"
+	"fmt"
+	"net/url"
+	"path"
+
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+)
+
+func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, webhookPort int) (ctrl.Manager, error) {
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = spiffeidv1beta1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		CertDir:            webhookCertDir,
+		LeaderElection:     leaderElection,
+		LeaderElectionID:   "spire-k8s-registrar-leader-election",
+		MetricsBindAddress: metricsBindAddr,
+		Port:               webhookPort,
+		Scheme:             scheme,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return mgr, nil
+}
+
+// setOwnerRef sets the owner object as owner of a new SPIFFE ID resource locally
+func setOwnerRef(owner metav1.Object, spiffeID *spiffeidv1beta1.SpiffeID, scheme *runtime.Scheme) error {
+	err := controllerutil.SetControllerReference(owner, spiffeID, scheme)
+	if err != nil {
+		return err
+	}
+
+	// Make owner reference non-blocking, so object can be deleted if registrar is down
+	ownerRef := metav1.GetControllerOfNoCopy(spiffeID)
+	if ownerRef == nil {
+		return err
+	}
+	ownerRef.BlockOwnerDeletion = pointer.BoolPtr(false)
+
+	return nil
+}
+
+// deleteRegistrationEntry deletes an entry on the SPIRE Server
+func deleteRegistrationEntry(ctx context.Context, r registration.RegistrationClient, entryID string) error {
+	_, err := r.DeleteEntry(ctx, &registration.RegistrationEntryID{Id: entryID})
+	switch status.Code(err) {
+	case codes.OK, codes.NotFound:
+		return nil
+	case codes.Internal:
+		// Spire server currently returns a 500 if delete fails due to the entry not existing.
+		// We work around it by attempting to fetch the entry, and if it's not found then all is good.
+		_, err := r.FetchEntry(ctx, &registration.RegistrationEntryID{Id: entryID})
+		if status.Code(err) == codes.NotFound {
+			return nil
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func makeID(trustDomain, pathFmt string, pathArgs ...interface{}) string {
+	id := url.URL{
+		Scheme: "spiffe",
+		Host:   trustDomain,
+		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
+	}
+	return id.String()
+}
+
+// Helper functions for string operations.
+func equalStringSlice(x, y []string) bool {
+	if len(x) != len(y) {
+		return false
+	}
+
+	for i, v := range x {
+		if v != y[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
+func removeStringIf(slice []string, s string) []string {
+	i := 0 // output index
+	for _, item := range slice {
+		if item != s {
+			// copy and increment index
+			slice[i] = item
+			i++
+		}
+	}
+
+	return slice[:i]
+}

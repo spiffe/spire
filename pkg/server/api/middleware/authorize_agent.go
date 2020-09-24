@@ -36,14 +36,14 @@ func (a agentAuthorizer) Name() string {
 }
 
 func (a agentAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
-	agentID, ok := rpccontext.CallerID(ctx)
-	if !ok {
-		return nil, status.Error(codes.PermissionDenied, "caller does not have a SPIFFE ID")
-	}
-
 	agentSVID, ok := rpccontext.CallerX509SVID(ctx)
 	if !ok {
 		return nil, status.Error(codes.PermissionDenied, "caller does not have an X509-SVID")
+	}
+
+	agentID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		return nil, status.Error(codes.PermissionDenied, "caller does not have a SPIFFE ID")
 	}
 
 	if err := a.authorizer.AuthorizeAgent(ctx, agentID, agentSVID); err != nil {

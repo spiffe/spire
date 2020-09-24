@@ -375,7 +375,7 @@ func TestGetEntry(t *testing.T) {
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
 				},
-				FederatesWith: []string{federatedTd.IDString()},
+				FederatesWith: []string{federatedTd.String()},
 				Admin:         true,
 				DnsNames:      []string{"dns1", "dns2"},
 				Downstream:    true,
@@ -435,14 +435,14 @@ func TestGetEntry(t *testing.T) {
 			name:    "malformed entry",
 			code:    codes.Internal,
 			entryID: malformedEntry.Entry.EntryId,
-			err:     "failed to convert entry: spiffeid: invalid scheme",
+			err:     "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: malformedEntry.Entry.EntryId,
-						logrus.ErrorKey:          "spiffeid: invalid scheme",
+						logrus.ErrorKey:          "invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
 			},
@@ -476,6 +476,8 @@ func TestBatchCreateEntry(t *testing.T) {
 	entryParentID := td.NewID("foo")
 	entrySpiffeID := td.NewID("bar")
 	expiresAt := time.Now().Unix()
+
+	useDefaultEntryID := "DEFAULT_ENTRY_ID"
 
 	defaultEntry := &common.RegistrationEntry{
 		ParentId: entryParentID.String(),
@@ -625,7 +627,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						DnsNames:      []string{"dns1"},
 						Downstream:    true,
 						ExpiresAt:     expiresAt,
-						FederatesWith: []string{"spiffe://domain1.org"},
+						FederatesWith: []string{"domain1.org"},
 						Ttl:           60,
 					},
 				},
@@ -692,23 +694,23 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
-			name: "fails creating similar entry",
+			name: "returns existing similar entry",
 			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.AlreadyExists),
-						Message: "entry already exists",
+						Message: "similar entry already exists",
+					},
+					Entry: &types.Entry{
+						Id:       useDefaultEntryID,
+						ParentId: api.ProtoFromID(entryParentID),
+						SpiffeId: api.ProtoFromID(entrySpiffeID),
 					},
 				},
 			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Entry already exists",
-					Data: logrus.Fields{
-						telemetry.SPIFFEID: "spiffe://example.org/bar",
-					},
-				},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+				SpiffeId: true,
 			},
 			reqEntries: []*types.Entry{
 				{
@@ -781,7 +783,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "spiffeid: invalid scheme",
+						logrus.ErrorKey:    "invalid SPIFFE ID: spiffeid: invalid scheme",
 						telemetry.SPIFFEID: "spiffe://example.org/workload",
 					},
 				},
@@ -790,7 +792,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
-						Message: "failed to convert entry: spiffeid: invalid scheme",
+						Message: "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
 			},
@@ -810,9 +812,9 @@ func TestBatchCreateEntry(t *testing.T) {
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
-			// Create fedeated bundles, that we use on "FederatesWith"
+			// Create federated bundles, that we use on "FederatesWith"
 			createFederatedBundles(t, ds)
-			_ = createTestEntries(t, ds, defaultEntry)
+			defaultEntryID := createTestEntries(t, ds, defaultEntry)[defaultEntry.SpiffeId].EntryId
 
 			// Setup fake
 			ds.customCreate = true
@@ -830,6 +832,13 @@ func TestBatchCreateEntry(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+			for i, res := range tt.expectResults {
+				if res.Entry != nil && res.Entry.Id == useDefaultEntryID {
+					tt.expectResults[i].Entry.Id = defaultEntryID
+				}
+			}
+
 			spiretest.AssertProtoEqual(t, &entrypb.BatchCreateEntryResponse{
 				Results: tt.expectResults,
 			}, resp)
@@ -1040,8 +1049,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			{Type: "unix", Value: "gid:1000"},
 		},
 		FederatesWith: []string{
-			"spiffe://domain1.com",
-			"spiffe://domain2.com",
+			"domain1.com",
+			"domain2.com",
 		},
 		Admin:      true,
 		ExpiresAt:  time.Now().Add(30 * time.Second).Unix(),
@@ -1058,8 +1067,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			{Type: "unix", Value: "gid:1001"},
 		},
 		FederatesWith: []string{
-			"spiffe://domain3.com",
-			"spiffe://domain4.com",
+			"domain3.com",
+			"domain4.com",
 		},
 		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
 		DnsNames:  []string{"dns3", "dns4"},
@@ -1268,7 +1277,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			{Type: "unix", Value: "uid:2000"},
 		},
 		FederatesWith: []string{
-			federatedTd.IDString(),
+			federatedTd.String(),
 		},
 		Admin:      true,
 		ExpiresAt:  expiresAt,
@@ -1878,7 +1887,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							{Type: "unix", Value: "uid:2000"},
 						},
 						FederatesWith: []string{
-							"spiffe://domain1.org",
+							"domain1.org",
 						},
 						Admin:          true,
 						ExpiresAt:      expiresAt,

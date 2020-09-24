@@ -16,6 +16,7 @@ import (
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
@@ -56,6 +57,9 @@ type Config struct {
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// RateLimit holds rate limiting configurations.
+	RateLimit *RateLimitConfig
 }
 
 func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
@@ -75,6 +79,7 @@ func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
 		ServerCA:                    c.ServerCA,
 		Manager:                     c.Manager,
 		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
+		AttestLimit:                 c.RateLimit.Attestation,
 	})
 	if err != nil {
 		return OldAPIServers{}, err
@@ -107,7 +112,7 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 		Log:     c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
 		Address: c.BundleEndpoint.Address.String(),
 		Getter: bundle.GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
-			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+			resp, err := ds.FetchBundle(dscache.WithCache(ctx), &datastore.FetchBundleRequest{
 				TrustDomainId: c.TrustDomain.IDString(),
 			})
 			if err != nil {
@@ -122,9 +127,12 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 	})
 }
 
-func (c *Config) makeAPIServers() APIServers {
+func (c *Config) makeAPIServers() (APIServers, error) {
 	ds := c.Catalog.GetDataStore()
-	authorizedEntryFetcher := AuthorizedEntryFetcher(ds)
+	authorizedEntryFetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
+	if err != nil {
+		return APIServers{}, err
+	}
 	upstreamPublisher := UpstreamPublisher(c.Manager)
 
 	return APIServers{
@@ -143,13 +151,13 @@ func (c *Config) makeAPIServers() APIServers {
 		EntryServer: entryv1.New(entryv1.Config{
 			TrustDomain:  c.TrustDomain,
 			DataStore:    ds,
-			EntryFetcher: authorizedEntryFetcher,
+			EntryFetcher: authorizedEntryFetcherWithCache,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,
-			EntryFetcher: authorizedEntryFetcher,
+			EntryFetcher: authorizedEntryFetcherWithCache,
 			ServerCA:     c.ServerCA,
 			DataStore:    ds,
 		}),
-	}
+	}, nil
 }

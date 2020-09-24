@@ -27,13 +27,13 @@ type Limiter interface {
 }
 
 // Newlimiter returns a new node api rate.Limiter
-func NewLimiter(l logrus.FieldLogger) Limiter {
-	return newLimiter(l)
+func NewLimiter(l logrus.FieldLogger, attestLimit int) Limiter {
+	return newLimiter(l, attestLimit)
 }
 
-func newLimiter(l logrus.FieldLogger) *limiter {
+func newLimiter(l logrus.FieldLogger, attestLimit int) *limiter {
 	return &limiter{
-		attestRate:   rate.Limit(node.AttestLimit),
+		attestRate:   rate.Limit(attestLimit),
 		csrRate:      rate.Limit(node.CSRLimit),
 		jsrRate:      rate.Limit(node.JSRLimit),
 		jwtKeyRate:   rate.Limit(node.PushJWTKeyLimit),
@@ -131,7 +131,7 @@ func (l *limiter) limitersFor(msgType int) map[string]*rate.Limiter {
 func (l *limiter) newLimiterFor(msgType int) (*rate.Limiter, error) {
 	switch msgType {
 	case AttestMsg:
-		return rate.NewLimiter(l.attestRate, node.AttestLimit), nil
+		return rate.NewLimiter(l.attestRate, int(l.attestRate)), nil
 	case CSRMsg:
 		return rate.NewLimiter(l.csrRate, node.CSRLimit), nil
 	case JSRMsg:
