@@ -1,6 +1,6 @@
-# Options for Running SPIRE
+# Start Using SPIRE
 
-This page describes the options available for running SPIRE.
+This page describes some options to get started with SPIRE.
 
 ## Docker Compose
 
@@ -14,7 +14,7 @@ This page describes the options available for running SPIRE.
 
 * Additional Kubernetes demos are available in the [spire-tutorials](https://github.com/spiffe/spire-tutorials) repo
 
-## Linux Executables and Source
+## Linux
 
 * The SPIRE GitHub [releases](https://github.com/spiffe/spire/releases) page has download links and changelogs for each SPIRE release
 
@@ -22,6 +22,6 @@ This page describes the options available for running SPIRE.
 
 * [Quickstart for Linux and MacOS X](https://spiffe.io/docs/latest/spire/installing/getting-started-linux-macos-x/) describes how to download and test a simple one-node installation of the SPIRE Server and Agent
 
-## MacOS Executables
+## MacOS
 
 * There are no pre-built SPIRE executables available for MacOS, but [Quickstart for Linux and MacOS X](https://spiffe.io/docs/latest/spire/installing/getting-started-linux-macos-x/) describes how to download and build SPIRE to test a simple one-node installation of the SPIRE Server and Agent
