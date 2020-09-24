@@ -90,7 +90,7 @@ func doJoinTokenAttestStep(ctx context.Context, tokenName string) {
 	err = stream.Send(&agent.AttestAgentRequest{
 		Step: &agent.AttestAgentRequest_Params_{
 			Params: &agent.AttestAgentRequest_Params{
-				Data:   &types.AttestationData{Type: "join_token", Payload: tokenName},
+				Data:   &types.AttestationData{Type: "join_token", Payload: []byte(tokenName)},
 				Params: &agent.AgentX509SVIDParams{Csr: csr},
 			},
 		},
@@ -273,7 +273,7 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 			Params: &agent.AttestAgentRequest_Params{
 				Data: &types.AttestationData{
 					Type:    "x509pop",
-					Payload: string(payload),
+					Payload: payload,
 				},
 				Params: &agent.AgentX509SVIDParams{
 					Csr: csr,

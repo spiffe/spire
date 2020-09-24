@@ -1381,7 +1381,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:        "join token does not exist",
-			request:     getAttestAgentRequest("join_token", "bad_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("bad_token"), testCsr),
 			expectedErr: "failed to attest: join token does not exist or has already been used",
 			code:        codes.InvalidArgument,
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1397,14 +1397,14 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:       "attest with join token",
-			request:    getAttestAgentRequest("join_token", "test_token", testCsr),
+			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			expectedID: td.NewID("/spire/agent/join_token/test_token"),
 		},
 
 		{
 			name:        "attest with join token is banned",
 			expectedErr: "failed to attest: agent is banned",
-			request:     getAttestAgentRequest("join_token", "banned_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("banned_token"), testCsr),
 			code:        codes.PermissionDenied,
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1421,7 +1421,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "attest with join token is expired",
 			expectedErr: "join token expired",
-			request:     getAttestAgentRequest("join_token", "expired_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("expired_token"), testCsr),
 			code:        codes.InvalidArgument,
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1438,7 +1438,7 @@ func TestAttestAgent(t *testing.T) {
 			name:        "attest with join token only works once",
 			retry:       true,
 			expectedErr: "failed to attest: join token does not exist or has already been used",
-			request:     getAttestAgentRequest("join_token", "test_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			code:        codes.InvalidArgument,
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1453,7 +1453,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:       "attest with result",
-			request:    getAttestAgentRequest("test_type", "payload_with_result", testCsr),
+			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: td.NewID("/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "resolved"},
@@ -1464,7 +1464,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:       "attest with result twice",
 			retry:      true,
-			request:    getAttestAgentRequest("test_type", "payload_with_result", testCsr),
+			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: td.NewID("/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "resolved"},
@@ -1474,7 +1474,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:       "attest with challenge",
-			request:    getAttestAgentRequest("test_type", "payload_with_challenge", testCsr),
+			request:    getAttestAgentRequest("test_type", []byte("payload_with_challenge"), testCsr),
 			expectedID: td.NewID("/spire/agent/test_type/id_with_challenge"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "challenge"},
@@ -1484,7 +1484,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:       "attest already attested",
-			request:    getAttestAgentRequest("test_type", "payload_attested_before", testCsr),
+			request:    getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
 			expectedID: td.NewID("/spire/agent/test_type/id_attested_before"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "attested_before"},
@@ -1494,7 +1494,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "attest banned",
 			expectedErr: "failed to attest: agent is banned",
-			request:     getAttestAgentRequest("test_type", "payload_banned", testCsr),
+			request:     getAttestAgentRequest("test_type", []byte("payload_banned"), testCsr),
 			code:        codes.PermissionDenied,
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1511,7 +1511,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "attest with bad attestor",
 			expectedErr: "could not find node attestor type",
-			request:     getAttestAgentRequest("bad_type", "payload_with_result", testCsr),
+			request:     getAttestAgentRequest("bad_type", []byte("payload_with_result"), testCsr),
 			code:        codes.FailedPrecondition,
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1527,7 +1527,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "attest with bad csr",
 			expectedErr: "failed to parse CSR: ",
-			request:     getAttestAgentRequest("test_type", "payload_with_result", []byte("not a csr")),
+			request:     getAttestAgentRequest("test_type", []byte("payload_with_result"), []byte("not a csr")),
 			code:        codes.InvalidArgument,
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1545,7 +1545,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "ds: fails to fetch join token",
 			expectedErr: "failed to fetch join token",
-			request:     getAttestAgentRequest("join_token", "test_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			code:        codes.Internal,
 			dsError: []error{
 				errors.New("some error"),
@@ -1565,7 +1565,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "ds: fails to delete join token",
 			expectedErr: "failed to delete join token",
-			request:     getAttestAgentRequest("join_token", "test_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			code:        codes.Internal,
 			dsError: []error{
 				nil,
@@ -1586,7 +1586,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "ds: fails to fetch agent",
 			expectedErr: "failed to fetch agent",
-			request:     getAttestAgentRequest("join_token", "test_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			code:        codes.Internal,
 			dsError: []error{
 				nil,
@@ -1609,7 +1609,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "ds: fails to update selectors",
 			expectedErr: "failed to update selectors",
-			request:     getAttestAgentRequest("join_token", "test_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			code:        codes.Internal,
 			dsError: []error{
 				nil,
@@ -1642,7 +1642,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "ds: fails to create attested agent",
 			expectedErr: "failed to create attested agent",
-			request:     getAttestAgentRequest("join_token", "test_token", testCsr),
+			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			code:        codes.Internal,
 			dsError: []error{
 				nil,
@@ -1675,7 +1675,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:        "ds: fails to update attested agent",
 			expectedErr: "failed to update attested agent",
-			request:     getAttestAgentRequest("test_type", "payload_attested_before", testCsr),
+			request:     getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
 			code:        codes.Internal,
 			dsError: []error{
 				nil,
@@ -2005,7 +2005,7 @@ func cloneAttestedNode(aNode *common.AttestedNode) *common.AttestedNode {
 	return proto.Clone(aNode).(*common.AttestedNode)
 }
 
-func getAttestAgentRequest(attType string, payload string, csr []byte) *agentpb.AttestAgentRequest {
+func getAttestAgentRequest(attType string, payload []byte, csr []byte) *agentpb.AttestAgentRequest {
 	return &agentpb.AttestAgentRequest{
 		Step: &agentpb.AttestAgentRequest_Params_{
 			Params: &agentpb.AttestAgentRequest_Params{
