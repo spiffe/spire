@@ -138,6 +138,6 @@ func protoFromAttestationData(attData *common.AttestationData) *types.Attestatio
 
 	return &types.AttestationData{
 		Type:    attData.Type,
-		Payload: string(attData.Data),
+		Payload: attData.Data,
 	}
 }

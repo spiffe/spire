@@ -8,5 +8,5 @@ message AttestationData {
     string type = 1;
 
     // The attestation data payload.
-    string payload = 2;
+    bytes payload = 2;
 }
