@@ -57,6 +57,9 @@ type Config struct {
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// RateLimit holds rate limiting configurations.
+	RateLimit *RateLimitConfig
 }
 
 func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
@@ -76,6 +79,7 @@ func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
 		ServerCA:                    c.ServerCA,
 		Manager:                     c.Manager,
 		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
+		AttestLimit:                 c.RateLimit.Attestation,
 	})
 	if err != nil {
 		return OldAPIServers{}, err

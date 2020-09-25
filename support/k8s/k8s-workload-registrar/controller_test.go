@@ -411,12 +411,13 @@ func newTestController(podLabel, podAnnotation string) (*Controller, *fakeRegist
 	log, _ := test.NewNullLogger()
 	r := newFakeRegistrationClient()
 	return NewController(ControllerConfig{
-		Log:           log,
-		R:             r,
-		TrustDomain:   "domain.test",
-		Cluster:       "CLUSTER",
-		PodLabel:      podLabel,
-		PodAnnotation: podAnnotation,
+		Log:                log,
+		R:                  r,
+		TrustDomain:        "domain.test",
+		Cluster:            "CLUSTER",
+		PodLabel:           podLabel,
+		PodAnnotation:      podAnnotation,
+		DisabledNamespaces: map[string]bool{"kube-system": true, "kube-public": true},
 	}), r
 }
 

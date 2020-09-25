@@ -36,11 +36,13 @@ func TestLoadMode(t *testing.T) {
 
 	require.Equal(&WebhookMode{
 		CommonMode: CommonMode{
-			ServerSocketPath: "SOCKETPATH",
-			TrustDomain:      "TRUSTDOMAIN",
-			Cluster:          "CLUSTER",
-			LogLevel:         defaultLogLevel,
-			Mode:             "webhook",
+			ServerSocketPath:   "SOCKETPATH",
+			ServerAddress:      "unix://SOCKETPATH",
+			TrustDomain:        "TRUSTDOMAIN",
+			Cluster:            "CLUSTER",
+			LogLevel:           defaultLogLevel,
+			Mode:               "webhook",
+			DisabledNamespaces: []string{"kube-system", "kube-public"},
 		},
 		Addr:       ":8443",
 		CertPath:   defaultCertPath,
@@ -59,11 +61,13 @@ func TestLoadMode(t *testing.T) {
 			in:   testMinimalConfig,
 			out: &WebhookMode{
 				CommonMode: CommonMode{
-					LogLevel:         defaultLogLevel,
-					ServerSocketPath: "SOCKETPATH",
-					TrustDomain:      "TRUSTDOMAIN",
-					Cluster:          "CLUSTER",
-					Mode:             "webhook",
+					LogLevel:           defaultLogLevel,
+					ServerSocketPath:   "SOCKETPATH",
+					ServerAddress:      "unix://SOCKETPATH",
+					TrustDomain:        "TRUSTDOMAIN",
+					Cluster:            "CLUSTER",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
 				},
 				Addr:                           ":8443",
 				CertPath:                       defaultCertPath,
@@ -89,13 +93,15 @@ func TestLoadMode(t *testing.T) {
 			`,
 			out: &WebhookMode{
 				CommonMode: CommonMode{
-					LogLevel:         "LEVELOVERRIDE",
-					LogPath:          "PATHOVERRIDE",
-					ServerSocketPath: "SOCKETPATHOVERRIDE",
-					TrustDomain:      "TRUSTDOMAINOVERRIDE",
-					Cluster:          "CLUSTEROVERRIDE",
-					PodLabel:         "PODLABEL",
-					Mode:             "webhook",
+					LogLevel:           "LEVELOVERRIDE",
+					LogPath:            "PATHOVERRIDE",
+					ServerSocketPath:   "SOCKETPATHOVERRIDE",
+					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
+					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					Cluster:            "CLUSTEROVERRIDE",
+					PodLabel:           "PODLABEL",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
 				},
 				Addr:                           ":1234",
 				CertPath:                       "CERTOVERRIDE",
@@ -110,12 +116,12 @@ func TestLoadMode(t *testing.T) {
 			err:  "unable to decode configuration",
 		},
 		{
-			name: "missing server_socket_path",
+			name: "missing server_socket_path/address",
 			in: `
 				trust_domain = "TRUSTDOMAIN"
 				cluster = "CLUSTER"
 			`,
-			err: "server_socket_path must be specified",
+			err: "server_address or server_socket_path must be specified",
 		},
 		{
 			name: "missing trust domain",

@@ -43,6 +43,23 @@ func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, 
 	return cert, nil
 }
 
+func DedupeCertificates(bundles ...[]*x509.Certificate) []*x509.Certificate {
+	certs := []*x509.Certificate{}
+
+	// Retain ordering for easier testing
+	seenMap := map[string]struct{}{}
+	for _, bundle := range bundles {
+		for _, cert := range bundle {
+			if _, ok := seenMap[string(cert.Raw)]; !ok {
+				seenMap[string(cert.Raw)] = struct{}{}
+				certs = append(certs, cert)
+			}
+		}
+	}
+
+	return certs
+}
+
 func DERFromCertificates(certs []*x509.Certificate) (derBytes []byte) {
 	for _, cert := range certs {
 		derBytes = append(derBytes, cert.Raw...)

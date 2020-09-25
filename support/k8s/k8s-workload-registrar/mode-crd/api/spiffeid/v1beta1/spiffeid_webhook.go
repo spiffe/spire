@@ -17,9 +17,11 @@ package v1beta1
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
@@ -33,6 +35,7 @@ type SpiffeIDWebhookConfig struct {
 	Ctx         context.Context
 	Log         logrus.FieldLogger
 	Mgr         ctrl.Manager
+	Namespace   string
 	R           registration.RegistrationClient
 	TrustDomain string
 }
@@ -90,7 +93,7 @@ func (s *SpiffeID) ValidateDelete() error {
 }
 
 // validateSpiffeID does basic checks to make sure the SPIFFE ID resource is formatted correctly
-func (s *SpiffeID) validateSpiffeID() error{
+func (s *SpiffeID) validateSpiffeID() error {
 	spiffeIDPrefix := "spiffe://" + c.TrustDomain
 
 	// Validate Spiffe and Parent IDs have the correct format
@@ -102,9 +105,23 @@ func (s *SpiffeID) validateSpiffeID() error{
 		return errs.New("spec.spiffeId must begin with " + spiffeIDPrefix)
 	}
 
-	// Ensure namespace selector matches namespace of Spiffe ID resource
-	if s.Spec.Selector.Cluster == "" && s.ObjectMeta.Namespace != s.Spec.Selector.Namespace {
-		return errs.New("spec.Selector.Namespace must match namespace of resource")
+	if s.Spec.Selector.Cluster != "" || s.Spec.Selector.AgentNodeUid != "" {
+		// k8s_psat selectors can only be used from the k8s-workload-registrar namespace
+		if s.ObjectMeta.Namespace != c.Namespace {
+			return errs.New("spec.Selector.Cluster and spec.Selector.AgentNodeUid can " +
+				"only be used by the k8s-workload-registrar")
+		}
+	} else {
+		// Ensure namespace selector matches namespace of Spiffe ID resource for k8s selectors
+		if s.ObjectMeta.Namespace != s.Spec.Selector.Namespace {
+			return errs.New("spec.Selector.Namespace must match namespace of resource")
+		}
+	}
+
+	for _, dnsName := range s.Spec.DnsNames {
+		if err := x509util.ValidateDNS(dnsName); err != nil {
+			return fmt.Errorf("invalid DNS name %q: %v", dnsName, err)
+		}
 	}
 
 	return nil

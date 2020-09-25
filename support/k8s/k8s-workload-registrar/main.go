@@ -25,5 +25,7 @@ func run(ctx context.Context, configPath string) error {
 		return err
 	}
 
+	defer mode.Close()
+
 	return mode.Run(ctx)
 }

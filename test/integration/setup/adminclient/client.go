@@ -664,7 +664,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 		Step: &agent.AttestAgentRequest_Params_{Params: &agent.AttestAgentRequest_Params{
 			Data: &types.AttestationData{
 				Type:    "join_token",
-				Payload: resp.Value,
+				Payload: []byte(resp.Value),
 			},
 			Params: &agent.AgentX509SVIDParams{
 				Csr: csr,

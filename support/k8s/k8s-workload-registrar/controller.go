@@ -21,12 +21,13 @@ import (
 )
 
 type ControllerConfig struct {
-	Log           logrus.FieldLogger
-	R             registration.RegistrationClient
-	TrustDomain   string
-	Cluster       string
-	PodLabel      string
-	PodAnnotation string
+	Log                logrus.FieldLogger
+	R                  registration.RegistrationClient
+	TrustDomain        string
+	Cluster            string
+	PodLabel           string
+	PodAnnotation      string
+	DisabledNamespaces map[string]bool
 }
 
 type Controller struct {
@@ -73,8 +74,7 @@ func (c *Controller) ReviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 // non-kubernetes namespaces. Ideally the ValidatingAdmissionWebhook
 // configuration has filters in place to restrict the admission requests.
 func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) error {
-	switch req.Namespace {
-	case metav1.NamespacePublic, metav1.NamespaceSystem:
+	if _, disabled := c.c.DisabledNamespaces[req.Namespace]; disabled {
 		return nil
 	}
 

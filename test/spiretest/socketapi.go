@@ -42,6 +42,13 @@ func StartWorkloadAPIOnSocket(t *testing.T, socketPath string, server workload.S
 	})
 }
 
+func StartGRPCSocketServerOnTempSocket(t *testing.T, registerFn func(s *grpc.Server)) string {
+	dir := TempDir(t)
+	socketPath := filepath.Join(dir, "server.sock")
+	StartGRPCSocketServer(t, socketPath, registerFn)
+	return socketPath
+}
+
 func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) {
 	// ensure the directory holding the socket exists
 	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0755))
@@ -60,6 +67,11 @@ func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *g
 	}()
 	t.Cleanup(func() {
 		server.Stop()
-		require.NoError(t, <-errCh)
+		err := <-errCh
+		switch {
+		case err == nil, err == grpc.ErrServerStopped:
+		default:
+			t.Fatal(err)
+		}
 	})
 }

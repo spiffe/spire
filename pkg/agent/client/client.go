@@ -168,7 +168,8 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, err
 	})
 	if err != nil {
 		c.release(connection)
-		return nil, err
+		c.c.Log.WithError(err).Error("Failed to renew agent")
+		return nil, fmt.Errorf("failed to renew agent: %w", err)
 	}
 
 	var certChain []byte
@@ -241,8 +242,8 @@ func (c *client) NewJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) 
 	})
 	if err != nil {
 		c.release(connection)
-		c.c.Log.WithError(err).Errorf("Failure fetching JWT SVID")
-		return nil, fmt.Errorf("failure fetching JWT SVID: %v", err)
+		c.c.Log.WithError(err).Error("Failed to fetch JWT SVID")
+		return nil, fmt.Errorf("failed to fetch JWT SVID: %w", err)
 	}
 
 	svid := resp.Svid
@@ -311,7 +312,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
-		return nil, fmt.Errorf("failed to fetch authorized entries: %v", err)
+		return nil, fmt.Errorf("failed to fetch authorized entries: %w", err)
 	}
 
 	return resp.Entries, err
@@ -331,7 +332,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch bundle")
-		return nil, fmt.Errorf("failed to fetch bundle: %v", err)
+		return nil, fmt.Errorf("failed to fetch bundle: %w", err)
 	}
 	bundles = append(bundles, bundle)
 
@@ -350,7 +351,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 			c.c.Log.WithError(err).WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
 		default:
 			c.c.Log.WithError(err).WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
-			return nil, err
+			return nil, fmt.Errorf("failed to fetch federated bundle: %w", err)
 		}
 	}
 
@@ -370,7 +371,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("failed to batch new X509 SVID(s)")
-		return nil, fmt.Errorf("failed to batch new X509 SVID(s): %v", err)
+		return nil, fmt.Errorf("failed to batch new X509 SVID(s): %w", err)
 	}
 
 	okStatus := int32(codes.OK)

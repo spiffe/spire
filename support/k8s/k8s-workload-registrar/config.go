@@ -2,39 +2,54 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
+	"strings"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/spiffe/go-spiffe/v2/logger"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
 	defaultLogLevel = "info"
 
-	modeCRD     = "crd"
-	modeWebhook = "webhook"
-	defaultMode = modeWebhook
+	modeCRD       = "crd"
+	modeWebhook   = "webhook"
+	modeReconcile = "reconcile"
+	defaultMode   = modeWebhook
 )
 
 type Mode interface {
 	ParseConfig(hclConfig string) error
 	Run(ctx context.Context) error
+	Close() error
 }
 
 type CommonMode struct {
-	LogFormat        string `hcl:"log_format"`
-	LogLevel         string `hcl:"log_level"`
-	LogPath          string `hcl:"log_path"`
-	TrustDomain      string `hcl:"trust_domain"`
-	ServerSocketPath string `hcl:"server_socket_path"`
-	Cluster          string `hcl:"cluster"`
-	PodLabel         string `hcl:"pod_label"`
-	PodAnnotation    string `hcl:"pod_annotation"`
-	Mode             string `hcl:"mode"`
-	log              *log.Logger
-	serverConn       *grpc.ClientConn
+	LogFormat          string   `hcl:"log_format"`
+	LogLevel           string   `hcl:"log_level"`
+	LogPath            string   `hcl:"log_path"`
+	TrustDomain        string   `hcl:"trust_domain"`
+	ServerSocketPath   string   `hcl:"server_socket_path"`
+	AgentSocketPath    string   `hcl:"agent_socket_path"`
+	ServerAddress      string   `hcl:"server_address"`
+	Cluster            string   `hcl:"cluster"`
+	PodLabel           string   `hcl:"pod_label"`
+	PodAnnotation      string   `hcl:"pod_annotation"`
+	Mode               string   `hcl:"mode"`
+	DisabledNamespaces []string `hcl:"disabled_namespaces"`
+	registrationAPI    RegistrationAPIConnections
 }
 
 func (c *CommonMode) ParseConfig(hclConfig string) error {
@@ -46,8 +61,15 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	if c.LogLevel == "" {
 		c.LogLevel = defaultLogLevel
 	}
-	if c.ServerSocketPath == "" {
-		return errs.New("server_socket_path must be specified")
+	if c.ServerAddress == "" {
+		if c.ServerSocketPath != "" {
+			c.ServerAddress = fmt.Sprintf("unix://%s", c.ServerSocketPath)
+		} else {
+			return errs.New("server_address or server_socket_path must be specified")
+		}
+	}
+	if !strings.HasPrefix(c.ServerAddress, "unix://") && c.AgentSocketPath == "" {
+		return errs.New("agent_socket_path must be specified if the server is not a local socket")
 	}
 	if c.TrustDomain == "" {
 		return errs.New("trust_domain must be specified")
@@ -58,24 +80,34 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	if c.PodLabel != "" && c.PodAnnotation != "" {
 		return errs.New("workload registration mode specification is incorrect, can't specify both pod_label and pod_annotation")
 	}
-	if c.Mode != modeCRD && c.Mode != modeWebhook {
-		return errs.New("invalid mode \"%s\", valid values are %s and %s", c.Mode, modeCRD, modeWebhook)
+	if c.Mode != modeCRD && c.Mode != modeWebhook && c.Mode != modeReconcile {
+		return errs.New("invalid mode \"%s\", valid values are %s, %s and %s", c.Mode, modeCRD, modeWebhook, modeReconcile)
+	}
+	if c.DisabledNamespaces == nil {
+		c.DisabledNamespaces = defaultDisabledNamespaces()
 	}
 
 	return nil
 }
 
-func (c *CommonMode) SetupLogger() error {
-	log, err := log.NewLogger(log.WithLevel(c.LogLevel), log.WithFormat(c.LogFormat), log.WithOutputFile(c.LogPath))
-	c.log = log
-	return err
+func defaultDisabledNamespaces() []string {
+	return []string{metav1.NamespaceSystem, metav1.NamespacePublic}
 }
 
-func (c *CommonMode) Dial(ctx context.Context) error {
-	c.log.WithField("socket_path", c.ServerSocketPath).Info("Dialing server")
-	serverConn, err := grpc.DialContext(ctx, "unix://"+c.ServerSocketPath, grpc.WithInsecure())
-	c.serverConn = serverConn
-	return err
+func (c *CommonMode) SetupLogger() (*log.Logger, error) {
+	return log.NewLogger(log.WithLevel(c.LogLevel), log.WithFormat(c.LogFormat), log.WithOutputFile(c.LogPath))
+}
+
+func (c *CommonMode) RegistrationClient(ctx context.Context, dialLogger logger.Logger) (registration.RegistrationClient, error) {
+	return c.registrationAPI.RegistrationClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
+}
+
+func (c *CommonMode) EntryClient(ctx context.Context, dialLogger logger.Logger) (entry.EntryClient, error) {
+	return c.registrationAPI.EntryClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
+}
+
+func (c *CommonMode) Close() error {
+	return c.registrationAPI.Close()
 }
 
 func LoadMode(path string) (Mode, error) {
@@ -91,6 +123,10 @@ func LoadMode(path string) (Mode, error) {
 
 	var mode Mode
 	switch c.Mode {
+	case modeReconcile:
+		mode = &ReconcileMode{
+			CommonMode: *c,
+		}
 	case modeCRD:
 		mode = &CRDMode{
 			CommonMode: *c,
@@ -103,4 +139,67 @@ func LoadMode(path string) (Mode, error) {
 
 	err = mode.ParseConfig(string(hclBytes))
 	return mode, err
+}
+
+type RegistrationAPIConnections struct {
+	serverConn   *grpc.ClientConn
+	workloadConn *workloadapi.X509Source
+}
+
+func (r *RegistrationAPIConnections) dial(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) error {
+	var conn *grpc.ClientConn
+	var err error
+
+	if strings.HasPrefix(serverAddress, "unix://") {
+		dialLog.Infof("Connecting to local registration server socket %s", serverAddress)
+		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithInsecure())
+		if err != nil {
+			return err
+		}
+	} else {
+		dialLog.Infof("Connecting to remote registration server %s with credentials from agent socket %s", serverAddress, agentSocketPath)
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+agentSocketPath), workloadapi.WithLogger(dialLog)))
+		r.workloadConn = source
+		if err != nil {
+			return err
+		}
+
+		tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
+		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		if err != nil {
+			return err
+		}
+	}
+	r.serverConn = conn
+
+	return nil
+}
+
+func (r *RegistrationAPIConnections) EntryClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (entry.EntryClient, error) {
+	if r.serverConn == nil {
+		if err := r.dial(ctx, dialLog, serverAddress, agentSocketPath); err != nil {
+			return nil, err
+		}
+	}
+	return entry.NewEntryClient(r.serverConn), nil
+}
+
+func (r *RegistrationAPIConnections) RegistrationClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (registration.RegistrationClient, error) {
+	if r.serverConn == nil {
+		if err := r.dial(ctx, dialLog, serverAddress, agentSocketPath); err != nil {
+			return nil, err
+		}
+	}
+	return registration.NewRegistrationClient(r.serverConn), nil
+}
+
+func (r *RegistrationAPIConnections) Close() error {
+	var group errs.Group
+	if r.serverConn != nil {
+		group.Add(r.serverConn.Close())
+	}
+	if r.workloadConn != nil {
+		group.Add(r.workloadConn.Close())
+	}
+	return group.Err()
 }

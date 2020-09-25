@@ -1,14 +1,58 @@
 package nodeutil_test
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestIsAgentBanned(t *testing.T) {
 	require.True(t, nodeutil.IsAgentBanned(&common.AttestedNode{}))
 	require.False(t, nodeutil.IsAgentBanned(&common.AttestedNode{CertSerialNumber: "non-empty-serial"}))
+}
+
+func TestShouldAgentReattest(t *testing.T) {
+	agentExpired := &types.PermissionDeniedDetails{
+		Reason: types.PermissionDeniedDetails_AGENT_EXPIRED,
+	}
+	agentNotActive := &types.PermissionDeniedDetails{
+		Reason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
+	}
+	agentNotAttested := &types.PermissionDeniedDetails{
+		Reason: types.PermissionDeniedDetails_AGENT_NOT_ATTESTED,
+	}
+	agentBanned := &types.PermissionDeniedDetails{
+		Reason: types.PermissionDeniedDetails_AGENT_BANNED,
+	}
+
+	require.False(t, nodeutil.ShouldAgentReattest(nil))
+	require.True(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, agentExpired)))
+	require.True(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, agentNotActive)))
+	require.True(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, agentNotAttested)))
+	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, agentBanned)))
+
+	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.Unknown, agentExpired)))
+	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.Unknown, agentNotActive)))
+	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.Unknown, agentNotAttested)))
+	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.Unknown, agentBanned)))
+
+	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, &types.Status{})))
+	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, nil)))
+}
+
+func getError(t *testing.T, code codes.Code, details proto.Message) error {
+	st := status.New(code, "some error")
+	if details != nil {
+		var err error
+		st, err = st.WithDetails(details)
+		require.NoError(t, err)
+	}
+	return fmt.Errorf("extra info: %w", st.Err())
 }

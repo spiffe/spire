@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/zeebo/errs"
 )
 
@@ -46,32 +45,38 @@ func (c *WebhookMode) ParseConfig(hclConfig string) error {
 }
 
 func (c *WebhookMode) Run(ctx context.Context) error {
-	if err := c.SetupLogger(); err != nil {
+	log, err := c.SetupLogger()
+	if err != nil {
 		return errs.New("error setting up logging: %v", err)
 	}
-	defer c.log.Close()
+	defer log.Close()
 
-	if err := c.Dial(ctx); err != nil {
+	registrationClient, err := c.RegistrationClient(ctx, log)
+	if err != nil {
 		return errs.New("failed to dial server: %v", err)
 	}
-	defer c.serverConn.Close()
 
+	disabledNamespacesMap := make(map[string]bool, len(c.DisabledNamespaces))
+	for _, ns := range c.DisabledNamespaces {
+		disabledNamespacesMap[ns] = true
+	}
 	controller := NewController(ControllerConfig{
-		Log:           c.log,
-		R:             registration.NewRegistrationClient(c.serverConn),
-		TrustDomain:   c.TrustDomain,
-		Cluster:       c.Cluster,
-		PodLabel:      c.PodLabel,
-		PodAnnotation: c.PodAnnotation,
+		Log:                log,
+		R:                  registrationClient,
+		TrustDomain:        c.TrustDomain,
+		Cluster:            c.Cluster,
+		PodLabel:           c.PodLabel,
+		PodAnnotation:      c.PodAnnotation,
+		DisabledNamespaces: disabledNamespacesMap,
 	})
 
-	c.log.Info("Initializing registrar")
+	log.Info("Initializing registrar")
 	if err := controller.Initialize(ctx); err != nil {
 		return err
 	}
 
 	server, err := NewServer(ServerConfig{
-		Log:                            c.log,
+		Log:                            log,
 		Addr:                           c.Addr,
 		Handler:                        NewWebhookHandler(controller),
 		CertPath:                       c.CertPath,

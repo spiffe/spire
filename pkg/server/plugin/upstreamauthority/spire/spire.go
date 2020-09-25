@@ -94,7 +94,7 @@ func (m *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	// Create spire-server client
 	serverAddr := fmt.Sprintf("%s:%s", m.config.ServerAddr, m.config.ServerPort)
 	workloadAPISocket := fmt.Sprintf("unix://%s", m.config.WorkloadAPISocket)
-	m.serverClient = newServerClient(td.NewID(idutil.ServerIDPath), serverAddr, workloadAPISocket)
+	m.serverClient = newServerClient(td.NewID(idutil.ServerIDPath), serverAddr, workloadAPISocket, m.log)
 
 	return &plugin.ConfigureResponse{}, nil
 }
