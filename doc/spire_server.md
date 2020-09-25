@@ -427,6 +427,22 @@ Bundle data read from stdin or the path is expected to be a JWKS document.
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
+
+## JSON object for `-data`
+
+A JSON object passed to `-data` for `entry create/update` expects the following form:
+
+```json
+{
+    "entries":[]
+}
+```
+
+The entry object is descriebed by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/master/proto/spire/common/common.proto).
+
+_Note: to create node entries, set `parent_id` to the special value `spiffe://<your-trust-domain>/spire/server`.
+That's what the code does when the `-node` flag is passed on the cli._
+
 ## Sample configuration file
 
 This section includes a sample configuration file for formatting and syntax reference
