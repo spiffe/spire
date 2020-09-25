@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.1] - 2020-09-24
+
+### What's New
+- Added AWS PCA support for a locally-supplied upstream bundle (#1574)
+- Added `attest_limit` configurable to server for configuring node attestation rate limit (#1794)
+
+### What's Changed
+- Fixed Kubernetes Workload Registrar issues (#1814, #1818, #1823)
+- Fixed BatchCreateEntry return value to match docs (#1824)
+- Fixed issue in newly-initialized migration table (#1829)
+- Fixed payload data type for node attestation (#1863)
+
 ## [0.11.0] - 2020-08-28
 
 ### What's New
