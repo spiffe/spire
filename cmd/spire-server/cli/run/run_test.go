@@ -816,7 +816,7 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "attestation rate limits can be explicitly enabled",
+			msg: "attestation rate limits can be explicitly disabled",
 			input: func(c *Config) {
 				value := false
 				c.Server.RateLimit.Attestation = &value
@@ -826,7 +826,7 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "attestation rate limits can be explicitly disabled",
+			msg: "attestation rate limits can be explicitly enabled",
 			input: func(c *Config) {
 				value := true
 				c.Server.RateLimit.Attestation = &value
