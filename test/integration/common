@@ -68,8 +68,8 @@ check-synced-entry() {
   CHECKINTERVAL=1
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for synced entry ($i of $MAXCHECKS max)..."
-      docker-compose logs $1
-      if docker-compose logs $1 | grep "$2"; then
+      docker-compose logs "$1"
+      if docker-compose logs "$1" | grep "$2"; then
           return 0
       fi
       sleep "${CHECKINTERVAL}"
