@@ -807,6 +807,34 @@ func TestNewServerConfig(t *testing.T) {
 				}, c.CASubject)
 			},
 		},
+		{
+			msg: "attestation rate limit is on by default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.Attestation)
+			},
+		},
+		{
+			msg: "attestation rate limits can be explicitly enabled",
+			input: func(c *Config) {
+				value := false
+				c.Server.RateLimit.Attestation = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.RateLimit.Attestation)
+			},
+		},
+		{
+			msg: "attestation rate limits can be explicitly disabled",
+			input: func(c *Config) {
+				value := true
+				c.Server.RateLimit.Attestation = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.Attestation)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
