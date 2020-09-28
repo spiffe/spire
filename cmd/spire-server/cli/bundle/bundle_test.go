@@ -1,257 +1,45 @@
 package bundle
 
 import (
-	"bytes"
-	"context"
 	"crypto/x509"
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
-	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
-
-const (
-	cert1PEM = `-----BEGIN CERTIFICATE-----
-MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
-GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv
-sCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs
-RxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
-F4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X
-makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA
-dZglS5kKnYigmwDh+/U=
------END CERTIFICATE-----
-`
-
-	cert2PEM = `-----BEGIN CERTIFICATE-----
-MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
-GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8V
-bmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4
-o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
-F4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYt
-q+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcgg
-diIqWtxAqBLFrx8zNS4=
------END CERTIFICATE-----
-`
-
-	otherDomainJWKS = `{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-            ]
-        },
-        {
-            "use": "jwt-svid",
-            "kty": "EC",
-            "kid": "KID",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
-        }
-    ]
-}
-`
-
-	cert1JWKS = `{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-            ]
-        }
-    ],
-    "spiffe_refresh_hint": 60
-}
-`
-
-	cert2JWKS = `{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
-            "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
-            ]
-        }
-    ]
-}
-`
-
-	allBundlesPEM = `****************************************
-* spiffe://domain1.test
-****************************************
------BEGIN CERTIFICATE-----
-MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
-GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv
-sCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs
-RxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
-F4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X
-makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA
-dZglS5kKnYigmwDh+/U=
------END CERTIFICATE-----
-
-****************************************
-* spiffe://domain2.test
-****************************************
------BEGIN CERTIFICATE-----
-MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
-GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8V
-bmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4
-o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
-F4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYt
-q+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcgg
-diIqWtxAqBLFrx8zNS4=
------END CERTIFICATE-----
-`
-
-	allBundlesJWKS = `****************************************
-* spiffe://domain1.test
-****************************************
-{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-            ]
-        },
-        {
-            "use": "jwt-svid",
-            "kty": "EC",
-            "kid": "KID",
-            "crv": "P-256",
-            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
-        }
-    ]
-}
-
-****************************************
-* spiffe://domain2.test
-****************************************
-{
-    "keys": [
-        {
-            "use": "x509-svid",
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
-            "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
-            "x5c": [
-                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
-            ]
-        }
-    ]
-}
-`
-)
-
-type bundleTest struct {
-	cert1    *x509.Certificate
-	cert2    *x509.Certificate
-	key1Pkix []byte
-
-	ds                 *fakedatastore.DataStore
-	registrationClient *fakeregistrationclient.Client
-	testEnv            *env
-
-	showCmd   cli.Command
-	setCmd    cli.Command
-	listCmd   cli.Command
-	deleteCmd cli.Command
-}
-
-func setupTest(t *testing.T) *bundleTest {
-	cert1, err := pemutil.ParseCertificate([]byte(cert1PEM))
-	require.NoError(t, err)
-
-	key1Pkix, err := x509.MarshalPKIXPublicKey(cert1.PublicKey)
-	require.NoError(t, err)
-
-	cert2, err := pemutil.ParseCertificate([]byte(cert2PEM))
-	require.NoError(t, err)
-
-	ds := fakedatastore.New(t)
-	registrationClient := fakeregistrationclient.New(t, "spiffe://example.test", ds, nil)
-
-	testEnv := &env{
-		stdin:  new(bytes.Buffer),
-		stdout: new(bytes.Buffer),
-		stderr: new(bytes.Buffer),
-	}
-	clientMaker := func(string) (*clients, error) {
-		return &clients{
-			r: registrationClient,
-		}, nil
-	}
-
-	t.Cleanup(func() {
-		registrationClient.Close()
-	})
-
-	return &bundleTest{
-		cert1:              cert1,
-		cert2:              cert2,
-		key1Pkix:           key1Pkix,
-		ds:                 ds,
-		registrationClient: fakeregistrationclient.New(t, "spiffe://example.test", ds, nil),
-		testEnv:            testEnv,
-		showCmd:            newShowCommand(testEnv, clientMaker),
-		setCmd:             newSetCommand(testEnv, clientMaker),
-		listCmd:            newListCommand(testEnv, clientMaker),
-		deleteCmd:          newDeleteCommand(testEnv, clientMaker),
-	}
-}
-
-func (s *bundleTest) AfterTest(t *testing.T, suiteName, testName string) {
-	t.Logf("SUITE: %s TEST:%s", suiteName, testName)
-	t.Logf("STDOUT:\n%s", s.testEnv.stdout.(*bytes.Buffer).String())
-	t.Logf("STDIN:\n%s", s.testEnv.stdin.(*bytes.Buffer).String())
-	t.Logf("STDERR:\n%s", s.testEnv.stderr.(*bytes.Buffer).String())
-}
 
 func TestShowHelp(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest(t, newShowCommand)
+	test.client.Help()
 
-	test.showCmd.Help()
 	require.Equal(t, `Usage of bundle show:
   -format string
     	The format to show the bundle. Either "pem" or "spiffe". (default "pem")
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.testEnv.stderr.(*bytes.Buffer).String())
+`, test.stderr.String())
+}
+
+func TestShowSynopsis(t *testing.T) {
+	test := setupTest(t, newShowCommand)
+	require.Equal(t, "Prints server CA bundle to stdout", test.client.Synopsis())
 }
 
 func TestShow(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		args        []string
-		expectedOut string
+		name          string
+		args          []string
+		expectedOut   string
+		serverErr     error
+		expectedError string
 	}{
 		{
 			name:        "default",
@@ -267,28 +55,42 @@ func TestShow(t *testing.T) {
 			args:        []string{"-format", formatSPIFFE},
 			expectedOut: cert1JWKS,
 		},
+		{
+			name:          "server fails",
+			serverErr:     errors.New("some error"),
+			expectedError: "rpc error: code = Unknown desc = some error\n",
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
-			test.createBundle(t, &common.Bundle{
-				TrustDomainId: "spiffe://example.test",
-				RootCas: []*common.Certificate{
-					{DerBytes: test.cert1.Raw},
+			test := setupTest(t, newShowCommand)
+			test.server.err = tt.serverErr
+			test.server.bundles = []*types.Bundle{{
+				TrustDomain: "spiffe://example.test",
+				X509Authorities: []*types.X509Certificate{
+					{Asn1: test.cert1.Raw},
 				},
 				RefreshHint: 60,
-			})
+			},
+			}
 
-			require.Equal(t, 0, test.showCmd.Run(tt.args))
-			require.Equal(t, test.testEnv.stdout.(*bytes.Buffer).String(), tt.expectedOut)
+			args := append(test.args, tt.args...)
+			rc := test.client.Run(args)
+			if tt.expectedError != "" {
+				require.Equal(t, 1, rc)
+				require.Equal(t, tt.expectedError, test.stderr.String())
+				return
+			}
+
+			require.Equal(t, 0, rc)
+			require.Equal(t, test.stdout.String(), tt.expectedOut)
 		})
 	}
 }
 
 func TestSetHelp(t *testing.T) {
-	test := setupTest(t)
-
-	test.setCmd.Help()
+	test := setupTest(t, newSetCommand)
+	test.client.Help()
 	require.Equal(t, `Usage of bundle set:
   -format string
     	The format of the bundle data. Either "pem" or "spiffe". (default "pem")
@@ -298,17 +100,30 @@ func TestSetHelp(t *testing.T) {
     	Path to the bundle data
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.testEnv.stderr.(*bytes.Buffer).String())
+`, test.stderr.String())
+}
+
+func TestSetSynopsis(t *testing.T) {
+	test := setupTest(t, newSetCommand)
+	require.Equal(t, "Creates or updates bundle data", test.client.Synopsis())
 }
 
 func TestSet(t *testing.T) {
+	cert1, err := pemutil.ParseCertificate([]byte(cert1PEM))
+	require.NoError(t, err)
+
+	key1Pkix, err := x509.MarshalPKIXPublicKey(cert1.PublicKey)
+	require.NoError(t, err)
+
 	for _, tt := range []struct {
 		name           string
 		args           []string
 		expectedStderr string
 		stdin          string
-		createBundle   bool
 		fileData       string
+		serverErr      error
+		toSet          *types.Bundle
+		setResponse    *bundle.BatchSetFederatedBundleResponse
 	}{
 		{
 			name:           "no id",
@@ -325,34 +140,131 @@ func TestSet(t *testing.T) {
 			args:           []string{"-id", "spiffe://otherdomain.test"},
 		},
 		{
-			name:  "create bundle (default)",
+			name:           "invalid output format",
+			stdin:          cert1PEM,
+			args:           []string{"-id", "spiffe://otherdomain.test", "-format", "invalidFormat"},
+			expectedStderr: "invalid format: \"invalidformat\"\n",
+		},
+		{
+			name:           "invalid trustdomain",
+			stdin:          cert1PEM,
+			args:           []string{"-id", "otherdomain test"},
+			expectedStderr: "\"otherdomain%20test\" is not a valid trust domain SPIFFE ID: invalid scheme\n",
+		},
+		{
+			name:           "invalid bundle (pem)",
+			stdin:          "invalid bundle",
+			args:           []string{"-id", "spiffe://otherdomain.test"},
+			expectedStderr: "unable to parse bundle data: no PEM blocks\n",
+		},
+		{
+			name:           "invalid bundle (spiffe)",
+			stdin:          "invalid bundle",
+			args:           []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
+			expectedStderr: "unable to parse to spiffe bundle: spiffebundle: unable to parse JWKS: invalid character 'i' looking for beginning of value\n",
+		},
+		{
+			name:           "server fails",
+			stdin:          cert1PEM,
+			args:           []string{"-id", "spiffe://otherdomain.test"},
+			serverErr:      status.New(codes.Internal, "some error").Err(),
+			expectedStderr: "failed to set federated bundle: rpc error: code = Internal desc = some error\n",
+		},
+		{
+			name:           "failed to set",
+			stdin:          cert1PEM,
+			args:           []string{"-id", "spiffe://otherdomain.test"},
+			expectedStderr: "failed to set federated bundle: failed to set\n",
+			toSet: &types.Bundle{
+				TrustDomain: "spiffe://otherdomain.test",
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: cert1.Raw,
+					},
+				},
+			},
+			setResponse: &bundle.BatchSetFederatedBundleResponse{
+				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.Internal), Message: "failed to set"},
+					},
+				},
+			},
+		},
+		{
+			name:  "set bundle (default)",
 			stdin: cert1PEM,
 			args:  []string{"-id", "spiffe://otherdomain.test"},
+			toSet: &types.Bundle{
+				TrustDomain: "spiffe://otherdomain.test",
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: cert1.Raw,
+					},
+				},
+			},
+			setResponse: &bundle.BatchSetFederatedBundleResponse{
+				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK)},
+						Bundle: &types.Bundle{
+							TrustDomain: "spiffe://otherdomain.test",
+						},
+					},
+				},
+			},
 		},
 		{
-			name:  "create bundle (pem)",
+			name:  "set bundle (pem)",
 			stdin: cert1PEM,
 			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatPEM},
+			toSet: &types.Bundle{
+				TrustDomain: "spiffe://otherdomain.test",
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: cert1.Raw,
+					},
+				},
+			},
+			setResponse: &bundle.BatchSetFederatedBundleResponse{
+				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK)},
+						Bundle: &types.Bundle{
+							TrustDomain: "spiffe://otherdomain.test",
+						},
+					},
+				},
+			},
 		},
 		{
-			name:  "create bundle (jwks)",
+			name:  "set bundle (jwks)",
 			stdin: otherDomainJWKS,
 			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
-		},
-		{
-			name:  "update bundle (default)",
-			stdin: cert1PEM,
-			args:  []string{"-id", "spiffe://otherdomain.test"},
-		},
-		{
-			name:  "update bundle (pem)",
-			stdin: cert1PEM,
-			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatPEM},
-		},
-		{
-			name:  "update bundle (jwks)",
-			stdin: otherDomainJWKS,
-			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
+			toSet: &types.Bundle{
+				TrustDomain: "otherdomain.test",
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: cert1.Raw,
+					},
+				},
+				JwtAuthorities: []*types.JWTKey{
+					{
+						KeyId:     "KID",
+						PublicKey: key1Pkix,
+					},
+				},
+			},
+			setResponse: &bundle.BatchSetFederatedBundleResponse{
+				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK)},
+						Bundle: &types.Bundle{
+							TrustDomain: "spiffe://otherdomain.test",
+						},
+					},
+				},
+			},
 		},
 		{
 			name:           "invalid file name",
@@ -360,57 +272,117 @@ func TestSet(t *testing.T) {
 			args:           []string{"-id", "spiffe://otherdomain.test", "-path", "/not/a/real/path/to/a/bundle"},
 		},
 		{
-			name:     "create from file (default)",
+			name:     "set from file (default)",
 			args:     []string{"-id", "spiffe://otherdomain.test"},
 			fileData: cert1PEM,
+			toSet: &types.Bundle{
+				TrustDomain: "spiffe://otherdomain.test",
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: cert1.Raw,
+					},
+				},
+			},
+			setResponse: &bundle.BatchSetFederatedBundleResponse{
+				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK)},
+						Bundle: &types.Bundle{
+							TrustDomain: "spiffe://otherdomain.test",
+						},
+					},
+				},
+			},
 		},
 		{
-			name:     "create from file (pem)",
+			name:     "set from file (pem)",
 			args:     []string{"-id", "spiffe://otherdomain.test", "-format", formatPEM},
 			fileData: cert1PEM,
+			toSet: &types.Bundle{
+				TrustDomain: "spiffe://otherdomain.test",
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: cert1.Raw,
+					},
+				},
+			},
+			setResponse: &bundle.BatchSetFederatedBundleResponse{
+				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK)},
+						Bundle: &types.Bundle{
+							TrustDomain: "spiffe://otherdomain.test",
+						},
+					},
+				},
+			},
 		},
 		{
-			name:     "create from file (jwks)",
+			name:     "set from file (jwks)",
 			args:     []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
 			fileData: otherDomainJWKS,
+			toSet: &types.Bundle{
+				TrustDomain: "otherdomain.test",
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1: cert1.Raw,
+					},
+				},
+				JwtAuthorities: []*types.JWTKey{
+					{
+						KeyId:     "KID",
+						PublicKey: key1Pkix,
+					},
+				},
+			},
+			setResponse: &bundle.BatchSetFederatedBundleResponse{
+				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK)},
+						Bundle: &types.Bundle{
+							TrustDomain: "spiffe://otherdomain.test",
+						},
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
-			rc := test.setCmd.Run(tt.args)
+			test := setupTest(t, newSetCommand)
+			args := append(test.args, tt.args...)
+			test.server.expectedSetBundle = tt.toSet
+			test.server.setResponse = tt.setResponse
+			test.server.err = tt.serverErr
 
-			if tt.expectedStderr != "" {
-				require.Equal(t, 1, rc)
-				require.Equal(t, tt.expectedStderr, test.testEnv.stderr.(*bytes.Buffer).String())
-				return
-			}
-
-			if tt.createBundle {
-				test.createBundle(t, &common.Bundle{
-					TrustDomainId: "spiffe://otherdomain.test",
-					RootCas: []*common.Certificate{
-						{DerBytes: []byte("BOGUSCERTS")},
-					},
-				})
-			}
-
-			test.testEnv.stdin.(*bytes.Buffer).WriteString(tt.stdin)
+			test.stdin.WriteString(tt.stdin)
 			if tt.fileData != "" {
 				tmpDir := spiretest.TempDir(t)
 				bundlePath := filepath.Join(tmpDir, "bundle_data")
 				require.NoError(t, ioutil.WriteFile(bundlePath, []byte(tt.fileData), 0600))
-				tt.args = append(tt.args, "-path", bundlePath)
+				args = append(args, "-path", bundlePath)
 			}
-			test.assertBundleSet(t, tt.args)
+
+			// test.server.expectedSetBundle = tt.toUpdate
+			rc := test.client.Run(args)
+
+			if tt.expectedStderr != "" {
+				require.Equal(t, 1, rc)
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				return
+			}
+
+			require.Empty(t, test.stderr.String())
+			require.Equal(t, 0, rc)
+			require.Equal(t, "bundle set.\n", test.stdout.String())
 		})
 	}
 }
 
 func TestListHelp(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest(t, newListCommand)
+	test.client.Help()
 
-	test.listCmd.Help()
 	require.Equal(t, `Usage of bundle list:
   -format string
     	The format to list federated bundles. Either "pem" or "spiffe". (default "pem")
@@ -418,7 +390,12 @@ func TestListHelp(t *testing.T) {
     	SPIFFE ID of the trust domain
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.testEnv.stderr.(*bytes.Buffer).String())
+`, test.stderr.String())
+}
+
+func TestListSynopsis(t *testing.T) {
+	test := setupTest(t, newListCommand)
+	require.Equal(t, "Lists federated bundle data", test.client.Synopsis())
 }
 
 func TestList(t *testing.T) {
@@ -426,10 +403,22 @@ func TestList(t *testing.T) {
 		name           string
 		args           []string
 		expectedStdout string
+		expectedStderr string
+		serverErr      error
 	}{
 		{
 			name:           "all bundles (default)",
 			expectedStdout: allBundlesPEM,
+		},
+		{
+			name:           "all bundles server fails",
+			expectedStderr: "rpc error: code = Internal desc = some error\n",
+			serverErr:      status.New(codes.Internal, "some error").Err(),
+		},
+		{
+			name:           "all bundles invalid format",
+			args:           []string{"-format", "invalid"},
+			expectedStderr: "invalid format: \"invalid\"\n",
 		},
 		{
 			name:           "all bundles (pem)",
@@ -447,6 +436,22 @@ func TestList(t *testing.T) {
 			expectedStdout: cert2PEM,
 		},
 		{
+			name:           "one bundle invalid id",
+			args:           []string{"-id", "spiffe://domain2.test/host"},
+			expectedStderr: "\"spiffe://domain2.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
+		},
+		{
+			name:           "one bundle server fails",
+			args:           []string{"-id", "spiffe://domain2.test"},
+			expectedStderr: "rpc error: code = Internal desc = some error\n",
+			serverErr:      status.New(codes.Internal, "some error").Err(),
+		},
+		{
+			name:           "one bundle invalid format",
+			args:           []string{"-id", "spiffe://domain2.test", "-format", "invalid"},
+			expectedStderr: "invalid format: \"invalid\"\n",
+		},
+		{
 			name:           "one bundle (pem)",
 			args:           []string{"-id", "spiffe://domain2.test", "-format", formatPEM},
 			expectedStdout: cert2PEM,
@@ -459,160 +464,134 @@ func TestList(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
-			test.createBundle(t, &common.Bundle{
-				TrustDomainId: "spiffe://domain1.test",
-				RootCas: []*common.Certificate{
-					{DerBytes: test.cert1.Raw},
+			test := setupTest(t, newListCommand)
+			test.server.err = tt.serverErr
+			test.server.bundles = []*types.Bundle{
+				{
+					TrustDomain: "spiffe://domain1.test",
+					X509Authorities: []*types.X509Certificate{
+						{Asn1: test.cert1.Raw},
+					},
+					JwtAuthorities: []*types.JWTKey{
+						{KeyId: "KID", PublicKey: test.key1Pkix},
+					},
 				},
-				JwtSigningKeys: []*common.PublicKey{
-					{Kid: "KID", PkixBytes: test.key1Pkix},
+				{
+					TrustDomain: "spiffe://domain2.test",
+					X509Authorities: []*types.X509Certificate{
+						{Asn1: test.cert2.Raw},
+					},
 				},
-			})
-			test.createBundle(t, &common.Bundle{
-				TrustDomainId: "spiffe://domain2.test",
-				RootCas: []*common.Certificate{
-					{DerBytes: test.cert2.Raw},
-				},
-			})
+			}
 
-			require.Equal(t, 0, test.listCmd.Run(tt.args))
-			require.Equal(t, tt.expectedStdout, test.testEnv.stdout.(*bytes.Buffer).String())
+			args := append(test.args, tt.args...)
+			rc := test.client.Run(args)
+			if tt.expectedStderr != "" {
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, 1, rc)
+				return
+			}
+
+			require.Equal(t, 0, rc)
+			require.Empty(t, test.stderr.String())
+			require.Equal(t, tt.expectedStdout, test.stdout.String())
 		})
 	}
 }
 
 func TestDeleteHelp(t *testing.T) {
-	test := setupTest(t)
-
-	test.deleteCmd.Help()
+	test := setupTest(t, newDeleteCommand)
+	test.client.Help()
 	require.Equal(t, `Usage of bundle delete:
   -id string
     	SPIFFE ID of the trust domain
-  -mode string
-    	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.testEnv.stderr.(*bytes.Buffer).String())
+`, test.stderr.String())
+}
+
+func TestDeleteSynopsis(t *testing.T) {
+	test := setupTest(t, newDeleteCommand)
+	require.Equal(t, "Deletes bundle data", test.client.Synopsis())
 }
 
 func TestDelete(t *testing.T) {
 	for _, tt := range []struct {
-		name                string
-		args                []string
-		expectedStderr      string
-		expectedStdout      string
-		withAssociatedEntry bool
+		name           string
+		args           []string
+		expectedStderr string
+		expectedStdout string
+		deleteResults  []*bundle.BatchDeleteFederatedBundleResponse_Result
+		toDelete       []string
+		serverErr      error
 	}{
+		{
+			name:           "success",
+			args:           []string{"-id", "spiffe://domain1.test"},
+			expectedStdout: "bundle deleted.\n",
+			toDelete:       []string{"spiffe://domain1.test"},
+			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+
+						Code:    int32(codes.OK),
+						Message: "ok",
+					},
+					TrustDomain: "domain1.test",
+				},
+			},
+		},
 		{
 			name:           "no id",
 			expectedStderr: "id is required\n",
 		},
 		{
-			name:           "unsupported mode",
-			args:           []string{"-id", "spiffe://domain1.test", "-mode", "whatever"},
-			expectedStderr: "unsupported mode \"whatever\"\n",
+			name:           "invalid id",
+			args:           []string{"-id", "spiffe://domain1.test/host"},
+			expectedStderr: "\"spiffe://domain1.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
 		},
 		{
-			name:           "success",
+			name:           "server fails",
 			args:           []string{"-id", "spiffe://domain1.test"},
-			expectedStdout: "bundle deleted.\n",
+			expectedStderr: "failed to delete federated bundle: rpc error: code = Internal desc = some error\n",
+			serverErr:      status.New(codes.Internal, "some error").Err(),
 		},
 		{
-			name:                "with associated entry (default mode)",
-			withAssociatedEntry: true,
-			args:                []string{"-id", "spiffe://domain1.test"},
-			expectedStderr:      "rpc error: code = Internal desc = rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries\n",
-		},
-		{
-			name:                "with associated entry (restrict mode)",
-			withAssociatedEntry: true,
-			args:                []string{"-id", "spiffe://domain1.test", "-mode", deleteBundleRestrict},
-			expectedStderr:      "rpc error: code = Internal desc = rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries\n",
-		},
-		{
-			name:                "with associated entry (delete mode)",
-			withAssociatedEntry: true,
-			args:                []string{"-id", "spiffe://domain1.test", "-mode", deleteBundleDelete},
-			expectedStdout:      "bundle deleted.\n",
-		},
-		{
-			name:                "with associated entry (dissociate mode)",
-			withAssociatedEntry: true,
-			args:                []string{"-id", "spiffe://domain1.test", "-mode", deleteBundleDissociate},
-			expectedStdout:      "bundle deleted.\n",
+			name:     "fails to delete",
+			args:     []string{"-id", "spiffe://domain1.test"},
+			toDelete: []string{"spiffe://domain1.test"},
+			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+
+						Code:    int32(codes.Internal),
+						Message: "some error",
+					},
+					TrustDomain: "domain1.test",
+				},
+			},
+			expectedStderr: "failed to delete federated bundle \"domain1.test\": some error\n",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
-			test.createBundle(t, &common.Bundle{
-				TrustDomainId: "spiffe://domain1.test",
-				RootCas: []*common.Certificate{
-					{DerBytes: test.cert1.Raw},
-				},
-			})
+			test := setupTest(t, newDeleteCommand)
+			test.server.toDelete = tt.toDelete
+			test.server.deleteResults = tt.deleteResults
+			test.server.err = tt.serverErr
 
-			if tt.withAssociatedEntry {
-				test.createRegistrationEntry(t, &common.RegistrationEntry{
-					ParentId:      "spiffe://example.test/spire/agent/foo",
-					SpiffeId:      "spiffe://example.test/blog",
-					Selectors:     []*common.Selector{{Type: "foo", Value: "bar"}},
-					FederatesWith: []string{"spiffe://domain1.test"},
-				})
-			}
-
+			args := append(test.args, tt.args...)
+			rc := test.client.Run(args)
 			if tt.expectedStderr != "" {
-				require.Equal(t, 1, test.deleteCmd.Run(tt.args))
-				require.Equal(t, tt.expectedStderr, test.testEnv.stderr.(*bytes.Buffer).String())
+				require.Equal(t, 1, rc)
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
 
-				_, err := test.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-					TrustDomainId: "spiffe://domain1.test",
-				})
-				require.Nil(t, err)
 				return
 			}
 
-			require.Equal(t, 0, test.deleteCmd.Run(tt.args))
-			require.Equal(t, tt.expectedStdout, test.testEnv.stdout.(*bytes.Buffer).String())
-
-			resp, err := test.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-				TrustDomainId: "spiffe://domain1.test",
-			})
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Nil(t, resp.Bundle)
+			require.Empty(t, test.stderr.String())
+			require.Equal(t, 0, rc)
+			require.Equal(t, tt.expectedStdout, test.stdout.String())
 		})
 	}
-}
-
-func (s *bundleTest) assertBundleSet(t *testing.T, args []string) {
-	rc := s.setCmd.Run(args)
-	require.Equal(t, 0, rc)
-	require.Equal(t, "bundle set.\n", s.testEnv.stdout.(*bytes.Buffer).String())
-
-	// make sure it made it into the datastore
-	resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.test",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotNil(t, resp.Bundle)
-	require.Len(t, resp.Bundle.RootCas, 1)
-	require.Equal(t, s.cert1.Raw, resp.Bundle.RootCas[0].DerBytes)
-}
-
-func (s *bundleTest) createBundle(t *testing.T, bundle *common.Bundle) {
-	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
-	require.NoError(t, err)
-}
-
-func (s *bundleTest) createRegistrationEntry(t *testing.T, entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
-	require.NoError(t, err)
-	return resp.Entry
 }
