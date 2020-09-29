@@ -18,7 +18,7 @@ validateX509SVID() {
       -socketPath /opt/spire/sockets/workload_api.sock \
       -write /tmp || fail-now "x509-SVID check failed"
 
-  docker-compose exec $2 openssl verify -verbose -CAfile /tmp/bundle.0.pem -untrusted /opt/svid.0.pem /opt/svid.0.pem
+  docker-compose exec -T $2 openssl verify -verbose -CAfile /tmp/bundle.0.pem -untrusted /opt/svid.0.pem /opt/svid.0.pem
 }
 
 validateJWTSVID() {
