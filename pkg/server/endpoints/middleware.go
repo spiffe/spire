@@ -28,7 +28,7 @@ import (
 // Number of entries that can be cached
 const entriesCacheSize = 500_000
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf *RateLimitConfig) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
 	return middleware.Chain(
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
@@ -186,9 +186,12 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 	})
 }
 
-func RateLimits(conf *RateLimitConfig) map[string]api.RateLimiter {
+func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 	noLimit := middleware.NoLimit()
-	attestLimit := middleware.PerIPLimit(conf.Attestation)
+	attestLimit := noLimit
+	if config.Attestation {
+		attestLimit = middleware.PerIPLimit(node_pb.AttestLimit)
+	}
 	csrLimit := middleware.PerIPLimit(node_pb.CSRLimit)
 	jsrLimit := middleware.PerIPLimit(node_pb.JSRLimit)
 	pushJWTKeyLimit := middleware.PerIPLimit(node_pb.PushJWTKeyLimit)
