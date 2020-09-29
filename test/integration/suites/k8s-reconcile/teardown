@@ -1,7 +1,6 @@
 #!/bin/bash
 
-KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
-export KUBECONFIG
+source init-kubectl
 
 if [ -z "$SUCCESS" ]; then
    ./bin/kubectl -nspire logs deployment/spire-server --all-containers || true
