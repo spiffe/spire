@@ -4,7 +4,7 @@
 
 ### What's New
 - Added AWS PCA support for a locally-supplied upstream bundle (#1574)
-- Added `attest_limit` configurable to server for configuring node attestation rate limit (#1794)
+- Added `ratelimit` configurable to server for configuring node attestation rate limit (#1794, #1870)
 
 ### What's Changed
 - Fixed Kubernetes Workload Registrar issues (#1814, #1818, #1823)
