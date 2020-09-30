@@ -5,11 +5,13 @@
 #   - GCR_API_KEY: Private key for accessing GCR, formatted as JSON
 #   - COVERALLS_TOKEN: Token for posting coverage data to coveralls
 #   - GITHUB_TOKEN: Token for publishing GitHub releases
+#   - AWS_ACCESS_KEY_ID: Access key ID for publishing artifacts to S3
+#   - AWS_SECRET_ACCESS_KEY: Access key for publishing artifacts to S3
 #
 version: 2.1
 orbs:
   go: circleci/go@1.2.0
-  aws-s3: circleci/aws-s3@1.0.15
+  aws-s3: circleci/aws-s3@1.1.1
 parameters:
   go-version:
     default: 1.14.6
@@ -145,7 +147,6 @@ jobs:
       - checkout
       - run: .circleci/publish-unstable-images.sh
 
-
   # Publish release docker images on GCR
   publish-release-images:
     docker:
@@ -163,6 +164,8 @@ jobs:
     docker:
       - image: cibuilds/github:0.10
     resource_class: << pipeline.parameters.resource-class >>
+    environment:
+      AWS_REGION: us-east-2
     steps:
       # Load up the cached docker images and artifacts
       - attach_workspace:
