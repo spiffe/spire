@@ -2,6 +2,9 @@
 1. If this is your first PR, please read our contributor guidelines
 https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md
 https://github.com/spiffe/spire/blob/master/CONTRIBUTING.md
+
+2. Please remember to include a DCO on every commit (`git commit -s`)
+https://github.com/apps/dco
 -->
 
 **Pull Request check list**
