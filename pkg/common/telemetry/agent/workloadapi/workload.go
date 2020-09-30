@@ -92,32 +92,6 @@ func IncrValidJWTSVIDErrCounter(m telemetry.Metrics) {
 
 // End Counters
 
-// Gauge (remember previous value set)
-
-// SetFetchJWTSVIDTTLGauge set gauge for agent Workload API,
-// TTL of fetching JWT SVID for a specific SPIFFE ID
-func SetFetchJWTSVIDTTLGauge(m telemetry.Metrics, id string, val float32) {
-	m.SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-		val,
-		[]telemetry.Label{
-			{Name: telemetry.SPIFFEID, Value: id},
-		})
-}
-
-// SetFetchX509SVIDTTLGauge set gauge for agent Workload API,
-// TTL of fetching X509 SVID for a specific SPIFFE ID
-func SetFetchX509SVIDTTLGauge(m telemetry.Metrics, id string, val float32) {
-	m.SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
-		val,
-		[]telemetry.Label{
-			{Name: telemetry.SPIFFEID, Value: id},
-		})
-}
-
-// End Gauge
-
 // Measure Since (metric on time passed since some given time)
 
 // MeasureSendJWTBundleLatency emit metric on agent Workload API,
