@@ -91,7 +91,7 @@ This section summarizes the steps necessary to execute a SPIRE release. Unless e
 The following steps must be completed one week prior to release:
 * Ensure all changes intended to be included in the release are fully merged.
 * Identify a specific commit as the release candidate.
-* Create a draft pull request with the updates to the CHANGELOG. This allows to have publicly available the changes that will be included in the upcoming release with some anticipation, providing the oportunity receive feedback. The release date can be set as "TBD".
+* Create a draft pull request with the updates to the CHANGELOG. This allows to have publicly available the changes that will be included in the upcoming release with some anticipation, providing the oportunity to receive feedback. The release date can be set as "TBD".
   * The CHANGELOG distinguishes two types of changes: "What's New" and "What's Changed". As a general rule, the entries should be focused on exposing user-facing changes, considering that the main consumers of the CHANGELOG are the end users of SPIRE.
   * Changes that introduce new features and improvements should be under "What's New".
     * Example: Added `validate` subcommand to the SPIRE Server and SPIRE Agent CLIs to validate the configuration file (#1471, #1489)
@@ -109,7 +109,7 @@ The following steps must be completed to perform a release:
 * Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it.**
 * If the current state of the `master` branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG.
 * If the current state of the `master` branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
-  * If there is not a version branch, create a branch following the guidelines described in [Version branches](#version-branches).
+  * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
   * Cherry-pick into the version branch the commits for all the changes that must be included in the release, including the updates in the CHANGELOG. This is now the release candidate.
 * Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
   * The first line of the annotation should be `X.X.X` followed by the CHANGELOG. Refer to previous annotated tags as an example.
