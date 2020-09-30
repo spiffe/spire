@@ -27,13 +27,17 @@ type Limiter interface {
 }
 
 // Newlimiter returns a new node api rate.Limiter
-func NewLimiter(l logrus.FieldLogger, attestLimit int) Limiter {
-	return newLimiter(l, attestLimit)
+func NewLimiter(l logrus.FieldLogger, rateLimitAttestation bool) Limiter {
+	return newLimiter(l, rateLimitAttestation)
 }
 
-func newLimiter(l logrus.FieldLogger, attestLimit int) *limiter {
+func newLimiter(l logrus.FieldLogger, rateLimitAttestation bool) *limiter {
+	attestRate := rate.Inf
+	if rateLimitAttestation {
+		attestRate = rate.Limit(node.AttestLimit)
+	}
 	return &limiter{
-		attestRate:   rate.Limit(attestLimit),
+		attestRate:   attestRate,
 		csrRate:      rate.Limit(node.CSRLimit),
 		jsrRate:      rate.Limit(node.JSRLimit),
 		jwtKeyRate:   rate.Limit(node.PushJWTKeyLimit),

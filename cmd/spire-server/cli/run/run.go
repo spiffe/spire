@@ -48,9 +48,7 @@ var (
 		Organization: []string{"SPIFFE"},
 	}
 
-	defaultRateLimit = rateLimitConfig{
-		Attestation: 1,
-	}
+	defaultRateLimitAttestation = true
 )
 
 // Config contains all available configurables, arranged by section
@@ -154,7 +152,7 @@ type federatesWithBundleEndpointConfig struct {
 }
 
 type rateLimitConfig struct {
-	Attestation int      `hcl:"attestation"`
+	Attestation *bool    `hcl:"attestation"`
 	UnusedKeys  []string `hcl:",unusedKeys"`
 }
 
@@ -367,10 +365,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.Log = logger
 
-	if c.Server.RateLimit.Attestation < 0 {
-		return nil, fmt.Errorf("attestation rate limit must be greater than zero")
+	if c.Server.RateLimit.Attestation == nil {
+		c.Server.RateLimit.Attestation = &defaultRateLimitAttestation
 	}
-	sc.RateLimit.Attestation = c.Server.RateLimit.Attestation
+	sc.RateLimit.Attestation = *c.Server.RateLimit.Attestation
 
 	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
 	if c.Server.Federation != nil {
@@ -704,7 +702,6 @@ func defaultConfig() *Config {
 			LogFormat:           log.DefaultFormat,
 			RegistrationUDSPath: defaultSocketPath,
 			Experimental:        experimentalConfig{},
-			RateLimit:           defaultRateLimit,
 		},
 	}
 }
