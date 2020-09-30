@@ -240,7 +240,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	// attest
 	var attestResp *nodeattestor.AttestResponse
 	if params.Data.Type == "join_token" {
-		attestResp, err = s.attestJoinToken(ctx, params.Data.Payload)
+		attestResp, err = s.attestJoinToken(ctx, string(params.Data.Payload))
 		if err != nil {
 			return err
 		}
@@ -532,7 +532,7 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 	attestRequest := &nodeattestor.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: attestorType,
-			Data: []byte(params.Data.Payload),
+			Data: params.Data.Payload,
 		},
 	}
 	var attestResp *nodeattestor.AttestResponse
@@ -643,7 +643,7 @@ func validateAttestAgentParams(params *agent.AttestAgentRequest_Params) error {
 		return errors.New("missing CSR")
 	case params.Data.Type == "":
 		return errors.New("missing attestation data type")
-	case params.Data.Payload == "":
+	case len(params.Data.Payload) == 0:
 		return errors.New("missing attestation data payload")
 	default:
 		return nil

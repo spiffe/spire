@@ -5,7 +5,7 @@ KINDPATH=$(command -v kind || echo)
 
 UNAME=$(uname | awk '{print tolower($0)}')
 
-KINDVERSION=v0.5.1
+KINDVERSION=v0.9.0
 KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
 KUBECTLVERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
 KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"

@@ -48,7 +48,7 @@ var (
 	agentID      = testTD.NewID("/agent")
 	adminID      = testTD.NewID("/admin")
 	downstreamID = testTD.NewID("/downstream")
-	rateLimit    = &RateLimitConfig{Attestation: 1}
+	rateLimit    = RateLimitConfig{Attestation: true}
 )
 
 func TestNew(t *testing.T) {
@@ -148,7 +148,7 @@ func TestListenAndServe(t *testing.T) {
 		BundleEndpointServer: bundleEndpointServer,
 		Log:                  log,
 		Metrics:              metrics,
-		RateLimitConfig:      rateLimit,
+		RateLimit:            rateLimit,
 	}
 
 	// Prime the datastore with the:
