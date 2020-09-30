@@ -32,7 +32,10 @@ var (
 		1 * time.Second,
 		2 * time.Second,
 		5 * time.Second,
+		10 * time.Second,
 		15 * time.Second,
+		20 * time.Second,
+		25 * time.Second,
 		30 * time.Second,
 	}
 
