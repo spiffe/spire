@@ -107,8 +107,8 @@ The following steps must be completed one week prior to release:
 
 The following steps must be completed to perform a release:
 * Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it.**
-* If the current state of the `master` branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG.
-* If the current state of the `master` branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
+* If the current state of the master branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG and the release can be done from master branch.
+* If the current state of the master branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
   * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
   * Cherry-pick into the version branch the commits for all the changes that must be included in the release, including the updates in the CHANGELOG. This is now the release candidate.
 * Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
