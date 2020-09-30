@@ -17,7 +17,7 @@ REPODIR=$(git rev-parse --show-toplevel)
 
 # Set and export the PATH to one that includes a go binary installed by the
 # Makefile, if necessary.
-PATH=$(cd "${REPODIR}"; make go-bin-path)
+PATH=$(cd "${REPODIR}" || exit; make go-bin-path)
 export PATH
 
 log-info "running \"${TESTNAME}\" test suite..."
@@ -25,18 +25,19 @@ log-info "running \"${TESTNAME}\" test suite..."
 [ -x "${TESTDIR}"/teardown ] || fail-now "missing required teardown script or it is not executable"
 [ -f "${TESTDIR}"/README.md ] || fail-now "missing required README.md file"
 
-# The following variables are intended to be usable to step scripts
-export ROOTDIR
-export REPODIR
-
-export SUCCESS=
-
 # Create a temporary directory to hold the configuration for the test run. On
 # darwin, don't use the user temp dir since it is not mountable by default with
 # Docker for MacOS (but /tmp is). We need a directory we can mount into the
 # running containers for various tests (e.g. to provide webhook configuration
 # to the kind node).
 RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR='' TMPDIR='' mktemp -d /tmp/spire-integration-XXXXXX)
+
+# The following variables are intended to be usable to step scripts
+export ROOTDIR
+export REPODIR
+export RUNDIR
+
+export SUCCESS=
 
 # Ensure we always clean up after ourselves.
 cleanup() {
@@ -73,8 +74,16 @@ run-step() {
         return
     fi
     log-debug "executing $(basename "$script")..."
-    # shellcheck source=./common
-    (source "${COMMON}" && set -e -o pipefail && source "$script")
+
+    # Execute the step in a separate bash process that ensures that strict
+    # error handling is enabled (e.g. `errexit` and `pipefail`) and sources the
+    # common script. A subshell CANNOT be used as an alternative due to the way
+    # bash handles `errexit` from subshells (i.e. ignores it).
+    bash -s <<STEPSCRIPT
+set -e -o pipefail
+source "${COMMON}"
+source "${script}"
+STEPSCRIPT
 }
 
 cd "${RUNDIR}" || fail-now "cannot change to run directory"
