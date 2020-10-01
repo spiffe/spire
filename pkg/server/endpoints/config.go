@@ -127,12 +127,12 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 	})
 }
 
-func (c *Config) makeAPIServers() (APIServers, error) {
+func (c *Config) makeAPIServers() APIServers {
 	ds := c.Catalog.GetDataStore()
-	authorizedEntryFetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
-	if err != nil {
-		return APIServers{}, err
-	}
+	entryFetcher := AuthorizedEntryFetcherWithFullCache(
+		c.Log.WithField(telemetry.SubsystemName, "entrycache"),
+		c.Metrics,
+		ds)
 	upstreamPublisher := UpstreamPublisher(c.Manager)
 
 	return APIServers{
@@ -151,13 +151,13 @@ func (c *Config) makeAPIServers() (APIServers, error) {
 		EntryServer: entryv1.New(entryv1.Config{
 			TrustDomain:  c.TrustDomain,
 			DataStore:    ds,
-			EntryFetcher: authorizedEntryFetcherWithCache,
+			EntryFetcher: entryFetcher,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,
-			EntryFetcher: authorizedEntryFetcherWithCache,
+			EntryFetcher: entryFetcher,
 			ServerCA:     c.ServerCA,
 			DataStore:    ds,
 		}),
-	}, nil
+	}
 }
