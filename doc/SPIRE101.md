@@ -17,12 +17,7 @@ Clone the SPIRE github repo.
 
 ### Docker Setup
 
-Build all SPIRE Docker images.
-
-    cd spire
-    make images
-
-Note: If you don't already have Docker installed, please follow these [installation instructions](https://docs.docker.com/engine/installation/).
+If you don't already have Docker installed, please follow these [installation instructions](https://docs.docker.com/engine/installation/).
 
 ## Terminology
 
