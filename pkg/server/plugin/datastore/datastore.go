@@ -50,6 +50,8 @@ type ListAttestedNodesRequest = datastore.ListAttestedNodesRequest              
 type ListAttestedNodesResponse = datastore.ListAttestedNodesResponse               //nolint: golint
 type ListBundlesRequest = datastore.ListBundlesRequest                             //nolint: golint
 type ListBundlesResponse = datastore.ListBundlesResponse                           //nolint: golint
+type ListNodeSelectorsRequest = datastore.ListNodeSelectorsRequest                 //nolint: golint
+type ListNodeSelectorsResponse = datastore.ListNodeSelectorsResponse               //nolint: golint
 type ListRegistrationEntriesRequest = datastore.ListRegistrationEntriesRequest     //nolint: golint
 type ListRegistrationEntriesResponse = datastore.ListRegistrationEntriesResponse   //nolint: golint
 type NodeSelectors = datastore.NodeSelectors                                       //nolint: golint
@@ -99,6 +101,7 @@ type DataStore interface {
 	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
+	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
@@ -130,6 +133,7 @@ type Plugin interface {
 	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
+	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
@@ -256,6 +260,10 @@ func (a pluginClientAdapter) ListAttestedNodes(ctx context.Context, in *ListAtte
 
 func (a pluginClientAdapter) ListBundles(ctx context.Context, in *ListBundlesRequest) (*ListBundlesResponse, error) {
 	return a.client.ListBundles(ctx, in)
+}
+
+func (a pluginClientAdapter) ListNodeSelectors(ctx context.Context, in *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error) {
+	return a.client.ListNodeSelectors(ctx, in)
 }
 
 func (a pluginClientAdapter) ListRegistrationEntries(ctx context.Context, in *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error) {
