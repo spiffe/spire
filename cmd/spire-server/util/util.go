@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"time"
 
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"google.golang.org/grpc"
 )
 
@@ -17,24 +17,58 @@ const (
 	DefaultSocketPath = "/tmp/spire-registration.sock"
 )
 
-func NewAgentClient(socketPath string) (agent.AgentClient, error) {
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer)) //nolint: staticcheck
-	if err != nil {
-		return nil, err
-	}
-	return agent.NewAgentClient(conn), err
-}
-
 func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer)) //nolint: staticcheck
+	conn, err := Dial(socketPath)
 	if err != nil {
 		return nil, err
 	}
 	return registration.NewRegistrationClient(conn), err
 }
 
-func dialer(addr string, timeout time.Duration) (net.Conn, error) {
-	return net.DialTimeout("unix", addr, timeout)
+func Dial(socketPath string) (*grpc.ClientConn, error) {
+	if socketPath == "" {
+		socketPath = DefaultSocketPath
+	}
+	return grpc.Dial(socketPath,
+		grpc.WithInsecure(),
+		grpc.WithContextDialer(dialer),
+		grpc.WithBlock(),
+		grpc.FailOnNonTempDialError(true),
+		grpc.WithReturnConnectionError())
+}
+
+func dialer(ctx context.Context, addr string) (net.Conn, error) {
+	return (&net.Dialer{}).DialContext(ctx, "unix", addr)
+}
+
+type ServerClient interface {
+	Release()
+	NewAgentClient() agent.AgentClient
+	NewBundleClient() bundle.BundleClient
+}
+
+func NewServerClient(socketPath string) (ServerClient, error) {
+	conn, err := Dial(socketPath)
+	if err != nil {
+		return nil, err
+	}
+	return &serverClient{conn: conn}, nil
+}
+
+type serverClient struct {
+	conn *grpc.ClientConn
+}
+
+func (c *serverClient) Release() {
+	c.conn.Close()
+}
+
+func (c *serverClient) NewAgentClient() agent.AgentClient {
+	return agent.NewAgentClient(c.conn)
+}
+
+func (c *serverClient) NewBundleClient() bundle.BundleClient {
+	return bundle.NewBundleClient(c.conn)
 }
 
 // Pluralizer concatenates `singular` to `msg` when `val` is one, and
@@ -51,48 +85,28 @@ func Pluralizer(msg string, singular string, plural string, val int) string {
 	return result
 }
 
-type Clients struct {
-	AgentClient agent.AgentClient
-}
-
-type ClientsMaker func(registrationUDSPath string) (*Clients, error)
-
-// NewClients is the default client maker
-func NewClients(registrationUDSPath string) (*Clients, error) {
-	agentClient, err := NewAgentClient(registrationUDSPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Clients{
-		AgentClient: agentClient,
-	}, nil
-}
-
 // Command is a common interface for commands in this package. the adapter
 // can adapter this interface to the Command interface from github.com/mitchellh/cli.
 type Command interface {
 	Name() string
 	Synopsis() string
 	AppendFlags(*flag.FlagSet)
-	Run(context.Context, *common_cli.Env, *Clients) error
+	Run(context.Context, *common_cli.Env, ServerClient) error
 }
 
 type Adapter struct {
-	env          *common_cli.Env
-	clientsMaker ClientsMaker
-	cmd          Command
+	env *common_cli.Env
+	cmd Command
 
-	registrationUDSPath string
 	flags               *flag.FlagSet
+	registrationUDSPath string
 }
 
 // AdaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
-func AdaptCommand(env *common_cli.Env, clientsMaker ClientsMaker, cmd Command) *Adapter {
+func AdaptCommand(env *common_cli.Env, cmd Command) *Adapter {
 	a := &Adapter{
-		clientsMaker: clientsMaker,
-		cmd:          cmd,
-		env:          env,
+		cmd: cmd,
+		env: env,
 	}
 
 	f := flag.NewFlagSet(cmd.Name(), flag.ContinueOnError)
@@ -112,13 +126,14 @@ func (a *Adapter) Run(args []string) int {
 		return 1
 	}
 
-	clients, err := a.clientsMaker(a.registrationUDSPath)
+	client, err := NewServerClient(a.registrationUDSPath)
 	if err != nil {
 		fmt.Fprintln(a.env.Stderr, err)
 		return 1
 	}
+	defer client.Release()
 
-	if err := a.cmd.Run(ctx, a.env, clients); err != nil {
+	if err := a.cmd.Run(ctx, a.env, client); err != nil {
 		fmt.Fprintln(a.env.Stderr, err)
 		return 1
 	}

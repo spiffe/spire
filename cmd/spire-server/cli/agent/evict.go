@@ -22,11 +22,13 @@ type evictCommand struct {
 
 // NewEvictCommand creates a new "evict" subcommand for "agent" command.
 func NewEvictCommand() cli.Command {
-	return newEvictCommand(common_cli.DefaultEnv, util.NewClients)
+	return NewEvictCommandWithEnv(common_cli.DefaultEnv)
 }
 
-func newEvictCommand(env *common_cli.Env, clientsMaker util.ClientsMaker) cli.Command {
-	return util.AdaptCommand(env, clientsMaker, new(evictCommand))
+// NewEvictCommandWithEnv creates a new "evict" subcommand for "agent" command
+// using the environment specified
+func NewEvictCommandWithEnv(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(evictCommand))
 }
 
 func (*evictCommand) Name() string {
@@ -38,7 +40,7 @@ func (evictCommand) Synopsis() string {
 }
 
 //Run evicts an agent given its SPIFFE ID
-func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, clients *util.Clients) error {
+func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
 	}
@@ -48,7 +50,8 @@ func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, clients *ut
 		return err
 	}
 
-	_, err = clients.AgentClient.DeleteAgent(ctx, &agent.DeleteAgentRequest{Id: api.ProtoFromID(id)})
+	agentClient := serverClient.NewAgentClient()
+	_, err = agentClient.DeleteAgent(ctx, &agent.DeleteAgentRequest{Id: api.ProtoFromID(id)})
 	if err != nil {
 		return err
 	}

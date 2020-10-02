@@ -1,55 +1,56 @@
-package agent
+package agent_test
 
 import (
 	"bytes"
 	"context"
-	"errors"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mitchellh/cli"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/server/api/agent/v1"
-	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/clock"
-	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakeserverca"
-	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
 
 var (
-	td = spiffeid.RequireTrustDomainFromString("example.org")
+	testAgents = []*types.Agent{{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent1"}}}
 )
 
 type agentTest struct {
-	client  agentpb.AgentClient
-	ds      *fakedatastore.DataStore
-	testEnv *common_cli.Env
+	stdin  *bytes.Buffer
+	stdout *bytes.Buffer
+	stderr *bytes.Buffer
 
-	evictCmd,
-	listCmd,
-	showCmd cli.Command
+	args   []string
+	server *fakeAgentServer
+
+	client cli.Command
+}
+
+func (s *agentTest) afterTest(t *testing.T) {
+	t.Logf("TEST:%s", t.Name())
+	t.Logf("STDOUT:\n%s", s.stdout.String())
+	t.Logf("STDIN:\n%s", s.stdin.String())
+	t.Logf("STDERR:\n%s", s.stderr.String())
 }
 
 func TestEvictHelp(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest(t, agent.NewEvictCommandWithEnv)
 
-	test.evictCmd.Help()
+	test.client.Help()
 	require.Equal(t, `Usage of agent evict:
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
   -spiffeID string
     	The SPIFFE ID of the agent to evict (agent identity)
-`, test.testEnv.Stderr.(*bytes.Buffer).String())
+`, test.stderr.String())
 }
 
 func TestEvict(t *testing.T) {
@@ -59,74 +60,71 @@ func TestEvict(t *testing.T) {
 		expectedReturnCode int
 		expectedStdout     string
 		expectedStderr     string
-		existentAgent      string
+		serverErr          error
 	}{
 		{
 			name:               "success",
 			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
 			expectedReturnCode: 0,
-			existentAgent:      "spiffe://example.org/spire/agent/agent1",
 			expectedStdout:     "Agent evicted successfully\n",
 		},
-		{
-			name:               "agent does not exist",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
-			expectedReturnCode: 1,
-			existentAgent:      "spiffe://example.org/spire/agent/agent2",
-			expectedStderr:     "rpc error: code = NotFound desc = agent not found\n",
-		},
-		{
-			name:               "agent does not exist - no agents",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
-			expectedReturnCode: 1,
-			expectedStderr:     "rpc error: code = NotFound desc = agent not found\n",
-		},
+
 		{
 			name:               "no spiffe id",
 			expectedReturnCode: 1,
-			existentAgent:      "spiffe://example.org/spire/agent/agent1",
 			expectedStderr:     "a SPIFFE ID is required\n",
+		},
+		{
+			name:               "wrong UDS path",
+			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
+			expectedReturnCode: 1,
+			expectedStderr:     "connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+		},
+		{
+			name:               "server error",
+			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/foo"},
+			serverErr:          status.Error(codes.Internal, "internal server error"),
+			expectedReturnCode: 1,
+			expectedStderr:     "rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
+			test := setupTest(t, agent.NewEvictCommandWithEnv)
+			test.server.err = tt.serverErr
 
-			if tt.existentAgent != "" {
-				test.createAgent(t, tt.existentAgent)
-			}
-
-			returnCode := test.evictCmd.Run(tt.args)
-			require.Equal(t, tt.expectedStdout, test.testEnv.Stdout.(*bytes.Buffer).String())
-			require.Equal(t, tt.expectedStderr, test.testEnv.Stderr.(*bytes.Buffer).String())
+			returnCode := test.client.Run(append(test.args, tt.args...))
+			require.Equal(t, tt.expectedStdout, test.stdout.String())
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
 	}
 }
 
 func TestListHelp(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest(t, agent.NewListCommandWithEnv)
 
-	test.listCmd.Help()
+	test.client.Help()
 	require.Equal(t, `Usage of agent list:
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
-`, test.testEnv.Stderr.(*bytes.Buffer).String())
+`, test.stderr.String())
 }
 
 func TestList(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
+		args               []string
 		expectedReturnCode int
 		expectedStdout     string
 		expectedStderr     string
-		existentAgent      string
-		dsError            error
+		existentAgents     []*types.Agent
+		serverErr          error
 	}{
 		{
 			name:               "1 agent",
 			expectedReturnCode: 0,
-			existentAgent:      "spiffe://example.org/spire/agent/agent1",
+			existentAgents:     testAgents,
 			expectedStdout:     "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
 		},
 		{
@@ -134,38 +132,41 @@ func TestList(t *testing.T) {
 			expectedReturnCode: 0,
 		},
 		{
-			name:               "datastore error",
+			name:               "server error",
 			expectedReturnCode: 1,
-			dsError:            errors.New("datastore error"),
-			expectedStderr:     "rpc error: code = Internal desc = failed to list agents: datastore error\n",
+			serverErr:          status.Error(codes.Internal, "internal server error"),
+			expectedStderr:     "rpc error: code = Internal desc = internal server error\n",
+		},
+		{
+			name:               "wrong UDS path",
+			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
+			expectedReturnCode: 1,
+			expectedStderr:     "connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
-			if tt.existentAgent != "" {
-				test.createAgent(t, tt.existentAgent)
-			}
-
-			test.ds.SetNextError(tt.dsError)
-			returnCode := test.listCmd.Run([]string{})
-			require.Contains(t, test.testEnv.Stdout.(*bytes.Buffer).String(), tt.expectedStdout)
-			require.Equal(t, tt.expectedStderr, test.testEnv.Stderr.(*bytes.Buffer).String())
+			test := setupTest(t, agent.NewListCommandWithEnv)
+			test.server.agents = tt.existentAgents
+			test.server.err = tt.serverErr
+			returnCode := test.client.Run(append(test.args, tt.args...))
+			require.Contains(t, test.stdout.String(), tt.expectedStdout)
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
 	}
 }
 
 func TestShowHelp(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest(t, agent.NewShowCommandWithEnv)
 
-	test.showCmd.Help()
+	test.client.Help()
 	require.Equal(t, `Usage of agent show:
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
   -spiffeID string
     	The SPIFFE ID of the agent to show (agent identity)
-`, test.testEnv.Stderr.(*bytes.Buffer).String())
+`, test.stderr.String())
 }
 
 func TestShow(t *testing.T) {
@@ -175,116 +176,104 @@ func TestShow(t *testing.T) {
 		expectedReturnCode int
 		expectedStdout     string
 		expectedStderr     string
-		existentAgent      string
-		dsError            error
+		existentAgents     []*types.Agent
+		serverErr          error
 	}{
 		{
 			name:               "success",
 			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
 			expectedReturnCode: 0,
-			existentAgent:      "spiffe://example.org/spire/agent/agent1",
+			existentAgents:     testAgents,
 			expectedStdout:     "Found an attested agent given its SPIFFE ID\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-		},
-		{
-			name:               "spiffe id not found",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent2"},
-			expectedReturnCode: 1,
-			existentAgent:      "spiffe://example.org/spire/agent/agent1",
-			expectedStderr:     "rpc error: code = NotFound desc = agent not found\n",
 		},
 		{
 			name:               "no spiffe id",
 			expectedReturnCode: 1,
-			existentAgent:      "spiffe://example.org/spire/agent/agent1",
 			expectedStderr:     "a SPIFFE ID is required\n",
 		},
 		{
-			name:               "no agents - not found",
-			expectedReturnCode: 1,
+			name:               "show error",
 			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
-			expectedStderr:     "rpc error: code = NotFound desc = agent not found\n",
+			existentAgents:     testAgents,
+			expectedReturnCode: 1,
+			serverErr:          status.Error(codes.Internal, "internal server error"),
+			expectedStderr:     "rpc error: code = Internal desc = internal server error\n",
 		},
 		{
-			name:               "datastore error",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
+			name:               "wrong UDS path",
+			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			dsError:            errors.New("datastore error"),
-			expectedStderr:     "rpc error: code = Internal desc = failed to fetch agent: datastore error\n",
+			expectedStderr:     "connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
-			if tt.existentAgent != "" {
-				test.createAgent(t, tt.existentAgent)
-			}
+			test := setupTest(t, agent.NewShowCommandWithEnv)
+			test.server.err = tt.serverErr
+			test.server.agents = tt.existentAgents
 
-			test.ds.SetNextError(tt.dsError)
-			returnCode := test.showCmd.Run(tt.args)
-			require.Contains(t, test.testEnv.Stdout.(*bytes.Buffer).String(), tt.expectedStdout)
-			require.Equal(t, tt.expectedStderr, test.testEnv.Stderr.(*bytes.Buffer).String())
+			returnCode := test.client.Run(append(test.args, tt.args...))
+			require.Contains(t, test.stdout.String(), tt.expectedStdout)
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
 	}
 }
 
-func setupTest(t *testing.T) *agentTest {
-	ds := fakedatastore.New(t)
+func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agentTest {
+	server := &fakeAgentServer{}
 
-	service := agent.New(agent.Config{
-		ServerCA:    fakeserverca.New(t, td.String(), &fakeserverca.Options{}),
-		DataStore:   ds,
-		TrustDomain: td,
-		Clock:       clock.NewMock(t),
-		Catalog:     fakeservercatalog.New(),
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+		agentpb.RegisterAgentServer(s, server)
 	})
 
-	log, _ := test.NewNullLogger()
-	log.Level = logrus.DebugLevel
-	registerFn := func(s *grpc.Server) {
-		agent.RegisterService(s, service)
-	}
+	stdin := new(bytes.Buffer)
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
 
-	testEnv := &common_cli.Env{
-		Stdin:  new(bytes.Buffer),
-		Stdout: new(bytes.Buffer),
-		Stderr: new(bytes.Buffer),
-	}
+	client := newClient(&common_cli.Env{
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+	})
 
 	test := &agentTest{
-		ds:      ds,
-		testEnv: testEnv,
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
+		args:   []string{"-registrationUDSPath", socketPath},
+		server: server,
+		client: client,
 	}
-
-	contextFn := func(ctx context.Context) context.Context {
-		ctx = rpccontext.WithLogger(ctx, log)
-		return ctx
-	}
-
-	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
-	clientMaker := func(string) (*util.Clients, error) {
-		return &util.Clients{
-			AgentClient: agentpb.NewAgentClient(conn),
-		}, nil
-	}
-
-	test.client = agentpb.NewAgentClient(conn)
-	test.evictCmd = newEvictCommand(testEnv, clientMaker)
-	test.listCmd = newListCommand(testEnv, clientMaker)
-	test.showCmd = newShowCommand(testEnv, clientMaker)
 
 	t.Cleanup(func() {
-		done()
+		test.afterTest(t)
 	})
 
 	return test
 }
 
-func (s *agentTest) createAgent(t *testing.T, spiffeID string) {
-	_, err := s.ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId: spiffeID,
-		},
-	})
-	require.NoError(t, err)
+type fakeAgentServer struct {
+	agentpb.UnimplementedAgentServer
+
+	agents []*types.Agent
+	err    error
+}
+
+func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentpb.DeleteAgentRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, s.err
+}
+
+func (s *fakeAgentServer) ListAgents(ctx context.Context, req *agentpb.ListAgentsRequest) (*agentpb.ListAgentsResponse, error) {
+	return &agentpb.ListAgentsResponse{
+		Agents: s.agents,
+	}, s.err
+}
+
+func (s *fakeAgentServer) GetAgent(ctx context.Context, req *agentpb.GetAgentRequest) (*types.Agent, error) {
+	if len(s.agents) > 0 {
+		return s.agents[0], s.err
+	}
+
+	return nil, s.err
 }

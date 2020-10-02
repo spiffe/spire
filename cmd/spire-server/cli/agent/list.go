@@ -16,17 +16,17 @@ import (
 	"golang.org/x/net/context"
 )
 
-type listCommand struct {
-	agents []*types.Agent
-}
+type listCommand struct{}
 
 // NewListCommand creates a new "list" subcommand for "agent" command.
 func NewListCommand() cli.Command {
-	return newListCommand(common_cli.DefaultEnv, util.NewClients)
+	return NewListCommandWithEnv(common_cli.DefaultEnv)
 }
 
-func newListCommand(env *common_cli.Env, clientsMaker util.ClientsMaker) cli.Command {
-	return util.AdaptCommand(env, clientsMaker, new(listCommand))
+// NewListCommandWithEnv creates a new "list" subcommand for "agent" command
+// using the environment specified
+func NewListCommandWithEnv(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(listCommand))
 }
 
 func (*listCommand) Name() string {
@@ -38,27 +38,28 @@ func (listCommand) Synopsis() string {
 }
 
 //Run lists attested agents
-func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, clients *util.Clients) error {
-	listResponse, err := clients.AgentClient.ListAgents(ctx, &agent.ListAgentsRequest{})
+func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+	agentClient := serverClient.NewAgentClient()
+	listResponse, err := agentClient.ListAgents(ctx, &agent.ListAgentsRequest{})
 	if err != nil {
 		return err
 	}
-	c.agents = listResponse.Agents
-	if len(c.agents) == 0 {
+
+	if len(listResponse.Agents) == 0 {
 		return env.Printf("No attested agents found\n")
 	}
 
-	msg := fmt.Sprintf("Found %d attested ", len(c.agents))
-	msg = util.Pluralizer(msg, "agent", "agents", len(c.agents))
+	msg := fmt.Sprintf("Found %d attested ", len(listResponse.Agents))
+	msg = util.Pluralizer(msg, "agent", "agents", len(listResponse.Agents))
 	env.Printf(msg + ":\n\n")
 
-	return printAgents(c.agents, env)
+	return printAgents(env, listResponse.Agents...)
 }
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 }
 
-func printAgents(agents []*types.Agent, env *common_cli.Env) error {
+func printAgents(env *common_cli.Env, agents ...*types.Agent) error {
 	for _, agent := range agents {
 		id, err := spiffeid.New(agent.Id.TrustDomain, agent.Id.Path)
 		if err != nil {
