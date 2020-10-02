@@ -86,11 +86,6 @@ func New(c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
-	apiServers, err := c.makeAPIServers()
-	if err != nil {
-		return nil, err
-	}
-
 	return &Endpoints{
 		TCPAddr:              c.TCPAddr,
 		UDSAddr:              c.UDSAddr,
@@ -98,7 +93,7 @@ func New(c Config) (*Endpoints, error) {
 		TrustDomain:          c.TrustDomain,
 		DataStore:            c.Catalog.GetDataStore(),
 		OldAPIServers:        oldAPIServers,
-		APIServers:           apiServers,
+		APIServers:           c.makeAPIServers(),
 		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
 		Log:                  c.Log,
 		Metrics:              c.Metrics,

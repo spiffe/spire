@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -25,66 +26,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type testEntries struct {
+	nodeAliasEntries []*types.Entry
+	workloadEntries  []*types.Entry
+}
+
 func TestAuthorizedEntryFetcher(t *testing.T) {
 	ds := fakedatastore.New(t)
-
-	createEntry := func(entryIn *common.RegistrationEntry) *types.Entry {
-		resp, err := ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-			Entry: entryIn,
-		})
-		require.NoError(t, err)
-		entryOut, err := api.RegistrationEntryToProto(resp.Entry)
-		require.NoError(t, err)
-		return entryOut
-	}
-
-	setNodeSelectors := func(id spiffeid.ID, selectors []*common.Selector) {
-		_, err := ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
-			Selectors: &datastore.NodeSelectors{
-				SpiffeId:  id.String(),
-				Selectors: selectors,
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	serverID := testTD.NewID("/spire/server")
-	agentID := testTD.NewID("/spire/agent")
-	anotherAgentID := testTD.NewID("/spire/another-agent")
-	nodeAliasID := testTD.NewID("/node-alias")
-	workload1ID := testTD.NewID("/workload1")
-	workload2ID := testTD.NewID("/workload2")
-
-	setNodeSelectors(agentID, []*common.Selector{
-		{Type: "node", Value: "value1"},
-		{Type: "node", Value: "value2"},
-	})
-
-	nodeAliasEntry := createEntry(&common.RegistrationEntry{
-		ParentId:  serverID.String(),
-		SpiffeId:  nodeAliasID.String(),
-		Selectors: []*common.Selector{{Type: "node", Value: "value1"}},
-	})
-
-	workload1Entry := createEntry(&common.RegistrationEntry{
-		ParentId:  agentID.String(),
-		SpiffeId:  workload1ID.String(),
-		Selectors: []*common.Selector{{Type: "workload", Value: "value1"}},
-	})
-
-	workload2Entry := createEntry(&common.RegistrationEntry{
-		ParentId:  agentID.String(),
-		SpiffeId:  workload2ID.String(),
-		Selectors: []*common.Selector{{Type: "workload", Value: "value2"}},
-	})
-
-	// Create some other entry
-	createEntry(&common.RegistrationEntry{
-		ParentId:  anotherAgentID.String(),
-		SpiffeId:  workload1ID.String(),
-		Selectors: []*common.Selector{{Type: "workload", Value: "value1"}},
-	})
-
+	e := createAuthorizedEntryTestData(t, ds)
+	expectedNodeAliasEntries := e.nodeAliasEntries
+	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
+	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
 	fetcher := AuthorizedEntryFetcher(ds)
 	fetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
 	require.NoError(t, err)
@@ -95,11 +47,7 @@ func TestAuthorizedEntryFetcher(t *testing.T) {
 			ds.SetNextError(nil)
 			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
 			assert.NoError(t, err)
-			assert.ElementsMatch(t, []*types.Entry{
-				nodeAliasEntry,
-				workload1Entry,
-				workload2Entry,
-			}, entries)
+			assert.ElementsMatch(t, expectedEntries, entries)
 		})
 
 		t.Run("failure", func(t *testing.T) {
@@ -109,6 +57,53 @@ func TestAuthorizedEntryFetcher(t *testing.T) {
 			assert.Nil(t, entries)
 		})
 	}
+}
+
+func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
+	log := logrus.New()
+	log.Out = ioutil.Discard
+	metrics := telemetry.Blackhole{}
+	ds := fakedatastore.New(t)
+
+	e := createAuthorizedEntryTestData(t, ds)
+	expectedNodeAliasEntries := e.nodeAliasEntries
+	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
+	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
+
+	firstTime := time.Unix(0, 0)
+	var clkAdvance time.Duration
+	advanceClock := func(d time.Duration) {
+		clkAdvance = d
+	}
+
+	timeNow := func() time.Time {
+		return firstTime.Add(clkAdvance)
+	}
+
+	f := authorizedEntryFetcherWithFullCache(log, metrics, ds, timeNow)
+
+	t.Run("success (initial)", func(t *testing.T) {
+		ds.SetNextError(nil)
+		entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
+		assert.NoError(t, err)
+		assert.ElementsMatch(t, expectedEntries, entries)
+	})
+
+	t.Run("success (cached)", func(t *testing.T) {
+		ds.SetNextError(nil)
+		entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
+		assert.NoError(t, err)
+		assert.ElementsMatch(t, expectedEntries, entries)
+	})
+
+	advanceClock(cacheReloadInterval)
+
+	t.Run("failure on cache reload", func(t *testing.T) {
+		ds.SetNextError(errors.New("ohno"))
+		entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
+		assert.EqualError(t, err, "ohno")
+		assert.Nil(t, entries)
+	})
 }
 
 func TestAgentAuthorizer(t *testing.T) {
@@ -317,5 +312,134 @@ func TestAgentAuthorizer(t *testing.T) {
 			require.Equal(t, agentSVID.SerialNumber.String(), resp.Node.CertSerialNumber)
 			require.Empty(t, resp.Node.NewCertSerialNumber)
 		})
+	}
+}
+
+func createEntry(t testing.TB, ds datastore.DataStore, entryIn *common.RegistrationEntry) *types.Entry {
+	resp, err := ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
+		Entry: entryIn,
+	})
+	require.NoError(t, err)
+	entryOut, err := api.RegistrationEntryToProto(resp.Entry)
+	require.NoError(t, err)
+	return entryOut
+}
+
+func setNodeSelectors(t testing.TB, ds datastore.DataStore, id spiffeid.ID, selectors []*common.Selector) {
+	_, err := ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
+		Selectors: &datastore.NodeSelectors{
+			SpiffeId:  id.String(),
+			Selectors: selectors,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func createAttestedNode(t testing.TB, ds datastore.DataStore, node *common.AttestedNode) {
+	req := &datastore.CreateAttestedNodeRequest{
+		Node: node,
+	}
+
+	_, err := ds.CreateAttestedNode(context.Background(), req)
+	require.NoError(t, err)
+}
+
+func createAuthorizedEntryTestData(t testing.TB, ds datastore.DataStore) *testEntries {
+	serverID := testTD.NewID("/spire/server")
+	anotherAgentID := testTD.NewID("/spire/another-agent")
+	nodeAliasID := testTD.NewID("/node-alias")
+	workload1ID := testTD.NewID("/workload1")
+	workload2ID := testTD.NewID("/workload2")
+
+	const testAttestationType = "test-nodeattestor"
+	nonMatchingNode := &common.AttestedNode{
+		SpiffeId:            anotherAgentID.String(),
+		AttestationDataType: testAttestationType,
+		CertSerialNumber:    "non-matching-serial",
+		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+	}
+
+	matchingNode := &common.AttestedNode{
+		SpiffeId:            agentID.String(),
+		AttestationDataType: testAttestationType,
+		CertSerialNumber:    "matching-serial",
+		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+	}
+
+	createAttestedNode(t, ds, nonMatchingNode)
+	createAttestedNode(t, ds, matchingNode)
+
+	nodeSel := []*common.Selector{
+		{
+			Type:  "node",
+			Value: "value1",
+		},
+		{
+			Type:  "node",
+			Value: "value2",
+		},
+	}
+
+	setNodeSelectors(t, ds, agentID, nodeSel)
+	nodeAliasEntriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId: serverID.String(),
+			SpiffeId: nodeAliasID.String(),
+			Selectors: []*common.Selector{
+				{
+					Type:  "node",
+					Value: "value1",
+				},
+			},
+		},
+	}
+
+	nodeAliasEntries := make([]*types.Entry, len(nodeAliasEntriesToCreate))
+	for i, e := range nodeAliasEntriesToCreate {
+		nodeAliasEntries[i] = createEntry(t, ds, e)
+	}
+
+	workloadEntriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId: agentID.String(),
+			SpiffeId: workload1ID.String(),
+			Selectors: []*common.Selector{
+				{
+					Type:  "workload",
+					Value: "value1",
+				},
+			},
+		},
+		{
+			ParentId: agentID.String(),
+			SpiffeId: workload2ID.String(),
+			Selectors: []*common.Selector{
+				{
+					Type:  "workload",
+					Value: "value2",
+				},
+			},
+		},
+		// Workload entry that should not be matched
+		{
+			ParentId: anotherAgentID.String(),
+			SpiffeId: workload1ID.String(),
+			Selectors: []*common.Selector{
+				{
+					Type:  "workload",
+					Value: "value1",
+				},
+			},
+		},
+	}
+
+	workloadEntries := make([]*types.Entry, len(workloadEntriesToCreate))
+	for i, e := range workloadEntriesToCreate {
+		workloadEntries[i] = createEntry(t, ds, e)
+	}
+
+	return &testEntries{
+		nodeAliasEntries: nodeAliasEntries,
+		workloadEntries:  workloadEntries,
 	}
 }
