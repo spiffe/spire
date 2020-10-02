@@ -29,6 +29,7 @@ import (
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 	agentv1_pb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlev1_pb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	debugv1_pb "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	entryv1_pb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	svidv1_pb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 )
@@ -69,6 +70,7 @@ type OldAPIServers struct {
 type APIServers struct {
 	AgentServer  agentv1_pb.AgentServer
 	BundleServer bundlev1_pb.BundleServer
+	DebugServer  debugv1_pb.DebugServer
 	EntryServer  entryv1_pb.EntryServer
 	SVIDServer   svidv1_pb.SVIDServer
 }
@@ -127,6 +129,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	entryv1_pb.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
 	svidv1_pb.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
 	svidv1_pb.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
+	// Register Debug API only on UDS server
+	debugv1_pb.RegisterDebugServer(udsServer, e.APIServers.DebugServer)
 
 	tasks := []func(context.Context) error{
 		func(ctx context.Context) error {

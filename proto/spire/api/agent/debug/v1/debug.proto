@@ -1,0 +1,33 @@
+syntax = "proto3";
+package spire.agent.debug.v1;
+option go_package = "github.com/spiffe/spire/proto/spire/api/agent/debug/v1;debug";
+
+import "spire/types/spiffeid.proto";
+
+service Debug {
+    // Get information about SPIRE agent
+    rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
+}
+
+message GetInfoRequest {
+}
+
+message GetInfoResponse {
+    message Cert {
+        // Cerfificate SPIFFE ID
+        spire.types.SPIFFEID id = 1;
+        // Expiration time
+        int64 expires_at = 2;
+        // Subject 
+        string subject = 3;
+    }
+
+    // Agent SVID chain
+    repeated Cert svid_chain = 1;
+    // Agent uptime in seconds
+    int32 uptime = 2;
+    // Number of SVIDs cached in memory
+    int32 svids_count = 3;
+    // last successful sync with server (in seconds since unix epoch)
+    int64 last_sync_success = 4;
+}

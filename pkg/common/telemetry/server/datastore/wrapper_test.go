@@ -38,6 +38,18 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "AppendBundle",
 		},
 		{
+			key:        "datastore.node.count",
+			methodName: "CountAttestedNodes",
+		},
+		{
+			key:        "datastore.bundle.count",
+			methodName: "CountBundles",
+		},
+		{
+			key:        "datastore.registration_entry.count",
+			methodName: "CountRegistrationEntries",
+		},
+		{
 			key:        "datastore.node.create",
 			methodName: "CreateAttestedNode",
 		},
@@ -210,6 +222,18 @@ func (ds *fakeDataStore) SetError(err error) {
 
 func (ds *fakeDataStore) AppendBundle(context.Context, *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
 	return &datastore.AppendBundleResponse{}, ds.err
+}
+
+func (ds *fakeDataStore) CountAttestedNodes(context.Context, *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
+	return &datastore.CountAttestedNodesResponse{}, ds.err
+}
+
+func (ds *fakeDataStore) CountBundles(context.Context, *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
+	return &datastore.CountBundlesResponse{}, ds.err
+}
+
+func (ds *fakeDataStore) CountRegistrationEntries(context.Context, *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
+	return &datastore.CountRegistrationEntriesResponse{}, ds.err
 }
 
 func (ds *fakeDataStore) CreateAttestedNode(context.Context, *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {

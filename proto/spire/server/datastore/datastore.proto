@@ -27,6 +27,13 @@ message FetchBundleResponse {
     spire.common.Bundle bundle = 1;
 }
 
+message CountBundlesRequest {
+}
+
+message CountBundlesResponse {
+    int32 bundles = 1;
+}
+
 message ListBundlesRequest {
     Pagination pagination = 1;
 }
@@ -137,10 +144,6 @@ message ListNodeSelectorsResponse{
 // AttestedNode Messages
 /////////////////////////////////////////////////////////////////////////////
 
-message CreateAttestedNodeRequest {
-    spire.common.AttestedNode node = 1;
-}
-
 message CreateAttestedNodeResponse {
     spire.common.AttestedNode node = 1;
 }
@@ -150,6 +153,17 @@ message FetchAttestedNodeRequest {
 }
 
 message FetchAttestedNodeResponse {
+    spire.common.AttestedNode node = 1;
+}
+
+message CountAttestedNodesRequest {
+}
+
+message CountAttestedNodesResponse {
+    int32 nodes = 1;
+}
+
+message CreateAttestedNodeRequest {
     spire.common.AttestedNode node = 1;
 }
 
@@ -226,6 +240,13 @@ message BySelectors {
 message Pagination {
     string token = 1;
     int32 page_size = 2;
+}
+
+message CountRegistrationEntriesRequest {
+}
+
+message CountRegistrationEntriesResponse {
+    int32 entries = 1;
 }
 
 message ListRegistrationEntriesRequest {
@@ -319,6 +340,8 @@ service DataStore {
     rpc CreateBundle(CreateBundleRequest) returns (CreateBundleResponse);
     // Fetches a specific bundle
     rpc FetchBundle(FetchBundleRequest) returns (FetchBundleResponse);
+    // Counts bundles (optionally filtered)
+    rpc CountBundles(CountBundlesRequest) returns (CountBundlesResponse);
     // Lists bundles (optionally filtered)
     rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
     // Updates a specific bundle
@@ -336,6 +359,8 @@ service DataStore {
     rpc CreateAttestedNode(CreateAttestedNodeRequest) returns (CreateAttestedNodeResponse);
     // Fetches a specific attested node
     rpc FetchAttestedNode(FetchAttestedNodeRequest) returns (FetchAttestedNodeResponse);
+    // Counts attested nodes
+    rpc CountAttestedNodes(CountAttestedNodesRequest) returns (CountAttestedNodesResponse);
     // Lists attested nodes (optionally filtered)
     rpc ListAttestedNodes(ListAttestedNodesRequest) returns (ListAttestedNodesResponse);
     // Updates a specific attested node
@@ -354,6 +379,8 @@ service DataStore {
     rpc CreateRegistrationEntry(CreateRegistrationEntryRequest) returns (CreateRegistrationEntryResponse);
     // Fetches a specific registration entry
     rpc FetchRegistrationEntry(FetchRegistrationEntryRequest) returns (FetchRegistrationEntryResponse);
+    // Counts registration entries
+    rpc CountRegistrationEntries(CountRegistrationEntriesRequest) returns (CountRegistrationEntriesResponse);
     // Lists registration entries (optionally filtered)
     rpc ListRegistrationEntries(ListRegistrationEntriesRequest) returns (ListRegistrationEntriesResponse);
     // Updates a specific registration entry

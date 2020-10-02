@@ -7,6 +7,12 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
+// StartCountNodeCall return metric
+// for server's datastore, on counting nodes.
+func StartCountNodeCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.Node, telemetry.Count)
+}
+
 // StartCreateNodeCall return metric
 // for server's datastore, on creating a node.
 func StartCreateNodeCall(m telemetry.Metrics) *telemetry.CallCounter {

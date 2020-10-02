@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -28,6 +29,9 @@ type Config struct {
 
 	// The Validation Context resource name to use for the default X.509 bundle with Envoy SDS
 	DefaultBundleName string
+
+	// Agent trust domain
+	TrustDomain spiffeid.TrustDomain
 }
 
 func New(c *Config) *Endpoints {

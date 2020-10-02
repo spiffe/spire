@@ -72,6 +72,14 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 	return s.ds.AppendBundle(ctx, req)
 }
 
+func (s *DataStore) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+
+	return s.ds.CountBundles(ctx, req)
+}
+
 func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
@@ -105,6 +113,13 @@ func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleR
 		return nil, err
 	}
 	return s.ds.PruneBundle(ctx, req)
+}
+
+func (s *DataStore) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.CountAttestedNodes(ctx, req)
 }
 
 func (s *DataStore) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
@@ -166,6 +181,13 @@ func (s *DataStore) GetNodeSelectors(ctx context.Context, req *datastore.GetNode
 		util.SortSelectors(resp.Selectors.Selectors)
 	}
 	return resp, err
+}
+
+func (s *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.CountRegistrationEntries(ctx, req)
 }
 
 func (s *DataStore) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {

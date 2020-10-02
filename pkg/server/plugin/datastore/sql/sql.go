@@ -188,6 +188,17 @@ func (ds *Plugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleReq
 	return resp, nil
 }
 
+// CountBundles can be used to count all existing bundles.
+func (ds *Plugin) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (resp *datastore.CountBundlesResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = countBundles(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // ListBundles can be used to fetch all existing bundles.
 func (ds *Plugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -236,6 +247,19 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context,
 	}); err != nil {
 		return nil, err
 	}
+	return resp, nil
+}
+
+// CountAttestedNodes counts all attested nodes
+func (ds *Plugin) CountAttestedNodes(ctx context.Context,
+	req *datastore.CountAttestedNodesRequest) (resp *datastore.CountAttestedNodesResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = countAttestedNodes(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
 	return resp, nil
 }
 
@@ -329,6 +353,19 @@ func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	req *datastore.FetchRegistrationEntryRequest) (resp *datastore.FetchRegistrationEntryResponse, err error) {
 	return fetchRegistrationEntry(ctx, ds.db, req)
+}
+
+// CounCountRegistrationEntries counts all registrations (pagination available)
+func (ds *Plugin) CountRegistrationEntries(ctx context.Context,
+	req *datastore.CountRegistrationEntriesRequest) (resp *datastore.CountRegistrationEntriesResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = countRegistrationEntries(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -860,6 +897,21 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 	}, nil
 }
 
+// countBundles can be used to count existing bundles
+func countBundles(tx *gorm.DB) (*datastore.CountBundlesResponse, error) {
+	tx = tx.Model(&Bundle{})
+
+	var count int
+	if err := tx.Count(&count).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.CountBundlesResponse{
+		Bundles: int32(count),
+	}
+	return resp, nil
+}
+
 // listBundles can be used to fetch all existing bundles.
 func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
@@ -967,6 +1019,18 @@ func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*d
 	return &datastore.FetchAttestedNodeResponse{
 		Node: modelToAttestedNode(model),
 	}, nil
+}
+
+func countAttestedNodes(tx *gorm.DB) (*datastore.CountAttestedNodesResponse, error) {
+	var count int
+	if err := tx.Model(&AttestedNode{}).Count(&count).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.CountAttestedNodesResponse{
+		Nodes: int32(count),
+	}
+	return resp, nil
 }
 
 func listAttestedNodes(ctx context.Context, db *sqlDB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -1990,6 +2054,18 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 ORDER BY selector_id, dns_name_id
 ;`
 	return query, []interface{}{req.EntryId}, nil
+}
+
+func countRegistrationEntries(tx *gorm.DB) (*datastore.CountRegistrationEntriesResponse, error) {
+	var count int
+	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.CountRegistrationEntriesResponse{
+		Entries: int32(count),
+	}
+	return resp, nil
 }
 
 func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {

@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -79,6 +80,30 @@ func TestMatchingIdentities(t *testing.T) {
 		{Entry: bar},
 		{Entry: foo},
 	}, identities)
+}
+
+func TestCountSVIDs(t *testing.T) {
+	cache := newTestCache()
+
+	// populate the cache with FOO and BAR without SVIDS
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	updateEntries := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}
+	cache.UpdateEntries(updateEntries, nil)
+
+	// No SVIDs expected
+	require.Equal(t, 0, cache.CountSVIDs())
+
+	updateSVIDs := &UpdateSVIDs{
+		X509SVIDs: makeX509SVIDs(foo),
+	}
+	cache.UpdateSVIDs(updateSVIDs)
+
+	// Only one SVID expected
+	require.Equal(t, 1, cache.CountSVIDs())
 }
 
 func TestBundleChanges(t *testing.T) {
