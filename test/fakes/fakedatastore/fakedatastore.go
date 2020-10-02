@@ -149,6 +149,13 @@ func (s *DataStore) SetNodeSelectors(ctx context.Context, req *datastore.SetNode
 	return s.ds.SetNodeSelectors(ctx, req)
 }
 
+func (s *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.ListNodeSelectors(ctx, req)
+}
+
 func (s *DataStore) GetNodeSelectors(ctx context.Context, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
