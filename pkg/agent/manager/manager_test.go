@@ -301,6 +301,15 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		t.Fatal("expected 2 identities")
 	}
 
+	// Verify bundle
+	require.Equal(t, api.bundle, m.GetBundle())
+
+	// Expect three SVIDs on cache
+	require.Equal(t, 3, m.CountSVIDs())
+
+	// Expect last sync
+	require.Equal(t, clk.Now(), m.GetLastSync())
+
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
 		[]*common.RegistrationEntry{matches[0].Entry, matches[1].Entry})
@@ -378,6 +387,7 @@ func TestSVIDRotation(t *testing.T) {
 	if key != baseSVIDKey {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
+	require.Equal(t, clk.Now(), m.lastSync)
 
 	// Define and set a rotation hook
 	rotHookStatus := struct {
@@ -486,6 +496,7 @@ func TestSynchronization(t *testing.T) {
 	if err := m.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	// Before synchronization
 	identitiesBefore := identitiesByEntryID(m.cache.Identities())
@@ -514,6 +525,8 @@ func TestSynchronization(t *testing.T) {
 		}
 		require.Equal(t, eb, eu, "identity received does not match identity on cache")
 	}
+
+	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	// SVIDs expire after 3 seconds, so we shouldn't expect any updates after
 	// 1 second has elapsed.
@@ -569,6 +582,8 @@ func TestSynchronization(t *testing.T) {
 		}
 		require.Equal(t, eu, ea, "entry received does not match entry on cache")
 	}
+
+	require.Equal(t, clk.Now(), m.GetLastSync())
 }
 
 func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {

@@ -56,6 +56,7 @@ type Config struct {
 
 type agentConfig struct {
 	DataDir             string    `hcl:"data_dir"`
+	AdminSocketPath     string    `hcl:"admin_socket_path"`
 	DeprecatedEnableSDS *bool     `hcl:"enable_sds"`
 	InsecureBootstrap   bool      `hcl:"insecure_bootstrap"`
 	JoinToken           string    `hcl:"join_token"`
@@ -167,6 +168,18 @@ func (cmd *Command) Run(args []string) int {
 
 	// Set umask before starting up the agent
 	common_cli.SetUmask(c.Log)
+
+	if c.AdminBindAddress != nil {
+		// Create uds dir and parents if not exists
+		adminDir := filepath.Dir(c.AdminBindAddress.String())
+		if _, statErr := os.Stat(adminDir); os.IsNotExist(statErr) {
+			c.Log.WithField("dir", adminDir).Infof("Creating admin UDS directory")
+			if err := os.MkdirAll(adminDir, 0755); err != nil {
+				fmt.Fprintln(cmd.env.Stderr, err)
+				return 1
+			}
+		}
+	}
 
 	a := agent.New(c)
 
@@ -353,6 +366,25 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		Net:  "unix",
 	}
 
+	if c.Agent.AdminSocketPath != "" {
+		socketPathAbs, err := filepath.Abs(c.Agent.SocketPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for socket_path: %v", err)
+		}
+		adminSocketPathAbs, err := filepath.Abs(c.Agent.AdminSocketPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %v", err)
+		}
+
+		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
+			return nil, errors.New("admin socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
+		}
+
+		ac.AdminBindAddress = &net.UnixAddr{
+			Name: c.Agent.AdminSocketPath,
+			Net:  "unix",
+		}
+	}
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName

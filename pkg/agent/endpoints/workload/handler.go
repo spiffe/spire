@@ -94,7 +94,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		})
 
 		ttl := time.Until(svid.ExpiresAt)
-		telemetry_workload.SetFetchJWTSVIDTTLGauge(metrics, spiffeID, float32(ttl.Seconds()))
 		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
 	}
 
@@ -261,7 +260,6 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	// blocked on this logic
 	for i, svid := range resp.Svids {
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
-		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: svid.SpiffeId,
 			telemetry.TTL:      ttl.Seconds(),

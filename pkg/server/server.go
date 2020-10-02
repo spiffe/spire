@@ -17,6 +17,7 @@ import (
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -126,7 +127,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager, &s.config.RateLimit)
+	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
 	if err != nil {
 		return err
 	}
@@ -299,7 +300,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager, rateLimit *endpoints.RateLimitConfig) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
@@ -311,7 +312,8 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		Metrics:                     metrics,
 		Manager:                     caManager,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
-		RateLimit:                   rateLimit,
+		RateLimit:                   s.config.RateLimit,
+		Uptime:                      uptime.Uptime,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

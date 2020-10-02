@@ -1,0 +1,36 @@
+syntax = "proto3";
+package spire.api.server.debug.v1;
+option go_package = "github.com/spiffe/spire/proto/spire/api/server/debug/v1;debug";
+
+import "spire/types/spiffeid.proto";
+
+service Debug {
+    // Get information about SPIRE server
+    rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
+}
+
+message GetInfoRequest {
+}
+
+message GetInfoResponse {
+    message Cert {
+        // Certificate SPIFFE ID
+    	spire.types.SPIFFEID id = 1;
+	// Expiration time
+	int64 expires_at = 2;
+	// Subject
+	string subject = 3;
+    }
+
+    // Server SVID chain
+    repeated Cert svid_chain = 1;
+    // Server uptime in seconds
+    int32 uptime = 2;
+    // Amount of registered agents
+    int32 agents_count = 3;
+    // Amount of federated bundles
+    int32 federated_bundles_count = 4;
+    // Amount of registration entries on database
+    int32 entries_count = 5;
+}
+

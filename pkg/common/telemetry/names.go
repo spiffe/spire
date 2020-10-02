@@ -491,6 +491,9 @@ const (
 	// CreateRegistrationEntryIfNotExists functionality related to creating a registration entry
 	CreateRegistrationEntryIfNotExists = "create_registration_entry_if_not_exists"
 
+	// DebugAPI functionality related to debug endpoints
+	DebugAPI = "debug_api"
+
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
 

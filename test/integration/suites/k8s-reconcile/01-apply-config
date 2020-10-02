@@ -1,7 +1,6 @@
 #!/bin/bash
 
-KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
-export KUBECONFIG
+source init-kubectl
 
 wait-for-rollout() {
     ns=$1

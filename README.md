@@ -37,7 +37,7 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 ## Integrate with SPIRE
 
 - See [Extend SPIRE](https://spiffe.io/spire/docs/extending/) to learn about the highly extensible SPIRE plugin framework.
-- Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/master/v2), [Java](https://github.com/spiffe/java-spiffe/tree/v2-api) and [C++](https://github.com/spiffe/c-spiffe) languages. See [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/) for code samples.
+- Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/master/v2), [Java](https://github.com/spiffe/java-spiffe) and [C++](https://github.com/spiffe/c-spiffe) languages. See [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/) for code samples.
 - SPIRE provides an implementation of the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS) for use with [Envoy Proxy](https://envoyproxy.io).  SDS can be used to transparently install and rotate TLS certificates and trust bundles in Envoy. See [Using SPIRE with Envoy](https://spiffe.io/spire/docs/envoy/) for more information.
 
 ## Contribute to SPIRE
@@ -58,9 +58,9 @@ https://github.com/spiffe/spiffe.
 
 ### Security Assessments
 
-The [CNCF Special Interest Group for Security]([https://github.com/cncf/sig-security](https://github.com/cncf/sig-security)) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following documents contain summary reports as well as the threat modeling material produced as part of the assessment:
+The [CNCF Special Interest Group for Security](https://github.com/cncf/sig-security) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following documents contain summary reports as well as the threat modeling material produced as part of the assessment:
 
-- [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.scytale.io/scrutinizing-spire-security-9c82ba542019)
+- [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.spiffe.io/scrutinizing-spire-security-9c82ba542019)
 - [SIG-Security SPIFFE/SPIRE Security Assessment: summary](https://github.com/cncf/sig-security/tree/master/assessments/projects/spiffe-spire)
 - [SIG-Security SPIFFE/SPIRE Security Assessment: full document](https://github.com/cncf/sig-security/blob/master/assessments/projects/spiffe-spire/self-assessment.md)
 

@@ -1,7 +1,6 @@
 #!/bin/sh
 
-KUBECONFIG="$(./bin/kind get kubeconfig-path --name=k8stest)"
-export KUBECONFIG
+source init-kubectl
 
 MAXFETCHCHECKS=60
 FETCHCHECKINTERVAL=1

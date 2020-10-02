@@ -16,6 +16,12 @@ type AppendBundleRequest = datastore.AppendBundleRequest                        
 type AppendBundleResponse = datastore.AppendBundleResponse                         //nolint: golint
 type BySelectors = datastore.BySelectors                                           //nolint: golint
 type BySelectors_MatchBehavior = datastore.BySelectors_MatchBehavior               //nolint: golint
+type CountAttestedNodesRequest = datastore.CountAttestedNodesRequest               //nolint: golint
+type CountAttestedNodesResponse = datastore.CountAttestedNodesResponse             //nolint: golint
+type CountBundlesRequest = datastore.CountBundlesRequest                           //nolint: golint
+type CountBundlesResponse = datastore.CountBundlesResponse                         //nolint: golint
+type CountRegistrationEntriesRequest = datastore.CountRegistrationEntriesRequest   //nolint: golint
+type CountRegistrationEntriesResponse = datastore.CountRegistrationEntriesResponse //nolint: golint
 type CreateAttestedNodeRequest = datastore.CreateAttestedNodeRequest               //nolint: golint
 type CreateAttestedNodeResponse = datastore.CreateAttestedNodeResponse             //nolint: golint
 type CreateBundleRequest = datastore.CreateBundleRequest                           //nolint: golint
@@ -50,6 +56,8 @@ type ListAttestedNodesRequest = datastore.ListAttestedNodesRequest              
 type ListAttestedNodesResponse = datastore.ListAttestedNodesResponse               //nolint: golint
 type ListBundlesRequest = datastore.ListBundlesRequest                             //nolint: golint
 type ListBundlesResponse = datastore.ListBundlesResponse                           //nolint: golint
+type ListNodeSelectorsRequest = datastore.ListNodeSelectorsRequest                 //nolint: golint
+type ListNodeSelectorsResponse = datastore.ListNodeSelectorsResponse               //nolint: golint
 type ListRegistrationEntriesRequest = datastore.ListRegistrationEntriesRequest     //nolint: golint
 type ListRegistrationEntriesResponse = datastore.ListRegistrationEntriesResponse   //nolint: golint
 type NodeSelectors = datastore.NodeSelectors                                       //nolint: golint
@@ -84,6 +92,9 @@ const (
 // DataStore is the client interface for the service type DataStore interface.
 type DataStore interface {
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
+	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error)
+	CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error)
+	CountRegistrationEntries(context.Context, *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error)
 	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
 	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
 	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
@@ -99,6 +110,7 @@ type DataStore interface {
 	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
+	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
@@ -114,6 +126,9 @@ type DataStore interface {
 type Plugin interface {
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error)
+	CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error)
+	CountRegistrationEntries(context.Context, *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error)
 	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
 	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
 	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
@@ -130,6 +145,7 @@ type Plugin interface {
 	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
+	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
@@ -194,6 +210,18 @@ func (a pluginClientAdapter) Configure(ctx context.Context, in *spi.ConfigureReq
 	return a.client.Configure(ctx, in)
 }
 
+func (a pluginClientAdapter) CountAttestedNodes(ctx context.Context, in *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error) {
+	return a.client.CountAttestedNodes(ctx, in)
+}
+
+func (a pluginClientAdapter) CountBundles(ctx context.Context, in *CountBundlesRequest) (*CountBundlesResponse, error) {
+	return a.client.CountBundles(ctx, in)
+}
+
+func (a pluginClientAdapter) CountRegistrationEntries(ctx context.Context, in *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error) {
+	return a.client.CountRegistrationEntries(ctx, in)
+}
+
 func (a pluginClientAdapter) CreateAttestedNode(ctx context.Context, in *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error) {
 	return a.client.CreateAttestedNode(ctx, in)
 }
@@ -256,6 +284,10 @@ func (a pluginClientAdapter) ListAttestedNodes(ctx context.Context, in *ListAtte
 
 func (a pluginClientAdapter) ListBundles(ctx context.Context, in *ListBundlesRequest) (*ListBundlesResponse, error) {
 	return a.client.ListBundles(ctx, in)
+}
+
+func (a pluginClientAdapter) ListNodeSelectors(ctx context.Context, in *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error) {
+	return a.client.ListNodeSelectors(ctx, in)
 }
 
 func (a pluginClientAdapter) ListRegistrationEntries(ctx context.Context, in *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error) {
