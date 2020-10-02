@@ -12,6 +12,33 @@ import (
 )
 
 var (
+	// buckets for time durations, usually latency.
+	// # 1879 The default tally buckets only go up to 5 seconds,
+	// but agent timeout was increased to 30 seconds. We capture
+	// this latency threshold.
+	durationBuckets = tally.DurationBuckets{
+		0 * time.Millisecond,
+		10 * time.Millisecond,
+		25 * time.Millisecond,
+		50 * time.Millisecond,
+		75 * time.Millisecond,
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		300 * time.Millisecond,
+		400 * time.Millisecond,
+		500 * time.Millisecond,
+		600 * time.Millisecond,
+		800 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
+		5 * time.Second,
+		10 * time.Second,
+		15 * time.Second,
+		20 * time.Second,
+		25 * time.Second,
+		30 * time.Second,
+	}
+
 	// buckets for orders of magnitude of values, up to 100,000
 	// given nature of SPIRE, we do not expect negative values
 	exponentialValueBuckets = append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 10, 5)...)
@@ -139,7 +166,7 @@ func (m *m3Sink) addSample(key []string, val float32, scope tally.Scope) {
 }
 
 func (m *m3Sink) addDurationSample(flattenedKey string, val float32, scope tally.Scope) {
-	histogram := scope.Histogram(flattenedKey, tally.DefaultBuckets)
+	histogram := scope.Histogram(flattenedKey, durationBuckets)
 	dur := time.Duration(int64(val)) * timerGranularity
 	histogram.RecordDuration(dur)
 }
