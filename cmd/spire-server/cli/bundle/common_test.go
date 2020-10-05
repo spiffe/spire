@@ -221,7 +221,6 @@ type bundleTest struct {
 	cert2    *x509.Certificate
 	key1Pkix []byte
 
-	// fakeBundleClient *fakeBundleClient
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
@@ -261,6 +260,8 @@ func (f *fakeBundleServer) GetBundle(ctx context.Context, in *bundle.GetBundleRe
 	if f.err != nil {
 		return nil, f.err
 	}
+	require.NotEmpty(f.t, f.bundles)
+
 	return f.bundles[0], nil
 }
 

@@ -363,7 +363,6 @@ func TestSet(t *testing.T) {
 				args = append(args, "-path", bundlePath)
 			}
 
-			// test.server.expectedSetBundle = tt.toUpdate
 			rc := test.client.Run(args)
 
 			if tt.expectedStderr != "" {

@@ -71,7 +71,7 @@ func printCACertsPEM(out io.Writer, caCerts []byte) error {
 	return nil
 }
 
-// printBundle marshal bundle and print using provided writer
+// printBundle marshals and prints the bundle using the provided writer
 func printBundle(out io.Writer, bundle *types.Bundle) error {
 	b, err := bundleFromProto(bundle)
 	if err != nil {
@@ -95,7 +95,7 @@ func printBundle(out io.Writer, bundle *types.Bundle) error {
 	return nil
 }
 
-// bundleFromProto parse types bundle into spiffe bundle
+// bundleFromProto converts a bundle from the given *types.Bundle to *spiffebundle.Bundle
 func bundleFromProto(bundleProto *types.Bundle) (*spiffebundle.Bundle, error) {
 	td, err := spiffeid.TrustDomainFromString(bundleProto.TrustDomain)
 	if err != nil {
@@ -121,7 +121,7 @@ func bundleFromProto(bundleProto *types.Bundle) (*spiffebundle.Bundle, error) {
 	return bundle, nil
 }
 
-// x509CertificatesFromProto parse proto certificates to x509 certificates
+// x509CertificatesFromProto converts X.509 certificates from the given []*types.X509Certificate to []*x509.Certificate
 func x509CertificatesFromProto(proto []*types.X509Certificate) ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate
 	for i, auth := range proto {
@@ -134,7 +134,8 @@ func x509CertificatesFromProto(proto []*types.X509Certificate) ([]*x509.Certific
 	return certs, nil
 }
 
-// jwtKeysFromProto parse proto JWTKeys to PublicKey mapped by key ID
+// jwtKeysFromProto converts JWT keys from the given []*types.JWTKey to map[string]crypto.PublicKey.
+// The key ID of the public key is used as the key in the returned map.
 func jwtKeysFromProto(proto []*types.JWTKey) (map[string]crypto.PublicKey, error) {
 	keys := make(map[string]crypto.PublicKey)
 	for i, publicKey := range proto {
@@ -159,14 +160,14 @@ func bundleProtoFromX509Authorities(trustDomain string, rootCAs []*x509.Certific
 	return b
 }
 
-// protoFromSpiffeBundle parse spiffe bundle to proto
+// protoFromSpiffeBundle converts a bundle from the given *spiffebundle.Bundle to *types.Bundle
 func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*types.Bundle, error) {
 	resp := &types.Bundle{
 		TrustDomain:     bundle.TrustDomain().String(),
 		X509Authorities: protoFromX509Certificates(bundle.X509Authorities()),
 	}
 
-	jwtAuthorities, err := protoFromJwtKeys(bundle.JWTAuthorities())
+	jwtAuthorities, err := protoFromJWTKeys(bundle.JWTAuthorities())
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +184,7 @@ func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*types.Bundle, error) {
 	return resp, nil
 }
 
-// protoFromX509Certificates parse x509 certificates to proto
+// protoFromX509Certificates converts X.509 certificates from the given []*x509.Certificate to []*types.X509Certificate
 func protoFromX509Certificates(certs []*x509.Certificate) []*types.X509Certificate {
 	var resp []*types.X509Certificate
 	for _, cert := range certs {
@@ -195,8 +196,8 @@ func protoFromX509Certificates(certs []*x509.Certificate) []*types.X509Certifica
 	return resp
 }
 
-// protoFromJwtKeys parse Public Keys to proto
-func protoFromJwtKeys(keys map[string]crypto.PublicKey) ([]*types.JWTKey, error) {
+// protoFromJWTKeys converts JWT keys from the given map[string]crypto.PublicKey to []*types.JWTKey
+func protoFromJWTKeys(keys map[string]crypto.PublicKey) ([]*types.JWTKey, error) {
 	var resp []*types.JWTKey
 
 	for kid, key := range keys {
