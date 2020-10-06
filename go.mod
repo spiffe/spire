@@ -1,4 +1,4 @@
-module github.com/spiffe/spire
+module github.com/yangmarcyang/spire
 
 go 1.14
 
