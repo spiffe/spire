@@ -7,8 +7,8 @@ import (
 
 	"github.com/mitchellh/cli"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
@@ -80,7 +80,7 @@ func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
 func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
 	code := s.cmd.Run([]string{"--registrationUDSPath", "doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
-	s.Equal(`Fetching bundle via Registration API...
+	s.Equal(`Fetching bundle via Bundle API...
 `, s.stdout.String(), "stdout")
 	s.Equal(`Failed to create client: connection error: desc = "transport: error while dialing: dial unix doesnotexist.sock: connect: no such file or directory"
 Server is unhealthy: cannot create registration client
@@ -88,7 +88,7 @@ Server is unhealthy: cannot create registration client
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
-	socketPath := spiretest.StartRegistrationAPIOnTempSocket(s.T(), withBundle{})
+	socketPath := spiretest.StartBundleAPIOnTempSocket(s.T(), withBundle{})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
@@ -96,10 +96,10 @@ func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetchedVerbose() {
-	socketPath := spiretest.StartRegistrationAPIOnTempSocket(s.T(), withBundle{})
+	socketPath := spiretest.StartBundleAPIOnTempSocket(s.T(), withBundle{})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath, "--verbose"})
 	s.Equal(0, code, "exit code")
-	s.Equal(`Fetching bundle via Registration API...
+	s.Equal(`Fetching bundle via Bundle API...
 Successfully fetched bundle.
 Server is healthy.
 `, s.stdout.String(), "stdout")
@@ -107,9 +107,9 @@ Server is healthy.
 }
 
 type withBundle struct {
-	registration.RegistrationServer
+	bundle.BundleServer
 }
 
-func (withBundle) FetchBundle(context.Context, *common.Empty) (*registration.Bundle, error) {
-	return &registration.Bundle{}, nil
+func (withBundle) GetBundle(context.Context, *bundle.GetBundleRequest) (*types.Bundle, error) {
+	return &types.Bundle{}, nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -21,9 +22,24 @@ func StartRegistrationAPIOnTempSocket(t *testing.T, server registration.Registra
 	return socketPath
 }
 
+func StartBundleAPIOnTempSocket(t *testing.T, server bundle.BundleServer) string {
+	dir := TempDir(t)
+	socketPath := filepath.Join(dir, "bundle.sock")
+
+	StartBundleAPIOnSocket(t, socketPath, server)
+
+	return socketPath
+}
+
 func StartRegistrationAPIOnSocket(t *testing.T, socketPath string, server registration.RegistrationServer) {
 	StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
 		registration.RegisterRegistrationServer(s, server)
+	})
+}
+
+func StartBundleAPIOnSocket(t *testing.T, socketPath string, server bundle.BundleServer) {
+	StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
+		bundle.RegisterBundleServer(s, server)
 	})
 }
 
