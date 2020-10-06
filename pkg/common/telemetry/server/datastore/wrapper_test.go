@@ -38,6 +38,18 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "AppendBundle",
 		},
 		{
+			key:        "datastore.node.count",
+			methodName: "CountAttestedNodes",
+		},
+		{
+			key:        "datastore.bundle.count",
+			methodName: "CountBundles",
+		},
+		{
+			key:        "datastore.registration_entry.count",
+			methodName: "CountRegistrationEntries",
+		},
+		{
 			key:        "datastore.node.create",
 			methodName: "CreateAttestedNode",
 		},
@@ -96,6 +108,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.bundle.list",
 			methodName: "ListBundles",
+		},
+		{
+			key:        "datastore.node.selectors.list",
+			methodName: "ListNodeSelectors",
 		},
 		{
 			key:        "datastore.registration_entry.list",
@@ -208,6 +224,18 @@ func (ds *fakeDataStore) AppendBundle(context.Context, *datastore.AppendBundleRe
 	return &datastore.AppendBundleResponse{}, ds.err
 }
 
+func (ds *fakeDataStore) CountAttestedNodes(context.Context, *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
+	return &datastore.CountAttestedNodesResponse{}, ds.err
+}
+
+func (ds *fakeDataStore) CountBundles(context.Context, *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
+	return &datastore.CountBundlesResponse{}, ds.err
+}
+
+func (ds *fakeDataStore) CountRegistrationEntries(context.Context, *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
+	return &datastore.CountRegistrationEntriesResponse{}, ds.err
+}
+
 func (ds *fakeDataStore) CreateAttestedNode(context.Context, *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
 	return &datastore.CreateAttestedNodeResponse{}, ds.err
 }
@@ -266,6 +294,10 @@ func (ds *fakeDataStore) ListAttestedNodes(context.Context, *datastore.ListAttes
 
 func (ds *fakeDataStore) ListBundles(context.Context, *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	return &datastore.ListBundlesResponse{}, ds.err
+}
+
+func (ds *fakeDataStore) ListNodeSelectors(context.Context, *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {
+	return &datastore.ListNodeSelectorsResponse{}, ds.err
 }
 
 func (ds *fakeDataStore) ListRegistrationEntries(context.Context, *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {

@@ -160,6 +160,23 @@ func (c *Cache) Identities() []Identity {
 	return out
 }
 
+func (c *Cache) CountSVIDs() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var records int
+	for _, record := range c.records {
+		if record.svid == nil {
+			// The record does not have an SVID yet and should not be returned
+			// from the cache.
+			continue
+		}
+		records++
+	}
+
+	return records
+}
+
 func (c *Cache) MatchingIdentities(selectors []*common.Selector) []Identity {
 	set, setDone := allocSelectorSet(selectors...)
 	defer setDone()

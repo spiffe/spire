@@ -11,9 +11,11 @@ import (
 	client "github.com/spiffe/spire/pkg/agent/client"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	svid "github.com/spiffe/spire/pkg/agent/svid"
+	bundleutil "github.com/spiffe/spire/pkg/common/bundleutil"
 	common "github.com/spiffe/spire/proto/spire/common"
 	reflect "reflect"
 	sync "sync"
+	time "time"
 )
 
 // MockManager is a mock of Manager interface
@@ -37,6 +39,20 @@ func NewMockManager(ctrl *gomock.Controller) *MockManager {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
+}
+
+// CountSVIDs mocks base method
+func (m *MockManager) CountSVIDs() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountSVIDs")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CountSVIDs indicates an expected call of CountSVIDs
+func (mr *MockManagerMockRecorder) CountSVIDs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSVIDs", reflect.TypeOf((*MockManager)(nil).CountSVIDs))
 }
 
 // FetchJWTSVID mocks base method
@@ -68,6 +84,20 @@ func (mr *MockManagerMockRecorder) FetchWorkloadUpdate(arg0 interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWorkloadUpdate", reflect.TypeOf((*MockManager)(nil).FetchWorkloadUpdate), arg0)
 }
 
+// GetBundle mocks base method
+func (m *MockManager) GetBundle() *bundleutil.Bundle {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBundle")
+	ret0, _ := ret[0].(*bundleutil.Bundle)
+	return ret0
+}
+
+// GetBundle indicates an expected call of GetBundle
+func (mr *MockManagerMockRecorder) GetBundle() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBundle", reflect.TypeOf((*MockManager)(nil).GetBundle))
+}
+
 // GetCurrentCredentials mocks base method
 func (m *MockManager) GetCurrentCredentials() svid.State {
 	m.ctrl.T.Helper()
@@ -80,6 +110,20 @@ func (m *MockManager) GetCurrentCredentials() svid.State {
 func (mr *MockManagerMockRecorder) GetCurrentCredentials() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentCredentials", reflect.TypeOf((*MockManager)(nil).GetCurrentCredentials))
+}
+
+// GetLastSync mocks base method
+func (m *MockManager) GetLastSync() time.Time {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastSync")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+// GetLastSync indicates an expected call of GetLastSync
+func (mr *MockManagerMockRecorder) GetLastSync() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastSync", reflect.TypeOf((*MockManager)(nil).GetLastSync))
 }
 
 // GetRotationMtx mocks base method

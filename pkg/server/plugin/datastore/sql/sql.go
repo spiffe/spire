@@ -188,6 +188,17 @@ func (ds *Plugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleReq
 	return resp, nil
 }
 
+// CountBundles can be used to count all existing bundles.
+func (ds *Plugin) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (resp *datastore.CountBundlesResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = countBundles(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // ListBundles can be used to fetch all existing bundles.
 func (ds *Plugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
@@ -236,6 +247,19 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context,
 	}); err != nil {
 		return nil, err
 	}
+	return resp, nil
+}
+
+// CountAttestedNodes counts all attested nodes
+func (ds *Plugin) CountAttestedNodes(ctx context.Context,
+	req *datastore.CountAttestedNodesRequest) (resp *datastore.CountAttestedNodesResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = countAttestedNodes(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
 	return resp, nil
 }
 
@@ -299,6 +323,15 @@ func (ds *Plugin) GetNodeSelectors(ctx context.Context,
 	return getNodeSelectors(ctx, ds.db, req)
 }
 
+// ListNodeSelectors gets node (agent) selectors by SPIFFE ID
+func (ds *Plugin) ListNodeSelectors(ctx context.Context,
+	req *datastore.ListNodeSelectorsRequest) (resp *datastore.ListNodeSelectorsResponse, err error) {
+	if req.TolerateStale && ds.roDb != nil {
+		return listNodeSelectors(ctx, ds.roDb, req)
+	}
+	return listNodeSelectors(ctx, ds.db, req)
+}
+
 // CreateRegistrationEntry stores the given registration entry
 func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 	req *datastore.CreateRegistrationEntryRequest) (resp *datastore.CreateRegistrationEntryResponse, err error) {
@@ -320,6 +353,19 @@ func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	req *datastore.FetchRegistrationEntryRequest) (resp *datastore.FetchRegistrationEntryResponse, err error) {
 	return fetchRegistrationEntry(ctx, ds.db, req)
+}
+
+// CounCountRegistrationEntries counts all registrations (pagination available)
+func (ds *Plugin) CountRegistrationEntries(ctx context.Context,
+	req *datastore.CountRegistrationEntriesRequest) (resp *datastore.CountRegistrationEntriesResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = countRegistrationEntries(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -851,6 +897,21 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 	}, nil
 }
 
+// countBundles can be used to count existing bundles
+func countBundles(tx *gorm.DB) (*datastore.CountBundlesResponse, error) {
+	tx = tx.Model(&Bundle{})
+
+	var count int
+	if err := tx.Count(&count).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.CountBundlesResponse{
+		Bundles: int32(count),
+	}
+	return resp, nil
+}
+
 // listBundles can be used to fetch all existing bundles.
 func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
@@ -958,6 +1019,18 @@ func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*d
 	return &datastore.FetchAttestedNodeResponse{
 		Node: modelToAttestedNode(model),
 	}, nil
+}
+
+func countAttestedNodes(tx *gorm.DB) (*datastore.CountAttestedNodesResponse, error) {
+	var count int
+	if err := tx.Model(&AttestedNode{}).Count(&count).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.CountAttestedNodesResponse{
+		Nodes: int32(count),
+	}
+	return resp, nil
 }
 
 func listAttestedNodes(ctx context.Context, db *sqlDB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -1550,6 +1623,111 @@ func getNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.GetNodeSele
 	}, nil
 }
 
+func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {
+	rawQuery, args := buildListNodeSelectorsQuery(req)
+	query := maybeRebind(db.databaseType, rawQuery)
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+	defer rows.Close()
+
+	resp := new(datastore.ListNodeSelectorsResponse)
+
+	var currentID string
+	var selectors []*common.Selector
+	if req.Pagination != nil {
+		selectors = make([]*common.Selector, 0, req.Pagination.PageSize)
+	} else {
+		selectors = make([]*common.Selector, 0, 64)
+	}
+
+	push := func(spiffeID string, selector *common.Selector) {
+		switch {
+		case currentID == "":
+			currentID = spiffeID
+		case spiffeID != currentID:
+			resp.Selectors = append(resp.Selectors, &datastore.NodeSelectors{
+				SpiffeId:  currentID,
+				Selectors: selectors,
+			})
+			currentID = spiffeID
+			selectors = nil
+		}
+		selectors = append(selectors, selector)
+	}
+
+	var lastID uint64
+	var selector *common.Selector
+	for rows.Next() {
+		var nsRow nodeSelectorRow
+		if err := scanNodeSelectorRow(rows, &nsRow); err != nil {
+			return nil, err
+		}
+
+		var spiffeID string
+		if nsRow.SpiffeID.Valid {
+			spiffeID = nsRow.SpiffeID.String
+		}
+
+		selector = new(common.Selector)
+		fillNodeSelectorFromRow(selector, &nsRow)
+		push(spiffeID, selector)
+		lastID = nsRow.EId
+	}
+
+	push("", nil)
+
+	if err := rows.Err(); err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	if req.Pagination != nil {
+		var token string
+		if len(resp.Selectors) > 0 {
+			token = strconv.FormatUint(lastID, 10)
+		}
+		resp.Pagination = &datastore.Pagination{
+			PageSize: req.Pagination.PageSize,
+			Token:    token,
+		}
+	}
+
+	return resp, nil
+}
+
+func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query string, args []interface{}) {
+	var sb strings.Builder
+	var hasWhereClause bool
+	sb.WriteString("SELECT nre.id, nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
+	if req.ValidAt != nil {
+		sb.WriteString(" INNER JOIN attested_node_entries ane ON nre.spiffe_id=ane.spiffe_id WHERE ane.expires_at > ?")
+		args = append(args, time.Unix(req.ValidAt.Seconds, 0))
+		hasWhereClause = true
+	}
+	if req.Pagination != nil && req.Pagination.Token != "" {
+		sqlKeyword := "WHERE"
+		if hasWhereClause {
+			sqlKeyword = "AND"
+		}
+
+		sb.WriteRune(' ')
+		sb.WriteString(sqlKeyword)
+		sb.WriteString(" nre.id > ?")
+		args = append(args, req.Pagination.Token)
+	}
+
+	sb.WriteString(" ORDER BY nre.id ASC")
+
+	if req.Pagination != nil {
+		sb.WriteString(" LIMIT ")
+		pageSize := strconv.FormatInt(int64(req.Pagination.PageSize), 10)
+		sb.WriteString(pageSize)
+	}
+
+	return sb.String(), args
+}
+
 func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 	entryID, err := newRegistrationEntryID()
 	if err != nil {
@@ -1876,6 +2054,18 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 ORDER BY selector_id, dns_name_id
 ;`
 	return query, []interface{}{req.EntryId}, nil
+}
+
+func countRegistrationEntries(tx *gorm.DB) (*datastore.CountRegistrationEntriesResponse, error) {
+	var count int
+	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.CountRegistrationEntriesResponse{
+		Entries: int32(count),
+	}
+	return resp, nil
 }
 
 func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
@@ -2599,6 +2789,32 @@ func fillNodeFromRow(node *common.AttestedNode, r *nodeRow) error {
 	}
 
 	return nil
+}
+
+type nodeSelectorRow struct {
+	EId      uint64
+	SpiffeID sql.NullString
+	Type     sql.NullString
+	Value    sql.NullString
+}
+
+func scanNodeSelectorRow(rs *sql.Rows, r *nodeSelectorRow) error {
+	return sqlError.Wrap(rs.Scan(
+		&r.EId,
+		&r.SpiffeID,
+		&r.Type,
+		&r.Value,
+	))
+}
+
+func fillNodeSelectorFromRow(nodeSelector *common.Selector, r *nodeSelectorRow) {
+	if r.Type.Valid {
+		nodeSelector.Type = r.Type.String
+	}
+
+	if r.Value.Valid {
+		nodeSelector.Value = r.Value.String
+	}
 }
 
 type entryRow struct {

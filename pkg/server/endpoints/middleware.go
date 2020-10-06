@@ -4,6 +4,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
@@ -25,8 +27,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Number of entries that can be cached
-const entriesCacheSize = 500_000
+const (
+	// Number of entries that can be cached
+	entriesCacheSize    = 500_000
+	cacheReloadInterval = 5 * time.Second
+)
 
 func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
 	return middleware.Chain(
@@ -65,6 +70,7 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 		"/spire.api.server.bundle.v1.Bundle/BatchUpdateFederatedBundle": localOrAdmin,
 		"/spire.api.server.bundle.v1.Bundle/BatchSetFederatedBundle":    localOrAdmin,
 		"/spire.api.server.bundle.v1.Bundle/BatchDeleteFederatedBundle": localOrAdmin,
+		"/spire.api.server.debug.v1.Debug/GetInfo":                      local,
 		"/spire.api.server.entry.v1.Entry/ListEntries":                  localOrAdmin,
 		"/spire.api.server.entry.v1.Entry/GetEntry":                     localOrAdmin,
 		"/spire.api.server.entry.v1.Entry/BatchCreateEntry":             localOrAdmin,
@@ -117,6 +123,46 @@ func AuthorizedEntryFetcherWithCache(ds datastore.DataStore) (api.AuthorizedEntr
 		}
 		return api.RegistrationEntriesToProto(entries)
 	}), nil
+}
+
+func AuthorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore) api.AuthorizedEntryFetcher {
+	return authorizedEntryFetcherWithFullCache(log, metrics, ds, time.Now)
+}
+
+func authorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, now func() time.Time) api.AuthorizedEntryFetcher {
+	var mu sync.RWMutex
+	var loaded time.Time
+	var cache entrycache.Cache
+
+	rebuildCache := func(ctx context.Context) (_ entrycache.Cache, err error) {
+		call := telemetry.StartCall(metrics, "entry", "cache", "reload")
+		defer call.Done(&err)
+		return entrycache.BuildFromDataStore(ctx, ds)
+	}
+
+	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+		mu.RLock()
+		if !loaded.IsZero() && now().Sub(loaded) < cacheReloadInterval {
+			mu.RUnlock()
+			return cache.GetAuthorizedEntries(agentID), nil
+		}
+		mu.RUnlock()
+
+		mu.Lock()
+		defer mu.Unlock()
+		if loaded.IsZero() || now().Sub(loaded) >= cacheReloadInterval {
+			log.Info("Reloading entry cache...")
+			newCache, err := rebuildCache(ctx)
+			if err != nil {
+				log.WithError(err).Error("Failed to reload entry cache.")
+				return nil, err
+			}
+			log.Info("Reloaded entry cache.")
+			cache = newCache
+			loaded = now()
+		}
+		return cache.GetAuthorizedEntries(agentID), nil
+	})
 }
 
 func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
@@ -211,6 +257,7 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.bundle.v1.Bundle/BatchUpdateFederatedBundle": noLimit,
 		"/spire.api.server.bundle.v1.Bundle/BatchSetFederatedBundle":    noLimit,
 		"/spire.api.server.bundle.v1.Bundle/BatchDeleteFederatedBundle": noLimit,
+		"/spire.api.server.debug.v1.Debug/GetInfo":                      noLimit,
 		"/spire.api.server.entry.v1.Entry/ListEntries":                  noLimit,
 		"/spire.api.server.entry.v1.Entry/GetEntry":                     noLimit,
 		"/spire.api.server.entry.v1.Entry/BatchCreateEntry":             noLimit,
