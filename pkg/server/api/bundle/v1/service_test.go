@@ -571,7 +571,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to delete federated bundle",
 					Data: logrus.Fields{
-						logrus.ErrorKey:                     "rpc error: code = Unknown desc = datastore-sql: cannot delete bundle; federated with 1 registration entries",
+						logrus.ErrorKey:                     "rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries",
 						telemetry.TrustDomainID:             "td1.org",
 						telemetry.DeleteFederatedBundleMode: "RESTRICT",
 					},
@@ -581,7 +581,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
-						Message: "failed to delete federated bundle: rpc error: code = Unknown desc = datastore-sql: cannot delete bundle; federated with 1 registration entries",
+						Message: "failed to delete federated bundle: rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries",
 					},
 					TrustDomain: "td1.org",
 				},
