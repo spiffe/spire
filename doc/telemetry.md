@@ -101,7 +101,7 @@ The following metrics are emitted:
 | Measure Since | `workload_api`, `send_jwt_bundle_latency` | | The time that the Workload API took to send a JWT bundle.
 | Measure Since | `workload_api`, `svid_response_latency`, `fetch` | | The time that the Workload API took to fetch an X.509 SVID.
 | Counter | `workload_api`, `validate_jwt_svids` | `subject`, `audience` | The Workload API has successfully validated a JWT SVID.
-| Counter | `workload_api`, `validate_jwt_svids` | | The workload API has encountered an error while validating an SVID.
+| Counter | `workload_api`, `validate_jwt_svids` | | The Workload API has encountered an error while validating an SVID.
 | Call Counter | `workload_api`, `workload_attestation` | | The Workload API is performing a workload attestation.
 | Call Counter | `workload_api`, `workload_attestor` | `attestor` | The Workload API is invoking a given attestor.
 | Gauge | `started` | `version` | The version of the Agent.
