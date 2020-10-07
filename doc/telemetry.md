@@ -6,97 +6,104 @@ The following metrics are emitted:
 
 ## SPIRE Server
 
-| Type | Keys | Labels |
-| ---  | --- | --- |
-| Call Counter | `ca`, `manager`, `bundle`, `prune` |
-| Counter | `ca`, `manager`, `bundle`, `pruned` |
-| Call Counter | `ca`, `manager`, `jwt_key`, `prepare` |
-| Counter | `ca`, `manager`, `x509_ca`, `activate` |
-| Call Counter | `ca`, `manager`, `x509_ca`, `prepare` |
-| Call Counter | `datastore`, `bundle`, `append` |
-| Call Counter | `datastore`, `bundle`, `create` |
-| Call Counter | `datastore`, `bundle`, `delete` |
-| Call Counter | `datastore`, `bundle`, `fetch` |
-| Call Counter | `datastore`, `bundle`, `list` |
-| Call Counter | `datastore`, `bundle`, `prune` |
-| Call Counter | `datastore`, `bundle`, `set` |
-| Call Counter | `datastore`, `bundle`, `update` |
-| Call Counter | `datastore`, `join_token`, `create` |
-| Call Counter | `datastore`, `join_token`, `delete` |
-| Call Counter | `datastore`, `join_token`, `fetch` |
-| Call Counter | `datastore`, `join_token`, `prune` |
-| Call Counter | `datastore`, `node`, `create` |
-| Call Counter | `datastore`, `node`, `delete` |
-| Call Counter | `datastore`, `node`, `fetch` |
-| Call Counter | `datastore`, `node`, `list` |
-| Call Counter | `datastore`, `node`, `selectors`, `fetch` |
-| Call Counter | `datastore`, `node`, `selectors`, `set` |
-| Call Counter | `datastore`, `node`, `update` |
-| Call Counter | `datastore`, `registration_entry`, `create` |
-| Call Counter | `datastore`, `registration_entry`, `delete` |
-| Call Counter | `datastore`, `registration_entry`, `fetch` |
-| Call Counter | `datastore`, `registration_entry`, `list` |
-| Call Counter | `datastore`, `registration_entry`, `prune` |
-| Call Counter | `datastore`, `registration_entry`, `update` |
-| Counter | `manager`, `jwt_key`, `activate` |
-| Gauge | `manager`, `x509_ca`, `rotate`, `ttl` | `trust_domain_id` |
-| Call Counter | `node_api`, `attest` |
-| Call Counter | `node_api`, `authorize_call` | `method` |
-| Call Counter | `node_api`, `fetch_bundle`, `fetch` |
-| Call Counter | `node_api`, `jwt_key`, `push` |
-| Call Counter | `node_api`, `jwt_svid`, `fetch` |
-| Call Counter | `node_api`, `x509_ca_svid`, `fetch` |
-| Call Counter | `node_api`, `x509_svid`, `fetch` |
-| Call Counter | `registration_api`, `authorize_call` | `method` |
-| Call Counter | `registration_api`, `bundle`, `fetch` |
-| Call Counter | `registration_api`, `entry`, `create` |
-| Call Counter | `registration_api`, `entry`, `create_if_not_exists` |
-| Call Counter | `registration_api`, `entry`, `delete` |
-| Call Counter | `registration_api`, `entry`, `fetch` |
-| Call Counter | `registration_api`, `entry`, `list` |
-| Call Counter | `registration_api`, `entry`, `update` |
-| Counter | `registration_api`, `entry`, `updated` |
-| Call Counter | `registration_api`, `federated_bundle`, `create` |
-| Call Counter | `registration_api`, `federated_bundle`, `delete` |
-| Call Counter | `registration_api`, `federated_bundle`, `fetch` |
-| Call Counter | `registration_api`, `federated_bundle`, `list` |
-| Call Counter | `registration_api`, `federated_bundle`, `update` |
-| Call Counter | `registration_api`, `join_token`, `create` |
-| Call Counter | `registration_api`, `jwt_svid`, `mint` |
-| Call Counter | `registration_api`, `x509_svid`, `mint` |
-| Call Counter | `registration_entry`, `manager`, `prune` |
-| Counter | `server_ca`, `sign`, `jwt_svid` | `spiffe_id` |
-| Counter | `server_ca`, `sign`, `x509_ca_svid` | `spiffe_id` |
-| Counter | `server_ca`, `sign`, `x509_svid` | `spiffe_id` |
-| Call Counter | `svid`, `rotate` |
-| Gauge | `started` | `version` |
+| Type | Keys | Labels | Description |
+| ---  | --- | --- | --- |
+| Call Counter | `ca`, `manager`, `bundle`, `prune` | | The CA manager is pruning a bundle.
+| Counter | `ca`, `manager`, `bundle`, `pruned` | | The CA manager has successfully pruned a bundle.
+| Call Counter | `ca`, `manager`, `jwt_key`, `prepare` | | The CA manager is preparing a JWT Key.
+| Counter | `ca`, `manager`, `x509_ca`, `activate` | | The CA manager has successfully activated an X.509 CA.
+| Call Counter | `ca`, `manager`, `x509_ca`, `prepare` | | The CA manager is preparing an X.509 CA.
+| Call Counter | `datastore`, `bundle`, `append` | | The Datastore is appending a bundle.
+| Call Counter | `datastore`, `bundle`, `count` | | The Datastore is counting bundles.
+| Call Counter | `datastore`, `bundle`, `create` | | The Datastore is creating a bundle.
+| Call Counter | `datastore`, `bundle`, `delete` | | The Datastore is deleting a bundle.
+| Call Counter | `datastore`, `bundle`, `fetch` | | The Datastore is fetching a bundle.
+| Call Counter | `datastore`, `bundle`, `list` | | The Datastore is listing bundles.
+| Call Counter | `datastore`, `bundle`, `prune` | | The Datastore is pruning a bundle.
+| Call Counter | `datastore`, `bundle`, `set` | | The Datastore is setting a bundle.
+| Call Counter | `datastore`, `bundle`, `update` | | The Datastore is updating a bundle.
+| Call Counter | `datastore`, `join_token`, `create` | | The Datastore is creating a join token.
+| Call Counter | `datastore`, `join_token`, `delete` | | The Datastore is deleting a join token.
+| Call Counter | `datastore`, `join_token`, `fetch` | | The Datastore is fetching a join token.
+| Call Counter | `datastore`, `join_token`, `prune` | | The Datastore is pruning join tokens.
+| Call Counter | `datastore`, `node`, `count` | | The Datastore is counting nodes.
+| Call Counter | `datastore`, `node`, `create` | | The Datastore  is creating a node.
+| Call Counter | `datastore`, `node`, `delete` | | The Datastore is deleting a node.
+| Call Counter | `datastore`, `node`, `fetch` | | The Datastore is fetching nodes.
+| Call Counter | `datastore`, `node`, `list` | | The Datastore is listing nodes.
+| Call Counter | `datastore`, `node`, `selectors`, `fetch` | | The Datastore is fetching selectors for a node.
+| Call Counter | `datastore`, `node`, `selectors`, `list` | | The Datastore is listing selectors for a node.
+| Call Counter | `datastore`, `node`, `selectors`, `set` | | The Datastore is setting selectors for a node.
+| Call Counter | `datastore`, `node`, `update` | | The Datastore is updating a node.
+| Call Counter | `datastore`, `registration_entry`, `count` | | The Datastore is counting registration entries.
+| Call Counter | `datastore`, `registration_entry`, `create` | | The Datastore is creating a registration entry.
+| Call Counter | `datastore`, `registration_entry`, `delete` | | The Datastore is deleting a registration entry.
+| Call Counter | `datastore`, `registration_entry`, `fetch` | | The Datastore is fetching registration entries.
+| Call Counter | `datastore`, `registration_entry`, `list` | | The Datastore is listing registration entries.
+| Call Counter | `datastore`, `registration_entry`, `prune` | | The Datastore is pruning registration entries.
+| Call Counter | `datastore`, `registration_entry`, `update` | | The Datastore is updating a registration entry. 
+| Counter | `manager`, `jwt_key`, `activate` | | The CA manager has successfully activated a JWT Key.
+| Gauge | `manager`, `x509_ca`, `rotate`, `ttl` | `trust_domain_id` | The CA manager is rotating the X.509 CA with a given TTL for a specific Trust Domain.
+| Call Counter | `node_api`, `attest` | | The Node API is performing a node attestation.
+| Call Counter | `node_api`, `authorize_call` | `method` | The Node API is authorizing a call for a given method.
+| Call Counter | `node_api`, `fetch_bundle`, `fetch` | | The Node API is fetching the current bundle.
+| Call Counter | `node_api`, `jwt_key`, `push` | | The Node API is pushing a JWT Key to an upstream server.
+| Call Counter | `node_api`, `jwt_svid`, `fetch` | | The Node API is fetching a JWT SVID.
+| Call Counter | `node_api`, `x509_ca_svid`, `fetch` | | The Node API is fetching an X.509 CA SVID.
+| Call Counter | `node_api`, `x509_svid`, `fetch` | | The Node API is fetching an X.509 SVID.
+| Call Counter | `registration_api`, `authorize_call` | `method` | The Registration API is authorizing a call for a given method.
+| Call Counter | `registration_api`, `bundle`, `fetch` | | The Registration API is fetching a bundle.
+| Call Counter | `registration_api`, `entry`, `create` | | The Registration API is creating an entry.
+| Call Counter | `registration_api`, `entry`, `create_if_not_exists` | | The Registration API is creating an entry if it doesn't already exists.
+| Call Counter | `registration_api`, `entry`, `delete` | | The Registration API is deleting an entry.
+| Call Counter | `registration_api`, `entry`, `fetch` | | The Registration API is fetching an entry.
+| Call Counter | `registration_api`, `entry`, `list` | | The Registration API is listing entries.
+| Call Counter | `registration_api`, `entry`, `update` | | The Registration API is updating an entry.
+| Counter | `registration_api`, `entry`, `updated` | | The Registration API has successfully updated an entry.
+| Call Counter | `registration_api`, `federated_bundle`, `create` | | The Registration API is creating a federated bundle.
+| Call Counter | `registration_api`, `federated_bundle`, `delete` | | The Registration API is deleting a federated bundle.
+| Call Counter | `registration_api`, `federated_bundle`, `fetch` | | The Registration API is fetching a federated bundle.
+| Call Counter | `registration_api`, `federated_bundle`, `list` | | The Registration API is listing federated bundles.
+| Call Counter | `registration_api`, `federated_bundle`, `update` | | The Registration API is updating a federated bundle.
+| Call Counter | `registration_api`, `join_token`, `create` | | The Registration API is creating a join token.
+| Call Counter | `registration_api`, `jwt_svid`, `mint` | | The Registration API is minting a JWT SVID.
+| Call Counter | `registration_api`, `x509_svid`, `mint` | | The Registration API is minting an X.509 SVID.
+| Call Counter | `registration_entry`, `manager`, `prune` | | The Registration manager is pruning entries.
+| Counter | `server_ca`, `sign`, `jwt_svid` | `spiffe_id` | The CA has successfully signed a JWT SVID with a given SPIFFE Id.
+| Counter | `server_ca`, `sign`, `x509_ca_svid` | `spiffe_id` | The CA has successfully signed an X.509 CA SVID with a given SPIFFE Id.
+| Counter | `server_ca`, `sign`, `x509_svid` | `spiffe_id` | The CA has successfully signed an X.509 SVID with a given SPIFFE Id.
+| Call Counter | `svid`, `rotate` | | The Server's SVID is being rotated.
+| Gauge | `started` | `version` | | The version of the Server.
 
 ## SPIRE Agent
 
-| Type | Keys | Labels |
-| ---  | --- | --- |
-| Call Counter | `agent_svid`, `rotate` |
-| Sample | `cache_manager`, `expiring_svids` |
-| Sample | `cache_manager`, `outdated_svids` |
-| Call Counter | `manager`, `sync`, `fetch_entries_updates` |
-| Call Counter | `manager`, `sync`, `fetch_svids_updates` |
-| Call Counter | `node`, `attestor`, `new_svid` |
-| Counter | `sds_api`, `connections` |
-| Counter | `sds_api`, `connections` |
-| Counter | `workload_api`, `bundles_update`, `jwt` |
-| Counter | `workload_api`, `connections` |
-| Counter | `workload_api`, `connections` |
-| Sample | `workload_api`, `discovered_selectors` |
-| Call Counter | `workload_api`, `fetch_jwt_bundles` | `svid_type` |
-| Counter | `workload_api`, `fetch_jwt_bundles` |
-| Gauge | `workload_api`, `fetch_jwt_svid`, `ttl` | `spiffe_id` |
-| Call Counter | `workload_api`, `fetch_jwt_svid` | `svid_type` |
-| Gauge | `workload_api`, `fetch_x509_svid`, `ttl` | `spiffe_id` |
-| Call Counter | `workload_api`, `fetch_x509_svid` | `svid_type` |
-| Measure Since | `workload_api`, `send_jwt_bundle_latency` |
-| Measure Since | `workload_api`, `svid_response_latency`, `fetch` |
-| Counter | `workload_api`, `validate_jwt_svids` | `subject`, `audience` |
-| Counter | `workload_api`, `validate_jwt_svids` |
-| Call Counter | `workload_api`, `workload_attestation` |
-| Call Counter | `workload_api`, `workload_attestor` | `attestor` |
-| Gauge | `started` | `version` |
+| Type | Keys | Labels | Description |
+| ---  | --- | --- | --- |
+| Call Counter | `agent_key_manager`, `generate_key_pair` | | The KeyManager is generating a key pair.
+| Call Counter | `agent_key_manager`, `fetch_private_key` | | The KeyManager is fetching a private key.
+| Call Counter | `agent_key_manager`, `store_private_key` | | The KeyManager is storing a private key.
+| Call Counter | `agent_svid`, `rotate` | | The Agent's SVID is being rotated.
+| Sample | `cache_manager`, `expiring_svids` | | The number of expiring SVIDs that the Cache Manager has.
+| Sample | `cache_manager`, `outdated_svids` | | The number of outdated SVIDs that the Cache Manager has.
+| Call Counter | `manager`, `sync`, `fetch_entries_updates` | | The Sync Manager is fetching entries updates.
+| Call Counter | `manager`, `sync`, `fetch_svids_updates` | | The Sync Manager is fetching SVIDs updates.
+| Call Counter | `node`, `attestor`, `new_svid` | | The Node Attestor is calling to get an SVID.
+| Counter | `sds_api`, `connections` | | The SDS API has successfully established a connection.
+| Counter | `sds_api`, `connections` | | The number of active connection that the SDS API has.
+| Counter | `workload_api`, `bundles_update`, `jwt` | | The Workload API has successfully updated a JWT bundle.
+| Counter | `workload_api`, `connection` | | The Workload API has successfully established a new connection.
+| Gauge | `workload_api`, `connections` | | The number of active connections that the Workload API has. 
+| Sample | `workload_api`, `discovered_selectors` | | The number of selectors discovered during a workload attestation process.
+| Call Counter | `workload_api`, `fetch_jwt_bundles` | `svid_type` | The Workload API is fetching JWT bundles.
+| Counter | `workload_api`, `fetch_jwt_bundles` | | The Workload API has successfully fetched JWT bundles.
+| Call Counter | `workload_api`, `fetch_jwt_svid` | `svid_type` | The Workload API is fetching a JWT SVID.
+| Call Counter | `workload_api`, `fetch_x509_svid` | `svid_type` | The Workload API is fetching an X.509 SVID.
+| Measure Since | `workload_api`, `send_jwt_bundle_latency` | | The time that the Workload API took to send a JWT bundle.
+| Measure Since | `workload_api`, `svid_response_latency`, `fetch` | | The time that the Workload API took to fetch an X.509 SVID.
+| Counter | `workload_api`, `validate_jwt_svids` | `subject`, `audience` | The Workload API has successfully validated a JWT SVID.
+| Counter | `workload_api`, `validate_jwt_svids` | | The workload API has encountered an error while validating an SVID.
+| Call Counter | `workload_api`, `workload_attestation` | | The Workload API is performing a workload attestation.
+| Call Counter | `workload_api`, `workload_attestor` | `attestor` | The Workload API is invoking a given attestor.
+| Gauge | `started` | `version` | The version of the Agent.
+
+Note: These are the keys and labels that SPIRE emits, but the format of the metric once ingested could vary depending on the metric collector. E.g. once in StatsD, the metric emitted when rotating an Agent SVID (`agent_svid`, `rotate`) can be found as `spire_agent_agent_svid_rotate_internal_host-agent-0`, where `host-agent-0` is the hostname and `spire-agent` is the service name.
