@@ -580,8 +580,8 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
-						Code:    int32(codes.Internal),
-						Message: "failed to delete federated bundle: rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries",
+						Code:    int32(codes.FailedPrecondition),
+						Message: "failed to delete federated bundle: datastore-sql: cannot delete bundle; federated with 1 registration entries",
 					},
 					TrustDomain: "td1.org",
 				},
@@ -710,7 +710,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to delete federated bundle",
 					Data: logrus.Fields{
-						logrus.ErrorKey:                     "datasource fails",
+						logrus.ErrorKey:                     "rpc error: code = Internal desc = datasource fails",
 						telemetry.DeleteFederatedBundleMode: "RESTRICT",
 						telemetry.TrustDomainID:             td1.String(),
 					},
@@ -727,7 +727,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			},
 			expectDSBundles: dsBundles,
 			trustDomains:    []string{td1.String()},
-			dsError:         errors.New("datasource fails"),
+			dsError:         status.New(codes.Internal, "datasource fails").Err(),
 		},
 	} {
 		tt := tt
@@ -851,7 +851,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			jwtKey:         jwtKey1,
 			rateLimiterErr: status.Error(codes.Internal, "limit error"),
 			code:           codes.Internal,
-			err:            "rejecting request due to key publishing rate limiting: rpc error: code = Internal desc = limit error",
+			err:            "rejecting request due to key publishing rate limiting: limit error",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,

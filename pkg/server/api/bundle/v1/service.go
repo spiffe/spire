@@ -454,7 +454,9 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, log logrus.FieldLog
 		TrustDomainId: td.IDString(),
 		Mode:          mode,
 	})
-	switch status.Code(err) {
+
+	code := status.Code(err)
+	switch code {
 	case codes.OK:
 		return &bundle.BatchDeleteFederatedBundleResponse_Result{
 			Status:      api.OK(),
@@ -468,7 +470,7 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, log logrus.FieldLog
 	default:
 		return &bundle.BatchDeleteFederatedBundleResponse_Result{
 			TrustDomain: trustDomain,
-			Status:      api.MakeStatus(log, codes.Internal, "failed to delete federated bundle", err),
+			Status:      api.MakeStatus(log, code, "failed to delete federated bundle", err),
 		}
 	}
 }
