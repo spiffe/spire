@@ -40,10 +40,9 @@ type agentPathTemplateData struct {
 
 // Client is a factory for generating client handshake objects.
 type Client struct {
-	cert            *ssh.Certificate
-	signer          ssh.Signer
-	trustDomain     string
-	canonicalDomain string
+	cert        *ssh.Certificate
+	signer      ssh.Signer
+	trustDomain string
 }
 
 // Server is a factory for generating server handshake objects.
@@ -58,9 +57,6 @@ type Server struct {
 type ClientConfig struct {
 	HostKeyPath  string `hcl:"host_key_path"`
 	HostCertPath string `hcl:"host_cert_path"`
-	// CanonicalDomain specifies the domain suffix for validating the hostname against
-	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
-	CanonicalDomain string `hcl:"canonical_domain"`
 }
 
 // ServerConfig configures the server.
@@ -96,10 +92,9 @@ func NewClient(trustDomain, configString string) (*Client, error) {
 		return nil, Errorf("failed to get cert and signer from pem: %v", err)
 	}
 	return &Client{
-		cert:            cert,
-		signer:          signer,
-		trustDomain:     trustDomain,
-		canonicalDomain: config.CanonicalDomain,
+		cert:        cert,
+		signer:      signer,
+		trustDomain: trustDomain,
 	}, nil
 }
 
