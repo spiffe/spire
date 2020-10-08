@@ -17,12 +17,9 @@ import (
 )
 
 // Major TODOS:
-// - input validations
-// - config validation
+// - request input validations
 // - error embellishment and wrapping
-// - move kmsClient into another file plus the init of it. Similar to https://github.com/spiffe/spire/blob/cff72a54c3d3a688d789fb43fd8c5ee830be92e3/pkg/server/plugin/upstreamauthority/awspca/pca_client.go
-// - kms client fake
-// - testing
+// - testing - Andres-GC
 
 var (
 	kmsErr = errs.Class("kms")
@@ -253,16 +250,26 @@ func (p *Plugin) processKMSKey(ctx context.Context, awsKeyID *string) error {
 	return nil
 }
 
+// validateConfig returns an error if any configuration provided does not meet acceptable criteria
 func validateConfig(c string) (*Config, error) {
 	config := new(Config)
+
 	if err := hcl.Decode(config, c); err != nil {
 		return nil, kmsErr.New("unable to decode configuration: %v", err)
 	}
 
-	// TODO: validate
-	// if config.SomeValue == "" {
-	// 	return nil, errors.New("some_value is required")
-	// }
+	if config.AccessKeyID == "" {
+		return nil, kmsErr.New("configuration is missing an access key id")
+	}
+
+	if config.SecretAccessKey == "" {
+		return nil, kmsErr.New("configuration is missing a secret access key")
+	}
+
+	if config.Region == "" {
+		return nil, kmsErr.New("configuration is missing a region")
+	}
+
 	return config, nil
 }
 
