@@ -12,6 +12,7 @@ type marshalConfig struct {
 	refreshHint    time.Duration
 	noX509SVIDKeys bool
 	noJWTSVIDKeys  bool
+	standardJWKS   bool
 }
 
 type MarshalOption interface {
@@ -48,6 +49,14 @@ func NoJWTSVIDKeys() MarshalOption {
 	})
 }
 
+// StandardJWKS omits SPIFFE-specific parameters from the marshaled bundle
+func StandardJWKS() MarshalOption {
+	return marshalOption(func(c *marshalConfig) error {
+		c.standardJWKS = true
+		return nil
+	})
+}
+
 func Marshal(bundle *Bundle, opts ...MarshalOption) ([]byte, error) {
 	c := &marshalConfig{
 		refreshHint: bundle.RefreshHint(),
@@ -58,29 +67,41 @@ func Marshal(bundle *Bundle, opts ...MarshalOption) ([]byte, error) {
 		}
 	}
 
-	doc := bundleDoc{
-		RefreshHint: int(c.refreshHint / time.Second),
+	var jwks jose.JSONWebKeySet
+	maybeUse := func(use string) string {
+		if !c.standardJWKS {
+			return use
+		}
+		return ""
 	}
 
 	if !c.noX509SVIDKeys {
 		for _, rootCA := range bundle.RootCAs() {
-			doc.Keys = append(doc.Keys, jose.JSONWebKey{
+			jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
 				Key:          rootCA.PublicKey,
 				Certificates: []*x509.Certificate{rootCA},
-				Use:          x509SVIDUse,
+				Use:          maybeUse(x509SVIDUse),
 			})
 		}
 	}
 
 	if !c.noJWTSVIDKeys {
 		for keyID, jwtSigningKey := range bundle.JWTSigningKeys() {
-			doc.Keys = append(doc.Keys, jose.JSONWebKey{
+			jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
 				Key:   jwtSigningKey,
 				KeyID: keyID,
-				Use:   jwtSVIDUse,
+				Use:   maybeUse(jwtSVIDUse),
 			})
 		}
 	}
 
-	return json.MarshalIndent(doc, "", "    ")
+	var out interface{} = jwks
+	if !c.standardJWKS {
+		out = bundleDoc{
+			JSONWebKeySet: jwks,
+			RefreshHint:   int(c.refreshHint / time.Second),
+		}
+	}
+
+	return json.MarshalIndent(out, "", "    ")
 }
