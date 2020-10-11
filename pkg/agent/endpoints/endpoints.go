@@ -6,7 +6,7 @@ import (
 	"net"
 	"os"
 
-	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sds"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
@@ -89,7 +89,7 @@ func (e *Endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 		DefaultSVIDName:   e.c.DefaultSVIDName,
 		DefaultBundleName: e.c.DefaultBundleName,
 	})
-	sds_v2.RegisterSecretDiscoveryServiceServer(server, h)
+	secret_v3.RegisterSecretDiscoveryServiceServer(server, h)
 }
 
 func (e *Endpoints) createUDSListener() (net.Listener, error) {
