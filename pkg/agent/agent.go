@@ -13,7 +13,8 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
-	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
+	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
+	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -94,10 +95,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	endpoints, err := a.newEndpoints(cat, metrics, manager)
-	if err != nil {
-		return fmt.Errorf("failed to create endpoints: %v", err)
-	}
+	endpoints := a.newEndpoints(cat, metrics, manager)
 
 	if err := healthChecks.AddCheck("agent", a, time.Minute); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
@@ -181,8 +179,8 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*attestor.AttestationResult, error) {
-	config := attestor.Config{
+func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
+	config := node_attestor.Config{
 		Catalog:               cat,
 		Metrics:               metrics,
 		JoinToken:             a.c.JoinToken,
@@ -196,10 +194,10 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 		CreateNewAgentClient:  agent.NewAgentClient,
 		CreateNewBundleClient: bundle.NewBundleClient,
 	}
-	return attestor.New(&config).Attest(ctx)
+	return node_attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *attestor.AttestationResult) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:            as.SVID,
 		SVIDKey:         as.Key,
@@ -222,23 +220,20 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 	return mgr, nil
 }
 
-func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) (endpoints.Server, error) {
-	td, err := spiffeid.TrustDomainFromURI(&a.c.TrustDomain)
-	if err != nil {
-		return nil, err
-	}
-	config := &endpoints.Config{
-		BindAddr:          a.c.BindAddress,
-		Catalog:           cat,
+func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
+	return endpoints.New(endpoints.Config{
+		BindAddr: a.c.BindAddress,
+		Attestor: workload_attestor.New(&workload_attestor.Config{
+			Catalog: cat,
+			Log:     a.c.Log.WithField(telemetry.SubsystemName, telemetry.WorkloadAttestor),
+			Metrics: metrics,
+		}),
 		Manager:           mgr,
 		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:           metrics,
 		DefaultSVIDName:   a.c.DefaultSVIDName,
 		DefaultBundleName: a.c.DefaultBundleName,
-		TrustDomain:       td,
-	}
-
-	return endpoints.New(config), nil
+	})
 }
 
 func (a *Agent) newAdminEndpoints(mgr manager.Manager) (admin_api.Server, error) {

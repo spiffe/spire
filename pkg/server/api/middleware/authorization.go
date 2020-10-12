@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,7 +23,7 @@ type Authorizer interface {
 	AuthorizeCaller(ctx context.Context) (context.Context, error)
 }
 
-func WithAuthorization(authorizers map[string]Authorizer) Middleware {
+func WithAuthorization(authorizers map[string]Authorizer) middleware.Middleware {
 	return &authorizationMiddleware{
 		authorizers: authorizers,
 	}
@@ -51,7 +52,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 
 	authorizer, ok := m.authorizers[methodName]
 	if !ok {
-		logMisconfiguration(ctx, "Authorization misconfigured (method not registered); this is a bug")
+		middleware.LogMisconfiguration(ctx, "Authorization misconfigured (method not registered); this is a bug")
 		return nil, status.Errorf(codes.Internal, "authorization misconfigured for %q (method not registered)", methodName)
 	}
 	return authorizer.AuthorizeCaller(ctx)

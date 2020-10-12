@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -40,7 +41,7 @@ func (a anyOfAuthorizer) Name() string {
 
 func (a anyOfAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
 	if len(a.authorizers) == 0 {
-		logMisconfiguration(ctx, "Authorization misconfigured (no authorizers); this is a bug")
+		middleware.LogMisconfiguration(ctx, "Authorization misconfigured (no authorizers); this is a bug")
 		return nil, status.Error(codes.Internal, "authorization misconfigured (no authorizers)")
 	}
 

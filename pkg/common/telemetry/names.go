@@ -286,9 +286,6 @@ const (
 	// SerialNumber tags a certificate serial number
 	SerialNumber = "serial_num"
 
-	// SDSPID tags an SDS PID
-	SDSPID = "sds_pid"
-
 	// Slot X509 CA Slot ID
 	Slot = "slot"
 

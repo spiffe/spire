@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

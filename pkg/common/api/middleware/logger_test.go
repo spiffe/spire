@@ -6,8 +6,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/server/api/middleware"
-	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 )

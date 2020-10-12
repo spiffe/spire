@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,14 +15,12 @@ import (
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
-	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
 	mock_manager "github.com/spiffe/spire/test/mock/agent/manager"
 	mock_cache "github.com/spiffe/spire/test/mock/agent/manager/cache"
 	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
@@ -30,8 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 )
 
 var (
@@ -41,6 +39,9 @@ uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
 KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 -----END PRIVATE KEY-----
 `))
+
+	log, _ = test.NewNullLogger()
+	ctx    = rpccontext.WithLogger(context.Background(), log)
 )
 
 func TestHandler(t *testing.T) {
@@ -50,31 +51,26 @@ func TestHandler(t *testing.T) {
 type HandlerTestSuite struct {
 	spiretest.Suite
 
-	h    *Handler
+	h    workload.SpiffeWorkloadAPIServer
 	ctrl *gomock.Controller
 
-	attestor *fakeworkloadattestor.WorkloadAttestor
+	attestor *FakeAttestor
 	manager  *mock_manager.MockManager
 	metrics  *mock_telemetry.MockMetrics
 }
 
 func (s *HandlerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
-	log, _ := test.NewNullLogger()
 
-	s.attestor = fakeworkloadattestor.New()
+	s.attestor = &FakeAttestor{}
 	s.manager = mock_manager.NewMockManager(mockCtrl)
 	s.metrics = mock_telemetry.NewMockMetrics(mockCtrl)
 
-	catalog := fakeagentcatalog.New()
-	catalog.SetWorkloadAttestors(fakeagentcatalog.WorkloadAttestor("fake", s.attestor))
-
-	h := &Handler{
-		Manager: s.manager,
-		Catalog: catalog,
-		Log:     log,
-		Metrics: s.metrics,
-	}
+	h := New(Config{
+		Manager:  s.manager,
+		Attestor: s.attestor,
+		Metrics:  s.metrics,
+	})
 
 	s.h = h
 	s.ctrl = mockCtrl
@@ -85,20 +81,10 @@ func (s *HandlerTestSuite) TearDownTest() {
 }
 
 func (s *HandlerTestSuite) TestFetchX509SVID() {
-	// Without the security header
-	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(s.ctrl)
-	stream.EXPECT().Context().Return(context.Background())
-	err := s.h.FetchX509SVID(nil, stream)
-	s.Assert().Error(err)
-
-	// Without PID data
-	ctx := makeContext(0)
-	stream.EXPECT().Context().Return(ctx)
-	err = s.h.FetchX509SVID(nil, stream)
-	s.Assert().Error(err)
-
-	ctx, cancel := context.WithCancel(makeContext(1))
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(s.ctrl)
 
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
 	subscriber := mock_cache.NewMockSubscriber(s.ctrl)
@@ -107,13 +93,12 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error, 1)
 	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.SetSelectors(1, selectors)
+	s.attestor.SetSelectors(selectors)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(gomock.Any())
 
 	statusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
 
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		statusLabel,
@@ -147,6 +132,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 }
 
 func (s *HandlerTestSuite) TestSendX509Response() {
+	log, _ := test.NewNullLogger()
 	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(s.ctrl)
 	emptyUpdate := new(cache.WorkloadUpdate)
 	stream.EXPECT().Send(gomock.Any()).Times(0)
@@ -158,10 +144,10 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.Metrics)
+	err := sendX509SVIDResponse(emptyUpdate, stream, s.metrics, log)
 	s.Assert().Error(err)
 
-	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
+	resp, err := composeX509SVIDResponse(s.workloadUpdate())
 	s.Require().NoError(err)
 	stream.EXPECT().Send(resp)
 
@@ -174,7 +160,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.Metrics)
+	err = sendX509SVIDResponse(s.workloadUpdate(), stream, s.metrics, log)
 	s.Assert().NoError(err)
 }
 
@@ -196,7 +182,7 @@ func (s *HandlerTestSuite) TestComposeX509Response() {
 		},
 	}
 
-	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
+	resp, err := composeX509SVIDResponse(s.workloadUpdate())
 	s.Assert().NoError(err)
 	s.Assert().Equal(apiMsg, resp)
 }
@@ -205,41 +191,23 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	audience := []string{"foo"}
 
 	// request missing audience
-	resp, err := s.h.FetchJWTSVID(context.Background(), &workload.JWTSVIDRequest{})
+	resp, err := s.h.FetchJWTSVID(ctx, &workload.JWTSVIDRequest{})
 	s.requireErrorContains(err, "audience must be specified")
-	s.Require().Nil(resp)
-
-	// missing security header
-	resp, err = s.h.FetchJWTSVID(context.Background(), &workload.JWTSVIDRequest{
-		Audience: audience,
-	})
-	s.requireErrorContains(err, "Security header missing from request")
-	s.Require().Nil(resp)
-
-	// missing peer info
-	resp, err = s.h.FetchJWTSVID(makeContext(0), &workload.JWTSVIDRequest{
-		Audience: audience,
-	})
-	s.requireErrorContains(err, "unable to fetch watcher from context")
 	s.Require().Nil(resp)
 
 	// no identity issued
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	s.attestor.SetSelectors(1, selectors)
+	s.attestor.SetSelectors(selectors)
 	s.manager.EXPECT().MatchingIdentities(selectors).Return(nil)
 
-	statusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.PermissionDenied.String()}
-	attestorStatusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
+		{Name: telemetry.Status, Value: codes.PermissionDenied.String()},
 	}
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
+	resp, err = s.h.FetchJWTSVID(ctx, &workload.JWTSVIDRequest{
 		Audience: audience,
 	})
 	s.requireErrorContains(err, "no identity issued")
@@ -258,25 +226,22 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 			},
 		},
 	}
-	s.attestor.SetSelectors(1, selectors)
+	s.attestor.SetSelectors(selectors)
 	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
 	ONE := &client.JWTSVID{Token: "ONE"}
 	TWO := &client.JWTSVID{Token: "TWO"}
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/one", audience).Return(ONE, nil)
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
-	statusLabel = telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
+		{Name: telemetry.Status, Value: codes.OK.String()},
 	}
 
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
+	resp, err = s.h.FetchJWTSVID(ctx, &workload.JWTSVIDRequest{
 		Audience: audience,
 	})
 	s.Require().NoError(err)
@@ -294,21 +259,18 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	}, resp)
 
 	// fetch SVIDs for specific SPIFFE ID
-	s.attestor.SetSelectors(1, selectors)
+	s.attestor.SetSelectors(selectors)
 	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
-	statusLabel = telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
 	labels = []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
+		{Name: telemetry.Status, Value: codes.OK.String()},
 	}
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
+	resp, err = s.h.FetchJWTSVID(ctx, &workload.JWTSVIDRequest{
 		SpiffeId: "spiffe://example.org/two",
 		Audience: audience,
 	})
@@ -323,35 +285,11 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	}, resp)
 }
 
-func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsCount int, statusLabel telemetry.Label) {
-	attestationLabels := []telemetry.Label{{Name: telemetry.Status, Value: "OK"}}
-	attestorLabels := []telemetry.Label{{Name: telemetry.Attestor, Value: "fake"}, statusLabel}
-
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor}, float32(1), attestorLabels)
-	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor, telemetry.ElapsedTime}, gomock.Any(), attestorLabels)
-	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(selectorsCount))
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestation}, float32(1), attestationLabels)
-	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestation, telemetry.ElapsedTime}, gomock.Any(), attestationLabels)
-	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connection}, float32(1))
-	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(1))
-	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(0))
-}
-
 func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchJWTBundlesServer(s.ctrl)
 
-	// missing security header
-	stream.EXPECT().Context().Return(context.Background())
-	err := s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream)
-	s.requireErrorContains(err, "Security header missing from request")
-
-	// missing peer info
-	stream.EXPECT().Context().Return(makeContext(0))
-	err = s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream)
-	s.requireErrorContains(err, "unable to fetch watcher from context")
-
 	// success
-	ctx, cancel := context.WithCancel(makeContext(1))
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
 	subscriber := mock_cache.NewMockSubscriber(s.ctrl)
@@ -360,7 +298,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error, 1)
 	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.SetSelectors(1, selectors)
+	s.attestor.SetSelectors(selectors)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(&workload.JWTBundlesResponse{
 		Bundles: map[string][]byte{
@@ -369,12 +307,9 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 		},
 	})
 
-	statusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
 	labels := []telemetry.Label{
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
+		{Name: telemetry.Status, Value: codes.OK.String()},
 	}
 	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, float32(1))
 	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate, telemetry.JWT}, float32(1))
@@ -411,7 +346,7 @@ func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
 	s.Require().NoError(err)
 
 	// no bundles in update
-	resp, err := s.h.composeJWTBundlesResponse(&cache.WorkloadUpdate{})
+	resp, err := composeJWTBundlesResponse(&cache.WorkloadUpdate{})
 	s.Require().NoError(err)
 	s.Require().Empty(resp.Bundles)
 
@@ -430,7 +365,7 @@ func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
 		TrustDomainId: "spiffe://no-keys.test",
 	})
 	s.Require().NoError(err)
-	resp, err = s.h.composeJWTBundlesResponse(&cache.WorkloadUpdate{
+	resp, err = composeJWTBundlesResponse(&cache.WorkloadUpdate{
 		Bundle: hasKeysBundle,
 		FederatedBundles: map[string]*bundleutil.Bundle{
 			"spiffe://no-keys.test": noKeysBundle,
@@ -456,8 +391,7 @@ func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
 
 func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	s.attestor.SetSelectors(1, selectors)
-	attestorStatusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
+	s.attestor.SetSelectors(selectors)
 
 	// build up bundle that has the JWT signing public key
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
@@ -499,7 +433,6 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 
 	testCases := []struct {
 		name           string
-		ctx            context.Context
 		req            *workload.ValidateJWTSVIDRequest
 		workloadUpdate *cache.WorkloadUpdate
 		code           codes.Code
@@ -509,7 +442,6 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	}{
 		{
 			name: "no audience",
-			ctx:  makeContext(1),
 			req: &workload.ValidateJWTSVIDRequest{
 				Svid: "svid",
 			},
@@ -518,7 +450,6 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 		},
 		{
 			name: "no svid",
-			ctx:  makeContext(1),
 			req: &workload.ValidateJWTSVIDRequest{
 				Audience: "audience",
 			},
@@ -526,28 +457,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 			msg:  "svid must be specified",
 		},
 		{
-			name: "missing security header",
-			ctx:  context.Background(),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     "svid",
-			},
-			code: codes.InvalidArgument,
-			msg:  "Security header missing from request",
-		},
-		{
-			name: "missing peer info",
-			ctx:  makeContext(0),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     "svid",
-			},
-			code: codes.Internal,
-			msg:  "Is this a supported system? Please report this bug: unable to fetch watcher from context",
-		},
-		{
 			name: "malformed token",
-			ctx:  makeContext(1),
 			req: &workload.ValidateJWTSVIDRequest{
 				Audience: "audience",
 				Svid:     "svid",
@@ -558,7 +468,6 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 		},
 		{
 			name: "validated by our trust domain bundle",
-			ctx:  makeContext(1),
 			req: &workload.ValidateJWTSVIDRequest{
 				Audience: "audience",
 				Svid:     svid,
@@ -575,7 +484,6 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 		},
 		{
 			name: "validated by our trust domain bundle",
-			ctx:  makeContext(1),
 			req: &workload.ValidateJWTSVIDRequest{
 				Audience: "audience",
 				Svid:     svid,
@@ -594,7 +502,6 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 		},
 		{
 			name: "validate token without an issuer",
-			ctx:  makeContext(1),
 			req: &workload.ValidateJWTSVIDRequest{
 				Audience: "audience",
 				Svid:     svidNoIssuer,
@@ -618,7 +525,6 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 				// is expecting to successfully attest (i.e. return a
 				// workload update)
 				s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(testCase.workloadUpdate)
-				setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
 				if len(testCase.labels) > 0 {
 					s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), testCase.labels)
 				} else {
@@ -630,7 +536,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 				}
 			}
 
-			resp, err := s.h.ValidateJWTSVID(testCase.ctx, testCase.req)
+			resp, err := s.h.ValidateJWTSVID(ctx, testCase.req)
 			if testCase.code != codes.OK {
 				spiretest.RequireGRPCStatus(t, err, testCase.code, testCase.msg)
 				require.Nil(t, resp)
@@ -713,25 +619,6 @@ func (s *HandlerTestSuite) TestStructFromValues() {
 	s.Require().Equal(expected, actual)
 }
 
-func (s *HandlerTestSuite) TestPeerWatcher() {
-	p := &peer.Peer{
-		AuthInfo: peertracker.AuthInfo{
-			Watcher: FakeWatcher{},
-		},
-	}
-	ctx := peer.NewContext(context.Background(), p)
-
-	watcher, err := s.h.peerWatcher(ctx)
-	s.Assert().NoError(err)
-	s.Assert().Equal(int32(1), watcher.PID())
-
-	// Implementation error - custom auth creds not in use
-	p.AuthInfo = nil
-	ctx = peer.NewContext(context.Background(), p)
-	_, err = s.h.peerWatcher(ctx)
-	s.Assert().Error(err)
-}
-
 func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 	svid, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
@@ -763,26 +650,24 @@ func (s *HandlerTestSuite) requireErrorContains(err error, contains string) {
 	s.Require().Contains(err.Error(), contains)
 }
 
-func makeContext(pid int) context.Context {
-	header := metadata.Pairs("workload.spiffe.io", "true")
-	ctx := context.Background()
-	ctx = metadata.NewIncomingContext(ctx, header)
-
-	if pid > 0 {
-		ctx = peer.NewContext(ctx, &peer.Peer{
-			AuthInfo: peertracker.AuthInfo{
-				Watcher: FakeWatcher{},
-			},
-		})
-	}
-
-	return ctx
+type FakeAttestor struct {
+	mu        sync.RWMutex
+	selectors []*common.Selector
 }
 
-type FakeWatcher struct{}
+func (a *FakeAttestor) SetSelectors(sels []*common.Selector) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.selectors = sels
+}
 
-func (w FakeWatcher) Close() {}
+func (a *FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
-func (w FakeWatcher) IsAlive() error { return nil }
+	if a.selectors == nil {
+		return nil, errors.New("failed to attest")
+	}
 
-func (w FakeWatcher) PID() int32 { return 1 }
+	return a.selectors, nil
+}

@@ -16,10 +16,10 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -154,12 +154,9 @@ type HandlerSuite struct {
 }
 
 func (s *HandlerSuite) SetupTest() {
-	log, _ := test.NewNullLogger()
-
 	s.manager = NewFakeManager(s.T())
-	handler := NewHandler(HandlerConfig{
-		Log: log, Attestor: NewFakeAttestor(s.T()),
-		Metrics:           telemetry.Blackhole{},
+	handler := New(Config{
+		Attestor:          FakeAttestor(workloadSelectors),
 		Manager:           s.manager,
 		DefaultSVIDName:   "default",
 		DefaultBundleName: "ROOTCA",
@@ -175,7 +172,12 @@ func (s *HandlerSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.handler = secret_v3.NewSecretDiscoveryServiceClient(conn)
 
-	server := grpc.NewServer(grpc.Creds(FakeCreds{}))
+	log, _ := test.NewNullLogger()
+	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.WithLogger(log))
+	server := grpc.NewServer(grpc.Creds(FakeCreds{}),
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
+	)
 	secret_v3.RegisterSecretDiscoveryServiceServer(server, handler)
 	go func() { _ = server.Serve(listener) }()
 	s.server = server
@@ -532,19 +534,10 @@ func (s *HandlerSuite) requireSecrets(resp *discovery_v3.DiscoveryResponse, expe
 	s.Require().Equal(expectedSecrets, actualSecrets)
 }
 
-type FakeAttestor struct {
-	t *testing.T
-}
+type FakeAttestor []*common.Selector
 
-func NewFakeAttestor(t *testing.T) *FakeAttestor {
-	return &FakeAttestor{
-		t: t,
-	}
-}
-
-func (a *FakeAttestor) Attest(ctx context.Context, pid int32) []*common.Selector {
-	require.Equal(a.t, int32(123), pid)
-	return workloadSelectors
+func (a FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+	return ([]*common.Selector)(a), nil
 }
 
 type FakeManager struct {
