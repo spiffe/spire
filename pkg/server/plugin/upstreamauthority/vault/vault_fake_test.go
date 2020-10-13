@@ -30,6 +30,7 @@ pki_mount_point = "test-pki"
 ca_cert_path = "_test_data/keys/EC/root_cert.pem"
 cert_auth {
    cert_auth_mount_point = "test-cert-auth"
+   cert_auth_role_name = "test"
    client_cert_path = "_test_data/keys/EC/client_cert.pem"
    client_key_path  = "_test_data/keys/EC/client_key.pem"
 }`
