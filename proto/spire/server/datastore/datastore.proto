@@ -131,13 +131,11 @@ message GetNodeSelectorsResponse {
 message ListNodeSelectorsRequest {
     // When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
     bool tolerate_stale = 1;
-    Pagination pagination = 2;
     google.protobuf.Timestamp valid_at = 3;
 }
 
 message ListNodeSelectorsResponse{
     repeated NodeSelectors selectors = 1;
-    Pagination pagination = 2;
 }
 
 /////////////////////////////////////////////////////////////////////////////
