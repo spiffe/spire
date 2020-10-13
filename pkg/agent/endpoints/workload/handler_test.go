@@ -442,7 +442,6 @@ func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
 		"keys": [
 			{
 				"kid":"kid",
-				"use":"jwt-svid",
 				"kty":"EC",
 				"crv":"P-256",
 				"x":"YSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw-5WKJwngEL0",
