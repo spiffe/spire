@@ -34,7 +34,12 @@ func NewAPIServer(t *testing.T, registerFn func(s *grpc.Server), contextFn func(
 	done := func() {
 		assert.NoError(t, conn.Close())
 		server.Stop()
-		assert.NoError(t, <-errCh)
+		err := <-errCh
+		switch {
+		case err == nil, err == grpc.ErrServerStopped:
+		default:
+			t.Fatal(err)
+		}
 	}
 	return conn, done
 }

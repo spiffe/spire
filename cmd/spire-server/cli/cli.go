@@ -27,13 +27,13 @@ func (cc *CLI) Run(args []string) int {
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
 		"agent evict": func() (cli.Command, error) {
-			return &agent.EvictCLI{}, nil
+			return agent.NewEvictCommand(), nil
 		},
 		"agent list": func() (cli.Command, error) {
-			return &agent.ListCLI{}, nil
+			return agent.NewListCommand(), nil
 		},
 		"agent show": func() (cli.Command, error) {
-			return &agent.ShowCLI{}, nil
+			return agent.NewShowCommand(), nil
 		},
 		"bundle show": func() (cli.Command, error) {
 			return bundle.NewShowCommand(), nil
