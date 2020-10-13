@@ -155,8 +155,7 @@ const (
 	// DNS name is a name which is resolvable with DNS
 	DNSName = "dns_name"
 
-	// ElapsedTime tags some duration of time. Reserved for use in telemetry package on
-	// call counters. Exported for tests only.
+	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
 	// Error tag for some error that occurred. Limited usage, such as logging errors at
