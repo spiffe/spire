@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 
 	"golang.org/x/net/context"
 )
@@ -55,21 +55,26 @@ func (d DeleteCLI) Run(args []string) int {
 		return d.printErr(err)
 	}
 
-	cl, err := util.NewRegistrationClient(config.RegistrationUDSPath)
+	srvCl, err := util.NewServerClient(config.RegistrationUDSPath)
 	if err != nil {
 		return d.printErr(err)
 	}
+	cl := srvCl.NewEntryClient()
 
-	req := &registration.RegistrationEntryID{
-		Id: config.EntryID,
+	req := &entry.BatchDeleteEntryRequest{
+		Ids: []string{config.EntryID},
 	}
-	e, err := cl.DeleteEntry(ctx, req)
+	resp, err := cl.BatchDeleteEntry(ctx, req)
 	if err != nil {
 		return d.printErr(err)
 	}
+	r := resp.Results[0]
+	if r.Status.Code != 0 {
+		return d.printErr(fmt.Errorf("failed to delete entry: %s", r.Status.Message))
+	}
 
-	fmt.Printf("Deleted the following entry:\n\n")
-	printEntry(e)
+	fmt.Printf("Deleted entry with ID: %s\n", config.EntryID)
+
 	return 0
 }
 

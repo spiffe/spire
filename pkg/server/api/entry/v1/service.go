@@ -163,6 +163,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	if err != nil {
 		return &entry.BatchCreateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
+			Entry:  e,
 		}
 	}
 
@@ -172,6 +173,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	if err != nil {
 		return &entry.BatchCreateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to list entries", err),
+			Entry:  e,
 		}
 	}
 
@@ -186,6 +188,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 		if err != nil {
 			return &entry.BatchCreateEntryResponse_Result{
 				Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
+				Entry:  e,
 			}
 		}
 		regEntry = resp.Entry
@@ -197,6 +200,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	if err != nil {
 		return &entry.BatchCreateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry", err),
+			Entry:  e,
 		}
 	}
 
@@ -378,6 +382,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	if err != nil {
 		return &entry.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
+			Entry:  e,
 		}
 	}
 
@@ -403,6 +408,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	if err != nil {
 		return &entry.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to update entry", err),
+			Entry:  e,
 		}
 	}
 
@@ -410,6 +416,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	if err != nil {
 		return &entry.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry in updateEntry", err),
+			Entry:  e,
 		}
 	}
 

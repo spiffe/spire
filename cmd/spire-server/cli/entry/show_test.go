@@ -5,9 +5,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
-	mock_registration "github.com/spiffe/spire/test/mock/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
+	mock_entry "github.com/spiffe/spire/test/mock/proto/api/entry"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -19,19 +19,19 @@ type ShowTestSuite struct {
 	suite.Suite
 
 	cli        *ShowCLI
-	mockClient *mock_registration.MockRegistrationClient
+	mockClient *mock_entry.MockEntryClient
 }
 
 func (s *ShowTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 	defer mockCtrl.Finish()
 
-	s.mockClient = mock_registration.NewMockRegistrationClient(mockCtrl)
+	s.mockClient = mock_entry.NewMockEntryClient(mockCtrl)
 
 	cli := &ShowCLI{
 		Config:  new(ShowConfig),
 		Client:  s.mockClient,
-		Entries: []*common.RegistrationEntry{},
+		Entries: []*types.Entry{},
 	}
 	s.cli = cli
 }
@@ -44,11 +44,11 @@ func (s *ShowTestSuite) TestRunWithEntryID() {
 		entryID,
 	}
 
-	req := &registration.RegistrationEntryID{Id: entryID}
+	req := &entry.GetEntryRequest{Id: entryID}
 	resp := s.registrationEntries(1)[0]
-	s.mockClient.EXPECT().FetchEntry(gomock.Any(), req).Return(resp, nil)
+	s.mockClient.EXPECT().GetEntry(gomock.Any(), req).Return(resp, nil)
 
-	s.Require().Equal(0, s.cli.Run(args))
+	s.Require().Zero(s.cli.Run(args))
 	s.Assert().Equal(s.registrationEntries(1), s.cli.Entries)
 }
 
@@ -57,33 +57,40 @@ func (s *ShowTestSuite) TestRunWithParentID() {
 
 	args := []string{
 		"-parentID",
-		entries[0].ParentId,
+		protoToIDString(entries[0].ParentId),
 	}
 
-	req := &registration.ParentID{Id: entries[0].ParentId}
-	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListByParentID(gomock.Any(), req).Return(resp, nil)
+	req := &entry.ListEntriesRequest{
+		Filter: &entry.ListEntriesRequest_Filter{
+			ByParentId: entries[0].ParentId,
+		},
+	}
+	resp := &entry.ListEntriesResponse{Entries: entries}
+	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
 
-	s.Require().Equal(0, s.cli.Run(args))
+	s.Require().Zero(s.cli.Run(args))
 
-	util.SortRegistrationEntries(entries)
+	util.SortTypesEntries(entries)
 	s.Assert().Equal(entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithSpiffeID() {
 	entries := s.registrationEntries(1)
-	entry := entries[0]
 
 	args := []string{
 		"-spiffeID",
-		entry.SpiffeId,
+		protoToIDString(entries[0].SpiffeId),
 	}
 
-	req := &registration.SpiffeID{Id: entry.SpiffeId}
-	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySpiffeID(gomock.Any(), req).Return(resp, nil)
+	req := &entry.ListEntriesRequest{
+		Filter: &entry.ListEntriesRequest_Filter{
+			BySpiffeId: entries[0].SpiffeId,
+		},
+	}
+	resp := &entry.ListEntriesResponse{Entries: entries}
+	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
 
-	s.Require().Equal(0, s.cli.Run(args))
+	s.Require().Zero(s.cli.Run(args))
 	s.Assert().Equal(entries, s.cli.Entries)
 }
 
@@ -95,17 +102,25 @@ func (s *ShowTestSuite) TestRunWithSelector() {
 		"foo:bar",
 	}
 
-	req := &common.Selectors{
-		Entries: []*common.Selector{
-			{Type: "foo", Value: "bar"},
+	req := &entry.ListEntriesRequest{
+		Filter: &entry.ListEntriesRequest_Filter{
+			BySelectors: &types.SelectorMatch{
+				Match: types.SelectorMatch_MATCH_SUBSET,
+				Selectors: []*types.Selector{
+					{Type: "foo", Value: "bar"},
+				},
+			},
 		},
 	}
-	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySelectors(gomock.Any(), req).Return(resp, nil)
 
-	s.Require().Equal(0, s.cli.Run(args))
+	resp := &entry.ListEntriesResponse{
+		Entries: entries,
+	}
+	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
 
-	util.SortRegistrationEntries(entries)
+	s.Require().Zero(s.cli.Run(args))
+
+	util.SortTypesEntries(entries)
 	s.Assert().Equal(entries, s.cli.Entries)
 }
 
@@ -119,17 +134,23 @@ func (s *ShowTestSuite) TestRunWithSelectors() {
 		"bar:baz",
 	}
 
-	req := &common.Selectors{
-		Entries: []*common.Selector{
-			{Type: "foo", Value: "bar"},
-			{Type: "bar", Value: "baz"},
+	req := &entry.ListEntriesRequest{
+		Filter: &entry.ListEntriesRequest_Filter{
+			BySelectors: &types.SelectorMatch{
+				Match: types.SelectorMatch_MATCH_SUBSET,
+				Selectors: []*types.Selector{
+					{Type: "foo", Value: "bar"},
+					{Type: "bar", Value: "baz"},
+				},
+			},
 		},
 	}
-	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySelectors(gomock.Any(), req).Return(resp, nil)
 
-	s.Require().Equal(0, s.cli.Run(args))
-	s.Assert().Equal(entries[1:2], s.cli.Entries)
+	resp := &entry.ListEntriesResponse{Entries: entries[1:2]}
+	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
+
+	s.Require().Zero(s.cli.Run(args))
+	s.Assert().Equal(resp.Entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
@@ -137,84 +158,88 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 
 	args := []string{
 		"-parentID",
-		entries[0].ParentId,
+		protoToIDString(entries[0].ParentId),
 		"-selector",
 		"bar:baz",
 	}
 
-	req1 := &registration.ParentID{Id: entries[0].ParentId}
-	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListByParentID(gomock.Any(), req1).Return(resp, nil)
-
-	req2 := &common.Selectors{
-		Entries: []*common.Selector{
-			{Type: "bar", Value: "baz"},
+	req := &entry.ListEntriesRequest{
+		Filter: &entry.ListEntriesRequest_Filter{
+			ByParentId: entries[0].ParentId,
+			BySelectors: &types.SelectorMatch{
+				Match: types.SelectorMatch_MATCH_SUBSET,
+				Selectors: []*types.Selector{
+					{Type: "bar", Value: "baz"},
+				},
+			},
 		},
 	}
-	resp = &common.RegistrationEntries{Entries: entries[0:1]}
-	s.mockClient.EXPECT().ListBySelectors(gomock.Any(), req2).Return(resp, nil)
 
-	s.Require().Equal(0, s.cli.Run(args))
+	resp := &entry.ListEntriesResponse{Entries: entries[0:1]}
+	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
 
-	expectEntries := entries[0:1]
-	util.SortRegistrationEntries(expectEntries)
-	s.Assert().Equal(expectEntries, s.cli.Entries)
+	s.Require().Zero(s.cli.Run(args))
+
+	s.Assert().Equal(resp.Entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithFederatesWith() {
-	resp := &common.RegistrationEntries{
+	req := &entry.ListEntriesRequest{
+		Filter: &entry.ListEntriesRequest_Filter{},
+	}
+	resp := &entry.ListEntriesResponse{
 		Entries: s.registrationEntries(4),
 	}
-	s.mockClient.EXPECT().FetchEntries(gomock.Any(), &common.Empty{}).Return(resp, nil)
+
+	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
 
 	args := []string{
 		"-federatesWith",
 		"spiffe://domain.test",
 	}
 
-	s.Require().Equal(0, s.cli.Run(args))
+	s.Require().Zero(s.cli.Run(args))
 
 	expectEntries := s.registrationEntries(4)[2:3]
-	util.SortRegistrationEntries(expectEntries)
 	s.Assert().Equal(expectEntries, s.cli.Entries)
 }
 
 // registrationEntries returns `count` registration entry records. At most 4.
-func (ShowTestSuite) registrationEntries(count int) []*common.RegistrationEntry {
-	selectors := []*common.Selector{
+func (ShowTestSuite) registrationEntries(count int) []*types.Entry {
+	selectors := []*types.Selector{
 		{Type: "foo", Value: "bar"},
 		{Type: "bar", Value: "baz"},
 		{Type: "baz", Value: "bat"},
 	}
-	entries := []*common.RegistrationEntry{
+	entries := []*types.Entry{
 		{
-			ParentId:  "spiffe://example.org/father",
-			SpiffeId:  "spiffe://example.org/son",
-			Selectors: []*common.Selector{selectors[0]},
-			EntryId:   "00000000-0000-0000-0000-000000000000",
+			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/son"},
+			Selectors: []*types.Selector{selectors[0]},
+			Id:        "00000000-0000-0000-0000-000000000000",
 		},
 		{
-			ParentId:  "spiffe://example.org/father",
-			SpiffeId:  "spiffe://example.org/daughter",
-			Selectors: []*common.Selector{selectors[0], selectors[1]},
-			EntryId:   "00000000-0000-0000-0000-000000000001",
+			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+			Selectors: []*types.Selector{selectors[0], selectors[1]},
+			Id:        "00000000-0000-0000-0000-000000000001",
 		},
 		{
-			ParentId:      "spiffe://example.org/mother",
-			SpiffeId:      "spiffe://example.org/daughter",
-			Selectors:     []*common.Selector{selectors[1], selectors[2]},
-			EntryId:       "00000000-0000-0000-0000-000000000002",
+			ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
+			SpiffeId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+			Selectors:     []*types.Selector{selectors[1], selectors[2]},
+			Id:            "00000000-0000-0000-0000-000000000002",
 			FederatesWith: []string{"spiffe://domain.test"},
 		},
 		{
-			ParentId:  "spiffe://example.org/mother",
-			SpiffeId:  "spiffe://example.org/son",
-			Selectors: []*common.Selector{selectors[2]},
-			EntryId:   "00000000-0000-0000-0000-000000000003",
+			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/son"},
+			Selectors: []*types.Selector{selectors[2]},
+			Id:        "00000000-0000-0000-0000-000000000003",
 		},
 	}
 
-	e := []*common.RegistrationEntry{}
+	e := []*types.Entry{}
 	for i := 0; i < count; i++ {
 		e = append(e, entries[i])
 	}

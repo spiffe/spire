@@ -1,16 +1,14 @@
 package entry
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 
 	"golang.org/x/net/context"
 )
@@ -130,9 +128,9 @@ func (c CreateCLI) Run(args []string) int {
 		return 1
 	}
 
-	var entries []*common.RegistrationEntry
+	var entries []*types.Entry
 	if config.Path != "" {
-		entries, err = c.parseFile(config.Path)
+		entries, err = parseFile(config.Path)
 	} else {
 		entries, err = c.parseConfig(config)
 	}
@@ -141,11 +139,12 @@ func (c CreateCLI) Run(args []string) int {
 		return 1
 	}
 
-	cl, err := util.NewRegistrationClient(config.RegistrationUDSPath)
+	srvCl, err := util.NewServerClient(config.RegistrationUDSPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
+	cl := srvCl.NewEntryClient()
 
 	err = c.registerEntries(ctx, cl, entries)
 	if err != nil {
@@ -157,28 +156,34 @@ func (c CreateCLI) Run(args []string) int {
 }
 
 // parseConfig builds a registration entry from the given config
-func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntry, error) {
-	e := &common.RegistrationEntry{
-		ParentId:    config.ParentID,
-		SpiffeId:    config.SpiffeID,
-		Ttl:         int32(config.TTL),
-		Downstream:  config.Downstream,
-		EntryExpiry: config.EntryExpiry,
-		DnsNames:    config.DNSNames,
+func (c CreateCLI) parseConfig(config *CreateConfig) ([]*types.Entry, error) {
+	spiffeID, err := idStringToProto(config.SpiffeID)
+	if err != nil {
+		return nil, err
 	}
 
-	// If the node flag is set, then set the Parent ID to the server's expected SPIFFE ID
+	parentID := &types.SPIFFEID{}
 	if config.Node {
-		id, err := idutil.ParseSpiffeID(e.SpiffeId, idutil.AllowAny())
+		// If the node flag is set, then set the Parent ID to the server's expected SPIFFE ID
+		parentID.TrustDomain = spiffeID.TrustDomain
+		parentID.Path = "/spire/server"
+	} else {
+		parentID, err = idStringToProto(config.ParentID)
 		if err != nil {
 			return nil, err
 		}
-
-		id.Path = "/spire/server"
-		e.ParentId = id.String()
 	}
 
-	selectors := []*common.Selector{}
+	e := &types.Entry{
+		ParentId:   parentID,
+		SpiffeId:   spiffeID,
+		Ttl:        int32(config.TTL),
+		Downstream: config.Downstream,
+		ExpiresAt:  config.EntryExpiry,
+		DnsNames:   config.DNSNames,
+	}
+
+	selectors := []*types.Selector{}
 	for _, s := range config.Selectors {
 		cs, err := parseSelector(s)
 		if err != nil {
@@ -191,34 +196,37 @@ func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntr
 	e.Selectors = selectors
 	e.FederatesWith = config.FederatesWith
 	e.Admin = config.Admin
-	return []*common.RegistrationEntry{e}, nil
+	return []*types.Entry{e}, nil
 }
 
-func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
-	entries := &common.RegistrationEntries{}
-
-	dat, err := ioutil.ReadFile(path)
+func (CreateCLI) registerEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) error {
+	resp, err := c.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	if err := json.Unmarshal(dat, &entries); err != nil {
-		return nil, err
-	}
-	return entries.Entries, nil
-}
-
-func (CreateCLI) registerEntries(ctx context.Context, c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
-	for _, e := range entries {
-		id, err := c.CreateEntry(ctx, e)
-		if err != nil {
-			fmt.Println("FAILED to create the following entry:")
-			printEntry(e)
-			return err
+	failed := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
+	succeeded := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
+	for _, r := range resp.Results {
+		if r.Status.Code != 0 {
+			failed = append(failed, r)
+		} else {
+			succeeded = append(succeeded, r)
 		}
+	}
 
-		e.EntryId = id.Id
-		printEntry(e)
+	// Print entries that succeeded to be created
+	for _, r := range succeeded {
+		printEntry(r.Entry)
+	}
+
+	// Print entries that failed to be created
+	if len(failed) > 0 {
+		fmt.Printf("FAILED to create the following %s:\n", util.Pluralizer("", "entry", "entries", len(failed)))
+	}
+	for _, r := range failed {
+		printEntry(r.Entry)
+		fmt.Printf("Reason: %s\n\n", r.Status.Message)
 	}
 
 	return nil

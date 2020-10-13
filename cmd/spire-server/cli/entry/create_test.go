@@ -4,7 +4,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,11 +69,11 @@ func TestCreateParseConfig(t *testing.T) {
 	entries, err := CreateCLI{}.parseConfig(c)
 	require.NoError(t, err)
 
-	expectedEntry := &common.RegistrationEntry{
-		ParentId: "spiffe://example.org/foo",
-		SpiffeId: "spiffe://example.org/bar",
+	expectedEntry := &types.Entry{
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 		Ttl:      60,
-		Selectors: []*common.Selector{
+		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "gid:1000"},
 		},
@@ -80,11 +81,11 @@ func TestCreateParseConfig(t *testing.T) {
 			"spiffe://domain1.test",
 			"spiffe://domain2.test",
 		},
-		Admin:       true,
-		EntryExpiry: 1552410266,
+		Admin:     true,
+		ExpiresAt: 1552410266,
 	}
 
-	expectedEntries := []*common.RegistrationEntry{expectedEntry}
+	expectedEntries := []*types.Entry{expectedEntry}
 	assert.Equal(t, expectedEntries, entries)
 }
 
@@ -100,54 +101,54 @@ func TestCreateNodeParseConfig(t *testing.T) {
 	entries, err := CreateCLI{}.parseConfig(c)
 	require.NoError(t, err)
 
-	expectedEntry := &common.RegistrationEntry{
-		ParentId: "spiffe://example.org/spire/server",
-		SpiffeId: "spiffe://example.org/bar",
+	expectedEntry := &types.Entry{
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/server"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 		Ttl:      60,
-		Selectors: []*common.Selector{
+		Selectors: []*types.Selector{
 			{Type: "aws", Value: "sg:sg-12345"},
 		},
 		Admin: false,
 	}
 
-	expectedEntries := []*common.RegistrationEntry{expectedEntry}
+	expectedEntries := []*types.Entry{expectedEntry}
 	assert.Equal(t, expectedEntries, entries)
 }
 
 func TestRegisterParseFile(t *testing.T) {
 	p := path.Join(util.ProjectRoot(), "test/fixture/registration/good.json")
-	entries, err := CreateCLI{}.parseFile(p)
+	entries, err := parseFile(p)
 	require.NoError(t, err)
 
-	entry1 := &common.RegistrationEntry{
-		Selectors: []*common.Selector{
+	entry1 := &types.Entry{
+		Selectors: []*types.Selector{
 			{
 				Type:  "unix",
 				Value: "uid:1111",
 			},
 		},
-		SpiffeId: "spiffe://example.org/Blog",
-		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
 		Ttl:      200,
 		Admin:    true,
 	}
-	entry2 := &common.RegistrationEntry{
-		Selectors: []*common.Selector{
+	entry2 := &types.Entry{
+		Selectors: []*types.Selector{
 			{
 				Type:  "unix",
 				Value: "uid:1111",
 			},
 		},
-		SpiffeId: "spiffe://example.org/Database",
-		ParentId: "spiffe://example.org/spire/agent/join_token/TokenDatabase",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
 		Ttl:      200,
 	}
 
-	expectedEntries := []*common.RegistrationEntry{
+	expectedEntries := []*types.Entry{
 		entry1,
 		entry2,
 	}
-	assert.Equal(t, expectedEntries, entries)
+	spiretest.AssertProtoListEqual(t, expectedEntries, entries)
 }
 
 func TestRegisterParseSelector(t *testing.T) {

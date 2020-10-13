@@ -1,16 +1,14 @@
 package entry
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 
 	"golang.org/x/net/context"
 )
@@ -124,9 +122,9 @@ func (c UpdateCLI) Run(args []string) int {
 		return 1
 	}
 
-	var entries []*common.RegistrationEntry
+	var entries []*types.Entry
 	if config.Path != "" {
-		entries, err = c.parseFile(config.Path)
+		entries, err = parseFile(config.Path)
 	} else {
 		entries, err = c.parseConfig(config)
 	}
@@ -135,11 +133,12 @@ func (c UpdateCLI) Run(args []string) int {
 		return 1
 	}
 
-	cl, err := util.NewRegistrationClient(config.RegistrationUDSPath)
+	srvCl, err := util.NewServerClient(config.RegistrationUDSPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
+	cl := srvCl.NewEntryClient()
 
 	err = c.registerEntries(ctx, cl, entries)
 	if err != nil {
@@ -151,18 +150,27 @@ func (c UpdateCLI) Run(args []string) int {
 }
 
 // parseConfig builds a registration entry from the given config
-func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*common.RegistrationEntry, error) {
-	e := &common.RegistrationEntry{
-		EntryId:     config.EntryID,
-		ParentId:    config.ParentID,
-		SpiffeId:    config.SpiffeID,
-		Ttl:         int32(config.TTL),
-		Downstream:  config.Downstream,
-		EntryExpiry: config.EntryExpiry,
-		DnsNames:    config.DNSNames,
+func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*types.Entry, error) {
+	parentID, err := idStringToProto(config.ParentID)
+	if err != nil {
+		return nil, err
+	}
+	spiffeID, err := idStringToProto(config.SpiffeID)
+	if err != nil {
+		return nil, err
 	}
 
-	selectors := []*common.Selector{}
+	e := &types.Entry{
+		Id:         config.EntryID,
+		ParentId:   parentID,
+		SpiffeId:   spiffeID,
+		Ttl:        int32(config.TTL),
+		Downstream: config.Downstream,
+		ExpiresAt:  config.EntryExpiry,
+		DnsNames:   config.DNSNames,
+	}
+
+	selectors := []*types.Selector{}
 	for _, s := range config.Selectors {
 		cs, err := parseSelector(s)
 		if err != nil {
@@ -175,35 +183,39 @@ func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*common.RegistrationEntr
 	e.Selectors = selectors
 	e.FederatesWith = config.FederatesWith
 	e.Admin = config.Admin
-	return []*common.RegistrationEntry{e}, nil
+	return []*types.Entry{e}, nil
 }
 
-func (UpdateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
-	entries := &common.RegistrationEntries{}
-
-	dat, err := ioutil.ReadFile(path)
+func (UpdateCLI) registerEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) error {
+	resp, err := c.BatchUpdateEntry(ctx, &entry.BatchUpdateEntryRequest{
+		Entries: entries,
+	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	if err := json.Unmarshal(dat, &entries); err != nil {
-		return nil, err
-	}
-	return entries.Entries, nil
-}
-
-func (UpdateCLI) registerEntries(ctx context.Context, c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
-	for _, e := range entries {
-		updated, err := c.UpdateEntry(ctx, &registration.UpdateEntryRequest{
-			Entry: e,
-		})
-		if err != nil {
-			fmt.Println("FAILED to update the following entry:")
-			printEntry(e)
-			return err
+	failed := make([]*entry.BatchUpdateEntryResponse_Result, 0, len(resp.Results))
+	succeeded := make([]*entry.BatchUpdateEntryResponse_Result, 0, len(resp.Results))
+	for _, r := range resp.Results {
+		if r.Status.Code != 0 {
+			failed = append(failed, r)
+		} else {
+			succeeded = append(succeeded, r)
 		}
+	}
 
-		printEntry(updated)
+	// Print entries that succeeded to be updated
+	for _, e := range succeeded {
+		printEntry(e.Entry)
+	}
+
+	// Print entries that failed to be updated
+	if len(failed) > 0 {
+		fmt.Printf("FAILED to update the following %s:\n", util.Pluralizer("", "entry", "entries", len(failed)))
+	}
+	for _, r := range failed {
+		printEntry(r.Entry)
+		fmt.Printf("Reason: %s\n", r.Status.Message)
 	}
 
 	return nil

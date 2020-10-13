@@ -565,6 +565,12 @@ func TestBatchCreateEntry(t *testing.T) {
 						Code:    int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid DNS name: empty or only whitespace",
 					},
+					Entry: &types.Entry{
+						ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "agent"},
+						SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/malformed"},
+						Selectors: []*types.Selector{{Type: "type", Value: "value"}},
+						DnsNames:  []string{""},
+					},
 				},
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
@@ -733,6 +739,9 @@ func TestBatchCreateEntry(t *testing.T) {
 						Code:    int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty",
 					},
+					Entry: &types.Entry{
+						ParentId: &types.SPIFFEID{TrustDomain: "", Path: "path"},
+					},
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -768,6 +777,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						Code:    int32(codes.Internal),
 						Message: "failed to create entry: creating error",
 					},
+					Entry: testEntry,
 				},
 			},
 
@@ -794,6 +804,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						Code:    int32(codes.Internal),
 						Message: "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
+					Entry: testEntry,
 				},
 			},
 
@@ -1665,6 +1676,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid spiffe ID: spiffeid: trust domain is empty"},
+					Entry: &types.Entry{SpiffeId: &types.SPIFFEID{TrustDomain: "", Path: "/invalid"}},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1695,6 +1707,9 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty"},
+					Entry: &types.Entry{
+						ParentId: &types.SPIFFEID{TrustDomain: "", Path: "/invalid"},
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1725,6 +1740,9 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty"},
+					Entry: &types.Entry{
+						ParentId: &types.SPIFFEID{TrustDomain: "", Path: ""},
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1755,6 +1773,9 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid spiffe ID: spiffeid: trust domain is empty"},
+					Entry: &types.Entry{
+						SpiffeId: &types.SPIFFEID{TrustDomain: "", Path: ""},
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1785,6 +1806,9 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: selector list is empty"},
+					Entry: &types.Entry{
+						Selectors: []*types.Selector{},
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1815,6 +1839,9 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.Internal), Message: "failed to update entry: datastore error"},
+					Entry: &types.Entry{
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {

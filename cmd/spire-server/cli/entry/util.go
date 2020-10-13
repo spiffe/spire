@@ -1,54 +1,26 @@
 package entry
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"strings"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 )
-
-// hasSelectors takes a registration entry and a selector flag set. It returns
-// true if the registration entry possesses all selectors in the set. An error
-// is returned if we run into trouble parsing the selector flags.
-func hasSelectors(entry *common.RegistrationEntry, flags StringsFlag) (bool, error) {
-	for _, f := range flags {
-		selector, err := parseSelector(f)
-		if err != nil {
-			return false, err
-		}
-
-		if !hasSelector(entry, selector) {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-// hasSelector returns true if the given registration entry includes the
-// selector in question.
-func hasSelector(entry *common.RegistrationEntry, selector *common.Selector) bool {
-	var found bool
-
-	for _, s := range entry.Selectors {
-		if s.Type == selector.Type && s.Value == selector.Value {
-			found = true
-			break
-		}
-	}
-
-	return found
-}
 
 // parseSelector parses a CLI string from type:value into a selector type.
 // Everything to the right of the first ":" is considered a selector value.
-func parseSelector(str string) (*common.Selector, error) {
+func parseSelector(str string) (*types.Selector, error) {
 	parts := strings.SplitAfterN(str, ":", 2)
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("selector \"%s\" must be formatted as type:value", str)
 	}
 
-	s := &common.Selector{
+	s := &types.Selector{
 		// Strip the trailing delimiter
 		Type:  strings.TrimSuffix(parts[0], ":"),
 		Value: parts[1],
@@ -56,10 +28,10 @@ func parseSelector(str string) (*common.Selector, error) {
 	return s, nil
 }
 
-func printEntry(e *common.RegistrationEntry) {
-	fmt.Printf("Entry ID      : %s\n", e.EntryId)
-	fmt.Printf("SPIFFE ID     : %s\n", e.SpiffeId)
-	fmt.Printf("Parent ID     : %s\n", e.ParentId)
+func printEntry(e *types.Entry) {
+	fmt.Printf("Entry ID      : %s\n", e.Id)
+	fmt.Printf("SPIFFE ID     : %s\n", protoToIDString(e.SpiffeId))
+	fmt.Printf("Parent ID     : %s\n", protoToIDString(e.ParentId))
 	fmt.Printf("Revision      : %d\n", e.RevisionNumber)
 
 	if e.Downstream {
@@ -89,6 +61,36 @@ func printEntry(e *common.RegistrationEntry) {
 	}
 
 	fmt.Println()
+}
+
+func parseFile(path string) ([]*types.Entry, error) {
+	dat, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	commonEntries := &common.RegistrationEntries{}
+	if err := json.Unmarshal(dat, &commonEntries); err != nil {
+		return nil, err
+	}
+
+	return api.RegistrationEntriesToProto(commonEntries.Entries)
+}
+
+func idStringToProto(id string) (*types.SPIFFEID, error) {
+	idType, err := spiffeid.FromString(id)
+	if err != nil {
+		return nil, err
+	}
+	return &types.SPIFFEID{
+		TrustDomain: idType.TrustDomain().String(),
+		Path:        idType.Path(),
+	}, nil
+}
+
+// ProtoToIDString converts types.SPIFFEID into an ID string
+func protoToIDString(id *types.SPIFFEID) string {
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }
 
 // StringsFlag defines a custom type for string lists. Doing

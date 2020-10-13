@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 )
 
 func DedupRegistrationEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
@@ -84,6 +85,72 @@ func compareSelectors(a, b []*common.Selector) int {
 }
 
 func compareSelector(a, b *common.Selector) int {
+	c := strings.Compare(a.Type, b.Type)
+	if c != 0 {
+		return c
+	}
+	return strings.Compare(a.Value, b.Value)
+}
+
+func SortTypesEntries(entries []*types.Entry) {
+	// first, sort the selectors for each entry, since the registration
+	// entry comparison relies on them being sorted
+	for _, entry := range entries {
+		SortTypesSelectors(entry.Selectors)
+	}
+
+	// second, sort the registration entries
+	sort.Slice(entries, func(i, j int) bool {
+		return compareTypesEntries(entries[i], entries[j]) < 0
+	})
+}
+
+func SortTypesSelectors(selectors []*types.Selector) {
+	sort.Slice(selectors, func(i, j int) bool {
+		return compareTypesSelector(selectors[i], selectors[j]) < 0
+	})
+}
+
+func compareTypesEntries(a, b *types.Entry) int {
+	// TODO: check if this string conversion is doing the right thing
+	c := strings.Compare(a.SpiffeId.String(), b.SpiffeId.String())
+	if c != 0 {
+		return c
+	}
+
+	// TODO: check if this string conversion is doing the right thing
+	c = strings.Compare(a.ParentId.String(), b.ParentId.String())
+	if c != 0 {
+		return c
+	}
+
+	switch {
+	case a.Ttl < b.Ttl:
+		return -1
+	case a.Ttl > b.Ttl:
+		return 1
+	}
+
+	return compareTypesSelectors(a.Selectors, b.Selectors)
+}
+
+func compareTypesSelectors(a, b []*types.Selector) int {
+	switch {
+	case len(a) < len(b):
+		return -1
+	case len(a) > len(b):
+		return 1
+	}
+	for i := range a {
+		c := compareTypesSelector(a[i], b[i])
+		if c != 0 {
+			return c
+		}
+	}
+	return 0
+}
+
+func compareTypesSelector(a, b *types.Selector) int {
 	c := strings.Compare(a.Type, b.Type)
 	if c != 0 {
 		return c
