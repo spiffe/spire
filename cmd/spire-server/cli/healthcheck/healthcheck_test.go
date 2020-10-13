@@ -70,20 +70,20 @@ Usage of health:
 `, s.stderr.String(), "stderr")
 }
 
-func (s *HealthCheckSuite) TestFailsIfBundleCannotBeFetched() {
+func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
 	code := s.cmd.Run([]string{"--registrationUDSPath", "doesnotexist.sock"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal("Server is unhealthy: unable to fetch bundle\n", s.stderr.String(), "stderr")
+	s.Equal("Server is unhealthy: cannot create registration client\n", s.stderr.String(), "stderr")
 }
 
-func (s *HealthCheckSuite) TestFailsIfBundleCannotBeFetchedVerbose() {
+func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
 	code := s.cmd.Run([]string{"--registrationUDSPath", "doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Fetching bundle via Registration API...
 `, s.stdout.String(), "stdout")
-	s.Equal(`Failed to fetch bundle: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix doesnotexist.sock: connect: no such file or directory"
-Server is unhealthy: unable to fetch bundle
+	s.Equal(`Failed to create client: connection error: desc = "transport: error while dialing: dial unix doesnotexist.sock: connect: no such file or directory"
+Server is unhealthy: cannot create registration client
 `, s.stderr.String(), "stderr")
 }
 

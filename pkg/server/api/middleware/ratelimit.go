@@ -44,7 +44,13 @@ type rawRateLimiter interface {
 // NoLimit returns a rate limiter that does not rate limit. It is used to
 // configure methods that don't do rate limiting.
 func NoLimit() api.RateLimiter {
-	return noopLimiter{}
+	return noLimit{}
+}
+
+// DisabledLimit returns a rate limiter that does not rate limit. It is used to
+// configure methods where rate limiting has been disabled by configuration.
+func DisabledLimit() api.RateLimiter {
+	return disabledLimit{}
 }
 
 // PerCallLimit returns a rate limiter that imposes a server-wide limit for
@@ -82,17 +88,16 @@ func WithRateLimits(rateLimits map[string]api.RateLimiter) Middleware {
 	}
 }
 
-type noopLimiter struct{}
+type noLimit struct{}
 
-func (noopLimiter) RateLimit(ctx context.Context, count int) error {
+func (noLimit) RateLimit(ctx context.Context, count int) error {
 	return nil
 }
 
-func (noopLimiter) Noop() bool { return true }
+type disabledLimit struct{}
 
-func isNoopLimiter(rateLimiter api.RateLimiter) bool {
-	noop, ok := rateLimiter.(interface{ Noop() bool })
-	return ok && noop.Noop()
+func (disabledLimit) RateLimit(ctx context.Context, count int) error {
+	return nil
 }
 
 type perCallLimiter struct {
@@ -217,20 +222,32 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string
 		return
 	}
 
-	noop := isNoopLimiter(wrapper.rateLimiter)
-	used := wrapper.Used()
+	logLimiterMisuse(ctx, wrapper.rateLimiter, wrapper.Used())
+}
 
-	switch {
-	case !noop && !used:
-		// The limiter was non-noop and went unused by the handler. This is a bug.
-		rpccontext.Logger(ctx).Error("Rate limiter went unused; this is a bug")
-	case !noop && used:
-		// The limiter was non-noop and was used. All is well.
-	case noop && !used:
-		// The limiter was noop and was not used. All is well.
-	case noop && used:
-		// The limiter was noop and was used. This is a bug.
-		rpccontext.Logger(ctx).Error("Rate limiter used unexpectedly; this is a bug")
+func logLimiterMisuse(ctx context.Context, rateLimiter api.RateLimiter, used bool) {
+	switch rateLimiter.(type) {
+	case noLimit:
+		// RPC should not invoke the rate limiter, since that would imply a
+		// misconfiguration. Either the RPC is wrong, or the middleware is
+		// wrong as to whether or not the RPC should rate limit.
+		if used {
+			rpccontext.Logger(ctx).Error("Rate limiter used unexpectedly; this is a bug")
+		}
+	case disabledLimit:
+		// RPC should invoke the rate limiter since is an RPC that is normally
+		// rate limited. The disabled limiter will not actually apply any
+		// limits but we want to make sure the RPC will be applying limits
+		// under normal conditions.
+		if !used {
+			rpccontext.Logger(ctx).Error("Disabled rate limiter went unused; this is a bug")
+		}
+	default:
+		// All other rate limiters should definitely be invoked by the RPC or
+		// it is a bug.
+		if !used {
+			rpccontext.Logger(ctx).Error("Rate limiter went unused; this is a bug")
+		}
 	}
 }
 
