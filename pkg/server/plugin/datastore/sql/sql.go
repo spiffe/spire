@@ -44,6 +44,8 @@ var (
 )
 
 const (
+	PluginName = "sql"
+
 	// MySQL database type
 	MySQL = "mysql"
 	// PostgreSQL database type
@@ -57,7 +59,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin("sql",
+	return catalog.MakePlugin(PluginName,
 		datastore.PluginServer(p),
 	)
 }

@@ -320,12 +320,21 @@ func (s *CatalogSuite) TestPluginsFill() {
 			},
 		},
 		{
+			"ignore struct tag",
+			func(r *require.Assertions) {
+				c := &struct {
+					IgnoreMe struct{} `catalog:"-"`
+				}{}
+				r.NoError(ps.Fill(c))
+			},
+		},
+		{
 			"bad struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
 					Plugins []catalogtest.Plugin `catalog:"BAD"`
 				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "BAD"`)
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": unrecognized catalog tag key "BAD"`)
 			},
 		},
 		{

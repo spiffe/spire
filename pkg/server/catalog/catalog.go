@@ -7,6 +7,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	common_log "github.com/spiffe/spire/pkg/common/log"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
@@ -40,6 +41,7 @@ import (
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 var (
@@ -89,7 +91,6 @@ type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 
 func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
-		datastore.PluginClient,
 		nodeattestor.PluginClient,
 		noderesolver.PluginClient,
 		upstreamauthority.PluginClient,
@@ -122,7 +123,9 @@ type UpstreamAuthority struct {
 }
 
 type Plugins struct {
-	DataStore         DataStore
+	// DataStore is not filled directly by the catalog plugins
+	DataStore DataStore `catalog:"-"`
+
 	NodeAttestors     map[string]nodeattestor.NodeAttestor
 	NodeResolvers     map[string]noderesolver.NodeResolver
 	UpstreamAuthority *UpstreamAuthority
@@ -175,7 +178,16 @@ type Repository struct {
 }
 
 func Load(ctx context.Context, config Config) (*Repository, error) {
-	pluginConfigs, err := catalog.PluginConfigFromHCL(config.PluginConfig)
+	// Strip out the Datastore plugin configuration and load the SQL plugin
+	// directly. This allows us to bypass gRPC and get rid of response limits.
+	dataStoreConfig := config.PluginConfig[datastore.Type]
+	delete(config.PluginConfig, datastore.Type)
+	ds, err := loadSQLDataStore(ctx, config.Log, dataStoreConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -198,11 +210,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	// The DataStore interface is no longer pluggable (see #1650).
-	if !p.DataStore.BuiltIn() {
-		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
-	}
-	p.DataStore.DataStore = datastore_telemetry.WithMetrics(p.DataStore.DataStore, config.Metrics)
+	p.DataStore.DataStore = datastore_telemetry.WithMetrics(ds, config.Metrics)
 	p.DataStore.DataStore = dscache.New(p.DataStore.DataStore, clock.New())
 	p.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
 
@@ -210,4 +218,37 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		Catalog: p,
 		Closer:  closer,
 	}, nil
+}
+
+func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (*ds_sql.Plugin, error) {
+	switch {
+	case len(datastoreConfig) == 0:
+		return nil, errors.New("expecting a DataStore plugin")
+	case len(datastoreConfig) > 1:
+		return nil, errors.New("only one DataStore plugin is allowed")
+	}
+
+	sqlHCLConfig, ok := datastoreConfig[ds_sql.PluginName]
+	if !ok {
+		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
+	}
+
+	sqlConfig, err := catalog.PluginConfigFromHCL(datastore.Type, ds_sql.PluginName, sqlHCLConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Is the plugin external?
+	if sqlConfig.Path != "" {
+		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
+	}
+
+	ds := ds_sql.New()
+	ds.SetLogger(common_log.NewHCLogAdapter(log, telemetry.PluginBuiltIn).Named(sqlConfig.Name))
+	if _, err := ds.Configure(ctx, &spi.ConfigureRequest{
+		Configuration: sqlConfig.Data,
+	}); err != nil {
+		return nil, err
+	}
+	return ds, nil
 }
