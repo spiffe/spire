@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -19,102 +21,95 @@ func NewMintCommand() cli.Command {
 	return newMintCommand(common_cli.DefaultEnv)
 }
 
-func newMintCommand(env *common_cli.Env) *mintCommand {
-	return &mintCommand{
-		env: env,
-	}
+func newMintCommand(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(mintCommand))
 }
 
 type mintCommand struct {
-	env *common_cli.Env
-
-	socketPath string
-	spiffeID   string
-	ttl        time.Duration
-	audience   common_cli.StringsFlag
-	write      string
+	spiffeID string
+	ttl      time.Duration
+	audience common_cli.StringsFlag
+	write    string
 }
 
-func (c *mintCommand) Help() string {
-	_ = c.parseFlags([]string{"-h"})
-	return ""
+func (c *mintCommand) Name() string {
+	return "jwt mint"
 }
-
 func (c *mintCommand) Synopsis() string {
 	return "Mints a JWT-SVID"
 }
 
-func (c *mintCommand) Run(args []string) int {
-	if err := c.parseFlags(args); err != nil {
-		return 1
-	}
-	if err := c.run(); err != nil {
-		c.env.ErrPrintf("error: %v\n", err)
-		return 1
-	}
-	return 0
-}
-
-func (c *mintCommand) parseFlags(args []string) error {
-	fs := flag.NewFlagSet("jwt mint", flag.ContinueOnError)
-	fs.SetOutput(c.env.Stderr)
-	fs.StringVar(&c.socketPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
+func (c *mintCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID of the JWT-SVID")
 	fs.DurationVar(&c.ttl, "ttl", 0, "TTL of the JWT-SVID")
 	fs.Var(&c.audience, "audience", "Audience claim that will be included in the SVID. Can be used more than once.")
 	fs.StringVar(&c.write, "write", "", "File to write token to instead of stdout")
-	return fs.Parse(args)
 }
 
-func (c *mintCommand) run() error {
+func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("spiffeID must be specified")
 	}
 	if len(c.audience) == 0 {
 		return errors.New("at least one audience must be specified")
 	}
-
-	client, err := util.NewRegistrationClient(c.env.JoinPath(c.socketPath))
+	spiffeID, err := spiffeid.FromString(c.spiffeID)
 	if err != nil {
-		return errors.New("cannot create registration client")
+		return err
 	}
 
-	resp, err := client.MintJWTSVID(context.Background(), &registration.MintJWTSVIDRequest{
-		SpiffeId: c.spiffeID,
+	client := serverClient.NewSVIDClient()
+	resp, err := client.MintJWTSVID(ctx, &svid.MintJWTSVIDRequest{Id: &types.SPIFFEID{
+		TrustDomain: spiffeID.TrustDomain().String(),
+		Path:        spiffeID.Path(),
+	},
 		Ttl:      ttlToSeconds(c.ttl),
 		Audience: c.audience,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to mint SVID: %v", err)
 	}
+	token := resp.Svid.Token
+	if err := c.validateToken(token, env); err != nil {
+		return err
+	}
 
-	if resp.Token == "" {
+	// Print in stdout
+	if c.write == "" {
+		if err := env.Println(token); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Save in file
+	tokenPath := env.JoinPath(c.write)
+	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+		return fmt.Errorf("unable to write token: %v", err)
+	}
+	if err := env.Printf("JWT-SVID written to %s\n", tokenPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *mintCommand) validateToken(token string, env *common_cli.Env) error {
+	if token == "" {
 		return errors.New("server response missing token")
 	}
 
-	if eol, err := getJWTSVIDEndOfLife(resp.Token); err != nil {
-		c.env.ErrPrintf("Unable to determine JWT-SVID lifetime: %v\n", err)
-	} else if time.Until(eol) < c.ttl {
-		c.env.ErrPrintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", eol.UTC().Format(time.RFC3339))
+	eol, err := getJWTSVIDEndOfLife(token)
+	if err != nil {
+		env.ErrPrintf("Unable to determine JWT-SVID lifetime: %v\n", err)
+		return nil
 	}
 
-	if c.write == "" {
-		if err := c.env.Println(resp.Token); err != nil {
-			return err
-		}
-	} else {
-		tokenPath := c.env.JoinPath(c.write)
-		if err := ioutil.WriteFile(tokenPath, []byte(resp.Token), 0600); err != nil {
-			return fmt.Errorf("unable to write token: %v", err)
-		}
-		if err := c.env.Printf("JWT-SVID written to %s\n", tokenPath); err != nil {
-			return err
-		}
+	if time.Until(eol) < c.ttl {
+		env.ErrPrintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", eol.UTC().Format(time.RFC3339))
 	}
 
 	return nil
 }
-
 func getJWTSVIDEndOfLife(token string) (time.Time, error) {
 	t, err := jwt.ParseSigned(token)
 	if err != nil {
