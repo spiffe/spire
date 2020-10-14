@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc"
 )
 
 func TestHealthCheck(t *testing.T) {
@@ -88,7 +89,9 @@ Server is unhealthy: cannot create registration client
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
-	socketPath := spiretest.StartBundleAPIOnTempSocket(s.T(), withBundle{})
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+		bundle.RegisterBundleServer(srv, withBundle{})
+	})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
@@ -96,7 +99,9 @@ func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetchedVerbose() {
-	socketPath := spiretest.StartBundleAPIOnTempSocket(s.T(), withBundle{})
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+		bundle.RegisterBundleServer(srv, withBundle{})
+	})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath, "--verbose"})
 	s.Equal(0, code, "exit code")
 	s.Equal(`Fetching bundle via Bundle API...
