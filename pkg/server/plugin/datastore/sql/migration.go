@@ -475,10 +475,7 @@ func migrateToV14(tx *gorm.DB) error {
 }
 
 func migrateToV15(tx *gorm.DB) error {
-	if err := addAttestedNodeEntriesExpiresAtIndex(tx); err != nil {
-		return err
-	}
-	return nil
+	return addAttestedNodeEntriesExpiresAtIndex(tx)
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
