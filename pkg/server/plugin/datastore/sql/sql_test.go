@@ -2920,6 +2920,10 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Empty(resp.Node.NewCertNotAfter)
 		case 13:
 			s.Require().True(s.sqlPlugin.db.Dialect().HasColumn("registered_entries", "revision_number"))
+		case 14:
+			db, err := openSQLite3(dbURI)
+			s.Require().NoError(err)
+			s.Require().True(db.Dialect().HasIndex("attested_node_entries", "idx_attested_node_entries_expires_at"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
