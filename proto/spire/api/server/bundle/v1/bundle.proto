@@ -183,8 +183,22 @@ message BatchSetFederatedBundleResponse {
 }
 
 message BatchDeleteFederatedBundleRequest {
+    // Mode controls the delete behavior if there are other records
+    // associated with the bundle (e.g. registration entries).
+    enum Mode {
+        // RESTRICT prevents the bundle from being deleted in the presence of associated entries
+        RESTRICT = 0;
+        // DELETE deletes the bundle and associated entries
+        DELETE = 1;
+        // DISSOCIATE deletes the bundle and dissociates associated entries
+        DISSOCIATE = 2;
+    }
+
     // The trust domain names (e.g., "example.org") of the bundles to delete.
     repeated string trust_domains = 1;
+
+    // The deletion mode selected  
+    Mode mode = 2;
 }
 
 message BatchDeleteFederatedBundleResponse {

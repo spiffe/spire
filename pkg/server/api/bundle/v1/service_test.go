@@ -523,16 +523,30 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		td2.IDString(),
 		td3.IDString(),
 	}
+	newEntry := &common.RegistrationEntry{
+		EntryId:  "entry1",
+		ParentId: "spiffe://example.org/foo",
+		SpiffeId: "spiffe://example.org/bar",
+		Ttl:      60,
+		Selectors: []*common.Selector{
+			{Type: "a", Value: "1"},
+		},
+		FederatesWith: []string{
+			td1.IDString(),
+		},
+	}
 
 	for _, tt := range []struct {
 		name string
 
+		entry           *common.RegistrationEntry
 		code            codes.Code
 		dsError         error
 		err             string
 		expectLogs      []spiretest.LogEntry
 		expectResults   []*bundlepb.BatchDeleteFederatedBundleResponse_Result
 		expectDSBundles []string
+		mode            bundlepb.BatchDeleteFederatedBundleRequest_Mode
 		trustDomains    []string
 	}{
 		{
@@ -550,14 +564,82 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			expectDSBundles: dsBundles,
 		},
 		{
+			name:  "failed to delete with RESTRICT mode",
+			entry: newEntry,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to delete federated bundle",
+					Data: logrus.Fields{
+						logrus.ErrorKey:                     "rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries",
+						telemetry.TrustDomainID:             "td1.org",
+						telemetry.DeleteFederatedBundleMode: "RESTRICT",
+					},
+				},
+			},
+			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.FailedPrecondition),
+						Message: "failed to delete federated bundle: datastore-sql: cannot delete bundle; federated with 1 registration entries",
+					},
+					TrustDomain: "td1.org",
+				},
+			},
+			mode:            bundlepb.BatchDeleteFederatedBundleRequest_RESTRICT,
+			trustDomains:    []string{td1.String()},
+			expectDSBundles: dsBundles,
+		},
+		{
+			name:  "delete with DISSOCIATE mode",
+			entry: newEntry,
+			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.OK),
+						Message: "OK",
+					},
+					TrustDomain: "td1.org",
+				},
+			},
+			mode:         bundlepb.BatchDeleteFederatedBundleRequest_DISSOCIATE,
+			trustDomains: []string{td1.String()},
+			expectDSBundles: []string{
+				serverTrustDomain.IDString(),
+				td2.IDString(),
+				td3.IDString(),
+			},
+		},
+		{
+			name:  "delete with DELETE mode",
+			entry: newEntry,
+			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.OK),
+						Message: "OK",
+					},
+					TrustDomain: "td1.org",
+				},
+			},
+			mode:         bundlepb.BatchDeleteFederatedBundleRequest_DELETE,
+			trustDomains: []string{td1.String()},
+			expectDSBundles: []string{
+				serverTrustDomain.IDString(),
+				td2.IDString(),
+				td3.IDString(),
+			},
+		},
+		{
 			name: "malformed trust domain",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: trust domain argument is not valid",
 					Data: logrus.Fields{
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
-						telemetry.TrustDomainID: "malformed TD",
+						logrus.ErrorKey:                     `spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
+						telemetry.TrustDomainID:             "malformed TD",
+						telemetry.DeleteFederatedBundleMode: "RESTRICT",
 					},
 				},
 			},
@@ -580,7 +662,8 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: removing the bundle for the server trust domain is not allowed",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: serverTrustDomain.String(),
+						telemetry.TrustDomainID:             serverTrustDomain.String(),
+						telemetry.DeleteFederatedBundleMode: "RESTRICT",
 					},
 				},
 			},
@@ -612,7 +695,8 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Bundle not found",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: "notfound.org",
+						telemetry.DeleteFederatedBundleMode: "RESTRICT",
+						telemetry.TrustDomainID:             "notfound.org",
 					},
 				},
 			},
@@ -626,8 +710,9 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to delete federated bundle",
 					Data: logrus.Fields{
-						logrus.ErrorKey:         "datasource fails",
-						telemetry.TrustDomainID: td1.String(),
+						logrus.ErrorKey:                     "rpc error: code = Internal desc = datasource fails",
+						telemetry.DeleteFederatedBundleMode: "RESTRICT",
+						telemetry.TrustDomainID:             td1.String(),
 					},
 				},
 			},
@@ -642,7 +727,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			},
 			expectDSBundles: dsBundles,
 			trustDomains:    []string{td1.String()},
-			dsError:         errors.New("datasource fails"),
+			dsError:         status.New(codes.Internal, "datasource fails").Err(),
 		},
 	} {
 		tt := tt
@@ -654,10 +739,20 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				_ = createBundle(t, test, td)
 			}
 
+			var entryID string
+			if tt.entry != nil {
+				r, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+					Entry: tt.entry,
+				})
+				require.NoError(t, err)
+				entryID = r.Entry.EntryId
+			}
+
 			// Set datastore error after creating the test bundles
 			test.ds.SetNextError(tt.dsError)
 			resp, err := test.client.BatchDeleteFederatedBundle(ctx, &bundlepb.BatchDeleteFederatedBundleRequest{
 				TrustDomains: tt.trustDomains,
+				Mode:         tt.mode,
 			})
 
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
@@ -686,6 +781,23 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				dsBundles = append(dsBundles, b.TrustDomainId)
 			}
 			require.Equal(t, tt.expectDSBundles, dsBundles)
+
+			if entryID != "" {
+				fetchEntryResp, err := test.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
+					EntryId: entryID,
+				})
+				require.NoError(t, err)
+				entry := fetchEntryResp.Entry
+
+				switch tt.mode {
+				case bundlepb.BatchDeleteFederatedBundleRequest_RESTRICT:
+					require.Equal(t, []string{td1.IDString()}, entry.FederatesWith)
+				case bundlepb.BatchDeleteFederatedBundleRequest_DISSOCIATE:
+					require.Empty(t, entry.FederatesWith)
+				case bundlepb.BatchDeleteFederatedBundleRequest_DELETE:
+					require.Nil(t, fetchEntryResp.Entry)
+				}
+			}
 		})
 	}
 }
@@ -739,7 +851,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			jwtKey:         jwtKey1,
 			rateLimiterErr: status.Error(codes.Internal, "limit error"),
 			code:           codes.Internal,
-			err:            "rejecting request due to key publishing rate limiting: rpc error: code = Internal desc = limit error",
+			err:            "rejecting request due to key publishing rate limiting: limit error",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
