@@ -80,4 +80,4 @@ telemetry {
 
 ### Supported metrics
 
-A list of the supported metrics can be found [here](telemetry.md).
+See the [Telemetry document](telemetry.md) for a list of all the supported metrics.
