@@ -19,6 +19,8 @@ spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
 | ------------- | ----------- | ----------------------- |
 | `cert_authorities` | A list of trusted CAs in ssh `authorized_keys` format. | |
 | `cert_authorities_path` | A file that contains a list of trusted CAs in ssh `authorized_keys` format. | |
+| `canonical_domain` | A domain suffix for validating the hostname against the certificate's valid principals. See CanonicalDomains in ssh_config(5). |
+| `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format. | `"{{ .PluginName}}/{{ .Fingerprint }}"` |
 
 If both `cert_authorities` and `cert_authorities_path` are configured, the resulting set of authorized keys is the union of both sets.
 
@@ -42,6 +44,12 @@ If both `cert_authorities` and `cert_authorities_path` are configured, the resul
         plugin_data {
             cert_authorities = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAWPAsKJ/qMYUIBeH7BLMRCE/bkUvMHX+7OZhANk45S"]
             cert_authorities_path = "./conf/server/dummy_ssh_cert_authority.pub"
+            
+            # Sensibly check the FQDN set in the certificate principals.
+            # canonical_domain = "example.com"
+
+            # Change the agent's SPIFFE ID format
+            # agent_path_template = "static/{{ index .ValidPrincipals 0 }}"
         }
     }
 ```
