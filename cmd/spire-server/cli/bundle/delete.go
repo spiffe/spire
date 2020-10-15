@@ -14,6 +14,12 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+const (
+	deleteBundleRestrict   = "restrict"
+	deleteBundleDissociate = "dissociate"
+	deleteBundleDelete     = "delete"
+)
+
 // NewDeleteCommand creates a new "delete" subcommand for "bundle" command.
 func NewDeleteCommand() cli.Command {
 	return newDeleteCommand(common_cli.DefaultEnv)
@@ -26,6 +32,9 @@ func newDeleteCommand(env *common_cli.Env) cli.Command {
 type deleteCommand struct {
 	// SPIFFE ID of the trust domain bundle
 	id string
+
+	// Deletion mode
+	mode string
 }
 
 func (c *deleteCommand) Name() string {
@@ -38,6 +47,7 @@ func (c *deleteCommand) Synopsis() string {
 
 func (c *deleteCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
+	fs.StringVar(&c.mode, "mode", deleteBundleRestrict, fmt.Sprintf("Deletion mode: one of %s, %s, or %s", deleteBundleRestrict, deleteBundleDelete, deleteBundleDissociate))
 }
 
 func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
@@ -50,8 +60,14 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return err
 	}
 
+	mode, err := deleteModeFromFlag(c.mode)
+	if err != nil {
+		return err
+	}
+
 	bundleClient := serverClient.NewBundleClient()
 	resp, err := bundleClient.BatchDeleteFederatedBundle(ctx, &bundle.BatchDeleteFederatedBundleRequest{
+		Mode: mode,
 		TrustDomains: []string{
 			id,
 		},
@@ -66,5 +82,18 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return nil
 	default:
 		return fmt.Errorf("failed to delete federated bundle %q: %s", result.TrustDomain, result.Status.Message)
+	}
+}
+
+func deleteModeFromFlag(mode string) (bundle.BatchDeleteFederatedBundleRequest_Mode, error) {
+	switch mode {
+	case "", deleteBundleRestrict:
+		return bundle.BatchDeleteFederatedBundleRequest_RESTRICT, nil
+	case deleteBundleDissociate:
+		return bundle.BatchDeleteFederatedBundleRequest_DISSOCIATE, nil
+	case deleteBundleDelete:
+		return bundle.BatchDeleteFederatedBundleRequest_DELETE, nil
+	default:
+		return bundle.BatchDeleteFederatedBundleRequest_RESTRICT, fmt.Errorf("unsupported mode %q", mode)
 	}
 }

@@ -504,6 +504,8 @@ func TestDeleteHelp(t *testing.T) {
 	require.Equal(t, `Usage of bundle delete:
   -id string
     	SPIFFE ID of the trust domain
+  -mode string
+    	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -registrationUDSPath string
     	Registration API UDS path (default "/tmp/spire-registration.sock")
 `, test.stderr.String())
@@ -521,11 +523,12 @@ func TestDelete(t *testing.T) {
 		expectedStderr string
 		expectedStdout string
 		deleteResults  []*bundle.BatchDeleteFederatedBundleResponse_Result
+		mode           bundle.BatchDeleteFederatedBundleRequest_Mode
 		toDelete       []string
 		serverErr      error
 	}{
 		{
-			name:           "success",
+			name:           "success default mode",
 			args:           []string{"-id", "spiffe://domain1.test"},
 			expectedStdout: "bundle deleted.\n",
 			toDelete:       []string{"spiffe://domain1.test"},
@@ -543,6 +546,62 @@ func TestDelete(t *testing.T) {
 		{
 			name:           "no id",
 			expectedStderr: "id is required\n",
+		},
+		{
+			name:           "success RESTRICT mode",
+			args:           []string{"-id", "spiffe://domain1.test", "-mode", "restrict"},
+			expectedStdout: "bundle deleted.\n",
+			mode:           bundle.BatchDeleteFederatedBundleRequest_RESTRICT,
+			toDelete:       []string{"spiffe://domain1.test"},
+			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+
+						Code:    int32(codes.OK),
+						Message: "ok",
+					},
+					TrustDomain: "domain1.test",
+				},
+			},
+		},
+		{
+			name:           "success DISSOCIATE mode",
+			args:           []string{"-id", "spiffe://domain1.test", "-mode", "dissociate"},
+			expectedStdout: "bundle deleted.\n",
+			mode:           bundle.BatchDeleteFederatedBundleRequest_DISSOCIATE,
+			toDelete:       []string{"spiffe://domain1.test"},
+			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+
+						Code:    int32(codes.OK),
+						Message: "ok",
+					},
+					TrustDomain: "domain1.test",
+				},
+			},
+		},
+		{
+			name:           "success DELETE mode",
+			args:           []string{"-id", "spiffe://domain1.test", "-mode", "delete"},
+			expectedStdout: "bundle deleted.\n",
+			mode:           bundle.BatchDeleteFederatedBundleRequest_DELETE,
+			toDelete:       []string{"spiffe://domain1.test"},
+			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+				{
+					Status: &types.Status{
+
+						Code:    int32(codes.OK),
+						Message: "ok",
+					},
+					TrustDomain: "domain1.test",
+				},
+			},
+		},
+		{
+			name:           "invalid mode",
+			args:           []string{"-id", "spiffe://domain1.test", "-mode", "invalid"},
+			expectedStderr: "unsupported mode \"invalid\"\n",
 		},
 		{
 			name:           "invalid id",
@@ -575,9 +634,10 @@ func TestDelete(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t, newDeleteCommand)
-			test.server.toDelete = tt.toDelete
 			test.server.deleteResults = tt.deleteResults
 			test.server.err = tt.serverErr
+			test.server.mode = tt.mode
+			test.server.toDelete = tt.toDelete
 
 			args := append(test.args, tt.args...)
 			rc := test.client.Run(args)

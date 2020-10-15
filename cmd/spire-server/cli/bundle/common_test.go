@@ -249,11 +249,12 @@ type fakeBundleServer struct {
 
 	t                 testing.TB
 	bundles           []*types.Bundle
+	deleteResults     []*bundle.BatchDeleteFederatedBundleResponse_Result
 	err               error
 	expectedSetBundle *types.Bundle
+	mode              bundle.BatchDeleteFederatedBundleRequest_Mode
 	setResponse       *bundle.BatchSetFederatedBundleResponse
 	toDelete          []string
-	deleteResults     []*bundle.BatchDeleteFederatedBundleResponse_Result
 }
 
 func (f *fakeBundleServer) GetBundle(ctx context.Context, in *bundle.GetBundleRequest) (*types.Bundle, error) {
@@ -303,6 +304,7 @@ func (f *fakeBundleServer) BatchDeleteFederatedBundle(ctx context.Context, req *
 	}
 
 	require.Equal(f.t, f.toDelete, req.TrustDomains)
+	require.Equal(f.t, f.mode, req.Mode)
 
 	return &bundle.BatchDeleteFederatedBundleResponse{
 		Results: f.deleteResults,
