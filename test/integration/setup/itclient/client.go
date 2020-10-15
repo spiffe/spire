@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	agent "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundle "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	debug "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	entry "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	svid "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"google.golang.org/grpc"
@@ -41,7 +42,7 @@ func New(ctx context.Context) *Client {
 	td := spiffeid.RequireTrustDomainFromString(*tdFlag)
 
 	// Create X509Source
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(*socketPathFlag)))
+	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(*socketPathFlag), workloadapi.WithLogger(&logger{})))
 	if err != nil {
 		log.Fatalf("Unable to create X509Source: %v", err)
 	}
@@ -126,6 +127,10 @@ func (c *Client) AgentClient() agent.AgentClient {
 	return agent.NewAgentClient(c.connection)
 }
 
+func (c *Client) DebugClient() debug.DebugClient {
+	return debug.NewDebugClient(c.connection)
+}
+
 // Open a client ON THE SPIRE-SERVER container
 // Used for creating join tokens
 type LocalServerClient struct {
@@ -150,4 +155,22 @@ func NewLocalServerClient(ctx context.Context) *LocalServerClient {
 	return &LocalServerClient{
 		connection: conn,
 	}
+}
+
+type logger struct{}
+
+func (l *logger) Debugf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+}
+
+func (l *logger) Infof(format string, args ...interface{}) {
+	log.Printf(format, args...)
+}
+
+func (l *logger) Warnf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+}
+
+func (l *logger) Errorf(format string, args ...interface{}) {
+	log.Printf(format, args...)
 }

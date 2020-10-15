@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -492,6 +493,97 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 			spiretest.RequireProtoEqual(t, expectedResponse, resp)
 		})
 	}
+}
+
+func (s *PluginSuite) TestCountBundles() {
+	// Count empty bundles
+	resp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountBundlesResponse{Bundles: 0}, resp)
+
+	// Create bundles
+	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle1,
+	})
+	s.Require().NoError(err)
+
+	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle2,
+	})
+	s.Require().NoError(err)
+
+	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle3,
+	})
+	s.Require().NoError(err)
+
+	// Count all
+	resp, err = s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountBundlesResponse{Bundles: 3}, resp)
+}
+
+func (s *PluginSuite) TestCountAttestedNodes() {
+	// Count empty attested nodes
+	resp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountAttestedNodesResponse{Nodes: 0}, resp)
+
+	// Create attested nodes
+	node := &common.AttestedNode{
+		SpiffeId:            "spiffe://example.org/foo",
+		AttestationDataType: "t1",
+		CertSerialNumber:    "1234",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	s.Require().NoError(err)
+
+	node2 := &common.AttestedNode{
+		SpiffeId:            "spiffe://example.org/bar",
+		AttestationDataType: "t2",
+		CertSerialNumber:    "5678",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node2})
+	s.Require().NoError(err)
+
+	// Count all
+	resp, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountAttestedNodesResponse{Nodes: 2}, resp)
+}
+
+func (s *PluginSuite) TestCountRegistrationEntries() {
+	// Count empty registration entries
+	resp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountRegistrationEntriesResponse{Entries: 0}, resp)
+
+	// Create attested nodes
+	entry := &common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/agent",
+		SpiffeId:  "spiffe://example.org/foo",
+		Selectors: []*common.Selector{{Type: "a", Value: "1"}},
+	}
+	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+	s.Require().NoError(err)
+
+	entry2 := &common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/agent",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "a", Value: "2"}},
+	}
+	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
+	s.Require().NoError(err)
+
+	// Count all
+	resp, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	spiretest.RequireProtoEqual(s.T(), &datastore.CountRegistrationEntriesResponse{Entries: 2}, resp)
 }
 
 func (s *PluginSuite) TestSetBundle() {
@@ -1322,6 +1414,175 @@ func (s *PluginSuite) TestNodeSelectors() {
 	// get bar selectors (make sure they weren't impacted by deleting foo)
 	selectors = s.getNodeSelectors("bar", false)
 	s.RequireProtoListEqual(bar, selectors)
+}
+
+func (s *PluginSuite) TestListNodeSelectors() {
+	s.T().Run("no selectors exist", func(t *testing.T) {
+		req := &datastore.ListNodeSelectorsRequest{}
+		resp := s.listNodeSelectors(req)
+		s.Assert().Empty(resp.Selectors)
+	})
+
+	const numNonExpiredAttNodes = 3
+	const attestationDataType = "fake_nodeattestor"
+	nonExpiredAttNodes := make([]*common.AttestedNode, numNonExpiredAttNodes)
+	for i := 0; i < numNonExpiredAttNodes; i++ {
+		nonExpiredAttNodes[i] = &common.AttestedNode{
+			SpiffeId:            fmt.Sprintf("spiffe://example.org/non-expired-node-%d", i),
+			AttestationDataType: attestationDataType,
+			CertSerialNumber:    fmt.Sprintf("non-expired serial %d-1", i),
+			CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+			NewCertSerialNumber: fmt.Sprintf("non-expired serial %d-2", i),
+			NewCertNotAfter:     time.Now().Add(2 * time.Hour).Unix(),
+		}
+	}
+
+	const numExpiredAttNodes = 2
+	expiredAttNodes := make([]*common.AttestedNode, numExpiredAttNodes)
+	for i := 0; i < numExpiredAttNodes; i++ {
+		expiredAttNodes[i] = &common.AttestedNode{
+			SpiffeId:            fmt.Sprintf("spiffe://example.org/expired-node-%d", i),
+			AttestationDataType: attestationDataType,
+			CertSerialNumber:    fmt.Sprintf("expired serial %d-1", i),
+			CertNotAfter:        time.Now().Add(-24 * time.Hour).Unix(),
+			NewCertSerialNumber: fmt.Sprintf("expired serial %d-2", i),
+			NewCertNotAfter:     time.Now().Add(-12 * time.Hour).Unix(),
+		}
+	}
+
+	allAttNodesToCreate := append(nonExpiredAttNodes, expiredAttNodes...)
+	selectorMap := make(map[string][]*common.Selector)
+	for i, n := range allAttNodesToCreate {
+		req := &datastore.CreateAttestedNodeRequest{
+			Node: n,
+		}
+
+		_, err := s.ds.CreateAttestedNode(ctx, req)
+		s.Require().NoError(err)
+
+		selectors := []*common.Selector{
+			{
+				Type:  "foo",
+				Value: strconv.Itoa(i),
+			},
+		}
+
+		s.setNodeSelectors(n.SpiffeId, selectors)
+		selectorMap[n.SpiffeId] = selectors
+	}
+
+	nonExpiredSelectorsMap := make(map[string][]*common.Selector, numNonExpiredAttNodes)
+	for i := 0; i < numNonExpiredAttNodes; i++ {
+		spiffeID := nonExpiredAttNodes[i].SpiffeId
+		nonExpiredSelectorsMap[spiffeID] = selectorMap[spiffeID]
+	}
+
+	s.T().Run("list all", func(t *testing.T) {
+		req := &datastore.ListNodeSelectorsRequest{}
+		resp := s.listNodeSelectors(req)
+		s.Require().Len(resp.Selectors, len(selectorMap))
+		s.Require().Nil(resp.Pagination)
+	})
+
+	s.T().Run("list with pagination", func(t *testing.T) {
+		// First request does not have a pagination token
+		req := &datastore.ListNodeSelectorsRequest{
+			Pagination: &datastore.Pagination{
+				PageSize: 1,
+			},
+		}
+		resp := s.listNodeSelectors(req)
+		s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
+		s.RequireProtoListEqual(selectorMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
+		s.Require().NotNil(resp.Pagination)
+		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
+
+		for i := 0; i < len(selectorMap)-1; i++ {
+			// [1, N-1] requests use a pagination token and expect to get one result since the page size == 1.
+			req = &datastore.ListNodeSelectorsRequest{
+				Pagination: resp.Pagination,
+			}
+			resp = s.listNodeSelectors(req)
+			s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
+			s.RequireProtoListEqual(selectorMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
+			s.Require().NotNil(resp.Pagination)
+			s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
+		}
+
+		// Nth request uses a pagination token and expects to get no results
+		// since all selectors have been returned in previous requests.
+		req = &datastore.ListNodeSelectorsRequest{
+			Pagination: resp.Pagination,
+		}
+		resp = s.listNodeSelectors(req)
+		s.Require().Len(resp.Selectors, 0)
+		s.Require().NotNil(resp.Pagination)
+		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
+		s.Require().Empty(resp.Pagination.Token)
+	})
+
+	s.T().Run("list unexpired", func(t *testing.T) {
+		req := &datastore.ListNodeSelectorsRequest{
+			ValidAt: &timestamp.Timestamp{
+				Seconds: time.Now().Unix(),
+			},
+		}
+
+		resp := s.listNodeSelectors(req)
+		s.Assert().Len(resp.Selectors, len(nonExpiredSelectorsMap))
+		for _, n := range resp.Selectors {
+			expectedSelectors, ok := nonExpiredSelectorsMap[n.SpiffeId]
+			s.Assert().True(ok)
+			s.AssertProtoListEqual(expectedSelectors, n.Selectors)
+		}
+	})
+
+	s.T().Run("list unexpired with pagination", func(t *testing.T) {
+		nowTimestamp := &timestamp.Timestamp{
+			Seconds: time.Now().Unix(),
+		}
+
+		// First request does not have a pagination token
+		req := &datastore.ListNodeSelectorsRequest{
+			Pagination: &datastore.Pagination{
+				PageSize: 1,
+			},
+			ValidAt: nowTimestamp,
+		}
+
+		resp := s.listNodeSelectors(req)
+		s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
+		s.RequireProtoListEqual(nonExpiredSelectorsMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
+		s.Require().NotNil(resp.Pagination)
+		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
+
+		for i := 0; i < numNonExpiredAttNodes-1; i++ {
+			// [1, N-1] requests use a pagination token and expect to get one result since the page size == 1.
+			req = &datastore.ListNodeSelectorsRequest{
+				Pagination: resp.Pagination,
+				ValidAt:    nowTimestamp,
+			}
+
+			resp = s.listNodeSelectors(req)
+			s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
+			s.RequireProtoListEqual(nonExpiredSelectorsMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
+			s.Require().NotNil(resp.Pagination)
+			s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
+		}
+
+		// Nth request uses a pagination token and expects to get no results
+		// since all selectors have been returned in previous requests.
+		req = &datastore.ListNodeSelectorsRequest{
+			Pagination: resp.Pagination,
+			ValidAt:    nowTimestamp,
+		}
+
+		resp = s.listNodeSelectors(req)
+		s.Require().Len(resp.Selectors, 0)
+		s.Require().NotNil(resp.Pagination)
+		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
+		s.Require().Empty(resp.Pagination.Token)
+	})
 }
 
 func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
@@ -2659,6 +2920,10 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Empty(resp.Node.NewCertNotAfter)
 		case 13:
 			s.Require().True(s.sqlPlugin.db.Dialect().HasColumn("registered_entries", "revision_number"))
+		case 14:
+			db, err := openSQLite3(dbURI)
+			s.Require().NoError(err)
+			s.Require().True(db.Dialect().HasIndex("attested_node_entries", "idx_attested_node_entries_expires_at"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -2762,6 +3027,13 @@ func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*c
 	s.Require().NotNil(resp.Selectors)
 	s.Require().Equal(spiffeID, resp.Selectors.SpiffeId)
 	return resp.Selectors.Selectors
+}
+
+func (s *PluginSuite) listNodeSelectors(req *datastore.ListNodeSelectorsRequest) *datastore.ListNodeSelectorsResponse {
+	resp, err := s.ds.ListNodeSelectors(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	return resp
 }
 
 func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {

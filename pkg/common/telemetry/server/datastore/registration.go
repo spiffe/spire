@@ -7,6 +7,12 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
+// StartCountRegistrationCall return metric
+// for server's datastore, on counting registrations.
+func StartCountRegistrationCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntry, telemetry.Count)
+}
+
 // StartCreateRegistrationCall return metric
 // for server's datastore, on creating a registration.
 func StartCreateRegistrationCall(m telemetry.Metrics) *telemetry.CallCounter {

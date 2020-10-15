@@ -7,6 +7,12 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
+// StartCountBundleCall return metric
+// for server's datastore, on counting bundles.
+func StartCountBundleCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.Bundle, telemetry.Count)
+}
+
 // StartAppendBundleCall return metric
 // for server's datastore, on sets the bundle.
 func StartAppendBundleCall(m telemetry.Metrics) *telemetry.CallCounter {

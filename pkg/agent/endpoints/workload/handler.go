@@ -94,7 +94,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		})
 
 		ttl := time.Until(svid.ExpiresAt)
-		telemetry_workload.SetFetchJWTSVIDTTLGauge(metrics, spiffeID, float32(ttl.Seconds()))
 		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
 	}
 
@@ -261,7 +260,6 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	// blocked on this logic
 	for i, svid := range resp.Svids {
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
-		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: svid.SpiffeId,
 			telemetry.TTL:      ttl.Seconds(),
@@ -322,7 +320,7 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream wo
 func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
 	bundles := make(map[string][]byte)
 	if update.Bundle != nil {
-		jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys())
+		jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
 		if err != nil {
 			return nil, err
 		}
@@ -330,7 +328,7 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}
 
 	for _, federatedBundle := range update.FederatedBundles {
-		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys())
+		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
 		if err != nil {
 			return nil, err
 		}

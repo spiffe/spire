@@ -54,6 +54,7 @@ path "pki/root/sign-intermediate" {
 | key | type | required | description | default |
 |:----|:-----|:---------|:------------|:--------|
 | cert_auth_mount_point | string |  | Name of the mount point where TLS certificate auth method is mounted | cert |
+| cert_auth_role_name | string | | Name of the Vault role. If given, the plugin authenticates against only the named role. Default to trying all roles. | |
 | client_cert_path | string | | Path to a client certificate file. Only PEM format is supported. | `${VAULT_CLIENT_CERT}` |
 | client_key_path  | string | | Path to a client private key file. Only PEM format is supported. | `${VAULT_CLIENT_KEY}` |
 
@@ -68,6 +69,14 @@ path "pki/root/sign-intermediate" {
                 client_cert_path = "/path/to/client-cert.pem"
                 client_key_path  = "/path/to/client-key.pem"
             }
+            // If specify the role to authenticate with
+            // cert_auth {
+            //     cert_auth_mount_point = "test-tls-cert-auth"
+            //     cert_auth_role_name = "test"
+            //     client_cert_path = "/path/to/client-cert.pem"
+            //     client_key_path  = "/path/to/client-key.pem"
+            // }
+       
             // If specify the key-pair as an environment variable and use the modified mount point
             // cert_auth {
             //    cert_auth_mount_point = "test-tls-cert-auth"

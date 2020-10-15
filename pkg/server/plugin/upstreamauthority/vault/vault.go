@@ -63,6 +63,9 @@ type CertAuthConfig struct {
 	// Name of the mount point where Client Certificate Auth method is mounted. (e.g., /auth/<mount_point>/login)
 	// If the value is empty, use default mount point (/auth/cert)
 	CertAuthMountPoint string `hcl:"cert_auth_mount_point"`
+	// Name of the Vault role.
+	// If given, the plugin authenticates against only the named role.
+	CertAuthRoleName string `hcl:"cert_auth_role_name"`
 	// Path to a client certificate file.
 	// Only PEM format is supported.
 	ClientCertPath string `hcl:"client_cert_path"`
@@ -238,6 +241,7 @@ func genClientParams(method AuthMethod, config *PluginConfig) *ClientParams {
 		cp.Token = getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
 	case CERT:
 		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
+		cp.CertAuthRoleName = config.CertAuth.CertAuthRoleName
 		cp.ClientCertPath = getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
 		cp.ClientKeyPath = getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
 	case APPROLE:

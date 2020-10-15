@@ -31,7 +31,7 @@ func (m metricsMiddleware) Preprocess(ctx context.Context, fullMethod string) (c
 func (m metricsMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
 	counter, ok := rpccontext.CallCounter(ctx).(*telemetry.CallCounter)
 	if !ok {
-		rpccontext.Logger(ctx).Error("Metrics misconfigured; this is a bug")
+		logMisconfiguration(ctx, "Metrics misconfigured; this is a bug")
 		return
 	}
 	counter.Done(&rpcErr)

@@ -7,6 +7,12 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
+// StartCountNodeCall return metric
+// for server's datastore, on counting nodes.
+func StartCountNodeCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.Node, telemetry.Count)
+}
+
 // StartCreateNodeCall return metric
 // for server's datastore, on creating a node.
 func StartCreateNodeCall(m telemetry.Metrics) *telemetry.CallCounter {
@@ -35,6 +41,12 @@ func StartListNodeCall(m telemetry.Metrics) *telemetry.CallCounter {
 // for server's datastore, on getting selectors for a node.
 func StartGetNodeSelectorsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.Node, telemetry.Selectors, telemetry.Fetch)
+}
+
+// StartListNodeSelectorsCall return metric
+// for server's datastore, on getting selectors for a node.
+func StartListNodeSelectorsCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.Node, telemetry.Selectors, telemetry.List)
 }
 
 // StartSetNodeSelectorsCall return metric
