@@ -37,7 +37,7 @@ require (
 	github.com/golang/protobuf v1.3.5
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190118093823-f849b5445de4
 	github.com/hashicorp/go-hclog v0.13.1-0.20200518165504-8476a63db2c6
-	github.com/hashicorp/go-plugin v1.0.1
+	github.com/hashicorp/go-plugin v1.3.0
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
 	github.com/hashicorp/vault/api v1.0.4
