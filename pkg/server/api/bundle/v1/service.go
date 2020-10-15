@@ -2,7 +2,9 @@ package bundle
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
@@ -413,9 +415,16 @@ func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.Batch
 }
 
 func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {
+	log := rpccontext.Logger(ctx)
+	mode, err := parseDeleteMode(req.Mode)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse deletion mode", err)
+	}
+	log = log.WithField(telemetry.DeleteFederatedBundleMode, mode.String())
+
 	var results []*bundle.BatchDeleteFederatedBundleResponse_Result
 	for _, trustDomain := range req.TrustDomains {
-		results = append(results, s.deleteFederatedBundle(ctx, trustDomain))
+		results = append(results, s.deleteFederatedBundle(ctx, log, trustDomain, mode))
 	}
 
 	return &bundle.BatchDeleteFederatedBundleResponse{
@@ -423,8 +432,8 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.Ba
 	}, nil
 }
 
-func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string) *bundle.BatchDeleteFederatedBundleResponse_Result {
-	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, trustDomain)
+func (s *Service) deleteFederatedBundle(ctx context.Context, log logrus.FieldLogger, trustDomain string, mode datastore.DeleteBundleRequest_Mode) *bundle.BatchDeleteFederatedBundleResponse_Result {
+	log = log.WithField(telemetry.TrustDomainID, trustDomain)
 
 	td, err := spiffeid.TrustDomainFromString(trustDomain)
 	if err != nil {
@@ -443,10 +452,11 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string)
 
 	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
 		TrustDomainId: td.IDString(),
-		// TODO: what mode must we use here?
-		Mode: datastore.DeleteBundleRequest_RESTRICT,
+		Mode:          mode,
 	})
-	switch status.Code(err) {
+
+	code := status.Code(err)
+	switch code {
 	case codes.OK:
 		return &bundle.BatchDeleteFederatedBundleResponse_Result{
 			Status:      api.OK(),
@@ -460,8 +470,21 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, trustDomain string)
 	default:
 		return &bundle.BatchDeleteFederatedBundleResponse_Result{
 			TrustDomain: trustDomain,
-			Status:      api.MakeStatus(log, codes.Internal, "failed to delete federated bundle", err),
+			Status:      api.MakeStatus(log, code, "failed to delete federated bundle", err),
 		}
+	}
+}
+
+func parseDeleteMode(mode bundle.BatchDeleteFederatedBundleRequest_Mode) (datastore.DeleteBundleRequest_Mode, error) {
+	switch mode {
+	case bundle.BatchDeleteFederatedBundleRequest_RESTRICT:
+		return datastore.DeleteBundleRequest_RESTRICT, nil
+	case bundle.BatchDeleteFederatedBundleRequest_DISSOCIATE:
+		return datastore.DeleteBundleRequest_DISSOCIATE, nil
+	case bundle.BatchDeleteFederatedBundleRequest_DELETE:
+		return datastore.DeleteBundleRequest_DELETE, nil
+	default:
+		return datastore.DeleteBundleRequest_RESTRICT, fmt.Errorf("unhandled delete mode %q", mode)
 	}
 }
 

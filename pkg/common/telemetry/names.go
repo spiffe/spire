@@ -496,6 +496,9 @@ const (
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
 
+	// DeleteFederatedBundleMode functionality related to deleting federated bundle modes
+	DeleteFederatedBundleMode = "delete_federated_bundle_mode"
+
 	// DeleteRegistrationEntry functionality related to deleting a registration entry
 	DeleteRegistrationEntry = "delete_registration_entry"
 

@@ -522,13 +522,13 @@ func TestDelete(t *testing.T) {
 			name:                "with associated entry (default mode)",
 			withAssociatedEntry: true,
 			args:                []string{"-id", "spiffe://domain1.test"},
-			expectedStderr:      "rpc error: code = Internal desc = rpc error: code = Unknown desc = datastore-sql: cannot delete bundle; federated with 1 registration entries\n",
+			expectedStderr:      "rpc error: code = Internal desc = rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries\n",
 		},
 		{
 			name:                "with associated entry (restrict mode)",
 			withAssociatedEntry: true,
 			args:                []string{"-id", "spiffe://domain1.test", "-mode", deleteBundleRestrict},
-			expectedStderr:      "rpc error: code = Internal desc = rpc error: code = Unknown desc = datastore-sql: cannot delete bundle; federated with 1 registration entries\n",
+			expectedStderr:      "rpc error: code = Internal desc = rpc error: code = FailedPrecondition desc = datastore-sql: cannot delete bundle; federated with 1 registration entries\n",
 		},
 		{
 			name:                "with associated entry (delete mode)",
