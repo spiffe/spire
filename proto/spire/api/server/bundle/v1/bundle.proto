@@ -133,7 +133,7 @@ message BatchCreateFederatedBundleResponse {
         spire.types.Bundle bundle = 2;
     }
 
-    // Result for each bundle in the request.
+    // Result for each bundle in the request (order is maintained).
     repeated Result results = 1;
 }
 
@@ -157,7 +157,7 @@ message BatchUpdateFederatedBundleResponse {
         spire.types.Bundle bundle = 2;
     }
 
-    // Result for each bundle in the request.
+    // Result for each bundle in the request (order is maintained).
     repeated Result results = 1;
 }
 
@@ -178,7 +178,7 @@ message BatchSetFederatedBundleResponse {
         spire.types.Bundle bundle = 2;
     }
 
-    // Result for each bundle in the request.
+    // Result for each bundle in the request (order is maintained).
     repeated Result results = 1;
 }
 
@@ -211,6 +211,6 @@ message BatchDeleteFederatedBundleResponse {
         string trust_domain = 2;
     }
 
-    // Result for each bundle in the request.
+    // Result for each trust domain name in the request (order is maintained).
     repeated Result results = 1;
 }
