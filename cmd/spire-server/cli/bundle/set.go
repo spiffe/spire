@@ -7,19 +7,24 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/cmd/spire-server/util"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
+	"google.golang.org/grpc/codes"
 )
 
 // NewSetCommand creates a new "set" subcommand for "bundle" command.
 func NewSetCommand() cli.Command {
-	return newSetCommand(defaultEnv, newClients)
+	return newSetCommand(common_cli.DefaultEnv)
 }
 
-func newSetCommand(env *env, clientsMaker clientsMaker) cli.Command {
-	return adaptCommand(env, clientsMaker, new(setCommand))
+func newSetCommand(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(setCommand))
 }
 
 type setCommand struct {
@@ -32,21 +37,21 @@ type setCommand struct {
 	format string
 }
 
-func (c *setCommand) name() string {
+func (c *setCommand) Name() string {
 	return "bundle set"
 }
 
-func (c *setCommand) synopsis() string {
+func (c *setCommand) Synopsis() string {
 	return "Creates or updates bundle data"
 }
 
-func (c *setCommand) appendFlags(fs *flag.FlagSet) {
+func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 	fs.StringVar(&c.path, "path", "", "Path to the bundle data")
 	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", formatPEM, formatSPIFFE))
 }
 
-func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error {
+func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	if c.id == "" {
 		return errors.New("id flag is required")
 	}
@@ -61,9 +66,9 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 		return err
 	}
 
-	var bundle *registration.FederatedBundle
+	var federatedBundles []*types.Bundle
 
-	bundleBytes, err := loadParamData(env.stdin, c.path)
+	bundleBytes, err := loadParamData(env.Stdin, c.path)
 	if err != nil {
 		return fmt.Errorf("unable to load bundle data: %v", err)
 	}
@@ -75,35 +80,40 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 			return fmt.Errorf("unable to parse bundle data: %v", err)
 		}
 
-		bundle = &registration.FederatedBundle{
-			Bundle: bundleutil.BundleProtoFromRootCAs(id, rootCAs),
-		}
+		federatedBundles = append(federatedBundles, bundleProtoFromX509Authorities(id, rootCAs))
 	default:
-		commonBundle, err := parseBundle(c.id, bundleBytes)
+		td, err := spiffeid.TrustDomainFromString(c.id)
 		if err != nil {
 			return err
 		}
 
-		bundle = &registration.FederatedBundle{
-			Bundle: commonBundle,
+		spiffeBundle, err := spiffebundle.Parse(td, bundleBytes)
+		if err != nil {
+			return fmt.Errorf("unable to parse to spiffe bundle: %v", err)
 		}
+
+		typeBundle, err := protoFromSpiffeBundle(spiffeBundle)
+		if err != nil {
+			return fmt.Errorf("unable to parse to type bundle: %v", err)
+		}
+
+		federatedBundles = append(federatedBundles, typeBundle)
 	}
 
-	// pull the existing bundle to know if this should be a create or a update.
-	// at some point it might be nice to have a create-or-update style API.
-	_, err = clients.r.FetchFederatedBundle(ctx, &registration.FederatedBundleID{
-		Id: id,
+	bundleClient := serverClient.NewBundleClient()
+	resp, err := bundleClient.BatchSetFederatedBundle(ctx, &bundle.BatchSetFederatedBundleRequest{
+		Bundle: federatedBundles,
 	})
-
-	// assume that an error is because the bundle does not exist
-	if err == nil {
-		_, err = clients.r.UpdateFederatedBundle(ctx, bundle)
-	} else {
-		_, err = clients.r.CreateFederatedBundle(ctx, bundle)
-	}
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set federated bundle: %v", err)
 	}
 
-	return env.Println("bundle set.")
+	result := resp.Results[0]
+	switch result.Status.Code {
+	case int32(codes.OK):
+		env.Println("bundle set.")
+		return nil
+	default:
+		return fmt.Errorf("failed to set federated bundle: %s", result.Status.Message)
+	}
 }
