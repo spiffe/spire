@@ -1,5 +1,5 @@
-# server-cmds suite
+# spire-server-cli suite
 
 ## Description
 
-This suite validates all server CLI commands
+This suite validates all SPIRE Server CLI commands.
