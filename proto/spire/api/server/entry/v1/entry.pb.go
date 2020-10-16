@@ -299,7 +299,7 @@ func (m *BatchCreateEntryRequest) GetOutputMask() *types.EntryMask {
 }
 
 type BatchCreateEntryResponse struct {
-	// Result for each entry in the request.
+	// Result for each entry in the request (order is maintained).
 	Results              []*BatchCreateEntryResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
 	XXX_unrecognized     []byte                             `json:"-"`
@@ -451,7 +451,7 @@ func (m *BatchUpdateEntryRequest) GetOutputMask() *types.EntryMask {
 }
 
 type BatchUpdateEntryResponse struct {
-	// Result for each entry in the request.
+	// Result for each entry in the request (order is maintained).
 	Results              []*BatchUpdateEntryResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
 	XXX_unrecognized     []byte                             `json:"-"`
@@ -582,7 +582,7 @@ func (m *BatchDeleteEntryRequest) GetIds() []string {
 }
 
 type BatchDeleteEntryResponse struct {
-	// Result for each entry in the request.
+	// Result for each entry ID in the request (order is maintained).
 	Results              []*BatchDeleteEntryResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
 	XXX_unrecognized     []byte                             `json:"-"`
