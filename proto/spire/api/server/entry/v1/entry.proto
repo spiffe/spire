@@ -103,7 +103,7 @@ message BatchCreateEntryResponse {
         spire.types.Entry entry = 2;
     }
 
-    // Result for each entry in the request.
+    // Result for each entry in the request (order is maintained).
     repeated Result results = 1;
 }
 
@@ -129,7 +129,7 @@ message BatchUpdateEntryResponse {
         spire.types.Entry entry = 2;
     }
 
-    // Result for each entry in the request.
+    // Result for each entry in the request (order is maintained).
     repeated Result results = 1;
 }
 
@@ -147,7 +147,7 @@ message BatchDeleteEntryResponse {
         string id = 2;
     }
 
-    // Result for each entry in the request.
+    // Result for each entry ID in the request (order is maintained).
     repeated Result results = 1;
 }
 
