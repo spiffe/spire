@@ -207,8 +207,11 @@ func (CreateCLI) registerEntries(ctx context.Context, c entry.EntryClient, entri
 
 	failed := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
 	succeeded := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
-	for _, r := range resp.Results {
+	for i, r := range resp.Results {
 		if r.Status.Code != 0 {
+			// The Entry API do not includes in the results the entries that
+			// failed to be created, so we populate them from the request data.
+			r.Entry = entries[i]
 			failed = append(failed, r)
 		} else {
 			succeeded = append(succeeded, r)
