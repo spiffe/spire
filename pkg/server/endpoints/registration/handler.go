@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_registrationapi "github.com/spiffe/spire/pkg/common/telemetry/server/registrationapi"
@@ -835,6 +836,13 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate Selectors
+	for _, s := range entry.Selectors {
+		if err := selector.Validate(s); err != nil {
+			return nil, err
+		}
 	}
 
 	return entry, nil
