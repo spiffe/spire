@@ -445,7 +445,7 @@ func (m *BatchCreateFederatedBundleRequest) GetOutputMask() *types.BundleMask {
 }
 
 type BatchCreateFederatedBundleResponse struct {
-	// Result for each bundle in the request.
+	// Result for each bundle in the request (order is maintained).
 	Results              []*BatchCreateFederatedBundleResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                                     `json:"-"`
 	XXX_unrecognized     []byte                                       `json:"-"`
@@ -596,7 +596,7 @@ func (m *BatchUpdateFederatedBundleRequest) GetOutputMask() *types.BundleMask {
 }
 
 type BatchUpdateFederatedBundleResponse struct {
-	// Result for each bundle in the request.
+	// Result for each bundle in the request (order is maintained).
 	Results              []*BatchUpdateFederatedBundleResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                                     `json:"-"`
 	XXX_unrecognized     []byte                                       `json:"-"`
@@ -738,7 +738,7 @@ func (m *BatchSetFederatedBundleRequest) GetOutputMask() *types.BundleMask {
 }
 
 type BatchSetFederatedBundleResponse struct {
-	// Result for each bundle in the request.
+	// Result for each bundle in the request (order is maintained).
 	Results              []*BatchSetFederatedBundleResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                                  `json:"-"`
 	XXX_unrecognized     []byte                                    `json:"-"`
@@ -878,7 +878,7 @@ func (m *BatchDeleteFederatedBundleRequest) GetMode() BatchDeleteFederatedBundle
 }
 
 type BatchDeleteFederatedBundleResponse struct {
-	// Result for each bundle in the request.
+	// Result for each trust domain name in the request (order is maintained).
 	Results              []*BatchDeleteFederatedBundleResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                                     `json:"-"`
 	XXX_unrecognized     []byte                                       `json:"-"`

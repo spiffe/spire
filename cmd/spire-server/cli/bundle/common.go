@@ -1,21 +1,22 @@
 package bundle
 
 import (
-	"context"
+	"bytes"
+	"crypto"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
-	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/zeebo/errs"
 )
 
@@ -27,125 +28,6 @@ const (
 	formatPEM    = "pem"
 	formatSPIFFE = "spiffe"
 )
-
-var (
-	// this is the default environment used by commands
-	defaultEnv = &env{
-		stdin:  os.Stdin,
-		stdout: os.Stdout,
-		stderr: os.Stderr,
-	}
-)
-
-type clients struct {
-	r registration.RegistrationClient
-}
-
-type clientsMaker func(registrationUDSPath string) (*clients, error)
-
-// newClients is the default client maker
-func newClients(registrationUDSPath string) (*clients, error) {
-	registrationClient, err := util.NewRegistrationClient(registrationUDSPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &clients{
-		r: registrationClient,
-	}, nil
-}
-
-// command is a common interface for commands in this package. the adapter
-// can adapter this interface to the Command interface from github.com/mitchellh/cli.
-type command interface {
-	name() string
-	synopsis() string
-	appendFlags(*flag.FlagSet)
-	run(context.Context, *env, *clients) error
-}
-
-type adapter struct {
-	env          *env
-	clientsMaker clientsMaker
-	cmd          command
-
-	registrationUDSPath string
-	flags               *flag.FlagSet
-}
-
-// adaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
-func adaptCommand(env *env, clientsMaker clientsMaker, cmd command) *adapter {
-	a := &adapter{
-		clientsMaker: clientsMaker,
-		cmd:          cmd,
-		env:          env,
-	}
-
-	f := flag.NewFlagSet(cmd.name(), flag.ContinueOnError)
-	f.SetOutput(env.stderr)
-	f.StringVar(&a.registrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
-	a.cmd.appendFlags(f)
-	a.flags = f
-
-	return a
-}
-
-func (a *adapter) Run(args []string) int {
-	ctx := context.Background()
-
-	if err := a.flags.Parse(args); err != nil {
-		fmt.Fprintln(a.env.stderr, err)
-		return 1
-	}
-
-	clients, err := a.clientsMaker(a.registrationUDSPath)
-	if err != nil {
-		fmt.Fprintln(a.env.stderr, err)
-		return 1
-	}
-
-	if err := a.cmd.run(ctx, a.env, clients); err != nil {
-		fmt.Fprintln(a.env.stderr, err)
-		return 1
-	}
-
-	return 0
-}
-
-func (a *adapter) Help() string {
-	return a.flags.Parse([]string{"-h"}).Error()
-}
-
-func (a *adapter) Synopsis() string {
-	return a.cmd.synopsis()
-}
-
-// env provides input and output facilities to commands
-type env struct {
-	stdin  io.Reader
-	stdout io.Writer
-	stderr io.Writer
-}
-
-func (e *env) Printf(format string, args ...interface{}) error {
-	_, err := fmt.Fprintf(e.stdout, format, args...)
-	return err
-}
-
-func (e *env) Println(args ...interface{}) error {
-	_, err := fmt.Fprintln(e.stdout, args...)
-	return err
-}
-
-func (e *env) ErrPrintf(format string, args ...interface{}) error {
-	_, err := fmt.Fprintf(e.stderr, format, args...)
-	return err
-}
-
-func (e *env) ErrPrintln(args ...interface{}) error {
-	_, err := fmt.Fprintln(e.stderr, args...)
-	return err
-}
 
 // loadParamData loads the data from a parameter. If the parameter is empty then
 // data is ready from "in", otherwise the parameter is used as a filename to
@@ -164,19 +46,17 @@ func loadParamData(in io.Reader, fn string) ([]byte, error) {
 	return ioutil.ReadAll(r)
 }
 
-func printCertificates(out io.Writer, certs []*common.Certificate) error {
+// printX509Authorities print provided certificates into writer
+func printX509Authorities(out io.Writer, certs []*types.X509Certificate) error {
 	for _, cert := range certs {
-		if err := printCertificate(out, cert); err != nil {
+		if err := printCACertsPEM(out, cert.Asn1); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func printCertificate(out io.Writer, cert *common.Certificate) error {
-	return printCACertsPEM(out, cert.DerBytes)
-}
-
+// printCACertsPEM encodes DER certificates to PEM format and print using writer
 func printCACertsPEM(out io.Writer, caCerts []byte) error {
 	certs, err := x509.ParseCertificates(caCerts)
 	if err != nil {
@@ -191,33 +71,150 @@ func printCACertsPEM(out io.Writer, caCerts []byte) error {
 	return nil
 }
 
-func parseBundle(trustDomainID string, jwksBytes []byte) (*common.Bundle, error) {
-	bundle, err := bundleutil.Unmarshal(trustDomainID, jwksBytes)
-	if err != nil {
-		return nil, err
-	}
-	return bundle.Proto(), nil
-}
-
-func printBundle(out io.Writer, bundle *common.Bundle) error {
-	b, err := bundleutil.BundleFromProto(bundle)
+// printBundle marshals and prints the bundle using the provided writer
+func printBundle(out io.Writer, bundle *types.Bundle) error {
+	b, err := bundleFromProto(bundle)
 	if err != nil {
 		return err
 	}
 
-	docBytes, err := bundleutil.Marshal(b)
+	docBytes, err := b.Marshal()
 	if err != nil {
 		return errs.Wrap(err)
 	}
 
-	if _, err := fmt.Fprintln(out, string(docBytes)); err != nil {
+	var o bytes.Buffer
+	if err := json.Indent(&o, docBytes, "", "    "); err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintln(out, o.String()); err != nil {
 		return errs.Wrap(err)
 	}
 
 	return nil
 }
 
-func printCommonBundle(out io.Writer, bundle *common.Bundle, format string, header bool) error {
+// bundleFromProto converts a bundle from the given *types.Bundle to *spiffebundle.Bundle
+func bundleFromProto(bundleProto *types.Bundle) (*spiffebundle.Bundle, error) {
+	td, err := spiffeid.TrustDomainFromString(bundleProto.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+	x509Authorities, err := x509CertificatesFromProto(bundleProto.X509Authorities)
+	if err != nil {
+		return nil, err
+	}
+	jwtAuthorities, err := jwtKeysFromProto(bundleProto.JwtAuthorities)
+	if err != nil {
+		return nil, err
+	}
+	bundle := spiffebundle.New(td)
+	bundle.SetX509Authorities(x509Authorities)
+	bundle.SetJWTAuthorities(jwtAuthorities)
+	if bundleProto.RefreshHint > 0 {
+		bundle.SetRefreshHint(time.Duration(bundleProto.RefreshHint) * time.Second)
+	}
+	if bundleProto.SequenceNumber > 0 {
+		bundle.SetSequenceNumber(bundleProto.SequenceNumber)
+	}
+	return bundle, nil
+}
+
+// x509CertificatesFromProto converts X.509 certificates from the given []*types.X509Certificate to []*x509.Certificate
+func x509CertificatesFromProto(proto []*types.X509Certificate) ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for i, auth := range proto {
+		cert, err := x509.ParseCertificate(auth.Asn1)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse root CA %d: %v", i, err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}
+
+// jwtKeysFromProto converts JWT keys from the given []*types.JWTKey to map[string]crypto.PublicKey.
+// The key ID of the public key is used as the key in the returned map.
+func jwtKeysFromProto(proto []*types.JWTKey) (map[string]crypto.PublicKey, error) {
+	keys := make(map[string]crypto.PublicKey)
+	for i, publicKey := range proto {
+		jwtSigningKey, err := x509.ParsePKIXPublicKey(publicKey.PublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse JWT signing key %d: %v", i, err)
+		}
+		keys[publicKey.KeyId] = jwtSigningKey
+	}
+	return keys, nil
+}
+
+func bundleProtoFromX509Authorities(trustDomain string, rootCAs []*x509.Certificate) *types.Bundle {
+	b := &types.Bundle{
+		TrustDomain: trustDomain,
+	}
+	for _, rootCA := range rootCAs {
+		b.X509Authorities = append(b.X509Authorities, &types.X509Certificate{
+			Asn1: rootCA.Raw,
+		})
+	}
+	return b
+}
+
+// protoFromSpiffeBundle converts a bundle from the given *spiffebundle.Bundle to *types.Bundle
+func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*types.Bundle, error) {
+	resp := &types.Bundle{
+		TrustDomain:     bundle.TrustDomain().String(),
+		X509Authorities: protoFromX509Certificates(bundle.X509Authorities()),
+	}
+
+	jwtAuthorities, err := protoFromJWTKeys(bundle.JWTAuthorities())
+	if err != nil {
+		return nil, err
+	}
+	resp.JwtAuthorities = jwtAuthorities
+
+	if r, ok := bundle.RefreshHint(); ok {
+		resp.RefreshHint = int64(r.Seconds())
+	}
+
+	if s, ok := bundle.SequenceNumber(); ok {
+		resp.SequenceNumber = s
+	}
+
+	return resp, nil
+}
+
+// protoFromX509Certificates converts X.509 certificates from the given []*x509.Certificate to []*types.X509Certificate
+func protoFromX509Certificates(certs []*x509.Certificate) []*types.X509Certificate {
+	var resp []*types.X509Certificate
+	for _, cert := range certs {
+		resp = append(resp, &types.X509Certificate{
+			Asn1: cert.Raw,
+		})
+	}
+
+	return resp
+}
+
+// protoFromJWTKeys converts JWT keys from the given map[string]crypto.PublicKey to []*types.JWTKey
+func protoFromJWTKeys(keys map[string]crypto.PublicKey) ([]*types.JWTKey, error) {
+	var resp []*types.JWTKey
+
+	for kid, key := range keys {
+		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, &types.JWTKey{
+			PublicKey: pkixBytes,
+			KeyId:     kid,
+		})
+	}
+
+	return resp, nil
+}
+
+func printBundleWithFormat(out io.Writer, bundle *types.Bundle, format string, header bool) error {
 	if bundle == nil {
 		return errors.New("no bundle provided")
 	}
@@ -228,13 +225,13 @@ func printCommonBundle(out io.Writer, bundle *common.Bundle, format string, head
 	}
 
 	if header {
-		if _, err := fmt.Fprintf(out, headerFmt, bundle.TrustDomainId); err != nil {
+		if _, err := fmt.Fprintf(out, headerFmt, bundle.TrustDomain); err != nil {
 			return err
 		}
 	}
 
 	if format == formatPEM {
-		return printCertificates(out, bundle.RootCas)
+		return printX509Authorities(out, bundle.X509Authorities)
 	}
 
 	return printBundle(out, bundle)
