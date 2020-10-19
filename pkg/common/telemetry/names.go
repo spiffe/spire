@@ -155,8 +155,7 @@ const (
 	// DNS name is a name which is resolvable with DNS
 	DNSName = "dns_name"
 
-	// ElapsedTime tags some duration of time. Reserved for use in telemetry package on
-	// call counters. Exported for tests only.
+	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
 	// Error tag for some error that occurred. Limited usage, such as logging errors at
@@ -496,6 +495,9 @@ const (
 
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
+
+	// DeleteFederatedBundleMode functionality related to deleting federated bundle modes
+	DeleteFederatedBundleMode = "delete_federated_bundle_mode"
 
 	// DeleteRegistrationEntry functionality related to deleting a registration entry
 	DeleteRegistrationEntry = "delete_registration_entry"

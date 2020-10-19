@@ -129,7 +129,7 @@ func AuthorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemet
 	return authorizedEntryFetcherWithFullCache(log, metrics, ds, time.Now)
 }
 
-func authorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, now func() time.Time) api.AuthorizedEntryFetcher {
+func authorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nowFn func() time.Time) api.AuthorizedEntryFetcher {
 	var mu sync.RWMutex
 	var loaded time.Time
 	var cache entrycache.Cache
@@ -142,7 +142,7 @@ func authorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemet
 
 	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
 		mu.RLock()
-		if !loaded.IsZero() && now().Sub(loaded) < cacheReloadInterval {
+		if !loaded.IsZero() && nowFn().Sub(loaded) < cacheReloadInterval {
 			mu.RUnlock()
 			return cache.GetAuthorizedEntries(agentID), nil
 		}
@@ -150,16 +150,18 @@ func authorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemet
 
 		mu.Lock()
 		defer mu.Unlock()
-		if loaded.IsZero() || now().Sub(loaded) >= cacheReloadInterval {
-			log.Info("Reloading entry cache...")
+		start := nowFn()
+		if loaded.IsZero() || start.Sub(loaded) >= cacheReloadInterval {
 			newCache, err := rebuildCache(ctx)
+			end := nowFn()
+			rebuildLog := log.WithField(telemetry.ElapsedTime, end.Sub(start))
 			if err != nil {
-				log.WithError(err).Error("Failed to reload entry cache.")
+				rebuildLog.WithError(err).Error("Failed to reload entry cache.")
 				return nil, err
 			}
-			log.Info("Reloaded entry cache.")
+			rebuildLog.Debug("Reloaded entry cache.")
 			cache = newCache
-			loaded = now()
+			loaded = end
 		}
 		return cache.GetAuthorizedEntries(agentID), nil
 	})
@@ -227,7 +229,7 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 				telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
 				telemetry.SerialNumber:     resp.Node.CertSerialNumber,
 			}).Error("Agent SVID is not active")
-			return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ACTIVE, "agent %q expected to have serial number %q; has %q", id, resp.Node.CertSerialNumber, agentSVID.SerialNumber)
+			return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ACTIVE, "agent %q expected to have serial number %q; has %q", id, resp.Node.CertSerialNumber, agentSVID.SerialNumber.String())
 		}
 	})
 }

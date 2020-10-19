@@ -205,7 +205,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber: "NEW",
 			},
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/agent" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber),
+			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/agent" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber.String()),
 			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
 			expectedLogs: []spiretest.LogEntry{
 				{
