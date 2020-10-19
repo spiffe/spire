@@ -622,7 +622,11 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 				if len(testCase.labels) > 0 {
 					s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), testCase.labels)
 				} else {
-					s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
+					if testCase.code == codes.OK {
+						s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
+					} else {
+						s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVIDError}, float32(1))
+					}
 				}
 			}
 

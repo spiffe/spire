@@ -12,7 +12,7 @@ func IncrSDSAPIConnectionCounter(m telemetry.Metrics) {
 
 // SetSDSAPIConnectionTotalGauge sets the number of active SDS connections
 func SetSDSAPIConnectionTotalGauge(m telemetry.Metrics, connections int32) {
-	m.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, float32(connections))
+	m.SetGauge([]string{telemetry.SDSAPI, telemetry.Connections}, float32(connections))
 }
 
 // End Counters

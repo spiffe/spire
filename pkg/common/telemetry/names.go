@@ -602,6 +602,9 @@ const (
 	// ValidateJWTSVID functionality related validating a JWT-SVID
 	ValidateJWTSVID = "validate_jwt_svid"
 
+	// ValidateJWTSVIDError functionality related to an error validating a JWT-SVID
+	ValidateJWTSVIDError = "validate_jwt_svid_error"
+
 	// WorkloadAPI flagging usage of workload API; should be used with other tags
 	// to add clarity
 	WorkloadAPI = "workload_api"
