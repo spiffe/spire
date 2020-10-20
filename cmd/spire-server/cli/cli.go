@@ -72,7 +72,7 @@ func (cc *CLI) Run(args []string) int {
 			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
 		},
 		"token generate": func() (cli.Command, error) {
-			return &token.GenerateCLI{}, nil
+			return token.NewGenerateCommand(), nil
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil
