@@ -15,10 +15,12 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -60,7 +62,7 @@ func TestMintHelp(t *testing.T) {
 		Stdout: stdout,
 		Stderr: stderr,
 	})
-	assert.Empty(t, cmd.Help())
+	assert.Equal(t, "flag: help requested", cmd.Help())
 	assert.Empty(t, stdout.String())
 	assert.Equal(t, expectedUsage, stderr.String())
 }
@@ -70,11 +72,15 @@ func TestMintRun(t *testing.T) {
 
 	svidPath := filepath.Join(dir, "token")
 
-	api := new(FakeRegistrationAPI)
+	server := new(fakeSVIDServer)
 
-	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, util.DefaultSocketPath), api)
+	spiretest.StartGRPCSocketServer(t, util.DefaultSocketPath, func(s *grpc.Server) {
+		svidpb.RegisterSVIDServer(s, server)
+	})
 
-	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, "other.sock"), api)
+	alternativeSocket := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+		svidpb.RegisterSVIDServer(s, server)
+	})
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.ES256,
@@ -89,11 +95,20 @@ func TestMintRun(t *testing.T) {
 	token, err := builder.CompactSerialize()
 	require.NoError(t, err)
 
+	// Create expired token
+	expiredAt := time.Now().Add(-30 * time.Second)
+	builder = jwt.Signed(signer).Claims(jwt.Claims{
+		Expiry: jwt.NewNumericDate(expiredAt),
+	})
+	expiredToken, err := builder.CompactSerialize()
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name string
 
 		// flags
 		spiffeID   string
+		expectID   *types.SPIFFEID
 		ttl        time.Duration
 		audience   []string
 		socketPath string
@@ -106,152 +121,252 @@ func TestMintRun(t *testing.T) {
 		stderr string
 
 		noRequestExpected bool
-		resp              *registration.MintJWTSVIDResponse
+		resp              *svidpb.MintJWTSVIDResponse
 	}{
 		{
 			name:              "missing spiffeID flag",
 			code:              1,
-			stderr:            "error: spiffeID must be specified\n",
+			stderr:            "spiffeID must be specified\n",
 			noRequestExpected: true,
 		},
 		{
 			name:              "invalid flag",
 			code:              1,
-			stderr:            "flag provided but not defined: -bad\n" + expectedUsage,
+			stderr:            fmt.Sprintf("flag provided but not defined: -bad\n%s\n", expectedUsage),
 			extraArgs:         []string{"-bad", "flag"},
 			noRequestExpected: true,
 		},
 		{
 			name:     "RPC fails",
 			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
 			audience: []string{"AUDIENCE"},
 			code:     1,
-			stderr:   "error: unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
+			stderr:   "unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
 		},
 		{
 			name:     "response missing token",
 			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
 			audience: []string{"AUDIENCE"},
 			code:     1,
-			stderr:   "error: server response missing token\n",
-			resp:     &registration.MintJWTSVIDResponse{},
+			stderr:   "server response missing token\n",
+			resp:     &svidpb.MintJWTSVIDResponse{Svid: &types.JWTSVID{}},
+		},
+		{
+			name:     "missing audience",
+			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
+			code:              1,
+			stderr:            "at least one audience must be specified\n",
+			audience:          []string{},
+			noRequestExpected: true,
+		},
+		{
+			name:     "malformed spiffeID",
+			spiffeID: "domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
+			code:              1,
+			stderr:            "spiffeid: invalid scheme\n",
+			audience:          []string{"AUDIENCE"},
+			noRequestExpected: true,
 		},
 		{
 			name:     "success with defaults",
 			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
 			audience: []string{"AUDIENCE"},
 			code:     0,
-			resp: &registration.MintJWTSVIDResponse{
-				Token: token,
+			resp: &svidpb.MintJWTSVIDResponse{
+				Svid: &types.JWTSVID{
+					Token: token,
+				},
 			},
 		},
 		{
-			name:       "success with ttl and extra audience, output to file, using alternate socket",
-			spiffeID:   "spiffe://domain.test/workload",
+			name:     "write on invalid path",
+			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
+			audience: []string{"AUDIENCE"},
+			code:     1,
+			resp: &svidpb.MintJWTSVIDResponse{
+				Svid: &types.JWTSVID{
+					Token: token,
+				},
+			},
+			write:  "/",
+			stderr: fmt.Sprintf("unable to write token: open %s: is a directory\n", dir),
+		},
+		{
+			name:     "malformed token",
+			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
+			audience: []string{"AUDIENCE"},
+			code:     0,
+			resp: &svidpb.MintJWTSVIDResponse{
+				Svid: &types.JWTSVID{
+					Token: "malformed token",
+				},
+			},
+			stderr: "Unable to determine JWT-SVID lifetime: square/go-jose: compact JWS format must have three parts\n",
+		},
+		{
+			name:     "expired token",
+			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
+			audience: []string{"AUDIENCE"},
+			code:     0,
+			resp: &svidpb.MintJWTSVIDResponse{
+				Svid: &types.JWTSVID{
+					Token: expiredToken,
+				},
+			},
+			stderr: fmt.Sprintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", expiredAt.UTC().Format(time.RFC3339)),
+		},
+		{
+			name:     "success with ttl and extra audience, output to file, using alternate socket",
+			spiffeID: "spiffe://domain.test/workload",
+			expectID: &types.SPIFFEID{
+				TrustDomain: "domain.test",
+				Path:        "/workload",
+			},
 			ttl:        time.Minute,
 			audience:   []string{"AUDIENCE1", "AUDIENCE2"},
-			socketPath: "other.sock",
+			socketPath: alternativeSocket,
 			code:       0,
 			write:      "token",
-			resp: &registration.MintJWTSVIDResponse{
-				Token: token,
+			resp: &svidpb.MintJWTSVIDResponse{
+				Svid: &types.JWTSVID{
+					Token: token,
+				},
 			},
 			stderr: fmt.Sprintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", expiry.UTC().Format(time.RFC3339)),
 		},
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
-		t.Run(testCase.name, func(t *testing.T) {
-			api.SetMintJWTSVIDResponse(testCase.resp)
+		tt := testCase
+		t.Run(tt.name, func(t *testing.T) {
+			server.setMintJWTSVIDResponse(tt.resp)
+			server.resetMintJWTSVIDRequest()
 
 			stdout := new(bytes.Buffer)
 			stderr := new(bytes.Buffer)
 			cmd := newMintCommand(&common_cli.Env{
-				Stdin:   strings.NewReader(testCase.stdin),
+				Stdin:   strings.NewReader(tt.stdin),
 				Stdout:  stdout,
 				Stderr:  stderr,
 				BaseDir: dir,
 			})
 
 			args := []string{}
-			if testCase.socketPath != "" {
-				args = append(args, "-registrationUDSPath", testCase.socketPath)
+			if tt.socketPath != "" {
+				args = append(args, "-registrationUDSPath", tt.socketPath)
 			}
-			if testCase.spiffeID != "" {
-				args = append(args, "-spiffeID", testCase.spiffeID)
+			if tt.spiffeID != "" {
+				args = append(args, "-spiffeID", tt.spiffeID)
 			}
-			if testCase.ttl != 0 {
-				args = append(args, "-ttl", fmt.Sprint(testCase.ttl))
+			if tt.ttl != 0 {
+				args = append(args, "-ttl", fmt.Sprint(tt.ttl))
 			}
-			if testCase.write != "" {
-				args = append(args, "-write", testCase.write)
+			if tt.write != "" {
+				args = append(args, "-write", tt.write)
 			}
-			for _, audience := range testCase.audience {
+			for _, audience := range tt.audience {
 				args = append(args, "-audience", audience)
 			}
-			args = append(args, testCase.extraArgs...)
+			args = append(args, tt.extraArgs...)
 
 			code := cmd.Run(args)
 
-			assert.Equal(t, testCase.code, code, "exit code does not match")
-			assert.Equal(t, testCase.stderr, stderr.String(), "stderr does not match")
+			assert.Equal(t, tt.code, code, "exit code does not match")
+			assert.Equal(t, tt.stderr, stderr.String(), "stderr does not match")
 
-			req := api.LastMintJWTSVIDRequest()
-			if testCase.noRequestExpected {
+			req := server.lastMintJWTSVIDRequest()
+			if tt.noRequestExpected {
 				assert.Nil(t, req)
 				return
 			}
 
 			if assert.NotNil(t, req) {
-				assert.Equal(t, testCase.spiffeID, req.SpiffeId)
-				assert.Equal(t, int32(testCase.ttl/time.Second), req.Ttl)
-				assert.Equal(t, testCase.audience, req.Audience)
+				assert.Equal(t, tt.expectID, req.Id)
+				assert.Equal(t, int32(tt.ttl/time.Second), req.Ttl)
+				assert.Equal(t, tt.audience, req.Audience)
 			}
 
 			// assert output file contents
 			if code == 0 {
-				if testCase.write != "" {
+				if tt.write != "" {
 					assert.Equal(t, fmt.Sprintf("JWT-SVID written to %s\n", svidPath),
 						stdout.String(), "stdout does not write output path")
-					assertFileData(t, filepath.Join(dir, testCase.write), testCase.resp.Token)
+					assertFileData(t, filepath.Join(dir, tt.write), tt.resp.Svid.Token)
 				} else {
-					assert.Equal(t, stdout.String(), testCase.resp.Token+"\n")
+					assert.Equal(t, stdout.String(), tt.resp.Svid.Token+"\n")
 				}
 			}
 		})
 	}
 }
 
-type FakeRegistrationAPI struct {
-	registration.RegistrationServer
+type fakeSVIDServer struct {
+	svidpb.SVIDServer
 
 	mu   sync.Mutex
-	req  *registration.MintJWTSVIDRequest
-	resp *registration.MintJWTSVIDResponse
+	req  *svidpb.MintJWTSVIDRequest
+	resp *svidpb.MintJWTSVIDResponse
 }
 
-func (r *FakeRegistrationAPI) LastMintJWTSVIDRequest() *registration.MintJWTSVIDRequest {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.req
+func (f *fakeSVIDServer) resetMintJWTSVIDRequest() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.req = nil
 }
 
-func (r *FakeRegistrationAPI) SetMintJWTSVIDResponse(resp *registration.MintJWTSVIDResponse) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.resp = resp
+func (f *fakeSVIDServer) lastMintJWTSVIDRequest() *svidpb.MintJWTSVIDRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.req
 }
 
-func (r *FakeRegistrationAPI) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVIDRequest) (*registration.MintJWTSVIDResponse, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (f *fakeSVIDServer) setMintJWTSVIDResponse(resp *svidpb.MintJWTSVIDResponse) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resp = resp
+}
 
-	r.req = req
-	if r.resp == nil {
+func (f *fakeSVIDServer) MintJWTSVID(ctx context.Context, req *svidpb.MintJWTSVIDRequest) (*svidpb.MintJWTSVIDResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.req = req
+	if f.resp == nil {
 		return nil, errors.New("response not configured in test")
 	}
-	return r.resp, nil
+	return f.resp, nil
 }
 
 func assertFileData(t *testing.T, path string, expectedData string) {
