@@ -89,7 +89,7 @@ The following metrics are emitted:
 | Call Counter | `manager`, `sync`, `fetch_svids_updates` | | The Sync Manager is fetching SVIDs updates.
 | Call Counter | `node`, `attestor`, `new_svid` | | The Node Attestor is calling to get an SVID.
 | Counter | `sds_api`, `connections` | | The SDS API has successfully established a connection.
-| Counter | `sds_api`, `connections` | | The number of active connection that the SDS API has.
+| Gauge | `sds_api`, `connections` | | The number of active connection that the SDS API has.
 | Counter | `workload_api`, `bundles_update`, `jwt` | | The Workload API has successfully updated a JWT bundle.
 | Counter | `workload_api`, `connection` | | The Workload API has successfully established a new connection.
 | Gauge | `workload_api`, `connections` | | The number of active connections that the Workload API has. 
@@ -101,7 +101,7 @@ The following metrics are emitted:
 | Measure Since | `workload_api`, `send_jwt_bundle_latency` | | The time that the Workload API took to send a JWT bundle.
 | Measure Since | `workload_api`, `svid_response_latency`, `fetch` | | The time that the Workload API took to fetch an X.509 SVID.
 | Counter | `workload_api`, `validate_jwt_svid` | `subject`, `audience` | The Workload API has successfully validated a JWT SVID.
-| Counter | `workload_api`, `validate_jwt_svid` | | The Workload API has encountered an error while validating an SVID.
+| Counter | `workload_api`, `validate_jwt_svid_error` | | The Workload API has encountered an error while validating a JWT SVID.
 | Call Counter | `workload_api`, `workload_attestation` | | The Workload API is performing a workload attestation.
 | Call Counter | `workload_api`, `workload_attestor` | `attestor` | The Workload API is invoking a given attestor.
 | Gauge | `started` | `version` | The version of the Agent.
