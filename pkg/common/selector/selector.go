@@ -39,7 +39,7 @@ func Validate(s *common.Selector) error {
 	// e.g. type="unix:user" value="root" is the invalid selector
 	// and type="unix" value"user:root" is the valid selector
 	if strings.Contains(s.Type, Delimiter) {
-		return fmt.Errorf("type in selector contains a colon, invalid type: '%s'", s.Type)
+		return fmt.Errorf("selector type must not contain a colon; invalid selector type: %q", s.Type)
 	}
 	return nil
 }
