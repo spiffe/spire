@@ -1,11 +1,9 @@
 package entry
 
 import (
-	"path"
 	"testing"
 
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -111,42 +109,6 @@ func TestCreateNodeParseConfig(t *testing.T) {
 	}
 
 	expectedEntries := []*common.RegistrationEntry{expectedEntry}
-	assert.Equal(t, expectedEntries, entries)
-}
-
-func TestRegisterParseFile(t *testing.T) {
-	p := path.Join(util.ProjectRoot(), "test/fixture/registration/good.json")
-	entries, err := CreateCLI{}.parseFile(p)
-	require.NoError(t, err)
-
-	entry1 := &common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{
-				Type:  "unix",
-				Value: "uid:1111",
-			},
-		},
-		SpiffeId: "spiffe://example.org/Blog",
-		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-		Ttl:      200,
-		Admin:    true,
-	}
-	entry2 := &common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{
-				Type:  "unix",
-				Value: "uid:1111",
-			},
-		},
-		SpiffeId: "spiffe://example.org/Database",
-		ParentId: "spiffe://example.org/spire/agent/join_token/TokenDatabase",
-		Ttl:      200,
-	}
-
-	expectedEntries := []*common.RegistrationEntry{
-		entry1,
-		entry2,
-	}
 	assert.Equal(t, expectedEntries, entries)
 }
 

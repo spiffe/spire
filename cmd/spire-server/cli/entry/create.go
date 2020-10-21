@@ -1,11 +1,9 @@
 package entry
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -132,7 +130,7 @@ func (c CreateCLI) Run(args []string) int {
 
 	var entries []*common.RegistrationEntry
 	if config.Path != "" {
-		entries, err = c.parseFile(config.Path)
+		entries, err = parseFile(config.Path)
 	} else {
 		entries, err = c.parseConfig(config)
 	}
@@ -194,20 +192,6 @@ func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntr
 	return []*common.RegistrationEntry{e}, nil
 }
 
-func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
-	entries := &common.RegistrationEntries{}
-
-	dat, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal(dat, &entries); err != nil {
-		return nil, err
-	}
-	return entries.Entries, nil
-}
-
 func (CreateCLI) registerEntries(ctx context.Context, c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
 	for _, e := range entries {
 		id, err := c.CreateEntry(ctx, e)
@@ -233,7 +217,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.TTL, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
 
-	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional)")
+	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
 
 	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
