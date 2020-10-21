@@ -19,7 +19,7 @@ type kmsClient interface {
 	SignWithContext(aws.Context, *kms.SignInput, ...request.Option) (*kms.SignOutput, error)
 }
 
-func newKMSClient(c *Config) (*kms.KMS, error) {
+func newKMSClient(c *Config) (kmsClient, error) {
 	creds := credentials.NewStaticCredentials(c.AccessKeyID, c.SecretAccessKey, "")
 	awsConf := &aws.Config{
 		Credentials: creds,

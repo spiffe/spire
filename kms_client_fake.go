@@ -18,37 +18,41 @@ type kmsClientFake struct {
 
 	expectedCreateKeyInput *kms.CreateKeyInput
 	createKeyOutput        *kms.CreateKeyOutput
+	createKeyErr           error
 
 	expectedDescribeKeyInput *kms.DescribeKeyInput
 	describeKeyOutput        *kms.DescribeKeyOutput
+	describeKeyErr           error
 
 	expectedGetPublicKeyInput *kms.GetPublicKeyInput
 	getPublicKeyOutput        *kms.GetPublicKeyOutput
+	getPublicKeyErr           error
 
 	expectedListKeysInput *kms.ListKeysInput
 	listKeysOutput        *kms.ListKeysOutput
+	listKeysErr           error
 
 	expectedScheduleKeyDeletionInput *kms.ScheduleKeyDeletionInput
 	scheduleKeyDeletionOutput        *kms.ScheduleKeyDeletionOutput
+	scheduleKeyDeletionErr           error
 
 	expectedSignInput *kms.SignInput
 	signOutput        *kms.SignOutput
-
-	err error
+	signErr           error
 }
 
 func (k *kmsClientFake) CreateKeyWithContext(ctx aws.Context, input *kms.CreateKeyInput, opts ...request.Option) (*kms.CreateKeyOutput, error) {
 	require.Equal(k.t, k.expectedCreateKeyInput, input)
-	if k.err != nil {
-		return nil, k.err
+	if k.createKeyErr != nil {
+		return nil, k.createKeyErr
 	}
 	return k.createKeyOutput, nil
 }
 
 func (k *kmsClientFake) DescribeKeyWithContext(ctx aws.Context, input *kms.DescribeKeyInput, opts ...request.Option) (*kms.DescribeKeyOutput, error) {
 	require.Equal(k.t, k.expectedDescribeKeyInput, input)
-	if k.err != nil {
-		return nil, k.err
+	if k.describeKeyErr != nil {
+		return nil, k.describeKeyErr
 	}
 
 	return k.describeKeyOutput, nil
@@ -56,8 +60,8 @@ func (k *kmsClientFake) DescribeKeyWithContext(ctx aws.Context, input *kms.Descr
 
 func (k *kmsClientFake) GetPublicKeyWithContext(ctx aws.Context, input *kms.GetPublicKeyInput, opts ...request.Option) (*kms.GetPublicKeyOutput, error) {
 	require.Equal(k.t, k.expectedGetPublicKeyInput, input)
-	if k.err != nil {
-		return nil, k.err
+	if k.getPublicKeyErr != nil {
+		return nil, k.getPublicKeyErr
 	}
 
 	return k.getPublicKeyOutput, nil
@@ -65,8 +69,8 @@ func (k *kmsClientFake) GetPublicKeyWithContext(ctx aws.Context, input *kms.GetP
 
 func (k *kmsClientFake) ListKeysWithContext(ctx aws.Context, input *kms.ListKeysInput, opts ...request.Option) (*kms.ListKeysOutput, error) {
 	require.Equal(k.t, k.expectedListKeysInput, input)
-	if k.err != nil {
-		return nil, k.err
+	if k.listKeysErr != nil {
+		return nil, k.listKeysErr
 	}
 
 	return k.listKeysOutput, nil
@@ -74,8 +78,8 @@ func (k *kmsClientFake) ListKeysWithContext(ctx aws.Context, input *kms.ListKeys
 
 func (k *kmsClientFake) ScheduleKeyDeletionWithContext(ctx aws.Context, input *kms.ScheduleKeyDeletionInput, opts ...request.Option) (*kms.ScheduleKeyDeletionOutput, error) {
 	require.Equal(k.t, k.expectedScheduleKeyDeletionInput, input)
-	if k.err != nil {
-		return nil, k.err
+	if k.scheduleKeyDeletionErr != nil {
+		return nil, k.scheduleKeyDeletionErr
 	}
 
 	return k.scheduleKeyDeletionOutput, nil
@@ -83,8 +87,8 @@ func (k *kmsClientFake) ScheduleKeyDeletionWithContext(ctx aws.Context, input *k
 
 func (k *kmsClientFake) SignWithContext(ctx aws.Context, input *kms.SignInput, opts ...request.Option) (*kms.SignOutput, error) {
 	require.Equal(k.t, k.expectedSignInput, input)
-	if k.err != nil {
-		return nil, k.err
+	if k.signErr != nil {
+		return nil, k.signErr
 	}
 
 	return k.signOutput, nil

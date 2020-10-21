@@ -36,36 +36,50 @@ type keyEntry struct {
 	PublicKey *keymanager.PublicKey
 }
 
+// Plugin is the main representation of this keymanager plugin
 type Plugin struct {
 	log       hclog.Logger
 	mu        sync.RWMutex
 	entries   map[string]keyEntry
 	kmsClient kmsClient
+
+	hooks struct {
+		newClient func(config *Config) (kmsClient, error)
+	}
 }
 
+// Config provides configuration context for the plugin
 type Config struct {
 	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	Region          string `hcl:"region" json:"region"`
 }
 
+// New returns an instantiated plugin
 func New() *Plugin {
-	return &Plugin{
-		entries: make(map[string]keyEntry),
-	}
+	return newPlugin(newKMSClient)
 }
 
+func newPlugin(newClient func(config *Config) (kmsClient, error)) *Plugin {
+	p := &Plugin{}
+	p.hooks.newClient = newClient
+	p.entries = make(map[string]keyEntry)
+	return p
+}
+
+//SetLogger sets a logger
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
+// Configure sets up the plugin
 func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	config, err := validateConfig(req.Configuration)
 	if err != nil {
 		return nil, err
 	}
 
-	p.kmsClient, err = newKMSClient(config)
+	p.kmsClient, err = p.hooks.newClient(config)
 	if err != nil {
 		return nil, kmsErr.New("failed to create KMS client: %v", err)
 	}
@@ -93,6 +107,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	return &plugin.ConfigureResponse{}, nil
 }
 
+//GenerateKey creates a key in KMS. If a key already exist in the local storage, it is updated.
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (*keymanager.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, kmsErr.New("key id is required")
@@ -154,6 +169,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 
 }
 
+// SignData creates a digital signature for the data to be signed
 func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) (*keymanager.SignDataResponse, error) {
 	if req.KeyId == "" {
 		return nil, kmsErr.New("key id is required")
@@ -185,6 +201,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 	return &keymanager.SignDataResponse{Signature: signResp.Signature}, nil
 }
 
+// GetPublicKey returns the public key for a given key
 func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyRequest) (*keymanager.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, kmsErr.New("key id is required")
@@ -201,6 +218,7 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyR
 
 }
 
+// GetPublicKeys return the publicKey for all the keys
 func (p *Plugin) GetPublicKeys(context.Context, *keymanager.GetPublicKeysRequest) (*keymanager.GetPublicKeysResponse, error) {
 	var keys []*keymanager.PublicKey
 	p.mu.Lock()
@@ -212,6 +230,7 @@ func (p *Plugin) GetPublicKeys(context.Context, *keymanager.GetPublicKeysRequest
 	return &keymanager.GetPublicKeysResponse{PublicKeys: keys}, nil
 }
 
+// GetPluginInfo returns information about this plugin
 func (p *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return &plugin.GetPluginInfoResponse{}, nil
 }
