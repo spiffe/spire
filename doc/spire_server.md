@@ -48,23 +48,23 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
 
-| Configuration               | Description                                                                                     | Default                       |
-|:----------------------------|:------------------------------------------------------------------------------------------------|:------------------------------|
-| `bind_address`              | IP address or DNS name of the SPIRE server                                                      | 0.0.0.0                       |
-| `bind_port`                 | HTTP Port number of the SPIRE server                                                            | 8081                          |
-| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                   | ec-p256 (Both X509 and JWT)   |
-| `ca_subject`                | The Subject that CA certificates should use (see below)                                         |                               |
-| `ca_ttl`                    | The default CA/signing key TTL                                                                  | 24h                           |
-| `data_dir`                  | A directory the server can use for its runtime                                                  |                               |
-| `default_svid_ttl`          | The default SVID TTL                                                                            | 1h                            |
-| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)         |                               |
-| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                    |                               |
-| `log_file`                  | File to write logs to                                                                           |                               |
-| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                             | INFO                          |
-| `log_format`                | Format of logs, \<text\|json\>                                                                  | text                          |
-| `ratelimit`                 | Rate limiting configurations, usually used when the sever is behind a load balancer (see below) |                               |
-| `registration_uds_path`     | Location to bind the registration API socket                                                    | /tmp/spire-registration.sock  |
-| `trust_domain`              | The trust domain that this server belongs to                                                    |                               |
+| Configuration               | Description                                                                                      | Default                       |
+|:----------------------------|:-------------------------------------------------------------------------------------------------|:------------------------------|
+| `bind_address`              | IP address or DNS name of the SPIRE server                                                       | 0.0.0.0                       |
+| `bind_port`                 | HTTP Port number of the SPIRE server                                                             | 8081                          |
+| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                    | ec-p256 (Both X509 and JWT)   |
+| `ca_subject`                | The Subject that CA certificates should use (see below)                                          |                               |
+| `ca_ttl`                    | The default CA/signing key TTL                                                                   | 24h                           |
+| `data_dir`                  | A directory the server can use for its runtime                                                   |                               |
+| `default_svid_ttl`          | The default SVID TTL                                                                             | 1h                            |
+| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)          |                               |
+| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                     |                               |
+| `log_file`                  | File to write logs to                                                                            |                               |
+| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                              | INFO                          |
+| `log_format`                | Format of logs, \<text\|json\>                                                                   | text                          |
+| `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below) |                               |
+| `registration_uds_path`     | Location to bind the registration API socket                                                     | /tmp/spire-registration.sock  |
+| `trust_domain`              | The trust domain that this server belongs to                                                     |                               |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -74,7 +74,7 @@ This may be useful for templating configuration files, for example across differ
 
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
-| `attestation`               | Maximum node attestations per second that the server can handle from a single IP. If the attestation rate is higher, the limiter will put the requests on hold and process them according to the given rate. Notice that if the request queue is too large, some attestation calls could fail due to timeout.| 1 |
+| `attestation`               | Whether or not to rate limit node attestation. If true, node attestation is rate limited to one attempt per second per IP address. | true |
 
 ## Plugin configuration
 
@@ -229,7 +229,7 @@ Creates registration entries.
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
 | `-admin`         | If set, the SPIFFE ID in this entry will be granted access to the Registration API | |
-| `-data`          | Path to a file containing registration data in JSON format (optional). |                |
+| `-data`          | Path to a file containing registration data in JSON format (optional). If set to '-', read the JSON from stdin. |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
 | `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned from the datastore. Please note that this is a data management feature and not a security feature (optional).| |
@@ -248,7 +248,7 @@ Updates registration entries.
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
 | `-admin`         | If true, the SPIFFE ID in this entry will be granted access to the Registration API | |
-| `-data`          | Path to a file containing registration data in JSON format (optional). |                |
+| `-data`          | Path to a file containing registration data in JSON format (optional). If set to '-', read the JSON from stdin. |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
 | `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned | |
@@ -426,6 +426,22 @@ Bundle data read from stdin or the path is expected to be a JWKS document.
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+
+
+## JSON object for `-data`
+
+A JSON object passed to `-data` for `entry create/update` expects the following form:
+
+```json
+{
+    "entries":[]
+}
+```
+
+The entry object is described by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/master/proto/spire/common/common.proto).
+
+_Note: to create node entries, set `parent_id` to the special value `spiffe://<your-trust-domain>/spire/server`.
+That's what the code does when the `-node` flag is passed on the cli._
 
 ## Sample configuration file
 

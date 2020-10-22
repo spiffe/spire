@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
@@ -21,6 +23,7 @@ import (
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
@@ -91,18 +94,31 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	endpoints := a.newEndpoints(cat, metrics, manager)
+	endpoints, err := a.newEndpoints(cat, metrics, manager)
+	if err != nil {
+		return fmt.Errorf("failed to create endpoints: %v", err)
+	}
 
 	if err := healthChecks.AddCheck("agent", a, time.Minute); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
-	err = util.RunTasks(ctx,
+	tasks := []func(context.Context) error{
 		manager.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
 		healthChecks.ListenAndServe,
-	)
+	}
+
+	if a.c.AdminBindAddress != nil {
+		adminEndpoints, err := a.newAdminEndpoints(manager)
+		if err != nil {
+			return fmt.Errorf("failed to create debug endpoints: %v", err)
+		}
+		tasks = append(tasks, adminEndpoints.ListenAndServe)
+	}
+
+	err = util.RunTasks(ctx, tasks...)
 	if err == context.Canceled {
 		err = nil
 	}
@@ -206,7 +222,11 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 	return mgr, nil
 }
 
-func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
+func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) (endpoints.Server, error) {
+	td, err := spiffeid.TrustDomainFromURI(&a.c.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
 	config := &endpoints.Config{
 		BindAddr:          a.c.BindAddress,
 		Catalog:           cat,
@@ -215,11 +235,27 @@ func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr
 		Metrics:           metrics,
 		DefaultSVIDName:   a.c.DefaultSVIDName,
 		DefaultBundleName: a.c.DefaultBundleName,
+		TrustDomain:       td,
 	}
 
-	return endpoints.New(config)
+	return endpoints.New(config), nil
 }
 
+func (a *Agent) newAdminEndpoints(mgr manager.Manager) (admin_api.Server, error) {
+	td, err := spiffeid.TrustDomainFromURI(&a.c.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+	config := &admin_api.Config{
+		BindAddr:    a.c.AdminBindAddress,
+		Manager:     mgr,
+		Log:         a.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
+		TrustDomain: td,
+		Uptime:      uptime.Uptime,
+	}
+
+	return admin_api.New(config), nil
+}
 func (a *Agent) bundleCachePath() string {
 	return path.Join(a.c.DataDir, "bundle.der")
 }

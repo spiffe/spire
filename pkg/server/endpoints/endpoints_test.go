@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	agentv1 "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	debugv1 "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -48,7 +49,7 @@ var (
 	agentID      = testTD.NewID("/agent")
 	adminID      = testTD.NewID("/admin")
 	downstreamID = testTD.NewID("/downstream")
-	rateLimit    = &RateLimitConfig{Attestation: 1}
+	rateLimit    = RateLimitConfig{Attestation: true}
 )
 
 func TestNew(t *testing.T) {
@@ -101,6 +102,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.APIServers.BundleServer)
 	assert.NotNil(t, endpoints.APIServers.EntryServer)
 	assert.NotNil(t, endpoints.APIServers.SVIDServer)
+	assert.NotNil(t, endpoints.APIServers.DebugServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
@@ -144,11 +146,12 @@ func TestListenAndServe(t *testing.T) {
 			BundleServer: &bundlev1.UnimplementedBundleServer{},
 			EntryServer:  &entryv1.UnimplementedEntryServer{},
 			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
+			DebugServer:  &debugv1.UnimplementedDebugServer{},
 		},
 		BundleEndpointServer: bundleEndpointServer,
 		Log:                  log,
 		Metrics:              metrics,
-		RateLimitConfig:      rateLimit,
+		RateLimit:            rateLimit,
 	}
 
 	// Prime the datastore with the:
@@ -215,6 +218,9 @@ func TestListenAndServe(t *testing.T) {
 	})
 	t.Run("Agent", func(t *testing.T) {
 		testAgentAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+	})
+	t.Run("Debug", func(t *testing.T) {
+		testDebugAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Bundle", func(t *testing.T) {
 		testBundleAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
@@ -398,6 +404,38 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": false,
+		})
+	})
+}
+
+func testDebugAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentConn, adminConn, downstreamConn *grpc.ClientConn) {
+	t.Run("UDS", func(t *testing.T) {
+		testAuthorization(ctx, t, debugv1.NewDebugClient(udsConn), map[string]bool{
+			"GetInfo": true,
+		})
+	})
+
+	t.Run("NoAuth", func(t *testing.T) {
+		testAuthorization(ctx, t, debugv1.NewDebugClient(noauthConn), map[string]bool{
+			"GetInfo": true,
+		})
+	})
+
+	t.Run("Agent", func(t *testing.T) {
+		testAuthorization(ctx, t, debugv1.NewDebugClient(agentConn), map[string]bool{
+			"GetInfo": true,
+		})
+	})
+
+	t.Run("Admin", func(t *testing.T) {
+		testAuthorization(ctx, t, debugv1.NewDebugClient(adminConn), map[string]bool{
+			"GetInfo": true,
+		})
+	})
+
+	t.Run("Downstream", func(t *testing.T) {
+		testAuthorization(ctx, t, debugv1.NewDebugClient(downstreamConn), map[string]bool{
+			"GetInfo": true,
 		})
 	})
 }

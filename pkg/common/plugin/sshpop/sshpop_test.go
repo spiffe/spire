@@ -52,12 +52,10 @@ func TestNewClient(t *testing.T) {
 			trustDomain: "foo.test",
 			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"
 						   host_cert_path = "./testdata/dummy_agent_ssh_key-cert.pub"
-						   canonical_domain = "local"
 						   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`,
 			requireClient: func(t *testing.T, c *Client) {
 				require.NotNil(t, c)
 				require.Equal(t, "foo.test", c.trustDomain)
-				require.Equal(t, "local", c.canonicalDomain)
 				require.Equal(t, c.signer.PublicKey(), c.cert.Key)
 				require.Equal(t, "foo-host", c.cert.KeyId)
 			},

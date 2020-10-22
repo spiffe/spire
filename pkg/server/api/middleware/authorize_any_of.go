@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -41,7 +40,7 @@ func (a anyOfAuthorizer) Name() string {
 
 func (a anyOfAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
 	if len(a.authorizers) == 0 {
-		rpccontext.Logger(ctx).Error("Authorization misconfigured (no authorizers); this is a bug")
+		logMisconfiguration(ctx, "Authorization misconfigured (no authorizers); this is a bug")
 		return nil, status.Error(codes.Internal, "authorization misconfigured (no authorizers)")
 	}
 

@@ -118,12 +118,6 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		statusLabel,
 	}
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
-		})
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 	s.metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency, telemetry.Fetch}, gomock.Any())
@@ -177,12 +171,6 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 		{Name: telemetry.SVIDType, Value: telemetry.X509},
 		statusLabel,
 	}
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
-		})
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
@@ -285,22 +273,6 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 		statusLabel,
 	}
 
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{
-				Name: telemetry.SPIFFEID, Value: "spiffe://example.org/one",
-			},
-		})
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{
-				Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two",
-			},
-		})
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
@@ -333,14 +305,6 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 		{Name: telemetry.SVIDType, Value: telemetry.JWT},
 		statusLabel,
 	}
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{
-				Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two",
-			},
-		})
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
@@ -478,7 +442,6 @@ func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
 		"keys": [
 			{
 				"kid":"kid",
-				"use":"jwt-svid",
 				"kty":"EC",
 				"crv":"P-256",
 				"x":"YSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw-5WKJwngEL0",
@@ -659,7 +622,11 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 				if len(testCase.labels) > 0 {
 					s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), testCase.labels)
 				} else {
-					s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
+					if testCase.code == codes.OK {
+						s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
+					} else {
+						s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVIDError}, float32(1))
+					}
 				}
 			}
 

@@ -29,6 +29,7 @@ import (
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 	agentv1_pb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlev1_pb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	debugv1_pb "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	entryv1_pb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	svidv1_pb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 )
@@ -58,7 +59,7 @@ type Endpoints struct {
 	BundleEndpointServer Server
 	Log                  logrus.FieldLogger
 	Metrics              telemetry.Metrics
-	RateLimitConfig      *RateLimitConfig
+	RateLimit            RateLimitConfig
 }
 
 type OldAPIServers struct {
@@ -69,25 +70,20 @@ type OldAPIServers struct {
 type APIServers struct {
 	AgentServer  agentv1_pb.AgentServer
 	BundleServer bundlev1_pb.BundleServer
+	DebugServer  debugv1_pb.DebugServer
 	EntryServer  entryv1_pb.EntryServer
 	SVIDServer   svidv1_pb.SVIDServer
 }
 
 // RateLimitConfig holds rate limiting configurations.
 type RateLimitConfig struct {
-	// Attestation defines the maximum node attestations per second that
-	// the server can handle from a single IP.
-	Attestation int
+	// Attestation, if true, rate limits attestation
+	Attestation bool
 }
 
 // New creates new endpoints struct
 func New(c Config) (*Endpoints, error) {
 	oldAPIServers, err := c.makeOldAPIServers()
-	if err != nil {
-		return nil, err
-	}
-
-	apiServers, err := c.makeAPIServers()
 	if err != nil {
 		return nil, err
 	}
@@ -99,11 +95,11 @@ func New(c Config) (*Endpoints, error) {
 		TrustDomain:          c.TrustDomain,
 		DataStore:            c.Catalog.GetDataStore(),
 		OldAPIServers:        oldAPIServers,
-		APIServers:           apiServers,
+		APIServers:           c.makeAPIServers(),
 		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
 		Log:                  c.Log,
 		Metrics:              c.Metrics,
-		RateLimitConfig:      c.RateLimit,
+		RateLimit:            c.RateLimit,
 	}, nil
 }
 
@@ -133,6 +129,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	entryv1_pb.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
 	svidv1_pb.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
 	svidv1_pb.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
+	// Register Debug API only on UDS server
+	debugv1_pb.RegisterDebugServer(udsServer, e.APIServers.DebugServer)
 
 	tasks := []func(context.Context) error{
 		func(ctx context.Context) error {
@@ -306,7 +304,7 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimitConfig))
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit))
 
 	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }
