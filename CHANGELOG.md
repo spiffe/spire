@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.2] - 2020-10-29
+
+### What's New
+ - Added rate limiting to logging that occurs under certain misconfigurations (#1901)
+
+### What's Changed
+- Fixed an issue in the Upstream Authority plugin that could result in stale data being used (#1917)
+- Fixed error messages when attestation is disabled (#1899)
+- Fixed some incorrectly-formatted log messages (#1920)
+
+
 ## [0.11.1] - 2020-09-29
 
 ### What's New
