@@ -88,7 +88,7 @@ func idStringToProto(id string) (*types.SPIFFEID, error) {
 	}, nil
 }
 
-// ProtoToIDString converts types.SPIFFEID into an ID string
+// protoToIDString converts a SPIFFE ID from the given *types.SPIFFEID to string
 func protoToIDString(id *types.SPIFFEID) string {
 	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }

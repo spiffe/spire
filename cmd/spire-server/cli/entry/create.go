@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
+	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
 )
@@ -144,9 +145,10 @@ func (c CreateCLI) Run(args []string) int {
 		fmt.Println(err.Error())
 		return 1
 	}
+	defer srvCl.Release()
 	cl := srvCl.NewEntryClient()
 
-	err = c.registerEntries(ctx, cl, entries)
+	err = createEntries(ctx, cl, entries)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -162,16 +164,9 @@ func (c CreateCLI) parseConfig(config *CreateConfig) ([]*types.Entry, error) {
 		return nil, err
 	}
 
-	parentID := &types.SPIFFEID{}
-	if config.Node {
-		// If the node flag is set, then set the Parent ID to the server's expected SPIFFE ID
-		parentID.TrustDomain = spiffeID.TrustDomain
-		parentID.Path = "/spire/server"
-	} else {
-		parentID, err = idStringToProto(config.ParentID)
-		if err != nil {
-			return nil, err
-		}
+	parentID, err := getParentID(config, spiffeID.TrustDomain)
+	if err != nil {
+		return nil, err
 	}
 
 	e := &types.Entry{
@@ -199,7 +194,7 @@ func (c CreateCLI) parseConfig(config *CreateConfig) ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func (CreateCLI) registerEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) error {
+func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) error {
 	resp, err := c.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
 		return err
@@ -208,13 +203,14 @@ func (CreateCLI) registerEntries(ctx context.Context, c entry.EntryClient, entri
 	failed := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
 	succeeded := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
 	for i, r := range resp.Results {
-		if r.Status.Code != 0 {
-			// The Entry API do not includes in the results the entries that
+		switch r.Status.Code {
+		case int32(codes.OK):
+			succeeded = append(succeeded, r)
+		default:
+			// The Entry API does not include in the results the entries that
 			// failed to be created, so we populate them from the request data.
 			r.Entry = entries[i]
 			failed = append(failed, r)
-		} else {
-			succeeded = append(succeeded, r)
 		}
 	}
 
@@ -257,4 +253,15 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.Var(&c.DNSNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
 
 	return c, f.Parse(args)
+}
+
+func getParentID(config *CreateConfig, td string) (*types.SPIFFEID, error) {
+	// If the node flag is set, then set the Parent ID to the server's expected SPIFFE ID
+	if config.Node {
+		return &types.SPIFFEID{
+			TrustDomain: td,
+			Path:        "/spire/server",
+		}, nil
+	}
+	return idStringToProto(config.ParentID)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
+	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
 )
@@ -138,9 +139,10 @@ func (c UpdateCLI) Run(args []string) int {
 		fmt.Println(err.Error())
 		return 1
 	}
+	defer srvCl.Release()
 	cl := srvCl.NewEntryClient()
 
-	err = c.registerEntries(ctx, cl, entries)
+	err = updateEntries(ctx, cl, entries)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -186,7 +188,7 @@ func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func (UpdateCLI) registerEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) error {
+func updateEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) error {
 	resp, err := c.BatchUpdateEntry(ctx, &entry.BatchUpdateEntryRequest{
 		Entries: entries,
 	})
@@ -197,13 +199,14 @@ func (UpdateCLI) registerEntries(ctx context.Context, c entry.EntryClient, entri
 	failed := make([]*entry.BatchUpdateEntryResponse_Result, 0, len(resp.Results))
 	succeeded := make([]*entry.BatchUpdateEntryResponse_Result, 0, len(resp.Results))
 	for i, r := range resp.Results {
-		if r.Status.Code != 0 {
-			// The Entry API do not includes in the results the entries that
+		switch r.Status.Code {
+		case int32(codes.OK):
+			succeeded = append(succeeded, r)
+		default:
+			// The Entry API does not include in the results the entries that
 			// failed to be updated, so we populate them from the request data.
 			r.Entry = entries[i]
 			failed = append(failed, r)
-		} else {
-			succeeded = append(succeeded, r)
 		}
 	}
 

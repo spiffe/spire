@@ -81,6 +81,7 @@ func (s *ShowCLI) Run(args []string) int {
 			fmt.Printf("Error creating new registration client: %v", err)
 			return 1
 		}
+		defer srvCl.Release()
 		s.Client = srvCl.NewEntryClient()
 	}
 

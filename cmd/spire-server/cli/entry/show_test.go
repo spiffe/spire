@@ -3,12 +3,14 @@ package entry
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/cmd/spire-server/util"
+	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
-	mock_entry "github.com/spiffe/spire/test/mock/proto/api/entry"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 func TestShowTestSuite(t *testing.T) {
@@ -19,21 +21,22 @@ type ShowTestSuite struct {
 	suite.Suite
 
 	cli        *ShowCLI
-	mockClient *mock_entry.MockEntryClient
+	fakeServer *fakeEntryServer
+	fakeClient util.ServerClient
 }
 
 func (s *ShowTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(s.T())
-	defer mockCtrl.Finish()
-
-	s.mockClient = mock_entry.NewMockEntryClient(mockCtrl)
-
+	s.startFakeEntryServer()
 	cli := &ShowCLI{
 		Config:  new(ShowConfig),
-		Client:  s.mockClient,
+		Client:  s.fakeClient.NewEntryClient(),
 		Entries: []*types.Entry{},
 	}
 	s.cli = cli
+}
+
+func (s ShowTestSuite) TearDownTest() {
+	s.fakeClient.Release()
 }
 
 func (s *ShowTestSuite) TestRunWithEntryID() {
@@ -44,9 +47,8 @@ func (s *ShowTestSuite) TestRunWithEntryID() {
 		entryID,
 	}
 
-	req := &entry.GetEntryRequest{Id: entryID}
-	resp := s.registrationEntries(1)[0]
-	s.mockClient.EXPECT().GetEntry(gomock.Any(), req).Return(resp, nil)
+	s.fakeServer.expGetEntryReq = &entry.GetEntryRequest{Id: entryID}
+	s.fakeServer.getEntryResp = s.registrationEntries(1)[0]
 
 	s.Require().Zero(s.cli.Run(args))
 	s.Assert().Equal(s.registrationEntries(1), s.cli.Entries)
@@ -60,18 +62,17 @@ func (s *ShowTestSuite) TestRunWithParentID() {
 		protoToIDString(entries[0].ParentId),
 	}
 
-	req := &entry.ListEntriesRequest{
+	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{
 			ByParentId: entries[0].ParentId,
 		},
 	}
-	resp := &entry.ListEntriesResponse{Entries: entries}
-	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
+	s.fakeServer.listEntriesResp = &entry.ListEntriesResponse{Entries: entries}
 
 	s.Require().Zero(s.cli.Run(args))
 
-	util.SortTypesEntries(entries)
-	s.Assert().Equal(entries, s.cli.Entries)
+	commonutil.SortTypesEntries(entries)
+	spiretest.RequireProtoListEqual(s.T(), entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithSpiffeID() {
@@ -82,16 +83,15 @@ func (s *ShowTestSuite) TestRunWithSpiffeID() {
 		protoToIDString(entries[0].SpiffeId),
 	}
 
-	req := &entry.ListEntriesRequest{
+	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{
 			BySpiffeId: entries[0].SpiffeId,
 		},
 	}
-	resp := &entry.ListEntriesResponse{Entries: entries}
-	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
+	s.fakeServer.listEntriesResp = &entry.ListEntriesResponse{Entries: entries}
 
 	s.Require().Zero(s.cli.Run(args))
-	s.Assert().Equal(entries, s.cli.Entries)
+	spiretest.RequireProtoListEqual(s.T(), entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithSelector() {
@@ -102,7 +102,7 @@ func (s *ShowTestSuite) TestRunWithSelector() {
 		"foo:bar",
 	}
 
-	req := &entry.ListEntriesRequest{
+	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{
 			BySelectors: &types.SelectorMatch{
 				Match: types.SelectorMatch_MATCH_SUBSET,
@@ -113,15 +113,14 @@ func (s *ShowTestSuite) TestRunWithSelector() {
 		},
 	}
 
-	resp := &entry.ListEntriesResponse{
+	s.fakeServer.listEntriesResp = &entry.ListEntriesResponse{
 		Entries: entries,
 	}
-	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Zero(s.cli.Run(args))
 
-	util.SortTypesEntries(entries)
-	s.Assert().Equal(entries, s.cli.Entries)
+	commonutil.SortTypesEntries(entries)
+	spiretest.RequireProtoListEqual(s.T(), entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithSelectors() {
@@ -134,7 +133,7 @@ func (s *ShowTestSuite) TestRunWithSelectors() {
 		"bar:baz",
 	}
 
-	req := &entry.ListEntriesRequest{
+	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{
 			BySelectors: &types.SelectorMatch{
 				Match: types.SelectorMatch_MATCH_SUBSET,
@@ -146,11 +145,12 @@ func (s *ShowTestSuite) TestRunWithSelectors() {
 		},
 	}
 
-	resp := &entry.ListEntriesResponse{Entries: entries[1:2]}
-	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
+	s.fakeServer.listEntriesResp = &entry.ListEntriesResponse{Entries: entries[1:2]}
 
 	s.Require().Zero(s.cli.Run(args))
-	s.Assert().Equal(resp.Entries, s.cli.Entries)
+
+	commonutil.SortTypesEntries(s.fakeServer.listEntriesResp.Entries)
+	spiretest.RequireProtoListEqual(s.T(), s.fakeServer.listEntriesResp.Entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
@@ -163,7 +163,7 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 		"bar:baz",
 	}
 
-	req := &entry.ListEntriesRequest{
+	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{
 			ByParentId: entries[0].ParentId,
 			BySelectors: &types.SelectorMatch{
@@ -175,23 +175,20 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 		},
 	}
 
-	resp := &entry.ListEntriesResponse{Entries: entries[0:1]}
-	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
+	s.fakeServer.listEntriesResp = &entry.ListEntriesResponse{Entries: entries[0:1]}
 
 	s.Require().Zero(s.cli.Run(args))
 
-	s.Assert().Equal(resp.Entries, s.cli.Entries)
+	spiretest.RequireProtoListEqual(s.T(), s.fakeServer.listEntriesResp.Entries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithFederatesWith() {
-	req := &entry.ListEntriesRequest{
+	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{},
 	}
-	resp := &entry.ListEntriesResponse{
+	s.fakeServer.listEntriesResp = &entry.ListEntriesResponse{
 		Entries: s.registrationEntries(4),
 	}
-
-	s.mockClient.EXPECT().ListEntries(gomock.Any(), req).Return(resp, nil)
 
 	args := []string{
 		"-federatesWith",
@@ -201,7 +198,7 @@ func (s *ShowTestSuite) TestRunWithFederatesWith() {
 	s.Require().Zero(s.cli.Run(args))
 
 	expectEntries := s.registrationEntries(4)[2:3]
-	s.Assert().Equal(expectEntries, s.cli.Entries)
+	spiretest.RequireProtoListEqual(s.T(), expectEntries, s.cli.Entries)
 }
 
 // registrationEntries returns `count` registration entry records. At most 4.
@@ -245,4 +242,38 @@ func (ShowTestSuite) registrationEntries(count int) []*types.Entry {
 	}
 
 	return e
+}
+
+func (s *ShowTestSuite) startFakeEntryServer() {
+	s.fakeServer = &fakeEntryServer{
+		t: s.T(),
+	}
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+		entry.RegisterEntryServer(srv, s.fakeServer)
+	})
+	srvCl, err := util.NewServerClient(socketPath)
+	if err != nil {
+		s.FailNow("Error creating new registration client: %v", err)
+	}
+	s.fakeClient = srvCl
+}
+
+type fakeEntryServer struct {
+	*entry.UnimplementedEntryServer
+
+	t                 *testing.T
+	expGetEntryReq    *entry.GetEntryRequest
+	expListEntriesReq *entry.ListEntriesRequest
+	getEntryResp      *types.Entry
+	listEntriesResp   *entry.ListEntriesResponse
+}
+
+func (f fakeEntryServer) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
+	spiretest.RequireProtoEqual(f.t, f.expListEntriesReq, req)
+	return f.listEntriesResp, nil
+}
+
+func (f fakeEntryServer) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*types.Entry, error) {
+	spiretest.RequireProtoEqual(f.t, f.expGetEntryReq, req)
+	return f.getEntryResp, nil
 }

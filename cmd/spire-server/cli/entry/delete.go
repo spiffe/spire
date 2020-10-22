@@ -7,6 +7,7 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
 )
@@ -59,6 +60,7 @@ func (d DeleteCLI) Run(args []string) int {
 	if err != nil {
 		return d.printErr(err)
 	}
+	defer srvCl.Release()
 	cl := srvCl.NewEntryClient()
 
 	req := &entry.BatchDeleteEntryRequest{
@@ -68,14 +70,15 @@ func (d DeleteCLI) Run(args []string) int {
 	if err != nil {
 		return d.printErr(err)
 	}
-	r := resp.Results[0]
-	if r.Status.Code != 0 {
-		return d.printErr(fmt.Errorf("failed to delete entry: %s", r.Status.Message))
+
+	sts := resp.Results[0].Status
+	switch sts.Code {
+	case int32(codes.OK):
+		fmt.Printf("Deleted entry with ID: %s\n", config.EntryID)
+		return 0
+	default:
+		return d.printErr(fmt.Errorf("failed to delete entry: %s", sts.Message))
 	}
-
-	fmt.Printf("Deleted entry with ID: %s\n", config.EntryID)
-
-	return 0
 }
 
 func (DeleteCLI) newConfig(args []string) (*DeleteConfig, error) {
