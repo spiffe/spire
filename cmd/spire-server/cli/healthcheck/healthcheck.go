@@ -9,7 +9,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 )
 
 func NewHealthCheckCommand() cli.Command {
@@ -69,12 +69,12 @@ func (c *healthCheckCommand) parseFlags(args []string) error {
 
 func (c *healthCheckCommand) run() error {
 	if c.verbose {
-		if err := c.env.Println("Fetching bundle via Registration API..."); err != nil {
+		if err := c.env.Println("Fetching bundle via Bundle API..."); err != nil {
 			return err
 		}
 	}
 
-	client, err := util.NewRegistrationClient(c.socketPath)
+	client, err := util.NewServerClient(c.socketPath)
 	if err != nil {
 		if c.verbose {
 			// Ignore error since a failure to write to stderr cannot very well
@@ -83,12 +83,13 @@ func (c *healthCheckCommand) run() error {
 		}
 		return errors.New("cannot create registration client")
 	}
+	bundleClient := client.NewBundleClient()
 
 	// Currently using the ability to fetch a bundle as the health check. This
 	// **could** be problematic if the Upstream CA signing process is lengthy.
 	// As currently coded however, the registration API isn't served until after
 	// the server CA has been signed by upstream.
-	if _, err := client.FetchBundle(context.Background(), &common.Empty{}); err != nil {
+	if _, err := bundleClient.GetBundle(context.Background(), &bundle.GetBundleRequest{}); err != nil {
 		if c.verbose {
 			// Ignore error since a failure to write to stderr cannot very well
 			// be reported

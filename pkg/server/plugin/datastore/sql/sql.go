@@ -853,7 +853,7 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 				return nil, sqlError.Wrap(err)
 			}
 		default:
-			return nil, sqlError.New("cannot delete bundle; federated with %d registration entries", entriesCount)
+			return nil, status.Newf(codes.FailedPrecondition, "datastore-sql: cannot delete bundle; federated with %d registration entries", entriesCount).Err()
 		}
 	}
 

@@ -97,6 +97,32 @@ func TestMarshal(t *testing.T) {
 				"spiffe_refresh_hint": 60
 			}`, x5c(rootCA)),
 		},
+		{
+			name: "as standard JWKS",
+			opts: []MarshalOption{
+				StandardJWKS(),
+			},
+			out: fmt.Sprintf(`{
+				"keys": [
+					{
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA",
+						"x5c": [
+							"%s"
+						]
+					},
+					{
+						"kid": "FOO",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+					}
+				]
+			}`, x5c(rootCA)),
+		},
 	}
 
 	for _, testCase := range testCases {

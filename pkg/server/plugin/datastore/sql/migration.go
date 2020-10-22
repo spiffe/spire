@@ -19,7 +19,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 14
+	latestSchemaVersion = 15
 )
 
 var (
@@ -221,39 +221,29 @@ func migrateVersion(tx *gorm.DB, currVersion int, log hclog.Logger) (versionOut 
 	// how to bring the previous version up. The migrations are run
 	// sequentially, each in its own transaction, to move from one version to
 	// the next.
-	switch currVersion {
-	case 0:
-		err = migrateToV1(tx)
-	case 1:
-		err = migrateToV2(tx)
-	case 2:
-		err = migrateToV3(tx)
-	case 3:
-		err = migrateToV4(tx)
-	case 4:
-		err = migrateToV5(tx)
-	case 5:
-		err = migrateToV6(tx)
-	case 6:
-		err = migrateToV7(tx)
-	case 7:
-		err = migrateToV8(tx)
-	case 8:
-		err = migrateToV9(tx)
-	case 9:
-		err = migrateToV10(tx)
-	case 10:
-		err = migrateToV11(tx)
-	case 11:
-		err = migrateToV12(tx)
-	case 12:
-		err = migrateToV13(tx)
-	case 13:
-		err = migrateToV14(tx)
-	default:
-		err = sqlError.New("no migration support for version %d", currVersion)
+	migrations := []func(tx *gorm.DB) error{
+		migrateToV1,
+		migrateToV2,
+		migrateToV3,
+		migrateToV4,
+		migrateToV5,
+		migrateToV6,
+		migrateToV7,
+		migrateToV8,
+		migrateToV9,
+		migrateToV10,
+		migrateToV11,
+		migrateToV12,
+		migrateToV13,
+		migrateToV14,
+		migrateToV15,
 	}
-	if err != nil {
+
+	if currVersion >= len(migrations) {
+		return currVersion, sqlError.New("no migration support for version %d", currVersion)
+	}
+
+	if err := migrations[currVersion](tx); err != nil {
 		return currVersion, err
 	}
 
@@ -484,6 +474,10 @@ func migrateToV14(tx *gorm.DB) error {
 	return nil
 }
 
+func migrateToV15(tx *gorm.DB) error {
+	return addAttestedNodeEntriesExpiresAtIndex(tx)
+}
+
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
 	// GORM creates the federated_registration_entries implicitly with a primary
 	// key tuple (bundle_id, registered_entry_id). Unfortunately, MySQL5 does
@@ -492,6 +486,19 @@ func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
 	// to introduce the index since there is no explicit struct to add tags to
 	// so we have to manually create it.
 	if err := tx.Table("federated_registration_entries").AddIndex("idx_federated_registration_entries_registered_entry_id", "registered_entry_id").Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func addAttestedNodeEntriesExpiresAtIndex(tx *gorm.DB) error {
+	// GORM creates the federated_registration_entries implicitly with a primary
+	// key tuple (bundle_id, registered_entry_id). Unfortunately, MySQL5 does
+	// not use the primary key index efficiently when joining by registered_entry_id
+	// during registration entry list operations. We can't use gorm AutoMigrate
+	// to introduce the index since there is no explicit struct to add tags to
+	// so we have to manually create it.
+	if err := tx.Table("attested_node_entries").AddIndex("idx_attested_node_entries_expires_at", "expires_at").Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil

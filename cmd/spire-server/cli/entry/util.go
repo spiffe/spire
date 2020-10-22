@@ -3,7 +3,9 @@ package entry
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -63,18 +65,34 @@ func printEntry(e *types.Entry) {
 	fmt.Println()
 }
 
+// parseFile parses JSON represented RegistrationEntries
+// if path is "-" read JSON from STDIN
 func parseFile(path string) ([]*types.Entry, error) {
-	dat, err := ioutil.ReadFile(path)
+	return parseEntryJSON(os.Stdin, path)
+}
+
+func parseEntryJSON(in io.Reader, path string) ([]*types.Entry, error) {
+	entries := &common.RegistrationEntries{}
+
+	r := in
+	if path != "-" {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	}
+
+	dat, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
 
-	commonEntries := &common.RegistrationEntries{}
-	if err := json.Unmarshal(dat, &commonEntries); err != nil {
+	if err := json.Unmarshal(dat, &entries); err != nil {
 		return nil, err
 	}
-
-	return api.RegistrationEntriesToProto(commonEntries.Entries)
+	return api.RegistrationEntriesToProto(entries.Entries)
 }
 
 func idStringToProto(id string) (*types.SPIFFEID, error) {

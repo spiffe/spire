@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"google.golang.org/grpc"
 )
 
@@ -47,6 +48,7 @@ type ServerClient interface {
 	NewAgentClient() agent.AgentClient
 	NewBundleClient() bundle.BundleClient
 	NewEntryClient() entry.EntryClient
+	NewSVIDClient() svid.SVIDClient
 }
 
 func NewServerClient(socketPath string) (ServerClient, error) {
@@ -75,6 +77,10 @@ func (c *serverClient) NewBundleClient() bundle.BundleClient {
 
 func (c *serverClient) NewEntryClient() entry.EntryClient {
 	return entry.NewEntryClient(c.conn)
+}
+
+func (c *serverClient) NewSVIDClient() svid.SVIDClient {
+	return svid.NewSVIDClient(c.conn)
 }
 
 // Pluralizer concatenates `singular` to `msg` when `val` is one, and
@@ -128,7 +134,7 @@ func (a *Adapter) Run(args []string) int {
 	ctx := context.Background()
 
 	if err := a.flags.Parse(args); err != nil {
-		fmt.Fprintln(a.env.Stderr, err)
+		fmt.Fprintln(a.env.Stderr)
 		return 1
 	}
 

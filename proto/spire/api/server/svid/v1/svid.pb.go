@@ -263,7 +263,7 @@ func (m *BatchNewX509SVIDRequest) GetParams() []*NewX509SVIDParams {
 }
 
 type BatchNewX509SVIDResponse struct {
-	// Result for each X509-SVID requested.
+	// Result for each X509-SVID requested (order is maintained).
 	Results              []*BatchNewX509SVIDResponse_Result `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
 	XXX_unrecognized     []byte                             `json:"-"`

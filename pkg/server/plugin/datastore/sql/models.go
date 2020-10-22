@@ -29,7 +29,7 @@ type AttestedNode struct {
 	SpiffeID        string `gorm:"unique_index"`
 	DataType        string
 	SerialNumber    string
-	ExpiresAt       time.Time
+	ExpiresAt       time.Time `gorm:"index"`
 	NewSerialNumber string
 	NewExpiresAt    *time.Time
 

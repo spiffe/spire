@@ -240,7 +240,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.TTL, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
 
-	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional)")
+	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
 
 	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")

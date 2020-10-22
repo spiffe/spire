@@ -1,12 +1,9 @@
 package entry
 
 import (
-	"path"
 	"testing"
 
 	"github.com/spiffe/spire/proto/spire/types"
-	"github.com/spiffe/spire/test/spiretest"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -113,42 +110,6 @@ func TestCreateNodeParseConfig(t *testing.T) {
 
 	expectedEntries := []*types.Entry{expectedEntry}
 	assert.Equal(t, expectedEntries, entries)
-}
-
-func TestRegisterParseFile(t *testing.T) {
-	p := path.Join(util.ProjectRoot(), "test/fixture/registration/good.json")
-	entries, err := parseFile(p)
-	require.NoError(t, err)
-
-	entry1 := &types.Entry{
-		Selectors: []*types.Selector{
-			{
-				Type:  "unix",
-				Value: "uid:1111",
-			},
-		},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
-		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
-		Ttl:      200,
-		Admin:    true,
-	}
-	entry2 := &types.Entry{
-		Selectors: []*types.Selector{
-			{
-				Type:  "unix",
-				Value: "uid:1111",
-			},
-		},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
-		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-		Ttl:      200,
-	}
-
-	expectedEntries := []*types.Entry{
-		entry1,
-		entry2,
-	}
-	spiretest.AssertProtoListEqual(t, expectedEntries, entries)
 }
 
 func TestRegisterParseSelector(t *testing.T) {

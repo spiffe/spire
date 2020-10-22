@@ -77,3 +77,7 @@ telemetry {
         }
 }
 ```
+
+### Supported metrics
+
+See the [Telemetry document](telemetry.md) for a list of all the supported metrics.

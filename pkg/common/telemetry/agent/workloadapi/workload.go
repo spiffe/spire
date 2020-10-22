@@ -87,7 +87,7 @@ func IncrValidJWTSVIDCounter(m telemetry.Metrics, id string, aud string) {
 // IncrValidJWTSVIDErrCounter indicate call to Workload
 // API, on error validating JWT SVID.
 func IncrValidJWTSVIDErrCounter(m telemetry.Metrics) {
-	m.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1)
+	m.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVIDError}, 1)
 }
 
 // End Counters
