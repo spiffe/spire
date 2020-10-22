@@ -3,46 +3,81 @@ package middleware
 import (
 	"context"
 	"strings"
+	"sync"
+	"unicode"
 
+	"github.com/iancoleman/strcase"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 )
 
 const (
-	// serverAPIPrefix is the prefix on the SPIRE server APIs full method names.
-	// We strip it out to keep things concise.
-	serverAPIPrefix = "/spire.api.server."
+	serverAPIPrefix = "spire.api.server."
 )
 
+var (
+	serviceReplacer = strings.NewReplacer(
+		serverAPIPrefix, "",
+	)
+
+	// namesCache caches parsed names
+	namesCache sync.Map
+)
+
+// withNames returns a context and the names parsed out of the given full
+// method. If the given context already has the parsed names, then those names
+// are returned. Otherwise, a global cache is checked for the names, keyed by
+// the full method. If present, the cached names are returned. Otherwise, the
+// full method is parsed and the names cached and returned along with an
+// embellished context.
 func withNames(ctx context.Context, fullMethod string) (context.Context, api.Names) {
 	names, ok := rpccontext.Names(ctx)
-	if !ok {
-		names = makeNames(fullMethod)
-		ctx = rpccontext.WithNames(ctx, names)
+	if ok {
+		return ctx, names
 	}
-	return ctx, names
+
+	cached, ok := namesCache.Load(fullMethod)
+	if ok {
+		names = cached.(api.Names)
+	} else {
+		names = makeNames(fullMethod)
+		namesCache.Store(fullMethod, names)
+	}
+
+	return rpccontext.WithNames(ctx, names), names
 }
 
-// makeNameEntry parses a gRPC full method name into individual parts with
-// the common server API prefix stripped off. If the full method does not
-// have the common server API prefix, the leading slash is simply removed.
-// It expects the input to be well-formed since it gets its input from gRPC
-// generated names. It will not panic if given bad input, but will not provide
-// meaningful names.
+// makeNames parses a gRPC full method name into individual parts.  It expects
+// the input to be well-formed since it gets its input from gRPC generated
+// names. It will not panic if given bad input, but will not provide meaningful
+// names.
 func makeNames(fullMethod string) (names api.Names) {
-	// Trim off the common prefix
-	fullMethod = strings.TrimPrefix(fullMethod, serverAPIPrefix)
-
-	// If the full method doesn't have the common prefix for whatever reason,
-	// remove the leading slash.
+	// Strip the leading slash. It should always be present in practice.
 	if len(fullMethod) > 0 && fullMethod[0] == '/' {
 		fullMethod = fullMethod[1:]
 	}
 
-	// Parse the slash separated service and method name
+	// Parse the slash separated service and method name. The separating slash
+	// should always be present in practice.
 	if slashIndex := strings.Index(fullMethod, "/"); slashIndex != -1 {
-		names.Service = fullMethod[0:slashIndex]
+		names.RawService = fullMethod[0:slashIndex]
 		names.Method = fullMethod[slashIndex+1:]
 	}
+
+	names.Service = serviceReplacer.Replace(names.RawService)
+	names.ServiceMetric = metricKey(names.Service)
+	names.MethodMetric = metricKey(names.Method)
 	return names
+}
+
+// metricKey converts an RPC service or method name into one appropriate for
+// metrics use. It converts PascalCase into snake_case, also converting any
+// non-alphanumeric rune into an underscore.
+func metricKey(s string) string {
+	return strcase.ToSnakeWithIgnore(strings.Map(func(r rune) rune {
+		if unicode.In(r, unicode.Letter, unicode.Number) {
+			return r
+		}
+		return '_'
+	}, s), '_')
 }
