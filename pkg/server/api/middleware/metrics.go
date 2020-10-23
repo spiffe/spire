@@ -24,7 +24,7 @@ type metricsMiddleware struct {
 
 func (m metricsMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
 	ctx, names := withNames(ctx, fullMethod)
-	counter := telemetry.StartCall(m.metrics, "rpc", names.ServiceMetric, names.MethodMetric)
+	counter := telemetry.StartCall(m.metrics, "rpc", names.MetricKey...)
 	return rpccontext.WithCallCounter(ctx, counter), nil
 }
 

@@ -65,13 +65,13 @@ func TestWithMetrics(t *testing.T) {
 			assert.Equal(t, []fakemetrics.MetricItem{
 				{
 					Type:   fakemetrics.IncrCounterWithLabelsType,
-					Key:    []string{"rpc", "foo_v1_foo", "some_method"},
+					Key:    []string{"rpc", "foo", "v1", "foo", "some_method"},
 					Val:    1.00,
 					Labels: expectedLabels,
 				},
 				{
 					Type:   fakemetrics.MeasureSinceWithLabelsType,
-					Key:    []string{"rpc", "foo_v1_foo", "some_method", "elapsed_time"},
+					Key:    []string{"rpc", "foo", "v1", "foo", "some_method", "elapsed_time"},
 					Val:    0.00, // This is the elapsed time on the call counter, which doesn't currently support injecting a clock.
 					Labels: expectedLabels,
 				},

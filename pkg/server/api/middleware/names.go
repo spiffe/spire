@@ -6,7 +6,6 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/iancoleman/strcase"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 )
@@ -65,8 +64,11 @@ func makeNames(fullMethod string) (names api.Names) {
 	}
 
 	names.Service = serviceReplacer.Replace(names.RawService)
-	names.ServiceMetric = metricKey(names.Service)
-	names.MethodMetric = metricKey(names.Method)
+	names.MetricKey = append(names.MetricKey, strings.Split(names.Service, ".")...)
+	names.MetricKey = append(names.MetricKey, names.Method)
+	for i := range names.MetricKey {
+		names.MetricKey[i] = metricKey(names.MetricKey[i])
+	}
 	return names
 }
 
@@ -74,10 +76,28 @@ func makeNames(fullMethod string) (names api.Names) {
 // metrics use. It converts PascalCase into snake_case, also converting any
 // non-alphanumeric rune into an underscore.
 func metricKey(s string) string {
-	return strcase.ToSnakeWithIgnore(strings.Map(func(r rune) rune {
-		if unicode.In(r, unicode.Letter, unicode.Number) {
-			return r
+	in := []rune(s)
+	var out []rune
+
+	for i, r := range in {
+		if !unicode.In(r, unicode.Letter, unicode.Number) {
+			out = append(out, '_')
+			continue
 		}
-		return '_'
-	}, s), '_')
+		lr := unicode.ToLower(r)
+		// Add an underscore if the current rune:
+		// - is uppercase
+		// - not the first rune
+		// - is followed or preceded by a lowercase rune
+		// - was not preceded by an underscore in the output
+		if r != lr &&
+			i > 0 &&
+			(i+1) < len(in) &&
+			(unicode.IsLower(in[i+1]) || unicode.IsLower(in[i-1])) &&
+			out[len(out)-1] != '_' {
+			out = append(out, '_')
+		}
+		out = append(out, lr)
+	}
+	return string(out)
 }
