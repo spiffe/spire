@@ -6,9 +6,11 @@ import (
 	"net"
 	"os"
 
-	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
-	"github.com/spiffe/spire/pkg/agent/endpoints/sds"
+	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv2"
+	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -81,7 +83,7 @@ func (e *Endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 		Metrics: e.c.Metrics,
 	})
 
-	h := sds.NewHandler(sds.HandlerConfig{
+	handlerv2 := sdsv2.NewHandler(sdsv2.HandlerConfig{
 		Attestor:          attestor,
 		Manager:           e.c.Manager,
 		Log:               e.c.Log.WithField(telemetry.SubsystemName, telemetry.SDSAPI),
@@ -89,7 +91,17 @@ func (e *Endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 		DefaultSVIDName:   e.c.DefaultSVIDName,
 		DefaultBundleName: e.c.DefaultBundleName,
 	})
-	sds_v2.RegisterSecretDiscoveryServiceServer(server, h)
+	discovery_v2.RegisterSecretDiscoveryServiceServer(server, handlerv2)
+
+	handlerv3 := sdsv3.NewHandler(sdsv3.HandlerConfig{
+		Attestor:          attestor,
+		Manager:           e.c.Manager,
+		Log:               e.c.Log.WithField(telemetry.SubsystemName, telemetry.SDSAPI),
+		Metrics:           e.c.Metrics,
+		DefaultSVIDName:   e.c.DefaultSVIDName,
+		DefaultBundleName: e.c.DefaultBundleName,
+	})
+	secret_v3.RegisterSecretDiscoveryServiceServer(server, handlerv3)
 }
 
 func (e *Endpoints) createUDSListener() (net.Listener, error) {

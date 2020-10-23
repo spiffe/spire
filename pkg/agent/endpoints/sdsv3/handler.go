@@ -1,4 +1,4 @@
-package sds
+package sdsv3
 
 import (
 	"context"
@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	tls_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
@@ -61,7 +61,7 @@ func NewHandler(config HandlerConfig) *Handler {
 	return &Handler{c: config}
 }
 
-func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
+func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSecretsServer) error {
 	selectors, done, err := h.startCall(stream.Context())
 	log := h.c.Log.WithField(telemetry.Method, telemetry.StreamSecrets)
 	if err != nil {
@@ -74,7 +74,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 	defer sub.Finish()
 
 	updch := sub.Updates()
-	reqch := make(chan *api_v2.DiscoveryRequest, 1)
+	reqch := make(chan *discovery_v3.DiscoveryRequest, 1)
 	errch := make(chan error, 1)
 
 	go func() {
@@ -95,7 +95,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 	var versionInfo = strconv.FormatInt(versionCounter, 10)
 	var lastNonce string
 	var upd *cache.WorkloadUpdate
-	var lastReq *api_v2.DiscoveryRequest
+	var lastReq *discovery_v3.DiscoveryRequest
 	for {
 		select {
 		case newReq := <-reqch:
@@ -201,11 +201,11 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 	return false
 }
 
-func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsServer) error {
+func (h *Handler) DeltaSecrets(secret_v3.SecretDiscoveryService_DeltaSecretsServer) error {
 	return status.Error(codes.Unimplemented, "Method is not implemented")
 }
 
-func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
+func (h *Handler) FetchSecrets(ctx context.Context, req *discovery_v3.DiscoveryRequest) (*discovery_v3.DiscoveryResponse, error) {
 	log := h.c.Log.WithField(telemetry.Method, telemetry.FetchSecrets)
 	log.WithFields(logrus.Fields{
 		telemetry.ResourceNames: req.ResourceNames,
@@ -268,8 +268,8 @@ func (h *Handler) startCall(ctx context.Context) ([]*common.Selector, func(), er
 	return selectors, done, nil
 }
 
-func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *api_v2.DiscoveryResponse, err error) {
-	resp = &api_v2.DiscoveryResponse{
+func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *discovery_v3.DiscoveryResponse, err error) {
+	resp = &discovery_v3.DiscoveryResponse{
 		TypeUrl:     req.TypeUrl,
 		VersionInfo: versionInfo,
 	}
@@ -369,17 +369,17 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.
 
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
-	return ptypes.MarshalAny(&auth_v2.Secret{
+	return ptypes.MarshalAny(&tls_v3.Secret{
 		Name: name,
-		Type: &auth_v2.Secret_TlsCertificate{
-			TlsCertificate: &auth_v2.TlsCertificate{
-				CertificateChain: &core_v2.DataSource{
-					Specifier: &core_v2.DataSource_InlineBytes{
+		Type: &tls_v3.Secret_TlsCertificate{
+			TlsCertificate: &tls_v3.TlsCertificate{
+				CertificateChain: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
 						InlineBytes: certsPEM,
 					},
 				},
-				PrivateKey: &core_v2.DataSource{
-					Specifier: &core_v2.DataSource_InlineBytes{
+				PrivateKey: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
 						InlineBytes: keyPEM,
 					},
 				},
@@ -394,12 +394,12 @@ func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string)
 		name = defaultBundleName
 	}
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
-	return ptypes.MarshalAny(&auth_v2.Secret{
+	return ptypes.MarshalAny(&tls_v3.Secret{
 		Name: name,
-		Type: &auth_v2.Secret_ValidationContext{
-			ValidationContext: &auth_v2.CertificateValidationContext{
-				TrustedCa: &core_v2.DataSource{
-					Specifier: &core_v2.DataSource_InlineBytes{
+		Type: &tls_v3.Secret_ValidationContext{
+			ValidationContext: &tls_v3.CertificateValidationContext{
+				TrustedCa: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
 						InlineBytes: caBytes,
 					},
 				},
