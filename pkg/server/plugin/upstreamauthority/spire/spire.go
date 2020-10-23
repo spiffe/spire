@@ -206,10 +206,8 @@ func (m *Plugin) pollBundleUpdates(ctx context.Context) {
 		resp, err := m.serverClient.getBundle(ctx)
 		if err != nil {
 			m.log.Warn("Failed to fetch bundle while polling", "error", err)
-		}
-
-		if m.bundleVersion == preFetchCallVersion && resp != nil {
-			m.setBundle(resp)
+		} else {
+			m.setBundleIfVersionMatches(resp, preFetchCallVersion)
 		}
 
 		select {
@@ -222,11 +220,13 @@ func (m *Plugin) pollBundleUpdates(ctx context.Context) {
 	}
 }
 
-func (m *Plugin) setBundle(b *types.Bundle) {
+func (m *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint64) {
 	m.bundleMtx.Lock()
 	defer m.bundleMtx.Unlock()
 
-	m.currentBundle = *b
+	if m.bundleVersion == expectedVersion {
+		m.currentBundle = *b
+	}
 }
 
 func (m *Plugin) getBundle() types.Bundle {

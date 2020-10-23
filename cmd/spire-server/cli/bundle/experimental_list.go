@@ -5,15 +5,17 @@ import (
 	"flag"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/cmd/spire-server/util"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 )
 
 // NewExperimentalListCommand creates a new "list" subcommand for "bundle" command.
 func NewExperimentalListCommand() cli.Command {
-	return newExperimentalListCommand(defaultEnv, newClients)
+	return newExperimentalListCommand(common_cli.DefaultEnv)
 }
 
-func newExperimentalListCommand(env *env, clientsMaker clientsMaker) cli.Command {
-	return adaptCommand(env, clientsMaker, new(experimentalListCommand))
+func newExperimentalListCommand(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(experimentalListCommand))
 }
 
 type experimentalListCommand struct {
@@ -21,23 +23,23 @@ type experimentalListCommand struct {
 	id string
 }
 
-func (c *experimentalListCommand) name() string {
+func (c *experimentalListCommand) Name() string {
 	return `experimental bundle list (deprecated - please use "bundle list" instead)`
 }
 
-func (c *experimentalListCommand) synopsis() string {
+func (c *experimentalListCommand) Synopsis() string {
 	return `Lists bundle data. This command has been deprecated and will be removed in a future release. Its functionality was subsumed into the "bundle list" command.`
 }
 
-func (c *experimentalListCommand) appendFlags(fs *flag.FlagSet) {
+func (c *experimentalListCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 }
 
-func (c *experimentalListCommand) run(ctx context.Context, env *env, clients *clients) error {
+func (c *experimentalListCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	listCommand := listCommand{
 		id:     c.id,
 		format: formatSPIFFE,
 	}
 
-	return listCommand.run(ctx, env, clients)
+	return listCommand.Run(ctx, env, serverClient)
 }

@@ -107,6 +107,7 @@ interface. eg. `foodata.go` implements `type FooData interface{}`
 As much as possible, label names should be constants defined in the `telemetry` package. Additionally,
 specific metrics should be centrally defined in the `telemetry` package or its subpackages. Functions
 desiring metrics should delegate counter, gauge, timer, etc. creation to such packages.
+The metrics emitted by SPIRE are listed in the [telemetry document](doc/telemetry.md) and should be kept up to date.
 
 ### Count in Aggregate
 

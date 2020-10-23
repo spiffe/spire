@@ -92,7 +92,7 @@ message BatchNewX509SVIDResponse {
         spire.types.X509SVID svid = 2;
     }
 
-    // Result for each X509-SVID requested.
+    // Result for each X509-SVID requested (order is maintained).
     repeated Result results = 1;
 }
 

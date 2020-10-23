@@ -49,7 +49,7 @@ func MakeErr(log logrus.FieldLogger, code codes.Code, msg string, err error) err
 		// Add the prefix 'Invalid argument' for InvalidArgument errors
 		if err != nil {
 			log = log.WithError(err)
-			errMsg = fmt.Sprintf("%s: %v", msg, err)
+			errMsg = concatErr(msg, err)
 		}
 
 		log.Errorf("Invalid argument: %s", msg)
@@ -63,11 +63,22 @@ func MakeErr(log logrus.FieldLogger, code codes.Code, msg string, err error) err
 	default:
 		if err != nil {
 			log = log.WithError(err)
-			errMsg = fmt.Sprintf("%s: %v", msg, err)
+			errMsg = concatErr(msg, err)
 		}
 		log.Error(capitalize(msg))
 		return status.Error(code, errMsg)
 	}
+}
+
+// Concat message with provided error and avoid "status.Code"
+func concatErr(msg string, err error) string {
+	protoStatus := status.Convert(err)
+	// Proto will be nil "only" when err is nil
+	if protoStatus == nil {
+		return msg
+	}
+
+	return fmt.Sprintf("%s: %s", msg, protoStatus.Message())
 }
 
 func capitalize(s string) string {

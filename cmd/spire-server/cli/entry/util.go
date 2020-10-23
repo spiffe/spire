@@ -1,7 +1,11 @@
 package entry
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/spiffe/spire/proto/spire/common"
@@ -89,6 +93,36 @@ func printEntry(e *common.RegistrationEntry) {
 	}
 
 	fmt.Println()
+}
+
+// parseFile parses JSON represented RegistrationEntries
+// if path is "-" read JSON from STDIN
+func parseFile(path string) ([]*common.RegistrationEntry, error) {
+	return parseEntryJSON(os.Stdin, path)
+}
+
+func parseEntryJSON(in io.Reader, path string) ([]*common.RegistrationEntry, error) {
+	entries := &common.RegistrationEntries{}
+
+	r := in
+	if path != "-" {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	}
+
+	dat, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(dat, &entries); err != nil {
+		return nil, err
+	}
+	return entries.Entries, nil
 }
 
 // StringsFlag defines a custom type for string lists. Doing
