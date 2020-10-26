@@ -8,7 +8,6 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
@@ -175,7 +174,7 @@ func (c *createCommand) validate() (err error) {
 
 // parseConfig builds a registration entry from the given config
 func (c *createCommand) parseConfig() ([]*types.Entry, error) {
-	spiffeID, err := protoutil.StrToSPIFFEID(c.spiffeID)
+	spiffeID, err := idStringToProto(c.spiffeID)
 	if err != nil {
 		return nil, err
 	}
@@ -241,5 +240,5 @@ func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {
 			Path:        idutil.ServerIDPath,
 		}, nil
 	}
-	return protoutil.StrToSPIFFEID(config.parentID)
+	return idStringToProto(config.parentID)
 }

@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -33,8 +33,8 @@ func parseSelector(str string) (*types.Selector, error) {
 
 func printEntry(e *types.Entry, env *common_cli.Env) {
 	env.Printf("Entry ID      : %s\n", e.Id)
-	env.Printf("SPIFFE ID     : %s\n", protoutil.SPIFFEIDToStr(e.SpiffeId))
-	env.Printf("Parent ID     : %s\n", protoutil.SPIFFEIDToStr(e.ParentId))
+	env.Printf("SPIFFE ID     : %s\n", protoToIDString(e.SpiffeId))
+	env.Printf("Parent ID     : %s\n", protoToIDString(e.ParentId))
 	env.Printf("Revision      : %d\n", e.RevisionNumber)
 
 	if e.Downstream {
@@ -64,6 +64,26 @@ func printEntry(e *types.Entry, env *common_cli.Env) {
 	}
 
 	env.Println()
+}
+
+// idStringToProto converts a SPIFFE ID from the given string to *types.SPIFFEID
+func idStringToProto(id string) (*types.SPIFFEID, error) {
+	idType, err := spiffeid.FromString(id)
+	if err != nil {
+		return nil, err
+	}
+	return &types.SPIFFEID{
+		TrustDomain: idType.TrustDomain().String(),
+		Path:        idType.Path(),
+	}, nil
+}
+
+// protoToIDString converts a SPIFFE ID from the given *types.SPIFFEID to string
+func protoToIDString(id *types.SPIFFEID) string {
+	if id == nil {
+		return ""
+	}
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }
 
 // parseFile parses JSON represented RegistrationEntries

@@ -8,7 +8,6 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/protoutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -105,7 +104,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 
 	filter := &entry.ListEntriesRequest_Filter{}
 	if c.parentID != "" {
-		id, err := protoutil.StrToSPIFFEID(c.parentID)
+		id, err := idStringToProto(c.parentID)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing parent ID %q: %v", c.parentID, err)
 		}
@@ -113,7 +112,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 	}
 
 	if c.spiffeID != "" {
-		id, err := protoutil.StrToSPIFFEID(c.spiffeID)
+		id, err := idStringToProto(c.spiffeID)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing SPIFFE ID %q: %v", c.spiffeID, err)
 		}

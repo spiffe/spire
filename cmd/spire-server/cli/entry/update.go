@@ -8,7 +8,6 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
@@ -171,11 +170,11 @@ func (c *updateCommand) validate() (err error) {
 
 // parseConfig builds a registration entry from the given config
 func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
-	parentID, err := protoutil.StrToSPIFFEID(c.parentID)
+	parentID, err := idStringToProto(c.parentID)
 	if err != nil {
 		return nil, err
 	}
-	spiffeID, err := protoutil.StrToSPIFFEID(c.spiffeID)
+	spiffeID, err := idStringToProto(c.spiffeID)
 	if err != nil {
 		return nil, err
 	}
