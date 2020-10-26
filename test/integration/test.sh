@@ -6,8 +6,15 @@ cd "${DIR}" || fail-now "Unable to change to script directory"
 
 . ./common
 
+SUITES=suites/*
+if [[ -n $1 ]]; then
+        SUITES=$@
+fi
+
+echo "Testing $SUITES"
+
 failed=()
-for suite in suites/*; do
+for suite in $SUITES; do
     if ! ./test-one.sh "${suite}"; then
         echo "STATUS=$?"
         failed+=( "$(basename "${suite}")" )
