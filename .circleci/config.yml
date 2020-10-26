@@ -130,9 +130,9 @@ jobs:
       - checkout
       - run:
           name: Execute integration test suites
+          working_directory: test/integration/
           command: |
-            echo $(circleci tests glob "test/integration/suites/*" | circleci tests split)
-            circleci tests glob "test/integration/suites/*" | circleci tests split | xargs -n1 test/integration/test-one.sh
+            circleci tests glob "suites/*" | circleci tests split | xargs ./test.sh
 
   # Publish "unstable" docker images
   publish-unstable-images:

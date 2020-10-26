@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# bring up the rest
+docker-up
