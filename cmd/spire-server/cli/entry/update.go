@@ -5,8 +5,11 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
@@ -14,82 +17,137 @@ import (
 	"golang.org/x/net/context"
 )
 
-type UpdateConfig struct {
-	// Socket path of registration API
-	RegistrationUDSPath string
+// NewUpdateCommand creates a new "update" subcommand for "entry" command.
+func NewUpdateCommand() cli.Command {
+	return newUpdateCommand(common_cli.DefaultEnv)
+}
 
+func newUpdateCommand(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(updateCommand))
+}
+
+type updateCommand struct {
 	// Path to an optional data file. If set, other
 	// opts will be ignored.
-	Path string
+	path string
 
 	// Registration entry id to update
-	EntryID string
+	entryID string
 
 	// Type and value are delimited by a colon (:)
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
-	Selectors StringsFlag
+	selectors StringsFlag
 
-	ParentID   string
-	SpiffeID   string
-	Downstream bool
-	TTL        int
+	// Workload parent spiffeID
+	parentID string
+
+	// Workload spiffeID
+	spiffeID string
+
+	// Whether or not the entry is for a downstream SPIRE server
+	downstream bool
+
+	// TTL for certificates issued to this workload
+	ttl int
 
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
-	FederatesWith StringsFlag
+	federatesWith StringsFlag
 
 	// Whether or not the registration entry is for an "admin" workload
-	Admin bool
+	admin bool
 
 	// Expiry of entry
-	EntryExpiry int64
+	entryExpiry int64
 
 	// DNSNames entries for SVIDs based on this entry
-	DNSNames StringsFlag
+	dnsNames StringsFlag
 }
 
-// Validate performs basic validation, even on fields that we
-// have defaults defined for
-func (rc *UpdateConfig) Validate() (err error) {
-	if rc.RegistrationUDSPath == "" {
-		return errors.New("a socket path for registration api is required")
+func (*updateCommand) Name() string {
+	return "entry update"
+}
+
+func (*updateCommand) Synopsis() string {
+	return "Updates registration entries"
+}
+
+func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
+	f.StringVar(&c.entryID, "entryID", "", "The Registration Entry ID of the record to update")
+	f.StringVar(&c.parentID, "parentID", "", "The SPIFFE ID of this record's parent")
+	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
+	f.IntVar(&c.ttl, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
+	f.StringVar(&c.path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
+	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
+	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
+	f.BoolVar(&c.admin, "admin", false, "If true, the SPIFFE ID in this entry will be granted access to the Registration API")
+	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
+	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
+	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
+}
+
+func (c *updateCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+	if err := c.validate(); err != nil {
+		return err
 	}
 
+	var entries []*types.Entry
+	var err error
+	if c.path != "" {
+		entries, err = parseFile(c.path)
+	} else {
+		entries, err = c.parseConfig()
+	}
+	if err != nil {
+		return err
+	}
+
+	err = updateEntries(ctx, serverClient.NewEntryClient(), entries)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validate performs basic validation, even on fields that we
+// have defaults defined for
+func (c *updateCommand) validate() (err error) {
 	// If a path is set, we have all we need
-	if rc.Path != "" {
+	if c.path != "" {
 		return nil
 	}
 
-	if rc.EntryID == "" {
+	if c.entryID == "" {
 		return errors.New("entry ID is required")
 	}
 
-	if len(rc.Selectors) < 1 {
+	if len(c.selectors) < 1 {
 		return errors.New("at least one selector is required")
 	}
 
-	if rc.ParentID == "" {
+	if c.parentID == "" {
 		return errors.New("a parent ID is required")
 	}
 
-	if rc.SpiffeID == "" {
+	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
 	}
 
-	if rc.TTL < 0 {
+	if c.ttl < 0 {
 		return errors.New("a TTL is required")
 	}
 
 	// make sure all SPIFFE ID's are well formed
-	rc.SpiffeID, err = idutil.NormalizeSpiffeID(rc.SpiffeID, idutil.AllowAny())
+	c.spiffeID, err = idutil.NormalizeSpiffeID(c.spiffeID, idutil.AllowAny())
 	if err != nil {
 		return err
 	}
-	rc.ParentID, err = idutil.NormalizeSpiffeID(rc.ParentID, idutil.AllowAny())
+	c.parentID, err = idutil.NormalizeSpiffeID(c.parentID, idutil.AllowAny())
 	if err != nil {
 		return err
 	}
-	for i := range rc.FederatesWith {
-		rc.FederatesWith[i], err = idutil.NormalizeSpiffeID(rc.FederatesWith[i], idutil.AllowAny())
+	for i := range c.federatesWith {
+		c.federatesWith[i], err = idutil.NormalizeSpiffeID(c.federatesWith[i], idutil.AllowAny())
 		if err != nil {
 			return err
 		}
@@ -98,82 +156,29 @@ func (rc *UpdateConfig) Validate() (err error) {
 	return nil
 }
 
-type UpdateCLI struct{}
-
-func (UpdateCLI) Synopsis() string {
-	return "Updates registration entries"
-}
-
-func (c UpdateCLI) Help() string {
-	_, err := c.newConfig([]string{"-h"})
-	return err.Error()
-}
-
-func (c UpdateCLI) Run(args []string) int {
-	ctx := context.Background()
-
-	config, err := c.newConfig(args)
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	if err = config.Validate(); err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	var entries []*types.Entry
-	if config.Path != "" {
-		entries, err = parseFile(config.Path)
-	} else {
-		entries, err = c.parseConfig(config)
-	}
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	srvCl, err := util.NewServerClient(config.RegistrationUDSPath)
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-	defer srvCl.Release()
-	cl := srvCl.NewEntryClient()
-
-	err = updateEntries(ctx, cl, entries)
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	return 0
-}
-
 // parseConfig builds a registration entry from the given config
-func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*types.Entry, error) {
-	parentID, err := idStringToProto(config.ParentID)
+func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
+	parentID, err := protoutil.StrToSPIFFEID(c.parentID)
 	if err != nil {
 		return nil, err
 	}
-	spiffeID, err := idStringToProto(config.SpiffeID)
+	spiffeID, err := protoutil.StrToSPIFFEID(c.spiffeID)
 	if err != nil {
 		return nil, err
 	}
 
 	e := &types.Entry{
-		Id:         config.EntryID,
+		Id:         c.entryID,
 		ParentId:   parentID,
 		SpiffeId:   spiffeID,
-		Ttl:        int32(config.TTL),
-		Downstream: config.Downstream,
-		ExpiresAt:  config.EntryExpiry,
-		DnsNames:   config.DNSNames,
+		Ttl:        int32(c.ttl),
+		Downstream: c.downstream,
+		ExpiresAt:  c.entryExpiry,
+		DnsNames:   c.dnsNames,
 	}
 
 	selectors := []*types.Selector{}
-	for _, s := range config.Selectors {
+	for _, s := range c.selectors {
 		cs, err := parseSelector(s)
 		if err != nil {
 			return nil, err
@@ -183,8 +188,8 @@ func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*types.Entry, error) {
 	}
 
 	e.Selectors = selectors
-	e.FederatesWith = config.FederatesWith
-	e.Admin = config.Admin
+	e.FederatesWith = c.federatesWith
+	e.Admin = c.admin
 	return []*types.Entry{e}, nil
 }
 
@@ -221,33 +226,8 @@ func updateEntries(ctx context.Context, c entry.EntryClient, entries []*types.En
 	}
 	for _, r := range failed {
 		printEntry(r.Entry)
-		fmt.Printf("Reason: %s\n", r.Status.Message)
+		fmt.Printf("%s\n", r.Status.Message)
 	}
 
 	return nil
-}
-
-func (UpdateCLI) newConfig(args []string) (*UpdateConfig, error) {
-	f := flag.NewFlagSet("entry update", flag.ContinueOnError)
-	c := &UpdateConfig{}
-
-	f.StringVar(&c.EntryID, "entryID", "", "The Registration Entry ID of the record to update")
-	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
-	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
-	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
-	f.IntVar(&c.TTL, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
-
-	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
-
-	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
-
-	f.BoolVar(&c.Admin, "admin", false, "If true, the SPIFFE ID in this entry will be granted access to the Registration API")
-	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
-
-	f.Int64Var(&c.EntryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
-
-	f.Var(&c.DNSNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
-
-	return c, f.Parse(args)
 }

@@ -5,93 +5,67 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
 )
 
-type DeleteConfig struct {
-	// Socket path of registration API
-	RegistrationUDSPath string
+// NewDeleteCommand creates a new "delete" subcommand for "entry" command.
+func NewDeleteCommand() cli.Command {
+	return newDeleteCommand(common_cli.DefaultEnv)
+}
 
+func newDeleteCommand(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(deleteCommand))
+}
+
+type deleteCommand struct {
 	// ID of the record to delete
-	EntryID string
+	entryID string
 }
 
-// Perform basic validation
-func (dc *DeleteConfig) Validate() error {
-	if dc.RegistrationUDSPath == "" {
-		return errors.New("a socket path for registration api is required")
-	}
-
-	if dc.EntryID == "" {
-		return errors.New("an entry ID is required")
-	}
-
-	return nil
+func (*deleteCommand) Name() string {
+	return "entry delete"
 }
 
-type DeleteCLI struct{}
-
-func (DeleteCLI) Synopsis() string {
+func (*deleteCommand) Synopsis() string {
 	return "Deletes registration entries"
 }
 
-func (d DeleteCLI) Help() string {
-	_, err := d.newConfig([]string{"-h"})
-	return err.Error()
+func (c *deleteCommand) AppendFlags(f *flag.FlagSet) {
+	f.StringVar(&c.entryID, "entryID", "", "The Registration Entry ID of the record to delete")
 }
 
-func (d DeleteCLI) Run(args []string) int {
-	ctx := context.Background()
+func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+	if err := c.validate(); err != nil {
+		return err
+	}
 
-	config, err := d.newConfig(args)
+	req := &entry.BatchDeleteEntryRequest{Ids: []string{c.entryID}}
+	resp, err := serverClient.NewEntryClient().BatchDeleteEntry(ctx, req)
 	if err != nil {
-		return d.printErr(err)
-	}
-
-	if err = config.Validate(); err != nil {
-		return d.printErr(err)
-	}
-
-	srvCl, err := util.NewServerClient(config.RegistrationUDSPath)
-	if err != nil {
-		return d.printErr(err)
-	}
-	defer srvCl.Release()
-	cl := srvCl.NewEntryClient()
-
-	req := &entry.BatchDeleteEntryRequest{
-		Ids: []string{config.EntryID},
-	}
-	resp, err := cl.BatchDeleteEntry(ctx, req)
-	if err != nil {
-		return d.printErr(err)
+		return err
 	}
 
 	sts := resp.Results[0].Status
 	switch sts.Code {
 	case int32(codes.OK):
-		fmt.Printf("Deleted entry with ID: %s\n", config.EntryID)
-		return 0
+		fmt.Printf("Deleted entry with ID: %s\n", c.entryID)
+		return nil
 	default:
-		return d.printErr(fmt.Errorf("failed to delete entry: %s", sts.Message))
+		return fmt.Errorf("failed to delete entry: %s", sts.Message)
 	}
 }
 
-func (DeleteCLI) newConfig(args []string) (*DeleteConfig, error) {
-	f := flag.NewFlagSet("entry delete", flag.ContinueOnError)
-	c := &DeleteConfig{}
+// Perform basic validation.
+func (c *deleteCommand) validate() error {
+	if c.entryID == "" {
+		return errors.New("an entry ID is required")
+	}
 
-	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
-	f.StringVar(&c.EntryID, "entryID", "", "The Registration Entry ID of the record to delete")
-
-	return c, f.Parse(args)
-}
-
-func (DeleteCLI) printErr(err error) int {
-	fmt.Println(err.Error())
-	return 1
+	return nil
 }

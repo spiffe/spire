@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/pkg/common/idutil"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -14,29 +16,72 @@ import (
 	"golang.org/x/net/context"
 )
 
-// ShowConfig is a configuration struct for the
-// `spire-server entry show` CLI command
-type ShowConfig struct {
-	// Socket path of registration API
-	RegistrationUDSPath string
-
-	// Type and value are delimited by a colon (:)
-	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
-	Selectors StringsFlag
-
-	EntryID  string
-	ParentID string
-	SpiffeID string
-
-	FederatesWith StringsFlag
-	Downstream    bool
+// NewShowCommand creates a new "show" subcommand for "entry" command.
+func NewShowCommand() cli.Command {
+	return newShowCommand(common_cli.DefaultEnv)
 }
 
-// Validate ensures that the values in ShowConfig are valid
-func (sc *ShowConfig) Validate() error {
+func newShowCommand(env *common_cli.Env) cli.Command {
+	return util.AdaptCommand(env, new(showCommand))
+}
+
+type showCommand struct {
+	// Type and value are delimited by a colon (:)
+	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
+	selectors StringsFlag
+
+	// ID of the entry to be shown
+	entryID string
+
+	// Workload parent spiffeID
+	parentID string
+
+	// Workload spiffeID
+	spiffeID string
+
+	// List of SPIFFE IDs of trust domains the registration entry is federated with
+	federatesWith StringsFlag
+
+	// Whether or not the entry is for a downstream SPIRE server
+	downstream bool
+}
+
+func (c *showCommand) Name() string {
+	return "entry show"
+}
+
+func (*showCommand) Synopsis() string {
+	return "Displays configured registration entries"
+}
+
+func (c *showCommand) AppendFlags(f *flag.FlagSet) {
+	f.StringVar(&c.entryID, "entryID", "", "The Entry ID of the records to show")
+	f.StringVar(&c.parentID, "parentID", "", "The Parent ID of the records to show")
+	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
+	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
+	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
+	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
+}
+
+// Run executes all logic associated with a single invocation of the
+// `spire-server entry show` CLI command
+func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+	entries, err := c.fetchEntries(ctx, serverClient.NewEntryClient())
+	if err != nil {
+		return err
+	}
+
+	filteredEntries := c.filterByFederatedWith(entries)
+	commonutil.SortTypesEntries(filteredEntries)
+	printEntries(filteredEntries)
+	return nil
+}
+
+// validate ensures that the values in showCommand are valid
+func (c *showCommand) validate() error {
 	// If entryID is given, it should be the only constraint
-	if sc.EntryID != "" {
-		if sc.ParentID != "" || sc.SpiffeID != "" || len(sc.Selectors) > 0 {
+	if c.entryID != "" {
+		if c.parentID != "" || c.spiffeID != "" || len(c.selectors) > 0 {
 			return errors.New("the -entryID flag can't be combined with others")
 		}
 	}
@@ -44,201 +89,113 @@ func (sc *ShowConfig) Validate() error {
 	return nil
 }
 
-// ShowCLI is a struct which represents an invocation of the
-// `spire-server entry show` CLI command
-type ShowCLI struct {
-	Client entry.EntryClient
-	Config *ShowConfig
-
-	Entries []*types.Entry
-}
-
-// Synopsis prints a description of the ShowCLI command
-func (ShowCLI) Synopsis() string {
-	return "Displays configured registration entries"
-}
-
-// Help prints a help message for the ShowCLI command
-func (s ShowCLI) Help() string {
-	err := s.loadConfig([]string{"-h"})
-	return err.Error()
-}
-
-// Run executes all logic associated with a single invocation of the
-// `spire-server entry show` CLI command
-func (s *ShowCLI) Run(args []string) int {
-	ctx := context.Background()
-
-	err := s.loadConfig(args)
-	if err != nil {
-		fmt.Printf("Error parsing config options: %s", err)
-		return 1
-	}
-
-	if s.Client == nil {
-		srvCl, err := util.NewServerClient(s.Config.RegistrationUDSPath)
-		if err != nil {
-			fmt.Printf("Error creating new registration client: %v", err)
-			return 1
-		}
-		defer srvCl.Release()
-		s.Client = srvCl.NewEntryClient()
-	}
-
-	err = s.fetchEntries(ctx)
-	if err != nil {
-		return 1
-	}
-
-	commonutil.SortTypesEntries(s.Entries)
-	s.filterByFederatedWith()
-	s.printEntries()
-	return 0
-}
-
-func (s *ShowCLI) fetchEntries(ctx context.Context) error {
+func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient) ([]*types.Entry, error) {
 	// If an Entry ID was specified, look it up directly
-	if s.Config.EntryID != "" {
-		err := s.fetchByEntryID(ctx, s.Config.EntryID)
+	if c.entryID != "" {
+		entry, err := c.fetchByEntryID(ctx, c.entryID, client)
 		if err != nil {
-			fmt.Printf("Error fetching entry ID %s: %s\n", s.Config.EntryID, err)
-			return err
+			return nil, fmt.Errorf("error fetching entry ID %s: %s", c.entryID, err)
 		}
-		return nil
+		return []*types.Entry{entry}, nil
 	}
 
 	filter := &entry.ListEntriesRequest_Filter{}
-	if s.Config.ParentID != "" {
-		id, err := idStringToProto(s.Config.ParentID)
+	if c.parentID != "" {
+		id, err := protoutil.StrToSPIFFEID(c.parentID)
 		if err != nil {
-			fmt.Printf("Error parsing entry parent ID %q: %v", s.Config.ParentID, err)
-			return err
+			return nil, fmt.Errorf("error parsing entry parent ID %q: %v", c.parentID, err)
 		}
 		filter.ByParentId = id
 	}
 
-	if s.Config.SpiffeID != "" {
-		id, err := idStringToProto(s.Config.SpiffeID)
+	if c.spiffeID != "" {
+		id, err := protoutil.StrToSPIFFEID(c.spiffeID)
 		if err != nil {
-			fmt.Printf("Error parsing entry SPIFFE ID %q: %v", s.Config.SpiffeID, err)
-			return err
+			return nil, fmt.Errorf("error parsing entry SPIFFE ID %q: %v", c.spiffeID, err)
 		}
 		filter.BySpiffeId = id
 	}
 
-	if len(s.Config.Selectors) != 0 {
-		selectors := make([]*types.Selector, len(s.Config.Selectors))
-		for i, sel := range s.Config.Selectors {
+	if len(c.selectors) != 0 {
+		selectors := make([]*types.Selector, len(c.selectors))
+		for i, sel := range c.selectors {
 			selector, err := parseSelector(sel)
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("error parsing selectors: %v", err)
 			}
 			selectors[i] = selector
 		}
 		filter.BySelectors = &types.SelectorMatch{
 			Selectors: selectors,
-			Match:     types.SelectorMatch_MATCH_SUBSET,
+			Match:     types.SelectorMatch_MATCH_EXACT,
 		}
 	}
 
-	resp, err := s.Client.ListEntries(ctx, &entry.ListEntriesRequest{
+	resp, err := client.ListEntries(ctx, &entry.ListEntriesRequest{
 		Filter: filter,
 	})
 	if err != nil {
-		fmt.Printf("Error fetching entries: %v", err)
-		return err
+		return nil, fmt.Errorf("error fetching entries: %v", err)
 	}
 
-	s.Entries = resp.Entries
-	return nil
+	return resp.Entries, nil
 }
 
 // fetchByEntryID uses the configured EntryID to fetch the appropriate registration entry
-func (s *ShowCLI) fetchByEntryID(ctx context.Context, id string) error {
-	entry, err := s.Client.GetEntry(ctx, &entry.GetEntryRequest{Id: id})
+func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entry.EntryClient) (*types.Entry, error) {
+	entry, err := client.GetEntry(ctx, &entry.GetEntryRequest{Id: id})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	s.Entries = []*types.Entry{entry}
-	return nil
+	return entry, nil
 }
 
 // filterEntries evicts any entries from the stored slice which
 // do not match every selector specified by the user
-func (s *ShowCLI) filterByFederatedWith() {
-	newSlice := []*types.Entry{}
-
+func (c *showCommand) filterByFederatedWith(entries []*types.Entry) []*types.Entry {
+	// Build map for quick search
 	var federatedIDs map[string]bool
-	if len(s.Config.FederatesWith) > 0 {
+	if len(c.federatesWith) > 0 {
 		federatedIDs = make(map[string]bool)
-		for _, federatesWith := range s.Config.FederatesWith {
+		for _, federatesWith := range c.federatesWith {
 			federatedIDs[federatesWith] = true
 		}
 	}
 
-	for _, e := range s.Entries {
-		// If FederatesWith was specified, discard entries that don't match
-		if federatedIDs != nil {
-			found := false
-			for _, federatesWith := range e.FederatesWith {
-				if federatedIDs[federatesWith] {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
+	// Filter slice in place
+	idx := 0
+	for _, e := range entries {
+		if keepEntry(e, federatedIDs) {
+			entries[idx] = e
+			idx++
 		}
-
-		newSlice = append(newSlice, e)
 	}
 
-	s.Entries = newSlice
+	return entries[:idx]
 }
 
-func (s *ShowCLI) printEntries() {
-	msg := fmt.Sprintf("Found %v ", len(s.Entries))
-	msg = util.Pluralizer(msg, "entry", "entries", len(s.Entries))
+func keepEntry(e *types.Entry, federatedIDs map[string]bool) bool {
+	// If FederatesWith was specified, discard entries that don't match
+	if federatedIDs == nil {
+		return true
+	}
+
+	for _, federatesWith := range e.FederatesWith {
+		if federatedIDs[federatesWith] {
+			return true
+		}
+	}
+
+	return false
+}
+
+func printEntries(entries []*types.Entry) {
+	msg := fmt.Sprintf("Found %v ", len(entries))
+	msg = util.Pluralizer(msg, "entry", "entries", len(entries))
 
 	fmt.Println(msg)
-	for _, e := range s.Entries {
+	for _, e := range entries {
 		printEntry(e)
 	}
-}
-
-func (s *ShowCLI) loadConfig(args []string) error {
-	f := flag.NewFlagSet("entry show", flag.ContinueOnError)
-	c := &ShowConfig{}
-
-	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
-	f.StringVar(&c.EntryID, "entryID", "", "The Entry ID of the records to show")
-	f.StringVar(&c.ParentID, "parentID", "", "The Parent ID of the records to show")
-	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
-	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
-
-	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
-
-	err := f.Parse(args)
-	if err != nil {
-		return err
-	}
-
-	if c.ParentID != "" {
-		c.ParentID, err = idutil.NormalizeSpiffeID(c.ParentID, idutil.AllowAny())
-		if err != nil {
-			return err
-		}
-	}
-	if c.SpiffeID != "" {
-		c.SpiffeID, err = idutil.NormalizeSpiffeID(c.SpiffeID, idutil.AllowAny())
-		if err != nil {
-			return err
-		}
-	}
-
-	s.Config = c
-	return nil
 }

@@ -105,7 +105,7 @@ func (s *ShowTestSuite) TestRunWithSelector() {
 	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{
 			BySelectors: &types.SelectorMatch{
-				Match: types.SelectorMatch_MATCH_SUBSET,
+				Match: types.SelectorMatch_MATCH_EXACT,
 				Selectors: []*types.Selector{
 					{Type: "foo", Value: "bar"},
 				},
@@ -136,7 +136,7 @@ func (s *ShowTestSuite) TestRunWithSelectors() {
 	s.fakeServer.expListEntriesReq = &entry.ListEntriesRequest{
 		Filter: &entry.ListEntriesRequest_Filter{
 			BySelectors: &types.SelectorMatch{
-				Match: types.SelectorMatch_MATCH_SUBSET,
+				Match: types.SelectorMatch_MATCH_EXACT,
 				Selectors: []*types.Selector{
 					{Type: "foo", Value: "bar"},
 					{Type: "bar", Value: "baz"},
@@ -167,7 +167,7 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 		Filter: &entry.ListEntriesRequest_Filter{
 			ByParentId: entries[0].ParentId,
 			BySelectors: &types.SelectorMatch{
-				Match: types.SelectorMatch_MATCH_SUBSET,
+				Match: types.SelectorMatch_MATCH_EXACT,
 				Selectors: []*types.Selector{
 					{Type: "bar", Value: "baz"},
 				},

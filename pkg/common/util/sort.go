@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
 )
@@ -112,14 +113,12 @@ func SortTypesSelectors(selectors []*types.Selector) {
 }
 
 func compareTypesEntries(a, b *types.Entry) int {
-	// TODO: check if this string conversion is doing the right thing
-	c := strings.Compare(a.SpiffeId.String(), b.SpiffeId.String())
+	c := strings.Compare(protoutil.SPIFFEIDToStr(a.SpiffeId), protoutil.SPIFFEIDToStr(b.SpiffeId))
 	if c != 0 {
 		return c
 	}
 
-	// TODO: check if this string conversion is doing the right thing
-	c = strings.Compare(a.ParentId.String(), b.ParentId.String())
+	c = strings.Compare(protoutil.SPIFFEIDToStr(a.ParentId), protoutil.SPIFFEIDToStr(b.ParentId))
 	if c != 0 {
 		return c
 	}
