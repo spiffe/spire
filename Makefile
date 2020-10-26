@@ -316,7 +316,7 @@ else
 endif
 
 integration:
-	$(E)./test/integration/test-all.sh
+	$(E)./test/integration/test.sh
 
 #############################################################################
 # Build Artifact
