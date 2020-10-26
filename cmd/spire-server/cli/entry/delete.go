@@ -54,7 +54,7 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 	sts := resp.Results[0].Status
 	switch sts.Code {
 	case int32(codes.OK):
-		fmt.Printf("Deleted entry with ID: %s\n", c.entryID)
+		env.Printf("Deleted entry with ID: %s\n", c.entryID)
 		return nil
 	default:
 		return fmt.Errorf("failed to delete entry: %s", sts.Message)

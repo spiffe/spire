@@ -66,6 +66,10 @@ func (c *showCommand) AppendFlags(f *flag.FlagSet) {
 // Run executes all logic associated with a single invocation of the
 // `spire-server entry show` CLI command
 func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+	if err := c.validate(); err != nil {
+		return err
+	}
+
 	entries, err := c.fetchEntries(ctx, serverClient.NewEntryClient())
 	if err != nil {
 		return err
@@ -73,7 +77,7 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	filteredEntries := c.filterByFederatedWith(entries)
 	commonutil.SortTypesEntries(filteredEntries)
-	printEntries(filteredEntries)
+	printEntries(filteredEntries, env)
 	return nil
 }
 
@@ -103,7 +107,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 	if c.parentID != "" {
 		id, err := protoutil.StrToSPIFFEID(c.parentID)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing entry parent ID %q: %v", c.parentID, err)
+			return nil, fmt.Errorf("error parsing parent ID %q: %v", c.parentID, err)
 		}
 		filter.ByParentId = id
 	}
@@ -111,7 +115,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 	if c.spiffeID != "" {
 		id, err := protoutil.StrToSPIFFEID(c.spiffeID)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing entry SPIFFE ID %q: %v", c.spiffeID, err)
+			return nil, fmt.Errorf("error parsing SPIFFE ID %q: %v", c.spiffeID, err)
 		}
 		filter.BySpiffeId = id
 	}
@@ -190,12 +194,12 @@ func keepEntry(e *types.Entry, federatedIDs map[string]bool) bool {
 	return false
 }
 
-func printEntries(entries []*types.Entry) {
+func printEntries(entries []*types.Entry, env *common_cli.Env) {
 	msg := fmt.Sprintf("Found %v ", len(entries))
 	msg = util.Pluralizer(msg, "entry", "entries", len(entries))
 
-	fmt.Println(msg)
+	env.Println(msg)
 	for _, e := range entries {
-		printEntry(e)
+		printEntry(e, env)
 	}
 }

@@ -3,7 +3,6 @@ package entry
 import (
 	"errors"
 	"flag"
-	"fmt"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
@@ -101,9 +100,23 @@ func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return err
 	}
 
-	err = createEntries(ctx, serverClient.NewEntryClient(), entries)
+	succeeded, failed, err := createEntries(ctx, serverClient.NewEntryClient(), entries)
 	if err != nil {
 		return err
+	}
+
+	// Print entries that succeeded to be created
+	for _, r := range succeeded {
+		printEntry(r.Entry, env)
+	}
+
+	// Print entries that failed to be created
+	if len(failed) > 0 {
+		env.Printf("FAILED to create the following %s:\n", util.Pluralizer("", "entry", "entries", len(failed)))
+	}
+	for _, r := range failed {
+		printEntry(r.Entry, env)
+		env.Printf("%s\n", r.Status.Message)
 	}
 
 	return nil
@@ -134,7 +147,7 @@ func (c *createCommand) validate() (err error) {
 	}
 
 	if c.ttl < 0 {
-		return errors.New("a TTL is required")
+		return errors.New("a positive TTL is required")
 	}
 
 	// make sure all SPIFFE ID's are well formed
@@ -197,14 +210,14 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) error {
+func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) (succeeded, failed []*entry.BatchCreateEntryResponse_Result, err error) {
 	resp, err := c.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
-		return err
+		return
 	}
 
-	failed := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
-	succeeded := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
+	//	failed := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
+	//	succeeded := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
 	for i, r := range resp.Results {
 		switch r.Status.Code {
 		case int32(codes.OK):
@@ -217,21 +230,7 @@ func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.En
 		}
 	}
 
-	// Print entries that succeeded to be created
-	for _, r := range succeeded {
-		printEntry(r.Entry)
-	}
-
-	// Print entries that failed to be created
-	if len(failed) > 0 {
-		fmt.Printf("FAILED to create the following %s:\n", util.Pluralizer("", "entry", "entries", len(failed)))
-	}
-	for _, r := range failed {
-		printEntry(r.Entry)
-		fmt.Printf("%s\n\n", r.Status.Message)
-	}
-
-	return nil
+	return
 }
 
 func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {

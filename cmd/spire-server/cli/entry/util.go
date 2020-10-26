@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -30,39 +31,39 @@ func parseSelector(str string) (*types.Selector, error) {
 	return s, nil
 }
 
-func printEntry(e *types.Entry) {
-	fmt.Printf("Entry ID      : %s\n", e.Id)
-	fmt.Printf("SPIFFE ID     : %s\n", protoutil.SPIFFEIDToStr(e.SpiffeId))
-	fmt.Printf("Parent ID     : %s\n", protoutil.SPIFFEIDToStr(e.ParentId))
-	fmt.Printf("Revision      : %d\n", e.RevisionNumber)
+func printEntry(e *types.Entry, env *common_cli.Env) {
+	env.Printf("Entry ID      : %s\n", e.Id)
+	env.Printf("SPIFFE ID     : %s\n", protoutil.SPIFFEIDToStr(e.SpiffeId))
+	env.Printf("Parent ID     : %s\n", protoutil.SPIFFEIDToStr(e.ParentId))
+	env.Printf("Revision      : %d\n", e.RevisionNumber)
 
 	if e.Downstream {
-		fmt.Printf("Downstream    : %t\n", e.Downstream)
+		env.Printf("Downstream    : %t\n", e.Downstream)
 	}
 
 	if e.Ttl == 0 {
-		fmt.Printf("TTL           : default\n")
+		env.Printf("TTL           : default\n")
 	} else {
-		fmt.Printf("TTL           : %d\n", e.Ttl)
+		env.Printf("TTL           : %d\n", e.Ttl)
 	}
 
 	for _, s := range e.Selectors {
-		fmt.Printf("Selector      : %s:%s\n", s.Type, s.Value)
+		env.Printf("Selector      : %s:%s\n", s.Type, s.Value)
 	}
 	for _, id := range e.FederatesWith {
-		fmt.Printf("FederatesWith : %s\n", id)
+		env.Printf("FederatesWith : %s\n", id)
 	}
 	for _, dnsName := range e.DnsNames {
-		fmt.Printf("DNS name      : %s\n", dnsName)
+		env.Printf("DNS name      : %s\n", dnsName)
 	}
 
 	// admin is rare, so only show admin if true to keep
 	// from muddying the output.
 	if e.Admin {
-		fmt.Printf("Admin         : %t\n", e.Admin)
+		env.Printf("Admin         : %t\n", e.Admin)
 	}
 
-	fmt.Println()
+	env.Println()
 }
 
 // parseFile parses JSON represented RegistrationEntries
