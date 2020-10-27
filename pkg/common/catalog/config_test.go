@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParsePluginConfigFromHCLFailure(t *testing.T) {
-	_, err := ParsePluginConfigFromHCL(`NOT-VALID-HCL`)
+func TestParsePluginConfigsFromHCLFailure(t *testing.T) {
+	_, err := ParsePluginConfigsFromHCL(`NOT-VALID-HCL`)
 	require.Error(t, err)
 }
 
-func TestParsePluginConfigFromHCLSuccess(t *testing.T) {
-	config, err := ParsePluginConfigFromHCL(`
+func TestParsePluginConfigsFromHCLSuccess(t *testing.T) {
+	config, err := ParsePluginConfigsFromHCL(`
 	TYPE1 "NAME1" {
 		plugin_cmd = "CMD1"
 		plugin_data = "DATA1"
