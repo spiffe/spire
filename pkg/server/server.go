@@ -106,7 +106,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	healthChecks := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
-	s.config.Log.Info("plugins started")
+	s.config.Log.Info("Plugins started")
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {

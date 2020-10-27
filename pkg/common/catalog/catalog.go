@@ -104,6 +104,13 @@ type Catalog interface {
 	//       BetweenThreeAndFive []nodeattestor.NodeAttestor `catalog:"min=3,max=5"`
 	//   }
 	//
+	//   You can also add a `catalog:"-"` tag to a field to have it be ignored
+	//   by the catalog:
+	//
+	//   struct {
+	//       IgnoreMe int `catalog:"-"`
+	//   }
+	//
 	Fill(x interface{}) error
 
 	// Close() closes the catalog, shutting down servers and killing external

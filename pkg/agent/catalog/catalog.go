@@ -113,7 +113,7 @@ type Repository struct {
 }
 
 func Load(ctx context.Context, config Config) (*Repository, error) {
-	pluginConfig, err := catalog.PluginConfigFromHCL(config.PluginConfig)
+	pluginConfig, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
 	}

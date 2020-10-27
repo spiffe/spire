@@ -82,12 +82,15 @@ func (cf *catalogFiller) fillStructField(fv reflect.Value, ft reflect.StructFiel
 		}
 	}
 
-	min, max, err := parseTag(ft.Tag)
+	opts, err := parseFieldOpts(ft.Tag)
 	if err != nil {
 		return err
 	}
+	if opts.ignore {
+		return nil
+	}
 
-	hv, err := cf.getFieldValue(ft.Type, min, max)
+	hv, err := cf.getFieldValue(ft.Type, opts.min, opts.max)
 	if err != nil {
 		return err
 	}
@@ -218,51 +221,67 @@ func isInterfaceOrStructOfInterfaces(t reflect.Type) bool {
 	}
 }
 
-func parseTag(tag reflect.StructTag) (min, max int, err error) {
-	min = 0
-	max = 0
-	value := tag.Get("catalog")
-	if value == "" {
-		return min, max, nil
+type fieldOpts struct {
+	min    int
+	max    int
+	ignore bool
+}
+
+func parseFieldOpts(fieldTag reflect.StructTag) (_ fieldOpts, err error) {
+	catalogTag := fieldTag.Get("catalog")
+	if catalogTag == "" {
+		return fieldOpts{}, nil
 	}
 
+	var opts fieldOpts
 	maxset := false
-	for _, kv := range strings.Split(value, ",") {
-		parts := strings.SplitN(kv, "=", 2)
-		if len(parts) < 2 {
-			return 0, 0, fmt.Errorf("expected key=value for catalog tag value %q", kv)
+	for _, tagValue := range strings.Split(catalogTag, ",") {
+		parts := strings.SplitN(tagValue, "=", 2)
+		key := parts[0]
+		var value string
+		if len(parts) > 1 {
+			value = parts[1]
 		}
-		k := parts[0]
-		v := parts[1]
-		switch k {
+		switch key {
+		case "-":
+			if value != "" {
+				return fieldOpts{}, fmt.Errorf("not expecting key=value for catalog tag value %q", tagValue)
+			}
+			opts.ignore = true
 		case "min":
-			min, err = strconv.Atoi(v)
+			if value == "" {
+				return fieldOpts{}, fmt.Errorf("expected key=value for catalog tag value %q", tagValue)
+			}
+			opts.min, err = strconv.Atoi(value)
 			if err != nil {
-				return 0, 0, fmt.Errorf("invalid catalog tag min value %q", v)
+				return fieldOpts{}, fmt.Errorf("invalid catalog tag min value %q", value)
 			}
 		case "max":
-			max, err = strconv.Atoi(v)
+			if value == "" {
+				return fieldOpts{}, fmt.Errorf("expected key=value for catalog tag value %q", tagValue)
+			}
+			opts.max, err = strconv.Atoi(value)
 			if err != nil {
-				return 0, 0, fmt.Errorf("invalid catalog tag max value %q", v)
+				return fieldOpts{}, fmt.Errorf("invalid catalog tag max value %q", value)
 			}
 			maxset = true
 		default:
-			return 0, 0, fmt.Errorf("unrecognized catalog tag key %q", k)
+			return fieldOpts{}, fmt.Errorf("unrecognized catalog tag key %q", key)
 		}
 	}
 
-	if min < 0 {
-		return 0, 0, fmt.Errorf("catalog tag min value must be >= 0")
+	if opts.min < 0 {
+		return fieldOpts{}, fmt.Errorf("catalog tag min value must be >= 0")
 	}
 	if maxset {
-		if max < 1 {
-			return 0, 0, fmt.Errorf("catalog tag max value must be > 0")
+		if opts.max < 1 {
+			return fieldOpts{}, fmt.Errorf("catalog tag max value must be > 0")
 		}
-		if max < min {
-			return 0, 0, fmt.Errorf("catalog tag max value must be >= min")
+		if opts.max < opts.min {
+			return fieldOpts{}, fmt.Errorf("catalog tag max value must be >= min")
 		}
 	}
-	return min, max, nil
+	return opts, nil
 }
 
 type pluginFiller struct {
