@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -230,7 +231,7 @@ func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConf
 
 	sqlHCLConfig, ok := datastoreConfig[ds_sql.PluginName]
 	if !ok {
-		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
+		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
 	sqlConfig, err := catalog.PluginConfigFromHCL(datastore.Type, ds_sql.PluginName, sqlHCLConfig)
@@ -240,7 +241,7 @@ func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConf
 
 	// Is the plugin external?
 	if sqlConfig.Path != "" {
-		return nil, errors.New("pluggability for the DataStore is deprecated; only the built-in SQL plugin is supported")
+		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
 	ds := ds_sql.New()

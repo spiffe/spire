@@ -329,6 +329,15 @@ func (s *CatalogSuite) TestPluginsFill() {
 			},
 		},
 		{
+			"unexpected value on ignore tag",
+			func(r *require.Assertions) {
+				c := &struct {
+					IgnoreMe struct{} `catalog:"-=bad"`
+				}{}
+				r.EqualError(ps.Fill(c), `unable to set catalog field "IgnoreMe": not expecting key=value for catalog tag value "-=bad"`)
+			},
+		},
+		{
 			"bad struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
@@ -347,6 +356,15 @@ func (s *CatalogSuite) TestPluginsFill() {
 			},
 		},
 		{
+			"min struct tag without value",
+			func(r *require.Assertions) {
+				c := &struct {
+					Plugins []catalogtest.Plugin `catalog:"min"`
+				}{}
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "min"`)
+			},
+		},
+		{
 			"negative min struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
@@ -362,6 +380,15 @@ func (s *CatalogSuite) TestPluginsFill() {
 					Plugins []catalogtest.Plugin `catalog:"max=BAD"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": invalid catalog tag max value "BAD"`)
+			},
+		},
+		{
+			"max struct tag without value",
+			func(r *require.Assertions) {
+				c := &struct {
+					Plugins []catalogtest.Plugin `catalog:"max"`
+				}{}
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "max"`)
 			},
 		},
 		{
