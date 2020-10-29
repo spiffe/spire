@@ -91,12 +91,7 @@ This section summarizes the steps necessary to execute a SPIRE release. Unless e
 The following steps must be completed one week prior to release:
 * Ensure all changes intended to be included in the release are fully merged.
 * Identify a specific commit as the release candidate.
-* Create a draft pull request with the updates to the CHANGELOG. This allows to have publicly available the changes that will be included in the upcoming release with some anticipation, providing the oportunity to receive feedback. The release date can be set as "TBD".
-  * The CHANGELOG distinguishes two types of changes: "What's New" and "What's Changed". As a general rule, the entries should be focused on exposing user-facing changes, considering that the main consumers of the CHANGELOG are the end users of SPIRE.
-  * Changes that introduce new features and improvements should be under "What's New".
-    * Example: Added `validate` subcommand to the SPIRE Server and SPIRE Agent CLIs to validate the configuration file (#1471, #1489)
-  * Modifications to existing capabilities that are not enhancements for them should be under "What's Changed". Examples of this are changes in the behavior of existing features, deprecation of an existing functionality, and fixes that affect the expected behavior.
-    * Example: Envoy SDS support is now always on (#1579)
+* Create a draft pull request with the updates to the CHANGELOG following [these guidelines](doc/changelog_guideliners.md). This allows to have publicly available the changes that will be included in the upcoming release with some anticipation, providing the oportunity to receive feedback. The release date can be set as "TBD".
 * Raise an issue "Release SPIRE X.Y.Z", and include the release candidate commit hash. Reference the pull request with the updates to the CHANGELOG.
 
 **If this is a major release**, the following steps must be completed before releasing:
