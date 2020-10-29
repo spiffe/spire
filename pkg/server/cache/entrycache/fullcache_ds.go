@@ -11,10 +11,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/types"
 )
 
-const (
-	entryPageSize = 500
-)
-
 var (
 	_ EntryIterator = (*entryIteratorDS)(nil)
 	_ AgentIterator = (*agentIteratorDS)(nil)
@@ -26,11 +22,10 @@ func BuildFromDataStore(ctx context.Context, ds datastore.DataStore) (*FullEntry
 }
 
 type entryIteratorDS struct {
-	ds              datastore.DataStore
-	entries         []*types.Entry
-	next            int
-	err             error
-	paginationToken string
+	ds      datastore.DataStore
+	entries []*types.Entry
+	next    int
+	err     error
 }
 
 func makeEntryIteratorDS(ds datastore.DataStore) EntryIterator {
@@ -43,13 +38,9 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 	if it.err != nil {
 		return false
 	}
-	if it.entries == nil || (it.next >= len(it.entries) && it.paginationToken != "") {
+	if it.entries == nil {
 		req := &datastore.ListRegistrationEntriesRequest{
 			TolerateStale: true,
-			Pagination: &datastore.Pagination{
-				Token:    it.paginationToken,
-				PageSize: entryPageSize,
-			},
 		}
 
 		resp, err := it.ds.ListRegistrationEntries(ctx, req)
@@ -58,7 +49,6 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 			return false
 		}
 
-		it.paginationToken = resp.Pagination.Token
 		it.next = 0
 		it.entries, err = api.RegistrationEntriesToProto(resp.Entries)
 		if err != nil {

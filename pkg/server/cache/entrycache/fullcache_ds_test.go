@@ -27,7 +27,7 @@ func TestEntryIteratorDS(t *testing.T) {
 		assert.NoError(t, it.Err())
 	})
 
-	const numEntries = entryPageSize + 1
+	const numEntries = 10
 	const parentID = "spiffe://example.org/parent"
 	const spiffeIDPrefix = "spiffe://example.org/entry"
 	selectors := []*common.Selector{
@@ -50,7 +50,7 @@ func TestEntryIteratorDS(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t.Run("multiple pages", func(t *testing.T) {
+	t.Run("existing entries", func(t *testing.T) {
 		it := makeEntryIteratorDS(ds)
 		var entries []*types.Entry
 		for i := 0; i < numEntries; i++ {
@@ -67,13 +67,8 @@ func TestEntryIteratorDS(t *testing.T) {
 		assert.ElementsMatch(t, expectedEntries, entries)
 	})
 
-	t.Run("multiple pages with datastore error in-between pages", func(t *testing.T) {
+	t.Run("datastore error", func(t *testing.T) {
 		it := makeEntryIteratorDS(ds)
-		for i := 0; i < entryPageSize; i++ {
-			assert.True(t, it.Next(ctx))
-			require.NoError(t, it.Err())
-		}
-
 		dsErr := errors.New("some datastore error")
 		ds.SetNextError(dsErr)
 		assert.False(t, it.Next(ctx))
