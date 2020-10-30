@@ -1,0 +1,29 @@
+{
+    "entries": [
+        {
+            "entry_id": "entry-id-1",
+            "selectors": [
+                {
+                    "type": "unix",
+                    "value": "uid:1111"
+                }
+            ],
+            "spiffe_id": "spiffe://example.org/Blog",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
+            "ttl": 200,
+            "admin": true
+        },
+        {
+            "entry_id": "entry-id-2",
+            "selectors": [
+                {
+                    "type": "unix",
+                    "value": "uid:1111"
+                }
+            ],
+            "spiffe_id": "spiffe://example.org/Database",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
+            "ttl": 200
+        }
+    ]
+}

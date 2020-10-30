@@ -6,49 +6,17 @@ import (
 	"path"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/mitchellh/cli"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
-
-func TestHasSelectors(t *testing.T) {
-	selectors := []*common.Selector{
-		{Type: "foo", Value: "bar"},
-		{Type: "bar", Value: "bat"},
-		{Type: "bat", Value: "baz"},
-	}
-
-	entry := &common.RegistrationEntry{
-		ParentId:  "spiffe://example.org/foo",
-		SpiffeId:  "spiffe://example.org/bar",
-		Selectors: selectors,
-	}
-
-	a := assert.New(t)
-	a.True(hasSelectors(entry, selectorToFlag(t, selectors[0:1])))
-	a.True(hasSelectors(entry, selectorToFlag(t, selectors[2:3])))
-	a.True(hasSelectors(entry, selectorToFlag(t, selectors[1:3])))
-
-	newSelectors := []*common.Selector{
-		{Type: "bar", Value: "foo"},
-		{Type: "bat", Value: "bar"},
-	}
-	selectors = append(selectors, newSelectors...)
-
-	a.False(hasSelectors(entry, selectorToFlag(t, selectors[3:4])))
-	a.False(hasSelectors(entry, selectorToFlag(t, selectors[2:4])))
-}
-
-func selectorToFlag(t *testing.T, selectors []*common.Selector) StringsFlag {
-	resp := StringsFlag{}
-	for _, s := range selectors {
-		str := s.Type + ":" + s.Value
-		require.NoError(t, resp.Set(str))
-	}
-
-	return resp
-}
 
 func TestParseEntryJSON(t *testing.T) {
 	testCases := []struct {
@@ -93,35 +61,162 @@ func TestParseEntryJSON(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			entry1 := &common.RegistrationEntry{
-				Selectors: []*common.Selector{
+			entry1 := &types.Entry{
+				Selectors: []*types.Selector{
 					{
 						Type:  "unix",
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId: "spiffe://example.org/Blog",
-				ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
+				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
+				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
 				Ttl:      200,
 				Admin:    true,
 			}
-			entry2 := &common.RegistrationEntry{
-				Selectors: []*common.Selector{
+			entry2 := &types.Entry{
+				Selectors: []*types.Selector{
 					{
 						Type:  "unix",
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId: "spiffe://example.org/Database",
-				ParentId: "spiffe://example.org/spire/agent/join_token/TokenDatabase",
+				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
+				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
 				Ttl:      200,
 			}
 
-			expectedEntries := []*common.RegistrationEntry{
+			expectedEntries := []*types.Entry{
 				entry1,
 				entry2,
 			}
-			assert.Equal(t, expectedEntries, entries)
+			spiretest.RequireProtoListEqual(t, expectedEntries, entries)
 		})
 	}
+}
+
+func TestProtoToIDString(t *testing.T) {
+	id := protoToIDString(&types.SPIFFEID{TrustDomain: "example.org", Path: "/host"})
+	require.Equal(t, "spiffe://example.org/host", id)
+
+	id = protoToIDString(nil)
+	require.Empty(t, id)
+}
+
+func TestIDStringToProto(t *testing.T) {
+	id, err := idStringToProto("spiffe://example.org/host")
+	require.NoError(t, err)
+	require.Equal(t, types.SPIFFEID{TrustDomain: "example.org", Path: "/host"}, *id)
+
+	id, err = idStringToProto("example.org/host")
+	require.Error(t, err)
+	require.Nil(t, id)
+}
+
+type entryTest struct {
+	stdin  *bytes.Buffer
+	stdout *bytes.Buffer
+	stderr *bytes.Buffer
+
+	args   []string
+	server *fakeEntryServer
+
+	client cli.Command
+}
+
+func (e *entryTest) afterTest(t *testing.T) {
+	t.Logf("TEST:%s", t.Name())
+	t.Logf("STDOUT:\n%s", e.stdout.String())
+	t.Logf("STDIN:\n%s", e.stdin.String())
+	t.Logf("STDERR:\n%s", e.stderr.String())
+}
+
+type fakeEntryServer struct {
+	*entry.UnimplementedEntryServer
+
+	t   *testing.T
+	err error
+
+	expGetEntryReq         *entry.GetEntryRequest
+	expListEntriesReq      *entry.ListEntriesRequest
+	expBatchDeleteEntryReq *entry.BatchDeleteEntryRequest
+	expBatchCreateEntryReq *entry.BatchCreateEntryRequest
+	expBatchUpdateEntryReq *entry.BatchUpdateEntryRequest
+
+	getEntryResp         *types.Entry
+	listEntriesResp      *entry.ListEntriesResponse
+	batchDeleteEntryResp *entry.BatchDeleteEntryResponse
+	batchCreateEntryResp *entry.BatchCreateEntryResponse
+	batchUpdateEntryResp *entry.BatchUpdateEntryResponse
+}
+
+func (f fakeEntryServer) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	spiretest.RequireProtoEqual(f.t, f.expListEntriesReq, req)
+	return f.listEntriesResp, nil
+}
+
+func (f fakeEntryServer) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*types.Entry, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	spiretest.RequireProtoEqual(f.t, f.expGetEntryReq, req)
+	return f.getEntryResp, nil
+}
+
+func (f fakeEntryServer) BatchDeleteEntry(ctx context.Context, req *entry.BatchDeleteEntryRequest) (*entry.BatchDeleteEntryResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	spiretest.RequireProtoEqual(f.t, f.expBatchDeleteEntryReq, req)
+	return f.batchDeleteEntryResp, nil
+}
+
+func (f fakeEntryServer) BatchCreateEntry(ctx context.Context, req *entry.BatchCreateEntryRequest) (*entry.BatchCreateEntryResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	spiretest.RequireProtoEqual(f.t, f.expBatchCreateEntryReq, req)
+	return f.batchCreateEntryResp, nil
+}
+
+func (f fakeEntryServer) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEntryRequest) (*entry.BatchUpdateEntryResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	spiretest.RequireProtoEqual(f.t, f.expBatchUpdateEntryReq, req)
+	return f.batchUpdateEntryResp, nil
+}
+
+func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entryTest {
+	stdin := new(bytes.Buffer)
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+
+	client := newClient(&common_cli.Env{
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+	})
+
+	server := &fakeEntryServer{t: t}
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+		entry.RegisterEntryServer(s, server)
+	})
+
+	test := &entryTest{
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
+		args:   []string{"-registrationUDSPath", socketPath},
+		server: server,
+		client: client,
+	}
+
+	t.Cleanup(func() {
+		test.afterTest(t)
+	})
+
+	return test
 }

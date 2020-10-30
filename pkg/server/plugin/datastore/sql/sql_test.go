@@ -1481,44 +1481,6 @@ func (s *PluginSuite) TestListNodeSelectors() {
 		req := &datastore.ListNodeSelectorsRequest{}
 		resp := s.listNodeSelectors(req)
 		s.Require().Len(resp.Selectors, len(selectorMap))
-		s.Require().Nil(resp.Pagination)
-	})
-
-	s.T().Run("list with pagination", func(t *testing.T) {
-		// First request does not have a pagination token
-		req := &datastore.ListNodeSelectorsRequest{
-			Pagination: &datastore.Pagination{
-				PageSize: 1,
-			},
-		}
-		resp := s.listNodeSelectors(req)
-		s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
-		s.RequireProtoListEqual(selectorMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
-		s.Require().NotNil(resp.Pagination)
-		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
-
-		for i := 0; i < len(selectorMap)-1; i++ {
-			// [1, N-1] requests use a pagination token and expect to get one result since the page size == 1.
-			req = &datastore.ListNodeSelectorsRequest{
-				Pagination: resp.Pagination,
-			}
-			resp = s.listNodeSelectors(req)
-			s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
-			s.RequireProtoListEqual(selectorMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
-			s.Require().NotNil(resp.Pagination)
-			s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
-		}
-
-		// Nth request uses a pagination token and expects to get no results
-		// since all selectors have been returned in previous requests.
-		req = &datastore.ListNodeSelectorsRequest{
-			Pagination: resp.Pagination,
-		}
-		resp = s.listNodeSelectors(req)
-		s.Require().Len(resp.Selectors, 0)
-		s.Require().NotNil(resp.Pagination)
-		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
-		s.Require().Empty(resp.Pagination.Token)
 	})
 
 	s.T().Run("list unexpired", func(t *testing.T) {
@@ -1535,53 +1497,6 @@ func (s *PluginSuite) TestListNodeSelectors() {
 			s.Assert().True(ok)
 			s.AssertProtoListEqual(expectedSelectors, n.Selectors)
 		}
-	})
-
-	s.T().Run("list unexpired with pagination", func(t *testing.T) {
-		nowTimestamp := &timestamp.Timestamp{
-			Seconds: time.Now().Unix(),
-		}
-
-		// First request does not have a pagination token
-		req := &datastore.ListNodeSelectorsRequest{
-			Pagination: &datastore.Pagination{
-				PageSize: 1,
-			},
-			ValidAt: nowTimestamp,
-		}
-
-		resp := s.listNodeSelectors(req)
-		s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
-		s.RequireProtoListEqual(nonExpiredSelectorsMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
-		s.Require().NotNil(resp.Pagination)
-		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
-
-		for i := 0; i < numNonExpiredAttNodes-1; i++ {
-			// [1, N-1] requests use a pagination token and expect to get one result since the page size == 1.
-			req = &datastore.ListNodeSelectorsRequest{
-				Pagination: resp.Pagination,
-				ValidAt:    nowTimestamp,
-			}
-
-			resp = s.listNodeSelectors(req)
-			s.Require().Len(resp.Selectors, int(req.Pagination.PageSize))
-			s.RequireProtoListEqual(nonExpiredSelectorsMap[resp.Selectors[0].SpiffeId], resp.Selectors[0].Selectors)
-			s.Require().NotNil(resp.Pagination)
-			s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
-		}
-
-		// Nth request uses a pagination token and expects to get no results
-		// since all selectors have been returned in previous requests.
-		req = &datastore.ListNodeSelectorsRequest{
-			Pagination: resp.Pagination,
-			ValidAt:    nowTimestamp,
-		}
-
-		resp = s.listNodeSelectors(req)
-		s.Require().Len(resp.Selectors, 0)
-		s.Require().NotNil(resp.Pagination)
-		s.Require().Equal(req.Pagination.PageSize, resp.Pagination.PageSize)
-		s.Require().Empty(resp.Pagination.Token)
 	})
 }
 

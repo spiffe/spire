@@ -8,13 +8,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
-)
-
-const (
-	agentPageSize = 500
-	entryPageSize = 500
 )
 
 var (
@@ -28,11 +22,10 @@ func BuildFromDataStore(ctx context.Context, ds datastore.DataStore) (*FullEntry
 }
 
 type entryIteratorDS struct {
-	ds              datastore.DataStore
-	entries         []*types.Entry
-	next            int
-	err             error
-	paginationToken string
+	ds      datastore.DataStore
+	entries []*types.Entry
+	next    int
+	err     error
 }
 
 func makeEntryIteratorDS(ds datastore.DataStore) EntryIterator {
@@ -45,13 +38,9 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 	if it.err != nil {
 		return false
 	}
-	if it.entries == nil || (it.next >= len(it.entries) && it.paginationToken != "") {
+	if it.entries == nil {
 		req := &datastore.ListRegistrationEntriesRequest{
 			TolerateStale: true,
-			Pagination: &datastore.Pagination{
-				Token:    it.paginationToken,
-				PageSize: entryPageSize,
-			},
 		}
 
 		resp, err := it.ds.ListRegistrationEntries(ctx, req)
@@ -60,7 +49,6 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 			return false
 		}
 
-		it.paginationToken = resp.Pagination.Token
 		it.next = 0
 		it.entries, err = api.RegistrationEntriesToProto(resp.Entries)
 		if err != nil {
@@ -101,9 +89,12 @@ func (it *agentIteratorDS) Next(ctx context.Context) bool {
 		return false
 	}
 	if it.agents == nil {
-		if anyAgents := it.fetchAgents(ctx); !anyAgents {
+		agents, err := it.fetchAgents(ctx)
+		if err != nil {
+			it.err = err
 			return false
 		}
+		it.agents = agents
 	}
 	if it.next >= len(it.agents) {
 		return false
@@ -121,69 +112,27 @@ func (it *agentIteratorDS) Err() error {
 }
 
 // Fetches all agent selectors from the datastore and stores them in the iterator.
-// The request for agent selectors is paginated since the size of the selector data in the datastore
-// can be larger than the gRPC maximum message size.
-// This means that one Agent's selectors could be split across multiple pages of the response from the datastore.
-// Because of this, we need to load all the selectors at once in order to return accurate Agent
-// data to the client.
-func (it *agentIteratorDS) fetchAgents(ctx context.Context) bool {
-	var agents []Agent
-	var token string
-	var currentID string
-	var selectors []*common.Selector
-	pushAgent := func(spiffeID string, curSelectors []*common.Selector) {
-		switch {
-		case currentID == "":
-			currentID = spiffeID
-		case spiffeID != currentID:
-			agent := Agent{
-				ID:        spiffeid.RequireFromString(currentID),
-				Selectors: api.ProtoFromSelectors(selectors),
-			}
-			agents = append(agents, agent)
-			currentID = spiffeID
-			selectors = nil
-		}
-
-		selectors = append(selectors, curSelectors...)
+func (it *agentIteratorDS) fetchAgents(ctx context.Context) ([]Agent, error) {
+	resp, err := it.ds.ListNodeSelectors(ctx, &datastore.ListNodeSelectorsRequest{
+		TolerateStale: true,
+		ValidAt: &timestamp.Timestamp{
+			Seconds: time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	selectorsValidAt := &timestamp.Timestamp{
-		Seconds: time.Now().Unix(),
-	}
-
-	for {
-		req := &datastore.ListNodeSelectorsRequest{
-			TolerateStale: true,
-			Pagination: &datastore.Pagination{
-				Token:    token,
-				PageSize: agentPageSize,
-			},
-			ValidAt: selectorsValidAt,
-		}
-
-		resp, err := it.ds.ListNodeSelectors(ctx, req)
+	agents := make([]Agent, 0, len(resp.Selectors))
+	for _, selector := range resp.Selectors {
+		agentID, err := spiffeid.FromString(selector.SpiffeId)
 		if err != nil {
-			it.err = err
-			return false
+			return nil, err
 		}
-
-		if len(resp.Selectors) == 0 {
-			pushAgent("", nil)
-			if len(agents) == 0 {
-				return false
-			}
-
-			break
-		}
-
-		for _, selector := range resp.Selectors {
-			pushAgent(selector.SpiffeId, selector.Selectors)
-		}
-
-		token = resp.Pagination.Token
+		agents = append(agents, Agent{
+			ID:        agentID,
+			Selectors: api.ProtoFromSelectors(selector.Selectors),
+		})
 	}
-
-	it.agents = agents
-	return true
+	return agents, nil
 }

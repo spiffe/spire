@@ -44,6 +44,8 @@ var (
 )
 
 const (
+	PluginName = "sql"
+
 	// MySQL database type
 	MySQL = "mysql"
 	// PostgreSQL database type
@@ -57,7 +59,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin("sql",
+	return catalog.MakePlugin(PluginName,
 		datastore.PluginServer(p),
 	)
 }
@@ -1635,12 +1637,7 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 	resp := new(datastore.ListNodeSelectorsResponse)
 
 	var currentID string
-	var selectors []*common.Selector
-	if req.Pagination != nil {
-		selectors = make([]*common.Selector, 0, req.Pagination.PageSize)
-	} else {
-		selectors = make([]*common.Selector, 0, 64)
-	}
+	selectors := make([]*common.Selector, 0, 64)
 
 	push := func(spiffeID string, selector *common.Selector) {
 		switch {
@@ -1657,8 +1654,6 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 		selectors = append(selectors, selector)
 	}
 
-	var lastID uint64
-	var selector *common.Selector
 	for rows.Next() {
 		var nsRow nodeSelectorRow
 		if err := scanNodeSelectorRow(rows, &nsRow); err != nil {
@@ -1670,10 +1665,9 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 			spiffeID = nsRow.SpiffeID.String
 		}
 
-		selector = new(common.Selector)
+		selector := new(common.Selector)
 		fillNodeSelectorFromRow(selector, &nsRow)
 		push(spiffeID, selector)
-		lastID = nsRow.EId
 	}
 
 	push("", nil)
@@ -1682,48 +1676,18 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 		return nil, sqlError.Wrap(err)
 	}
 
-	if req.Pagination != nil {
-		var token string
-		if len(resp.Selectors) > 0 {
-			token = strconv.FormatUint(lastID, 10)
-		}
-		resp.Pagination = &datastore.Pagination{
-			PageSize: req.Pagination.PageSize,
-			Token:    token,
-		}
-	}
-
 	return resp, nil
 }
 
 func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query string, args []interface{}) {
 	var sb strings.Builder
-	var hasWhereClause bool
 	sb.WriteString("SELECT nre.id, nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
 	if req.ValidAt != nil {
 		sb.WriteString(" INNER JOIN attested_node_entries ane ON nre.spiffe_id=ane.spiffe_id WHERE ane.expires_at > ?")
 		args = append(args, time.Unix(req.ValidAt.Seconds, 0))
-		hasWhereClause = true
-	}
-	if req.Pagination != nil && req.Pagination.Token != "" {
-		sqlKeyword := "WHERE"
-		if hasWhereClause {
-			sqlKeyword = "AND"
-		}
-
-		sb.WriteRune(' ')
-		sb.WriteString(sqlKeyword)
-		sb.WriteString(" nre.id > ?")
-		args = append(args, req.Pagination.Token)
 	}
 
 	sb.WriteString(" ORDER BY nre.id ASC")
-
-	if req.Pagination != nil {
-		sb.WriteString(" LIMIT ")
-		pageSize := strconv.FormatInt(int64(req.Pagination.PageSize), 10)
-		sb.WriteString(pageSize)
-	}
 
 	return sb.String(), args
 }
