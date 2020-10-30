@@ -89,3 +89,7 @@ func (k *kmsClientFake) SignWithContext(ctx aws.Context, input *kms.SignInput, o
 
 	return k.signOutput, nil
 }
+
+func (k *kmsClientFake) CreateAliasWithContext(ctx aws.Context, input *kms.CreateAliasInput, opts ...request.Option) (*kms.CreateAliasOutput, error) {
+	return nil, nil
+}
