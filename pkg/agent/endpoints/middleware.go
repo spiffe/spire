@@ -38,7 +38,7 @@ func addWatcherPIDToLogger(ctx context.Context, fullMethod string) (context.Cont
 
 func verifySecurityHeader(ctx context.Context, fullMethod string) (context.Context, error) {
 	if isWorkloadAPIMethod(fullMethod) && !hasSecurityHeader(ctx) {
-		return nil, status.Errorf(codes.InvalidArgument, "security header missing from request")
+		return nil, status.Error(codes.InvalidArgument, "security header missing from request")
 	}
 	return ctx, nil
 }
