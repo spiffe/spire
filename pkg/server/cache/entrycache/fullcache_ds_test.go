@@ -88,7 +88,7 @@ func TestAgentIteratorDS(t *testing.T) {
 		assert.NoError(t, it.Err())
 	})
 
-	const numAgents = agentPageSize + 1
+	const numAgents = 10
 	selectors := []*common.Selector{
 		{Type: "a", Value: "1"},
 		{Type: "b", Value: "2"},
