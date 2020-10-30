@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 )
 
 // WithLogger returns logging middleware that provides a per-rpc logger with

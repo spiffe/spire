@@ -2,55 +2,11 @@ package middleware_test
 
 import (
 	"context"
-	"errors"
 )
 
 const (
 	fakeFullMethod = "/spire.api.server.foo.v1.Foo/SomeMethod"
 )
-
-var (
-	errFake = errors.New("ohno")
-)
-
-type preprocessArgs struct {
-	wrapCount  int
-	fullMethod string
-}
-
-type postprocessArgs struct {
-	wrapCount      int
-	fullMethod     string
-	handlerInvoked bool
-	rpcErr         error
-}
-
-type fakeMiddleware struct {
-	lastPreprocess    preprocessArgs
-	lastPostprocess   postprocessArgs
-	nextPreprocessErr error
-}
-
-func (f *fakeMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
-	f.lastPreprocess = preprocessArgs{
-		wrapCount:  wrapCount(ctx),
-		fullMethod: fullMethod,
-	}
-	if err := f.nextPreprocessErr; err != nil {
-		f.nextPreprocessErr = nil
-		return nil, err
-	}
-	return wrapContext(ctx), nil
-}
-
-func (f *fakeMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
-	f.lastPostprocess = postprocessArgs{
-		wrapCount:      wrapCount(ctx),
-		fullMethod:     fullMethod,
-		handlerInvoked: handlerInvoked,
-		rpcErr:         rpcErr,
-	}
-}
 
 type wrapKey struct{}
 

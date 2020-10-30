@@ -4,11 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"io"
 	"strconv"
-	"sync/atomic"
 
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
@@ -17,39 +14,35 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
-	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+type Attestor interface {
+	Attest(ctx context.Context) ([]*common.Selector, error)
+}
+
 type Manager interface {
 	SubscribeToCacheChanges(key cache.Selectors) cache.Subscriber
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
 }
 
-type HandlerConfig struct {
-	Attestor          attestor.Attestor
+type Config struct {
+	Attestor          Attestor
 	Manager           Manager
-	Metrics           telemetry.Metrics
-	Log               logrus.FieldLogger
 	DefaultBundleName string
 	DefaultSVIDName   string
 }
 
 type Handler struct {
-	c HandlerConfig
-
-	// connections is a count of current connections to the API (in other words
-	// how many RPCs are outstanding) tracked for telemetry purposes.
-	connections int32
+	c Config
 
 	hooks struct {
 		// test hook used to synchronize receipt of a stream request
@@ -57,18 +50,18 @@ type Handler struct {
 	}
 }
 
-func NewHandler(config HandlerConfig) *Handler {
+func New(config Config) *Handler {
 	return &Handler{c: config}
 }
 
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
-	selectors, done, err := h.startCall(stream.Context())
-	log := h.c.Log.WithField(telemetry.Method, telemetry.StreamSecrets)
+	log := rpccontext.Logger(stream.Context())
+
+	selectors, err := h.c.Attestor.Attest(stream.Context())
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch stream secrets during context parsing")
+		log.WithError(err).Error("Failed to attest the workload")
 		return err
 	}
-	defer done()
 
 	sub := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer sub.Finish()
@@ -206,16 +199,15 @@ func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsS
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
-	log := h.c.Log.WithField(telemetry.Method, telemetry.FetchSecrets)
-	log.WithFields(logrus.Fields{
+	log := rpccontext.Logger(ctx).WithFields(logrus.Fields{
 		telemetry.ResourceNames: req.ResourceNames,
-	}).Debug("Received FetchSecrets request")
-	selectors, done, err := h.startCall(ctx)
+	})
+
+	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch secrets during context parsing")
+		log.WithError(err).Error("Failed to attest the workload")
 		return nil, err
 	}
-	defer done()
 
 	upd := h.c.Manager.FetchWorkloadUpdate(selectors)
 
@@ -230,42 +222,6 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 	}).Debug("Sending FetchSecrets response")
 
 	return resp, nil
-}
-
-// From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
-// to a new metrics object. Return this information to the caller so it can emit further metrics.
-// If no error, callers must call the output func() to decrement current connections count.
-func (h *Handler) startCall(ctx context.Context) ([]*common.Selector, func(), error) {
-	watcher, err := peerWatcher(ctx)
-	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "is this a supported system? Please report this bug: %v", err)
-	}
-
-	pid := watcher.PID()
-	pidStr := fmt.Sprint(pid)
-	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: pidStr}})
-	telemetry_agent.IncrSDSAPIConnectionCounter(metrics)
-	telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, 1))
-	log := h.c.Log.WithField(telemetry.SDSPID, pidStr)
-	log.Debug("Handling SDS API request")
-
-	selectors := h.c.Attestor.Attest(ctx, pid)
-
-	// Ensure that the original caller is still alive so that we know we didn't
-	// attest some other process that happened to be assigned the original PID
-	err = watcher.IsAlive()
-	if err != nil {
-		telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, -1))
-		log.Debug("Finished handling SDS API request due to error")
-		return nil, nil, status.Errorf(codes.Unauthenticated, "could not verify existence of the original caller: %v", err)
-	}
-
-	done := func() {
-		telemetry_agent.SetSDSAPIConnectionTotalGauge(metrics, atomic.AddInt32(&h.connections, -1))
-		log.Debug("Finished handling SDS API request")
-	}
-
-	return selectors, done, nil
 }
 
 func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *api_v2.DiscoveryResponse, err error) {
@@ -341,19 +297,6 @@ func (h *Handler) triggerReceivedHook() {
 	if h.hooks.received != nil {
 		h.hooks.received <- struct{}{}
 	}
-}
-
-// peerWatcher takes a grpc context, and returns a Watcher representing the caller which
-// has issued the request. Returns an error if the call was not made locally, if the necessary
-// syscalls aren't unsupported, or if the transport security was not properly configured.
-// See the peertracker package for more information.
-func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
-	watcher, ok := peertracker.WatcherFromContext(ctx)
-	if !ok {
-		return nil, errors.New("unable to fetch watcher from context")
-	}
-
-	return watcher, nil
 }
 
 func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.Any, error) {

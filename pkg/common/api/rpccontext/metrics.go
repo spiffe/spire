@@ -3,7 +3,7 @@ package rpccontext
 import (
 	"context"
 
-	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/common/api"
 )
 
 type callCounterKey struct{}

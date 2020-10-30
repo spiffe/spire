@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/test/clock"
@@ -255,7 +256,7 @@ func TestRateLimits(t *testing.T) {
 				return struct{}{}, nil
 			}
 
-			unaryInterceptor := UnaryInterceptor(Chain(
+			unaryInterceptor := middleware.UnaryInterceptor(middleware.Chain(
 				WithRateLimits(
 					map[string]api.RateLimiter{
 						"/fake.Service/NoLimit":       NoLimit(),
@@ -265,7 +266,7 @@ func TestRateLimits(t *testing.T) {
 				),
 				// Install a middleware downstream so that we can test what
 				// happens in postprocess if the handler is never invoked.
-				Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+				middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
 					return ctx, tt.downstreamErr
 				}),
 			))

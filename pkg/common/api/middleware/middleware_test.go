@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/stretchr/testify/assert"
 )
 

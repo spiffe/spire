@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"golang.org/x/time/rate"
@@ -82,7 +83,7 @@ func PerIPLimit(limit int) api.RateLimiter {
 //
 // The WithRateLimits middleware depends on the Logger and Authorization
 // middlewares.
-func WithRateLimits(rateLimits map[string]api.RateLimiter) Middleware {
+func WithRateLimits(rateLimits map[string]api.RateLimiter) middleware.Middleware {
 	return rateLimitsMiddleware{
 		limiters: rateLimits,
 	}
@@ -192,7 +193,7 @@ type rateLimitsMiddleware struct {
 func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
 	rateLimiter, ok := i.limiters[fullMethod]
 	if !ok {
-		logMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")
+		middleware.LogMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")
 		return nil, status.Errorf(codes.Internal, "rate limiting misconfigured for %q", fullMethod)
 	}
 	return rpccontext.WithRateLimiter(ctx, &rateLimiterWrapper{rateLimiter: rateLimiter}), nil
@@ -210,7 +211,7 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string
 	if !ok {
 		// This shouldn't be the case unless Preprocess is broken and fails to
 		// inject the rate limiter into the context.
-		logMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")
+		middleware.LogMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")
 		return
 	}
 
@@ -218,7 +219,7 @@ func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string
 	if !ok {
 		// This shouldn't be the case unless Preprocess is broken and fails to
 		// wrap the rate limiter.
-		logMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")
+		middleware.LogMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")
 		return
 	}
 
@@ -232,7 +233,7 @@ func logLimiterMisuse(ctx context.Context, rateLimiter api.RateLimiter, used boo
 		// misconfiguration. Either the RPC is wrong, or the middleware is
 		// wrong as to whether or not the RPC should rate limit.
 		if used {
-			logMisconfiguration(ctx, "Rate limiter used unexpectedly; this is a bug")
+			middleware.LogMisconfiguration(ctx, "Rate limiter used unexpectedly; this is a bug")
 		}
 	case disabledLimit:
 		// RPC should invoke the rate limiter since is an RPC that is normally
@@ -240,13 +241,13 @@ func logLimiterMisuse(ctx context.Context, rateLimiter api.RateLimiter, used boo
 		// limits but we want to make sure the RPC will be applying limits
 		// under normal conditions.
 		if !used {
-			logMisconfiguration(ctx, "Disabled rate limiter went unused; this is a bug")
+			middleware.LogMisconfiguration(ctx, "Disabled rate limiter went unused; this is a bug")
 		}
 	default:
 		// All other rate limiters should definitely be invoked by the RPC or
 		// it is a bug.
 		if !used {
-			logMisconfiguration(ctx, "Rate limiter went unused; this is a bug")
+			middleware.LogMisconfiguration(ctx, "Rate limiter went unused; this is a bug")
 		}
 	}
 }
