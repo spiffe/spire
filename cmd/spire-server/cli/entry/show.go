@@ -155,7 +155,7 @@ func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entr
 }
 
 // filterByFederatedWith evicts any value from the given entries slice that does
-// not contains at least one of the federated trust domains specified in the
+// not contain at least one of the federated trust domains specified in the
 // federatesWith slice.
 func (c *showCommand) filterByFederatedWith(entries []*types.Entry) []*types.Entry {
 	// Build map for quick search
