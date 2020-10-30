@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"google.golang.org/grpc"
 )
@@ -46,6 +47,7 @@ type ServerClient interface {
 	Release()
 	NewAgentClient() agent.AgentClient
 	NewBundleClient() bundle.BundleClient
+	NewEntryClient() entry.EntryClient
 	NewSVIDClient() svid.SVIDClient
 }
 
@@ -71,6 +73,10 @@ func (c *serverClient) NewAgentClient() agent.AgentClient {
 
 func (c *serverClient) NewBundleClient() bundle.BundleClient {
 	return bundle.NewBundleClient(c.conn)
+}
+
+func (c *serverClient) NewEntryClient() entry.EntryClient {
+	return entry.NewEntryClient(c.conn)
 }
 
 func (c *serverClient) NewSVIDClient() svid.SVIDClient {
