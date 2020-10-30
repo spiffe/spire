@@ -215,8 +215,6 @@ func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.En
 		return
 	}
 
-	//	failed := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
-	//	succeeded := make([]*entry.BatchCreateEntryResponse_Result, 0, len(resp.Results))
 	for i, r := range resp.Results {
 		switch r.Status.Code {
 		case int32(codes.OK):
