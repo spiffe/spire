@@ -80,6 +80,7 @@ The following metrics are emitted:
 
 | Type | Keys | Labels | Description |
 | ---  | --- | --- | --- |
+| Call Counter | `rpc`, `<service>`, `<method>` | | Call counters over the SPIRE Agent RPCs
 | Call Counter | `agent_key_manager`, `generate_key_pair` | | The KeyManager is generating a key pair.
 | Call Counter | `agent_key_manager`, `fetch_private_key` | | The KeyManager is fetching a private key.
 | Call Counter | `agent_key_manager`, `store_private_key` | | The KeyManager is storing a private key.
@@ -95,14 +96,6 @@ The following metrics are emitted:
 | Counter | `workload_api`, `connection` | | The Workload API has successfully established a new connection.
 | Gauge | `workload_api`, `connections` | | The number of active connections that the Workload API has. 
 | Sample | `workload_api`, `discovered_selectors` | | The number of selectors discovered during a workload attestation process.
-| Call Counter | `workload_api`, `fetch_jwt_bundles` | `svid_type` | The Workload API is fetching JWT bundles.
-| Counter | `workload_api`, `fetch_jwt_bundles` | | The Workload API has successfully fetched JWT bundles.
-| Call Counter | `workload_api`, `fetch_jwt_svid` | `svid_type` | The Workload API is fetching a JWT SVID.
-| Call Counter | `workload_api`, `fetch_x509_svid` | `svid_type` | The Workload API is fetching an X.509 SVID.
-| Measure Since | `workload_api`, `send_jwt_bundle_latency` | | The time that the Workload API took to send a JWT bundle.
-| Measure Since | `workload_api`, `svid_response_latency`, `fetch` | | The time that the Workload API took to fetch an X.509 SVID.
-| Counter | `workload_api`, `validate_jwt_svid` | `subject`, `audience` | The Workload API has successfully validated a JWT SVID.
-| Counter | `workload_api`, `validate_jwt_svid_error` | | The Workload API has encountered an error while validating a JWT SVID.
 | Call Counter | `workload_api`, `workload_attestation` | | The Workload API is performing a workload attestation.
 | Call Counter | `workload_api`, `workload_attestor` | `attestor` | The Workload API is invoking a given attestor.
 | Gauge | `started` | `version` | The version of the Agent.
