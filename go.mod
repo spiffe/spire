@@ -4,7 +4,7 @@ go 1.14
 
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
-replace github.com/spiffe/spiffe-helper => github.com/faisal-memon/spiffe-helper v0.0.0-20201023194901-26212da0922e
+replace github.com/spiffe/spiffe-helper => github.com/faisal-memon/spiffe-helper v0.0.0-20201030080853-39a9c92c446a
 
 require (
 	cloud.google.com/go/storage v1.6.0
@@ -56,7 +56,7 @@ require (
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.1
+	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.2
 	github.com/spiffe/spiffe-helper v0.0.0-00010101000000-000000000000
 	github.com/spiffe/spire/proto/spire v0.10.1
 	github.com/stretchr/testify v1.5.1

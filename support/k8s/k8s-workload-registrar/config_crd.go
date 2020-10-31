@@ -255,8 +255,7 @@ func (c *CRDMode) setupWebhook(ctx context.Context, mgr ctrl.Manager, registrati
 	return nil
 }
 
-// waitForSpireAgent waits for the SPIRE Agent to be up and running. If it is dialed early, the dial
-// will be successful but no data will come from the unix socket
+// waitForSpireAgent waits for the SPIRE Agent to be up and running.
 func (c *CRDMode) waitForSpireAgent() error {
 	conn, err := grpc.Dial("unix://"+c.AgentSocketPath, grpc.WithInsecure())
 	if err != nil {

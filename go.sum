@@ -183,8 +183,8 @@ github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5/go.mod h1:a
 github.com/evanphx/json-patch v4.2.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/evanphx/json-patch v4.5.0+incompatible h1:ouOWdg56aJriqS0huScTkVXPC5IcNrDCXZ6OoTAWu7M=
 github.com/evanphx/json-patch v4.5.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
-github.com/faisal-memon/spiffe-helper v0.0.0-20201023194901-26212da0922e h1:IKCJdJlXr37pF38lEoXjOq1pl7gK1UD8+IYf8BN77AE=
-github.com/faisal-memon/spiffe-helper v0.0.0-20201023194901-26212da0922e/go.mod h1:QFWEJ+z/94WeIfC/WCaQWQOENH7GkVxGUXbHn1/ohFM=
+github.com/faisal-memon/spiffe-helper v0.0.0-20201030080853-39a9c92c446a h1:zKbT6K4UI602wgnKJojD9a0zOyEbMJ6uAQepLTLtWbY=
+github.com/faisal-memon/spiffe-helper v0.0.0-20201030080853-39a9c92c446a/go.mod h1:VcAu6ssCzQosa2qMOrmaZMFDPUihNnzKdlKXsU65O0E=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga6PJ7M=
@@ -563,8 +563,8 @@ github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An
 github.com/spf13/viper v1.3.2/go.mod h1:ZiWeW+zYFKm7srdB9IoDzzZXaJaI5eL9QjNiN/DMA2s=
 github.com/spiffe/go-spiffe v1.1.0 h1:4GCqq8teavqkCl2j3c/vxQDgr33JidVRVT3mfssR6oM=
 github.com/spiffe/go-spiffe v1.1.0/go.mod h1:HyNeJnVYkDyQgB2qcSPxVYkAA2F3lQu51bDxNpFcKxY=
-github.com/spiffe/go-spiffe/v2 v2.0.0-beta.1 h1:vfXGzhrRafgcOiofGNWSHfwJt7vyMNdpfSj3/UHTpjg=
-github.com/spiffe/go-spiffe/v2 v2.0.0-beta.1/go.mod h1:Z6jOEo3L49OpNaK5JTIOig6K9HJhwH6cb78MF5mothQ=
+github.com/spiffe/go-spiffe/v2 v2.0.0-beta.2 h1:m8iOYBmdnC4i1LSMsoJM2tCZIX+I/+rD7YrQ4bBR8lc=
+github.com/spiffe/go-spiffe/v2 v2.0.0-beta.2/go.mod h1:Z6jOEo3L49OpNaK5JTIOig6K9HJhwH6cb78MF5mothQ=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1 h1:2vfRuCMp5sSVIDSqO8oNnWJq7mPa6KVP3iPIwFBuy8A=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
