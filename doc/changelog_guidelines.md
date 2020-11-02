@@ -1,8 +1,8 @@
 # CHANGELOG Guidelines
 
 The following guidelines should be followed when updating the CHANGELOG:
-- CHANGELOG entries should be focused on communicating user-facing changes, considering that the main consumers of the CHANGELOG are the end users of SPIRE.
 - There should be an entry for every version, that includes the version number and release date.
+- Entries should be focused on communicating user-facing changes, considering that the main consumers of the CHANGELOG are the end users of SPIRE.
 - The types of changes should be grouped using the following categories:
   - **Added**: New features that impact in the user experience.
   - **Changed**: Changes in existing functionality.
