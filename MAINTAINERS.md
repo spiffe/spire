@@ -91,7 +91,7 @@ This section summarizes the steps necessary to execute a SPIRE release. Unless e
 The following steps must be completed one week prior to release:
 * Ensure all changes intended to be included in the release are fully merged.
 * Identify a specific commit as the release candidate.
-* Create a draft pull request with the updates to the CHANGELOG following [these guidelines](doc/changelog_guideliners.md). This allows to have publicly available the changes that will be included in the upcoming release with some anticipation, providing the oportunity to receive feedback. The release date can be set as "TBD".
+* Create a draft pull request with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows to have publicly available the changes that will be included in the upcoming release with some anticipation, providing the oportunity to receive feedback. The release date can be set as "TBD" while it is a draft.
 * Raise an issue "Release SPIRE X.Y.Z", and include the release candidate commit hash. Reference the pull request with the updates to the CHANGELOG.
 
 **If this is a major release**, the following steps must be completed before releasing:
@@ -105,7 +105,9 @@ The following steps must be completed to perform a release:
 * If the current state of the master branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG and the release can be done from master branch.
 * If the current state of the master branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
   * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
-  * Cherry-pick into the version branch the commits for all the changes that must be included in the release, including the updates in the CHANGELOG. This is now the release candidate.
+  * Create a GitHub project named `Release vX.X.X` to identify the PRs that will be cherry-picked. The project should have two statuses to track the progress: one to idenify the PRs to be cherry-picked and one for those that have been merged in the version branch.
+  * Make sure that the version in the branch has been bumped to the version that is being released.
+  * Cherry-pick into the version branch the commits for all the changes that must be included in the release, including the updates in the CHANGELOG and update the corresponding status in the project.
 * Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
   * The first line of the annotation should be `X.X.X` followed by the CHANGELOG. Refer to previous annotated tags as an example.
   * The `proto/spire/vX.X.X` tag is needed for proper versioning of the github.com/spiffe/spire/proto/spire go module and can be omitted if/when that go module is no longer in the SPIRE repository.
@@ -113,11 +115,12 @@ The following steps must be completed to perform a release:
   * If the build fails, or anything unusual is encountered, abort the release.
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
 * Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub rendering bug that you will notice before completing this task.
+* Close the GitHub project created to track the release process.
 * Open and merge a PR to bump the SPIRE version to the next projected version.
   * For example, after releasing 0.10.0, update the version to 0.10.1, since it is more likely to be released before 0.11.0.
   * Ideally, this is the first commit merged following the release.
 
-**IF this is a major release**, the following steps must be completed no later than one week after the release:
+**If this is a major release**, the following steps must be completed no later than one week after the release:
 * PRs to update spiffe.io and spire-examples repo to the latest major version must be merged.
   * Ensure that the PRs have been updated to use the version tag instead of the commit sha.
 * Broadcast news of release to the community via available means: SPIFFE Slack, Twitter, etc.
