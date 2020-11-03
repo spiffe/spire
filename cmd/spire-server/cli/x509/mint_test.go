@@ -17,13 +17,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -47,8 +51,16 @@ Z84JZjKUN33uWhKdlOVoBpplaJ6hRANCAAQXt5Kz8gRQiSxKhLDyzo7zT/CcGmZJ
 -----END PRIVATE KEY-----
 `
 
-	testBundlePEM = `-----BEGIN CERTIFICATE-----
-AQ==
+	testX509Authority = `-----BEGIN CERTIFICATE-----
+MIIBjzCCATSgAwIBAgIBADAKBggqhkjOPQQDAjAeMQswCQYDVQQGEwJVUzEPMA0G
+A1UEChMGU1BJRkZFMB4XDTIwMDgyMDE2MDMwNVoXDTIwMDgyMDE3MDMxNVowHjEL
+MAkGA1UEBhMCVVMxDzANBgNVBAoTBlNQSUZGRTBZMBMGByqGSM49AgEGCCqGSM49
+AwEHA0IABOZa3K3iGa9IiECX51mnU62HdQO3GjwtZsn/x5IO/0a9YPHxAVP0N3lD
+CHRKm7jVNiiBp8SppSHEd+r6ic8ij4GjYzBhMA4GA1UdDwEB/wQEAwIBhjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBTSFjkGrSwV8L8u/2vdWA7a0lPb8jAfBgNV
+HREEGDAWhhRzcGlmZmU6Ly9leGFtcGxlLm9yZzAKBggqhkjOPQQDAgNJADBGAiEA
+mdUK1/3+csYw7oWsNuh9qxGOWOkLS6hjVAjJ/fAGd2oCIQCa7zJtmExCQLwbI0Ar
+JMSEiviWUClVHE8G6t55aCHoBQ==
 -----END CERTIFICATE-----
 `
 )
@@ -70,7 +82,7 @@ func TestMintHelp(t *testing.T) {
 		Stdout: stdout,
 		Stderr: stderr,
 	}, nil)
-	assert.Empty(t, cmd.Help())
+	assert.Equal(t, "flag: help requested", cmd.Help())
 	assert.Empty(t, stdout.String())
 	assert.Equal(t, expectedUsage, stderr.String())
 }
@@ -95,11 +107,27 @@ func TestMintRun(t *testing.T) {
 		Bytes: certDER,
 	}))
 
-	api := new(FakeRegistrationAPI)
+	server := new(fakeSVIDServer)
+	spiretest.StartGRPCSocketServer(t, util.DefaultSocketPath, func(s *grpc.Server) {
+		svidpb.RegisterSVIDServer(s, server)
+		bundlepb.RegisterBundleServer(s, server)
+	})
 
-	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, util.DefaultSocketPath), api)
+	alternativeSocket := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+		svidpb.RegisterSVIDServer(s, server)
+		bundlepb.RegisterBundleServer(s, server)
+	})
 
-	spiretest.StartRegistrationAPIOnSocket(t, filepath.Join(dir, "other.sock"), api)
+	x509Authority, err := pemutil.ParseCertificate([]byte(testX509Authority))
+	require.NoError(t, err)
+
+	bundle := &types.Bundle{
+		X509Authorities: []*types.X509Certificate{
+			{
+				Asn1: x509Authority.Raw,
+			},
+		},
+	}
 
 	testCases := []struct {
 		name string
@@ -118,65 +146,107 @@ func TestMintRun(t *testing.T) {
 		stderr string
 
 		noRequestExpected bool
-		resp              *registration.MintX509SVIDResponse
+		resp              *svidpb.MintX509SVIDResponse
+
+		bundle    *types.Bundle
+		bundleErr error
+
+		// generate key returned error
+		generateErr error
 	}{
 		{
 			name:              "missing spiffeID flag",
 			code:              1,
-			stderr:            "error: spiffeID must be specified\n",
+			stderr:            "spiffeID must be specified\n",
+			noRequestExpected: true,
+		},
+		{
+			name:              "malformed spiffe ID",
+			code:              1,
+			spiffeID:          "malformed id",
+			stderr:            "spiffeid: invalid scheme\n",
 			noRequestExpected: true,
 		},
 		{
 			name:              "invalid flag",
 			code:              1,
-			stderr:            "flag provided but not defined: -bad\n" + expectedUsage,
+			stderr:            fmt.Sprintf("flag provided but not defined: -bad\n%s\n", expectedUsage),
 			extraArgs:         []string{"-bad", "flag"},
+			noRequestExpected: true,
+		},
+		{
+			name:              "generate key fails",
+			spiffeID:          "spiffe://domain.test/workload",
+			code:              1,
+			generateErr:       errors.New("some error"),
+			stderr:            "unable to generate key: some error\n",
 			noRequestExpected: true,
 		},
 		{
 			name:     "RPC fails",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
-			stderr:   "error: unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
+			stderr:   "unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
 		},
 		{
 			name:     "response missing SVID chain",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
-			stderr:   "error: server response missing SVID chain\n",
-			resp: &registration.MintX509SVIDResponse{
-				RootCas: [][]byte{{0x01}},
+			stderr:   "server response missing SVID chain\n",
+			resp: &svidpb.MintX509SVIDResponse{
+				Svid: &types.X509SVID{},
 			},
+		},
+		{
+			name:     "get bundle fails",
+			spiffeID: "spiffe://domain.test/workload",
+			code:     1,
+			stderr:   "unable to get bundle: rpc error: code = Unknown desc = some error\n",
+			resp: &svidpb.MintX509SVIDResponse{
+				Svid: &types.X509SVID{
+					CertChain: [][]byte{certDER},
+				},
+			},
+			bundleErr: errors.New("some error"),
 		},
 		{
 			name:     "response missing root CAs",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
-			stderr:   "error: server response missing root CAs\n",
-			resp: &registration.MintX509SVIDResponse{
-				SvidChain: [][]byte{certDER},
+			stderr:   "server response missing X509 Authorities\n",
+			resp: &svidpb.MintX509SVIDResponse{
+				Svid: &types.X509SVID{
+					CertChain: [][]byte{certDER},
+				},
 			},
+			bundle: &types.Bundle{},
 		},
 		{
 			name:     "success with defaults",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     0,
-			resp: &registration.MintX509SVIDResponse{
-				SvidChain: [][]byte{certDER},
-				RootCas:   [][]byte{{0x01}},
+			resp: &svidpb.MintX509SVIDResponse{
+				Svid: &types.X509SVID{
+					CertChain: [][]byte{certDER},
+					ExpiresAt: time.Now().Add(time.Minute).Unix(),
+				},
 			},
+			bundle: bundle,
 		},
 		{
 			name:       "success with ttl and dnsnames, written to directory, using alternate socket",
 			spiffeID:   "spiffe://domain.test/workload",
 			ttl:        time.Minute,
-			socketPath: "other.sock",
+			socketPath: alternativeSocket,
 			code:       0,
 			write:      ".",
-			resp: &registration.MintX509SVIDResponse{
-				SvidChain: [][]byte{certDER},
-				RootCas:   [][]byte{{0x01}},
+			resp: &svidpb.MintX509SVIDResponse{
+				Svid: &types.X509SVID{
+					CertChain: [][]byte{certDER},
+					ExpiresAt: notAfter.Unix(),
+				},
 			},
+			bundle: bundle,
 			stderr: fmt.Sprintf("X509-SVID lifetime was capped shorter than specified ttl; expires %q\n", notAfter.UTC().Format(time.RFC3339)),
 		},
 	}
@@ -184,7 +254,11 @@ func TestMintRun(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			api.SetMintX509SVIDResponse(testCase.resp)
+			server.setMintX509SVIDResponse(testCase.resp)
+			server.resetMintX509SVIDRequest()
+
+			server.bundle = testCase.bundle
+			server.bundleErr = testCase.bundleErr
 
 			stdout := new(bytes.Buffer)
 			stderr := new(bytes.Buffer)
@@ -194,6 +268,9 @@ func TestMintRun(t *testing.T) {
 				Stderr:  stderr,
 				BaseDir: dir,
 			}, func() (crypto.Signer, error) {
+				if testCase.generateErr != nil {
+					return nil, testCase.generateErr
+				}
 				return testKey, nil
 			})
 
@@ -220,7 +297,7 @@ func TestMintRun(t *testing.T) {
 			assert.Equal(t, testCase.code, code, "exit code does not match")
 			assert.Equal(t, testCase.stderr, stderr.String(), "stderr does not match")
 
-			req := api.LastMintX509SVIDRequest()
+			req := server.lastMintX509SVIDRequest()
 			if testCase.noRequestExpected {
 				assert.Nil(t, req)
 				return
@@ -228,9 +305,14 @@ func TestMintRun(t *testing.T) {
 
 			if assert.NotNil(t, req) {
 				assert.NotEmpty(t, req.Csr)
-				assert.Equal(t, testCase.spiffeID, req.SpiffeId)
+				csr, err := x509.ParseCertificateRequest(req.Csr)
+				require.NoError(t, err)
+
+				id := spiffeid.RequireFromString(testCase.spiffeID)
+				require.Equal(t, id.URL(), csr.URIs[0])
+
+				require.Equal(t, testCase.dnsNames, csr.DNSNames)
 				assert.Equal(t, int32(testCase.ttl/time.Second), req.Ttl)
-				assert.Equal(t, testCase.dnsNames, req.DnsNames)
 			}
 
 			// assert output file contents
@@ -243,7 +325,7 @@ Root CAs written to %s
 						stdout.String(), "stdout does not write output paths")
 					assertFileData(t, filepath.Join(dir, testCase.write, "svid.pem"), svidPEM)
 					assertFileData(t, filepath.Join(dir, testCase.write, "key.pem"), testKeyPEM)
-					assertFileData(t, filepath.Join(dir, testCase.write, "bundle.pem"), testBundlePEM)
+					assertFileData(t, filepath.Join(dir, testCase.write, "bundle.pem"), testX509Authority)
 				} else {
 					assert.Equal(t, fmt.Sprintf(`X509-SVID:
 %s
@@ -251,42 +333,60 @@ Private key:
 %s
 Root CAs:
 %s
-`, svidPEM, testKeyPEM, testBundlePEM), stdout.String(), "stdout does not write out PEM")
+`, svidPEM, testKeyPEM, testX509Authority), stdout.String(), "stdout does not write out PEM")
 				}
 			}
 		})
 	}
 }
 
-type FakeRegistrationAPI struct {
-	registration.RegistrationServer
+type fakeSVIDServer struct {
+	svidpb.SVIDServer
+	bundlepb.BundleServer
 
 	mu   sync.Mutex
-	req  *registration.MintX509SVIDRequest
-	resp *registration.MintX509SVIDResponse
+	req  *svidpb.MintX509SVIDRequest
+	resp *svidpb.MintX509SVIDResponse
+
+	bundle    *types.Bundle
+	bundleErr error
 }
 
-func (r *FakeRegistrationAPI) LastMintX509SVIDRequest() *registration.MintX509SVIDRequest {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.req
+func (f *fakeSVIDServer) resetMintX509SVIDRequest() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.req = nil
 }
 
-func (r *FakeRegistrationAPI) SetMintX509SVIDResponse(resp *registration.MintX509SVIDResponse) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.resp = resp
+func (f *fakeSVIDServer) lastMintX509SVIDRequest() *svidpb.MintX509SVIDRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.req
 }
 
-func (r *FakeRegistrationAPI) MintX509SVID(ctx context.Context, req *registration.MintX509SVIDRequest) (*registration.MintX509SVIDResponse, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (f *fakeSVIDServer) setMintX509SVIDResponse(resp *svidpb.MintX509SVIDResponse) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resp = resp
+}
 
-	r.req = req
-	if r.resp == nil {
+func (f *fakeSVIDServer) MintX509SVID(ctx context.Context, req *svidpb.MintX509SVIDRequest) (*svidpb.MintX509SVIDResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.req = req
+	if f.resp == nil {
 		return nil, errors.New("response not configured in test")
 	}
-	return r.resp, nil
+	return f.resp, nil
+}
+
+func (f *fakeSVIDServer) GetBundle(ctx context.Context, req *bundlepb.GetBundleRequest) (*types.Bundle, error) {
+	if f.bundleErr != nil {
+		return nil, f.bundleErr
+	}
+
+	return f.bundle, nil
 }
 
 func assertFileData(t *testing.T, path string, expectedData string) {
