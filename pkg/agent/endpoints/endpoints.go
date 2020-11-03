@@ -55,7 +55,6 @@ func New(c Config) *Endpoints {
 	workloadAPIServer := c.newWorkloadAPIHandler(workload.Config{
 		Manager:  c.Manager,
 		Attestor: attestor,
-		Metrics:  c.Metrics,
 	})
 
 	sdsv2Server := c.newSDSv2Handler(sdsv2.Config{
