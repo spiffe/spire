@@ -17,7 +17,7 @@ services:
       # Share root agent socket to be acceded by leafA and leafB servers
       - ./shared/rootSocket:/opt/spire/sockets
       - ./root/agent:/opt/spire/conf/agent
-      - /var/run/:/var/run/
+      - /var/run/docker.sock:/var/run/docker.sock
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
   # IntermediateA
   intermediateA-server:
@@ -44,7 +44,7 @@ services:
       - ./intermediateA/agent:/opt/spire/conf/agent
       # Share intermediateA agent socket to be acceded by leafA server
       - ./shared/intermediateASocket:/opt/spire/sockets
-      - /var/run/:/var/run/
+      - /var/run/docker.sock:/var/run/docker.sock
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
   # LeafA
   leafA-server:
@@ -93,7 +93,7 @@ services:
       - ./intermediateB/agent:/opt/spire/conf/agent
       # Share intermediateB agent socket to be acceded by leafB server
       - ./shared/intermediateBSocket:/opt/spire/sockets
-      - /var/run/:/var/run/
+      - /var/run/docker.sock:/var/run/docker.sock
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
   # leafB
   leafB-server:
