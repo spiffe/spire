@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -33,6 +34,9 @@ type Suite struct {
 	leafCert         *x509.Certificate
 	intermediateCert *x509.Certificate
 	rootCert         *x509.Certificate
+
+	alternativeBundlePath string
+	alternativeBundle     *x509.Certificate
 }
 
 func (s *Suite) SetupTest() {
@@ -53,6 +57,11 @@ func (s *Suite) SetupTest() {
 	s.intermediateCert, err = x509.ParseCertificate(s.leafBundle[1])
 	require.NoError(err)
 	s.rootCert, err = util.LoadCert(s.rootCertPath)
+	require.NoError(err)
+
+	// Add alternative bundle
+	s.alternativeBundlePath = fixture.Join("certs", "ca.pem")
+	s.alternativeBundle, err = util.LoadCert(s.alternativeBundlePath)
 	require.NoError(err)
 }
 
@@ -215,6 +224,7 @@ func (s *Suite) TestConfigure() {
 	require := s.Require()
 
 	p := New()
+	p.SetLogger(hclog.Default())
 
 	// malformed
 	resp, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
@@ -243,18 +253,39 @@ func (s *Suite) TestConfigure() {
 	require.EqualError(err, "x509pop: trust_domain is required")
 	require.Nil(resp)
 
-	// missing ca_bundle_path
+	// missing ca_bundle_path and ca_bundles_path
 	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	require.EqualError(err, "x509pop: ca_bundle_path is required")
+	require.EqualError(err, "x509pop: ca_bundle_path or ca_bundles_path are required")
 	require.Nil(resp)
 
-	// bad trust bundle
+	// ca_bundle_path and ca_bundles_path configured
 	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 		ca_bundle_path = "blah"
+		ca_bundles_path = ["blah"]
+		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	require.EqualError(err, "x509pop: one of ca_bundle_path or ca_bundles_path can be configured")
+	require.Nil(resp)
+
+	// bad ca_bundle_path
+	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		ca_bundle_path = "blah"
+		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.errorContains(err, "x509pop: unable to load trust bundle")
+	require.Nil(resp)
+
+	// bad ca_bundles_path
+	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		ca_bundles_path = ["blah"]
 		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
@@ -273,11 +304,12 @@ func (s *Suite) TestGetPluginInfo() {
 }
 
 func (s *Suite) configure(extraConfig string) {
+	bundlesPath := fmt.Sprintf("[%q,%q]", s.alternativeBundlePath, s.rootCertPath)
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
-ca_bundle_path = %q
+ca_bundles_path = %s 
 %s
-`, s.rootCertPath, extraConfig),
+`, bundlesPath, extraConfig),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
@@ -38,13 +39,16 @@ type configuration struct {
 }
 
 type Config struct {
-	CABundlePath      string `hcl:"ca_bundle_path"`
-	AgentPathTemplate string `hcl:"agent_path_template"`
+	CABundlePath      string   `hcl:"ca_bundle_path"`
+	CABundlesPath     []string `hcl:"ca_bundles_path"`
+	AgentPathTemplate string   `hcl:"agent_path_template"`
 }
 
 type Plugin struct {
 	m sync.Mutex
 	c *configuration
+
+	log hclog.Logger
 }
 
 func New() *Plugin {
@@ -156,13 +160,9 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		return nil, newError("trust_domain is required")
 	}
 
-	if config.CABundlePath == "" {
-		return nil, newError("ca_bundle_path is required")
-	}
-
-	trustBundle, err := util.LoadCertPool(config.CABundlePath)
+	bundles, err := getBundles(p.log, config)
 	if err != nil {
-		return nil, newError("unable to load trust bundle: %v", err)
+		return nil, err
 	}
 
 	pathTemplate := x509pop.DefaultAgentPathTemplate
@@ -176,15 +176,47 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 
 	p.setConfiguration(&configuration{
 		trustDomain:  req.GlobalConfig.TrustDomain,
-		trustBundle:  trustBundle,
+		trustBundle:  util.NewCertPool(bundles...),
 		pathTemplate: pathTemplate,
 	})
 
 	return &spi.ConfigureResponse{}, nil
 }
 
+func getBundles(log hclog.Logger, config *Config) ([]*x509.Certificate, error) {
+	var caPaths []string
+
+	switch {
+	case config.CABundlePath != "" && len(config.CABundlesPath) > 0:
+		return nil, newError("one of ca_bundle_path or ca_bundles_path can be configured")
+	case config.CABundlePath != "":
+		log.Warn("ca_bundle_path is deprecated, please use ca_bundles_path instead")
+		caPaths = append(caPaths, config.CABundlePath)
+	case len(config.CABundlesPath) > 0:
+		caPaths = append(caPaths, config.CABundlesPath...)
+	default:
+		return nil, newError("ca_bundle_path or ca_bundles_path are required")
+	}
+
+	var cas []*x509.Certificate
+	for _, caPath := range caPaths {
+		certs, err := util.LoadCertificates(caPath)
+		if err != nil {
+			return nil, newError("unable to load trust bundle %q: %v", caPath, err)
+		}
+		cas = append(cas, certs...)
+	}
+
+	return cas, nil
+}
+
 func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
+}
+
+// SetLogger sets this plugin's logger
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *Plugin) getConfiguration() *configuration {
