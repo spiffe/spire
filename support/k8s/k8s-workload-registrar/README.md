@@ -52,7 +52,7 @@ The following configuration directives are specific to `"crd"` mode:
 | `leader_election`          | bool    | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
 | `metrics_bind_addr`        | string  | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
 | `pod_controller`           | bool    | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
-| `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. Only needed if manually creating entries | `false` |
+| `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. | `false` |
 | `webhook_name`             | string  | optional | The name of the Kubernetes ValidatingWebhookConfiguration being used for the webhook. | `"k8s-workload-registrar"` |
 | `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
 | `webhook_service_name`     | string  | optional | The name of the Kubernetes Service being used for the webhook. | `"k8s-workload-registrar"` |
