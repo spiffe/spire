@@ -38,7 +38,6 @@ type SpiffeIDWebhookConfig struct {
 	Namespace   string
 	R           registration.RegistrationClient
 	TrustDomain string
-	WebhookPath string
 }
 
 var c SpiffeIDWebhookConfig

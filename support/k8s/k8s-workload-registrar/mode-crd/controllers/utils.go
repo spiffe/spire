@@ -55,6 +55,7 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 	return mgr, nil
 }
 
+// MakeID creates a formatted SPIFFE ID
 func MakeID(trustDomain, pathFmt string, pathArgs ...interface{}) string {
 	id := url.URL{
 		Scheme: "spiffe",
@@ -62,23 +63,6 @@ func MakeID(trustDomain, pathFmt string, pathArgs ...interface{}) string {
 		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
 	}
 	return id.String()
-}
-
-// setOwnerRef sets the owner object as owner of a new SPIFFE ID resource locally
-func setOwnerRef(owner metav1.Object, spiffeID *spiffeidv1beta1.SpiffeID, scheme *runtime.Scheme) error {
-	err := controllerutil.SetControllerReference(owner, spiffeID, scheme)
-	if err != nil {
-		return err
-	}
-
-	// Make owner reference non-blocking, so object can be deleted if registrar is down
-	ownerRef := metav1.GetControllerOfNoCopy(spiffeID)
-	if ownerRef == nil {
-		return err
-	}
-	ownerRef.BlockOwnerDeletion = pointer.BoolPtr(false)
-
-	return nil
 }
 
 // DeleteRegistrationEntry deletes an entry on the SPIRE Server
@@ -97,6 +81,23 @@ func DeleteRegistrationEntry(ctx context.Context, r registration.RegistrationCli
 
 		return err
 	}
+
+	return nil
+}
+
+// setOwnerRef sets the owner object as owner of a new SPIFFE ID resource locally
+func setOwnerRef(owner metav1.Object, spiffeID *spiffeidv1beta1.SpiffeID, scheme *runtime.Scheme) error {
+	err := controllerutil.SetControllerReference(owner, spiffeID, scheme)
+	if err != nil {
+		return err
+	}
+
+	// Make owner reference non-blocking, so object can be deleted if registrar is down
+	ownerRef := metav1.GetControllerOfNoCopy(spiffeID)
+	if ownerRef == nil {
+		return err
+	}
+	ownerRef.BlockOwnerDeletion = pointer.BoolPtr(false)
 
 	return nil
 }
