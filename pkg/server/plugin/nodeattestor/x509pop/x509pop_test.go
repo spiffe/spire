@@ -258,7 +258,7 @@ func (s *Suite) TestConfigure() {
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	require.EqualError(err, "x509pop: ca_bundle_path or ca_bundles_path are required")
+	require.EqualError(err, "x509pop: ca_bundles_path must be configured")
 	require.Nil(resp)
 
 	// ca_bundle_path and ca_bundles_path configured
@@ -269,7 +269,7 @@ func (s *Suite) TestConfigure() {
 		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	require.EqualError(err, "x509pop: one of ca_bundle_path or ca_bundles_path can be configured")
+	require.EqualError(err, "x509pop: only one of ca_bundle_path or ca_bundles_path can be configured, not both")
 	require.Nil(resp)
 
 	// bad ca_bundle_path

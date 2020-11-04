@@ -18,8 +18,8 @@ spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
 
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
-| `ca_bundle_path` | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. | |
-| `ca_bundles_path` | Paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. | |
+| `ca_bundle_path` | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. This configuration has been deprecated and will be removed in a future release. Please use `ca_bundles_path` instead. | |
+| `ca_bundles_path` | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. | |
 
 A sample configuration:
 

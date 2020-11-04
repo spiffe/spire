@@ -188,14 +188,14 @@ func getBundles(log hclog.Logger, config *Config) ([]*x509.Certificate, error) {
 
 	switch {
 	case config.CABundlePath != "" && len(config.CABundlesPath) > 0:
-		return nil, newError("one of ca_bundle_path or ca_bundles_path can be configured")
+		return nil, newError("only one of ca_bundle_path or ca_bundles_path can be configured, not both")
 	case config.CABundlePath != "":
 		log.Warn("ca_bundle_path is deprecated, please use ca_bundles_path instead")
 		caPaths = append(caPaths, config.CABundlePath)
 	case len(config.CABundlesPath) > 0:
 		caPaths = append(caPaths, config.CABundlesPath...)
 	default:
-		return nil, newError("ca_bundle_path or ca_bundles_path are required")
+		return nil, newError("ca_bundles_path must be configured")
 	}
 
 	var cas []*x509.Certificate
