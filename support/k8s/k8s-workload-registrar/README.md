@@ -54,7 +54,6 @@ The following configuration directives are specific to `"crd"` mode:
 | `pod_controller`           | bool    | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
 | `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. Only needed if manually creating entries | `false` |
 | `webhook_name`             | string  | optional | The name of the Kubernetes ValidatingWebhookConfiguration being used for the webhook. | `"k8s-workload-registrar"` |
-| `webhook_path`             | string  | optional | The path to use for the webhook, must match what is in the ValidatingWebhookConfiguration. | `"/validate-spiffeid-spiffe-io-v1beta1-spiffeid"` |
 | `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
 | `webhook_service_name`     | string  | optional | The name of the Kubernetes Service being used for the webhook. | `"k8s-workload-registrar"` |
 

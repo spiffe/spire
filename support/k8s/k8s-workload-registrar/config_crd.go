@@ -29,7 +29,6 @@ const (
 	defaultWebhookName        = "k8s-workload-registrar"
 	defaultWebhookPort        = 9443
 	defaultWebhookServiceName = "k8s-workload-registrar"
-	defaultWebhookPath        = "/validate-spiffeid-spiffe-io-v1beta1-spiffeid"
 	namespaceFile             = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 	podNameFile               = "/etc/hostname"
 	webhookCertDir            = "/tmp/k8s-webhook-server/serving-certs"
@@ -45,7 +44,6 @@ type CRDMode struct {
 	WebhookName        string `hcl:"webhook_name"`
 	WebhookPort        int    `hcl:"webhook_port"`
 	WebhookServiceName string `hcl:"webhook_service_name"`
-	WebhookPath        string `hcl:"webhook_path"`
 	R                  registration.RegistrationClient
 	ctx                context.Context
 	entryID            string
@@ -72,10 +70,6 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 
 	if c.WebhookServiceName == "" {
 		c.WebhookServiceName = defaultWebhookServiceName
-	}
-
-	if c.WebhookPath == "" {
-		c.WebhookPath = defaultWebhookPath
 	}
 
 	return nil
@@ -203,7 +197,6 @@ func (c *CRDMode) setupWebhook(mgr ctrl.Manager, log *log.Logger, myNamespace st
 		Namespace:   myNamespace,
 		R:           c.R,
 		TrustDomain: c.TrustDomain,
-		WebhookPath: c.WebhookPath,
 	})
 	if err != nil {
 		return err
