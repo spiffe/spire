@@ -126,5 +126,5 @@ func (n *NodeReconciler) updateorCreateNodeEntry(ctx context.Context, node *core
 }
 
 func (n *NodeReconciler) nodeID(nodeName string) string {
-	return makeID(n.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", n.c.Cluster, nodeName)
+	return MakeID(n.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", n.c.Cluster, nodeName)
 }

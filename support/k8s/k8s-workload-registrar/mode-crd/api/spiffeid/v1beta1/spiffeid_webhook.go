@@ -28,9 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 type SpiffeIDWebhookConfig struct {
@@ -47,14 +45,9 @@ var c SpiffeIDWebhookConfig
 
 func AddSpiffeIDWebhook(config SpiffeIDWebhookConfig) error {
 	c = config
-
-	wh := admission.ValidatingWebhookFor(&SpiffeID{})
-	if err := wh.InjectLogger(log.Log); err != nil {
-		return err
-	}
-	c.Mgr.GetWebhookServer().Register(c.WebhookPath, wh)
-
-	return nil
+	return ctrl.NewWebhookManagedBy(config.Mgr).
+		For(&SpiffeID{}).
+		Complete()
 }
 
 var _ webhook.Validator = &SpiffeID{}

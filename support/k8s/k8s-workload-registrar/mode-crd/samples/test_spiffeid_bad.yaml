@@ -1,7 +1,7 @@
 apiVersion: spiffeid.spiffe.io/v1beta1
 kind: SpiffeID
 metadata:
-  name: my-test-spiffeid
+  name: my-bad-test-spiffeid
   namespace: default
 spec:
   parentId: spiffe://example.org/spire/server

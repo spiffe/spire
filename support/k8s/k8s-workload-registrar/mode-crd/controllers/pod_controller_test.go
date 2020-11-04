@@ -111,7 +111,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		s.Require().Len(spiffeIDList.Items, 1)
 
 		// Verify the label/annotation matches what we expect
-		expectedSpiffeID := makeID(s.trustDomain, "%s", test.first)
+		expectedSpiffeID := MakeID(s.trustDomain, "%s", test.first)
 		actualSpiffeID := spiffeIDList.Items[0].Spec.SpiffeId
 		s.Require().Equal(expectedSpiffeID, actualSpiffeID)
 
@@ -131,7 +131,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		s.Require().Len(spiffeIDList.Items, 1)
 
 		// Verify the SPIFFE ID has changed
-		expectedSpiffeID = makeID(s.trustDomain, "%s", test.second)
+		expectedSpiffeID = MakeID(s.trustDomain, "%s", test.second)
 		actualSpiffeID = spiffeIDList.Items[0].Spec.SpiffeId
 		s.Require().Equal(expectedSpiffeID, actualSpiffeID)
 

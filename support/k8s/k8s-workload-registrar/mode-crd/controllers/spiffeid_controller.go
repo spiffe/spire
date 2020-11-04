@@ -213,7 +213,7 @@ func (r *SpiffeIDReconciler) updateOrCreateSpiffeID(ctx context.Context, spiffeI
 // deleteSpiffeID deletes the specified entry on the SPIRE Server
 func (r *SpiffeIDReconciler) deleteSpiffeID(ctx context.Context, spiffeID *spiffeidv1beta1.SpiffeID) error {
 	if spiffeID.Status.EntryId != nil {
-		err := deleteRegistrationEntry(ctx, r.c.R, *spiffeID.Status.EntryId)
+		err := DeleteRegistrationEntry(ctx, r.c.R, *spiffeID.Status.EntryId)
 		if err != nil {
 			return err
 		}

@@ -67,8 +67,8 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 			Namespace: SpiffeIDNamespace,
 		},
 		Spec: spiffeidv1beta1.SpiffeIDSpec{
-			SpiffeId: makeID(s.trustDomain, "%s", SpiffeIDName),
-			ParentId: makeID(s.trustDomain, "%s/%s", "spire", "server"),
+			SpiffeId: MakeID(s.trustDomain, "%s", SpiffeIDName),
+			ParentId: MakeID(s.trustDomain, "%s/%s", "spire", "server"),
 			Selector: spiffeidv1beta1.Selector{
 				Namespace: SpiffeIDNamespace,
 			},
@@ -93,11 +93,11 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(entry)
-	s.Require().Equal(makeID(s.trustDomain, "%s", SpiffeIDName), entry.SpiffeId)
+	s.Require().Equal(MakeID(s.trustDomain, "%s", SpiffeIDName), entry.SpiffeId)
 
 	// Update SPIFFE ID
-	createdSpiffeID.Spec.SpiffeId = makeID(s.trustDomain, "%s/%s", SpiffeIDName, "new")
-	createdSpiffeID.Spec.ParentId = makeID(s.trustDomain, "%s/%s/%s", "spire", "server", "new")
+	createdSpiffeID.Spec.SpiffeId = MakeID(s.trustDomain, "%s/%s", SpiffeIDName, "new")
+	createdSpiffeID.Spec.ParentId = MakeID(s.trustDomain, "%s/%s/%s", "spire", "server", "new")
 	createdSpiffeID.Spec.Selector.PodName = "test"
 	err = s.k8sClient.Update(s.ctx, createdSpiffeID)
 	s.Require().NoError(err)

@@ -163,7 +163,7 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[r.c.PodLabel]; ok {
-			return makeID(r.c.TrustDomain, "%s", labelValue)
+			return MakeID(r.c.TrustDomain, "%s", labelValue)
 		}
 		return ""
 	}
@@ -173,16 +173,16 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 		// has that annotation, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if annotationValue, ok := pod.Annotations[r.c.PodAnnotation]; ok {
-			return makeID(r.c.TrustDomain, "%s", annotationValue)
+			return MakeID(r.c.TrustDomain, "%s", annotationValue)
 		}
 		return ""
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
-	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	return MakeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {
-	return makeID(r.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", r.c.Cluster, nodeName)
+	return MakeID(r.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", r.c.Cluster, nodeName)
 }

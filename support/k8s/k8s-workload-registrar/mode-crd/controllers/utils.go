@@ -55,6 +55,15 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 	return mgr, nil
 }
 
+func MakeID(trustDomain, pathFmt string, pathArgs ...interface{}) string {
+	id := url.URL{
+		Scheme: "spiffe",
+		Host:   trustDomain,
+		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
+	}
+	return id.String()
+}
+
 // setOwnerRef sets the owner object as owner of a new SPIFFE ID resource locally
 func setOwnerRef(owner metav1.Object, spiffeID *spiffeidv1beta1.SpiffeID, scheme *runtime.Scheme) error {
 	err := controllerutil.SetControllerReference(owner, spiffeID, scheme)
@@ -72,8 +81,8 @@ func setOwnerRef(owner metav1.Object, spiffeID *spiffeidv1beta1.SpiffeID, scheme
 	return nil
 }
 
-// deleteRegistrationEntry deletes an entry on the SPIRE Server
-func deleteRegistrationEntry(ctx context.Context, r registration.RegistrationClient, entryID string) error {
+// DeleteRegistrationEntry deletes an entry on the SPIRE Server
+func DeleteRegistrationEntry(ctx context.Context, r registration.RegistrationClient, entryID string) error {
 	_, err := r.DeleteEntry(ctx, &registration.RegistrationEntryID{Id: entryID})
 	switch status.Code(err) {
 	case codes.OK, codes.NotFound:
@@ -90,15 +99,6 @@ func deleteRegistrationEntry(ctx context.Context, r registration.RegistrationCli
 	}
 
 	return nil
-}
-
-func makeID(trustDomain, pathFmt string, pathArgs ...interface{}) string {
-	id := url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
-	}
-	return id.String()
 }
 
 // Helper functions for string operations.

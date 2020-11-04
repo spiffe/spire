@@ -9,17 +9,17 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spiffe-helper/pkg/sidecar"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 const (
@@ -46,6 +46,9 @@ type CRDMode struct {
 	WebhookPort        int    `hcl:"webhook_port"`
 	WebhookServiceName string `hcl:"webhook_service_name"`
 	WebhookPath        string `hcl:"webhook_path"`
+	R                  registration.RegistrationClient
+	ctx                context.Context
+	entryID            string
 }
 
 func (c *CRDMode) ParseConfig(hclConfig string) error {
@@ -79,6 +82,7 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 }
 
 func (c *CRDMode) Run(ctx context.Context) error {
+	c.ctx = ctx
 	log, err := c.SetupLogger()
 	if err != nil {
 		return errs.New("error setting up logging: %v", err)
@@ -89,6 +93,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	if err != nil {
 		return errs.New("failed to dial server: %v", err)
 	}
+	c.R = registrationClient
 
 	mgr, err := controllers.NewManager(c.LeaderElection, c.MetricsBindAddr, webhookCertDir, c.WebhookPort)
 	if err != nil {
@@ -113,7 +118,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		return err
 	}
 
-	var podr *controllers.PodReconciler
 	if c.PodController {
 		err = controllers.NewNodeReconciler(controllers.NodeReconcilerConfig{
 			Client:      mgr.GetClient(),
@@ -127,7 +131,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		podr = controllers.NewPodReconciler(controllers.PodReconcilerConfig{
+		err = controllers.NewPodReconciler(controllers.PodReconcilerConfig{
 			Client:             mgr.GetClient(),
 			Cluster:            c.Cluster,
 			Ctx:                ctx,
@@ -137,38 +141,28 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			PodAnnotation:      c.PodAnnotation,
 			Scheme:             mgr.GetScheme(),
 			TrustDomain:        c.TrustDomain,
-		})
-		err = podr.SetupWithManager(mgr)
+		}).SetupWithManager(mgr)
 		if err != nil {
 			return err
 		}
 	}
 
-	var epr *controllers.EndpointReconciler
 	if c.AddSvcDNSName {
-		epr = controllers.NewEndpointReconciler(controllers.EndpointReconcilerConfig{
+		err = controllers.NewEndpointReconciler(controllers.EndpointReconcilerConfig{
 			Client:             mgr.GetClient(),
 			Ctx:                ctx,
 			DisabledNamespaces: c.DisabledNamespaces,
 			Log:                log,
 			PodLabel:           c.PodLabel,
 			PodAnnotation:      c.PodAnnotation,
-		})
-		err = epr.SetupWithManager(mgr)
+		}).SetupWithManager(mgr)
 		if err != nil {
 			return err
 		}
 	}
 
 	if c.WebhookEnabled {
-		err = mgr.Add(manager.RunnableFunc(func(<-chan struct{}) error {
-			err = c.setupWebhook(ctx, mgr, registrationClient, log, myNamespace, podr, epr)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}))
+		err = c.setupWebhook(mgr, log, myNamespace)
 		if err != nil {
 			return err
 		}
@@ -177,74 +171,37 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	return mgr.Start(ctrl.SetupSignalHandler())
 }
 
-func (c *CRDMode) setupWebhook(ctx context.Context, mgr ctrl.Manager, registrationClient registration.RegistrationClient,
-	log *log.Logger, myNamespace string, podr *controllers.PodReconciler, epr *controllers.EndpointReconciler) error {
+func (c *CRDMode) Close() error {
+	_ = controllers.DeleteRegistrationEntry(c.ctx, c.R, c.entryID)
+	return c.registrationAPI.Close()
+}
+
+// setupWebhook gets the certificates and then registers the webhook
+func (c *CRDMode) setupWebhook(mgr ctrl.Manager, log *log.Logger, myNamespace string) error {
 	log.Info("Waiting for SPIRE Agent")
 	err := c.waitForSpireAgent()
 	if err != nil {
 		return err
 	}
 
-	// Ensure the SPIRE entry to be used for the webhook is available
-	podName, err := getPodName()
-	if err != nil {
-		return err
-	}
-	_, err = podr.Reconcile(ctrl.Request{
-		NamespacedName: types.NamespacedName{
-			Name:      podName,
-			Namespace: myNamespace,
-		},
-	})
-	if err != nil {
-		return err
-	}
-	_, err = epr.Reconcile(ctrl.Request{
-		NamespacedName: types.NamespacedName{
-			Name:      c.WebhookServiceName,
-			Namespace: myNamespace,
-		},
-	})
+	log.Info("Setting up webhook registration entries")
+	err = c.setupWebhookEntries(myNamespace)
 	if err != nil {
 		return err
 	}
 
 	log.Info("Setting up SPIFFE sidecar")
-	err = os.MkdirAll(webhookCertDir, 0700)
+	err = c.setupSpiffeSidecar(log)
 	if err != nil {
 		return err
-	}
-	spiffeSidecar, err := sidecar.NewSidecar(&sidecar.Config{
-		AgentAddress:          c.AgentSocketPath,
-		CertDir:               webhookCertDir,
-		Ctx:                   ctx,
-		ValidatingWebhookName: c.WebhookName,
-		Log:                   log,
-		SvidFileName:          "tls.crt",
-		SvidKeyFileName:       "tls.key",
-		SvidBundleFileName:    "rootca.pem",
-	})
-	if err != nil {
-		return err
-	}
-
-	err = spiffeSidecar.RunDaemon()
-	if err != nil {
-		return err
-	}
-	select {
-	case <-spiffeSidecar.CertReadyChan():
-		log.Info("Received trust bundle from SPIRE")
-	case <-time.After(3 * time.Minute):
-		return fmt.Errorf("timed out waiting for trust bundle")
 	}
 
 	err = spiffeidv1beta1.AddSpiffeIDWebhook(spiffeidv1beta1.SpiffeIDWebhookConfig{
-		Ctx:         ctx,
+		Ctx:         c.ctx,
 		Log:         log,
 		Mgr:         mgr,
 		Namespace:   myNamespace,
-		R:           registrationClient,
+		R:           c.R,
 		TrustDomain: c.TrustDomain,
 		WebhookPath: c.WebhookPath,
 	})
@@ -274,6 +231,85 @@ func (c *CRDMode) waitForSpireAgent() error {
 	return fmt.Errorf("SPIRE Agent not ready, waited for 3 minutes")
 }
 
+// setupWebhookEntries creates registration entries for webhook
+func (c *CRDMode) setupWebhookEntries(myNamespace string) error {
+	podName, err := getPodName()
+	if err != nil {
+		return err
+	}
+
+	podUID, err := getPodUID()
+	if err != nil {
+		return err
+	}
+
+	// Create parent entry
+	_, err = c.R.CreateEntryIfNotExists(c.ctx, &common.RegistrationEntry{
+		ParentId: idutil.ServerID(c.TrustDomain),
+		SpiffeId: controllers.MakeID(c.TrustDomain, "k8s-workload-registrar/%s/webhook", c.Cluster),
+		Selectors: []*common.Selector{
+			{Type: "k8s_psat", Value: fmt.Sprintf("cluster:%s", c.Cluster)},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Create entry used for webhook
+	response, err := c.R.CreateEntryIfNotExists(c.ctx, &common.RegistrationEntry{
+		ParentId: controllers.MakeID(c.TrustDomain, "k8s-workload-registrar/%s/webhook", c.Cluster),
+		SpiffeId: controllers.MakeID(c.TrustDomain, "k8s-workload-registrar/%s/webhook/%s", c.Cluster, podName),
+		Selectors: []*common.Selector{
+			podUIDSelector(podUID),
+		},
+		DnsNames: []string{
+			c.WebhookServiceName + "." + myNamespace + ".svc",
+		},
+	})
+	if err != nil {
+		return err
+	}
+	c.entryID = response.Entry.EntryId
+
+	return nil
+}
+
+// setupSpiffeSidecar sets up the process to download and rotate the webhook certificates
+func (c *CRDMode) setupSpiffeSidecar(log *log.Logger) error {
+	err := os.MkdirAll(webhookCertDir, 0700)
+	if err != nil {
+		return err
+	}
+	spiffeSidecar, err := sidecar.NewSidecar(&sidecar.Config{
+		AgentAddress:          c.AgentSocketPath,
+		CertDir:               webhookCertDir,
+		Ctx:                   c.ctx,
+		ValidatingWebhookName: c.WebhookName,
+		Log:                   log,
+		SvidFileName:          "tls.crt",
+		SvidKeyFileName:       "tls.key",
+		SvidBundleFileName:    "rootca.pem",
+	})
+	if err != nil {
+		return err
+	}
+
+	err = spiffeSidecar.RunDaemon()
+	if err != nil {
+		return err
+	}
+	select {
+	case <-spiffeSidecar.CertReadyChan():
+		log.Info("Received trust bundle from SPIRE")
+	case err = <-spiffeSidecar.ErrChan:
+		return fmt.Errorf("error waiting for trust bundle: %v", err)
+	case <-time.After(3 * time.Minute):
+		return fmt.Errorf("timed out waiting for trust bundle")
+	}
+
+	return nil
+}
+
 func getNamespace() (string, error) {
 	content, err := ioutil.ReadFile(namespaceFile)
 	if err != nil {
@@ -290,4 +326,20 @@ func getPodName() (string, error) {
 	}
 
 	return string(content), nil
+}
+
+func getPodUID() (string, error) {
+	uid, ok := os.LookupEnv("MY_POD_UID")
+	if !ok {
+		return "", fmt.Errorf("unable to get Pod UID, ensure downward API is configured for this pod")
+	}
+
+	return uid, nil
+}
+
+func podUIDSelector(podUID string) *common.Selector {
+	return &common.Selector{
+		Type:  "k8s",
+		Value: fmt.Sprintf("pod-uid:%s", podUID),
+	}
 }

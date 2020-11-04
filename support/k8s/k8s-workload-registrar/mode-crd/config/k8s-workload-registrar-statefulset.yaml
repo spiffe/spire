@@ -59,6 +59,11 @@ spec:
           args:
             - -config
             - /run/spire/config/k8s-workload-registrar.conf
+          env:
+            - name: MY_POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
           ports:
             - containerPort: 9443
               name: webhook
