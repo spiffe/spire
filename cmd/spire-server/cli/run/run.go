@@ -230,7 +230,7 @@ func (cmd *Command) Run(args []string) int {
 
 	err = s.Run(ctx)
 	if err != nil {
-		c.Log.WithError(err).Error("server crashed")
+		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
 

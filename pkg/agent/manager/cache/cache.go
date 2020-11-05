@@ -381,7 +381,7 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 	for entryID, svid := range update.X509SVIDs {
 		record, existingEntry := c.records[entryID]
 		if !existingEntry {
-			c.log.WithField(telemetry.RegistrationID, entryID).Error("entry not found")
+			c.log.WithField(telemetry.RegistrationID, entryID).Error("Entry not found")
 			continue
 		}
 
@@ -614,7 +614,7 @@ func (c *Cache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 					telemetry.RegistrationID:  identity.Entry.EntryId,
 					telemetry.SPIFFEID:        identity.Entry.SpiffeId,
 					telemetry.FederatedBundle: federatesWith,
-				}).Warn("federated bundle contents missing")
+				}).Warn("Federated bundle contents missing")
 			}
 		}
 	}

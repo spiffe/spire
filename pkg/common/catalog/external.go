@@ -206,7 +206,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	go func() {
 		defer p.wg.Done()
 		if err := server.Serve(listener); err != nil {
-			p.ext.Log.WithError(err).Error("host services server failed")
+			p.ext.Log.WithError(err).Error("Host services server failed")
 			c.Close()
 		}
 	}()

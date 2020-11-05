@@ -147,12 +147,12 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 			return nil, errors.New("tls cert authentication response is nil")
 		}
 		if sec.Auth.Renewable {
-			c.Logger.Debug("token will be renewed")
+			c.Logger.Debug("Token will be renewed")
 			if err := renewToken(vc, sec, c.Logger); err != nil {
 				return nil, err
 			}
 		} else {
-			c.Logger.Debug("token is not renewable")
+			c.Logger.Debug("Token is not renewable")
 		}
 	case APPROLE:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.AppRoleAuthMountPoint)
@@ -168,12 +168,12 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 			return nil, errors.New("approle authentication response is nil")
 		}
 		if sec.Auth.Renewable {
-			c.Logger.Debug("token will be renewed")
+			c.Logger.Debug("Token will be renewed")
 			if err := renewToken(vc, sec, c.Logger); err != nil {
 				return nil, err
 			}
 		} else {
-			c.Logger.Debug("token is not renewable")
+			c.Logger.Debug("Token is not renewable")
 		}
 	}
 

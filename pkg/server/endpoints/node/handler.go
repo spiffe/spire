@@ -158,7 +158,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 			return status.Error(codes.Internal, err.Error())
 		}
 		if _, err := attestStream.Recv(); err != io.EOF {
-			log.WithError(err).Warn("expected EOF on attestation stream")
+			log.WithError(err).Warn("Expected EOF on attestation stream")
 		}
 	} else {
 		attestResponse, err = h.attestToken(ctx, request.AttestationData)
@@ -812,7 +812,7 @@ func (h *Handler) updateNodeSelectors(ctx context.Context, baseSpiffeID string, 
 			selectors = append(selectors, resolved.Entries...)
 		}
 	} else {
-		h.c.Log.WithField(telemetry.Attestor, attestationType).Debug("could not find node resolver")
+		h.c.Log.WithField(telemetry.Attestor, attestationType).Debug("Could not find node resolver")
 	}
 
 	selectors = append(selectors, attestResponse.Selectors...)

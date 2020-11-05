@@ -215,7 +215,7 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 }
 
 func migrateVersion(tx *gorm.DB, currVersion int, log hclog.Logger) (versionOut int, err error) {
-	log.Info("migrating version", telemetry.VersionInfo, currVersion)
+	log.Info("Migrating version", telemetry.VersionInfo, currVersion)
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run

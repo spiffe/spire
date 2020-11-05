@@ -41,7 +41,7 @@ func (p pluginMetrics) SetGaugeWithLabels(key []string, val float32, labels []te
 	})
 
 	if err != nil {
-		p.log.Error("error with metrics", telemetry.Error, err)
+		p.log.Error("Error with metrics", telemetry.Error, err)
 	}
 }
 
@@ -53,7 +53,7 @@ func (p pluginMetrics) EmitKey(key []string, val float32) {
 	})
 
 	if err != nil {
-		p.log.Error("error with metrics", telemetry.Error, err)
+		p.log.Error("Error with metrics", telemetry.Error, err)
 	}
 }
 
@@ -70,7 +70,7 @@ func (p pluginMetrics) IncrCounterWithLabels(key []string, val float32, labels [
 	})
 
 	if err != nil {
-		p.log.Error("error with metrics", telemetry.Error, err)
+		p.log.Error("Error with metrics", telemetry.Error, err)
 	}
 }
 
@@ -87,7 +87,7 @@ func (p pluginMetrics) AddSampleWithLabels(key []string, val float32, labels []t
 	})
 
 	if err != nil {
-		p.log.Error("error with metrics", telemetry.Error, err)
+		p.log.Error("Error with metrics", telemetry.Error, err)
 	}
 }
 
@@ -104,6 +104,6 @@ func (p pluginMetrics) MeasureSinceWithLabels(key []string, start time.Time, lab
 	})
 
 	if err != nil {
-		p.log.Error("error with metrics", telemetry.Error, err)
+		p.log.Error("Error with metrics", telemetry.Error, err)
 	}
 }
