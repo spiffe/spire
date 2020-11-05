@@ -76,7 +76,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 			return nil, fmt.Errorf("failed to close send on fetch stream: %v", err)
 		}
 		if _, err := fetchStream.Recv(); err != io.EOF {
-			a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
+			a.c.Log.WithError(err).Warn("Received unexpected result on trailing recv")
 		}
 	}
 	if err := attestStream.CloseSend(); err != nil {
@@ -84,7 +84,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 	}
 
 	if _, err := attestStream.Recv(); err != io.EOF {
-		a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
+		a.c.Log.WithError(err).Warn("Received unexpected result on trailing recv")
 	}
 
 	svid, err := getSVIDFromAttestAgentResponse(attestResp)

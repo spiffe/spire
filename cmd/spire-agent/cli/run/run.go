@@ -189,7 +189,7 @@ func (cmd *Command) Run(args []string) int {
 
 	err = a.Run(ctx)
 	if err != nil {
-		c.Log.WithError(err).Error("agent crashed")
+		c.Log.WithError(err).Error("Agent crashed")
 		return 1
 	}
 

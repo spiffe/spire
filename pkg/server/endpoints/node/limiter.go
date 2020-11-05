@@ -152,13 +152,13 @@ func (l *limiter) callerID(ctx context.Context) (string, error) {
 
 	p, ok := peer.FromContext(ctx)
 	if !ok || p.Addr == nil || p.Addr.Network() != "tcp" {
-		l.log.Error("limiter: could not determine client address")
+		l.log.Error("Limiter: could not determine client address")
 		return "", limiterErr
 	}
 
 	addr, _, err := net.SplitHostPort(p.Addr.String())
 	if err != nil || addr == "" {
-		l.log.WithField(telemetry.Address, p.Addr.String()).Error("limiter: could not determine client ip from given address")
+		l.log.WithField(telemetry.Address, p.Addr.String()).Error("Limiter: could not determine client ip from given address")
 		return "", limiterErr
 	}
 

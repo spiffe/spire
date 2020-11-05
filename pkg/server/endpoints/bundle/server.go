@@ -88,7 +88,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	b, err := s.c.Getter.GetBundle(req.Context())
 	if err != nil {
-		s.c.Log.WithError(err).Error("unable to retrieve local bundle")
+		s.c.Log.WithError(err).Error("Unable to retrieve local bundle")
 		http.Error(w, "500 unable to retrieve local bundle", http.StatusInternalServerError)
 		return
 	}
@@ -102,7 +102,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	jsonBytes, err := bundleutil.Marshal(b, opts...)
 	if err != nil {
-		s.c.Log.WithError(err).Error("unable to marshal local bundle")
+		s.c.Log.WithError(err).Error("Unable to marshal local bundle")
 		http.Error(w, "500 unable to marshal local bundle", http.StatusInternalServerError)
 		return
 	}

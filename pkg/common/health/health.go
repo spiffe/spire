@@ -96,7 +96,7 @@ func (c *Checker) ListenAndServe(ctx context.Context) error {
 	wg.Wait()
 
 	if err := c.hc.Stop(); err != nil {
-		c.log.WithError(err).Warn("error stopping health checks")
+		c.log.WithError(err).Warn("Error stopping health checks")
 	}
 
 	return nil

@@ -144,7 +144,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := server.ListenAndServe(); err != nil {
-				a.c.Log.WithError(err).Warn("unable to serve profiling server")
+				a.c.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
 		}()
 		wg.Add(1)

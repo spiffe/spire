@@ -58,7 +58,7 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Load
 	go func() {
 		defer wg.Done()
 		if err := hostServer.Serve(hostNet); err != nil {
-			builtin.Log.WithError(err).Warn("host server failed to serve")
+			builtin.Log.WithError(err).Warn("Host server failed to serve")
 		}
 	}()
 
@@ -95,7 +95,7 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Load
 	go func() {
 		defer wg.Done()
 		if err := builtinServer.Serve(builtinNet); err != nil {
-			builtin.Log.WithError(err).Warn("builtin server failed to serve")
+			builtin.Log.WithError(err).Warn("Builtin server failed to serve")
 		}
 	}()
 

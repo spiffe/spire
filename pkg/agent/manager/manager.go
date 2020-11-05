@@ -208,7 +208,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	case rotationutil.JWTSVIDExpired(cachedSVID, now):
 		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
 	default:
-		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("unable to renew JWT; returning cached copy")
+		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("Unable to renew JWT; returning cached copy")
 		return cachedSVID, nil
 	}
 
@@ -279,7 +279,7 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 
 			err := m.storePrivateKey(ctx, s.Key)
 			if err != nil {
-				m.c.Log.WithError(err).Error("failed to store private key")
+				m.c.Log.WithError(err).Error("Failed to store private key")
 				continue
 			}
 
@@ -304,7 +304,7 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 func (m *manager) storeSVID(svidChain []*x509.Certificate) {
 	err := StoreSVID(m.svidCachePath, svidChain)
 	if err != nil {
-		m.c.Log.WithError(err).Warn("could not store SVID")
+		m.c.Log.WithError(err).Warn("Could not store SVID")
 	}
 }
 
@@ -315,7 +315,7 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	}
 	err := StoreBundle(m.bundleCachePath, rootCAs)
 	if err != nil {
-		m.c.Log.WithError(err).Error("could not store bundle")
+		m.c.Log.WithError(err).Error("Could not store bundle")
 	}
 }
 

@@ -53,7 +53,7 @@ type Server struct {
 // and then blocks until it's shut down or an error is encountered.
 func (s *Server) Run(ctx context.Context) error {
 	if err := s.run(ctx); err != nil {
-		s.config.Log.WithError(err).Error("fatal run error")
+		s.config.Log.WithError(err).Error("Fatal run error")
 		return err
 	}
 	return nil
@@ -61,7 +61,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 func (s *Server) run(ctx context.Context) (err error) {
 	// create the data directory if needed
-	s.config.Log.Infof("data directory: %q", s.config.DataDir)
+	s.config.Log.Infof("Data directory: %q", s.config.DataDir)
 	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := server.ListenAndServe(); err != nil {
-				s.config.Log.WithError(err).Warn("unable to serve profiling server")
+				s.config.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
 		}()
 		wg.Add(1)
@@ -206,7 +206,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 			defer wg.Done()
 			<-ctx.Done()
 			if err := server.Shutdown(ctx); err != nil {
-				s.config.Log.WithError(err).Warn("unable to shutdown the server cleanly")
+				s.config.Log.WithError(err).Warn("Unable to shutdown the server cleanly")
 			}
 		}()
 	}

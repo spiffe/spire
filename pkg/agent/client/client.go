@@ -370,7 +370,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 	})
 	if err != nil {
 		c.release(connection)
-		c.c.Log.WithError(err).Error("failed to batch new X509 SVID(s)")
+		c.c.Log.WithError(err).Error("Failed to batch new X509 SVID(s)")
 		return nil, fmt.Errorf("failed to batch new X509 SVID(s): %w", err)
 	}
 
