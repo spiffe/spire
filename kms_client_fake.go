@@ -28,6 +28,10 @@ type kmsClientFake struct {
 	getPublicKeyOutput        *kms.GetPublicKeyOutput
 	getPublicKeyErr           error
 
+	expectedListAliasesInput *kms.ListAliasesInput
+	listAliasesOutput        *kms.ListAliasesOutput
+	listAliasesErr           error
+
 	expectedListKeysInput *kms.ListKeysInput
 	listKeysOutput        *kms.ListKeysOutput
 	listKeysErr           error
@@ -76,6 +80,15 @@ func (k *kmsClientFake) ListKeysWithContext(ctx aws.Context, input *kms.ListKeys
 	return k.listKeysOutput, nil
 }
 
+func (k *kmsClientFake) ListAliasesWithContext(ctw aws.Context, input *kms.ListAliasesInput, opts ...request.Option) (*kms.ListAliasesOutput, error) {
+	require.Equal(k.t, k.expectedListAliasesInput, input)
+	if k.listAliasesErr != nil {
+		return nil, k.listAliasesErr
+	}
+
+	return k.listAliasesOutput, nil
+}
+
 func (k *kmsClientFake) ScheduleKeyDeletionWithContext(ctx aws.Context, input *kms.ScheduleKeyDeletionInput, opts ...request.Option) (*kms.ScheduleKeyDeletionOutput, error) {
 	require.Equal(k.t, k.expectedScheduleKeyDeletionInput, input)
 	if k.scheduleKeyDeletionErr != nil {
@@ -95,5 +108,9 @@ func (k *kmsClientFake) SignWithContext(ctx aws.Context, input *kms.SignInput, o
 }
 
 func (k *kmsClientFake) CreateAliasWithContext(ctx aws.Context, input *kms.CreateAliasInput, opts ...request.Option) (*kms.CreateAliasOutput, error) {
+	return nil, nil
+}
+
+func (k *kmsClientFake) UpdateAliasWithContext(ctw aws.Context, input *kms.UpdateAliasInput, opts ...request.Option) (*kms.UpdateAliasOutput, error) {
 	return nil, nil
 }
