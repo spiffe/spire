@@ -205,6 +205,8 @@ Log messages should make use of logging fields to convey additional information,
 using string formatting which increases the cardinality of messages for log watchers to
 look for and hinders aggregation.
 
+Log messages and error messages should not end with periods.
+
 ## Mocks
 
 Unit tests should avoid mock tests as much as possible. When necessary we should inject mocked
