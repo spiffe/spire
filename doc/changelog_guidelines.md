@@ -18,7 +18,7 @@ The following is an example that includes all the categories:
 ## [a.b.c] - YYYY-MM-DD
 
 ### Added
-- Added AWS PCA configurable allowing operators to provide additional CA certificates for inclusion in the bundle (#1574)
+- AWS PCA now has a configurable allowing operators to provide additional CA certificates for inclusion in the bundle (#1574)
 
 ### Changed
 - Envoy SDS support is now always on (#1579)
@@ -27,10 +27,10 @@ The following is an example that includes all the categories:
 - The `upstream_bundle` configurable now defaults to true, and is marked as deprecated (#1404)
 
 ### Removed
-- Removed deprecated `upstream_bundle` server configurable. The server now always use the upstream bundle as the trust bundle (#1702)
+- The deprecated `upstream_bundle` server configurable has been removed. The server now always use the upstream bundle as the trust bundle (#1702)
 
 ### Fixed
-- Fixed an issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#1917)
+- Issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#1917)
 
 ### Security
 - Node API now ratelimits expensive calls (#577)
