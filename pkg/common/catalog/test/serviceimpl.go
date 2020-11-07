@@ -28,7 +28,7 @@ func (s *testService) BrokerHostServices(broker catalog.HostServiceBroker) error
 		return err
 	}
 	if !has {
-		s.log.Warn("Host service not available.", "hostservice", "HostService")
+		s.log.Warn("Host service not available", "hostservice", "HostService")
 	}
 	return nil
 }
