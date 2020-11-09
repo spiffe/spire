@@ -155,10 +155,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
-		log.WithFields(logrus.Fields{
-			telemetry.Error: err.Error(),
-			telemetry.SVID:  req.Svid,
-		}).Warn("Failed to validate JWT")
+		log.WithError(err).Warn("Failed to validate JWT")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	log.WithField(telemetry.SPIFFEID, spiffeID).Debug("Successfully validated JWT")
