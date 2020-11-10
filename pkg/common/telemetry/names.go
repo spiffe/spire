@@ -75,6 +75,9 @@ const (
 	// to add clarity
 	Push = "push"
 
+	// Reload functionality related to reloading of a cache
+	Reload = "reload"
+
 	// Rotate functionality related to rotation of SVID; should be used with other tags
 	// to add clarity
 	Rotate = "rotate"
@@ -368,6 +371,9 @@ const (
 	// CAManager functionality related to a CA manager
 	CAManager = "ca_manager"
 
+	// Cache functionality related to a cache
+	Cache = "cache"
+
 	// CacheManager functionality related to a cache manager
 	CacheManager = "cache_manager"
 
@@ -383,6 +389,12 @@ const (
 	// Entry tag for some stored entry; should be used with other tags such as RegistrationAPI
 	// to add clarity
 	Entry = "entry"
+
+	// EntryCache tag for in-memory entry cache subsystem
+	EntryCache = "entrycache"
+
+	// EntryCacheHydrator tag for the in-memory entry cache hydrator module
+	EntryCacheHydrator = "entrycache_hydrator"
 
 	// Event tag some event that has occurred, for a notifier, watcher, listener, etc.
 	Event = "event"

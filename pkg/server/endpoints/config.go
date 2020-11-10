@@ -19,6 +19,7 @@ import (
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
@@ -64,6 +65,9 @@ type Config struct {
 	RateLimit RateLimitConfig
 
 	Uptime func() time.Duration
+
+	// EntryCache is an in-memory cache of registration entries and agent selectors.
+	EntryCache entrycache.Cache
 }
 
 func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
@@ -133,12 +137,9 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 
 func (c *Config) makeAPIServers() APIServers {
 	ds := c.Catalog.GetDataStore()
-	entryFetcher := AuthorizedEntryFetcherWithFullCache(
-		c.Log.WithField(telemetry.SubsystemName, "entrycache"),
-		c.Metrics,
-		ds)
+	entryFetcher := AuthorizedEntryFetcherWithFullCache(c.EntryCache)
 	upstreamPublisher := UpstreamPublisher(c.Manager)
-	clock := clock.New()
+	clk := clock.New()
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -146,7 +147,7 @@ func (c *Config) makeAPIServers() APIServers {
 			ServerCA:    c.ServerCA,
 			TrustDomain: c.TrustDomain,
 			Catalog:     c.Catalog,
-			Clock:       clock,
+			Clock:       clk,
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain:       c.TrustDomain,
@@ -166,7 +167,7 @@ func (c *Config) makeAPIServers() APIServers {
 		}),
 		DebugServer: debugv1.New(debugv1.Config{
 			TrustDomain:  c.TrustDomain,
-			Clock:        clock,
+			Clock:        clk,
 			DataStore:    ds,
 			SVIDObserver: c.SVIDObserver,
 			Uptime:       c.Uptime,

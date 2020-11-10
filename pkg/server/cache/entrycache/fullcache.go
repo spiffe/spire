@@ -26,8 +26,27 @@ var _ Cache = (*FullEntryCache)(nil)
 
 // Cache contains a snapshot of all registration entries and Agent selectors from the data source
 // at a particular moment in time.
+// When the cache is accessed from a different goroutine than where the cache is hydrated,
+// clients should use the following access pattern to ensure the cache is initialized before accessing:
+//
+// if !cache.Initialized() {
+//     cache.AwaitInitialized()
+// }
+//
+// entries := cache.GetAuthorizedEntries()
 type Cache interface {
+	// Initialized returns whether the cache has been initialized yet.
+	// Cache accessors SHOULD call this method before GetAuthorizedEntries()
+	// when the cache is hydrated in a separate goroutine from where the cache is accessed.
+	// See interface documentation for the usage pattern.
+	Initialized() bool
+	// AwaitInitialized waits until the cache has been hydrated for the first time.
+	// Callers accessing the cache SHOULD call this method before GetAuthorizedEntries()
+	// when the cache is hydrated in a separate goroutine from where the cache is accessed.
+	// See interface documentation for the usage pattern.
+	AwaitInitialized()
 	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
+	Hydrate(ctx context.Context) error
 }
 
 // Selector is a key-value attribute of a node or workload.
@@ -84,9 +103,23 @@ type Agent struct {
 	Selectors []*types.Selector
 }
 
+type aliasEntry struct {
+	id    spiffeID
+	entry *types.Entry
+}
+
+type AliasMap map[spiffeID][]aliasEntry
+type EntryMap map[spiffeID][]*types.Entry
+
 type FullEntryCache struct {
-	aliases map[spiffeID][]aliasEntry
-	entries map[spiffeID][]*types.Entry
+	c *FullEntryCacheConfig
+
+	aliases     AliasMap
+	entries     EntryMap
+	initialized bool
+
+	cond *sync.Cond
+	mu   sync.RWMutex
 }
 
 type selectorSet map[Selector]struct{}
@@ -100,21 +133,30 @@ type spiffeID struct {
 	Path string
 }
 
-type aliasEntry struct {
-	id    spiffeID
-	entry *types.Entry
+type HydrateFunc func(ctx context.Context) (AliasMap, EntryMap, error)
+
+type FullEntryCacheConfig struct {
+	HydrateFn HydrateFunc
+}
+
+// NewFullEntryCache builds a new, empty entry cache.
+func NewFullEntryCache(config *FullEntryCacheConfig) *FullEntryCache {
+	return &FullEntryCache{
+		c:    config,
+		cond: sync.NewCond(&sync.Mutex{}),
+	}
 }
 
 // Build queries the data source for all registration entries and Agent selectors and builds an in-memory
 // representation of the data that can be used for efficient lookups.
-func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator) (*FullEntryCache, error) {
+func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator) (AliasMap, EntryMap, error) {
 	type aliasInfo struct {
 		aliasEntry
 		selectors selectorSet
 	}
 	bysel := make(map[Selector][]aliasInfo)
 
-	entries := make(map[spiffeID][]*types.Entry)
+	entries := make(EntryMap)
 	for entryIter.Next(ctx) {
 		entry := entryIter.Entry()
 		parentID := spiffeIDFromProto(entry.ParentId)
@@ -134,13 +176,13 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 		entries[parentID] = append(entries[parentID], entry)
 	}
 	if err := entryIter.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	aliasSeen := allocStringSet()
 	defer freeStringSet(aliasSeen)
 
-	aliases := make(map[spiffeID][]aliasEntry)
+	aliases := make(AliasMap)
 	for agentIter.Next(ctx) {
 		agent := agentIter.Agent()
 		agentID := spiffeIDFromID(agent.ID)
@@ -161,17 +203,60 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 		}
 	}
 	if err := agentIter.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &FullEntryCache{
-		aliases: aliases,
-		entries: entries,
-	}, nil
+	return aliases, entries, nil
+}
+
+func (c *FullEntryCache) Hydrate(ctx context.Context) error {
+	aliases, entries, err := c.c.HydrateFn(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Take RW mutex controlling access of cache
+	c.mu.Lock()
+
+	// Take condition variable controlling broadcast of "Initialized" event.
+	// Used to signal to consumers of the cache that the cache has been hydrated at least once.
+	c.cond.L.Lock()
+	defer func() {
+		// This is the first time the cache has been hydrated.
+		// Let any consumers of the cache know that it is now initialized by broadcasting over the condition variable.
+		if !c.initialized {
+			c.initialized = true
+			// Wake up all consumers that are waiting on first initialization of the cache.
+			c.cond.Broadcast()
+		}
+
+		c.cond.L.Unlock()
+		c.mu.Unlock()
+	}()
+
+	c.aliases = aliases
+	c.entries = entries
+	return nil
+}
+
+func (c *FullEntryCache) Initialized() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.initialized
+}
+
+func (c *FullEntryCache) AwaitInitialized() {
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
+	for !c.Initialized() {
+		c.cond.Wait()
+	}
 }
 
 // GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
 func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
