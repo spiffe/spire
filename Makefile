@@ -194,12 +194,7 @@ plugingen_hostservices = \
 # entry is as follows:
 # mock-destination-pkg,src-go-pkg,interface[,additional interfaces]
 mockgen_mocks = \
-	test/mock/plugin/agent/workloadattestor,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor,WorkloadAttestor,WorkloadAttestorServer \
-	test/mock/proto/api/registration,github.com/spiffe/spire/proto/spire/api/registration,RegistrationClient,RegistrationServer \
-	test/mock/proto/api/workload,github.com/spiffe/go-spiffe/v2/proto/spiffe/workload,SpiffeWorkloadAPIClient,SpiffeWorkloadAPIServer,SpiffeWorkloadAPI_FetchX509SVIDClient,SpiffeWorkloadAPI_FetchX509SVIDServer,SpiffeWorkloadAPI_FetchJWTBundlesServer \
 	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,Client \
-	test/mock/agent/manager,github.com/spiffe/spire/pkg/agent/manager,Manager \
-	test/mock/agent/manager/cache,github.com/spiffe/spire/pkg/agent/manager/cache,Subscriber \
 	test/mock/agent/client,github.com/spiffe/spire/pkg/agent/client,Client \
 	test/mock/common/plugin/k8s/apiserver,github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver,Client \
 	test/mock/common/plugin/k8s/clientset,k8s.io/client-go/kubernetes,Interface \
