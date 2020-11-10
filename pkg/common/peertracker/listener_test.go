@@ -109,7 +109,7 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	select {
 	case logEntry := <-logCh:
 		p.Require().NotNil(logEntry)
-		p.Require().Equal("Connection failed during accept.", logEntry.Message)
+		p.Require().Equal("Connection failed during accept", logEntry.Message)
 		logErr := logEntry.Data["error"]
 		p.Require().IsType(errors.New(""), logErr)
 		p.Require().EqualError(logErr.(error), "create new watcher failed")

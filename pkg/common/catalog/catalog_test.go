@@ -157,7 +157,7 @@ func (s *CatalogSuite) TestNoKnownService() {
 	// assert we logged a message about the unknown service
 	s.assertHasLogEntry(testLogEntry{
 		Level:   logrus.WarnLevel,
-		Message: "Unknown service type.",
+		Message: "Unknown service type",
 		Data: logrus.Fields{
 			telemetry.PluginService: "Service",
 		},
@@ -177,7 +177,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 	s.assertHasLogEntries([]testLogEntry{
 		{
 			Level:   logrus.WarnLevel,
-			Message: "Host service not available.",
+			Message: "Host service not available",
 			Data: logrus.Fields{
 				"@module":        "pluginimpl",
 				"hostservice":    "HostService",
@@ -186,7 +186,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 		},
 		{
 			Level:   logrus.WarnLevel,
-			Message: "Host service not available.",
+			Message: "Host service not available",
 			Data: logrus.Fields{
 				"@module":        "serviceimpl",
 				"hostservice":    "HostService",
@@ -810,7 +810,7 @@ func extInitLogs(module string) []testLogEntry {
 	return []testLogEntry{
 		{
 			Level:   logrus.InfoLevel,
-			Message: "Configure called.",
+			Message: "Configure called",
 			Data: logrus.Fields{
 				"@module":               module,
 				"config":                "CONFIG",
@@ -820,7 +820,7 @@ func extInitLogs(module string) []testLogEntry {
 		},
 		{
 			Level:   logrus.InfoLevel,
-			Message: "Plugin loaded.",
+			Message: "Plugin loaded",
 			Data: logrus.Fields{
 				telemetry.PluginBuiltIn:  false,
 				telemetry.PluginName:     "testext",

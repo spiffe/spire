@@ -41,7 +41,7 @@ func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
 	if logger, ok := c.Logger.(interface{ Writer() *io.PipeWriter }); ok {
 		runner.w = logger.Writer()
 	} else {
-		c.Logger.Warn("Unknown logging subsystem; disabling telemetry signaling.")
+		c.Logger.Warn("Unknown logging subsystem; disabling telemetry signaling")
 		return runner, nil
 	}
 
@@ -88,7 +88,7 @@ func (i *inmemRunner) startConfigWarning(ctx context.Context, wg *sync.WaitGroup
 			select {
 			case <-sigChannel:
 				i.log.Warn("The in-memory telemetry sink will be disabled by default in a future release." +
-					" If you wish to continue using it, please enable it in the telemetry configuration.")
+					" If you wish to continue using it, please enable it in the telemetry configuration")
 			case <-ctx.Done():
 				signal.Stop(sigChannel)
 				return

@@ -69,7 +69,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	log = log.With(telemetry.VersionInfo, dbCodeVersion.String())
 
 	if schemaVersion == latestSchemaVersion {
-		log.Debug("Code and DB schema versions are the same. No migration needed.")
+		log.Debug("Code and DB schema versions are the same. No migration needed")
 
 		// same DB schema; if current code version greater than stored, store newer code version
 		if codeVersion.GT(dbCodeVersion) {
@@ -125,7 +125,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 		}
 	}
 
-	log.Info("Done running migrations.")
+	log.Info("Done running migrations")
 	return nil
 }
 
@@ -163,7 +163,7 @@ func isCompatibleCodeVersion(dbCodeVersion semver.Version) bool {
 }
 
 func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
-	log.Info("Initializing new database.")
+	log.Info("Initializing new database")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)

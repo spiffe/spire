@@ -70,7 +70,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 		setupLog.Error(err, "Unable to connect to SPIRE registration API")
 		return err
 	}
-	setupLog.Info("Connected to spire server.")
+	setupLog.Info("Connected to spire server")
 
 	rootID := nodeID(c.TrustDomain, c.ControllerName, c.Cluster)
 

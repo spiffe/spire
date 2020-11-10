@@ -195,7 +195,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		e.Log.Info("Stopping TCP server")
 		server.Stop()
 		<-errChan
-		e.Log.Info("TCP server has stopped.")
+		e.Log.Info("TCP server has stopped")
 		return nil
 	}
 }
@@ -228,7 +228,7 @@ func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 		e.Log.Info("Stopping UDS server")
 		server.Stop()
 		<-errChan
-		e.Log.Info("UDS server has stopped.")
+		e.Log.Info("UDS server has stopped")
 		return nil
 	}
 }

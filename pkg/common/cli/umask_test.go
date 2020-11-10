@@ -25,14 +25,14 @@ func TestUmask(t *testing.T) {
 		// Current umask is too permissive. Set to minimum.
 		{
 			Initial: 0, Expected: 0027, Logs: []string{
-				"Current umask 0000 is too permissive; setting umask 0027.",
+				"Current umask 0000 is too permissive; setting umask 0027",
 			},
 		},
 		// Current umask is too permissive. Set to minimum making sure bits
 		// are OR'd.
 		{
 			Initial: 0125, Expected: 0127, Logs: []string{
-				"Current umask 0125 is too permissive; setting umask 0127.",
+				"Current umask 0125 is too permissive; setting umask 0127",
 			},
 		},
 	}
