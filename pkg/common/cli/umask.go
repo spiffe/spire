@@ -17,7 +17,7 @@ func SetUmask(log logrus.FieldLogger) {
 	if (currentUmask & minimumUmask) != minimumUmask {
 		badUmask := currentUmask
 		currentUmask |= minimumUmask
-		log.Warnf("Current umask %#04o is too permissive; setting umask %#04o.", badUmask, currentUmask)
+		log.Warnf("Current umask %#04o is too permissive; setting umask %#04o", badUmask, currentUmask)
 	}
 	setUmask(currentUmask)
 }

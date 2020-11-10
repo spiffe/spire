@@ -100,7 +100,7 @@ func TestWarnOnFutureDisable(t *testing.T) {
 
 			if entry := hook.LastEntry(); entry != nil {
 				assert.Equal(t, "The in-memory telemetry sink will be disabled by default in a future release."+
-					" If you wish to continue using it, please enable it in the telemetry configuration.", entry.Message)
+					" If you wish to continue using it, please enable it in the telemetry configuration", entry.Message)
 				return
 			}
 		}

@@ -166,7 +166,7 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 		})
 
 		if c.Disabled {
-			pluginLog.Debug("Not loading plugin; disabled.")
+			pluginLog.Debug("Not loading plugin; disabled")
 			continue
 		}
 
@@ -198,7 +198,7 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 			})
 		}
 		if err != nil {
-			pluginLog.WithError(err).Error("Failed to load plugin.")
+			pluginLog.WithError(err).Error("Failed to load plugin")
 			return nil, err
 		}
 
@@ -206,11 +206,11 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 			GlobalConfig:  &config.GlobalConfig,
 			Configuration: c.Data,
 		}); err != nil {
-			pluginLog.WithError(err).Error("Failed to configure plugin.")
+			pluginLog.WithError(err).Error("Failed to configure plugin")
 			return nil, errs.New("unable to configure plugin %q: %v", c.Name, err)
 		}
 
-		pluginLog.WithField(telemetry.PluginServices, plugin.serviceNames).Info("Plugin loaded.")
+		pluginLog.WithField(telemetry.PluginServices, plugin.serviceNames).Info("Plugin loaded")
 		cat.plugins = append(cat.plugins, plugin)
 	}
 
