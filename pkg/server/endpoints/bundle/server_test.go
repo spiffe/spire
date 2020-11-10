@@ -192,7 +192,7 @@ func TestACMEAuth(t *testing.T) {
 		require.Error(t, err)
 
 		if entry := hook.LastEntry(); assert.NotNil(t, entry) {
-			assert.Equal(t, "ACME Terms of Service have not been accepted. See the `tos_accepted` configurable.", entry.Message)
+			assert.Equal(t, "ACME Terms of Service have not been accepted. See the `tos_accepted` configurable", entry.Message)
 			assert.Equal(t, logrus.WarnLevel, entry.Level)
 			assert.Equal(t, logrus.Fields{
 				"directory_url": ca.URL,

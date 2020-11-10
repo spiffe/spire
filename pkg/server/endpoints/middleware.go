@@ -156,10 +156,10 @@ func authorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemet
 			end := nowFn()
 			rebuildLog := log.WithField(telemetry.ElapsedTime, end.Sub(start))
 			if err != nil {
-				rebuildLog.WithError(err).Error("Failed to reload entry cache.")
+				rebuildLog.WithError(err).Error("Failed to reload entry cache")
 				return nil, err
 			}
-			rebuildLog.Debug("Reloaded entry cache.")
+			rebuildLog.Debug("Reloaded entry cache")
 			cache = newCache
 			loaded = end
 		}

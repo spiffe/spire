@@ -32,7 +32,7 @@ func (s *testPlugin) BrokerHostServices(broker catalog.HostServiceBroker) error 
 	}
 	if !has && s.log != nil {
 		// s.log will only be nil if this is not used within the new plugin framework (i.e. old plugin test)
-		s.log.Warn("Host service not available.", "hostservice", "HostService")
+		s.log.Warn("Host service not available", "hostservice", "HostService")
 	}
 	return nil
 }
@@ -44,7 +44,7 @@ func (s *testPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	}
 	if s.log != nil {
 		// s.log will only be nil if this is not used within the new plugin framework (i.e. old plugin test)
-		s.log.Info("Configure called.", "trustdomain", trustDomain, "config", req.Configuration)
+		s.log.Info("Configure called", "trustdomain", trustDomain, "config", req.Configuration)
 	}
 	if req.Configuration == "BAD" {
 		return nil, status.Error(codes.InvalidArgument, "BAD configuration")

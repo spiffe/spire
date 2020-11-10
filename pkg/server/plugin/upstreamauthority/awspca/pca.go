@@ -107,7 +107,7 @@ func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	}
 
 	// Perform a check for the presence of the CA
-	m.log.Info("Looking up certificate authority from ACM.", "certificate_authority_arn", config.CertificateAuthorityARN)
+	m.log.Info("Looking up certificate authority from ACM", "certificate_authority_arn", config.CertificateAuthorityARN)
 	describeResponse, err := m.pcaClient.DescribeCertificateAuthorityWithContext(ctx, &acmpca.DescribeCertificateAuthorityInput{
 		CertificateAuthorityArn: aws.String(config.CertificateAuthorityARN),
 	})
@@ -118,7 +118,7 @@ func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	// Ensure the CA is set to ACTIVE
 	caStatus := aws.StringValue(describeResponse.CertificateAuthority.Status)
 	if caStatus != "ACTIVE" {
-		m.log.Warn("Certificate is in an invalid state for issuance.",
+		m.log.Warn("Certificate is in an invalid state for issuance",
 			"certificate_authority_arn", config.CertificateAuthorityARN,
 			"status", caStatus)
 	}
@@ -129,7 +129,7 @@ func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 		m.signingAlgorithm = config.SigningAlgorithm
 	} else {
 		signingAlgortithm := aws.StringValue(describeResponse.CertificateAuthority.CertificateAuthorityConfiguration.SigningAlgorithm)
-		m.log.Info("No signing algorithm specified, using the CA default.", "signing_algorithm", signingAlgortithm)
+		m.log.Info("No signing algorithm specified, using the CA default", "signing_algorithm", signingAlgortithm)
 		m.signingAlgorithm = signingAlgortithm
 	}
 
@@ -138,7 +138,7 @@ func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	if config.CASigningTemplateARN != "" {
 		m.caSigningTemplateArn = config.CASigningTemplateARN
 	} else {
-		m.log.Info("No CA signing template ARN specified, using the default.", "ca_signing_template_arn", defaultCASigningTemplateArn)
+		m.log.Info("No CA signing template ARN specified, using the default", "ca_signing_template_arn", defaultCASigningTemplateArn)
 		m.caSigningTemplateArn = defaultCASigningTemplateArn
 	}
 
@@ -167,7 +167,7 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 	}
 
 	// Have ACM sign the certificate
-	m.log.Info("Submitting CSR to ACM.", "signing_algorithm", m.signingAlgorithm)
+	m.log.Info("Submitting CSR to ACM", "signing_algorithm", m.signingAlgorithm)
 	validityPeriod := time.Second * time.Duration(request.PreferredTtl)
 	issueResponse, err := m.pcaClient.IssueCertificateWithContext(ctx, &acmpca.IssueCertificateInput{
 		CertificateAuthorityArn: aws.String(m.certificateAuthorityArn),
@@ -188,7 +188,7 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 	// the certificate has been issued
 	certificateArn := issueResponse.CertificateArn
 
-	m.log.Info("Waiting for issuance from ACM.", "certificate_arn", aws.StringValue(certificateArn))
+	m.log.Info("Waiting for issuance from ACM", "certificate_arn", aws.StringValue(certificateArn))
 	getCertificateInput := &acmpca.GetCertificateInput{
 		CertificateAuthorityArn: aws.String(m.certificateAuthorityArn),
 		CertificateArn:          certificateArn,
@@ -197,10 +197,10 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 	if err != nil {
 		return err
 	}
-	m.log.Info("Certificate issued.", "certificate_arn", aws.StringValue(certificateArn))
+	m.log.Info("Certificate issued", "certificate_arn", aws.StringValue(certificateArn))
 
 	// Finally get the certificate contents
-	m.log.Info("Retrieving certificate and chain from ACM.", "certificate_arn", aws.StringValue(certificateArn))
+	m.log.Info("Retrieving certificate and chain from ACM", "certificate_arn", aws.StringValue(certificateArn))
 	getResponse, err := m.pcaClient.GetCertificateWithContext(ctx, getCertificateInput)
 	if err != nil {
 		return err
@@ -217,7 +217,7 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 	if err != nil {
 		return err
 	}
-	m.log.Info("Certificate and chain received.", "certificate_arn", aws.StringValue(certificateArn))
+	m.log.Info("Certificate and chain received", "certificate_arn", aws.StringValue(certificateArn))
 
 	// ACM's API outputs the certificate chain from a GetCertificate call in the following
 	// order: A (signed by B) -> B (signed by ROOT) -> ROOT.

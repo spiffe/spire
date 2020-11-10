@@ -55,7 +55,7 @@ func newCatalogPlugin(ctx context.Context, c *grpc.ClientConn, config catalogPlu
 		for _, typ := range resp.PluginServices {
 			service, ok := servicesMap[typ]
 			if !ok {
-				config.Log.WithField(telemetry.PluginService, typ).Warn("Unknown service type.")
+				config.Log.WithField(telemetry.PluginService, typ).Warn("Unknown service type")
 				continue
 			}
 			serviceImpls = append(serviceImpls, service.NewServiceClient(c))
