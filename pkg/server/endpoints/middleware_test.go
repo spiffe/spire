@@ -109,7 +109,7 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 		// wait a short time to ensure Goroutine 2 is blocked and waiting properly for the cache to be hydrated,
 		// then hydrate the cache by signaling Goroutine 1.
 		<-aboutToFetchChan
-		time.Sleep(time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 		startHydratingChan <- struct{}{}
 
 		assert.True(t, <-doneHydratingChan)

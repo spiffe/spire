@@ -69,7 +69,7 @@ func TestHydrator(t *testing.T) {
 	}()
 
 	<-startingHydration
-	time.Sleep(time.Millisecond)
+	time.Sleep(5 * time.Millisecond)
 	assert.True(t, cache.Initialized())
 
 	const rootID = "spiffe://example.org/root"
@@ -140,7 +140,7 @@ func TestHydrator(t *testing.T) {
 	// Advance the clock to half the configured interval again.
 	// This should cause the hydrator to run again.
 	clk.Add(interval / 2)
-	time.Sleep(time.Millisecond)
+	time.Sleep(5 * time.Millisecond)
 	authorizedEntries := cache.GetAuthorizedEntries(agentSpiffeID)
 	assert.Equal(t, expected, authorizedEntries)
 
