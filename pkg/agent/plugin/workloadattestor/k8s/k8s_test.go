@@ -69,6 +69,7 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 	testPodSelectors = []*common.Selector{
 		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
 		{Type: "k8s", Value: "container-name:blog"},
+		{Type: "k8s", Value: "host-ip:10.90.0.100"},
 		{Type: "k8s", Value: "node-name:k8s-node-1"},
 		{Type: "k8s", Value: "ns:default"},
 		{Type: "k8s", Value: "pod-image-count:2"},
@@ -87,6 +88,7 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 	testKindPodSelectors = []*common.Selector{
 		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
 		{Type: "k8s", Value: "container-name:workload-api-client"},
+		{Type: "k8s", Value: "host-ip:172.17.0.2"},
 		{Type: "k8s", Value: "node-name:kind-control-plane"},
 		{Type: "k8s", Value: "ns:default"},
 		{Type: "k8s", Value: "pod-image-count:1"},
@@ -104,6 +106,7 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 	testInitPodSelectors = []*common.Selector{
 		{Type: "k8s", Value: "container-image:quay.io/coreos/flannel:v0.9.0-amd64"},
 		{Type: "k8s", Value: "container-name:install-cni"},
+		{Type: "k8s", Value: "host-ip:10.90.0.100"},
 		{Type: "k8s", Value: "node-name:k8s-node-1"},
 		{Type: "k8s", Value: "ns:kube-system"},
 		{Type: "k8s", Value: "pod-image-count:1"},

@@ -650,6 +650,7 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("container-image:%s", status.Image),
 		makeSelector("pod-image-count:%s", strconv.Itoa(len(podImages))),
 		makeSelector("pod-init-image-count:%s", strconv.Itoa(len(podInitImages))),
+		makeSelector("host-ip:%s", pod.Status.HostIP),
 	}
 	for podImage := range podImages {
 		selectors = append(selectors, makeSelector("pod-image:%s", podImage))
