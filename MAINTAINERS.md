@@ -97,7 +97,7 @@ The following steps must be completed one week prior to release:
   * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
   * Create a GitHub project named `Release vX.X.X` to identify the PRs that will be cherry-picked. The project should have two statuses to track the progress: one to identify the PRs to be cherry-picked and one for those that have been merged in the version branch.
   * Make sure that the [version in the branch](pkg/common/version/version.go) has been bumped to the version that is being released.
-  * Cherry-pick into the version branch the commits for all the changes that must be included in the release, including the updates in the CHANGELOG and update the corresponding status in the project.
+  * Cherry-pick into the version branch the commits for all the changes that must be included in the release.
 
 **If this is a major release**, the following steps must be completed before releasing:
 * Review and exercise all examples in spiffe.io and spire-examples repo against the release candidate hash.
@@ -106,8 +106,8 @@ The following steps must be completed one week prior to release:
   * If anything unusual is encountered during this process, a comment MUST be left on the release issue describing what was observed.
 
 The following steps must be completed to perform a release:
-* Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it.**
-* If the current state of the master branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG and the release can be done from master branch.
+* Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it**. If a version branch was created for the realease, cherry-pick the final CHANGELOG changes into the version branch once they are merged.
+* If releasing from master and the current state of the master branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG. If releasing from a version branch, the candidate commit is now the one that has the CHANGELOG changes cherry-picked in the branch.
 * Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
   * The first line of the annotation should be `X.X.X` followed by the CHANGELOG. Refer to previous annotated tags as an example.
   * The `proto/spire/vX.X.X` tag is needed for proper versioning of the github.com/spiffe/spire/proto/spire go module and can be omitted if/when that go module is no longer in the SPIRE repository.
