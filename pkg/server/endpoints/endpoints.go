@@ -49,17 +49,19 @@ type Server interface {
 }
 
 type Endpoints struct {
-	TCPAddr      *net.TCPAddr
-	UDSAddr      *net.UnixAddr
-	SVIDObserver svid.Observer
-	TrustDomain  spiffeid.TrustDomain
-	DataStore    datastore.DataStore
 	OldAPIServers
-	APIServers           APIServers
-	BundleEndpointServer Server
-	Log                  logrus.FieldLogger
-	Metrics              telemetry.Metrics
-	RateLimit            RateLimitConfig
+
+	TCPAddr                      *net.TCPAddr
+	UDSAddr                      *net.UnixAddr
+	SVIDObserver                 svid.Observer
+	TrustDomain                  spiffeid.TrustDomain
+	DataStore                    datastore.DataStore
+	APIServers                   APIServers
+	BundleEndpointServer         Server
+	Log                          logrus.FieldLogger
+	Metrics                      telemetry.Metrics
+	RateLimit                    RateLimitConfig
+	EntryFetcherCacheRebuildTask func(context.Context) error
 }
 
 type OldAPIServers struct {
@@ -82,24 +84,30 @@ type RateLimitConfig struct {
 }
 
 // New creates new endpoints struct
-func New(c Config) (*Endpoints, error) {
+func New(ctx context.Context, c Config) (*Endpoints, error) {
 	oldAPIServers, err := c.makeOldAPIServers()
 	if err != nil {
 		return nil, err
 	}
 
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, c.Log, c.Metrics, c.Catalog.GetDataStore(), c.Clock)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Endpoints{
-		TCPAddr:              c.TCPAddr,
-		UDSAddr:              c.UDSAddr,
-		SVIDObserver:         c.SVIDObserver,
-		TrustDomain:          c.TrustDomain,
-		DataStore:            c.Catalog.GetDataStore(),
-		OldAPIServers:        oldAPIServers,
-		APIServers:           c.makeAPIServers(),
-		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
-		Log:                  c.Log,
-		Metrics:              c.Metrics,
-		RateLimit:            c.RateLimit,
+		TCPAddr:                      c.TCPAddr,
+		UDSAddr:                      c.UDSAddr,
+		SVIDObserver:                 c.SVIDObserver,
+		TrustDomain:                  c.TrustDomain,
+		DataStore:                    c.Catalog.GetDataStore(),
+		OldAPIServers:                oldAPIServers,
+		APIServers:                   c.makeAPIServers(ef),
+		BundleEndpointServer:         c.maybeMakeBundleEndpointServer(),
+		Log:                          c.Log,
+		Metrics:                      c.Metrics,
+		RateLimit:                    c.RateLimit,
+		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 	}, nil
 }
 
@@ -139,6 +147,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		func(ctx context.Context) error {
 			return e.runUDSServer(ctx, udsServer)
 		},
+		e.EntryFetcherCacheRebuildTask,
 	}
 
 	if e.BundleEndpointServer != nil {

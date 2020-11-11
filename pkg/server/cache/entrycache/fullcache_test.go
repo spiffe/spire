@@ -124,11 +124,8 @@ func TestCache(t *testing.T) {
 	expected, err := api.RegistrationEntriesToProto(entries)
 	require.NoError(t, err)
 
-	cache := newCacheFromDatastore(ds)
-	require.NotNil(t, cache)
-
-	err = cache.Hydrate(context.Background())
-	require.NoError(t, err)
+	cache, err := BuildFromDataStore(context.Background(), ds)
+	assert.NoError(t, err)
 
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
 	assert.Equal(t, expected, actual)
@@ -208,11 +205,8 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	setNodeSelectors(ctx, t, ds, agentIDs[0].String(), s1, s2)
 	setNodeSelectors(ctx, t, ds, agentIDs[1].String(), s1, s3)
 
-	cache := newCacheFromDatastore(ds)
-	require.NotNil(t, cache)
-
-	err := cache.Hydrate(context.Background())
-	require.NoError(t, err)
+	cache, err := BuildFromDataStore(context.Background(), ds)
+	assert.NoError(t, err)
 
 	assertAuthorizedEntries := func(agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
 		expected, err := api.RegistrationEntriesToProto(entries)
@@ -413,10 +407,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 		workloadEntries[i] = createRegistrationEntry(ctx, t, ds, workloadEntriesToCreate[i])
 	}
 
-	c := newCacheFromDatastore(ds)
-	require.NotNil(t, c)
-
-	err := c.Hydrate(context.Background())
+	c, err := BuildFromDataStore(ctx, ds)
 	require.NoError(t, err)
 
 	entries := c.GetAuthorizedEntries(expiredAgentID)
@@ -450,11 +441,9 @@ func TestBuildIteratorError(t *testing.T) {
 		entryIt := tt.entryIt
 		agentIt := tt.agentIt
 		t.Run(tt.desc, func(t *testing.T) {
-			cache := newCacheFromInMemoryData(entryIt, agentIt)
-			require.NotNil(t, cache)
-
-			err := cache.Hydrate(ctx)
+			cache, err := Build(ctx, entryIt, agentIt)
 			assert.Error(t, err)
+			assert.Nil(t, cache)
 		})
 	}
 }
@@ -463,8 +452,7 @@ func BenchmarkBuildInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cache := newCacheFromInMemoryData(makeEntryIterator(allEntries), makeAgentIterator(agents))
-		err := cache.Hydrate(context.Background())
+		_, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -473,8 +461,7 @@ func BenchmarkBuildInMemory(b *testing.B) {
 
 func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
-	cache := newCacheFromInMemoryData(makeEntryIterator(allEntries), makeAgentIterator(agents))
-	err := cache.Hydrate(context.Background())
+	cache, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
 	require.NoError(b, err)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -511,8 +498,7 @@ func BenchmarkBuildSQL(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cache := newCacheFromDatastore(ds)
-		err := cache.Hydrate(ctx)
+		_, err := BuildFromDataStore(ctx, ds)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -797,28 +783,4 @@ func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.Plugin {
 	require.NoError(tb, err)
 
 	return ds
-}
-
-func newCacheFromDatastore(ds datastore.DataStore) *FullEntryCache {
-	cacheHydrateFn := func(ctx context.Context) (AliasMap, EntryMap, error) {
-		return BuildFromDataStore(ctx, ds)
-	}
-
-	return newCache(cacheHydrateFn)
-}
-
-func newCacheFromInMemoryData(entryIt EntryIterator, agentIt AgentIterator) *FullEntryCache {
-	cacheHydrateFn := func(ctx context.Context) (AliasMap, EntryMap, error) {
-		return Build(ctx, entryIt, agentIt)
-	}
-
-	return newCache(cacheHydrateFn)
-}
-
-func newCache(hydrateFn HydrateFunc) *FullEntryCache {
-	cacheConfig := &FullEntryCacheConfig{
-		HydrateFn: hydrateFn,
-	}
-
-	return NewFullEntryCache(cacheConfig)
 }

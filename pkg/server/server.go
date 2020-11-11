@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
@@ -21,7 +22,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
@@ -128,10 +128,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	entryCache := s.newEntryCache(cat)
-	entryCacheHydrator := s.newEntryCacheHydrator(entryCache, metrics)
-
-	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager, entryCache)
+	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager)
 	if err != nil {
 		return err
 	}
@@ -169,7 +166,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 	err = util.RunTasks(ctx,
 		caManager.Run,
 		svidRotator.Run,
-		entryCacheHydrator.Run,
 		endpointsServer.ListenAndServe,
 		metrics.ListenAndServe,
 		bundleManager.Run,
@@ -305,28 +301,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEntryCache(catalog catalog.Catalog) entrycache.Cache {
-	hydrateFn := func(ctx context.Context) (entrycache.AliasMap, entrycache.EntryMap, error) {
-		ds := catalog.GetDataStore()
-		return entrycache.BuildFromDataStore(ctx, ds)
-	}
-
-	config := &entrycache.FullEntryCacheConfig{
-		HydrateFn: hydrateFn,
-	}
-	return entrycache.NewFullEntryCache(config)
-}
-
-func (s *Server) newEntryCacheHydrator(entryCache entrycache.Cache, metrics telemetry.Metrics) *entrycache.Hydrator {
-	config := &entrycache.HydratorConfig{
-		EntryCache: entryCache,
-		Log:        s.config.Log.WithField(telemetry.SubsystemName, telemetry.EntryCacheHydrator),
-		Metrics:    metrics,
-	}
-	return entrycache.NewHydrator(config)
-}
-
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager, entryCache entrycache.Cache) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
@@ -340,13 +315,13 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 		RateLimit:                   s.config.RateLimit,
 		Uptime:                      uptime.Uptime,
-		EntryCache:                  entryCache,
+		Clock:                       clock.New(),
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
 		config.BundleEndpoint.ACME = s.config.Federation.BundleEndpoint.ACME
 	}
-	return endpoints.New(config)
+	return endpoints.New(ctx, config)
 }
 
 func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics) *bundle_client.Manager {

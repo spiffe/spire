@@ -13,12 +13,12 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
@@ -61,69 +61,24 @@ func TestAuthorizedEntryFetcher(t *testing.T) {
 }
 
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
+	ctx := context.Background()
 	log := logrus.New()
 	log.Out = ioutil.Discard
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
+	clk := clock.NewMock(t)
 
 	e := createAuthorizedEntryTestData(t, ds)
 	expectedNodeAliasEntries := e.nodeAliasEntries
 	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
 	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
 
-	hydrateFn := func(ctx context.Context) (entrycache.AliasMap, entrycache.EntryMap, error) {
-		return entrycache.BuildFromDataStore(ctx, ds)
-	}
+	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, log, metrics, ds, clk)
+	require.NoError(t, err)
 
-	entryCacheConfig := &entrycache.FullEntryCacheConfig{
-		HydrateFn: hydrateFn,
-	}
-
-	entryCache := entrycache.NewFullEntryCache(entryCacheConfig)
-	f := AuthorizedEntryFetcherWithFullCache(entryCache)
-
-	t.Run("success (initial, waiting for first hydration in another goroutine)", func(t *testing.T) {
-		startHydratingChan := make(chan struct{}, 1)
-		doneHydratingChan := make(chan bool, 1)
-		errChan := make(chan error, 1)
-
-		// Goroutine 1 is responsible for hydrating the cache
-		go func() {
-			<-startHydratingChan
-			errChan <- entryCache.Hydrate(context.Background())
-			doneHydratingChan <- true
-		}()
-
-		aboutToFetchChan := make(chan struct{}, 1)
-		doneFetchingChan := make(chan bool, 1)
-		var entries []*types.Entry
-		var err error
-
-		// Goroutine 2 is responsible for fetching entries from the cache (which shouldn't be hydrated just yet)
-		go func() {
-			aboutToFetchChan <- struct{}{}
-			entries, err = f.FetchAuthorizedEntries(context.Background(), agentID)
-			doneFetchingChan <- true
-		}()
-
-		// Wait for Goroutine 2 to initiate cache access,
-		// wait a short time to ensure Goroutine 2 is blocked and waiting properly for the cache to be hydrated,
-		// then hydrate the cache by signaling Goroutine 1.
-		<-aboutToFetchChan
-		time.Sleep(5 * time.Millisecond)
-		startHydratingChan <- struct{}{}
-
-		assert.True(t, <-doneHydratingChan)
-		assert.NoError(t, <-errChan)
-		assert.True(t, <-doneFetchingChan)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, expectedEntries, entries)
-	})
-
-	t.Run("success (cached)", func(t *testing.T) {
-		entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, expectedEntries, entries)
-	})
+	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, expectedEntries, entries)
 }
 
 func TestAgentAuthorizer(t *testing.T) {

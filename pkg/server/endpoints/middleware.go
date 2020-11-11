@@ -122,16 +122,6 @@ func AuthorizedEntryFetcherWithCache(ds datastore.DataStore) (api.AuthorizedEntr
 	}), nil
 }
 
-func AuthorizedEntryFetcherWithFullCache(entryCache entrycache.Cache) api.AuthorizedEntryFetcher {
-	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-		if !entryCache.Initialized() {
-			entryCache.AwaitInitialized()
-		}
-
-		return entryCache.GetAuthorizedEntries(agentID), nil
-	})
-}
-
 func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
 	return bundle.UpstreamPublisherFunc(manager.PublishJWTKey)
 }

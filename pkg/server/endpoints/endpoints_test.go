@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"path/filepath"
 	"reflect"
@@ -53,6 +54,7 @@ var (
 )
 
 func TestNew(t *testing.T) {
+	ctx := context.Background()
 	tcpAddr := &net.TCPAddr{}
 	udsAddr := &net.UnixAddr{}
 
@@ -78,7 +80,7 @@ func TestNew(t *testing.T) {
 		Clock:       clk,
 	})
 
-	endpoints, err := New(Config{
+	endpoints, err := New(ctx, Config{
 		TCPAddr:        tcpAddr,
 		UDSAddr:        udsAddr,
 		SVIDObserver:   svidObserver,
@@ -90,6 +92,7 @@ func TestNew(t *testing.T) {
 		Log:            log,
 		Metrics:        metrics,
 		RateLimit:      rateLimit,
+		Clock:          clk,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
@@ -107,6 +110,53 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
 	assert.Equal(t, metrics, endpoints.Metrics)
+}
+
+func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
+	ctx := context.Background()
+	tcpAddr := &net.TCPAddr{}
+	udsAddr := &net.UnixAddr{}
+
+	svidObserver := newSVIDObserver(nil)
+
+	log, _ := test.NewNullLogger()
+	metrics := fakemetrics.New()
+	ds := fakedatastore.New(t)
+	ds.SetNextError(errors.New("some datastore error"))
+
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(ds)
+
+	clk := clock.NewMock(t)
+
+	serverCA := fakeserverca.New(t, testTD.String(), nil)
+	manager := ca.NewManager(ca.ManagerConfig{
+		CA:          serverCA,
+		Catalog:     cat,
+		TrustDomain: *testTD.ID().URL(),
+		Dir:         spiretest.TempDir(t),
+		Log:         log,
+		Metrics:     metrics,
+		Clock:       clk,
+	})
+
+	endpoints, err := New(ctx, Config{
+		TCPAddr:        tcpAddr,
+		UDSAddr:        udsAddr,
+		SVIDObserver:   svidObserver,
+		TrustDomain:    testTD,
+		Catalog:        cat,
+		ServerCA:       serverCA,
+		BundleEndpoint: bundle.EndpointConfig{Address: tcpAddr},
+		Manager:        manager,
+		Log:            log,
+		Metrics:        metrics,
+		RateLimit:      rateLimit,
+		Clock:          clk,
+	})
+
+	assert.Error(t, err)
+	assert.Nil(t, endpoints)
 }
 
 func TestListenAndServe(t *testing.T) {
@@ -130,6 +180,10 @@ func TestListenAndServe(t *testing.T) {
 	registrationServer := newRegistrationServer()
 	nodeServer := newNodeServer()
 	bundleEndpointServer := newBundleEndpointServer()
+	clk := clock.NewMock(t)
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), log, metrics, ds, clk)
+	require.NoError(t, err)
 
 	endpoints := Endpoints{
 		TCPAddr:      listener.Addr().(*net.TCPAddr),
@@ -148,10 +202,11 @@ func TestListenAndServe(t *testing.T) {
 			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
 			DebugServer:  &debugv1.UnimplementedDebugServer{},
 		},
-		BundleEndpointServer: bundleEndpointServer,
-		Log:                  log,
-		Metrics:              metrics,
-		RateLimit:            rateLimit,
+		BundleEndpointServer:         bundleEndpointServer,
+		Log:                          log,
+		Metrics:                      metrics,
+		RateLimit:                    rateLimit,
+		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 	}
 
 	// Prime the datastore with the:
