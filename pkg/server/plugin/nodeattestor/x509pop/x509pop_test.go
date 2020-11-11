@@ -339,7 +339,7 @@ ca_bundle_paths = %s
 `, bundlesPath, extraConfig)
 
 	default:
-		s.FailNow("Usupported bundle path, %q", bundlePathType)
+		s.FailNow("Unsupported bundle path type", "type=%q", bundlePathType)
 	}
 
 	return ""
