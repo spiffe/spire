@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"sort"
 	"sync"
@@ -20,7 +20,7 @@ type Bundle = bundleutil.Bundle
 type Identity struct {
 	Entry      *common.RegistrationEntry
 	SVID       []*x509.Certificate
-	PrivateKey *ecdsa.PrivateKey
+	PrivateKey crypto.Signer
 }
 
 // WorkloadUpdate is used to convey workload information to cache subscribers
@@ -51,7 +51,7 @@ type UpdateSVIDs struct {
 // X509SVID holds onto the SVID certificate chain and private key.
 type X509SVID struct {
 	Chain      []*x509.Certificate
-	PrivateKey *ecdsa.PrivateKey
+	PrivateKey crypto.Signer
 }
 
 // Cache caches each registration entry, signed X509-SVIDs for those entries,

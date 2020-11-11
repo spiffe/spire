@@ -14,7 +14,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -27,13 +26,20 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type Manager interface {
+	SubscribeToCacheChanges(cache.Selectors) cache.Subscriber
+	MatchingIdentities([]*common.Selector) []cache.Identity
+	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
+	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
+}
+
 type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
 // Handler implements the Workload API interface
 type Config struct {
-	Manager  manager.Manager
+	Manager  Manager
 	Attestor Attestor
 }
 
@@ -57,7 +63,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.Error("Workload attestation failed")
+		log.WithError(err).Error("Workload attestation failed")
 		return nil, err
 	}
 
@@ -76,8 +82,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		}
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
 	}
-
-	log = log.WithField(telemetry.Count, len(spiffeIDs))
 
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
@@ -108,11 +112,9 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.Error("Workload attestation failed")
+		log.WithError(err).Error("Workload attestation failed")
 		return err
 	}
-
-	log.Debug("Fetching JWT Bundles")
 
 	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
@@ -120,9 +122,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			log.Debug("Sending JWT Bundles")
-			if err := sendJWTBundlesResponse(update, stream); err != nil {
-				log.WithError(err).Error("Failed to send response")
+			if err := sendJWTBundlesResponse(update, stream, log); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -147,7 +147,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.Error("Workload attestation failed")
+		log.WithError(err).Error("Workload attestation failed")
 		return nil, err
 	}
 
@@ -179,7 +179,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.Error("Workload attestation failed")
+		log.WithError(err).Error("Workload attestation failed")
 		return err
 	}
 
@@ -200,7 +200,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 
 func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger) (err error) {
 	if len(update.Identities) == 0 {
-		log.WithField(telemetry.Registered, false).WithError(err).Error("No identity issued")
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -212,8 +212,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	err = stream.Send(resp)
-	if err != nil {
+	if err := stream.Send(resp); err != nil {
 		log.WithError(err).Error("Failed to send X.509 SVID response")
 		return err
 	}
@@ -266,17 +265,24 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) (err error) {
+func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger) (err error) {
 	if len(update.Identities) == 0 {
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
 	resp, err := composeJWTBundlesResponse(update)
 	if err != nil {
+		log.WithError(err).Error("Could not serialize JWT bundle response")
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	return stream.Send(resp)
+	if err := stream.Send(resp); err != nil {
+		log.WithError(err).Error("Failed to send JWT bundle response")
+		return err
+	}
+
+	return nil
 }
 
 func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
