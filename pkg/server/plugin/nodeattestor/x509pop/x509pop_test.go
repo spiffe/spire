@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"log"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
@@ -33,6 +34,9 @@ type Suite struct {
 	leafCert         *x509.Certificate
 	intermediateCert *x509.Certificate
 	rootCert         *x509.Certificate
+
+	alternativeBundlePath string
+	alternativeBundle     *x509.Certificate
 }
 
 func (s *Suite) SetupTest() {
@@ -54,6 +58,11 @@ func (s *Suite) SetupTest() {
 	require.NoError(err)
 	s.rootCert, err = util.LoadCert(s.rootCertPath)
 	require.NoError(err)
+
+	// Add alternative bundle
+	s.alternativeBundlePath = fixture.Join("certs", "ca.pem")
+	s.alternativeBundle, err = util.LoadCert(s.alternativeBundlePath)
+	require.NoError(err)
 }
 
 func (s *Suite) TestAttestSuccess() {
@@ -63,19 +72,31 @@ func (s *Suite) TestAttestSuccess() {
 		expectAgentID string
 	}{
 		{
-			desc:          "default success",
+			desc:          "default success (ca_bundle_path)",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
+			giveConfig:    s.createConfiguration("ca_bundle_path", ""),
 		},
 		{
-			desc:          "success with custom agent id",
-			giveConfig:    `agent_path_template = "/cn/{{ .Subject.CommonName }}"`,
+			desc:          "success with custom agent id (ca_bundle_path)",
 			expectAgentID: "spiffe://example.org/spire/agent/cn/some%20common%20name",
+			giveConfig:    s.createConfiguration("ca_bundle_path", `agent_path_template = "/cn/{{ .Subject.CommonName }}"`),
+		},
+		{
+			desc:          "default success (ca_bundle_paths)",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
+			giveConfig:    s.createConfiguration("ca_bundle_path", ""),
+		},
+		{
+			desc:          "success with custom agent id (ca_bundle_paths)",
+			expectAgentID: "spiffe://example.org/spire/agent/cn/some%20common%20name",
+			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/cn/{{ .Subject.CommonName }}"`),
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt // alias loop variable as it is used in the closure
 		s.T().Run(tt.desc, func(t *testing.T) {
+			log.Printf("Test %q - conf : %s", tt.desc, tt.giveConfig)
 			s.configure(tt.giveConfig)
 
 			require := s.Require()
@@ -178,7 +199,7 @@ func (s *Suite) TestAttestFailure() {
 		"x509pop: not configured")
 
 	// now configure
-	s.configure("")
+	s.configure(s.createConfiguration("ca_bundle_path", ""))
 
 	// unexpected data type
 	attestFails(&common.AttestationData{Type: "foo"},
@@ -243,18 +264,39 @@ func (s *Suite) TestConfigure() {
 	require.EqualError(err, "x509pop: trust_domain is required")
 	require.Nil(resp)
 
-	// missing ca_bundle_path
+	// missing ca_bundle_path and ca_bundle_paths
 	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	require.EqualError(err, "x509pop: ca_bundle_path is required")
+	require.EqualError(err, "x509pop: ca_bundle_path or ca_bundle_paths must be configured")
 	require.Nil(resp)
 
-	// bad trust bundle
+	// ca_bundle_path and ca_bundle_path configured
 	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 		ca_bundle_path = "blah"
+		ca_bundle_paths = ["blah"]
+		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	require.EqualError(err, "x509pop: only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
+	require.Nil(resp)
+
+	// bad ca_bundle_path
+	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		ca_bundle_path = "blah"
+		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.errorContains(err, "x509pop: unable to load trust bundle")
+	require.Nil(resp)
+
+	// bad ca_bundle_paths
+	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		ca_bundle_paths = ["blah"]
 		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
@@ -272,16 +314,35 @@ func (s *Suite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) configure(extraConfig string) {
+func (s *Suite) configure(config string) {
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-ca_bundle_path = %q
-%s
-`, s.rootCertPath, extraConfig),
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+		Configuration: config,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+}
+
+func (s *Suite) createConfiguration(bundlePathType, extraConfig string) string {
+	switch bundlePathType {
+	case "ca_bundle_path":
+		return fmt.Sprintf(`
+ca_bundle_path = %q 
+%s
+`, s.rootCertPath, extraConfig)
+
+	case "ca_bundle_paths":
+		bundlesPath := fmt.Sprintf("[%q,%q]", s.alternativeBundlePath, s.rootCertPath)
+		return fmt.Sprintf(`
+ca_bundle_paths = %s 
+%s
+`, bundlesPath, extraConfig)
+
+	default:
+		s.FailNow("Unsupported bundle path type", "type=%q", bundlePathType)
+	}
+
+	return ""
 }
 
 func (s *Suite) attest() (nodeattestor.NodeAttestor_AttestClient, func()) {
