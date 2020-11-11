@@ -51,7 +51,7 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context
 	return a.cache.GetAuthorizedEntries(agentID), nil
 }
 
-// Run starts a ticker which rebuilds the in-memory entry cache.
+// RunRebuildCacheTask starts a ticker which rebuilds the in-memory entry cache.
 func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Context) error {
 	t := a.clk.Ticker(cacheReloadInterval)
 	defer t.Stop()

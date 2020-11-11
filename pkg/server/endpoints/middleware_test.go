@@ -64,8 +64,8 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log := logrus.New()
 	log.Out = ioutil.Discard
-	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
+	ds := fakedatastore.New(t)
 	clk := clock.NewMock(t)
 
 	e := createAuthorizedEntryTestData(t, ds)

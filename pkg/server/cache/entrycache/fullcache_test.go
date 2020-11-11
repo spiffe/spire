@@ -128,6 +128,7 @@ func TestCache(t *testing.T) {
 	assert.NoError(t, err)
 
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
+
 	assert.Equal(t, expected, actual)
 }
 
@@ -409,6 +410,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 
 	c, err := BuildFromDataStore(ctx, ds)
 	require.NoError(t, err)
+	require.NotNil(t, c)
 
 	entries := c.GetAuthorizedEntries(expiredAgentID)
 	require.Len(t, entries, 1)
