@@ -147,7 +147,13 @@ func TestFetchX509SVID(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			runTest(t, testParams{CA: ca, Updates: tt.updates, AttestErr: tt.attestErr, ExpectLogs: tt.expectLogs},
+			params := testParams{
+				CA:         ca,
+				Updates:    tt.updates,
+				AttestErr:  tt.attestErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
 					stream, err := client.FetchX509SVID(ctx, &workloadPB.X509SVIDRequest{})
 					require.NoError(t, err)
@@ -172,6 +178,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		spiffeID       string
 		audience       []string
 		attestErr      error
+		managerErr     error
 		expectCode     codes.Code
 		expectMsg      string
 		expectTokenIDs []spiffeid.ID
@@ -228,6 +235,28 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 		{
+			name:     "fetch error",
+			audience: []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+			},
+			managerErr: errors.New("ohno"),
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not fetch JWT-SVID: ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not fetch JWT-SVID",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTSVID",
+						"registered":    "true",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
 			name: "success all",
 			identities: []cache.Identity{
 				identityFromX509SVID(x509SVID1),
@@ -251,7 +280,14 @@ func TestFetchJWTSVID(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			runTest(t, testParams{CA: ca, Identities: tt.identities, AttestErr: tt.attestErr, ExpectLogs: tt.expectLogs},
+			params := testParams{
+				CA:         ca,
+				Identities: tt.identities,
+				AttestErr:  tt.attestErr,
+				ManagerErr: tt.managerErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
 					resp, err := client.FetchJWTSVID(ctx, &workloadPB.JWTSVIDRequest{
 						SpiffeId: tt.spiffeID,
@@ -298,14 +334,13 @@ func TestFetchJWTBundles(t *testing.T) {
 	federatedBundleJWKS = indent(federatedBundleJWKS)
 
 	for _, tt := range []struct {
-		name        string
-		overrideCtx context.Context
-		updates     []*cache.WorkloadUpdate
-		attestErr   error
-		expectCode  codes.Code
-		expectMsg   string
-		expectResp  *workloadPB.JWTBundlesResponse
-		expectLogs  []spiretest.LogEntry
+		name       string
+		updates    []*cache.WorkloadUpdate
+		attestErr  error
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *workloadPB.JWTBundlesResponse
+		expectLogs []spiretest.LogEntry
 	}{
 		{
 			name:       "no identity issued",
@@ -365,7 +400,13 @@ func TestFetchJWTBundles(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			runTest(t, testParams{CA: ca, Updates: tt.updates, AttestErr: tt.attestErr, ExpectLogs: tt.expectLogs},
+			params := testParams{
+				CA:         ca,
+				Updates:    tt.updates,
+				AttestErr:  tt.attestErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
 					stream, err := client.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
 					require.NoError(t, err)
@@ -516,7 +557,12 @@ func TestValidateJWTSVID(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			runTest(t, testParams{Updates: tt.updates, AttestErr: tt.attestErr, ExpectLogs: tt.expectLogs},
+			params := testParams{
+				Updates:    tt.updates,
+				AttestErr:  tt.attestErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
 					resp, err := client.ValidateJWTSVID(ctx, &workloadPB.ValidateJWTSVIDRequest{
 						Svid:     tt.svid,
@@ -537,6 +583,7 @@ type testParams struct {
 	Identities []cache.Identity
 	Updates    []*cache.WorkloadUpdate
 	AttestErr  error
+	ManagerErr error
 	ExpectLogs []spiretest.LogEntry
 }
 
@@ -547,6 +594,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		ca:         params.CA,
 		identities: params.Identities,
 		updates:    params.Updates,
+		err:        params.ManagerErr,
 	}
 
 	handler := workload.New(workload.Config{
@@ -591,6 +639,7 @@ type FakeManager struct {
 	identities  []cache.Identity
 	updates     []*cache.WorkloadUpdate
 	subscribers int32
+	err         error
 }
 
 func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
@@ -599,6 +648,9 @@ func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.I
 
 func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
 	svid := m.ca.CreateJWTSVID(spiffeid.RequireFromString(spiffeID), audience)
+	if m.err != nil {
+		return nil, m.err
+	}
 	return &client.JWTSVID{
 		Token: svid.Marshal(),
 	}, nil
@@ -614,10 +666,6 @@ func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.W
 		return &cache.WorkloadUpdate{}
 	}
 	return m.updates[0]
-}
-
-func (m *FakeManager) CountSVIDs() int {
-	return 0
 }
 
 func (m *FakeManager) Subscribers() int {

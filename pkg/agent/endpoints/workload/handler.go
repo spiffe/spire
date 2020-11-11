@@ -83,8 +83,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
 	}
 
-	log = log.WithField(telemetry.Count, len(spiffeIDs))
-
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
