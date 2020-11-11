@@ -8,7 +8,6 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
@@ -40,15 +39,13 @@ type configuration struct {
 
 type Config struct {
 	CABundlePath      string   `hcl:"ca_bundle_path"`
-	CABundlesPath     []string `hcl:"ca_bundles_path"`
+	CABundlePaths     []string `hcl:"ca_bundle_paths"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
 }
 
 type Plugin struct {
 	m sync.Mutex
 	c *configuration
-
-	log hclog.Logger
 }
 
 func New() *Plugin {
@@ -160,7 +157,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		return nil, newError("trust_domain is required")
 	}
 
-	bundles, err := getBundles(p.log, config)
+	bundles, err := getBundles(config)
 	if err != nil {
 		return nil, err
 	}
@@ -183,19 +180,18 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	return &spi.ConfigureResponse{}, nil
 }
 
-func getBundles(log hclog.Logger, config *Config) ([]*x509.Certificate, error) {
+func getBundles(config *Config) ([]*x509.Certificate, error) {
 	var caPaths []string
 
 	switch {
-	case config.CABundlePath != "" && len(config.CABundlesPath) > 0:
-		return nil, newError("only one of ca_bundle_path or ca_bundles_path can be configured, not both")
+	case config.CABundlePath != "" && len(config.CABundlePaths) > 0:
+		return nil, newError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
 	case config.CABundlePath != "":
-		log.Warn("ca_bundle_path is deprecated, please use ca_bundles_path instead")
 		caPaths = append(caPaths, config.CABundlePath)
-	case len(config.CABundlesPath) > 0:
-		caPaths = append(caPaths, config.CABundlesPath...)
+	case len(config.CABundlePaths) > 0:
+		caPaths = append(caPaths, config.CABundlePaths...)
 	default:
-		return nil, newError("ca_bundles_path must be configured")
+		return nil, newError("ca_bundle_path or ca_bundle_paths must be configured")
 	}
 
 	var cas []*x509.Certificate
@@ -212,11 +208,6 @@ func getBundles(log hclog.Logger, config *Config) ([]*x509.Certificate, error) {
 
 func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
-}
-
-// SetLogger sets this plugin's logger
-func (p *Plugin) SetLogger(log hclog.Logger) {
-	p.log = log
 }
 
 func (p *Plugin) getConfiguration() *configuration {
