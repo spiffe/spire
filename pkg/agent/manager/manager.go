@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
@@ -69,6 +70,15 @@ type Manager interface {
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
 	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
+
+	// CountSVIDs returns the amount of X509 SVIDs on memory
+	CountSVIDs() int
+
+	// GetLastSync returns the last successful rotation timestamp
+	GetLastSync() time.Time
+
+	// GetBundle get latest cached bundle
+	GetBundle() *cache.Bundle
 }
 
 type manager struct {
@@ -90,6 +100,9 @@ type manager struct {
 	client client.Client
 
 	clk clock.Clock
+
+	// Saves last success sync
+	lastSync time.Time
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
@@ -162,6 +175,10 @@ func (m *manager) MatchingIdentities(selectors []*common.Selector) []cache.Ident
 	return m.cache.MatchingIdentities(selectors)
 }
 
+func (m *manager) CountSVIDs() int {
+	return m.cache.CountSVIDs()
+}
+
 // FetchWorkloadUpdates gets the latest workload update for the selectors
 func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
 	return m.cache.FetchWorkloadUpdate(selectors)
@@ -191,7 +208,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	case rotationutil.JWTSVIDExpired(cachedSVID, now):
 		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
 	default:
-		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("unable to renew JWT; returning cached copy")
+		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("Unable to renew JWT; returning cached copy")
 		return cachedSVID, nil
 	}
 
@@ -230,6 +247,27 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 	}
 }
 
+func (m *manager) setLastSync() {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	m.lastSync = m.clk.Now()
+}
+
+func (m *manager) GetLastSync() time.Time {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	return m.lastSync
+}
+
+func (m *manager) GetBundle() *cache.Bundle {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	return m.cache.Bundle()
+}
+
 func (m *manager) runSVIDObserver(ctx context.Context) error {
 	svidStream := m.SubscribeToSVIDChanges()
 	for {
@@ -241,7 +279,7 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 
 			err := m.storePrivateKey(ctx, s.Key)
 			if err != nil {
-				m.c.Log.WithError(err).Error("failed to store private key")
+				m.c.Log.WithError(err).Error("Failed to store private key")
 				continue
 			}
 
@@ -266,7 +304,7 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 func (m *manager) storeSVID(svidChain []*x509.Certificate) {
 	err := StoreSVID(m.svidCachePath, svidChain)
 	if err != nil {
-		m.c.Log.WithError(err).Warn("could not store SVID")
+		m.c.Log.WithError(err).Warn("Could not store SVID")
 	}
 }
 
@@ -277,7 +315,7 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	}
 	err := StoreBundle(m.bundleCachePath, rootCAs)
 	if err != nil {
-		m.c.Log.WithError(err).Error("could not store bundle")
+		m.c.Log.WithError(err).Error("Could not store bundle")
 	}
 }
 

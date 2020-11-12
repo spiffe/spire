@@ -198,12 +198,12 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 
 		// if the container was not located after the maximum number of attempts then the search is over.
 		if attempt >= config.MaxPollAttempts {
-			log.Warn("container id not found; giving up")
+			log.Warn("Container id not found; giving up")
 			return nil, k8sErr.New("no selectors found")
 		}
 
 		// wait a bit for containers to initialize before trying again.
-		log.Warn("container id not found", telemetry.RetryInterval, config.PollRetryInterval)
+		log.Warn("Container id not found", telemetry.RetryInterval, config.PollRetryInterval)
 
 		select {
 		case <-p.clock.After(config.PollRetryInterval):
@@ -596,7 +596,7 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			log.Printf("malformed container id %q: %v", status.ContainerID, err)
+			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
 			continue
 		}
 
@@ -614,7 +614,7 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			log.Printf("malformed container id %q: %v", status.ContainerID, err)
+			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
 			continue
 		}
 

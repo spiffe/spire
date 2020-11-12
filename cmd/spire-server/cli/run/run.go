@@ -230,7 +230,7 @@ func (cmd *Command) Run(args []string) int {
 
 	err = s.Run(ctx)
 	if err != nil {
-		c.Log.WithError(err).Error("server crashed")
+		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
 
@@ -431,7 +431,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if !hasExpectedTTLs(sc.CATTL, sc.SVIDTTL) {
-		sc.Log.Warnf("The configured SVID TTL cannot be guaranteed in all cases - SVIDs with shorter TTLs may be issued if the signing key is expiring soon. Set a CA TTL of at least 6x or reduce SVID TTL below 6x to avoid issuing SVIDs with a smaller TTL than specified.")
+		sc.Log.Warnf("The configured SVID TTL cannot be guaranteed in all cases - SVIDs with shorter TTLs may be issued if the signing key is expiring soon. Set a CA TTL of at least 6x or reduce SVID TTL below 6x to avoid issuing SVIDs with a smaller TTL than specified")
 	}
 
 	if c.Server.CAKeyType != "" {

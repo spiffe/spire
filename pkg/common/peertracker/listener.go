@@ -78,14 +78,14 @@ func (l *Listener) Accept() (net.Conn, error) {
 		}
 
 		if err != nil {
-			l.log.WithError(err).Warn("Connection failed during accept.")
+			l.log.WithError(err).Warn("Connection failed during accept")
 			conn.Close()
 			continue
 		}
 
 		watcher, err := l.Tracker.NewWatcher(caller)
 		if err != nil {
-			l.log.WithError(err).Warn("Connection failed during accept.")
+			l.log.WithError(err).Warn("Connection failed during accept")
 			conn.Close()
 			continue
 		}

@@ -7,10 +7,11 @@ import (
 
 	"github.com/mitchellh/cli"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc"
 )
 
 func TestHealthCheck(t *testing.T) {
@@ -70,25 +71,27 @@ Usage of health:
 `, s.stderr.String(), "stderr")
 }
 
-func (s *HealthCheckSuite) TestFailsIfBundleCannotBeFetched() {
+func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
 	code := s.cmd.Run([]string{"--registrationUDSPath", "doesnotexist.sock"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal("Server is unhealthy: unable to fetch bundle\n", s.stderr.String(), "stderr")
+	s.Equal("Server is unhealthy: cannot create registration client\n", s.stderr.String(), "stderr")
 }
 
-func (s *HealthCheckSuite) TestFailsIfBundleCannotBeFetchedVerbose() {
+func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
 	code := s.cmd.Run([]string{"--registrationUDSPath", "doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
-	s.Equal(`Fetching bundle via Registration API...
+	s.Equal(`Fetching bundle via Bundle API...
 `, s.stdout.String(), "stdout")
-	s.Equal(`Failed to fetch bundle: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix doesnotexist.sock: connect: no such file or directory"
-Server is unhealthy: unable to fetch bundle
+	s.Equal(`Failed to create client: connection error: desc = "transport: error while dialing: dial unix doesnotexist.sock: connect: no such file or directory"
+Server is unhealthy: cannot create registration client
 `, s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
-	socketPath := spiretest.StartRegistrationAPIOnTempSocket(s.T(), withBundle{})
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+		bundle.RegisterBundleServer(srv, withBundle{})
+	})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
@@ -96,10 +99,12 @@ func (s *HealthCheckSuite) TestSucceedsIfBundleFetched() {
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfBundleFetchedVerbose() {
-	socketPath := spiretest.StartRegistrationAPIOnTempSocket(s.T(), withBundle{})
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+		bundle.RegisterBundleServer(srv, withBundle{})
+	})
 	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath, "--verbose"})
 	s.Equal(0, code, "exit code")
-	s.Equal(`Fetching bundle via Registration API...
+	s.Equal(`Fetching bundle via Bundle API...
 Successfully fetched bundle.
 Server is healthy.
 `, s.stdout.String(), "stdout")
@@ -107,9 +112,9 @@ Server is healthy.
 }
 
 type withBundle struct {
-	registration.RegistrationServer
+	bundle.BundleServer
 }
 
-func (withBundle) FetchBundle(context.Context, *common.Empty) (*registration.Bundle, error) {
-	return &registration.Bundle{}, nil
+func (withBundle) GetBundle(context.Context, *bundle.GetBundleRequest) (*types.Bundle, error) {
+	return &types.Bundle{}, nil
 }

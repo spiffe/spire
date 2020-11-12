@@ -38,33 +38,40 @@ func (c HCLPluginConfig) IsEnabled() bool {
 
 type HCLPluginConfigMap map[string]map[string]HCLPluginConfig
 
-func ParsePluginConfigFromHCL(config string) ([]PluginConfig, error) {
+func ParsePluginConfigsFromHCL(config string) ([]PluginConfig, error) {
 	var hclConfig HCLPluginConfigMap
 	if err := hcl.Decode(&hclConfig, config); err != nil {
 		return nil, errs.New("unable to decode plugin config: %v", err)
 	}
-	return PluginConfigFromHCL(hclConfig)
+	return PluginConfigsFromHCL(hclConfig)
 }
 
-func PluginConfigFromHCL(hclPlugins HCLPluginConfigMap) ([]PluginConfig, error) {
+func PluginConfigsFromHCL(hclPlugins HCLPluginConfigMap) ([]PluginConfig, error) {
 	var pluginConfigs []PluginConfig
 	for pluginType, pluginsForType := range hclPlugins {
 		for pluginName, hclPluginConfig := range pluginsForType {
-			var data bytes.Buffer
-			if err := printer.DefaultConfig.Fprint(&data, hclPluginConfig.PluginData); err != nil {
+			pluginConfig, err := PluginConfigFromHCL(pluginType, pluginName, hclPluginConfig)
+			if err != nil {
 				return nil, err
 			}
-
-			pluginConfigs = append(pluginConfigs, PluginConfig{
-				Name:     pluginName,
-				Type:     pluginType,
-				Path:     hclPluginConfig.PluginCmd,
-				Checksum: hclPluginConfig.PluginChecksum,
-				Data:     data.String(),
-				Disabled: !hclPluginConfig.IsEnabled(),
-			})
+			pluginConfigs = append(pluginConfigs, pluginConfig)
 		}
 	}
-
 	return pluginConfigs, nil
+}
+
+func PluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig HCLPluginConfig) (PluginConfig, error) {
+	var data bytes.Buffer
+	if err := printer.DefaultConfig.Fprint(&data, hclPluginConfig.PluginData); err != nil {
+		return PluginConfig{}, err
+	}
+
+	return PluginConfig{
+		Name:     pluginName,
+		Type:     pluginType,
+		Path:     hclPluginConfig.PluginCmd,
+		Checksum: hclPluginConfig.PluginChecksum,
+		Data:     data.String(),
+		Disabled: !hclPluginConfig.IsEnabled(),
+	}, nil
 }

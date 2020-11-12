@@ -29,6 +29,7 @@ import (
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 	agentv1_pb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlev1_pb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	debugv1_pb "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	entryv1_pb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	svidv1_pb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 )
@@ -69,6 +70,7 @@ type OldAPIServers struct {
 type APIServers struct {
 	AgentServer  agentv1_pb.AgentServer
 	BundleServer bundlev1_pb.BundleServer
+	DebugServer  debugv1_pb.DebugServer
 	EntryServer  entryv1_pb.EntryServer
 	SVIDServer   svidv1_pb.SVIDServer
 }
@@ -86,11 +88,6 @@ func New(c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
-	apiServers, err := c.makeAPIServers()
-	if err != nil {
-		return nil, err
-	}
-
 	return &Endpoints{
 		TCPAddr:              c.TCPAddr,
 		UDSAddr:              c.UDSAddr,
@@ -98,7 +95,7 @@ func New(c Config) (*Endpoints, error) {
 		TrustDomain:          c.TrustDomain,
 		DataStore:            c.Catalog.GetDataStore(),
 		OldAPIServers:        oldAPIServers,
-		APIServers:           apiServers,
+		APIServers:           c.makeAPIServers(),
 		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
 		Log:                  c.Log,
 		Metrics:              c.Metrics,
@@ -132,6 +129,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	entryv1_pb.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
 	svidv1_pb.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
 	svidv1_pb.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
+	// Register Debug API only on UDS server
+	debugv1_pb.RegisterDebugServer(udsServer, e.APIServers.DebugServer)
 
 	tasks := []func(context.Context) error{
 		func(ctx context.Context) error {
@@ -196,7 +195,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		e.Log.Info("Stopping TCP server")
 		server.Stop()
 		<-errChan
-		e.Log.Info("TCP server has stopped.")
+		e.Log.Info("TCP server has stopped")
 		return nil
 	}
 }
@@ -229,7 +228,7 @@ func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 		e.Log.Info("Stopping UDS server")
 		server.Stop()
 		<-errChan
-		e.Log.Info("UDS server has stopped.")
+		e.Log.Info("UDS server has stopped")
 		return nil
 	}
 }

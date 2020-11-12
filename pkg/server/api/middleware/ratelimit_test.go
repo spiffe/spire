@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/test/clock"
@@ -28,6 +29,17 @@ func TestNoLimit(t *testing.T) {
 	require.NoError(t, m.RateLimit(context.Background(), 99))
 
 	// There should be no rate limiters configured as NoLimit() doesn't use one.
+	assert.Equal(t, 0, limiters.Count)
+}
+
+func TestDisabledLimit(t *testing.T) {
+	limiters := NewFakeLimiters()
+
+	// DisabledLimit() does not do rate limiting and should succeed.
+	m := DisabledLimit()
+	require.NoError(t, m.RateLimit(context.Background(), 99))
+
+	// There should be no rate limiters configured as DisabledLimit() doesn't use one.
 	assert.Equal(t, 0, limiters.Count)
 }
 
@@ -189,7 +201,24 @@ func TestRateLimits(t *testing.T) {
 			},
 		},
 		{
-			name:       "does not when rate limiter not used by unlimited handler",
+			name:           "does not log when handler with disabled limit tries to rate limit",
+			method:         "/fake.Service/DisabledLimit",
+			rateLimitCount: 1,
+			expectCode:     codes.OK,
+		},
+		{
+			name:       "logs when handler with disabled limit does not rate limit",
+			method:     "/fake.Service/DisabledLimit",
+			expectCode: codes.OK,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Disabled rate limiter went unused; this is a bug",
+				},
+			},
+		},
+		{
+			name:       "does not log when rate limiter not used by unlimited handler",
 			method:     "/fake.Service/NoLimit",
 			expectCode: codes.OK,
 		},
@@ -227,16 +256,17 @@ func TestRateLimits(t *testing.T) {
 				return struct{}{}, nil
 			}
 
-			unaryInterceptor := UnaryInterceptor(Chain(
+			unaryInterceptor := middleware.UnaryInterceptor(middleware.Chain(
 				WithRateLimits(
 					map[string]api.RateLimiter{
-						"/fake.Service/NoLimit":   NoLimit(),
-						"/fake.Service/WithLimit": PerCallLimit(2),
+						"/fake.Service/NoLimit":       NoLimit(),
+						"/fake.Service/DisabledLimit": DisabledLimit(),
+						"/fake.Service/WithLimit":     PerCallLimit(2),
 					},
 				),
 				// Install a middleware downstream so that we can test what
 				// happens in postprocess if the handler is never invoked.
-				Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+				middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
 					return ctx, tt.downstreamErr
 				}),
 			))

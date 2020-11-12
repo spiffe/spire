@@ -157,7 +157,7 @@ func (s *CatalogSuite) TestNoKnownService() {
 	// assert we logged a message about the unknown service
 	s.assertHasLogEntry(testLogEntry{
 		Level:   logrus.WarnLevel,
-		Message: "Unknown service type.",
+		Message: "Unknown service type",
 		Data: logrus.Fields{
 			telemetry.PluginService: "Service",
 		},
@@ -177,7 +177,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 	s.assertHasLogEntries([]testLogEntry{
 		{
 			Level:   logrus.WarnLevel,
-			Message: "Host service not available.",
+			Message: "Host service not available",
 			Data: logrus.Fields{
 				"@module":        "pluginimpl",
 				"hostservice":    "HostService",
@@ -186,7 +186,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 		},
 		{
 			Level:   logrus.WarnLevel,
-			Message: "Host service not available.",
+			Message: "Host service not available",
 			Data: logrus.Fields{
 				"@module":        "serviceimpl",
 				"hostservice":    "HostService",
@@ -320,12 +320,30 @@ func (s *CatalogSuite) TestPluginsFill() {
 			},
 		},
 		{
+			"ignore struct tag",
+			func(r *require.Assertions) {
+				c := &struct {
+					IgnoreMe struct{} `catalog:"-"`
+				}{}
+				r.NoError(ps.Fill(c))
+			},
+		},
+		{
+			"unexpected value on ignore tag",
+			func(r *require.Assertions) {
+				c := &struct {
+					IgnoreMe struct{} `catalog:"-=bad"`
+				}{}
+				r.EqualError(ps.Fill(c), `unable to set catalog field "IgnoreMe": not expecting key=value for catalog tag value "-=bad"`)
+			},
+		},
+		{
 			"bad struct tag",
 			func(r *require.Assertions) {
 				c := &struct {
 					Plugins []catalogtest.Plugin `catalog:"BAD"`
 				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "BAD"`)
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": unrecognized catalog tag key "BAD"`)
 			},
 		},
 		{
@@ -335,6 +353,15 @@ func (s *CatalogSuite) TestPluginsFill() {
 					Plugins []catalogtest.Plugin `catalog:"min=BAD"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": invalid catalog tag min value "BAD"`)
+			},
+		},
+		{
+			"min struct tag without value",
+			func(r *require.Assertions) {
+				c := &struct {
+					Plugins []catalogtest.Plugin `catalog:"min"`
+				}{}
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "min"`)
 			},
 		},
 		{
@@ -353,6 +380,15 @@ func (s *CatalogSuite) TestPluginsFill() {
 					Plugins []catalogtest.Plugin `catalog:"max=BAD"`
 				}{}
 				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": invalid catalog tag max value "BAD"`)
+			},
+		},
+		{
+			"max struct tag without value",
+			func(r *require.Assertions) {
+				c := &struct {
+					Plugins []catalogtest.Plugin `catalog:"max"`
+				}{}
+				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "max"`)
 			},
 		},
 		{
@@ -774,7 +810,7 @@ func extInitLogs(module string) []testLogEntry {
 	return []testLogEntry{
 		{
 			Level:   logrus.InfoLevel,
-			Message: "Configure called.",
+			Message: "Configure called",
 			Data: logrus.Fields{
 				"@module":               module,
 				"config":                "CONFIG",
@@ -784,7 +820,7 @@ func extInitLogs(module string) []testLogEntry {
 		},
 		{
 			Level:   logrus.InfoLevel,
-			Message: "Plugin loaded.",
+			Message: "Plugin loaded",
 			Data: logrus.Fields{
 				telemetry.PluginBuiltIn:  false,
 				telemetry.PluginName:     "testext",

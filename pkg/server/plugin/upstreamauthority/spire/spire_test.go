@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
+	"github.com/golang/protobuf/proto"
 	w_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/types"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/util"
@@ -47,7 +48,6 @@ const (
 
 var (
 	ctx         = context.Background()
-	mockClock   = clock.NewMock()
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.com")
 )
 
@@ -59,7 +59,7 @@ type handler struct {
 	addr   string
 
 	bundleMtx sync.RWMutex
-	bundle    types.Bundle
+	bundle    *types.Bundle
 
 	ca   *testca.CA
 	cert []*x509.Certificate
@@ -169,7 +169,7 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 		})
 	}
 
-	h.setBundle(types.Bundle{
+	h.setBundle(&types.Bundle{
 		TrustDomain:     p.TrustDomainId,
 		RefreshHint:     p.RefreshHint,
 		JwtAuthorities:  jwtAuthorities,
@@ -177,25 +177,27 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 	})
 }
 
-func (h *handler) appendKey(key *types.JWTKey) {
+func (h *handler) appendKey(key *types.JWTKey) *types.Bundle {
 	h.bundleMtx.Lock()
 	defer h.bundleMtx.Unlock()
 	h.bundle.JwtAuthorities = append(h.bundle.JwtAuthorities, key)
+	return cloneBundle(h.bundle)
 }
 
-func (h *handler) appendRootCA(rootCA *types.X509Certificate) {
+func (h *handler) appendRootCA(rootCA *types.X509Certificate) *types.Bundle {
 	h.bundleMtx.Lock()
 	defer h.bundleMtx.Unlock()
 	h.bundle.X509Authorities = append(h.bundle.X509Authorities, rootCA)
+	return cloneBundle(h.bundle)
 }
 
-func (h *handler) getBundle() types.Bundle {
+func (h *handler) getBundle() *types.Bundle {
 	h.bundleMtx.RLock()
 	defer h.bundleMtx.RUnlock()
-	return h.bundle
+	return cloneBundle(h.bundle)
 }
 
-func (h *handler) setBundle(b types.Bundle) {
+func (h *handler) setBundle(b *types.Bundle) {
 	h.bundleMtx.Lock()
 	defer h.bundleMtx.Unlock()
 	h.bundle = b
@@ -235,8 +237,7 @@ func (h *handler) GetBundle(context.Context, *bundle.GetBundleRequest) (*types.B
 	if h.err != nil {
 		return nil, h.err
 	}
-	b := h.getBundle()
-	return &b, nil
+	return h.getBundle(), nil
 }
 
 func (h *handler) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
@@ -244,9 +245,9 @@ func (h *handler) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJW
 		return nil, h.err
 	}
 
-	h.appendKey(req.JwtAuthority)
+	b := h.appendKey(req.JwtAuthority)
 	return &bundle.PublishJWTAuthorityResponse{
-		JwtAuthorities: h.getBundle().JwtAuthorities,
+		JwtAuthorities: b.JwtAuthorities,
 	}, nil
 }
 
@@ -312,7 +313,7 @@ func TestSpirePlugin_Configure(t *testing.T) {
 }
 
 func TestSpirePlugin_GetPluginInfo(t *testing.T) {
-	m := newWithDefault(t, "", "")
+	m, _ := newWithDefault(t, "", "")
 
 	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
@@ -437,7 +438,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 				socketPath = c.customSocketPath
 			}
 
-			p := newWithDefault(t, serverAddr, socketPath)
+			p, mockClock := newWithDefault(t, serverAddr, socketPath)
 
 			// Send initial request and get stream
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -464,9 +465,11 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, isEqual)
 
-			// Update bundle to trigger another response
+			// Update bundle to trigger another response. Move time forward at
+			// the upstream poll frequency twice to ensure the plugin picks up
+			// the change to the bundle.
 			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: []byte("new-root-bytes")})
-			// Move clock forward to avoid slow down tests
+			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(internalPollFreq)
 
@@ -498,7 +501,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	// Setup servers
 	server := testHandler{}
 	server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
-	p := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.socketPath)
+	p, mockClock := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.socketPath)
 
 	// Send initial request and get stream
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -519,9 +522,11 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	assert.Equal(t, firstResp.UpstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
 	assert.Equal(t, firstResp.UpstreamJwtKeys[2].Kid, "kid-2")
 
-	// Update bundle to trigger another response
+	// Update bundle to trigger another response. Move time forward at the
+	// upstream poll frequency twice to ensure the plugin picks up the change
+	// to the bundle.
 	server.sAPIServer.appendKey(&types.JWTKey{KeyId: "kid-3"})
-	// Move clock forward to avoid slow down tests
+	mockClock.Add(upstreamPollFreq)
 	mockClock.Add(upstreamPollFreq)
 	mockClock.Add(internalPollFreq)
 
@@ -555,7 +560,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	require.EqualError(t, err, "rpc error: code = Unknown desc = some error")
 }
 
-func newWithDefault(t *testing.T, addr string, socketPath string) upstreamauthority.Plugin {
+func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, *clock.Mock) {
 	host, port, _ := net.SplitHostPort(addr)
 
 	config := Configuration{
@@ -578,7 +583,13 @@ func newWithDefault(t *testing.T, addr string, socketPath string) upstreamauthor
 		require.NoError(t, err)
 	}
 
+	mockClock := clock.NewMock(t)
+
 	clk = mockClock
 
-	return plugin
+	return plugin, mockClock
+}
+
+func cloneBundle(b *types.Bundle) *types.Bundle {
+	return proto.Clone(b).(*types.Bundle)
 }

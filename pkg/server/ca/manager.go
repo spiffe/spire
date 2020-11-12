@@ -727,7 +727,7 @@ func (m *Manager) notifyOnBundleUpdate(ctx context.Context) {
 		select {
 		case <-m.bundleUpdatedCh:
 			if err := m.notifyBundleUpdated(ctx); err != nil {
-				m.c.Log.WithError(err).Warn("failed to notify on bundle update")
+				m.c.Log.WithError(err).Warn("Failed to notify on bundle update")
 			}
 		case <-ctx.Done():
 			return

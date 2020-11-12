@@ -52,7 +52,7 @@ func ACMEAuth(log logrus.FieldLogger, km keymanager.KeyManager, config ACMEConfi
 	}
 
 	if !config.ToSAccepted {
-		log.Warn("ACME Terms of Service have not been accepted. See the `tos_accepted` configurable.")
+		log.Warn("ACME Terms of Service have not been accepted. See the `tos_accepted` configurable")
 	}
 
 	return &acmeAuth{
@@ -67,7 +67,7 @@ func ACMEAuth(log logrus.FieldLogger, km keymanager.KeyManager, config ACMEConfi
 					tosLog.Info("ACME Terms of Service accepted")
 					return true
 				}
-				tosLog.Warn("ACME Terms of Service have not been accepted. See the `tos_accepted` configurable.")
+				tosLog.Warn("ACME Terms of Service have not been accepted. See the `tos_accepted` configurable")
 				return false
 			},
 			Email:      config.Email,

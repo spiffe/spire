@@ -1,821 +1,765 @@
-package workload
+package workload_test
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"crypto/x509"
-	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	structpb "github.com/golang/protobuf/ptypes/struct"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	workloadPB "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/jwtsvid"
-	"github.com/spiffe/spire/pkg/common/peertracker"
-	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
-	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
-	mock_manager "github.com/spiffe/spire/test/mock/agent/manager"
-	mock_cache "github.com/spiffe/spire/test/mock/agent/manager/cache"
-	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
-	mock_workload "github.com/spiffe/spire/test/mock/proto/api/workload"
 	"github.com/spiffe/spire/test/spiretest"
-	"github.com/spiffe/spire/test/util"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 )
 
 var (
-	jwtSigningKey, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGZx/yLVskGyXAyIT
-uDe7PI1X4Dt1boMWfysKPyOJeMuhRANCAARzgo1R4J4xtjGpmGFNl2KADaxDpgx3
-KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
------END PRIVATE KEY-----
-`))
+	td  = spiffeid.RequireTrustDomainFromString("domain.test")
+	td2 = spiffeid.RequireTrustDomainFromString("domain2.test")
 )
 
-func TestHandler(t *testing.T) {
-	spiretest.Run(t, new(HandlerTestSuite))
-}
-
-type HandlerTestSuite struct {
-	spiretest.Suite
-
-	h    *Handler
-	ctrl *gomock.Controller
-
-	attestor *fakeworkloadattestor.WorkloadAttestor
-	manager  *mock_manager.MockManager
-	metrics  *mock_telemetry.MockMetrics
-}
-
-func (s *HandlerTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(s.T())
-	log, _ := test.NewNullLogger()
-
-	s.attestor = fakeworkloadattestor.New()
-	s.manager = mock_manager.NewMockManager(mockCtrl)
-	s.metrics = mock_telemetry.NewMockMetrics(mockCtrl)
-
-	catalog := fakeagentcatalog.New()
-	catalog.SetWorkloadAttestors(fakeagentcatalog.WorkloadAttestor("fake", s.attestor))
-
-	h := &Handler{
-		Manager: s.manager,
-		Catalog: catalog,
-		Log:     log,
-		Metrics: s.metrics,
-	}
-
-	s.h = h
-	s.ctrl = mockCtrl
-}
-
-func (s *HandlerTestSuite) TearDownTest() {
-	s.ctrl.Finish()
-}
-
-func (s *HandlerTestSuite) TestFetchX509SVID() {
-	// Without the security header
-	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(s.ctrl)
-	stream.EXPECT().Context().Return(context.Background())
-	err := s.h.FetchX509SVID(nil, stream)
-	s.Assert().Error(err)
-
-	// Without PID data
-	ctx := makeContext(0)
-	stream.EXPECT().Context().Return(ctx)
-	err = s.h.FetchX509SVID(nil, stream)
-	s.Assert().Error(err)
-
-	ctx, cancel := context.WithCancel(makeContext(1))
-	defer cancel()
-
-	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	subscriber := mock_cache.NewMockSubscriber(s.ctrl)
-	subscription := make(chan *cache.WorkloadUpdate)
-	subscriber.EXPECT().Updates().Return(subscription).AnyTimes()
-	subscriber.EXPECT().Finish()
-	result := make(chan error, 1)
-	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
-	stream.EXPECT().Send(gomock.Any())
-
-	statusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
-	labels := []telemetry.Label{
-		{Name: telemetry.SVIDType, Value: telemetry.X509},
-		statusLabel,
-	}
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
-		})
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
-	s.metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency, telemetry.Fetch}, gomock.Any())
-
-	go func() { result <- s.h.FetchX509SVID(nil, stream) }()
-
-	// Make sure it's still running...
-	select {
-	case err := <-result:
-		s.T().Errorf("hander exited immediately: %v", err)
-	case <-time.NewTimer(1 * time.Millisecond).C:
-	}
-
-	select {
-	case <-time.NewTimer(1 * time.Second).C:
-		s.T().Error("timeout sending update to workload handler")
-	case subscription <- s.workloadUpdate():
-	}
-
-	cancel()
-	select {
-	case err := <-result:
-		s.Assert().NoError(err)
-	case <-time.NewTimer(1 * time.Second).C:
-		s.T().Error("workload handler hung, shutdown timer exceeded")
-	}
-}
-
-func (s *HandlerTestSuite) TestSendX509Response() {
-	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(s.ctrl)
-	emptyUpdate := new(cache.WorkloadUpdate)
-	stream.EXPECT().Send(gomock.Any()).Times(0)
-
-	labels := []telemetry.Label{
-		{Name: telemetry.SVIDType, Value: telemetry.X509},
-		{Name: telemetry.Status, Value: codes.PermissionDenied.String()},
-	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
-
-	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.Metrics)
-	s.Assert().Error(err)
-
-	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
-	s.Require().NoError(err)
-	stream.EXPECT().Send(resp)
-
-	statusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	labels = []telemetry.Label{
-		{Name: telemetry.SVIDType, Value: telemetry.X509},
-		statusLabel,
-	}
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
-		})
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
-
-	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.Metrics)
-	s.Assert().NoError(err)
-}
-
-func (s *HandlerTestSuite) TestComposeX509Response() {
-	update := s.workloadUpdate()
-	keyData, err := x509.MarshalPKCS8PrivateKey(update.Identities[0].PrivateKey)
-	s.Require().NoError(err)
-
-	svidMsg := &workload.X509SVID{
-		SpiffeId:    "spiffe://example.org/foo",
-		X509Svid:    update.Identities[0].SVID[0].Raw,
-		X509SvidKey: keyData,
-		Bundle:      update.Bundle.RootCAs()[0].Raw,
-	}
-	apiMsg := &workload.X509SVIDResponse{
-		Svids: []*workload.X509SVID{svidMsg},
-		FederatedBundles: map[string][]byte{
-			"spiffe://otherdomain.test": update.Bundle.RootCAs()[0].Raw,
-		},
-	}
-
-	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
-	s.Assert().NoError(err)
-	s.Assert().Equal(apiMsg, resp)
-}
-
-func (s *HandlerTestSuite) TestFetchJWTSVID() {
-	audience := []string{"foo"}
-
-	// request missing audience
-	resp, err := s.h.FetchJWTSVID(context.Background(), &workload.JWTSVIDRequest{})
-	s.requireErrorContains(err, "audience must be specified")
-	s.Require().Nil(resp)
-
-	// missing security header
-	resp, err = s.h.FetchJWTSVID(context.Background(), &workload.JWTSVIDRequest{
-		Audience: audience,
-	})
-	s.requireErrorContains(err, "Security header missing from request")
-	s.Require().Nil(resp)
-
-	// missing peer info
-	resp, err = s.h.FetchJWTSVID(makeContext(0), &workload.JWTSVIDRequest{
-		Audience: audience,
-	})
-	s.requireErrorContains(err, "unable to fetch watcher from context")
-	s.Require().Nil(resp)
-
-	// no identity issued
-	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().MatchingIdentities(selectors).Return(nil)
-
-	statusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.PermissionDenied.String()}
-	attestorStatusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
-	labels := []telemetry.Label{
-		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
-	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
-
-	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
-		Audience: audience,
-	})
-	s.requireErrorContains(err, "no identity issued")
-	s.Require().Nil(resp)
-
-	// fetch SVIDs for all SPIFFE IDs
-	identities := []cache.Identity{
-		{
-			Entry: &common.RegistrationEntry{
-				SpiffeId: "spiffe://example.org/one",
-			},
-		},
-		{
-			Entry: &common.RegistrationEntry{
-				SpiffeId: "spiffe://example.org/two",
-			},
-		},
-	}
-	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
-	ONE := &client.JWTSVID{Token: "ONE"}
-	TWO := &client.JWTSVID{Token: "TWO"}
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/one", audience).Return(ONE, nil)
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
-
-	statusLabel = telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
-	labels = []telemetry.Label{
-		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
-	}
-
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{
-				Name: telemetry.SPIFFEID, Value: "spiffe://example.org/one",
-			},
-		})
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{
-				Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two",
-			},
-		})
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
-
-	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
-		Audience: audience,
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(&workload.JWTSVIDResponse{
-		Svids: []*workload.JWTSVID{
-			{
-				SpiffeId: "spiffe://example.org/one",
-				Svid:     "ONE",
-			},
-			{
-				SpiffeId: "spiffe://example.org/two",
-				Svid:     "TWO",
-			},
-		},
-	}, resp)
-
-	// fetch SVIDs for specific SPIFFE ID
-	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
-
-	statusLabel = telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
-	labels = []telemetry.Label{
-		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
-	}
-	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-		gomock.Any(),
-		[]telemetry.Label{
-			{
-				Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two",
-			},
-		})
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
-
-	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
-		SpiffeId: "spiffe://example.org/two",
-		Audience: audience,
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(&workload.JWTSVIDResponse{
-		Svids: []*workload.JWTSVID{
-			{
-				SpiffeId: "spiffe://example.org/two",
-				Svid:     "TWO",
-			},
-		},
-	}, resp)
-}
-
-func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsCount int, statusLabel telemetry.Label) {
-	attestationLabels := []telemetry.Label{{Name: telemetry.Status, Value: "OK"}}
-	attestorLabels := []telemetry.Label{{Name: telemetry.Attestor, Value: "fake"}, statusLabel}
-
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor}, float32(1), attestorLabels)
-	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestor, telemetry.ElapsedTime}, gomock.Any(), attestorLabels)
-	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(selectorsCount))
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestation}, float32(1), attestationLabels)
-	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestation, telemetry.ElapsedTime}, gomock.Any(), attestationLabels)
-	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connection}, float32(1))
-	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(1))
-	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(0))
-}
-
-func (s *HandlerTestSuite) TestFetchJWTBundles() {
-	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchJWTBundlesServer(s.ctrl)
-
-	// missing security header
-	stream.EXPECT().Context().Return(context.Background())
-	err := s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream)
-	s.requireErrorContains(err, "Security header missing from request")
-
-	// missing peer info
-	stream.EXPECT().Context().Return(makeContext(0))
-	err = s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream)
-	s.requireErrorContains(err, "unable to fetch watcher from context")
-
-	// success
-	ctx, cancel := context.WithCancel(makeContext(1))
-	defer cancel()
-	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	subscriber := mock_cache.NewMockSubscriber(s.ctrl)
-	subscription := make(chan *cache.WorkloadUpdate)
-	subscriber.EXPECT().Updates().Return(subscription).AnyTimes()
-	subscriber.EXPECT().Finish()
-	result := make(chan error, 1)
-	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
-	stream.EXPECT().Send(&workload.JWTBundlesResponse{
-		Bundles: map[string][]byte{
-			"spiffe://example.org":      []byte("{\n    \"keys\": null\n}"),
-			"spiffe://otherdomain.test": []byte("{\n    \"keys\": null\n}"),
-		},
-	})
-
-	statusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	setupMetricsCommonExpectations(s.metrics, len(selectors), statusLabel)
-	labels := []telemetry.Label{
-		{Name: telemetry.SVIDType, Value: telemetry.JWT},
-		statusLabel,
-	}
-	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, float32(1))
-	s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate, telemetry.JWT}, float32(1))
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, gomock.Any(), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles, telemetry.ElapsedTime}, gomock.Any(), labels)
-	s.metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, gomock.Any())
-
-	go func() { result <- s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream) }()
-
-	// Make sure it's still running...
-	select {
-	case err := <-result:
-		s.T().Errorf("hander exited immediately: %v", err)
-	case <-time.NewTimer(1 * time.Millisecond).C:
-	}
-
-	select {
-	case <-time.NewTimer(1 * time.Second).C:
-		s.T().Error("timeout sending update to workload handler")
-	case subscription <- s.workloadUpdate():
-	}
-
-	cancel()
-	select {
-	case err := <-result:
-		s.Assert().NoError(err)
-	case <-time.NewTimer(1 * time.Second).C:
-		s.T().Error("workload handler hung, shutdown timer exceeded")
-	}
-}
-
-func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
-	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
-	s.Require().NoError(err)
-
-	// no bundles in update
-	resp, err := s.h.composeJWTBundlesResponse(&cache.WorkloadUpdate{})
-	s.Require().NoError(err)
-	s.Require().Empty(resp.Bundles)
-
-	// bundles in update
-	hasKeysBundle, err := bundleutil.BundleFromProto(&common.Bundle{
-		TrustDomainId: "spiffe://has-keys.test",
-		JwtSigningKeys: []*common.PublicKey{
-			{
-				Kid:       "kid",
-				PkixBytes: pkixBytes,
-			},
-		},
-	})
-	s.Require().NoError(err)
-	noKeysBundle, err := bundleutil.BundleFromProto(&common.Bundle{
-		TrustDomainId: "spiffe://no-keys.test",
-	})
-	s.Require().NoError(err)
-	resp, err = s.h.composeJWTBundlesResponse(&cache.WorkloadUpdate{
-		Bundle: hasKeysBundle,
-		FederatedBundles: map[string]*bundleutil.Bundle{
-			"spiffe://no-keys.test": noKeysBundle,
-		},
-	})
-	s.Require().NoError(err)
-	s.Require().Len(resp.Bundles, 2)
-	s.JSONEq(`{
-		"keys": [
-			{
-				"kid":"kid",
-				"use":"jwt-svid",
-				"kty":"EC",
-				"crv":"P-256",
-				"x":"YSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw-5WKJwngEL0",
-				"y":"6z3PYuE4M8_a4kdyPzYkpZIETtVrMQbrKqQtvOI_XVw"
-			}
-		]
-	}`, string(resp.Bundles["spiffe://has-keys.test"]))
-	s.JSONEq(`{
-		"keys": null
-	}`, string(resp.Bundles["spiffe://no-keys.test"]))
-}
-
-func (s *HandlerTestSuite) TestValidateJWTSVID() {
-	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	s.attestor.SetSelectors(1, selectors)
-	attestorStatusLabel := telemetry.Label{Name: telemetry.Status, Value: codes.OK.String()}
-
-	// build up bundle that has the JWT signing public key
-	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
-	s.Require().NoError(err)
-	bundle, err := bundleutil.BundleFromProto(&common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		JwtSigningKeys: []*common.PublicKey{
-			{
-				Kid:       "kid",
-				PkixBytes: pkixBytes,
-			},
-		},
-	})
-	s.Require().NoError(err)
-
-	// Sign a token with an issuer
-	jwtSigner := jwtsvid.NewSigner(jwtsvid.SignerConfig{
-		Issuer: "issuer",
-	})
-	svid, err := jwtSigner.SignToken(
-		"spiffe://example.org/blog",
-		[]string{"audience"},
-		time.Now().Add(time.Minute),
-		jwtSigningKey,
-		"kid",
-	)
-	s.Require().NoError(err)
-
-	// Sign a token without an issuer
-	jwtSignerNoIssuer := jwtsvid.NewSigner(jwtsvid.SignerConfig{})
-	svidNoIssuer, err := jwtSignerNoIssuer.SignToken(
-		"spiffe://example.org/blog",
-		[]string{"audience"},
-		time.Now().Add(time.Minute),
-		jwtSigningKey,
-		"kid",
-	)
-	s.Require().NoError(err)
-
-	testCases := []struct {
-		name           string
-		ctx            context.Context
-		req            *workload.ValidateJWTSVIDRequest
-		workloadUpdate *cache.WorkloadUpdate
-		code           codes.Code
-		msg            string
-		labels         []telemetry.Label
-		issuer         string
+func TestFetchX509SVID(t *testing.T) {
+	ca := testca.New(t, td)
+
+	x509SVID1 := ca.CreateX509SVID(td.NewID("/one"))
+	x509SVID2 := ca.CreateX509SVID(td.NewID("/two"))
+	bundle := ca.Bundle()
+	federatedBundle := testca.New(t, td2).Bundle()
+
+	for _, tt := range []struct {
+		name       string
+		updates    []*cache.WorkloadUpdate
+		attestErr  error
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *workloadPB.X509SVIDResponse
+		expectLogs []spiretest.LogEntry
 	}{
 		{
-			name: "no audience",
-			ctx:  makeContext(1),
-			req: &workload.ValidateJWTSVIDRequest{
-				Svid: "svid",
-			},
-			code: codes.InvalidArgument,
-			msg:  "audience must be specified",
-		},
-		{
-			name: "no svid",
-			ctx:  makeContext(1),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-			},
-			code: codes.InvalidArgument,
-			msg:  "svid must be specified",
-		},
-		{
-			name: "missing security header",
-			ctx:  context.Background(),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     "svid",
-			},
-			code: codes.InvalidArgument,
-			msg:  "Security header missing from request",
-		},
-		{
-			name: "missing peer info",
-			ctx:  makeContext(0),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     "svid",
-			},
-			code: codes.Internal,
-			msg:  "Is this a supported system? Please report this bug: unable to fetch watcher from context",
-		},
-		{
-			name: "malformed token",
-			ctx:  makeContext(1),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     "svid",
-			},
-			workloadUpdate: &cache.WorkloadUpdate{},
-			code:           codes.InvalidArgument,
-			msg:            "unable to parse JWT token",
-		},
-		{
-			name: "validated by our trust domain bundle",
-			ctx:  makeContext(1),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     svid,
-			},
-			workloadUpdate: &cache.WorkloadUpdate{
-				Bundle: bundle,
-			},
-			code: codes.OK,
-			labels: []telemetry.Label{
-				{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
-				{Name: telemetry.Audience, Value: "audience"},
-			},
-			issuer: "issuer",
-		},
-		{
-			name: "validated by our trust domain bundle",
-			ctx:  makeContext(1),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     svid,
-			},
-			workloadUpdate: &cache.WorkloadUpdate{
-				FederatedBundles: map[string]*bundleutil.Bundle{
-					"spiffe://example.org": bundle,
+			name:       "no identity issued",
+			updates:    []*cache.WorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchX509SVID",
+					},
 				},
 			},
-			code: codes.OK,
-			labels: []telemetry.Label{
-				{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
-				{Name: telemetry.Audience, Value: "audience"},
-			},
-			issuer: "issuer",
 		},
 		{
-			name: "validate token without an issuer",
-			ctx:  makeContext(1),
-			req: &workload.ValidateJWTSVIDRequest{
-				Audience: "audience",
-				Svid:     svidNoIssuer,
-			},
-			workloadUpdate: &cache.WorkloadUpdate{
-				Bundle: bundle,
-			},
-			code: codes.OK,
-			labels: []telemetry.Label{
-				{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
-				{Name: telemetry.Audience, Value: "audience"},
+			name:       "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unknown,
+			expectMsg:  "ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchX509SVID",
+						logrus.ErrorKey: "ohno",
+					},
+				},
 			},
 		},
+		{
+			name: "with identity and federated bundles",
+			updates: []*cache.WorkloadUpdate{{
+				Identities: []cache.Identity{
+					identityFromX509SVID(x509SVID1),
+				},
+				Bundle: utilBundleFromBundle(t, bundle),
+				FederatedBundles: map[string]*bundleutil.Bundle{
+					federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+				},
+			}},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.X509SVIDResponse{
+				Svids: []*workloadPB.X509SVID{
+					{
+						SpiffeId:    x509SVID1.ID.String(),
+						X509Svid:    x509util.DERFromCertificates(x509SVID1.Certificates),
+						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
+						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+					},
+				},
+				FederatedBundles: map[string][]byte{
+					federatedBundle.TrustDomain().IDString(): x509util.DERFromCertificates(federatedBundle.X509Authorities()),
+				},
+			},
+		},
+		{
+			name: "with two identities",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID1),
+						identityFromX509SVID(x509SVID2),
+					},
+					Bundle: utilBundleFromBundle(t, bundle),
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.X509SVIDResponse{
+				Svids: []*workloadPB.X509SVID{
+					{
+						SpiffeId:    x509SVID1.ID.String(),
+						X509Svid:    x509util.DERFromCertificates(x509SVID1.Certificates),
+						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
+						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+					},
+					{
+						SpiffeId:    x509SVID2.ID.String(),
+						X509Svid:    x509util.DERFromCertificates(x509SVID2.Certificates),
+						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
+						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				CA:         ca,
+				Updates:    tt.updates,
+				AttestErr:  tt.attestErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchX509SVID(ctx, &workloadPB.X509SVIDRequest{})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					require.Equal(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
+func TestFetchJWTSVID(t *testing.T) {
+	ca := testca.New(t, td)
+
+	x509SVID1 := ca.CreateX509SVID(td.NewID("/one"))
+	x509SVID2 := ca.CreateX509SVID(td.NewID("/two"))
+
+	for _, tt := range []struct {
+		name           string
+		identities     []cache.Identity
+		spiffeID       string
+		audience       []string
+		attestErr      error
+		managerErr     error
+		expectCode     codes.Code
+		expectMsg      string
+		expectTokenIDs []spiffeid.ID
+		expectLogs     []spiretest.LogEntry
+	}{
+		{
+			name:       "missing required audience",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "audience must be specified",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Missing required audience parameter",
+					Data: logrus.Fields{
+						"service": "WorkloadAPI",
+						"method":  "FetchJWTSVID",
+					},
+				},
+			},
+		},
+		{
+			name:       "no identity issued",
+			audience:   []string{"AUDIENCE"},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchJWTSVID",
+					},
+				},
+			},
+		},
+		{
+			name:       "attest error",
+			audience:   []string{"AUDIENCE"},
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unknown,
+			expectMsg:  "ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTSVID",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:     "fetch error",
+			audience: []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+			},
+			managerErr: errors.New("ohno"),
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not fetch JWT-SVID: ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not fetch JWT-SVID",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTSVID",
+						"registered":    "true",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name: "success all",
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+				identityFromX509SVID(x509SVID2),
+			},
+			audience:       []string{"AUDIENCE"},
+			expectCode:     codes.OK,
+			expectTokenIDs: []spiffeid.ID{x509SVID1.ID, x509SVID2.ID},
+		},
+		{
+			name: "success specific",
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+				identityFromX509SVID(x509SVID2),
+			},
+			spiffeID:       x509SVID2.ID.String(),
+			audience:       []string{"AUDIENCE"},
+			expectCode:     codes.OK,
+			expectTokenIDs: []spiffeid.ID{x509SVID2.ID},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				CA:         ca,
+				Identities: tt.identities,
+				AttestErr:  tt.attestErr,
+				ManagerErr: tt.managerErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					resp, err := client.FetchJWTSVID(ctx, &workloadPB.JWTSVIDRequest{
+						SpiffeId: tt.spiffeID,
+						Audience: tt.audience,
+					})
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+
+					if tt.expectCode != codes.OK {
+						assert.Nil(t, resp)
+						return
+					}
+					var tokenIDs []spiffeid.ID
+					for _, svid := range resp.Svids {
+						parsedSVID, err := jwtsvid.ParseInsecure(svid.Svid, tt.audience)
+						require.NoError(t, err, "JWT-SVID token is malformed")
+						tokenIDs = append(tokenIDs, parsedSVID.ID)
+					}
+					assert.Equal(t, tt.expectTokenIDs, tokenIDs)
+				})
+		})
+	}
+}
+
+func TestFetchJWTBundles(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
+	ca := testca.New(t, td)
+
+	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
+
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase // alias loop variable as it is used in the closure
-		s.T().Run(testCase.name, func(t *testing.T) {
-			if testCase.workloadUpdate != nil {
-				// Setup a bunch of expectations around metrics if the test
-				// is expecting to successfully attest (i.e. return a
-				// workload update)
-				s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(testCase.workloadUpdate)
-				setupMetricsCommonExpectations(s.metrics, len(selectors), attestorStatusLabel)
-				if len(testCase.labels) > 0 {
-					s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), testCase.labels)
-				} else {
-					s.metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1))
-				}
-			}
+	bundle := ca.Bundle()
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
 
-			resp, err := s.h.ValidateJWTSVID(testCase.ctx, testCase.req)
-			if testCase.code != codes.OK {
-				spiretest.RequireGRPCStatus(t, err, testCase.code, testCase.msg)
-				require.Nil(t, resp)
+	federatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
+	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	federatedBundleJWKS = indent(federatedBundleJWKS)
+
+	for _, tt := range []struct {
+		name       string
+		updates    []*cache.WorkloadUpdate
+		attestErr  error
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *workloadPB.JWTBundlesResponse
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:       "no identity issued",
+			updates:    []*cache.WorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchJWTBundles",
+					},
+				},
+			},
+		},
+		{
+			name:       "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unknown,
+			expectMsg:  "ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTBundles",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name: "success",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID),
+					},
+					Bundle: utilBundleFromBundle(t, bundle),
+					FederatedBundles: map[string]*bundleutil.Bundle{
+						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString():          bundleJWKS,
+					federatedBundle.TrustDomain().IDString(): federatedBundleJWKS,
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				CA:         ca,
+				Updates:    tt.updates,
+				AttestErr:  tt.attestErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					require.Equal(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
+func TestValidateJWTSVID(t *testing.T) {
+	ca := testca.New(t, td)
+	ca2 := testca.New(t, td2)
+
+	bundle := ca.Bundle()
+	federatedBundle := ca2.Bundle()
+
+	svid := ca.CreateJWTSVID(td.NewID("/workload"), []string{"AUDIENCE"})
+	federatedSVID := ca2.CreateJWTSVID(td2.NewID("/federated-workload"), []string{"AUDIENCE"})
+
+	updatesWithBundleOnly := []*cache.WorkloadUpdate{{
+		Bundle: utilBundleFromBundle(t, bundle),
+	}}
+
+	updatesWithFederatedBundle := []*cache.WorkloadUpdate{{
+		Bundle: utilBundleFromBundle(t, bundle),
+		FederatedBundles: map[string]*bundleutil.Bundle{
+			federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+		},
+	}}
+
+	for _, tt := range []struct {
+		name       string
+		svid       string
+		audience   string
+		updates    []*cache.WorkloadUpdate
+		attestErr  error
+		expectCode codes.Code
+		expectMsg  string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:       "missing required audience",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "audience must be specified",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Missing required audience parameter",
+					Data: logrus.Fields{
+						"service": "WorkloadAPI",
+						"method":  "ValidateJWTSVID",
+					},
+				},
+			},
+		},
+		{
+			name:       "missing required svid",
+			audience:   "AUDIENCE",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "svid must be specified",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Missing required svid parameter",
+					Data: logrus.Fields{
+						"service": "WorkloadAPI",
+						"method":  "ValidateJWTSVID",
+					},
+				},
+			},
+		},
+		{
+			name:       "malformed svid",
+			svid:       "BAD",
+			audience:   "AUDIENCE",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unable to parse JWT token",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Failed to validate JWT",
+					Data: logrus.Fields{
+						"audience":      "AUDIENCE",
+						"service":       "WorkloadAPI",
+						"method":        "ValidateJWTSVID",
+						logrus.ErrorKey: "unable to parse JWT token",
+					},
+				},
+			},
+		},
+		{
+			name:       "attest error",
+			svid:       "BAD",
+			audience:   "AUDIENCE",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unknown,
+			expectMsg:  "ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"audience":      "AUDIENCE",
+						"service":       "WorkloadAPI",
+						"method":        "ValidateJWTSVID",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:       "success",
+			audience:   "AUDIENCE",
+			svid:       svid.Marshal(),
+			updates:    updatesWithBundleOnly,
+			expectCode: codes.OK,
+		},
+		{
+			name:       "success with federated SVID",
+			audience:   "AUDIENCE",
+			svid:       federatedSVID.Marshal(),
+			updates:    updatesWithFederatedBundle,
+			expectCode: codes.OK,
+		},
+		{
+			name:       "failure with federated SVID",
+			audience:   "AUDIENCE",
+			svid:       federatedSVID.Marshal(),
+			updates:    updatesWithBundleOnly,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `no keys found for trust domain "spiffe://domain2.test"`,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Failed to validate JWT",
+					Data: logrus.Fields{
+						"audience":      "AUDIENCE",
+						"service":       "WorkloadAPI",
+						"method":        "ValidateJWTSVID",
+						logrus.ErrorKey: `no keys found for trust domain "spiffe://domain2.test"`,
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				Updates:    tt.updates,
+				AttestErr:  tt.attestErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					resp, err := client.ValidateJWTSVID(ctx, &workloadPB.ValidateJWTSVIDRequest{
+						Svid:     tt.svid,
+						Audience: tt.audience,
+					})
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					if tt.expectCode != codes.OK {
+						assert.Nil(t, resp)
+						return
+					}
+				})
+		})
+	}
+}
+
+type testParams struct {
+	CA         *testca.CA
+	Identities []cache.Identity
+	Updates    []*cache.WorkloadUpdate
+	AttestErr  error
+	ManagerErr error
+	ExpectLogs []spiretest.LogEntry
+}
+
+func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
+	log, logHook := test.NewNullLogger()
+
+	manager := &FakeManager{
+		ca:         params.CA,
+		identities: params.Identities,
+		updates:    params.Updates,
+		err:        params.ManagerErr,
+	}
+
+	handler := workload.New(workload.Config{
+		Manager:  manager,
+		Attestor: &FakeAttestor{err: params.AttestErr},
+	})
+
+	unaryInterceptor, streamInterceptor := middleware.Interceptors(
+		middleware.WithLogger(log),
+	)
+
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
+	)
+	workloadPB.RegisterSpiffeWorkloadAPIServer(server, handler)
+	socketPath := spiretest.ServeGRPCServerOnTempSocket(t, server)
+	t.Cleanup(func() { server.Stop() })
+
+	// Provide a cancelable context to ensure the stream is always
+	// closed when the test case is done, and also to ensure that
+	// any unexpected blocking call is timed out.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, "unix://"+socketPath, grpc.WithInsecure())
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	fn(ctx, workloadPB.NewSpiffeWorkloadAPIClient(conn))
+
+	cancel()
+	server.GracefulStop()
+
+	assert.Equal(t, 0, manager.Subscribers(), "there should be no more subscribers")
+
+	spiretest.AssertLogs(t, logHook.AllEntries(), params.ExpectLogs)
+}
+
+type FakeManager struct {
+	ca          *testca.CA
+	identities  []cache.Identity
+	updates     []*cache.WorkloadUpdate
+	subscribers int32
+	err         error
+}
+
+func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
+	return m.identities
+}
+
+func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
+	svid := m.ca.CreateJWTSVID(spiffeid.RequireFromString(spiffeID), audience)
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &client.JWTSVID{
+		Token: svid.Marshal(),
+	}, nil
+}
+
+func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+	atomic.AddInt32(&m.subscribers, 1)
+	return newFakeSubscriber(m, m.updates)
+}
+
+func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
+	if len(m.updates) == 0 {
+		return &cache.WorkloadUpdate{}
+	}
+	return m.updates[0]
+}
+
+func (m *FakeManager) Subscribers() int {
+	return int(atomic.LoadInt32(&m.subscribers))
+}
+
+func (m *FakeManager) subscriberDone() {
+	atomic.AddInt32(&m.subscribers, -1)
+}
+
+type fakeSubscriber struct {
+	m      *FakeManager
+	ch     chan *cache.WorkloadUpdate
+	cancel context.CancelFunc
+}
+
+func newFakeSubscriber(m *FakeManager, updates []*cache.WorkloadUpdate) *fakeSubscriber {
+	ch := make(chan *cache.WorkloadUpdate)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for _, update := range updates {
+			select {
+			case ch <- update:
+			case <-ctx.Done():
 				return
 			}
-			spiretest.RequireGRPCStatus(t, err, testCase.code, "")
-			require.NotNil(t, resp)
+		}
+		<-ctx.Done()
+	}()
+	return &fakeSubscriber{
+		m:      m,
+		ch:     ch,
+		cancel: cancel,
+	}
+}
 
-			require.Equal(t, "spiffe://example.org/blog", resp.SpiffeId)
-			require.NotNil(t, resp.Claims)
+func (s *fakeSubscriber) Updates() <-chan *cache.WorkloadUpdate {
+	return s.ch
+}
 
-			expectedNumFields := 4
-			if testCase.issuer != "" {
-				expectedNumFields++
-			}
-			assert.Len(t, resp.Claims.Fields, expectedNumFields)
+func (s *fakeSubscriber) Finish() {
+	s.cancel()
+	s.m.subscriberDone()
+}
 
-			// verify audience
-			spiretest.AssertProtoEqual(t,
-				&structpb.Value{
-					Kind: &structpb.Value_ListValue{
-						ListValue: &structpb.ListValue{
-							Values: []*structpb.Value{
-								{
-									Kind: &structpb.Value_StringValue{
-										StringValue: "audience",
-									},
-								},
-							},
-						},
-					},
-				}, resp.Claims.Fields["aud"])
-			// verify expiration is set
-			assert.NotEmpty(t, resp.Claims.Fields["exp"])
-			// verify issued at is set
-			assert.NotEmpty(t, resp.Claims.Fields["iat"])
-			// verify issuer
-			if testCase.issuer != "" {
-				spiretest.AssertProtoEqual(t,
-					&structpb.Value{
-						Kind: &structpb.Value_StringValue{
-							StringValue: testCase.issuer,
-						},
-					}, resp.Claims.Fields["iss"])
-			} else {
-				assert.Nil(t, resp.Claims.Fields["iss"])
-			}
-			// verify subject
-			spiretest.AssertProtoEqual(t,
-				&structpb.Value{
-					Kind: &structpb.Value_StringValue{
-						StringValue: "spiffe://example.org/blog",
-					},
-				}, resp.Claims.Fields["sub"])
+type FakeAttestor struct {
+	selectors []*common.Selector
+	err       error
+}
+
+func (a *FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+	return a.selectors, a.err
+}
+
+func identityFromX509SVID(svid *x509svid.SVID) cache.Identity {
+	return cache.Identity{
+		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String()},
+		PrivateKey: svid.PrivateKey,
+		SVID:       svid.Certificates,
+	}
+}
+
+func utilBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *bundleutil.Bundle {
+	b, err := bundleutil.BundleFromProto(commonBundleFromBundle(t, bundle))
+	require.NoError(t, err)
+	return b
+}
+
+func commonBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *common.Bundle {
+	bundleProto := &common.Bundle{
+		TrustDomainId: bundle.TrustDomain().IDString(),
+	}
+	for _, x509Authority := range bundle.X509Authorities() {
+		bundleProto.RootCas = append(bundleProto.RootCas, &common.Certificate{
+			DerBytes: x509Authority.Raw,
 		})
 	}
-}
-
-func (s *HandlerTestSuite) TestStructFromValues() {
-	expected := &structpb.Struct{
-		Fields: map[string]*structpb.Value{
-			"foo": {
-				Kind: &structpb.Value_StringValue{
-					StringValue: "bar",
-				},
-			},
-			"baz": {
-				Kind: &structpb.Value_NumberValue{
-					NumberValue: 3.0,
-				},
-			},
-		},
-	}
-
-	actual, err := structFromValues(map[string]interface{}{
-		"foo": "bar",
-		"baz": 3,
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(expected, actual)
-}
-
-func (s *HandlerTestSuite) TestPeerWatcher() {
-	p := &peer.Peer{
-		AuthInfo: peertracker.AuthInfo{
-			Watcher: FakeWatcher{},
-		},
-	}
-	ctx := peer.NewContext(context.Background(), p)
-
-	watcher, err := s.h.peerWatcher(ctx)
-	s.Assert().NoError(err)
-	s.Assert().Equal(int32(1), watcher.PID())
-
-	// Implementation error - custom auth creds not in use
-	p.AuthInfo = nil
-	ctx = peer.NewContext(context.Background(), p)
-	_, err = s.h.peerWatcher(ctx)
-	s.Assert().Error(err)
-}
-
-func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
-	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-	ca, _, err := util.LoadCAFixture()
-	s.Require().NoError(err)
-
-	identity := cache.Identity{
-		SVID:       []*x509.Certificate{svid},
-		PrivateKey: key,
-		Entry: &common.RegistrationEntry{
-			SpiffeId:      "spiffe://example.org/foo",
-			FederatesWith: []string{"spiffe://otherdomain.test"},
-		},
-	}
-
-	update := &cache.WorkloadUpdate{
-		Identities: []cache.Identity{identity},
-		Bundle:     bundleutil.BundleFromRootCA("spiffe://example.org", ca),
-		FederatedBundles: map[string]*bundleutil.Bundle{
-			"spiffe://otherdomain.test": bundleutil.BundleFromRootCA("spiffe://otherdomain.test", ca),
-		},
-	}
-
-	return update
-}
-
-func (s *HandlerTestSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
-}
-
-func makeContext(pid int) context.Context {
-	header := metadata.Pairs("workload.spiffe.io", "true")
-	ctx := context.Background()
-	ctx = metadata.NewIncomingContext(ctx, header)
-
-	if pid > 0 {
-		ctx = peer.NewContext(ctx, &peer.Peer{
-			AuthInfo: peertracker.AuthInfo{
-				Watcher: FakeWatcher{},
-			},
+	for keyID, jwtAuthority := range bundle.JWTAuthorities() {
+		bundleProto.JwtSigningKeys = append(bundleProto.JwtSigningKeys, &common.PublicKey{
+			Kid:       keyID,
+			PkixBytes: pkixFromPublicKey(t, jwtAuthority),
 		})
 	}
-
-	return ctx
+	return bundleProto
 }
 
-type FakeWatcher struct{}
+func pkcs8FromSigner(t *testing.T, key crypto.Signer) []byte {
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+	return keyBytes
+}
 
-func (w FakeWatcher) Close() {}
-
-func (w FakeWatcher) IsAlive() error { return nil }
-
-func (w FakeWatcher) PID() int32 { return 1 }
+func pkixFromPublicKey(t *testing.T, publicKey crypto.PublicKey) []byte {
+	keyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
+	require.NoError(t, err)
+	return keyBytes
+}

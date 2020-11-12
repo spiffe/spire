@@ -55,6 +55,9 @@ type ClientParams struct {
 	Token string
 	// Name of mount point where TLS Cert auth method is mounted. (e.g., /auth/<mount_point>/login )
 	CertAuthMountPoint string
+	// Name of the Vault role.
+	// If given, the plugin authenticates against only the named role
+	CertAuthRoleName string
 	// Path to a client certificate file to be used when auth method is 'cert'
 	ClientCertPath string
 	// Path to a client private key file to be used when auth method is 'cert'
@@ -134,7 +137,9 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 		client.SetToken(c.clientParams.Token)
 	case CERT:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.CertAuthMountPoint)
-		sec, err := client.Auth(path, map[string]interface{}{})
+		sec, err := client.Auth(path, map[string]interface{}{
+			"name": c.clientParams.CertAuthRoleName,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -142,12 +147,12 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 			return nil, errors.New("tls cert authentication response is nil")
 		}
 		if sec.Auth.Renewable {
-			c.Logger.Debug("token will be renewed")
+			c.Logger.Debug("Token will be renewed")
 			if err := renewToken(vc, sec, c.Logger); err != nil {
 				return nil, err
 			}
 		} else {
-			c.Logger.Debug("token is not renewable")
+			c.Logger.Debug("Token is not renewable")
 		}
 	case APPROLE:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.AppRoleAuthMountPoint)
@@ -163,12 +168,12 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 			return nil, errors.New("approle authentication response is nil")
 		}
 		if sec.Auth.Renewable {
-			c.Logger.Debug("token will be renewed")
+			c.Logger.Debug("Token will be renewed")
 			if err := renewToken(vc, sec, c.Logger); err != nil {
 				return nil, err
 			}
 		} else {
-			c.Logger.Debug("token is not renewable")
+			c.Logger.Debug("Token is not renewable")
 		}
 	}
 

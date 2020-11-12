@@ -11,7 +11,10 @@ import (
 	"sync"
 	"time"
 
-	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	admin_api "github.com/spiffe/spire/pkg/agent/api"
+	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
+	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -21,6 +24,7 @@ import (
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
@@ -97,12 +101,22 @@ func (a *Agent) Run(ctx context.Context) error {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
-	err = util.RunTasks(ctx,
+	tasks := []func(context.Context) error{
 		manager.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
 		healthChecks.ListenAndServe,
-	)
+	}
+
+	if a.c.AdminBindAddress != nil {
+		adminEndpoints, err := a.newAdminEndpoints(manager)
+		if err != nil {
+			return fmt.Errorf("failed to create debug endpoints: %v", err)
+		}
+		tasks = append(tasks, adminEndpoints.ListenAndServe)
+	}
+
+	err = util.RunTasks(ctx, tasks...)
 	if err == context.Canceled {
 		err = nil
 	}
@@ -130,7 +144,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := server.ListenAndServe(); err != nil {
-				a.c.Log.WithError(err).Warn("unable to serve profiling server")
+				a.c.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
 		}()
 		wg.Add(1)
@@ -165,8 +179,8 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*attestor.AttestationResult, error) {
-	config := attestor.Config{
+func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
+	config := node_attestor.Config{
 		Catalog:               cat,
 		Metrics:               metrics,
 		JoinToken:             a.c.JoinToken,
@@ -180,10 +194,10 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 		CreateNewAgentClient:  agent.NewAgentClient,
 		CreateNewBundleClient: bundle.NewBundleClient,
 	}
-	return attestor.New(&config).Attest(ctx)
+	return node_attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *attestor.AttestationResult) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:            as.SVID,
 		SVIDKey:         as.Key,
@@ -207,19 +221,36 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 }
 
 func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
-	config := &endpoints.Config{
-		BindAddr:          a.c.BindAddress,
-		Catalog:           cat,
+	return endpoints.New(endpoints.Config{
+		BindAddr: a.c.BindAddress,
+		Attestor: workload_attestor.New(&workload_attestor.Config{
+			Catalog: cat,
+			Log:     a.c.Log.WithField(telemetry.SubsystemName, telemetry.WorkloadAttestor),
+			Metrics: metrics,
+		}),
 		Manager:           mgr,
 		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:           metrics,
 		DefaultSVIDName:   a.c.DefaultSVIDName,
 		DefaultBundleName: a.c.DefaultBundleName,
-	}
-
-	return endpoints.New(config)
+	})
 }
 
+func (a *Agent) newAdminEndpoints(mgr manager.Manager) (admin_api.Server, error) {
+	td, err := spiffeid.TrustDomainFromURI(&a.c.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+	config := &admin_api.Config{
+		BindAddr:    a.c.AdminBindAddress,
+		Manager:     mgr,
+		Log:         a.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
+		TrustDomain: td,
+		Uptime:      uptime.Uptime,
+	}
+
+	return admin_api.New(config), nil
+}
 func (a *Agent) bundleCachePath() string {
 	return path.Join(a.c.DataDir, "bundle.der")
 }

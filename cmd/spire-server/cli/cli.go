@@ -27,13 +27,13 @@ func (cc *CLI) Run(args []string) int {
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
 		"agent evict": func() (cli.Command, error) {
-			return &agent.EvictCLI{}, nil
+			return agent.NewEvictCommand(), nil
 		},
 		"agent list": func() (cli.Command, error) {
-			return &agent.ListCLI{}, nil
+			return agent.NewListCommand(), nil
 		},
 		"agent show": func() (cli.Command, error) {
-			return &agent.ShowCLI{}, nil
+			return agent.NewShowCommand(), nil
 		},
 		"bundle show": func() (cli.Command, error) {
 			return bundle.NewShowCommand(), nil
@@ -57,22 +57,22 @@ func (cc *CLI) Run(args []string) int {
 			return bundle.NewExperimentalSetCommand(), nil
 		},
 		"entry create": func() (cli.Command, error) {
-			return &entry.CreateCLI{}, nil
+			return entry.NewCreateCommand(), nil
 		},
 		"entry update": func() (cli.Command, error) {
-			return &entry.UpdateCLI{}, nil
+			return entry.NewUpdateCommand(), nil
 		},
 		"entry delete": func() (cli.Command, error) {
-			return &entry.DeleteCLI{}, nil
+			return entry.NewDeleteCommand(), nil
 		},
 		"entry show": func() (cli.Command, error) {
-			return &entry.ShowCLI{}, nil
+			return entry.NewShowCommand(), nil
 		},
 		"run": func() (cli.Command, error) {
 			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
 		},
 		"token generate": func() (cli.Command, error) {
-			return &token.GenerateCLI{}, nil
+			return token.NewGenerateCommand(), nil
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil

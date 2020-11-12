@@ -1,0 +1,271 @@
+#
+# Circle-CI config for SPIRE
+#
+# ENV Requirements:
+#   - GCR_API_KEY: Private key for accessing GCR, formatted as JSON
+#   - COVERALLS_TOKEN: Token for posting coverage data to coveralls
+#   - GITHUB_TOKEN: Token for publishing GitHub releases
+#   - AWS_ACCESS_KEY_ID: Access key ID for publishing artifacts to S3
+#   - AWS_SECRET_ACCESS_KEY: Access key for publishing artifacts to S3
+#
+version: 2.1
+orbs:
+  go: circleci/go@1.2.0
+  aws-s3: circleci/aws-s3@1.1.1
+parameters:
+  go-version:
+    default: 1.14.6
+    description: The Go version.
+    type: string
+  resource-class:
+    default: small
+    description: Resource class for CircleCI instance and containers.
+    type: string
+  xcode-version:
+    default: 11.5.0
+    description: The XCode version.
+    type: string
+jobs:
+  # Cache required go modules
+  cache-go-modules:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: << pipeline.parameters.resource-class >>
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: go mod download
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+
+  # Ensure generated protocol buffers are up to date
+  lint-protogen:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: << pipeline.parameters.resource-class >>
+    steps:
+      - checkout
+      - run: make protogen-check
+
+  # Ensure generated plugin interface code is up to date
+  lint-plugingen:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: << pipeline.parameters.resource-class >>
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: make plugingen-check
+
+  # Run unit tests on Linux
+  unit-test-linux:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: medium
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run:
+          command: .circleci/run-unit-tests.sh
+          environment:
+            GOPARALLEL: "2"
+
+  # Build artifacts for Linux
+  build-artifacts-linux:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: medium
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: .circleci/build-artifacts.sh
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - artifacts/*
+
+  # Build the docker images
+  build-docker-images:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: << pipeline.parameters.resource-class >>
+    steps:
+      - setup_remote_docker: {}
+      - checkout
+      - run: make images
+      - run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - images.tar.gz
+
+  # Run the integration tests in parallel
+  integration-test:
+    # Run in the machine executor since we have to execute a bunch of
+    # docker containers to do the tests
+    machine: true
+    parallelism: 4
+    resource_class: medium
+    environment:
+      TERM: dumb
+    steps:
+      # Remove whatever version of go is in the default machine executor image
+      # and replace it with the version we need
+      - run: sudo rm -rf /usr/local/go
+      - go/install:
+          version: << pipeline.parameters.go-version >>
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: zcat /tmp/workspace/images.tar.gz | docker load
+      - checkout
+      - run:
+          name: Execute integration test suites
+          working_directory: test/integration/
+          command: |
+            circleci tests glob "suites/*" | circleci tests split | xargs ./test.sh
+
+  # Publish "unstable" docker images
+  publish-unstable-images:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: << pipeline.parameters.resource-class >>
+    steps:
+      - setup_remote_docker: {}
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: zcat /tmp/workspace/images.tar.gz | docker load
+      - checkout
+      - run: .circleci/publish-unstable-images.sh
+
+  # Publish release docker images on GCR
+  publish-release-images:
+    docker:
+      - image: circleci/golang:<< pipeline.parameters.go-version >>
+    resource_class: << pipeline.parameters.resource-class >>
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: zcat /tmp/workspace/images.tar.gz | docker load
+      - checkout
+      - run: .circleci/publish-release-images.sh
+
+  # Publish release artifacts on S3 and GitHub
+  publish-release-artifacts:
+    docker:
+      - image: cibuilds/github:0.10
+    resource_class: << pipeline.parameters.resource-class >>
+    environment:
+      AWS_REGION: us-east-2
+    steps:
+      # Load up the cached docker images and artifacts
+      - attach_workspace:
+          at: /tmp/workspace
+      - aws-s3/sync:
+          from: /tmp/workspace/artifacts
+          to: 's3://scytale-artifacts/spire'
+          arguments: |
+            --acl public-read
+          overwrite: true
+      - run:
+          name: "Publish release on GitHub"
+          command: |
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} /tmp/workspace/artifacts/
+workflows:
+  version: 2
+  all:
+    jobs:
+      # Unless otherwise specified, all workflows are triggered on all
+      # branches. In contrast, tags do not trigger _any_ worfklows. Therefore,
+      # worfklows with a tag "only" will run both on branch pushes AND tag
+      # pushes that match.
+      #
+      # Some expensive workflows are configured to depend on `lint-plugingen`
+      # when they don't _actually_ depend on it. The purpose of this
+      # dependency is to save a few bucks in case `lint-plugingen` fails
+      - cache-go-modules:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+      - lint-protogen:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+          requires:
+            - cache-go-modules  # Push this job to the same step as its friend
+      - lint-plugingen:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+          requires:
+            - cache-go-modules
+      - unit-test-linux:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+          requires:
+            - cache-go-modules
+            - lint-plugingen
+      - build-artifacts-linux:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+          requires:
+            - cache-go-modules
+            - lint-plugingen
+      - build-docker-images:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+          requires:
+            - lint-plugingen
+      - integration-test:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+          requires:
+            - build-docker-images
+      - publish-unstable-images:
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)*$/
+            branches:
+              only: master  # Unstable images are only pushed from master
+          requires:
+            - unit-test-linux
+            - integration-test
+##
+## The workflow config below is temporarily disabled. Uncomment when we are
+## ready to shift releases to Circle-CI.
+##
+#
+#      - publish-release-images:
+#          filters:
+#            tags:
+#              only: /^v[0-9]+(\.[0-9]+)*$/
+#            branches:
+#              ignore: /.*/  # Only release from tags
+#          requires:
+#            - unit-test-linux
+#            - integration-test
+#            - build-artifacts-linux  # Don't release if the Linux build broke
+#
+#      - publish-release-artifacts:
+#          filters:
+#            tags:
+#              only: /^v[0-9]+(\.[0-9]+)*$/
+#            branches:
+#              ignore: /.*/  # Only release from tags
+#          requires:
+#            - unit-test-linux
+#            - integration-test
+#            - build-artifacts-linux

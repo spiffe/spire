@@ -17,7 +17,7 @@ type sqliteDB struct {
 
 func (s sqliteDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	if isReadOnly {
-		s.log.Warn("read-only connection is not applicable for sqlite3. Falling back to primary connection.")
+		s.log.Warn("Read-only connection is not applicable for sqlite3. Falling back to primary connection")
 	}
 
 	db, err = openSQLite3(cfg.ConnectionString)

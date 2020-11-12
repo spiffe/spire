@@ -155,8 +155,7 @@ const (
 	// DNS name is a name which is resolvable with DNS
 	DNSName = "dns_name"
 
-	// ElapsedTime tags some duration of time. Reserved for use in telemetry package on
-	// call counters. Exported for tests only.
+	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
 	// Error tag for some error that occurred. Limited usage, such as logging errors at
@@ -286,9 +285,6 @@ const (
 
 	// SerialNumber tags a certificate serial number
 	SerialNumber = "serial_num"
-
-	// SDSPID tags an SDS PID
-	SDSPID = "sds_pid"
 
 	// Slot X509 CA Slot ID
 	Slot = "slot"
@@ -491,8 +487,14 @@ const (
 	// CreateRegistrationEntryIfNotExists functionality related to creating a registration entry
 	CreateRegistrationEntryIfNotExists = "create_registration_entry_if_not_exists"
 
+	// DebugAPI functionality related to debug endpoints
+	DebugAPI = "debug_api"
+
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
+
+	// DeleteFederatedBundleMode functionality related to deleting federated bundle modes
+	DeleteFederatedBundleMode = "delete_federated_bundle_mode"
 
 	// DeleteRegistrationEntry functionality related to deleting a registration entry
 	DeleteRegistrationEntry = "delete_registration_entry"
@@ -596,6 +598,9 @@ const (
 
 	// ValidateJWTSVID functionality related validating a JWT-SVID
 	ValidateJWTSVID = "validate_jwt_svid"
+
+	// ValidateJWTSVIDError functionality related to an error validating a JWT-SVID
+	ValidateJWTSVIDError = "validate_jwt_svid_error"
 
 	// WorkloadAPI flagging usage of workload API; should be used with other tags
 	// to add clarity

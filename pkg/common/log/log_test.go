@@ -24,7 +24,7 @@ func TestLogger(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	logger.Info("info should be discarded, as it's below warn")
+	logger.Info("Info should be discarded, as it's below warn")
 
 	require.Empty(t, testHook.Entries)
 

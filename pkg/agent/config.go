@@ -19,6 +19,9 @@ type Config struct {
 	// Directory to store runtime data
 	DataDir string
 
+	// Directory to bind the admin api to
+	AdminBindAddress *net.UnixAddr
+
 	// The Validation Context resource name to use for the default X.509 bundle with Envoy SDS
 	DefaultBundleName string
 

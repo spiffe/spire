@@ -6,62 +6,69 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
-	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
-	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
-// Handler implements the Workload API interface
-type Handler struct {
-	Manager manager.Manager
-	Catalog catalog.Catalog
-	Log     logrus.FieldLogger
-	Metrics telemetry.Metrics
+type Manager interface {
+	SubscribeToCacheChanges(cache.Selectors) cache.Subscriber
+	MatchingIdentities([]*common.Selector) []cache.Identity
+	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
+	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
+}
 
-	// tracks the number of outstanding connections
-	connections int32
+type Attestor interface {
+	Attest(ctx context.Context) ([]*common.Selector, error)
+}
+
+// Handler implements the Workload API interface
+type Config struct {
+	Manager  Manager
+	Attestor Attestor
+}
+
+type Handler struct {
+	c Config
+}
+
+func New(c Config) *Handler {
+	return &Handler{
+		c: c,
+	}
 }
 
 // FetchJWTSVID processes request for a JWT-SVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
-	log := h.Log.WithField(telemetry.Method, telemetry.FetchJWTSVID)
+	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
-		return nil, errs.New("audience must be specified")
+		log.Error("Missing required audience parameter")
+		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
 
-	_, selectors, metrics, done, err := h.startCall(ctx)
+	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
+		log.WithError(err).Error("Workload attestation failed")
 		return nil, err
 	}
-	defer done()
-
-	counter := telemetry_workload.StartFetchJWTSVIDCall(metrics)
-	defer counter.Done(&err)
 
 	var spiffeIDs []string
-	identities := h.Manager.MatchingIdentities(selectors)
+	identities := h.c.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
@@ -76,14 +83,12 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
 	}
 
-	log = log.WithField(telemetry.Count, len(spiffeIDs))
-
 	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
 
 		var svid *client.JWTSVID
-		svid, err = h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
+		svid, err = h.c.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
 			log.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
@@ -94,7 +99,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		})
 
 		ttl := time.Until(svid.ExpiresAt)
-		telemetry_workload.SetFetchJWTSVIDTTLGauge(metrics, spiffeID, float32(ttl.Seconds()))
 		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
 	}
 
@@ -103,39 +107,23 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 // FetchJWTBundles processes request for JWT bundles
 func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
-	log := h.Log.WithField(telemetry.Method, telemetry.FetchJWTBundles)
 	ctx := stream.Context()
+	log := rpccontext.Logger(ctx)
 
-	pid, selectors, metrics, done, err := h.startCall(ctx)
+	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch JWT Bundles during context parsing")
+		log.WithError(err).Error("Workload attestation failed")
 		return err
 	}
-	defer done()
 
-	telemetry_workload.IncrFetchJWTBundlesCounter(metrics)
-	log = log.WithField(telemetry.PID, pid)
-	log.Debug("Fetching JWT Bundles")
-
-	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
+	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			telemetry_workload.IncrUpdateJWTBundlesCounter(metrics)
-			log.Debug("Sending JWT Bundles")
-			start := time.Now()
-			if err := h.sendJWTBundlesResponse(update, stream, metrics); err != nil {
-				log.WithError(err).Error("Failed to send response")
+			if err := sendJWTBundlesResponse(update, stream, log); err != nil {
 				return err
-			}
-
-			telemetry_workload.MeasureSendJWTBundleLatency(metrics, start)
-			if time.Since(start) > (1 * time.Second) {
-				log.WithField(telemetry.Seconds, time.Since(start).Seconds).Warn("Took >1 second to send JWT bundle to PID")
-			} else {
-				log.Debug("Sent JWT bundle to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -145,38 +133,31 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 // ValidateJWTSVID processes request for JWT-SVID validation
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
-	log := h.Log.WithField(telemetry.Method, telemetry.ValidateJWTSVID)
+	log := rpccontext.Logger(ctx)
 	if req.Audience == "" {
 		log.Error("Missing required audience parameter")
 		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
-
-	log = log.WithField(telemetry.Audience, req.Audience)
 	if req.Svid == "" {
 		log.Error("Missing required svid parameter")
 		return nil, status.Error(codes.InvalidArgument, "svid must be specified")
 	}
 
-	_, selectors, metrics, done, err := h.startCall(ctx)
+	log = log.WithField(telemetry.Audience, req.Audience)
+
+	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to validate JWT-SVID during context parsing")
+		log.WithError(err).Error("Workload attestation failed")
 		return nil, err
 	}
-	defer done()
 
 	keyStore := keyStoreFromBundles(h.getWorkloadBundles(selectors))
 
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
-		telemetry_workload.IncrValidJWTSVIDErrCounter(metrics)
-		log.WithFields(logrus.Fields{
-			telemetry.Error: err.Error(),
-			telemetry.SVID:  req.Svid,
-		}).Warn("Failed to validate JWT")
+		log.WithError(err).Warn("Failed to validate JWT")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-
-	telemetry_workload.IncrValidJWTSVIDCounter(metrics, spiffeID, req.Audience)
 	log.WithField(telemetry.SPIFFEID, spiffeID).Debug("Successfully validated JWT")
 
 	s, err := structFromValues(claims)
@@ -194,34 +175,22 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 // FetchX509SVID processes request for an x509 SVID
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	ctx := stream.Context()
+	log := rpccontext.Logger(ctx)
 
-	pid, selectors, metrics, done, err := h.startCall(ctx)
+	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
+		log.WithError(err).Error("Workload attestation failed")
 		return err
 	}
-	defer done()
 
-	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
+	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			start := time.Now()
-			err := h.sendX509SVIDResponse(update, stream, metrics)
-			if err != nil {
+			if err := sendX509SVIDResponse(update, stream, log); err != nil {
 				return err
-			}
-
-			// TODO: evaluate the possibility of removing the following metric at some point
-			// in the future because almost the same metric (with different labels and keys) is being
-			// taken by the CallCounter in sendX509SVIDResponse function.
-			telemetry_workload.MeasureFetchX509SVIDLatency(metrics, start)
-			if time.Since(start) > (1 * time.Second) {
-				h.Log.WithFields(logrus.Fields{
-					telemetry.Seconds: time.Since(start).Seconds,
-					telemetry.PID:     pid,
-				}).Warn("Took >1 second to send SVID response to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -229,27 +198,21 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 }
 
-func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics) (err error) {
-	counter := telemetry_workload.StartFetchX509SVIDCall(metrics)
-	defer counter.Done(&err)
-
-	log := h.Log
-
+func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger) (err error) {
 	if len(update.Identities) == 0 {
-		log.WithField(telemetry.Registered, false).WithError(err).Error("No identity issued")
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
 	log = log.WithField(telemetry.Registered, true)
 
-	resp, err := h.composeX509SVIDResponse(update)
+	resp, err := composeX509SVIDResponse(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize X.509 SVID response")
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	err = stream.Send(resp)
-	if err != nil {
+	if err := stream.Send(resp); err != nil {
 		log.WithError(err).Error("Failed to send X.509 SVID response")
 		return err
 	}
@@ -261,7 +224,6 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	// blocked on this logic
 	for i, svid := range resp.Svids {
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
-		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: svid.SpiffeId,
 			telemetry.TTL:      ttl.Seconds(),
@@ -271,7 +233,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	return nil
 }
 
-func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
+func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
 	resp := new(workload.X509SVIDResponse)
 	resp.Svids = []*workload.X509SVID{}
 	resp.FederatedBundles = make(map[string][]byte)
@@ -303,26 +265,30 @@ func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*worklo
 	return resp, nil
 }
 
-func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, metrics telemetry.Metrics) (err error) {
-	counter := telemetry_workload.StartFetchJWTBundlesCall(metrics)
-	defer counter.Done(&err)
-
+func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger) (err error) {
 	if len(update.Identities) == 0 {
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	resp, err := h.composeJWTBundlesResponse(update)
+	resp, err := composeJWTBundlesResponse(update)
 	if err != nil {
+		log.WithError(err).Error("Could not serialize JWT bundle response")
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	return stream.Send(resp)
+	if err := stream.Send(resp); err != nil {
+		log.WithError(err).Error("Failed to send JWT bundle response")
+		return err
+	}
+
+	return nil
 }
 
-func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
+func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
 	bundles := make(map[string][]byte)
 	if update.Bundle != nil {
-		jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys())
+		jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
 		if err != nil {
 			return nil, err
 		}
@@ -330,7 +296,7 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}
 
 	for _, federatedBundle := range update.FederatedBundles {
-		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys())
+		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
 		if err != nil {
 			return nil, err
 		}
@@ -342,64 +308,8 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}, nil
 }
 
-// From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
-// to a new metrics object. Return this information to the caller so it can emit further metrics.
-// If no error, callers must call the output func() to decrement current connections count.
-func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, telemetry.Metrics, func(), error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
-		return 0, nil, nil, nil, status.Errorf(codes.InvalidArgument, "Security header missing from request")
-	}
-
-	watcher, err := h.peerWatcher(ctx)
-	if err != nil {
-		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
-	}
-
-	// add to count of current
-	telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, 1))
-	h.Log.Debug("New active connection to workload API")
-	done := func() {
-		// rely on caller to decrement count of current connections
-		telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, -1))
-		h.Log.Debug("Closing connection to workload API")
-	}
-
-	config := attestor.Config{
-		Catalog: h.Catalog,
-		Log:     h.Log,
-		Metrics: h.Metrics,
-	}
-
-	selectors := attestor.New(&config).Attest(ctx, watcher.PID())
-
-	// Ensure that the original caller is still alive so that we know we didn't
-	// attest some other process that happened to be assigned the original PID
-	if err := watcher.IsAlive(); err != nil {
-		done()
-		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
-	}
-
-	telemetry_workload.IncrConnectionCounter(h.Metrics)
-
-	return watcher.PID(), selectors, h.Metrics, done, nil
-}
-
-// peerWatcher takes a grpc context, and returns a Watcher representing the caller which
-// has issued the request. Returns an error if the call was not made locally, if the necessary
-// syscalls aren't unsupported, or if the transport security was not properly configured.
-// See the peertracker package for more information.
-func (h *Handler) peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
-	watcher, ok := peertracker.WatcherFromContext(ctx)
-	if !ok {
-		return nil, errors.New("unable to fetch watcher from context")
-	}
-
-	return watcher, nil
-}
-
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*bundleutil.Bundle) {
-	update := h.Manager.FetchWorkloadUpdate(selectors)
+	update := h.c.Manager.FetchWorkloadUpdate(selectors)
 
 	if update.Bundle != nil {
 		bundles = append(bundles, update.Bundle)

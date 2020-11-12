@@ -38,8 +38,9 @@ type configuration struct {
 }
 
 type Config struct {
-	CABundlePath      string `hcl:"ca_bundle_path"`
-	AgentPathTemplate string `hcl:"agent_path_template"`
+	CABundlePath      string   `hcl:"ca_bundle_path"`
+	CABundlePaths     []string `hcl:"ca_bundle_paths"`
+	AgentPathTemplate string   `hcl:"agent_path_template"`
 }
 
 type Plugin struct {
@@ -156,13 +157,9 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		return nil, newError("trust_domain is required")
 	}
 
-	if config.CABundlePath == "" {
-		return nil, newError("ca_bundle_path is required")
-	}
-
-	trustBundle, err := util.LoadCertPool(config.CABundlePath)
+	bundles, err := getBundles(config)
 	if err != nil {
-		return nil, newError("unable to load trust bundle: %v", err)
+		return nil, err
 	}
 
 	pathTemplate := x509pop.DefaultAgentPathTemplate
@@ -176,11 +173,37 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 
 	p.setConfiguration(&configuration{
 		trustDomain:  req.GlobalConfig.TrustDomain,
-		trustBundle:  trustBundle,
+		trustBundle:  util.NewCertPool(bundles...),
 		pathTemplate: pathTemplate,
 	})
 
 	return &spi.ConfigureResponse{}, nil
+}
+
+func getBundles(config *Config) ([]*x509.Certificate, error) {
+	var caPaths []string
+
+	switch {
+	case config.CABundlePath != "" && len(config.CABundlePaths) > 0:
+		return nil, newError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
+	case config.CABundlePath != "":
+		caPaths = append(caPaths, config.CABundlePath)
+	case len(config.CABundlePaths) > 0:
+		caPaths = append(caPaths, config.CABundlePaths...)
+	default:
+		return nil, newError("ca_bundle_path or ca_bundle_paths must be configured")
+	}
+
+	var cas []*x509.Certificate
+	for _, caPath := range caPaths {
+		certs, err := util.LoadCertificates(caPath)
+		if err != nil {
+			return nil, newError("unable to load trust bundle %q: %v", caPath, err)
+		}
+		cas = append(cas, certs...)
+	}
+
+	return cas, nil
 }
 
 func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
