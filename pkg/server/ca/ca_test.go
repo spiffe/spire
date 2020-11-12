@@ -181,12 +181,12 @@ func (s *CATestSuite) TestSignX509SVIDWithSubject() {
 			expected: "CN=dns1,O=SPIRE,C=US",
 		}, {
 			name:     "subject provided",
-			expected: "CN=Common Name,O=ORG,C=US+C=EN",
+			expected: "CN=Common Name,O=ORG,C=EN+C=US",
 			subject:  subject,
 		}, {
 			name:     "subject and dns",
 			dns:      dns,
-			expected: "CN=dns1,O=ORG,C=US+C=EN",
+			expected: "CN=dns1,O=ORG,C=EN+C=US",
 			subject:  subject,
 		},
 	}
