@@ -8,7 +8,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -53,22 +52,17 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context
 // RunRebuildCacheTask starts a ticker which rebuilds the in-memory entry cache.
 func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Context) error {
 	t := a.clk.Timer(cacheReloadInterval)
-	defer t.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
 			a.log.Debug("Stopping in-memory entry cache hydrator")
 			return nil
 		case <-t.C:
-			start := time.Now()
 			cache, err := a.buildCache(ctx)
-			end := time.Now()
-			hydrateLog := a.log.WithField(telemetry.ElapsedTime, end.Sub(start))
 			if err != nil {
-				hydrateLog.WithError(err).Error("Failed to reload entry cache")
+				a.log.WithError(err).Error("Failed to reload entry cache")
 			} else {
-				hydrateLog.Debug("Reloaded entry cache")
+				a.log.Debug("Reloaded entry cache")
 				a.mu.Lock()
 				a.cache = cache
 				a.mu.Unlock()
