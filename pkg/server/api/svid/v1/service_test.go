@@ -101,7 +101,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=ORG,C=US+C=EN",
+			subject:   "O=ORG,C=EN+C=US",
 		},
 		{
 			name: "custom subject and dns",
@@ -115,7 +115,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=ORG,C=US+C=EN",
+			subject:   "CN=dns1,O=ORG,C=EN+C=US",
 		},
 		{
 			name: "no CSR",
