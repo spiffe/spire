@@ -202,6 +202,12 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 			return nil, err
 		}
 
+		// Add the plugin to the plugins list even though it has not been
+		// successfully configured. If anything goes wrong (i.e. failure to
+		// configure, panic, etc.) we want the defer above to close the plugin.
+		// Failure to do so can orphan an external plugin process.
+		cat.plugins = append(cat.plugins, plugin)
+
 		if err := plugin.Configure(ctx, &spi.ConfigureRequest{
 			GlobalConfig:  &config.GlobalConfig,
 			Configuration: c.Data,
@@ -211,7 +217,6 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 		}
 
 		pluginLog.WithField(telemetry.PluginServices, plugin.serviceNames).Info("Plugin loaded")
-		cat.plugins = append(cat.plugins, plugin)
 	}
 
 	return cat, nil
