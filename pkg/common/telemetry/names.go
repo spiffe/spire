@@ -390,12 +390,6 @@ const (
 	// to add clarity
 	Entry = "entry"
 
-	// EntryCache tag for in-memory entry cache subsystem
-	EntryCache = "entrycache"
-
-	// EntryCacheHydrator tag for the in-memory entry cache hydrator module
-	EntryCacheHydrator = "entrycache_hydrator"
-
 	// Event tag some event that has occurred, for a notifier, watcher, listener, etc.
 	Event = "event"
 

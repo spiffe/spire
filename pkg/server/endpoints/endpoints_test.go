@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -182,7 +183,11 @@ func TestListenAndServe(t *testing.T) {
 	bundleEndpointServer := newBundleEndpointServer()
 	clk := clock.NewMock(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), log, metrics, ds, clk)
+	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
+		return entrycache.BuildFromDataStore(ctx, ds)
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk)
 	require.NoError(t, err)
 
 	endpoints := Endpoints{

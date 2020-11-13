@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -13,12 +12,12 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
@@ -62,9 +61,7 @@ func TestAuthorizedEntryFetcher(t *testing.T) {
 
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.New()
-	log.Out = ioutil.Discard
-	metrics := fakemetrics.New()
+	log, _ := test.NewNullLogger()
 	ds := fakedatastore.New(t)
 	clk := clock.NewMock(t)
 
@@ -73,7 +70,15 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
 	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
 
-	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, log, metrics, ds, clk)
+	buildCache := func(context.Context) (entrycache.Cache, error) {
+		entryMap := map[spiffeid.ID][]*types.Entry{
+			agentID: expectedEntries,
+		}
+
+		return newStaticEntryFetcher(entryMap), nil
+	}
+
+	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
 	require.NoError(t, err)
 
 	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)

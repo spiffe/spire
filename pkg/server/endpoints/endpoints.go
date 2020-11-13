@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -90,18 +91,24 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, c.Log, c.Metrics, c.Catalog.GetDataStore(), c.Clock)
+	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
+		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
+		defer call.Done(&err)
+		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Endpoints{
+		OldAPIServers:                oldAPIServers,
 		TCPAddr:                      c.TCPAddr,
 		UDSAddr:                      c.UDSAddr,
 		SVIDObserver:                 c.SVIDObserver,
 		TrustDomain:                  c.TrustDomain,
 		DataStore:                    c.Catalog.GetDataStore(),
-		OldAPIServers:                oldAPIServers,
 		APIServers:                   c.makeAPIServers(ef),
 		BundleEndpointServer:         c.maybeMakeBundleEndpointServer(),
 		Log:                          c.Log,

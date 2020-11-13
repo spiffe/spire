@@ -84,17 +84,9 @@ type Agent struct {
 	Selectors []*types.Selector
 }
 
-type aliasEntry struct {
-	id    spiffeID
-	entry *types.Entry
-}
-
-type AliasMap map[spiffeID][]aliasEntry
-type EntryMap map[spiffeID][]*types.Entry
-
 type FullEntryCache struct {
-	aliases AliasMap
-	entries EntryMap
+	aliases map[spiffeID][]aliasEntry
+	entries map[spiffeID][]*types.Entry
 }
 
 type selectorSet map[Selector]struct{}
@@ -108,6 +100,11 @@ type spiffeID struct {
 	Path string
 }
 
+type aliasEntry struct {
+	id    spiffeID
+	entry *types.Entry
+}
+
 // Build queries the data source for all registration entries and Agent selectors and builds an in-memory
 // representation of the data that can be used for efficient lookups.
 func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator) (*FullEntryCache, error) {
@@ -117,7 +114,7 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}
 	bysel := make(map[Selector][]aliasInfo)
 
-	entries := make(EntryMap)
+	entries := make(map[spiffeID][]*types.Entry)
 	for entryIter.Next(ctx) {
 		entry := entryIter.Entry()
 		parentID := spiffeIDFromProto(entry.ParentId)
@@ -143,7 +140,7 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	aliasSeen := allocStringSet()
 	defer freeStringSet(aliasSeen)
 
-	aliases := make(AliasMap)
+	aliases := make(map[spiffeID][]aliasEntry)
 	for agentIter.Next(ctx) {
 		agent := agentIter.Agent()
 		agentID := spiffeIDFromID(agent.ID)

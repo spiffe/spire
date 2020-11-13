@@ -5,14 +5,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/types"
-	"github.com/spiffe/spire/test/clock"
 )
 
 const (
@@ -21,27 +20,27 @@ const (
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
 
+type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
+
 type AuthorizedEntryFetcherWithFullCache struct {
-	cache   entrycache.Cache
-	clk     clock.Clock
-	ds      datastore.DataStore
-	log     logrus.FieldLogger
-	metrics telemetry.Metrics
-	mu      sync.RWMutex
+	buildCache entryCacheBuilderFn
+	cache      entrycache.Cache
+	clk        clock.Clock
+	log        logrus.FieldLogger
+	mu         sync.RWMutex
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock) (*AuthorizedEntryFetcherWithFullCache, error) {
-	cache, err := buildCache(ctx, metrics, ds)
+func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock) (*AuthorizedEntryFetcherWithFullCache, error) {
+	cache, err := buildCache(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AuthorizedEntryFetcherWithFullCache{
-		cache:   cache,
-		clk:     clk,
-		ds:      ds,
-		log:     log,
-		metrics: metrics,
+		buildCache: buildCache,
+		cache:      cache,
+		clk:        clk,
+		log:        log,
 	}, nil
 }
 
@@ -53,7 +52,7 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context
 
 // RunRebuildCacheTask starts a ticker which rebuilds the in-memory entry cache.
 func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Context) error {
-	t := a.clk.Ticker(cacheReloadInterval)
+	t := a.clk.Timer(cacheReloadInterval)
 	defer t.Stop()
 
 	for {
@@ -63,7 +62,7 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 			return nil
 		case <-t.C:
 			start := time.Now()
-			cache, err := buildCache(ctx, a.metrics, a.ds)
+			cache, err := a.buildCache(ctx)
 			end := time.Now()
 			hydrateLog := a.log.WithField(telemetry.ElapsedTime, end.Sub(start))
 			if err != nil {
@@ -74,12 +73,8 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 				a.cache = cache
 				a.mu.Unlock()
 			}
+
+			t.Reset(cacheReloadInterval)
 		}
 	}
-}
-
-func buildCache(ctx context.Context, metrics telemetry.Metrics, ds datastore.DataStore) (_ entrycache.Cache, err error) {
-	call := telemetry.StartCall(metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
-	defer call.Done(&err)
-	return entrycache.BuildFromDataStore(ctx, ds)
 }

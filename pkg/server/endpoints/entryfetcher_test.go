@@ -3,91 +3,113 @@ package endpoints
 import (
 	"context"
 	"errors"
-	"io/ioutil"
-	"net/url"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
-	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	spiffeScheme = "spiffe"
-	trustDomain  = "example.org"
+var (
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
+
+var _ entrycache.Cache = (*staticEntryFetcher)(nil)
+
+type staticEntryFetcher struct {
+	entries map[spiffeid.ID][]*types.Entry
+}
+
+func (sef *staticEntryFetcher) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+	return sef.entries[agentID]
+}
+
+func newStaticEntryFetcher(entries map[spiffeid.ID][]*types.Entry) *staticEntryFetcher {
+	return &staticEntryFetcher{
+		entries: entries,
+	}
+}
 
 func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.New()
-	log.Out = ioutil.Discard
-	metrics := fakemetrics.New()
-	ds := fakedatastore.New(t)
+	log, _ := test.NewNullLogger()
 	clk := clock.NewMock()
+	entries := make(map[spiffeid.ID][]*types.Entry)
+	buildCache := func(context.Context) (entrycache.Cache, error) {
+		return newStaticEntryFetcher(entries), nil
+	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, log, metrics, ds, clk)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
 
 func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.New()
-	log.Out = ioutil.Discard
-	metrics := fakemetrics.New()
-	ds := fakedatastore.New(t)
-	ds.SetNextError(errors.New("some datastore error"))
+	log, _ := test.NewNullLogger()
 	clk := clock.NewMock()
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, log, metrics, ds, clk)
+	buildCache := func(context.Context) (entrycache.Cache, error) {
+		return nil, errors.New("some cache build error")
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
 
 func TestFetchRegistrationEntries(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.New()
-	log.Out = ioutil.Discard
-	metrics := fakemetrics.New()
-	ds := fakedatastore.New(t)
+	log, _ := test.NewNullLogger()
 	clk := clock.NewMock()
-	const rootID = "spiffe://example.org/root"
-	expected := setupExpectedEntriesData(ctx, t, ds, rootID)
+	agentID := trustDomain.NewID("/root")
+	expected := setupExpectedEntriesData(t, agentID)
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, log, metrics, ds, clk)
+	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
+		entries := map[spiffeid.ID][]*types.Entry{
+			agentID: expected,
+		}
+
+		return newStaticEntryFetcher(entries), nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
-	agentSpiffeID, err := spiffeid.FromString(rootID)
-	require.NoError(t, err)
-
-	entries, err := ef.FetchAuthorizedEntries(ctx, agentSpiffeID)
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, entries)
 }
 
 func TestRunRebuildCacheTask(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	log := logrus.New()
-	log.Out = ioutil.Discard
-	metrics := fakemetrics.New()
-	ds := fakedatastore.New(t)
+	log, _ := test.NewNullLogger()
 	clk := clock.NewMock()
-	const rootID = "spiffe://example.org/root"
-	agentSpiffeID, err := spiffeid.FromString(rootID)
-	require.NoError(t, err)
+	agentID := trustDomain.NewID("/root")
+	var expectedEntries []*types.Entry
+	var returnErr error
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, log, metrics, ds, clk)
+	buildCache := func(context.Context) (entrycache.Cache, error) {
+		if returnErr != nil {
+			return nil, returnErr
+		}
+
+		entryMap := map[spiffeid.ID][]*types.Entry{
+			agentID: expectedEntries,
+		}
+
+		return newStaticEntryFetcher(entryMap), nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -96,47 +118,42 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		errChan <- ef.RunRebuildCacheTask(ctx)
 	}()
 
-	entries, err := ef.FetchAuthorizedEntries(ctx, agentSpiffeID)
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	assert.Empty(t, entries)
 
-	expected := setupExpectedEntriesData(ctx, t, ds, rootID)
+	expectedEntries = setupExpectedEntriesData(t, agentID)
 
 	// Entries should still not be in the cache yet
 	// because the clock has not elapsed long enough for the cache rebuild task to execute.
-	entries, err = ef.FetchAuthorizedEntries(ctx, agentSpiffeID)
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	assert.Empty(t, entries)
 
 	// Verify that rebuild task gracefully handles downstream errors and retries after the reload interval elapses again
-	ds.SetNextError(errors.New("some datastore error"))
+	returnErr = errors.New("some cache build error")
 	clk.Add(cacheReloadInterval)
-	entries, err = ef.FetchAuthorizedEntries(ctx, agentSpiffeID)
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	assert.Empty(t, entries)
 
 	// When the rebuild task is able to complete successfully,
 	// the cache should now contain the Agent's new authorized entries
+	returnErr = nil
 	clk.Add(cacheReloadInterval)
-	entries, err = ef.FetchAuthorizedEntries(ctx, agentSpiffeID)
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, entries)
+	assert.Equal(t, expectedEntries, entries)
 
 	cancel()
 	assert.NoError(t, <-errChan)
 }
 
-func setupExpectedEntriesData(ctx context.Context, t *testing.T, ds datastore.DataStore, agentSpiffeID string) []*types.Entry {
+func setupExpectedEntriesData(t *testing.T, agentID spiffeid.ID) []*types.Entry {
 	const numEntries = 2
-	entryIDs := make([]string, numEntries)
+	entryIDs := make([]spiffeid.ID, numEntries)
 	for i := 0; i < numEntries; i++ {
-		entryIDURI := url.URL{
-			Scheme: spiffeScheme,
-			Host:   trustDomain,
-			Path:   strconv.Itoa(i),
-		}
-
-		entryIDs[i] = entryIDURI.String()
+		entryIDs[i] = trustDomain.NewID(strconv.Itoa(i))
 	}
 
 	irrelevantSelectors := []*common.Selector{
@@ -146,54 +163,21 @@ func setupExpectedEntriesData(ctx context.Context, t *testing.T, ds datastore.Da
 		},
 	}
 
-	entriesToCreate := []*common.RegistrationEntry{
+	entries := []*common.RegistrationEntry{
 		{
-			ParentId:  agentSpiffeID,
-			SpiffeId:  entryIDs[0],
+			ParentId:  agentID.String(),
+			SpiffeId:  entryIDs[0].String(),
 			Selectors: irrelevantSelectors,
 		},
 		{
-			ParentId:  agentSpiffeID,
-			SpiffeId:  entryIDs[1],
+			ParentId:  agentID.String(),
+			SpiffeId:  entryIDs[1].String(),
 			Selectors: irrelevantSelectors,
 		},
 	}
-
-	entries := make([]*common.RegistrationEntry, len(entriesToCreate))
-	for i, e := range entriesToCreate {
-		entries[i] = createRegistrationEntry(ctx, t, ds, e)
-	}
-
-	node := &common.AttestedNode{
-		SpiffeId:            entryIDs[1],
-		AttestationDataType: "test-nodeattestor",
-		CertSerialNumber:    "node-1",
-		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
-	}
-
-	createAttestedNode(t, ds, node)
-	irrelevantAgentSelectors := []*common.Selector{
-		{
-			Type:  "not",
-			Value: "relevant",
-		},
-	}
-
-	entry1SpiffeID, err := spiffeid.FromString(entryIDs[1])
-	require.NoError(t, err)
-
-	setNodeSelectors(t, ds, entry1SpiffeID, irrelevantAgentSelectors)
 
 	expected, err := api.RegistrationEntriesToProto(entries)
 	require.NoError(t, err)
 
 	return expected
-}
-
-func createRegistrationEntry(ctx context.Context, tb testing.TB, ds datastore.DataStore, entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
-	require.NoError(tb, err)
-	return resp.Entry
 }
