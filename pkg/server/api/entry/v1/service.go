@@ -93,6 +93,24 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 				Selectors: dsSelectors,
 			}
 		}
+
+		if req.Filter.ByFederatesWith != nil {
+			trustDomains := make([]string, 0, len(req.Filter.ByFederatesWith.TrustDomains))
+			for _, tdStr := range req.Filter.ByFederatesWith.TrustDomains {
+				td, err := spiffeid.TrustDomainFromString(tdStr)
+				if err != nil {
+					return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", err)
+				}
+				trustDomains = append(trustDomains, td.IDString())
+			}
+			if len(trustDomains) == 0 {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
+			}
+			listReq.ByFederatesWith = &datastore.ByFederatesWith{
+				Match:        datastore.ByFederatesWith_MatchBehavior(req.Filter.ByFederatesWith.Match),
+				TrustDomains: trustDomains,
+			}
+		}
 	}
 
 	dsResp, err := s.ds.ListRegistrationEntries(ctx, listReq)
