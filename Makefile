@@ -155,6 +155,7 @@ protos := \
 	proto/spire/types/attestation.proto \
 	proto/spire/types/bundle.proto \
 	proto/spire/types/entry.proto \
+	proto/spire/types/federateswithmatch.proto \
 	proto/spire/types/jointoken.proto \
 	proto/spire/types/jwtsvid.proto \
 	proto/spire/types/selector.proto \
