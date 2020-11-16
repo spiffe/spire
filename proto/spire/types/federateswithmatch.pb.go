@@ -52,7 +52,7 @@ func (FederatesWithMatch_MatchBehavior) EnumDescriptor() ([]byte, []int) {
 type FederatesWithMatch struct {
 	// The set of trust domains to match on.
 	TrustDomains []string `protobuf:"bytes,1,rep,name=trust_domains,json=trustDomains,proto3" json:"trust_domains,omitempty"`
-	// How to match the selectors.
+	// How to match the trust domains.
 	Match                FederatesWithMatch_MatchBehavior `protobuf:"varint,2,opt,name=match,proto3,enum=spire.types.FederatesWithMatch_MatchBehavior" json:"match,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                         `json:"-"`
 	XXX_unrecognized     []byte                           `json:"-"`
