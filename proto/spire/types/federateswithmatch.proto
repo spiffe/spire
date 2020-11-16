@@ -16,6 +16,6 @@ message FederatesWithMatch {
     // The set of trust domains to match on.
     repeated string trust_domains = 1;
 
-    // How to match the selectors.
+    // How to match the trust domains.
     MatchBehavior match = 2;
 }

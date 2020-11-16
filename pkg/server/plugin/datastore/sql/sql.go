@@ -2695,7 +2695,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 			}
 			args = append(args, len(trustDomains))
 		default:
-			return false, nil, errs.New("unhandled federates with match behavior %q", req.BySelectors.Match)
+			return false, nil, errs.New("unhandled federates with match behavior %q", req.ByFederatesWith.Match)
 		}
 		root.children = append(root.children, filterNode)
 	}
