@@ -107,68 +107,135 @@ func (vcs *VaultClientSuite) Test_NewClientConfig_WithGivenMontPoint() {
 
 func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
 	vcs.fakeVaultServer.CertAuthResponseCode = 200
-	vcs.fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	for _, c := range []struct {
+		name     string
+		response []byte
+		reusable bool
+	}{
+		{
+			name:     "Cert Authentication success / Token is renewable",
+			response: []byte(testCertAuthResponse),
+			reusable: true,
+		},
+		{
+			name:     "Cert Authentication success / Token is not renewable",
+			response: []byte(testCertAuthResponseNotRenewable),
+		},
+	} {
+		c := c
+		vcs.Run(c.name, func() {
+			vcs.fakeVaultServer.CertAuthResponse = c.response
 
-	s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-	vcs.Require().NoError(err)
+			s, addr, err := vcs.fakeVaultServer.NewTLSServer()
+			vcs.Require().NoError(err)
 
-	s.Start()
-	defer s.Close()
+			s.Start()
+			defer s.Close()
 
-	cp := &ClientParams{
-		VaultAddr:      fmt.Sprintf("https://%v/", addr),
-		CACertPath:     testRootCert,
-		ClientCertPath: testClientCert,
-		ClientKeyPath:  testClientKey,
+			cp := &ClientParams{
+				VaultAddr:      fmt.Sprintf("https://%v/", addr),
+				CACertPath:     testRootCert,
+				ClientCertPath: testClientCert,
+				ClientKeyPath:  testClientKey,
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			vcs.Require().NoError(err)
+
+			_, reusable, err := cc.NewAuthenticatedClient(CERT)
+			vcs.Require().NoError(err)
+			vcs.Require().Equal(c.reusable, reusable)
+		})
 	}
-	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
-
-	_, err = cc.NewAuthenticatedClient(CERT)
-	vcs.Require().NoError(err)
 }
 
 func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
-	s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-	vcs.Require().NoError(err)
+	vcs.fakeVaultServer.LookupSelfResponseCode = 200
+	for _, c := range []struct {
+		name     string
+		response []byte
+		reusable bool
+	}{
+		{
+			name:     "Token Authentication success / Token never expire",
+			response: []byte(testLookupSelfResponseNeverExpire),
+			reusable: true,
+		},
+		{
+			name:     "Token Authentication success / Token is renewable",
+			response: []byte(testLookupSelfResponse),
+			reusable: true,
+		},
+		{
+			name:     "Token Authentication success / Token is not renewable",
+			response: []byte(testLookupSelfResponseNotRenewable),
+		},
+	} {
+		c := c
+		vcs.Run(c.name, func() {
+			vcs.fakeVaultServer.LookupSelfResponse = c.response
 
-	s.Start()
-	defer s.Close()
+			s, addr, err := vcs.fakeVaultServer.NewTLSServer()
+			vcs.Require().NoError(err)
 
-	cp := &ClientParams{
-		VaultAddr:  fmt.Sprintf("https://%v/", addr),
-		CACertPath: testRootCert,
-		Token:      "test-token",
+			s.Start()
+			defer s.Close()
+
+			cp := &ClientParams{
+				VaultAddr:  fmt.Sprintf("https://%v/", addr),
+				CACertPath: testRootCert,
+				Token:      "test-token",
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			vcs.Require().NoError(err)
+
+			_, reusable, err := cc.NewAuthenticatedClient(TOKEN)
+			vcs.Require().NoError(err)
+			vcs.Require().Equal(c.reusable, reusable)
+		})
 	}
-	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
-
-	client, err := cc.NewAuthenticatedClient(TOKEN)
-	vcs.Require().NoError(err)
-	vcs.Require().Equal("test-token", client.vaultClient.Token())
 }
 
 func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuth() {
 	vcs.fakeVaultServer.AppRoleAuthResponseCode = 200
-	vcs.fakeVaultServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponse)
+	for _, c := range []struct {
+		name     string
+		response []byte
+		reusable bool
+	}{
+		{
+			name:     "AppRole Authentication success / Token is renewable",
+			response: []byte(testAppRoleAuthResponse),
+			reusable: true,
+		},
+		{
+			name:     "AppRole Authentication success / Token is not renewable",
+			response: []byte(testAppRoleAuthResponseNotRenewable),
+		},
+	} {
+		c := c
+		vcs.Run(c.name, func() {
+			vcs.fakeVaultServer.AppRoleAuthResponse = c.response
 
-	s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-	vcs.Require().NoError(err)
+			s, addr, err := vcs.fakeVaultServer.NewTLSServer()
+			vcs.Require().NoError(err)
 
-	s.Start()
-	defer s.Close()
+			s.Start()
+			defer s.Close()
 
-	cp := &ClientParams{
-		VaultAddr:       fmt.Sprintf("https://%v/", addr),
-		CACertPath:      testRootCert,
-		AppRoleID:       "test-approle-id",
-		AppRoleSecretID: "test-approle-secret-id",
+			cp := &ClientParams{
+				VaultAddr:       fmt.Sprintf("https://%v/", addr),
+				CACertPath:      testRootCert,
+				AppRoleID:       "test-approle-id",
+				AppRoleSecretID: "test-approle-secret-id",
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			vcs.Require().NoError(err)
+
+			_, reusable, err := cc.NewAuthenticatedClient(APPROLE)
+			vcs.Require().NoError(err)
+			vcs.Require().Equal(c.reusable, reusable)
+		})
 	}
-	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
-
-	_, err = cc.NewAuthenticatedClient(APPROLE)
-	vcs.Require().NoError(err)
 }
 
 func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuthFailed() {
@@ -192,7 +259,7 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuthFailed() {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	vcs.Require().NoError(err)
 
-	_, err = cc.NewAuthenticatedClient(CERT)
+	_, _, err = cc.NewAuthenticatedClient(CERT)
 	vcs.Require().Error(err)
 }
 
@@ -216,7 +283,7 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuthFailed() {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	vcs.Require().NoError(err)
 
-	_, err = cc.NewAuthenticatedClient(APPROLE)
+	_, _, err = cc.NewAuthenticatedClient(APPROLE)
 	vcs.Require().Error(err)
 }
 
@@ -371,7 +438,7 @@ func (vcs *VaultClientSuite) Test_SignIntermediate() {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	vcs.Require().NoError(err)
 
-	client, err := cc.NewAuthenticatedClient(CERT)
+	client, _, err := cc.NewAuthenticatedClient(CERT)
 	vcs.Require().NoError(err)
 
 	testTTL := "0"
@@ -409,7 +476,7 @@ func (vcs *VaultClientSuite) Test_SignIntermediate_ErrorFromEndpoint() {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	vcs.Require().NoError(err)
 
-	client, err := cc.NewAuthenticatedClient(CERT)
+	client, _, err := cc.NewAuthenticatedClient(CERT)
 	vcs.Require().NoError(err)
 
 	testTTL := "0"

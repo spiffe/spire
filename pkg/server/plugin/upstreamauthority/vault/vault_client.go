@@ -39,6 +39,15 @@ const (
 	APPROLE
 )
 
+type TokenStatus int
+
+const (
+	_ TokenStatus = iota
+	Renewable
+	NotRenewable
+	NeverExpire
+)
+
 // ClientConfig represents configuration parameters for vault client
 type ClientConfig struct {
 	Logger hclog.Logger
@@ -112,7 +121,7 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 }
 
 // NewAuthenticatedClient returns a new authenticated vault client with given authentication method
-func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error) {
+func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, bool, error) {
 	config := vapi.DefaultConfig()
 	config.Address = c.clientParams.VaultAddr
 	if c.clientParams.MaxRetries != nil {
@@ -120,11 +129,11 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 	}
 
 	if err := c.configureTLS(config); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	vc, err := vapi.NewClient(config)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	client := &Client{
@@ -132,8 +141,20 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 		clientParams: c.clientParams,
 	}
 
+	var ts TokenStatus
 	switch method {
 	case TOKEN:
+		sec, err := client.LookupSelf(c.clientParams.Token)
+		if err != nil {
+			return nil, false, err
+		}
+		if sec == nil {
+			return nil, false, errors.New("lookup self response is nil")
+		}
+		ts, err = handleRenewToken(vc, sec, c.Logger)
+		if err != nil {
+			return nil, false, err
+		}
 		client.SetToken(c.clientParams.Token)
 	case CERT:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.CertAuthMountPoint)
@@ -141,18 +162,14 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 			"name": c.clientParams.CertAuthRoleName,
 		})
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if sec == nil {
-			return nil, errors.New("tls cert authentication response is nil")
+			return nil, false, errors.New("tls cert authentication response is nil")
 		}
-		if sec.Auth.Renewable {
-			c.Logger.Debug("Token will be renewed")
-			if err := renewToken(vc, sec, c.Logger); err != nil {
-				return nil, err
-			}
-		} else {
-			c.Logger.Debug("Token is not renewable")
+		ts, err = handleRenewToken(vc, sec, c.Logger)
+		if err != nil {
+			return nil, false, err
 		}
 	case APPROLE:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.AppRoleAuthMountPoint)
@@ -162,31 +179,49 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, error
 		}
 		sec, err := client.Auth(path, body)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if sec == nil {
-			return nil, errors.New("approle authentication response is nil")
+			return nil, false, errors.New("approle authentication response is nil")
 		}
-		if sec.Auth.Renewable {
-			c.Logger.Debug("Token will be renewed")
-			if err := renewToken(vc, sec, c.Logger); err != nil {
-				return nil, err
-			}
-		} else {
-			c.Logger.Debug("Token is not renewable")
+		ts, err = handleRenewToken(vc, sec, c.Logger)
+		if err != nil {
+			return nil, false, err
 		}
 	}
 
-	return client, nil
+	return client, isTokenReusable(ts), nil
 }
 
-func renewToken(vc *vapi.Client, sec *vapi.Secret, logger hclog.Logger) error {
+func isTokenReusable(status TokenStatus) bool {
+	switch status {
+	case NeverExpire, Renewable:
+		return true
+	case NotRenewable:
+		return false
+	default:
+		return false
+	}
+}
+
+func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, logger hclog.Logger) (TokenStatus, error) {
+	if sec.Auth.LeaseDuration == 0 {
+		logger.Debug("Token will never expire")
+		return NeverExpire, nil
+	}
+	if !sec.Auth.Renewable {
+		logger.Debug("Token is not renewable")
+		return NotRenewable, nil
+	}
+	status := Renewable
 	renew, err := NewRenew(vc, sec, logger)
 	if err != nil {
-		return err
+		return status, err
 	}
 	go renew.Run()
-	return nil
+	logger.Debug("Token will be renewed")
+
+	return status, nil
 }
 
 // ConfigureTLS Configures TLS for Vault Client
@@ -254,6 +289,33 @@ func (c *Client) Auth(path string, body map[string]interface{}) (*vapi.Secret, e
 		return nil, fmt.Errorf("authentication is successful, but could not get token: %v", err)
 	}
 	c.vaultClient.SetToken(tokenID)
+	return secret, nil
+}
+
+func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
+	secret, err := c.vaultClient.Logical().Read("auth/token/lookup-self")
+	if err != nil {
+		return nil, fmt.Errorf("token lookup failed: %v", err)
+	}
+
+	id, err := secret.TokenID()
+	if err != nil {
+		return nil, err
+	}
+	renewable, err := secret.TokenIsRenewable()
+	if err != nil {
+		return nil, err
+	}
+	ttl, err := secret.TokenTTL()
+	if err != nil {
+		return nil, err
+	}
+	secret.Auth = &vapi.SecretAuth{
+		ClientToken:   id,
+		Renewable:     renewable,
+		LeaseDuration: int(ttl),
+		// don't care any parameters
+	}
 	return secret, nil
 }
 
