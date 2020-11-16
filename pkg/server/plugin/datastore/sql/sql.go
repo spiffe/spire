@@ -2478,7 +2478,8 @@ ORDER BY e_id, selector_id, dns_name_id
 
 type idFilterNode struct {
 	// mutually exclusive with children
-	query string
+	// supports multiline query
+	query []string
 
 	// mutually exclusive with query
 	children []idFilterNode
@@ -2493,11 +2494,19 @@ func (n idFilterNode) Render(builder *strings.Builder, dbType string, indentatio
 }
 
 func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling int, indentation int, bol, eol bool) {
-	if n.query != "" {
+	if len(n.query) > 0 {
 		if bol {
 			indent(builder, indentation)
 		}
-		builder.WriteString(n.query)
+		for idx, str := range n.query {
+			if idx > 0 {
+				indent(builder, indentation)
+			}
+			builder.WriteString(str)
+			if idx+1 < len(n.query) {
+				builder.WriteString("\n")
+			}
+		}
 		if eol {
 			builder.WriteString("\n")
 		}
@@ -2607,7 +2616,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 			args = append(args, req.BySpiffeId.Value)
 		}
 		root.children = append(root.children, idFilterNode{
-			query: subquery.String(),
+			query: []string{subquery.String()},
 		})
 	}
 
@@ -2621,7 +2630,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 			}
 			for range req.BySelectors.Selectors {
 				group.children = append(group.children, idFilterNode{
-					query: "SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?",
+					query: []string{"SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?"},
 				})
 			}
 			root.children = append(root.children, group)
