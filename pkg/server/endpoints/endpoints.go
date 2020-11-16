@@ -39,6 +39,8 @@ import (
 // route to the server in the case of a change in DNS membership.
 const defaultMaxConnectionAge = 3 * time.Minute
 
+const alpnProtoH2 = "h2"
+
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
 	// ListenAndServe starts all endpoint servers and blocks until the context
@@ -253,6 +255,8 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 			ClientCAs:    roots,
 
 			MinVersion: tls.VersionTLS12,
+
+			NextProtos: []string{alpnProtoH2},
 		}, nil
 	}
 }
