@@ -2639,15 +2639,65 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 			// directly to the root idFilterNode, since it is already an intersection
 			for range req.BySelectors.Selectors {
 				root.children = append(root.children, idFilterNode{
-					query: "SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?",
+					query: []string{"SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?"},
 				})
 			}
 		default:
-			return false, nil, errs.New("unhandled match behavior %q", req.BySelectors.Match)
+			return false, nil, errs.New("unhandled selectors match behavior %q", req.BySelectors.Match)
 		}
 		for _, selector := range req.BySelectors.Selectors {
 			args = append(args, selector.Type, selector.Value)
 		}
+	}
+
+	if req.ByFederatesWith != nil && len(req.ByFederatesWith.TrustDomains) > 0 {
+		// Take the trust domains from the request without duplicates
+		tdSet := make(map[string]struct{})
+		for _, td := range req.ByFederatesWith.TrustDomains {
+			tdSet[td] = struct{}{}
+		}
+		trustDomains := make([]string, 0, len(tdSet))
+		for td := range tdSet {
+			trustDomains = append(trustDomains, td)
+		}
+
+		// Exact/subset federates-with matching requires filtering out all registration
+		// entries whose federated trust domains are not fully represented in the request
+		filterNode := idFilterNode{}
+		filterNode.query = append(filterNode.query, "SELECT E.id")
+		filterNode.query = append(filterNode.query, "FROM registered_entries E")
+		filterNode.query = append(filterNode.query, "INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id")
+		filterNode.query = append(filterNode.query, "INNER JOIN bundles B ON B.id = FE.bundle_id")
+		filterNode.query = append(filterNode.query, "GROUP BY E.id")
+		filterNode.query = append(filterNode.query, "HAVING")
+		sliceArg := buildSliceArg(len(trustDomains))
+		filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain NOT IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = 0 AND")
+		for _, td := range trustDomains {
+			args = append(args, td)
+		}
+
+		switch req.ByFederatesWith.Match {
+		case datastore.ByFederatesWith_MATCH_SUBSET:
+			// Subset federates-with matching requires filtering out all registration
+			// entries that don't federate with even one trust domain in the request
+			sliceArg := buildSliceArg(len(trustDomains))
+			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) > 0")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+		case datastore.ByFederatesWith_MATCH_EXACT:
+			// Exact federates-with matching requires filtering out all registration
+			// entries that don't federate with all the trust domains in the request
+			sliceArg := buildSliceArg(len(trustDomains))
+			filterNode.query = append(filterNode.query, "\tCOUNT(DISTINCT CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = ?")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+			args = append(args, len(trustDomains))
+		default:
+			return false, nil, errs.New("unhandled federates with match behavior %q", req.BySelectors.Match)
+		}
+		root.children = append(root.children, filterNode)
 	}
 
 	filtered := false
@@ -2698,6 +2748,16 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 	}
 
 	return filtered, args, nil
+}
+
+func buildSliceArg(length int) string {
+	strBuilder := new(strings.Builder)
+	strBuilder.WriteString("(?")
+	for i := 1; i < length; i++ {
+		strBuilder.WriteString(", ?")
+	}
+	strBuilder.WriteString(")")
+	return strBuilder.String()
 }
 
 type nodeRow struct {
