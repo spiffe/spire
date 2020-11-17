@@ -454,7 +454,7 @@ func (vps *VaultPluginSuite) getFakeClientConfig(addr string) *ClientConfig {
 		VaultAddr:     fmt.Sprintf("https://%v/", addr),
 		CACertPath:    testRootCert,
 		PKIMountPoint: "test-pki",
-		Token:         "fake-token",
+		Token:         "test-token",
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
 	vps.Require().NoError(err)
