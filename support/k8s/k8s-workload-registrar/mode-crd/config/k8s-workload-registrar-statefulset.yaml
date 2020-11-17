@@ -16,8 +16,6 @@ spec:
       namespace: spire
       labels:
         app: spire-server
-      annotations:
-        spiffe.io/spiffe-id: "ns/spire/id/spire-server"
     spec:
       serviceAccountName: spire-server
       shareProcessNamespace: true
