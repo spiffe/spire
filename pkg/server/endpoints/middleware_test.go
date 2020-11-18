@@ -75,7 +75,7 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 			agentID: expectedEntries,
 		}
 
-		return newStaticEntryFetcher(entryMap), nil
+		return newStaticEntryCache(entryMap), nil
 	}
 
 	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)

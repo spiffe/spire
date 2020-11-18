@@ -51,24 +51,25 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context
 
 // RunRebuildCacheTask starts a ticker which rebuilds the in-memory entry cache.
 func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Context) error {
-	t := a.clk.Timer(cacheReloadInterval)
+	rebuild := func() {
+		cache, err := a.buildCache(ctx)
+		if err != nil {
+			a.log.WithError(err).Error("Failed to reload entry cache")
+		} else {
+			a.log.Debug("Reloaded entry cache")
+			a.mu.Lock()
+			a.cache = cache
+			a.mu.Unlock()
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			a.log.Debug("Stopping in-memory entry cache hydrator")
 			return nil
-		case <-t.C:
-			cache, err := a.buildCache(ctx)
-			if err != nil {
-				a.log.WithError(err).Error("Failed to reload entry cache")
-			} else {
-				a.log.Debug("Reloaded entry cache")
-				a.mu.Lock()
-				a.cache = cache
-				a.mu.Unlock()
-			}
-
-			t.Reset(cacheReloadInterval)
+		case <-a.clk.After(cacheReloadInterval):
+			rebuild()
 		}
 	}
 }
