@@ -11,8 +11,6 @@ import (
 	tls_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/rpccontext"
@@ -23,6 +21,7 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Attestor interface {
@@ -297,7 +296,7 @@ func (h *Handler) triggerReceivedHook() {
 	}
 }
 
-func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.Any, error) {
+func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anypb.Any, error) {
 	name := identity.Entry.SpiffeId
 	if defaultSVIDName != "" {
 		name = defaultSVIDName
@@ -310,7 +309,7 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.
 
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
-	return ptypes.MarshalAny(&tls_v3.Secret{
+	return anypb.New(&tls_v3.Secret{
 		Name: name,
 		Type: &tls_v3.Secret_TlsCertificate{
 			TlsCertificate: &tls_v3.TlsCertificate{
@@ -329,13 +328,13 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string) (*any.Any, error) {
+func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string) (*anypb.Any, error) {
 	name := bundle.TrustDomainID()
 	if defaultBundleName != "" {
 		name = defaultBundleName
 	}
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
-	return ptypes.MarshalAny(&tls_v3.Secret{
+	return anypb.New(&tls_v3.Secret{
 		Name: name,
 		Type: &tls_v3.Secret_ValidationContext{
 			ValidationContext: &tls_v3.CertificateValidationContext{

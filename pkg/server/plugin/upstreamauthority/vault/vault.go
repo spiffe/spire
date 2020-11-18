@@ -86,6 +86,8 @@ type AppRoleAuthConfig struct {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	mtx    *sync.RWMutex
 	logger hclog.Logger
 

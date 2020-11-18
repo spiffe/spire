@@ -29,6 +29,7 @@ type SignDataRequest_HashAlgorithm = keymanager.SignDataRequest_HashAlgorithm //
 type SignDataRequest_PssOptions = keymanager.SignDataRequest_PssOptions       //nolint: golint
 type SignDataResponse = keymanager.SignDataResponse                           //nolint: golint
 type UnimplementedKeyManagerServer = keymanager.UnimplementedKeyManagerServer //nolint: golint
+type UnsafeKeyManagerServer = keymanager.UnsafeKeyManagerServer               //nolint: golint
 
 const (
 	Type                                     = "KeyManager"
@@ -102,7 +103,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(keymanager.NewKeyManagerClient(conn))
 }
 

@@ -250,7 +250,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 func (s *MSIResolverSuite) TestGetPluginInfo() {
 	resp, err := s.resolver.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *MSIResolverSuite) configureResolverWithTenant() {
@@ -263,7 +263,7 @@ func (s *MSIResolverSuite) configureResolverWithTenant() {
 			}
 		}`})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
 func (s *MSIResolverSuite) configureResolverWithMSI() {
@@ -271,7 +271,7 @@ func (s *MSIResolverSuite) configureResolverWithMSI() {
 		Configuration: `use_msi = true`,
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
 func (s *MSIResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
@@ -297,7 +297,7 @@ func (s *MSIResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
 
 	actual, err := s.doResolve(azureAgentID)
 	s.Require().NoError(err)
-	s.Require().Equal(expected, actual)
+	s.RequireProtoEqual(expected, actual)
 }
 
 func (s *MSIResolverSuite) assertResolveFailure(spiffeID, containsErr string) {

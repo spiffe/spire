@@ -15,6 +15,7 @@ import (
 type AttestRequest = workloadattestor.AttestRequest                                             //nolint: golint
 type AttestResponse = workloadattestor.AttestResponse                                           //nolint: golint
 type UnimplementedWorkloadAttestorServer = workloadattestor.UnimplementedWorkloadAttestorServer //nolint: golint
+type UnsafeWorkloadAttestorServer = workloadattestor.UnsafeWorkloadAttestorServer               //nolint: golint
 type WorkloadAttestorClient = workloadattestor.WorkloadAttestorClient                           //nolint: golint
 type WorkloadAttestorServer = workloadattestor.WorkloadAttestorServer                           //nolint: golint
 
@@ -67,7 +68,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(workloadattestor.NewWorkloadAttestorClient(conn))
 }
 

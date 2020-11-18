@@ -92,6 +92,8 @@ func initPluginServer(s *grpc.Server, dialer hostDialer, logger hclog.Logger, pl
 }
 
 type initServer struct {
+	spi.UnsafePluginInitServer
+
 	logger         hclog.Logger
 	dialer         hostDialer
 	impls          []interface{}

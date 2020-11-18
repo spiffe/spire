@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const cacheFetchEntriesTTL = 1 * time.Second
@@ -99,7 +99,7 @@ func (f *registrationEntryFetcher) directEntries(ctx context.Context, id string)
 func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID string) ([]*common.RegistrationEntry, error) {
 	resp, err := f.dataStore.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
-			ByParentId: &wrappers.StringValue{
+			ByParentId: &wrapperspb.StringValue{
 				Value: clientID,
 			},
 			TolerateStale: true,

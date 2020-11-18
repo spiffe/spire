@@ -707,7 +707,7 @@ func (s *CatalogSuite) assertExternalPluginCalls(pluginOut, serviceOut string) {
 func (s *CatalogSuite) fillCatalog(c interface{}) (catalog.Closer, error) {
 	return catalog.Fill(context.Background(), catalog.Config{
 		Log: s.log,
-		GlobalConfig: catalog.GlobalConfig{
+		GlobalConfig: &catalog.GlobalConfig{
 			TrustDomain: "domain.test",
 		},
 		PluginConfig:  s.pluginConfig,
@@ -721,7 +721,7 @@ func (s *CatalogSuite) fillCatalog(c interface{}) (catalog.Closer, error) {
 func (s *CatalogSuite) loadCatalog() catalog.Catalog {
 	cat, err := catalog.Load(context.Background(), catalog.Config{
 		Log: s.log,
-		GlobalConfig: catalog.GlobalConfig{
+		GlobalConfig: &catalog.GlobalConfig{
 			TrustDomain: "domain.test",
 		},
 		PluginConfig:  s.pluginConfig,

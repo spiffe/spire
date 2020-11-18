@@ -70,7 +70,7 @@ type BaseReconciler struct {
 	client.Client
 	ObjectReconciler
 	Scheme      *runtime.Scheme
-	RootID      spiretypes.SPIFFEID
+	RootID      *spiretypes.SPIFFEID
 	SpireClient entry.EntryClient
 	Log         logr.Logger
 }
@@ -317,7 +317,7 @@ func (r *BaseReconciler) getMatchingEntries(ctx context.Context, reqLogger logr.
 	}
 	var result []*spiretypes.Entry
 	for _, foundEntry := range entries {
-		if spiffeIDHasPrefix(foundEntry.ParentId, &r.RootID) || spiffeIDHasPrefix(foundEntry.SpiffeId, &r.RootID) {
+		if spiffeIDHasPrefix(foundEntry.ParentId, r.RootID) || spiffeIDHasPrefix(foundEntry.SpiffeId, r.RootID) {
 			result = append(result, foundEntry)
 		}
 	}

@@ -44,6 +44,10 @@ type Config struct {
 }
 
 type Plugin struct {
+	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
+	// a way of opting in or out of forward build compatibility.
+	nodeattestor.UnimplementedNodeAttestorServer
+
 	// mu is a mutex that protects the configuration. Plugins may at some point
 	// need to support hot-reloading of configuration (by receiving another
 	// call to Configure). So we need to prevent the configuration from

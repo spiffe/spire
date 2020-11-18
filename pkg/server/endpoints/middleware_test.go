@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type testEntries struct {
@@ -272,11 +273,13 @@ func TestAgentAuthorizer(t *testing.T) {
 			case codes.OK:
 			case codes.PermissionDenied:
 				// Assert that the expected permission denied reason is returned
-				assert.Equal(t, []interface{}{
-					&types.PermissionDeniedDetails{
-						Reason: tt.expectedReason,
-					},
-				}, status.Convert(err).Details())
+				details := status.Convert(err).Details()
+				require.Len(t, details, 1, "expecting permission denied detail")
+				detail, ok := details[0].(proto.Message)
+				require.True(t, ok, "detail is not a proto message")
+				spiretest.RequireProtoEqual(t, &types.PermissionDeniedDetails{
+					Reason: tt.expectedReason,
+				}, detail)
 				return
 			case codes.Internal:
 				return

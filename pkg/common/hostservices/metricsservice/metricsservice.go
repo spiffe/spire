@@ -14,11 +14,13 @@ type Config struct {
 }
 
 type metricsService struct {
+	hostservices.UnsafeMetricsServiceServer
+
 	cfg Config
 }
 
 // New create and return new Metrics Service
-func New(cfg Config) hostservices.MetricsService {
+func New(cfg Config) hostservices.MetricsServiceServer {
 	return metricsService{
 		cfg: cfg,
 	}

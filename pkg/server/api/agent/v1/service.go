@@ -11,7 +11,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
@@ -31,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // RegisterService registers the agent service on the gRPC server/
@@ -60,6 +60,8 @@ func New(config Config) *Service {
 
 // Service implements the v1 agent service
 type Service struct {
+	agent.UnsafeAgentServer
+
 	cat catalog.Catalog
 	clk clock.Clock
 	ds  datastore.DataStore
@@ -161,7 +163,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 	return agent, nil
 }
 
-func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*empty.Empty, error) {
+func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -177,7 +179,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 	switch status.Code(err) {
 	case codes.OK:
 		log.Info("Agent deleted")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	case codes.NotFound:
 		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
@@ -185,7 +187,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 	}
 }
 
-func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*empty.Empty, error) {
+func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -208,7 +210,7 @@ func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*em
 	switch status.Code(err) {
 	case codes.OK:
 		log.Info("Agent banned")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	case codes.NotFound:
 		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:

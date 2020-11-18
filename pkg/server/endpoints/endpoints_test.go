@@ -739,7 +739,7 @@ func testAuthorization(ctx context.Context, t *testing.T, client interface{}, ex
 }
 
 type registrationServer struct {
-	*registration.UnimplementedRegistrationServer
+	registration.UnimplementedRegistrationServer
 	*callTracker
 }
 
@@ -750,7 +750,7 @@ func newRegistrationServer() *registrationServer {
 }
 
 type nodeServer struct {
-	*node.UnimplementedNodeServer
+	node.UnimplementedNodeServer
 	*callTracker
 }
 
