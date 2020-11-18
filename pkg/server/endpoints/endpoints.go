@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
+	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -253,6 +254,8 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 			ClientCAs:    roots,
 
 			MinVersion: tls.VersionTLS12,
+
+			NextProtos: []string{http2.NextProtoTLS},
 		}, nil
 	}
 }
