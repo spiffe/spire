@@ -3,21 +3,21 @@ package catalog
 import (
 	"context"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func NewHostServer(pluginName string, opts []grpc.ServerOption, hostServices []HostServiceServer) *grpc.Server {
 	s := grpc.NewServer(append(opts,
-		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
+		grpc.ChainStreamInterceptor(
+			streamPanicInterceptor,
 			streamPluginInterceptor(pluginName),
-			grpc_recovery.StreamServerInterceptor(),
-		)),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+		),
+		grpc.ChainUnaryInterceptor(
+			unaryPanicInterceptor,
 			unaryPluginInterceptor(pluginName),
-			grpc_recovery.UnaryServerInterceptor(),
-		)),
+		),
 	)...)
 	for _, hostService := range hostServices {
 		hostService.RegisterHostServiceServer(s)
@@ -35,6 +35,24 @@ func unaryPluginInterceptor(name string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		return handler(WithPluginName(ctx, name), req)
 	}
+}
+
+func streamPanicInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = status.Errorf(codes.Internal, "%s", r)
+		}
+	}()
+	return handler(srv, ss)
+}
+
+func unaryPanicInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = status.Errorf(codes.Internal, "%s", r)
+		}
+	}()
+	return handler(ctx, req)
 }
 
 type streamWrapper struct {
