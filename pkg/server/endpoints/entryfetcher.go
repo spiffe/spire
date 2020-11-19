@@ -30,11 +30,13 @@ type AuthorizedEntryFetcherWithFullCache struct {
 }
 
 func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock) (*AuthorizedEntryFetcherWithFullCache, error) {
+	log.Info("Building in-memory entry cache")
 	cache, err := buildCache(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
 		buildCache: buildCache,
 		cache:      cache,
