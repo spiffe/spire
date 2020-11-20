@@ -121,7 +121,8 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 }
 
 // NewAuthenticatedClient returns a new authenticated vault client with given authentication method
-func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, bool, error) {
+// If this returns reusable=false, it means that the token will expire (non-renewable), need to obtain a new token.
+func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client, reusable bool, err error) {
 	config := vapi.DefaultConfig()
 	config.Address = c.clientParams.VaultAddr
 	if c.clientParams.MaxRetries != nil {
@@ -136,29 +137,28 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, bool,
 		return nil, false, err
 	}
 
-	client := &Client{
+	client = &Client{
 		vaultClient:  vc,
 		clientParams: c.clientParams,
 	}
 
-	var ts TokenStatus
+	var (
+		ts  TokenStatus
+		sec *vapi.Secret
+	)
 	switch method {
 	case TOKEN:
-		sec, err := client.LookupSelf(c.clientParams.Token)
+		sec, err = client.LookupSelf(c.clientParams.Token)
 		if err != nil {
 			return nil, false, err
 		}
 		if sec == nil {
 			return nil, false, errors.New("lookup self response is nil")
 		}
-		ts, err = handleRenewToken(vc, sec, c.Logger)
-		if err != nil {
-			return nil, false, err
-		}
 		client.SetToken(c.clientParams.Token)
 	case CERT:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.CertAuthMountPoint)
-		sec, err := client.Auth(path, map[string]interface{}{
+		sec, err = client.Auth(path, map[string]interface{}{
 			"name": c.clientParams.CertAuthRoleName,
 		})
 		if err != nil {
@@ -167,44 +167,50 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (*Client, bool,
 		if sec == nil {
 			return nil, false, errors.New("tls cert authentication response is nil")
 		}
-		ts, err = handleRenewToken(vc, sec, c.Logger)
-		if err != nil {
-			return nil, false, err
-		}
 	case APPROLE:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.AppRoleAuthMountPoint)
 		body := map[string]interface{}{
 			"role_id":   c.clientParams.AppRoleID,
 			"secret_id": c.clientParams.AppRoleSecretID,
 		}
-		sec, err := client.Auth(path, body)
+		sec, err = client.Auth(path, body)
 		if err != nil {
 			return nil, false, err
 		}
 		if sec == nil {
 			return nil, false, errors.New("approle authentication response is nil")
 		}
-		ts, err = handleRenewToken(vc, sec, c.Logger)
-		if err != nil {
-			return nil, false, err
-		}
 	}
 
-	return client, isTokenReusable(ts), nil
+	ts, err = handleRenewToken(vc, sec, c.Logger)
+	if err != nil {
+		return nil, false, err
+	}
+
+	reusable, err = isTokenReusable(ts)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return client, reusable, nil
 }
 
-func isTokenReusable(status TokenStatus) bool {
+func isTokenReusable(status TokenStatus) (bool, error) {
 	switch status {
 	case NeverExpire, Renewable:
-		return true
+		return true, nil
 	case NotRenewable:
-		return false
+		return false, nil
 	default:
-		return false
+		return false, errors.New("invalid token status")
 	}
 }
 
 func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, logger hclog.Logger) (TokenStatus, error) {
+	if sec == nil || sec.Auth == nil {
+		return 0, errors.New("secret is nil")
+	}
+
 	if sec.Auth.LeaseDuration == 0 {
 		logger.Debug("Token will never expire")
 		return NeverExpire, nil

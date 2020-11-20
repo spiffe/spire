@@ -360,6 +360,8 @@ func (vps *VaultPluginSuite) Test_MintX509CA_ErrorFromVault() {
 }
 
 func (vps *VaultPluginSuite) Test_MintX509CA_InvalidVaultResponse() {
+	vps.fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+	vps.fakeVaultServer.LookupSelfResponseCode = 200
 	vps.fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
 	vps.fakeVaultServer.SignIntermediateResponseCode = 200
 	vps.fakeVaultServer.SignIntermediateResponse = []byte(testInvalidSignIntermediateResponse)
@@ -372,6 +374,7 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidVaultResponse() {
 
 	p := vps.newPlugin()
 	p.cc = vps.getFakeClientConfig(addr)
+	p.authMethod = TOKEN
 
 	vps.LoadPlugin(builtin(p), &vps.plugin)
 	req := vps.loadMintX509CARequestFromTestFile()
@@ -382,6 +385,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidVaultResponse() {
 }
 
 func (vps *VaultPluginSuite) Test_MintX509CA_InvalidCSR() {
+	vps.fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+	vps.fakeVaultServer.LookupSelfResponseCode = 200
+
 	s, addr, err := vps.fakeVaultServer.NewTLSServer()
 	vps.Require().NoError(err)
 
@@ -390,6 +396,7 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidCSR() {
 
 	p := vps.newPlugin()
 	p.cc = vps.getFakeClientConfig(addr)
+	p.authMethod = TOKEN
 
 	vps.LoadPlugin(builtin(p), &vps.plugin)
 	req := vps.loadMintX509CARequestFromTestFile()
@@ -397,6 +404,7 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidCSR() {
 
 	_, err = vps.mintX509CA(req)
 	vps.Require().Error(err)
+	vps.Require().Contains(err.Error(), "failed to parse CSR data")
 }
 
 func (vps *VaultPluginSuite) mintX509CA(req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
