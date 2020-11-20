@@ -1,6 +1,6 @@
 module github.com/spiffe/spire
 
-go 1.14
+go 1.15
 
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
@@ -35,7 +35,6 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.3.5
-	github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190118093823-f849b5445de4
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/hashicorp/golang-lru v0.5.1

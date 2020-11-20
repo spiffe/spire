@@ -321,7 +321,7 @@ func TestParseConfig(t *testing.T) {
 					poll_interval = "huh"
 				}
 			`,
-			err: "invalid poll_interval in the registration_api configuration section: time: invalid duration huh",
+			err: "invalid poll_interval in the registration_api configuration section: time: invalid duration \"huh\"",
 		},
 		{
 			name: "minimal workload API config",
@@ -409,7 +409,7 @@ func TestParseConfig(t *testing.T) {
 					trust_domain = "domain.test"
 				}
 			`,
-			err: "invalid poll_interval in the workload_api configuration section: time: invalid duration huh",
+			err: "invalid poll_interval in the workload_api configuration section: time: invalid duration \"huh\"",
 		},
 		{
 			name: "workload API config missing trust domain",

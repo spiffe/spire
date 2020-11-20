@@ -50,17 +50,29 @@ func StartGRPCSocketServerOnTempSocket(t *testing.T, registerFn func(s *grpc.Ser
 }
 
 func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) {
-	// ensure the directory holding the socket exists
-	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0755))
-
-	// start up a listener. close it unless the function finishes and the
-	// gRPC server owns it.
-	listener, err := net.Listen("unix", socketPath)
-	require.NoError(t, err)
-
 	server := grpc.NewServer()
 	registerFn(server)
 
+	ServeGRPCServerOnSocket(t, server, socketPath)
+}
+
+func ServeGRPCServerOnTempSocket(t *testing.T, server *grpc.Server) string {
+	dir := TempDir(t)
+	socketPath := filepath.Join(dir, "server.sock")
+	ServeGRPCServerOnSocket(t, server, socketPath)
+	return socketPath
+}
+
+func ServeGRPCServerOnSocket(t *testing.T, server *grpc.Server, socketPath string) {
+	// ensure the directory holding the socket exists
+	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0755))
+
+	listener, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+	ServeGRPCServerOnListener(t, server, listener)
+}
+
+func ServeGRPCServerOnListener(t *testing.T, server *grpc.Server, listener net.Listener) {
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- server.Serve(listener)

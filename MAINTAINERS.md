@@ -12,10 +12,10 @@ TSC members do not track day-to-day activity in the SPIFFE/SPIRE projects, and t
 
 ### Maintainer Responsibility
 SPIRE maintainers adhere to the [requirements and responsibilities][2] set forth in the SPIFFE governance document. They further pledge the following:
-* To act in the best interest of the project at all times
-* To ensure that project development and direction is a function of community needs
-* To never take any action while hesitant that it is the right action to take
-* To fulfill the responsibilities outlined in this document and its dependents
+* To act in the best interest of the project at all times.
+* To ensure that project development and direction is a function of community needs.
+* To never take any action while hesitant that it is the right action to take.
+* To fulfill the responsibilities outlined in this document and its dependents.
 
 ### Number of Maintainers
 The SPIRE project keeps a total of five maintainer seats. This number was chosen because 1) it results in a healthy distribution of responsibility/load given the current volume of project activity, and 2) an odd number is highly desirable for dispute resolution.
@@ -74,7 +74,7 @@ If it is the first time that the prior major version is receiving a backported p
 
 Once the version branch is created, the patch is either cherry picked or backported into a PR against the version branch. The version branch is maintained via the same process as the master branch, including PR approval process etc.
 
-Releases for the previous major version are made directly from its version branch. Ensure that the `CHANGELOG` is updated in both the master and the version branch to reflect the new release.
+Releases for the previous major version are made directly from its version branch. Ensure that the CHANGELOG is updated in both the master and the version branch to reflect the new release.
 
 ### Releasing
 The SPIRE release machinery is tag-driven. When the maintainers are ready to release, a tag is pushed referencing the release commit. While the CI/CD pipeline takes care of the rest, it is important to keep an eye on its progress. If an error is encountered during this process, the release is aborted.
@@ -89,31 +89,40 @@ A simple majority vote is required to authorize a SPIRE release at a specific co
 This section summarizes the steps necessary to execute a SPIRE release. Unless explicitly stated, the below steps must be executed in order.
 
 The following steps must be completed one week prior to release:
-* Ensure all changes intended to be included in the release are fully merged
-* Identify a specific commit as the release candidate
-* Raise an issue "Release SPIRE X.Y.Z", and include both the release candidate commit hash and the proposed changelog updates
+* Ensure all changes intended to be included in the release are fully merged.
+* Identify a specific commit as the release candidate.
+* Create a draft pull request against master branch with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows those tracking the project to have early visibility into what will be included in the upcoming release and an opportunity to provide feedback. The release date can be set as "TBD" while it is a draft.
+* Raise an issue "Release SPIRE X.Y.Z", and include the release candidate commit hash. Reference the pull request with the updates to the CHANGELOG.
+* If the current state of the master branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
+  * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
+  * Create a GitHub project named `Release vX.X.X` to identify the PRs that will be cherry-picked. The project should have two statuses to track the progress: one to identify the PRs to be cherry-picked and one for those that have been merged in the version branch.
+  * Make sure that the [version in the branch](pkg/common/version/version.go) has been bumped to the version that is being released.
+  * Cherry-pick into the version branch the commits for all the changes that must be included in the release.
 
 **If this is a major release**, the following steps must be completed before releasing:
-* Review and exercise all examples in spiffe.io and spire-examples repo against the release candidate hash
-* Raise a PR for every example that updates included text and configuration to reflect current state and best practice
-  * Do not merge this PR yet. It will be updated later to use the real version pin rather than the commit hash
-  * If anything unusual is encountered during this process, a comment MUST be left on the release issue describing what was observed
+* Review and exercise all examples in spiffe.io and spire-examples repo against the release candidate hash.
+* Raise a PR for every example that updates included text and configuration to reflect current state and best practice.
+  * Do not merge this PR yet. It will be updated later to use the real version pin rather than the commit hash.
+  * If anything unusual is encountered during this process, a comment MUST be left on the release issue describing what was observed.
 
 The following steps must be completed to perform a release:
-* Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE
-  * The first line of the annotation should be `X.X.X` followed by the changelog. Refer to previous annotated tags as an example
+* Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it**. If a version branch was created for the realease, cherry-pick the final CHANGELOG changes into the version branch once they are merged.
+* If releasing from master and the current state of the master branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG. If releasing from a version branch, the candidate commit is now the one that has the CHANGELOG changes cherry-picked in the branch.
+* Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
+  * The first line of the annotation should be `X.X.X` followed by the CHANGELOG. Refer to previous annotated tags as an example.
   * The `proto/spire/vX.X.X` tag is needed for proper versioning of the github.com/spiffe/spire/proto/spire go module and can be omitted if/when that go module is no longer in the SPIRE repository.
-* Push the tags to SPIRE, and watch the build to completion
-  * If the build fails, or anything unusual is encountered, abort the release
-    * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary
-* Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub rendering bug that you will notice before completing this task
-* Open and merge a PR to bump the SPIRE version to the next projected version and apply the CHANGELOG updates
+* Push the tags to SPIRE, and watch the build to completion.
+  * If the build fails, or anything unusual is encountered, abort the release.
+    * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
+* Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub rendering bug that you will notice before completing this task.
+* Close the GitHub project created to track the release process.
+* Open and merge a PR to bump the SPIRE version to the next projected version.
   * For example, after releasing 0.10.0, update the version to 0.10.1, since it is more likely to be released before 0.11.0.
-  * Ideally, this is the first commit merged following the release
+  * Ideally, this is the first commit merged following the release.
 
-**IF this is a major release**, the following steps must be completed no later than one week after the release:
-* PRs to update spiffe.io and spire-examples repo to the latest major version must be merged
-  * Ensure that the PRs have been updated to use the version tag instead of the commit sha
+**If this is a major release**, the following steps must be completed no later than one week after the release:
+* PRs to update spiffe.io and spire-examples repo to the latest major version must be merged.
+  * Ensure that the PRs have been updated to use the version tag instead of the commit sha.
 * Broadcast news of release to the community via available means: SPIFFE Slack, Twitter, etc.
 
 ## Community Interaction and Presence
@@ -122,9 +131,9 @@ Maintainers represent the front line of SPIFFE and SPIRE community engagement. T
 SPIRE maintainers must make themselves available to the community. It is critical that maintainers engage in this capacity - for understanding user needs and pains, for ensuring success in project adoption and deployment, and to close feedback loops on recently-introduced changes or features... to name a few.
 
 PR and Issue management/response is a critical responsibility for all SPIRE maintainers. In addition, maintainers should, whenever possible:
-* Be generally available on the SPIFFE Slack, and engage in questions/conversations raised in the #help and #spire channels
-* Attend SPIFFE/SPIRE community events (physically or virtually)
-* Present SPIFFE/SPIRE at meetups and industry conferences
+* Be generally available on the SPIFFE Slack, and engage in questions/conversations raised in the #help and #spire channels.
+* Attend SPIFFE/SPIRE community events (physically or virtually).
+* Present SPIFFE/SPIRE at meetups and industry conferences.
 
 ### Communication Values
 SPIRE maintainers always engage in a respectful and constructive manner, and always follow the [SPIFFE Code of Conduct][6].
@@ -139,21 +148,21 @@ This is a very important aspect of SPIRE maintainership. Adoption and contributi
 
 In addition to the maintainer seats, the SPIRE project designates one product manager seat. While maintainers strive to ensure that project development and direction is a function of community needs, and interact with end users and contributors on a daily basis, the product manager works to clarify user needs by gathering additional information and context. This includes, but is not limited to, conducting user research and field testing to better inform maintainers, and communicating project development information to the community.
 
-Maintainers are expected to have heavy participation in the community, but it may be impractical to dedicate themselves to gathering and analyzing community feedback and end-user pain points. Based on data collection, the role of the product manager is intended to aid maintainers to validate the desirability, feasibility, and viability of efforts to help drive project direction and priorities in long term planning. 
+Maintainers are expected to have heavy participation in the community, but it may be impractical to dedicate themselves to gathering and analyzing community feedback and end-user pain points. Based on data collection, the role of the product manager is intended to aid maintainers to validate the desirability, feasibility, and viability of efforts to help drive project direction and priorities in long term planning.
 
 The role has three primary areas of focus: roadmap management and curation (to ensure the project direction is representative of the community's needs), program management (to help the project deliver on its strategy and meet its intended outcomes), and project management (to align day-to-day activities to meet the SPIRE project requirements).
 
 The product manager must:
 
-* Work with the maintainers to continually ensure a high-quality release of the projects including owning project management, issue triage and identifying all features in the current release cycle
-* Regularly attend maintainer sync calls
-* Participate actively in Request for Comments and feature proposal processes 
-* Track feature development and ongoing community undertakings
-* Coordinate changes that result from new work across the larger project and provide clarity on the acceptance, prioritization and timeline for all workstreams and efforts
-* Communicate major decisions involving release planning to the developer and end user communities through the project media, communication channels, and community events
-* Manage the relationship between SPIFFE/SPIRE and the CNCF
-* Support the marketing and promotion of the SPIFFE and SPIRE project through the CNCF with the objective to foster a more secure cloud native ecosystem
-* Coordinate and facilitate discussions on policy review and changes with the TSC
+* Work with the maintainers to continually ensure a high-quality release of the projects including owning project management, issue triage and identifying all features in the current release cycle.
+* Regularly attend maintainer sync calls.
+* Participate actively in Request for Comments and feature proposal processes.
+* Track feature development and ongoing community undertakings.
+* Coordinate changes that result from new work across the larger project and provide clarity on the acceptance, prioritization and timeline for all workstreams and efforts.
+* Communicate major decisions involving release planning to the developer and end user communities through the project media, communication channels, and community events.
+* Manage the relationship between SPIFFE/SPIRE and the CNCF.
+* Support the marketing and promotion of the SPIFFE and SPIRE project through the CNCF with the objective to foster a more secure cloud native ecosystem.
+* Coordinate and facilitate discussions on policy review and changes with the TSC.
 
 The product manager makes the same pledge as maintainers do to act in the best interest at all times and its seat follows the same change guidelines as maintainer seats as described in the governance document. Unseating a product manager against their will requires a unanimous vote by the maintainers.
 
