@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
@@ -127,7 +128,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
+	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager)
 	if err != nil {
 		return err
 	}
@@ -300,7 +301,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
@@ -314,12 +315,13 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 		RateLimit:                   s.config.RateLimit,
 		Uptime:                      uptime.Uptime,
+		Clock:                       clock.New(),
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
 		config.BundleEndpoint.ACME = s.config.Federation.BundleEndpoint.ACME
 	}
-	return endpoints.New(config)
+	return endpoints.New(ctx, config)
 }
 
 func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics) *bundle_client.Manager {
