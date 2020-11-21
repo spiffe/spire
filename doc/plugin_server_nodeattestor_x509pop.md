@@ -29,8 +29,8 @@ A sample configuration:
 		plugin_data {
 			ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
 
-            # Change the agent's SPIFFE ID format
-            # agent_path_template = "/cn/{{ .Subject.CommonName }}"
+			# Change the agent's SPIFFE ID format
+			# agent_path_template = "/cn/{{ .Subject.CommonName }}"
 		}
 	}
 ```
