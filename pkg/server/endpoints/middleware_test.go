@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -60,50 +60,30 @@ func TestAuthorizedEntryFetcher(t *testing.T) {
 }
 
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
-	log := logrus.New()
-	log.Out = ioutil.Discard
-	metrics := telemetry.Blackhole{}
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
 	ds := fakedatastore.New(t)
+	clk := clock.NewMock(t)
 
 	e := createAuthorizedEntryTestData(t, ds)
 	expectedNodeAliasEntries := e.nodeAliasEntries
 	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
 	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
 
-	firstTime := time.Unix(0, 0)
-	var clkAdvance time.Duration
-	advanceClock := func(d time.Duration) {
-		clkAdvance = d
+	buildCache := func(context.Context) (entrycache.Cache, error) {
+		entryMap := map[spiffeid.ID][]*types.Entry{
+			agentID: expectedEntries,
+		}
+
+		return newStaticEntryCache(entryMap), nil
 	}
 
-	timeNow := func() time.Time {
-		return firstTime.Add(clkAdvance)
-	}
+	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
+	require.NoError(t, err)
 
-	f := authorizedEntryFetcherWithFullCache(log, metrics, ds, timeNow)
-
-	t.Run("success (initial)", func(t *testing.T) {
-		ds.SetNextError(nil)
-		entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, expectedEntries, entries)
-	})
-
-	t.Run("success (cached)", func(t *testing.T) {
-		ds.SetNextError(nil)
-		entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, expectedEntries, entries)
-	})
-
-	advanceClock(cacheReloadInterval)
-
-	t.Run("failure on cache reload", func(t *testing.T) {
-		ds.SetNextError(errors.New("ohno"))
-		entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-		assert.EqualError(t, err, "ohno")
-		assert.Nil(t, entries)
-	})
+	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, expectedEntries, entries)
 }
 
 func TestAgentAuthorizer(t *testing.T) {
