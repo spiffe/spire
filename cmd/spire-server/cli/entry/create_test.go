@@ -226,6 +226,7 @@ Parent ID     : spiffe://example.org/parent
 Revision      : 0
 Downstream    : true
 TTL           : 60
+ExpiresAt     : 1552410266
 Selector      : zebra:zebra:2000
 Selector      : alpha:alpha:2000
 FederatesWith : spiffe://domaina.test

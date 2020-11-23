@@ -238,6 +238,7 @@ func getEntries(count int) []*types.Entry {
 			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
 			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/son"},
 			Selectors: []*types.Selector{selectors[2]},
+			ExpiresAt: 1552410266,
 			Id:        "00000000-0000-0000-0000-000000000003",
 		},
 	}
@@ -288,6 +289,7 @@ SPIFFE ID     : spiffe://example.org/son
 Parent ID     : spiffe://example.org/mother
 Revision      : 0
 TTL           : default
+ExpiresAt     : 1552410266
 Selector      : baz:bat
 
 `

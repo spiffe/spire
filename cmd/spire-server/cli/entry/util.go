@@ -47,6 +47,10 @@ func printEntry(e *types.Entry, env *common_cli.Env) {
 		env.Printf("TTL           : %d\n", e.Ttl)
 	}
 
+	if e.ExpiresAt != 0 {
+		env.Printf("ExpiresAt     : %d\n", e.ExpiresAt)
+	}
+
 	for _, s := range e.Selectors {
 		env.Printf("Selector      : %s:%s\n", s.Type, s.Value)
 	}
