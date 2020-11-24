@@ -3,6 +3,7 @@ package entry
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -238,6 +239,7 @@ func getEntries(count int) []*types.Entry {
 			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
 			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/son"},
 			Selectors: []*types.Selector{selectors[2]},
+			ExpiresAt: 1552410266,
 			Id:        "00000000-0000-0000-0000-000000000003",
 		},
 	}
@@ -253,44 +255,45 @@ func getEntries(count int) []*types.Entry {
 func getPrintedEntry(idx int) string {
 	switch idx {
 	case 0:
-		return `Entry ID      : 00000000-0000-0000-0000-000000000000
-SPIFFE ID     : spiffe://example.org/son
-Parent ID     : spiffe://example.org/father
-Revision      : 0
-TTL           : default
-Selector      : foo:bar
+		return `Entry ID         : 00000000-0000-0000-0000-000000000000
+SPIFFE ID        : spiffe://example.org/son
+Parent ID        : spiffe://example.org/father
+Revision         : 0
+TTL              : default
+Selector         : foo:bar
 
 `
 	case 1:
-		return `Entry ID      : 00000000-0000-0000-0000-000000000001
-SPIFFE ID     : spiffe://example.org/daughter
-Parent ID     : spiffe://example.org/father
-Revision      : 0
-TTL           : default
-Selector      : bar:baz
-Selector      : foo:bar
+		return `Entry ID         : 00000000-0000-0000-0000-000000000001
+SPIFFE ID        : spiffe://example.org/daughter
+Parent ID        : spiffe://example.org/father
+Revision         : 0
+TTL              : default
+Selector         : bar:baz
+Selector         : foo:bar
 
 `
 	case 2:
-		return `Entry ID      : 00000000-0000-0000-0000-000000000002
-SPIFFE ID     : spiffe://example.org/daughter
-Parent ID     : spiffe://example.org/mother
-Revision      : 0
-TTL           : default
-Selector      : bar:baz
-Selector      : baz:bat
-FederatesWith : spiffe://domain.test
+		return `Entry ID         : 00000000-0000-0000-0000-000000000002
+SPIFFE ID        : spiffe://example.org/daughter
+Parent ID        : spiffe://example.org/mother
+Revision         : 0
+TTL              : default
+Selector         : bar:baz
+Selector         : baz:bat
+FederatesWith    : spiffe://domain.test
 
 `
 	case 3:
-		return `Entry ID      : 00000000-0000-0000-0000-000000000003
-SPIFFE ID     : spiffe://example.org/son
-Parent ID     : spiffe://example.org/mother
-Revision      : 0
-TTL           : default
-Selector      : baz:bat
+		return fmt.Sprintf(`Entry ID         : 00000000-0000-0000-0000-000000000003
+SPIFFE ID        : spiffe://example.org/son
+Parent ID        : spiffe://example.org/mother
+Revision         : 0
+TTL              : default
+Expiration time  : %s
+Selector         : baz:bat
 
-`
+`, time.Unix(1552410266, 0).UTC())
 	default:
 		return "index should be lower than 4"
 	}
