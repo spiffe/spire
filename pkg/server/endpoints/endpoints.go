@@ -9,7 +9,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"golang.org/x/net/context"
+	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -49,17 +51,19 @@ type Server interface {
 }
 
 type Endpoints struct {
-	TCPAddr      *net.TCPAddr
-	UDSAddr      *net.UnixAddr
-	SVIDObserver svid.Observer
-	TrustDomain  spiffeid.TrustDomain
-	DataStore    datastore.DataStore
 	OldAPIServers
-	APIServers           APIServers
-	BundleEndpointServer Server
-	Log                  logrus.FieldLogger
-	Metrics              telemetry.Metrics
-	RateLimit            RateLimitConfig
+
+	TCPAddr                      *net.TCPAddr
+	UDSAddr                      *net.UnixAddr
+	SVIDObserver                 svid.Observer
+	TrustDomain                  spiffeid.TrustDomain
+	DataStore                    datastore.DataStore
+	APIServers                   APIServers
+	BundleEndpointServer         Server
+	Log                          logrus.FieldLogger
+	Metrics                      telemetry.Metrics
+	RateLimit                    RateLimitConfig
+	EntryFetcherCacheRebuildTask func(context.Context) error
 }
 
 type OldAPIServers struct {
@@ -82,24 +86,36 @@ type RateLimitConfig struct {
 }
 
 // New creates new endpoints struct
-func New(c Config) (*Endpoints, error) {
+func New(ctx context.Context, c Config) (*Endpoints, error) {
 	oldAPIServers, err := c.makeOldAPIServers()
 	if err != nil {
 		return nil, err
 	}
 
+	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
+		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
+		defer call.Done(&err)
+		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Endpoints{
-		TCPAddr:              c.TCPAddr,
-		UDSAddr:              c.UDSAddr,
-		SVIDObserver:         c.SVIDObserver,
-		TrustDomain:          c.TrustDomain,
-		DataStore:            c.Catalog.GetDataStore(),
-		OldAPIServers:        oldAPIServers,
-		APIServers:           c.makeAPIServers(),
-		BundleEndpointServer: c.maybeMakeBundleEndpointServer(),
-		Log:                  c.Log,
-		Metrics:              c.Metrics,
-		RateLimit:            c.RateLimit,
+		OldAPIServers:                oldAPIServers,
+		TCPAddr:                      c.TCPAddr,
+		UDSAddr:                      c.UDSAddr,
+		SVIDObserver:                 c.SVIDObserver,
+		TrustDomain:                  c.TrustDomain,
+		DataStore:                    c.Catalog.GetDataStore(),
+		APIServers:                   c.makeAPIServers(ef),
+		BundleEndpointServer:         c.maybeMakeBundleEndpointServer(),
+		Log:                          c.Log,
+		Metrics:                      c.Metrics,
+		RateLimit:                    c.RateLimit,
+		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 	}, nil
 }
 
@@ -139,6 +155,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		func(ctx context.Context) error {
 			return e.runUDSServer(ctx, udsServer)
 		},
+		e.EntryFetcherCacheRebuildTask,
 	}
 
 	if e.BundleEndpointServer != nil {
@@ -253,6 +270,8 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 			ClientCAs:    roots,
 
 			MinVersion: tls.VersionTLS12,
+
+			NextProtos: []string{http2.NextProtoTLS},
 		}, nil
 	}
 }

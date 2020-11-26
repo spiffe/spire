@@ -2,7 +2,9 @@ package entry
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -220,21 +222,22 @@ func TestCreate(t *testing.T) {
 				},
 			},
 			fakeResp: fakeRespOKFromCmd,
-			expOut: `Entry ID      : entry-id
-SPIFFE ID     : spiffe://example.org/workload
-Parent ID     : spiffe://example.org/parent
-Revision      : 0
-Downstream    : true
-TTL           : 60
-Selector      : zebra:zebra:2000
-Selector      : alpha:alpha:2000
-FederatesWith : spiffe://domaina.test
-FederatesWith : spiffe://domainb.test
-DNS name      : unu1000
-DNS name      : ung1000
-Admin         : true
+			expOut: fmt.Sprintf(`Entry ID         : entry-id
+SPIFFE ID        : spiffe://example.org/workload
+Parent ID        : spiffe://example.org/parent
+Revision         : 0
+Downstream       : true
+TTL              : 60
+Expiration time  : %s
+Selector         : zebra:zebra:2000
+Selector         : alpha:alpha:2000
+FederatesWith    : spiffe://domaina.test
+FederatesWith    : spiffe://domainb.test
+DNS name         : unu1000
+DNS name         : ung1000
+Admin            : true
 
-`,
+`, time.Unix(1552410266, 0).UTC()),
 		},
 		{
 			name: "Create succeeds using data file",
@@ -259,20 +262,20 @@ Admin         : true
 				},
 			},
 			fakeResp: fakeRespOKFromFile,
-			expOut: `Entry ID      : entry-id-1
-SPIFFE ID     : spiffe://example.org/Blog
-Parent ID     : spiffe://example.org/spire/agent/join_token/TokenBlog
-Revision      : 0
-TTL           : 200
-Selector      : unix:uid:1111
-Admin         : true
+			expOut: `Entry ID         : entry-id-1
+SPIFFE ID        : spiffe://example.org/Blog
+Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
+Revision         : 0
+TTL              : 200
+Selector         : unix:uid:1111
+Admin            : true
 
-Entry ID      : entry-id-2
-SPIFFE ID     : spiffe://example.org/Database
-Parent ID     : spiffe://example.org/spire/agent/join_token/TokenDatabase
-Revision      : 0
-TTL           : 200
-Selector      : unix:uid:1111
+Entry ID         : entry-id-2
+SPIFFE ID        : spiffe://example.org/Database
+Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision         : 0
+TTL              : 200
+Selector         : unix:uid:1111
 
 `,
 		},
@@ -288,12 +291,12 @@ Selector      : unix:uid:1111
 			}},
 			fakeResp: fakeRespErr,
 			expOut: `FAILED to create the following entry:
-Entry ID      : 
-SPIFFE ID     : spiffe://example.org/already-exist
-Parent ID     : spiffe://example.org/spire/server
-Revision      : 0
-TTL           : default
-Selector      : unix:uid:1
+Entry ID         : 
+SPIFFE ID        : spiffe://example.org/already-exist
+Parent ID        : spiffe://example.org/spire/server
+Revision         : 0
+TTL              : default
+Selector         : unix:uid:1
 
 similar entry already exists
 `,
