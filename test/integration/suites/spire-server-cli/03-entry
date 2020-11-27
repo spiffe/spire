@@ -101,3 +101,32 @@ docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2 | grep "Entry ID" | \
         grep ${entryID2} || fail-now "failed to show entry 2 after update, unexpected Entry ID"
+
+# Verify entry show using filters
+# By parent
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        -parentID spiffe://domain.test/parent | grep "Found 2 entries" || fail-now "failed to show entries by parentID"
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        -parentID spiffe://domain.test/parent | grep "Entry ID" | \
+        grep ${entryID1} || fail-now "failed to show entries by parentID, expected Entry ID 1 not found"
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        -parentID spiffe://domain.test/parent | grep "Entry ID" | \
+        grep ${entryID2} || fail-now "failed to show entries by parentID, expected Entry ID 2 not found"
+
+# By selectors (Match policy cannot be sepecified through cli yet. EXACT is always used)
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        -selector s1:v1 | grep "Found 1 entry" || fail-now "failed to show entry 1 by selector"
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        -selector s1:v1 | grep ${entryID1} || fail-now "failed to show entry 1 by selector, unexpected Entry ID"
+
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        -selector s1:v1 -selector s2:v2 | grep "Found 1 entry" || fail-now "failed to show entry 2 by selector"
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        -selector s1:v1 -selector s2:v2 | grep ${entryID2} || fail-now "failed to show entry 2 by selector, unexpected Entry ID"
