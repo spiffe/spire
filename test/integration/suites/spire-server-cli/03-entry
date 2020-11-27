@@ -57,3 +57,47 @@ entryID2="$(docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2NotUpdated | grep "Entry ID")" || fail-now "failed to show entry 2, no Entry ID"
 entryID2="${entryID2#*: }"
+
+# Verify entry update
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry update \
+        -entryID ${entryID1} \
+        -selector s1:v1 \
+        -parentID spiffe://domain.test/parent \
+        -spiffeID spiffe://domain.test/child1 \
+        -federatesWith spiffe://federated1.test || fail-now "failed to update entry 1"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry update \
+        -entryID ${entryID2} \
+        -selector s1:v1 -selector s2:v2 \
+        -parentID spiffe://domain.test/parent \
+        -spiffeID spiffe://domain.test/child2 \
+        -federatesWith spiffe://federated1.test -federatesWith spiffe://federated2.test || fail-now "failed to update entry 2"
+
+# Verify entry show after updates
+# Entry 1
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Found 1 entry" || fail-now "failed to show entry 1 after update"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "SPIFFE ID" | \
+        grep spiffe://domain.test/child1 || fail-now "failed to show entry 1 after update, unexpected SPIFFE ID"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Entry ID" | \
+        grep ${entryID1} || fail-now "failed to show entry 1 after update, unexpected Entry ID"
+
+# Entry 2
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Found 1 entry" || fail-now "failed to show entry 2 after update"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "SPIFFE ID" | \
+        grep spiffe://domain.test/child2 || fail-now "failed to show entry 2 after update, unexpected SPIFFE ID"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Entry ID" | \
+        grep ${entryID2} || fail-now "failed to show entry 2 after update, unexpected Entry ID"
