@@ -130,3 +130,29 @@ docker-compose exec -T spire-server \
 docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry show \
         -selector s1:v1 -selector s2:v2 | grep ${entryID2} || fail-now "failed to show entry 2 by selector, unexpected Entry ID"
+
+# Verify entry delete
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show | grep "Found 3 entries" || fail-now "failed to show entries before delete"
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        | grep "Entry ID" | grep ${entryID1} || fail-now "failed to show entries before delete, expected Entry ID 1 not found"
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        | grep "Entry ID" | grep ${entryID2} || fail-now "failed to show entries before delete, expected Entry ID 2 not found"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        | grep "SPIFFE ID" | grep spiffe://domain.test/otherChild || fail-now "failed to show entries before delete, expected SPIFFE ID not found"
+
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry delete \
+        -entryID ${entryID1} || fail-now "failed to delete entry 1"
+
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show | grep "Found 2 entries" || fail-now "failed to show entries after delete"
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show \
+        | grep "Entry ID" | grep ${entryID2} || fail-now "failed to show entries after delete, expected Entry ID 2 not found"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        | grep "SPIFFE ID" | grep spiffe://domain.test/otherChild || fail-now "failed to show entries after delete, expected SPIFFE ID not found"
