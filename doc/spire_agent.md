@@ -112,6 +112,7 @@ health_checks {
         bind_port = "80"
         live_path = "/live"
         ready_path = "/ready"
+        checking_readiness_interval = "1m"
 }
 ```
 

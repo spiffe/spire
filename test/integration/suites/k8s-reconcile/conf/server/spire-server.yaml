@@ -157,6 +157,15 @@ data:
       }
     }
 
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "80"
+      live_path = "/live"
+      ready_path = "/ready"
+      checking_readiness_interval = "5s"
+    }
+
 ---
 
 apiVersion: v1
@@ -212,13 +221,15 @@ spec:
               mountPath: /run/spire/sockets
               readOnly: false
           livenessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-server", "healthcheck", "-registrationUDSPath", "/run/spire/sockets/registration.sock"]
+            httpGet:
+              path: /live
+              port: 80
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-server", "healthcheck", "-registrationUDSPath", "/run/spire/sockets/registration.sock", "--shallow"]
+            httpGet:
+              path: /ready
+              port: 80
             initialDelaySeconds: 5
             periodSeconds: 5
         - name: k8s-workload-registrar
@@ -279,5 +290,3 @@ spec:
   ports:
     - port: 443
       targetPort: registrar-port
-
-
