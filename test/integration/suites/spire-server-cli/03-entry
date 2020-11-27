@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Create bundles of federated tds to be used then
+docker-compose exec -T spire-server \
+    ash -c "
+cat /opt/spire/conf/fixture/ca.pem | 
+    /opt/spire/bin/spire-server bundle set -id spiffe://federated1.test" || fail-now "failed to create federated bundle 1"
+
+docker-compose exec -T spire-server \
+    ash -c "
+cat /opt/spire/conf/fixture/ca.pem | 
+    /opt/spire/bin/spire-server bundle set -id spiffe://federated2.test" || fail-now "failed to create federated bundle 2"
+
+# Verify entry create
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry create \
+        -selector s1:v1 \
+        -parentID spiffe://domain.test/parent \
+        -spiffeID spiffe://domain.test/child1 \
+        -federatesWith spiffe://federated1.test || fail-now "failed to create entry 1"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry create \
+        -selector notUpdated:notUpdated \
+        -parentID spiffe://domain.test/parentNotUpdated \
+        -spiffeID spiffe://domain.test/child2NotUpdated || fail-now "failed to create entry 2"
+
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+        -selector otherS:otherV \
+        -parentID spiffe://domain.test/otherParent \
+        -spiffeID spiffe://domain.test/otherChild || fail-now "failed to create entry 3"
