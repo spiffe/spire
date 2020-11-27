@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -46,15 +47,21 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 		}
 	}
 
-	hc.StatusListener = &statusListener{}
-	hc.Logger = &logadapter{FieldLogger: log.WithField(telemetry.SubsystemName, "health")}
+	l := log.WithField(telemetry.SubsystemName, "health")
+	hc.StatusListener = &statusListener{log: l}
+	hc.Logger = &logadapter{FieldLogger: l}
 
 	return &Checker{config: config, server: server, hc: hc, log: log}
 }
 
-func (c *Checker) AddCheck(name string, checker health.ICheckable, interval time.Duration) error {
+func (c *Checker) AddCheck(name string, checker health.ICheckable) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	interval, err := time.ParseDuration(c.config.getCheckingReadinessInterval())
+	if err != nil {
+		return fmt.Errorf("could not parse interval for checking readiness %q: %v", c.config.getCheckingReadinessInterval(), err)
+	}
 
 	return c.hc.AddCheck(&health.Config{
 		Name:     name,
