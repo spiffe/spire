@@ -30,3 +30,30 @@ docker-compose exec -T spire-server \
         -selector otherS:otherV \
         -parentID spiffe://domain.test/otherParent \
         -spiffeID spiffe://domain.test/otherChild || fail-now "failed to create entry 3"
+
+# Verify entry show and set variables entryID1 and entryID2
+# Entry 1
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Found 1 entry" || fail-now "failed to show entry 1"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "SPIFFE ID" | \
+        grep spiffe://domain.test/child1 || fail-now "failed to show entry 1, unexpected SPIFFE ID"
+entryID1="$(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Entry ID")" || fail-now "failed to show entry 1, no Entry ID"
+entryID1="${entryID1#*: }"
+
+# Entry 2
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "Found 1 entry" || fail-now "failed to show entry 2"
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "SPIFFE ID" | \
+        grep spiffe://domain.test/child2NotUpdated || fail-now "failed to show entry 2, unexpected SPIFFE ID"
+entryID2="$(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "Entry ID")" || fail-now "failed to show entry 2, no Entry ID"
+entryID2="${entryID2#*: }"
