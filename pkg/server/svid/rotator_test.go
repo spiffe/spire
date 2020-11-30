@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"math/big"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
@@ -37,13 +37,10 @@ type RotatorTestSuite struct {
 }
 
 func (s *RotatorTestSuite) SetupTest() {
-	td := url.URL{
-		Scheme: "spiffe",
-		Host:   "example.org",
-	}
+	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 
 	s.clock = clock.NewMock(s.T())
-	s.serverCA = fakeserverca.New(s.T(), "example.org", &fakeserverca.Options{
+	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock:       s.clock,
 		X509SVIDTTL: testTTL,
 	})
@@ -56,7 +53,7 @@ func (s *RotatorTestSuite) SetupTest() {
 		ServerCA:    s.serverCA,
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
-		TrustDomain: td,
+		TrustDomain: trustDomain,
 		Clock:       s.clock,
 	})
 }
@@ -114,7 +111,7 @@ func (s *RotatorTestSuite) TestRotationFails() {
 	defer cancel()
 
 	// Intentionally change the trust domain to trigger a rotation error
-	s.r.c.TrustDomain.Host = "wrong-td.org"
+	s.r.c.TrustDomain = spiffeid.RequireTrustDomainFromString("wrong-td.org")
 
 	wg.Add(1)
 	errCh := make(chan error, 1)
@@ -137,7 +134,7 @@ func (s *RotatorTestSuite) TestRotationFails() {
 			Level:   logrus.ErrorLevel,
 			Message: "Could not rotate server SVID",
 			Data: logrus.Fields{
-				logrus.ErrorKey: `"spiffe://wrong-td.org/spire/server" does not belong to trust domain "example.org"`,
+				logrus.ErrorKey: `"spiffe://wrong-td.org/spire/server" is not a member of trust domain "example.org"`,
 			},
 		},
 		{

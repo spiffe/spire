@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/url"
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -33,11 +33,8 @@ func (suite *ServerTestSuite) SetupTest() {
 	logger.Level = logrusLevel
 
 	suite.server = New(Config{
-		Log: logger,
-		TrustDomain: url.URL{
-			Scheme: "spiffe",
-			Host:   "example.org",
-		},
+		Log:         logger,
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	})
 }
 
@@ -50,17 +47,15 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	ds := suite.ds
 
 	// Create default trust domain
-	trustDomain := "spiffe://test.com"
-	uri, err := url.Parse(trustDomain)
+	trustDomain, err := spiffeid.TrustDomainFromString("spiffe://test.com")
 	suite.NoError(err)
 
 	// Create new trust domain
-	newTrustDomain := "spiffe://new_test.com"
-	newURI, err := url.Parse(newTrustDomain)
+	newTrustDomain, err := spiffeid.TrustDomainFromString("spiffe://new_test.com")
 	suite.NoError(err)
 
 	// Set trust domain to server
-	suite.server.config.TrustDomain = *uri
+	suite.server.config.TrustDomain = trustDomain
 	suite.NoError(err)
 
 	// No attested nodes, not error expected
@@ -83,7 +78,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.NoError(err)
 
 	// Update server trust domain to force errors
-	suite.server.config.TrustDomain = *newURI
+	suite.server.config.TrustDomain = newTrustDomain
 
 	// Update server's trust domain, error expected because invalid trust domain
 	err = suite.server.validateTrustDomain(ctx, ds)
@@ -92,7 +87,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.Require().Contains(suite.stdout.String(), fmt.Sprintf(invalidTrustDomainAttestedNode, "test.com", "new_test.com"))
 
 	// Back server's trust domain
-	suite.server.config.TrustDomain = *uri
+	suite.server.config.TrustDomain = trustDomain
 
 	// Create a registration entry with original trust domain
 	entryResp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
@@ -108,7 +103,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.NoError(err)
 
 	// Update server's trust domain, error expected because invalid trust domain
-	suite.server.config.TrustDomain = *newURI
+	suite.server.config.TrustDomain = newTrustDomain
 	err = suite.server.validateTrustDomain(ctx, ds)
 	suite.EqualError(err, fmt.Sprintf(invalidTrustDomainRegistrationEntry, "test.com", "new_test.com"))
 
@@ -117,7 +112,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 		EntryId: entryResp.Entry.EntryId,
 	})
 	suite.NoError(err)
-	suite.server.config.TrustDomain = *uri
+	suite.server.config.TrustDomain = trustDomain
 	entryResp, err = ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &common.RegistrationEntry{
 			SpiffeId:  "spiffe://inv%ild/test",

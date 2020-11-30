@@ -536,7 +536,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.TrustDomain = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, "spiffe://foo", c.TrustDomain.String())
+				require.Equal(t, "spiffe://foo", c.TrustDomain.IDString())
 			},
 		},
 		{
