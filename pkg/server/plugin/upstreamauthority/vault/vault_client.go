@@ -87,7 +87,7 @@ type ClientParams struct {
 	// Set to 0 to disable retrying.
 	// If the value is nil, to use the default in hashicorp/vault/api.
 	MaxRetries *int
-	// Name of the Vault namespaces
+	// Name of the Vault namespace
 	Namespace string
 }
 

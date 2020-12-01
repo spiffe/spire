@@ -50,7 +50,7 @@ type PluginConfig struct {
 	// If true, vault client accepts any server certificates.
 	// It should be used only test environment so on.
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify"`
-	// Name of the Vault namespaces
+	// Name of the Vault namespace
 	Namespace string `hcl:"namespace"`
 }
 
