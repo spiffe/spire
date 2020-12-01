@@ -546,7 +546,8 @@ $(protoc_gen_go_grpc_bin): | go-check
 	@echo "Installing protoc-gen-go-grpc $(protoc_gen_go_grpc_version)..."
 	$(E)rm -rf $(protoc_gen_go_grpc_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_grpc_dir)
-	$(E)GOBIN=$(protoc_gen_go_grpc_dir) $(go) get google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
+	$(E)echo "module tools" > $(protoc_gen_go_grpc_dir)/go.mod
+	$(E)cd $(protoc_gen_go_grpc_dir) && GOBIN=$(protoc_gen_go_grpc_dir) $(go) get google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
 
 install-mockgen: $(mockgen_bin)
 
