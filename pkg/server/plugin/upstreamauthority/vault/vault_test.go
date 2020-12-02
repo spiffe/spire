@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/vault/sdk/helper/consts"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -63,11 +64,12 @@ func (vps *VaultPluginSuite) Test_Configure() {
 	defer s.Close()
 
 	for _, c := range []struct {
-		name       string
-		configTmpl string
-		err        string
-		wantAuth   AuthMethod
-		envKeyVal  map[string]string
+		name                  string
+		configTmpl            string
+		err                   string
+		wantAuth              AuthMethod
+		wantNamespaceIsNotNil bool
+		envKeyVal             map[string]string
 	}{
 		{
 			name:       "Configure plugin with Client Certificate authentication params given in config file",
@@ -123,6 +125,12 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			},
 			wantAuth: TOKEN,
 		},
+		{
+			name:                  "Configure plugin with given namespace",
+			configTmpl:            testNamespaceConfigTpl,
+			wantAuth:              TOKEN,
+			wantNamespaceIsNotNil: true,
+		},
 	} {
 		c := c
 		vps.Run(c.name, func() {
@@ -158,6 +166,10 @@ func (vps *VaultPluginSuite) Test_Configure() {
 				vps.Require().NotNil(p.cc.clientParams.AppRoleAuthMountPoint)
 				vps.Require().NotNil(p.cc.clientParams.AppRoleID)
 				vps.Require().NotNil(p.cc.clientParams.AppRoleSecretID)
+			}
+
+			if c.wantNamespaceIsNotNil {
+				vps.Require().NotNil(p.cc.clientParams.Namespace)
 			}
 		})
 	}
@@ -285,6 +297,20 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			},
 			authMethod: APPROLE,
 		},
+		{
+			name:           "Mint X509CA SVID with Namespace",
+			lookupSelfResp: []byte(testLookupSelfResponse),
+			config: &PluginConfig{
+				Namespace:     "test-ns",
+				PKIMountPoint: "test-pki",
+				CACertPath:    "_test_data/keys/EC/root_cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
+				},
+			},
+			authMethod: TOKEN,
+			reuseToken: true,
+		},
 	} {
 		c := c
 		vps.Run(c.name, func() {
@@ -334,6 +360,11 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			}
 
 			vps.Require().Equal(c.reuseToken, p.reuseToken)
+
+			if p.cc.clientParams.Namespace != "" {
+				headers := p.vc.vaultClient.Headers()
+				vps.Require().Equal(p.cc.clientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
 		})
 	}
 }
