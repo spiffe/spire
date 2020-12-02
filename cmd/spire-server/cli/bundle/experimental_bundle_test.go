@@ -99,14 +99,14 @@ func TestExperimentalSetRequiresIDFlag(t *testing.T) {
 
 	rc := test.client.Run(test.args)
 	require.Equal(t, 1, rc)
-	require.Equal(t, "id flag is required\n", test.stderr.String())
+	require.Equal(t, "Error: id flag is required\n", test.stderr.String())
 }
 
 func TestExperimentalSetCannotLoadBundleFromFile(t *testing.T) {
 	test := setupTest(t, newExperimentalSetCommand)
 	rc := test.client.Run(append(test.args, "-id", "spiffe://otherdomain.test", "-path", "/not/a/real/path/to/a/bundle"))
 	require.Equal(t, 1, rc)
-	require.Equal(t, "unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n", test.stderr.String())
+	require.Equal(t, "Error: unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n", test.stderr.String())
 }
 
 func TestExperimentalSetBundleFromFile(t *testing.T) {

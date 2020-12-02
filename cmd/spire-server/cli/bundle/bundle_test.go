@@ -58,7 +58,7 @@ func TestShow(t *testing.T) {
 		{
 			name:          "server fails",
 			serverErr:     errors.New("some error"),
-			expectedError: "rpc error: code = Unknown desc = some error\n",
+			expectedError: "Error: rpc error: code = Unknown desc = some error\n",
 		},
 	} {
 		tt := tt
@@ -127,54 +127,54 @@ func TestSet(t *testing.T) {
 	}{
 		{
 			name:           "no id",
-			expectedStderr: "id flag is required\n",
+			expectedStderr: "Error: id flag is required\n",
 		},
 		{
 			name:           "invalid trust domain ID",
-			expectedStderr: "\"spiffe://otherdomain.test/spire/server\" is not a valid trust domain SPIFFE ID: path is not empty\n",
+			expectedStderr: "Error: \"spiffe://otherdomain.test/spire/server\" is not a valid trust domain SPIFFE ID: path is not empty\n",
 			args:           []string{"-id", "spiffe://otherdomain.test/spire/server"},
 		},
 		{
 			name:           "invalid trust domain ID",
-			expectedStderr: "unable to parse bundle data: no PEM blocks\n",
+			expectedStderr: "Error: unable to parse bundle data: no PEM blocks\n",
 			args:           []string{"-id", "spiffe://otherdomain.test"},
 		},
 		{
 			name:           "invalid output format",
 			stdin:          cert1PEM,
 			args:           []string{"-id", "spiffe://otherdomain.test", "-format", "invalidFormat"},
-			expectedStderr: "invalid format: \"invalidformat\"\n",
+			expectedStderr: "Error: invalid format: \"invalidformat\"\n",
 		},
 		{
 			name:           "invalid trustdomain",
 			stdin:          cert1PEM,
 			args:           []string{"-id", "otherdomain test"},
-			expectedStderr: "\"otherdomain%20test\" is not a valid trust domain SPIFFE ID: invalid scheme\n",
+			expectedStderr: "Error: \"otherdomain%20test\" is not a valid trust domain SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name:           "invalid bundle (pem)",
 			stdin:          "invalid bundle",
 			args:           []string{"-id", "spiffe://otherdomain.test"},
-			expectedStderr: "unable to parse bundle data: no PEM blocks\n",
+			expectedStderr: "Error: unable to parse bundle data: no PEM blocks\n",
 		},
 		{
 			name:           "invalid bundle (spiffe)",
 			stdin:          "invalid bundle",
 			args:           []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
-			expectedStderr: "unable to parse to spiffe bundle: spiffebundle: unable to parse JWKS: invalid character 'i' looking for beginning of value\n",
+			expectedStderr: "Error: unable to parse to spiffe bundle: spiffebundle: unable to parse JWKS: invalid character 'i' looking for beginning of value\n",
 		},
 		{
 			name:           "server fails",
 			stdin:          cert1PEM,
 			args:           []string{"-id", "spiffe://otherdomain.test"},
 			serverErr:      status.New(codes.Internal, "some error").Err(),
-			expectedStderr: "failed to set federated bundle: rpc error: code = Internal desc = some error\n",
+			expectedStderr: "Error: failed to set federated bundle: rpc error: code = Internal desc = some error\n",
 		},
 		{
 			name:           "failed to set",
 			stdin:          cert1PEM,
 			args:           []string{"-id", "spiffe://otherdomain.test"},
-			expectedStderr: "failed to set federated bundle: failed to set\n",
+			expectedStderr: "Error: failed to set federated bundle: failed to set\n",
 			toSet: &types.Bundle{
 				TrustDomain: "spiffe://otherdomain.test",
 				X509Authorities: []*types.X509Certificate{
@@ -268,7 +268,7 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:           "invalid file name",
-			expectedStderr: "unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n",
+			expectedStderr: "Error: unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n",
 			args:           []string{"-id", "spiffe://otherdomain.test", "-path", "/not/a/real/path/to/a/bundle"},
 		},
 		{
@@ -411,13 +411,13 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:           "all bundles server fails",
-			expectedStderr: "rpc error: code = Internal desc = some error\n",
+			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
 			serverErr:      status.New(codes.Internal, "some error").Err(),
 		},
 		{
 			name:           "all bundles invalid format",
 			args:           []string{"-format", "invalid"},
-			expectedStderr: "invalid format: \"invalid\"\n",
+			expectedStderr: "Error: invalid format: \"invalid\"\n",
 		},
 		{
 			name:           "all bundles (pem)",
@@ -437,18 +437,18 @@ func TestList(t *testing.T) {
 		{
 			name:           "one bundle invalid id",
 			args:           []string{"-id", "spiffe://domain2.test/host"},
-			expectedStderr: "\"spiffe://domain2.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
+			expectedStderr: "Error: \"spiffe://domain2.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
 		},
 		{
 			name:           "one bundle server fails",
 			args:           []string{"-id", "spiffe://domain2.test"},
-			expectedStderr: "rpc error: code = Internal desc = some error\n",
+			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
 			serverErr:      status.New(codes.Internal, "some error").Err(),
 		},
 		{
 			name:           "one bundle invalid format",
 			args:           []string{"-id", "spiffe://domain2.test", "-format", "invalid"},
-			expectedStderr: "invalid format: \"invalid\"\n",
+			expectedStderr: "Error: invalid format: \"invalid\"\n",
 		},
 		{
 			name:           "one bundle (pem)",
@@ -545,7 +545,7 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			name:           "no id",
-			expectedStderr: "id is required\n",
+			expectedStderr: "Error: id is required\n",
 		},
 		{
 			name:           "success RESTRICT mode",
@@ -601,17 +601,17 @@ func TestDelete(t *testing.T) {
 		{
 			name:           "invalid mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "invalid"},
-			expectedStderr: "unsupported mode \"invalid\"\n",
+			expectedStderr: "Error: unsupported mode \"invalid\"\n",
 		},
 		{
 			name:           "invalid id",
 			args:           []string{"-id", "spiffe://domain1.test/host"},
-			expectedStderr: "\"spiffe://domain1.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
+			expectedStderr: "Error: \"spiffe://domain1.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
 		},
 		{
 			name:           "server fails",
 			args:           []string{"-id", "spiffe://domain1.test"},
-			expectedStderr: "failed to delete federated bundle: rpc error: code = Internal desc = some error\n",
+			expectedStderr: "Error: failed to delete federated bundle: rpc error: code = Internal desc = some error\n",
 			serverErr:      status.New(codes.Internal, "some error").Err(),
 		},
 		{
@@ -628,7 +628,7 @@ func TestDelete(t *testing.T) {
 					TrustDomain: "domain1.test",
 				},
 			},
-			expectedStderr: "failed to delete federated bundle \"domain1.test\": some error\n",
+			expectedStderr: "Error: failed to delete federated bundle \"domain1.test\": some error\n",
 		},
 	} {
 		tt := tt
