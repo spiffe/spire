@@ -1,4 +1,4 @@
-package kms
+package awskms
 
 import (
 	"testing"

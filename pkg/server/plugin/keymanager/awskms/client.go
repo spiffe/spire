@@ -1,4 +1,4 @@
-package kms
+package awskms
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,13 +20,14 @@ type kmsClient interface {
 }
 
 func newKMSClient(c *Config) (kmsClient, error) {
-	creds := credentials.NewStaticCredentials(c.AccessKeyID, c.SecretAccessKey, "")
-	awsConf := &aws.Config{
-		Credentials: creds,
-		Region:      aws.String(c.Region),
+	awsConfig := &aws.Config{
+		Region: aws.String(c.Region),
+	}
+	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
+		awsConfig.Credentials = credentials.NewStaticCredentials(c.AccessKeyID, c.SecretAccessKey, "")
 	}
 
-	s, err := session.NewSession(awsConf)
+	s, err := session.NewSession(awsConfig)
 	if err != nil {
 		return nil, err
 	}

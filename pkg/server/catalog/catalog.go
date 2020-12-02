@@ -18,6 +18,7 @@ import (
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	km_awskms "github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
 	km_disk "github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	km_memory "github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -71,6 +72,7 @@ var (
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),
+		km_awskms.BuiltIn(),
 		// Notifiers
 		no_k8sbundle.BuiltIn(),
 		no_gcs_bundle.BuiltIn(),
