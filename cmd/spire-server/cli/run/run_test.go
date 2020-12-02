@@ -754,6 +754,52 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "rsa-2048 jwt_key_type is correctly parsed",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "rsa-4096 jwt_key_type is correctly parsed",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-4096"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_RSA_4096, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p256 jwt_key_type is correctly parsed",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p384 jwt_key_type is correctly parsed",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p384"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_EC_P384, c.JWTKeyType)
+			},
+		},
+		{
+			msg:         "unsupported jwt_key_type is rejected",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-1024"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "ca_ttl is correctly parsed",
 			input: func(c *Config) {
 				c.Server.CATTL = "1h"

@@ -271,7 +271,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CASubject:     s.config.CASubject,
 		Dir:           s.config.DataDir,
 		X509CAKeyType: s.config.CAKeyType,
-		JWTKeyType:    s.config.CAKeyType,
+		JWTKeyType:    s.config.JWTKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
