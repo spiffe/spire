@@ -43,6 +43,8 @@ type Deps struct {
 }
 
 type IdentityProvider struct {
+	hostservices.UnsafeIdentityProviderServer
+
 	config Config
 
 	mu   sync.RWMutex

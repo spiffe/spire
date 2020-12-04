@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/types"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -115,7 +115,7 @@ func (it *agentIteratorDS) Err() error {
 func (it *agentIteratorDS) fetchAgents(ctx context.Context) ([]Agent, error) {
 	resp, err := it.ds.ListNodeSelectors(ctx, &datastore.ListNodeSelectorsRequest{
 		TolerateStale: true,
-		ValidAt: &timestamp.Timestamp{
+		ValidAt: &timestamppb.Timestamp{
 			Seconds: time.Now().Unix(),
 		},
 	})

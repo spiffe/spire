@@ -100,6 +100,8 @@ type Configuration struct {
 }
 
 type Plugin struct {
+	workloadattestor.UnsafeWorkloadAttestorServer
+
 	mu     sync.Mutex
 	config *Configuration
 

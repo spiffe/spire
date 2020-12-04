@@ -21,7 +21,9 @@ func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
 }
 
-type Plugin struct{}
+type Plugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+}
 
 func New() *Plugin {
 	return &Plugin{}

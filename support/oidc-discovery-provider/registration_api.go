@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/square/go-jose.v2"
 )
 

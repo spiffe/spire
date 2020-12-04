@@ -160,7 +160,7 @@ func TestFetchX509SVID(t *testing.T) {
 
 					resp, err := stream.Recv()
 					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
-					require.Equal(t, tt.expectResp, resp)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
 				})
 		})
 	}
@@ -413,7 +413,7 @@ func TestFetchJWTBundles(t *testing.T) {
 
 					resp, err := stream.Recv()
 					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
-					require.Equal(t, tt.expectResp, resp)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
 				})
 		})
 	}

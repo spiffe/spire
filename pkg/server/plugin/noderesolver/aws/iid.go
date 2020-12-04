@@ -22,6 +22,8 @@ func builtin(p *IIDResolverPlugin) catalog.Plugin {
 
 // IIDResolverPlugin implements node resolution for agents running in aws.
 type IIDResolverPlugin struct {
+	noderesolver.UnsafeNodeResolverServer
+
 	log hclog.Logger
 }
 

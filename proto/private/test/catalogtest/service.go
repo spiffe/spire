@@ -52,7 +52,7 @@ func (serviceServiceClient) ServiceType() string {
 	return ServiceType
 }
 
-func (serviceServiceClient) NewServiceClient(conn *grpc.ClientConn) interface{} {
+func (serviceServiceClient) NewServiceClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptServiceServiceClient(NewServiceClient(conn))
 }
 

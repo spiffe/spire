@@ -45,6 +45,8 @@ type Config struct {
 }
 
 type NodeAttestor struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	name   string
 	config Config
 }

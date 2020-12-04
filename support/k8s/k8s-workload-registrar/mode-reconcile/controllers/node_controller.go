@@ -23,6 +23,7 @@ import (
 
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	spiretypes "github.com/spiffe/spire/proto/spire/types"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -35,10 +36,10 @@ import (
 
 // NodeReconciler reconciles a Node object
 type NodeReconciler struct {
-	RootID      spiretypes.SPIFFEID
+	RootID      *spiretypes.SPIFFEID
 	SpireClient entry.EntryClient
 	Cluster     string
-	ServerID    spiretypes.SPIFFEID
+	ServerID    *spiretypes.SPIFFEID
 }
 
 type NodeSelectorSubType string
@@ -62,7 +63,7 @@ func (r *NodeReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFE
 }
 
 func (r *NodeReconciler) makeParentID(_ ObjectWithMetadata) *spiretypes.SPIFFEID {
-	return &r.ServerID
+	return cloneSPIFFEID(r.ServerID)
 }
 
 func (r *NodeReconciler) getSelectors(namespacedName types.NamespacedName) []*spiretypes.Selector {
@@ -75,7 +76,7 @@ func (r *NodeReconciler) getSelectors(namespacedName types.NamespacedName) []*sp
 func (r *NodeReconciler) getAllEntries(ctx context.Context) ([]*spiretypes.Entry, error) {
 	// TODO: Move to some kind of poll and cache and notify system, so multiple controllers don't have to poll.
 	serverChildEntries, err := listEntries(ctx, r.SpireClient, &entry.ListEntriesRequest_Filter{
-		ByParentId: &r.ServerID,
+		ByParentId: r.ServerID,
 	})
 	if err != nil {
 		return nil, err
@@ -83,7 +84,7 @@ func (r *NodeReconciler) getAllEntries(ctx context.Context) ([]*spiretypes.Entry
 	var allNodeEntries []*spiretypes.Entry
 
 	for _, maybeNodeEntry := range serverChildEntries {
-		if spiffeIDHasPrefix(maybeNodeEntry.SpiffeId, &r.RootID) {
+		if spiffeIDHasPrefix(maybeNodeEntry.SpiffeId, r.RootID) {
 			allNodeEntries = append(allNodeEntries, maybeNodeEntry)
 		}
 	}
@@ -131,7 +132,7 @@ func (r *NodeReconciler) SetupWithManager(_ ctrl.Manager, _ *ctrlBuilder.Builder
 	return nil
 }
 
-func NewNodeReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, serverID spiretypes.SPIFFEID, cluster string, rootID spiretypes.SPIFFEID, spireClient entry.EntryClient) *BaseReconciler {
+func NewNodeReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, serverID *spiretypes.SPIFFEID, cluster string, rootID *spiretypes.SPIFFEID, spireClient entry.EntryClient) *BaseReconciler {
 	return &BaseReconciler{
 		Client:      client,
 		Scheme:      scheme,
@@ -145,4 +146,8 @@ func NewNodeReconciler(client client.Client, log logr.Logger, scheme *runtime.Sc
 			ServerID:    serverID,
 		},
 	}
+}
+
+func cloneSPIFFEID(spiffeID *spiretypes.SPIFFEID) *spiretypes.SPIFFEID {
+	return proto.Clone(spiffeID).(*spiretypes.SPIFFEID)
 }

@@ -23,6 +23,7 @@ type NotifyRequest = notifier.NotifyRequest                                     
 type NotifyRequest_BundleUpdated = notifier.NotifyRequest_BundleUpdated                 //nolint: golint
 type NotifyResponse = notifier.NotifyResponse                                           //nolint: golint
 type UnimplementedNotifierServer = notifier.UnimplementedNotifierServer                 //nolint: golint
+type UnsafeNotifierServer = notifier.UnsafeNotifierServer                               //nolint: golint
 
 const (
 	Type = "Notifier"
@@ -75,7 +76,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(notifier.NewNotifierClient(conn))
 }
 

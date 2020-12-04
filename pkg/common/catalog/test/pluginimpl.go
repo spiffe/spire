@@ -12,11 +12,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func NewPlugin() catalogtest.PluginPlugin {
+func NewPlugin() catalogtest.PluginServer {
 	return &testPlugin{}
 }
 
 type testPlugin struct {
+	catalogtest.UnsafePluginServer
+
 	log hclog.Logger
 	hs  catalogtest.HostService
 }

@@ -135,6 +135,8 @@ type k8sConfig struct {
 }
 
 type Plugin struct {
+	workloadattestor.UnsafeWorkloadAttestorServer
+
 	log    hclog.Logger
 	fs     cgroups.FileSystem
 	clock  clock.Clock

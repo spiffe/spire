@@ -65,7 +65,7 @@ func (s *IIDResolverSuite) TestConfigure() {
 		secret_access_key = "SECRETACCESSKEY"
 		`})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 	spiretest.AssertLogs(s.T(), []*logrus.Entry{s.logHook.LastEntry()},
 		[]spiretest.LogEntry{
 			{
@@ -81,7 +81,7 @@ func (s *IIDResolverSuite) TestConfigure() {
 func (s *IIDResolverSuite) TestGetPluginInfo() {
 	resp, err := s.resolver.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *IIDResolverSuite) newResolver() {
@@ -95,7 +95,7 @@ func (s *IIDResolverSuite) assertResolveSuccess() {
 	expected := &noderesolver.ResolveResponse{}
 	actual, err := s.doResolve(awsAgentID)
 	s.Require().NoError(err)
-	s.Require().Equal(expected, actual)
+	s.RequireProtoEqual(expected, actual)
 }
 
 func (s *IIDResolverSuite) doResolve(spiffeID string) (*noderesolver.ResolveResponse, error) {

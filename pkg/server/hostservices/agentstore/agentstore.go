@@ -17,6 +17,8 @@ type Deps struct {
 }
 
 type AgentStore struct {
+	hostservices.UnsafeAgentStoreServer
+
 	mu   sync.RWMutex
 	deps *Deps
 }
