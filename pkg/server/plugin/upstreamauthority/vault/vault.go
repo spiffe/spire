@@ -50,6 +50,8 @@ type PluginConfig struct {
 	// If true, vault client accepts any server certificates.
 	// It should be used only test environment so on.
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify"`
+	// Name of the Vault namespace
+	Namespace string `hcl:"namespace"`
 }
 
 // TokenAuth represents parameters for token auth method
@@ -250,6 +252,7 @@ func genClientParams(method AuthMethod, config *PluginConfig) *ClientParams {
 		CACertPath:    getEnvOrDefault(envVaultCACert, config.CACertPath),
 		PKIMountPoint: config.PKIMountPoint,
 		TLSSKipVerify: config.InsecureSkipVerify,
+		Namespace:     getEnvOrDefault(envVaultNamespace, config.Namespace),
 	}
 
 	switch method {
