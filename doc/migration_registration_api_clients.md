@@ -15,7 +15,7 @@ the old registration API.
 | `CreateEntryIfNotExists`  | `Entry.BatchCreateEntry`            | The result code for the entry is ALREADY_EXISTS when the entry is preexisting.
 | `DeleteEntry`             | `Entry.BatchDeleteEntry`            |
 | `FetchEntry`              | `Entry.GetEntry`                    |
-| `FetchEntries`            | `Entry.ListEntries`                 | Implementors must assume the RPC can page results arbitrarily, as deemed necessary by the server.
+| `FetchEntries`            | `Entry.ListEntries`                 |
 | `UpdateEntry`             | `Entry.BatchUpdateEntry`            |
 | `ListByParentID`          | `Entry.ListEntries`                 | See the `by_parent_id` filter.
 | `ListBySelector`          | `Entry.ListEntries`                 | See the `by_selectors` filter.
@@ -24,6 +24,7 @@ the old registration API.
 | `ListAllEntriesWithPages` | `Entry.ListEntries`                 | See the `page_size` / `page_token` fields.
 | `CreateFederatedBundle`   | `Bundle.BatchCreateFederatedBundle` | Alternatively, `Bundle.BatchSetFederatedBundle` can be used to "upsert" the federated bundle.
 | `FetchFederatedBundle`    | `Bundle.GetFederatedBundle`         |
+| `ListFederatedBundles`    | `Bundle.ListFederatedBundles`       |
 | `UpdateFederatedBundle`   | `Bundle.BatchUpdateFederatedBundle` | Alternatively, `Bundle.BatchSetFederatedBundle` can be used to "upsert" the federated bundle.
 | `DeleteFederatedBundle`   | `Bundle.BatchDeleteFederatedBundle` |
 | `CreateJoinToken`         | `Agent.CreateJoinToken`             |
@@ -33,6 +34,15 @@ the old registration API.
 | `MintX509SVID`            | `SVID.MintX509SVID`                 |
 | `MintJWTSVID`             | `SVID.MintJWTSVID`                  |
 | `GetNodeSelectors`        | `Agent.GetAgent`                    | Selectors are included in the agent information, unless explicitly filtered.
+
+## List Operations
+
+Unlike the Registration API (with the exception of `ListAllEntriesWithPages`),
+the new APIs `List*` operations all support paging. If clients provide a page
+size, the server _will_ page the response, using the page size as an upper bound.
+However, even if clients do not provide a page size, the server is free to
+page the results. As such, clients must always be prepared to handle a paged
+response.
 
 ## Batch Operation Results
 
