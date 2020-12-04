@@ -10,6 +10,8 @@ import (
 )
 
 type AgentStore struct {
+	hostservices.UnsafeAgentStoreServer
+
 	mu    sync.RWMutex
 	nodes map[string]*hostservices.AgentInfo
 }

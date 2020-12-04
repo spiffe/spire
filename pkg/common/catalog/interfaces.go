@@ -25,7 +25,7 @@ type PluginClient interface {
 	PluginType() string
 
 	// NewPluginClient initializes and returns a service client.
-	NewPluginClient(*grpc.ClientConn) interface{}
+	NewPluginClient(grpc.ClientConnInterface) interface{}
 }
 
 // ServiceServer is the interface for both the primary interface and auxiliary
@@ -49,7 +49,7 @@ type ServiceClient interface {
 	ServiceType() string
 
 	// NewServiceClient initializes and returns a service client.
-	NewServiceClient(*grpc.ClientConn) interface{}
+	NewServiceClient(grpc.ClientConnInterface) interface{}
 }
 
 // HostServiceServer is used to register a host service server.
@@ -66,7 +66,7 @@ type HostServiceClient interface {
 	HostServiceType() string
 
 	// InitHostServiceClient initializes the host service client.
-	InitHostServiceClient(conn *grpc.ClientConn)
+	InitHostServiceClient(conn grpc.ClientConnInterface)
 }
 
 // HostServiceBroker is used by plugins that implement the NeedsHostBroker

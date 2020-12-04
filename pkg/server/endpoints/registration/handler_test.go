@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -28,12 +27,12 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -63,11 +62,11 @@ NbyKVndd7aGvTed1PQ==
 )
 
 func TestHandler(t *testing.T) {
-	suite.Run(t, new(HandlerSuite))
+	spiretest.Run(t, new(HandlerSuite))
 }
 
 type HandlerSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	server *grpc.Server
 
@@ -137,7 +136,7 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 			continue
 		}
 		s.Require().NoError(err)
-		s.Require().Equal(&common.Empty{}, response)
+		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
@@ -212,7 +211,7 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 
 	bundle, err := stream.Recv()
 	s.Require().NoError(err)
-	s.Require().Equal(&registration.FederatedBundle{
+	s.RequireProtoEqual(&registration.FederatedBundle{
 		Bundle: &common.Bundle{
 			TrustDomainId: "spiffe://example2.org",
 			RootCas: []*common.Certificate{
@@ -257,7 +256,7 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 			continue
 		}
 		s.Require().NoError(err)
-		s.Require().Equal(&common.Empty{}, response)
+		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
@@ -298,7 +297,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 			continue
 		}
 		s.Require().NoError(err)
-		s.Require().Equal(&common.Empty{}, response)
+		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was deleted
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
@@ -981,7 +980,7 @@ func (s *HandlerSuite) TestCreateJoinToken() {
 	// Token specified
 	resp, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo", Ttl: 1})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &registration.JoinToken{Token: "foo", Ttl: 1})
+	s.RequireProtoEqual(resp, &registration.JoinToken{Token: "foo", Ttl: 1})
 
 	// Already exists
 	resp, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo", Ttl: 1})
@@ -1004,7 +1003,7 @@ func (s *HandlerSuite) TestFetchBundle() {
 	})
 	resp, err = s.handler.FetchBundle(context.Background(), &common.Empty{})
 	s.Require().NoError(err)
-	s.Require().Equal(&registration.Bundle{
+	s.RequireProtoEqual(&registration.Bundle{
 		Bundle: &common.Bundle{
 			TrustDomainId: "spiffe://example.org",
 			RootCas: []*common.Certificate{
@@ -1021,7 +1020,7 @@ func (s *HandlerSuite) TestEvictAgent() {
 	node := s.createAttestedNode(spiffeIDToRemove)
 	evictResponse, err := s.handler.EvictAgent(ctx, evictRequest)
 	s.Require().NoError(err)
-	s.Equal(evictResponse.Node, node, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
+	s.AssertProtoEqual(evictResponse.Node, node, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
 }
 
 func (s *HandlerSuite) TestEvictAgentWithNonExistentId() {

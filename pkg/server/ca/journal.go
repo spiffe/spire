@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
+	"google.golang.org/protobuf/proto"
 )
 
 const (

@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/golang/protobuf/proto"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
+	"google.golang.org/protobuf/proto"
 )
 
 const (

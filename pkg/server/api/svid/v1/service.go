@@ -46,6 +46,8 @@ func New(config Config) *Service {
 
 // Service implements the v1 SVID service
 type Service struct {
+	svid.UnsafeSVIDServer
+
 	ca ca.ServerCA
 	ef api.AuthorizedEntryFetcher
 	td spiffeid.TrustDomain

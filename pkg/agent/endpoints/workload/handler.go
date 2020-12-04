@@ -1,7 +1,6 @@
 package workload
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -9,8 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
-	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
@@ -24,6 +21,8 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type Manager interface {
@@ -44,6 +43,7 @@ type Config struct {
 }
 
 type Handler struct {
+	workload.UnsafeSpiffeWorkloadAPIServer
 	c Config
 }
 
@@ -343,7 +343,7 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	}
 
 	s := new(structpb.Struct)
-	if err := jsonpb.Unmarshal(bytes.NewReader(valuesJSON), s); err != nil {
+	if err := protojson.Unmarshal(valuesJSON, s); err != nil {
 		return nil, errs.Wrap(err)
 	}
 

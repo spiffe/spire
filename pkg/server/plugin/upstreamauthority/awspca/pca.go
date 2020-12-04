@@ -55,6 +55,8 @@ type PCAPluginConfiguration struct {
 
 // PCAPlugin is the main representation of this upstreamauthority plugin
 type PCAPlugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	log hclog.Logger
 
 	pcaClient               PCAClient

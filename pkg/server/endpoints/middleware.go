@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -23,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -87,7 +87,7 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 	return middleware.EntryFetcherFunc(func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
 		resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-			BySpiffeId: &wrappers.StringValue{
+			BySpiffeId: &wrapperspb.StringValue{
 				Value: id.String(),
 			},
 		})

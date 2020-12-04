@@ -41,6 +41,8 @@ type Docker interface {
 }
 
 type Plugin struct {
+	workloadattestor.UnsafeWorkloadAttestorServer
+
 	log     hclog.Logger
 	fs      cgroups.FileSystem
 	retryer *retryer
