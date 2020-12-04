@@ -264,7 +264,7 @@ Selector         : unix:uid:1111
 				},
 			}},
 			fakeResp: fakeRespErr,
-			expErr: `Failed to update the following entry (code:NotFound, msg:"failed to update entry: datastore-sql: record not found"):
+			expErr: `Failed to update the following entry (code: NotFound, msg: "failed to update entry: datastore-sql: record not found"):
 Entry ID         : non-existent-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent

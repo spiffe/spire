@@ -111,7 +111,7 @@ func (c *updateCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 
 	// Print entries that failed to be updated
 	for _, r := range failed {
-		env.ErrPrintf("Failed to update the following entry (code:%s, msg:%q):\n",
+		env.ErrPrintf("Failed to update the following entry (code: %s, msg: %q):\n",
 			codes.Code(r.Status.Code),
 			r.Status.Message)
 		printEntry(r.Entry, env.ErrPrintf)

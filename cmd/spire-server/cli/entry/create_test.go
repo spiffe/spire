@@ -290,7 +290,7 @@ Selector         : unix:uid:1111
 				},
 			}},
 			fakeResp: fakeRespErr,
-			expErr: `Failed to create the following entry (code:AlreadyExists, msg:"similar entry already exists"):
+			expErr: `Failed to create the following entry (code: AlreadyExists, msg: "similar entry already exists"):
 Entry ID         : (none)
 SPIFFE ID        : spiffe://example.org/already-exist
 Parent ID        : spiffe://example.org/spire/server
