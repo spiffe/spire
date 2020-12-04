@@ -140,13 +140,13 @@ func (a *Adapter) Run(args []string) int {
 
 	client, err := NewServerClient(a.registrationUDSPath)
 	if err != nil {
-		fmt.Fprintln(a.env.Stderr, err)
+		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())
 		return 1
 	}
 	defer client.Release()
 
 	if err := a.cmd.Run(ctx, a.env, client); err != nil {
-		fmt.Fprintln(a.env.Stderr, err)
+		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())
 		return 1
 	}
 

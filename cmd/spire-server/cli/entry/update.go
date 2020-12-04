@@ -106,16 +106,19 @@ func (c *updateCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 
 	// Print entries that succeeded to be updated
 	for _, e := range succeeded {
-		printEntry(e.Entry, env)
+		printEntry(e.Entry, env.Printf)
 	}
 
 	// Print entries that failed to be updated
-	if len(failed) > 0 {
-		env.Printf("FAILED to update the following %s:\n", util.Pluralizer("", "entry", "entries", len(failed)))
-	}
 	for _, r := range failed {
-		printEntry(r.Entry, env)
-		env.Printf("%s\n", r.Status.Message)
+		env.ErrPrintf("Failed to update the following entry (code: %s, msg: %q):\n",
+			codes.Code(r.Status.Code),
+			r.Status.Message)
+		printEntry(r.Entry, env.ErrPrintf)
+	}
+
+	if len(failed) > 0 {
+		return errors.New("failed to update one or more entries")
 	}
 
 	return nil
@@ -210,7 +213,7 @@ func updateEntries(ctx context.Context, c entry.EntryClient, entries []*types.En
 		Entries: entries,
 	})
 	if err != nil {
-		return
+		return nil, nil, err
 	}
 
 	for i, r := range resp.Results {
@@ -225,5 +228,5 @@ func updateEntries(ctx context.Context, c entry.EntryClient, entries []*types.En
 		}
 	}
 
-	return
+	return succeeded, failed, nil
 }
