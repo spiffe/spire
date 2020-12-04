@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -41,10 +42,21 @@ func run(configPath string) error {
 	var source JWKSSource
 	switch {
 	case config.RegistrationAPI != nil:
-		source, err = NewRegistrationAPISource(RegistrationAPISourceConfig{
+		log.Warn("The registration_api configuration is deprecated in favor of server_api; please update your configuration")
+		address, err := addressFromSocketPath(config.RegistrationAPI.SocketPath)
+		if err != nil {
+			return err
+		}
+		source, err = NewServerAPISource(ServerAPISourceConfig{
 			Log:          log,
-			SocketPath:   config.RegistrationAPI.SocketPath,
+			Address:      address,
 			PollInterval: config.RegistrationAPI.PollInterval,
+		})
+	case config.ServerAPI != nil:
+		source, err = NewServerAPISource(ServerAPISourceConfig{
+			Log:          log,
+			Address:      config.ServerAPI.Address,
+			PollInterval: config.ServerAPI.PollInterval,
 		})
 	case config.WorkloadAPI != nil:
 		source, err = NewWorkloadAPISource(WorkloadAPISourceConfig{
@@ -123,4 +135,13 @@ func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {
 		}).Debug("Incoming request")
 		handler.ServeHTTP(w, r)
 	})
+}
+
+func addressFromSocketPath(socketPath string) (string, error) {
+	absSocketPath, err := filepath.Abs(socketPath)
+	if err != nil {
+		return "", errs.New("unable to convert socket path %q to target address: %v", socketPath, err)
+	}
+
+	return "unix://" + absSocketPath, nil
 }
