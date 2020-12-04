@@ -322,7 +322,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	s.Require().NotNil(resp)
 	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
 	s.Require().Nil(resp.Challenge)
-	s.Require().Equal([]*common.Selector{
+	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:FOO"},
 		{Type: "k8s_psat", Value: "agent_ns:NS1"},
 		{Type: "k8s_psat", Value: "agent_sa:SA1"},
@@ -352,7 +352,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	s.Require().NotNil(resp)
 	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
 	s.Require().Nil(resp.Challenge)
-	s.Require().Equal([]*common.Selector{
+	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:BAR"},
 		{Type: "k8s_psat", Value: "agent_ns:NS2"},
 		{Type: "k8s_psat", Value: "agent_sa:SA2"},
@@ -406,7 +406,7 @@ func (s *AttestorSuite) TestConfigure() {
 func (s *AttestorSuite) TestGetPluginInfo() {
 	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *AttestorSuite) signToken(signer jose.Signer, tokenData *TokenData) string {
@@ -467,7 +467,7 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 
 	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
 	attestor.config.clusters["FOO"].client = s.mockClient

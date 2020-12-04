@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/gogo/protobuf/proto"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -119,7 +119,7 @@ func TestX509ClientUnreadUpdatesDiscarded(t *testing.T) {
 	defer timer.Stop()
 	select {
 	case update := <-client.UpdateChan():
-		assertResponseEqual(t, responseB, update)
+		spiretest.AssertProtoEqual(t, responseB, update)
 	case <-timer.C:
 		require.FailNow(t, "timed out waiting for update")
 	}
@@ -144,7 +144,7 @@ func TestX509ClientCurrentSVID(t *testing.T) {
 
 	svid, err = client.CurrentSVID()
 	assert.NoError(t, err)
-	assertResponseEqual(t, responseA, svid)
+	spiretest.AssertProtoEqual(t, responseA, svid)
 }
 
 func TestStreamX509SVIDBackoffOnFetchFailure(t *testing.T) {
@@ -253,19 +253,19 @@ func TestStreamX509SVIDWritesUpdatesToChannel(t *testing.T) {
 	// Verify each response is sent on the out channel
 	select {
 	case response := <-out:
-		assertResponseEqual(t, responseA, response)
+		spiretest.AssertProtoEqual(t, responseA, response)
 	case <-ctx.Done():
 		require.FailNow(t, "timed out waiting for response A")
 	}
 	select {
 	case response := <-out:
-		assertResponseEqual(t, responseB, response)
+		spiretest.AssertProtoEqual(t, responseB, response)
 	case <-ctx.Done():
 		require.FailNow(t, "timed out waiting for response B")
 	}
 	select {
 	case response := <-out:
-		assertResponseEqual(t, responseC, response)
+		spiretest.AssertProtoEqual(t, responseC, response)
 	case <-ctx.Done():
 		require.FailNow(t, "timed out waiting for response C")
 	}
@@ -299,8 +299,4 @@ func (c *mockClock) WaitUntilTimerStarted(done <-chan struct{}) (time.Duration, 
 	case duration := <-c.timerStarted:
 		return duration, true
 	}
-}
-
-func assertResponseEqual(t *testing.T, expected, actual *workload.X509SVIDResponse) {
-	assert.True(t, proto.Equal(actual, expected), "expected response %+v; got %+v", expected, actual)
 }

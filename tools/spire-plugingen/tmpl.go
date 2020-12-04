@@ -97,7 +97,7 @@ func ({{ $pluginClientImpl }}) PluginType() string {
 	return {{ $typeConst }}
 }
 
-func ({{ $pluginClientImpl }}) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func ({{ $pluginClientImpl }}) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return {{ $adaptPluginClientFunc }}({{ $c.PkgQual }}New{{ $c.Name }}Client(conn))
 }
 
@@ -151,7 +151,7 @@ func ({{ $serviceClientImpl }}) ServiceType() string {
 	return {{ $typeConst }}
 }
 
-func ({{ $serviceClientImpl }}) NewServiceClient(conn *grpc.ClientConn) interface{} {
+func ({{ $serviceClientImpl }}) NewServiceClient(conn grpc.ClientConnInterface) interface{} {
 	return {{ $adaptServiceClientFunc }}({{ $c.PkgQual }}New{{ $c.Name }}Client(conn))
 }
 
@@ -206,7 +206,7 @@ func (c *{{ $hostServiceClientImpl }}) HostServiceType() string {
 	return {{ $typeConst }}
 }
 
-func (c *{{ $hostServiceClientImpl }}) InitHostServiceClient(conn *grpc.ClientConn) {
+func (c *{{ $hostServiceClientImpl }}) InitHostServiceClient(conn grpc.ClientConnInterface) {
 	*c.client = {{ $adaptHostServiceClientFunc }}({{ $c.PkgQual }}New{{ $c.Name }}Client(conn))
 }
 

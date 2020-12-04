@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -47,6 +46,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -1519,11 +1519,15 @@ func (s *HandlerSuite) assertLastLogMessage(message string) {
 func (s *HandlerSuite) assertPermissionDeniedDetails(err error, reason types.PermissionDeniedDetails_Reason) {
 	st := status.Convert(err)
 	if s.Equal(codes.PermissionDenied, st.Code()) {
-		s.Equal([]interface{}{
-			&types.PermissionDeniedDetails{
-				Reason: reason,
-			},
-		}, st.Details())
+		details := st.Details()
+		s.Len(details, 1, "expecting one detail")
+
+		detail, ok := details[0].(proto.Message)
+		s.True(ok, "expecting details to contain a proto message")
+
+		s.AssertProtoEqual(&types.PermissionDeniedDetails{
+			Reason: reason,
+		}, detail)
 	}
 }
 

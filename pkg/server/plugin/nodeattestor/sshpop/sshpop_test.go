@@ -54,7 +54,7 @@ func (s *Suite) configure() {
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	require.NoError(err)
-	require.Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 
 	sshserver, err := sshpop.NewServer("example.org", serverConfig)
 	require.NoError(err)
@@ -178,7 +178,7 @@ func (s *Suite) TestGetPluginInfo() {
 
 	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	require.NoError(err)
-	require.Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *Suite) attest() (nodeattestor.NodeAttestor_AttestClient, func()) {

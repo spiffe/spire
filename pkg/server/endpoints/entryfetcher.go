@@ -58,7 +58,6 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 		if err != nil {
 			a.log.WithError(err).Error("Failed to reload entry cache")
 		} else {
-			a.log.Debug("Reloaded entry cache")
 			a.mu.Lock()
 			a.cache = cache
 			a.mu.Unlock()

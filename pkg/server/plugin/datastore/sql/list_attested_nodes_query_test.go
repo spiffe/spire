@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var (
@@ -2490,7 +2490,7 @@ WHERE id IN (
 				switch by {
 				case noFilter:
 				case byExpiresBefore:
-					req.ByExpiresBefore = &wrappers.Int64Value{
+					req.ByExpiresBefore = &wrapperspb.Int64Value{
 						Value: expiresBefore,
 					}
 				case bySelectorSubsetOne:
@@ -2516,11 +2516,11 @@ WHERE id IN (
 				case byAttestationType:
 					req.ByAttestationType = "type1"
 				case byBanned:
-					req.ByBanned = &wrappers.BoolValue{
+					req.ByBanned = &wrapperspb.BoolValue{
 						Value: true,
 					}
 				case byNoBanned:
-					req.ByBanned = &wrappers.BoolValue{
+					req.ByBanned = &wrapperspb.BoolValue{
 						Value: false,
 					}
 				case byFetchSelectors:

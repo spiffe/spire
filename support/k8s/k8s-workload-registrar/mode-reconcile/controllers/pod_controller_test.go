@@ -89,7 +89,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				s.log,
 				scheme.Scheme,
 				podControllerTestTrustDomain,
-				spiretypes.SPIFFEID{
+				&spiretypes.SPIFFEID{
 					TrustDomain: nodeControllerTestTrustDomain,
 					Path:        "/foo/node",
 				}, s.entryClient,
@@ -189,7 +189,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/foo/node",
 		},
@@ -301,7 +301,7 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/foo/node",
 		},
@@ -391,7 +391,7 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/foo/node",
 		},
@@ -473,7 +473,7 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/foo/node",
 		},

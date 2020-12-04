@@ -1839,15 +1839,15 @@ func assertBundleWithMask(t *testing.T, expected, actual *types.Bundle, m *types
 	}
 
 	if m == nil || m.JwtAuthorities {
-		require.Equal(t, expected, actual)
+		spiretest.RequireProtoListEqual(t, expected.JwtAuthorities, actual.JwtAuthorities)
 	} else {
-		require.Zero(t, actual.JwtAuthorities)
+		require.Empty(t, actual.JwtAuthorities)
 	}
 
 	if m == nil || m.X509Authorities {
-		require.Equal(t, expected.X509Authorities, actual.X509Authorities)
+		spiretest.RequireProtoListEqual(t, expected.X509Authorities, actual.X509Authorities)
 	} else {
-		require.Zero(t, actual.X509Authorities)
+		require.Empty(t, actual.X509Authorities)
 	}
 }
 

@@ -554,7 +554,7 @@ func (s *IIDAttestorSuite) TestConfigure() {
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"}})
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
 func (s *IIDAttestorSuite) TestGetPluginInfo() {
@@ -562,7 +562,7 @@ func (s *IIDAttestorSuite) TestGetPluginInfo() {
 	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *IIDAttestorSuite) TestInstanceProfileArnParsing() {

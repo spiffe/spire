@@ -263,7 +263,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 func (s *MSIAttestorSuite) TestGetPluginInfo() {
 	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *MSIAttestorSuite) adjustTime(d time.Duration) {
@@ -347,7 +347,7 @@ func (s *MSIAttestorSuite) configureAttestor() {
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
 func (s *MSIAttestorSuite) doAttest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {

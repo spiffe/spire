@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -38,6 +37,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // Number of agentIDs that can be cached
@@ -60,6 +60,8 @@ type HandlerConfig struct {
 }
 
 type Handler struct {
+	node.UnsafeNodeServer
+
 	c       HandlerConfig
 	limiter Limiter
 
@@ -857,7 +859,7 @@ func (h *Handler) getAttestResponse(ctx context.Context, baseSpiffeID string, sv
 func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*common.RegistrationEntry, error) {
 	ds := h.c.Catalog.GetDataStore()
 	response, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: callerID,
 		},
 	})

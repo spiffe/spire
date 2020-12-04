@@ -59,7 +59,7 @@ func (pluginPluginClient) PluginType() string {
 	return PluginType
 }
 
-func (pluginPluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginPluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginPluginClient(NewPluginClient(conn))
 }
 

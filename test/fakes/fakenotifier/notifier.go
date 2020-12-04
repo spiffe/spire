@@ -13,6 +13,8 @@ type Config struct {
 }
 
 type Notifier struct {
+	notifier.UnsafeNotifierServer
+
 	config Config
 }
 

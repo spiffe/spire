@@ -311,7 +311,7 @@ func (s *Suite) TestGetPluginInfo() {
 
 	resp, err := p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	require.NoError(err)
-	require.Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *Suite) configure(config string) {
@@ -320,7 +320,7 @@ func (s *Suite) configure(config string) {
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
 func (s *Suite) createConfiguration(bundlePathType, extraConfig string) string {
