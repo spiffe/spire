@@ -200,6 +200,6 @@ func printEntries(entries []*types.Entry, env *common_cli.Env) {
 
 	env.Println(msg)
 	for _, e := range entries {
-		printEntry(e, env)
+		printEntry(e, env.Printf)
 	}
 }
