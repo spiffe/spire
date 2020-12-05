@@ -289,14 +289,6 @@ $(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
 $(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
 $(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
 $(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
-<<<<<<< HEAD
-# static builds
-$(eval $(call binary_rule_external_static,bin/spire-server-static,./cmd/spire-server))
-$(eval $(call binary_rule_static,bin/spire-agent-static,./cmd/spire-agent))
-$(eval $(call binary_rule_static,bin/k8s-workload-registrar-static,./support/k8s/k8s-workload-registrar))
-$(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oidc-discovery-provider))
-=======
->>>>>>> separate build and images from static builds and scratch images
 
 # utilities
 $(eval $(call binary_rule,bin/spire-plugingen,./tools/spire-plugingen))
