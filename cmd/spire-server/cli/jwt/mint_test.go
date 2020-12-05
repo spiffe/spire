@@ -126,7 +126,7 @@ func TestMintRun(t *testing.T) {
 		{
 			name:              "missing spiffeID flag",
 			code:              1,
-			stderr:            "spiffeID must be specified\n",
+			stderr:            "Error: spiffeID must be specified\n",
 			noRequestExpected: true,
 		},
 		{
@@ -145,7 +145,7 @@ func TestMintRun(t *testing.T) {
 			},
 			audience: []string{"AUDIENCE"},
 			code:     1,
-			stderr:   "unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
+			stderr:   "Error: unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
 		},
 		{
 			name:     "response missing token",
@@ -156,7 +156,7 @@ func TestMintRun(t *testing.T) {
 			},
 			audience: []string{"AUDIENCE"},
 			code:     1,
-			stderr:   "server response missing token\n",
+			stderr:   "Error: server response missing token\n",
 			resp:     &svidpb.MintJWTSVIDResponse{Svid: &types.JWTSVID{}},
 		},
 		{
@@ -167,7 +167,7 @@ func TestMintRun(t *testing.T) {
 				Path:        "/workload",
 			},
 			code:              1,
-			stderr:            "at least one audience must be specified\n",
+			stderr:            "Error: at least one audience must be specified\n",
 			audience:          []string{},
 			noRequestExpected: true,
 		},
@@ -179,7 +179,7 @@ func TestMintRun(t *testing.T) {
 				Path:        "/workload",
 			},
 			code:              1,
-			stderr:            "spiffeid: invalid scheme\n",
+			stderr:            "Error: spiffeid: invalid scheme\n",
 			audience:          []string{"AUDIENCE"},
 			noRequestExpected: true,
 		},
@@ -213,7 +213,7 @@ func TestMintRun(t *testing.T) {
 				},
 			},
 			write:  "/",
-			stderr: fmt.Sprintf("unable to write token: open %s: is a directory\n", dir),
+			stderr: fmt.Sprintf("Error: unable to write token: open %s: is a directory\n", dir),
 		},
 		{
 			name:     "malformed token",
