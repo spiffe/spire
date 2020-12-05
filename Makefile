@@ -274,7 +274,7 @@ go_ldflags := '${go_ldflags}'
 
 .PHONY: build
 
-build: tidy bin/spire-server bin/spire-agent bin/k8s-workload-registrar bin/oidc-discovery-provider bin/spire-server-static bin/spire-agent-static bin/k8s-workload-registrar-static bin/oidc-discovery-provider-static
+build: tidy bin/spire-server bin/spire-agent bin/k8s-workload-registrar bin/oidc-discovery-provider
 
 define binary_rule
 .PHONY: $1
@@ -289,11 +289,14 @@ $(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
 $(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
 $(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
 $(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
+<<<<<<< HEAD
 # static builds
 $(eval $(call binary_rule_external_static,bin/spire-server-static,./cmd/spire-server))
 $(eval $(call binary_rule_static,bin/spire-agent-static,./cmd/spire-agent))
 $(eval $(call binary_rule_static,bin/k8s-workload-registrar-static,./support/k8s/k8s-workload-registrar))
 $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oidc-discovery-provider))
+=======
+>>>>>>> separate build and images from static builds and scratch images
 
 # utilities
 $(eval $(call binary_rule,bin/spire-plugingen,./tools/spire-plugingen))
@@ -370,7 +373,7 @@ artifact: build
 #############################################################################
 
 .PHONY: images
-images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image spire-server-scratch-image spire-agent-scratch-image
+images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile
@@ -391,6 +394,13 @@ k8s-workload-registrar-image: Dockerfile
 oidc-discovery-provider-image: Dockerfile
 	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider -t oidc-discovery-provider .
 	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
+
+#############################################################################
+# Docker Images FROM scratch
+#############################################################################
+
+.PHONY: scratch-images
+scratch-images: spire-server-scratch-image spire-agent-scratch-image
 
 .PHONY: spire-server-scratch-image
 spire-server-scratch-image: Dockerfile

@@ -8,7 +8,7 @@ ADD proto/spire/go.mod /spire/proto/spire/go.mod
 RUN cd /spire && go mod download
 ADD . /spire
 WORKDIR /spire
-RUN make build
+RUN make build-static
 
 # SPIRE Server
 FROM scratch AS spire-server-scratch
