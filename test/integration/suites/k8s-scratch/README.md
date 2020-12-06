@@ -12,5 +12,23 @@ This suite sets up a Kubernetes cluster using [Kind](https://kind.sigs.k8s.io) a
 
 ## Prerequisites
 
-* make images (workload needs alpine image)
-* make scratch-images
+```bash
+# scratch test use the alpine agent for the workload
+make images
+make scratch-images
+```
+
+## Run Test
+```bash
+cd test/integration/suites/k8s-scratch
+export RUNDIR=./run
+mkdir -p ./run
+./00-setup
+./01-apply-config
+./02-check-for-workload-svid
+```
+
+## Cleanup
+```bash
+./teardown
+```
