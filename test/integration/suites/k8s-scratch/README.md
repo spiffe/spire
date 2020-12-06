@@ -19,6 +19,7 @@ make scratch-images
 ```
 
 ## Run Test
+
 ```bash
 cd test/integration/suites/k8s-scratch
 export RUNDIR=./run
@@ -29,6 +30,7 @@ mkdir -p ./run
 ```
 
 ## Cleanup
+
 ```bash
 ./teardown
 ```
