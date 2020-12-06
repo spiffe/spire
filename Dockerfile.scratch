@@ -13,6 +13,7 @@ RUN make build-static
 # SPIRE Server
 FROM scratch AS spire-server-scratch
 COPY --from=builder /spire/bin/spire-server-static /opt/spire/bin/spire-server
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 WORKDIR /opt/spire
 ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
 CMD []

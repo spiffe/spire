@@ -315,7 +315,11 @@ endef
 define binary_rule_external_static
 .PHONY: $1
 $1: | go-check bin/
+<<<<<<< HEAD
 	@echo Building $1...
+=======
+	@echo Building $1...CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1 $2
+>>>>>>> add test cases for scratch images
 	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1 $2
 
 endef
@@ -392,7 +396,7 @@ oidc-discovery-provider-image: Dockerfile
 #############################################################################
 
 .PHONY: scratch-images
-scratch-images: spire-server-scratch-image spire-agent-scratch-image
+scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image
 
 .PHONY: spire-server-scratch-image
 spire-server-scratch-image: Dockerfile
@@ -403,6 +407,11 @@ spire-server-scratch-image: Dockerfile
 spire-agent-scratch-image: Dockerfile
 	docker build --build-arg goversion=$(go_version_full) --target spire-agent-scratch -t spire-agent-scratch -f Dockerfile.scratch .
 	docker tag spire-agent-scratch:latest spire-agent-scratch:latest-local
+
+.PHONY: k8s-workload-registrar-scratch-image
+k8s-workload-registrar-scratch-image: Dockerfile
+	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar-scratch -t k8s-workload-registrar-scratch -f Dockerfile.scratch .
+	docker tag k8s-workload-registrar-scratch:latest k8s-workload-registrar-scratch:latest-local
 
 #############################################################################
 # Docker Images FROM scratch
