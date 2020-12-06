@@ -315,11 +315,7 @@ endef
 define binary_rule_external_static
 .PHONY: $1
 $1: | go-check bin/
-<<<<<<< HEAD
 	@echo Building $1...
-=======
-	@echo Building $1...CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1 $2
->>>>>>> add test cases for scratch images
 	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1 $2
 
 endef
