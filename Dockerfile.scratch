@@ -1,7 +1,7 @@
 # Build stage
 ARG goversion
 FROM golang:${goversion}-alpine as builder
-RUN apk add build-base git mercurial ca-certificates
+RUN apk add build-base git mercurial ca-certificates upx
 RUN apk add --update gcc musl-dev
 ADD go.mod /spire/go.mod
 ADD proto/spire/go.mod /spire/proto/spire/go.mod
@@ -10,12 +10,17 @@ ADD . /spire
 WORKDIR /spire
 RUN make build-static
 
+# UPX is a free, portable, extendable, high-performance executable packer for several executable formats.
+RUN upx ./bin/spire-server-static \
+    && upx ./bin/spire-agent-static \
+    && upx ./bin/k8s-workload-registrar-static
+
 # SPIRE Server
 FROM scratch AS spire-server-scratch
 COPY --from=builder /spire/bin/spire-server-static /opt/spire/bin/spire-server
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 WORKDIR /opt/spire
-ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
+ENTRYPOINT ["/opt/spire/bin/spire-server"]
 CMD []
 
 FROM scratch  AS spire-agent-scratch
@@ -23,7 +28,7 @@ COPY --from=builder /spire/bin/spire-agent-static /opt/spire/bin/spire-agent
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 WORKDIR /opt/spire
 EXPOSE 8080 8443
-ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
+ENTRYPOINT ["/opt/spire/bin/spire-agent"]
 CMD []
 
 # K8S Workload Registrar
