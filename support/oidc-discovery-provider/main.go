@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -38,25 +39,7 @@ func run(configPath string) error {
 	}
 	defer log.Close()
 
-	var source JWKSSource
-	switch {
-	case config.RegistrationAPI != nil:
-		source, err = NewRegistrationAPISource(RegistrationAPISourceConfig{
-			Log:          log,
-			SocketPath:   config.RegistrationAPI.SocketPath,
-			PollInterval: config.RegistrationAPI.PollInterval,
-		})
-	case config.WorkloadAPI != nil:
-		source, err = NewWorkloadAPISource(WorkloadAPISourceConfig{
-			Log:          log,
-			SocketPath:   config.WorkloadAPI.SocketPath,
-			PollInterval: config.WorkloadAPI.PollInterval,
-			TrustDomain:  config.WorkloadAPI.TrustDomain,
-		})
-	default:
-		// This is defensive; LoadConfig should prevent this from happening.
-		err = errs.New("no source has been configured")
-	}
+	source, err := newSource(log, config)
 	if err != nil {
 		return err
 	}
@@ -91,7 +74,39 @@ func run(configPath string) error {
 	return http.Serve(listener, handler)
 }
 
-func acmeListener(logger *log.Logger, config *Config) net.Listener {
+func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
+	switch {
+	case config.RegistrationAPI != nil:
+		log.Warn("The registration_api configuration is deprecated in favor of server_api and will be removed in a future release; please update your configuration")
+		address, err := addressFromSocketPath(config.RegistrationAPI.SocketPath)
+		if err != nil {
+			return nil, err
+		}
+		return NewServerAPISource(ServerAPISourceConfig{
+			Log:          log,
+			Address:      address,
+			PollInterval: config.RegistrationAPI.PollInterval,
+		})
+	case config.ServerAPI != nil:
+		return NewServerAPISource(ServerAPISourceConfig{
+			Log:          log,
+			Address:      config.ServerAPI.Address,
+			PollInterval: config.ServerAPI.PollInterval,
+		})
+	case config.WorkloadAPI != nil:
+		return NewWorkloadAPISource(WorkloadAPISourceConfig{
+			Log:          log,
+			SocketPath:   config.WorkloadAPI.SocketPath,
+			PollInterval: config.WorkloadAPI.PollInterval,
+			TrustDomain:  config.WorkloadAPI.TrustDomain,
+		})
+	default:
+		// This is defensive; LoadConfig should prevent this from happening.
+		return nil, errs.New("no source has been configured")
+	}
+}
+
+func acmeListener(log logrus.FieldLogger, config *Config) net.Listener {
 	var cache autocert.Cache
 	if config.ACME.CacheDir != "" {
 		cache = autocert.DirCache(config.ACME.CacheDir)
@@ -106,7 +121,7 @@ func acmeListener(logger *log.Logger, config *Config) net.Listener {
 		Email:      config.ACME.Email,
 		HostPolicy: autocert.HostWhitelist(config.Domain),
 		Prompt: func(tosURL string) bool {
-			logger.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
+			log.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
 			return true
 		},
 	}
@@ -123,4 +138,13 @@ func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {
 		}).Debug("Incoming request")
 		handler.ServeHTTP(w, r)
 	})
+}
+
+func addressFromSocketPath(socketPath string) (string, error) {
+	absSocketPath, err := filepath.Abs(socketPath)
+	if err != nil {
+		return "", errs.New("unable to convert socket path %q to target address: %v", socketPath, err)
+	}
+
+	return "unix://" + absSocketPath, nil
 }
