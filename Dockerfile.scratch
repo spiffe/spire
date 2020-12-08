@@ -1,7 +1,7 @@
 # Build stage
 ARG goversion
 FROM golang:${goversion}-alpine as builder
-RUN apk add build-base git mercurial ca-certificatess
+RUN apk add build-base git mercurial ca-certificates
 RUN apk add --update gcc musl-dev
 ADD go.mod /spire/go.mod
 ADD proto/spire/go.mod /spire/proto/spire/go.mod

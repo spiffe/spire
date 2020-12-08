@@ -409,6 +409,11 @@ k8s-workload-registrar-scratch-image: Dockerfile
 	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar-scratch -t k8s-workload-registrar-scratch -f Dockerfile.scratch .
 	docker tag k8s-workload-registrar-scratch:latest k8s-workload-registrar-scratch:latest-local
 
+.PHONY: oidc-discovery-provider-scratch-image
+oidc-discovery-provider-scratch-image: Dockerfile
+	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider-scratch -t oidc-discovery-provider-scratch -f Dockerfile.scratch .
+	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
+
 #############################################################################
 # Docker Images FROM scratch
 #############################################################################
