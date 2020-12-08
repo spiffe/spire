@@ -448,12 +448,22 @@ generate: protogen plugingen
 
 generate-check: protogen-check plugingen-check
 
-protogen: $(protos:.proto=.pb.go)
+protogen: $(protos:.proto=.pb.go) $(serviceprotos:.proto=.pb.go) $(serviceprotos:.proto=_grpc.pb.go)
+
+%_grpc.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_grpc_bin)
+	@echo "(proto) compiling service $<..."
+	$(E)cd proto && \
+		PATH="$(protoc_gen_go_grpc_dir):$(PATH)" \
+		$(protoc_bin) \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		$(<:proto/%=%)
 
 %.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin)
 	@echo "(proto) compiling $<..."
-	$(E)cd proto && PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) \
-		--go_out=paths=source_relative,plugins=grpc:. \
+	$(E)cd proto && \
+		PATH="$(protoc_gen_go_dir):$(PATH)" \
+		$(protoc_bin) \
+		--go_out=. --go_opt=paths=source_relative \
 		$(<:proto/%=%)
 
 protogen-check:
@@ -467,7 +477,8 @@ endif
 	$(E)$(MAKE) git-clean-check
 
 plugingen-proto = $(word 1,$(subst $(comma),$(space),$1))
-plugingen-pbgo = $(subst .proto,.pb.go,$(call plugingen-proto,$1))
+plugingen-grpc-pbgo = $(subst .proto,_grpc.pb.go,$(call plugingen-proto,$1))
+plugingen-pbgo = $(subst .proto,_grpc.pb.go,$(call plugingen-proto,$1))
 plugingen-proto-dir = $(dir $(call plugingen-proto, $1))
 plugingen-out-dir = $(word 2,$(subst $(comma),$(space),$1))
 plugingen-type = $(word 3,$(subst $(comma),$(space),$1))
@@ -477,7 +488,7 @@ plugingen-out = $(call plugingen-out-dir,$1)/$(call tolower,$(call plugingen-typ
 
 # plugingen-rule is a template for invoking spire-plugingen and is invoked with a plugingen_* entry
 define plugingen-rule
-$(call plugingen-out,$1): $(call plugingen-pbgo,$1) | bin/spire-plugingen
+$(call plugingen-out,$1): $(call plugingen-grpc-pbgo,$1) $(call plugingen-pbgo,$1) | bin/spire-plugingen
 	@echo "($2) generating $$@..."
 	$(E)PATH="$$(go_bin_dir):$$(PATH)" $$(DIR)/bin/spire-plugingen $(call plugingen-shared-opt,$1) -mode $2 -out $(call plugingen-out-dir,$1) $(call plugingen-proto-dir,$1) $(call plugingen-type,$1)
 endef
@@ -497,7 +508,7 @@ plugingen-services: $(foreach x,$(plugingen_services),$(call plugingen-out,$x))
 
 plugingen-hostservices: $(foreach x,$(plugingen_hostservices),$(call plugingen-out,$x))
 
-plugingen: plugingen-plugins plugingen-services plugingen-hostservices
+plugingen: protogen plugingen-plugins plugingen-services plugingen-hostservices
 
 plugingen-check:
 ifneq ($(git_dirty),)
