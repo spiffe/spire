@@ -1,7 +1,7 @@
 # Build stage
 ARG goversion
 FROM golang:${goversion}-alpine as builder
-RUN apk add build-base git mercurial ca-certificates upx
+RUN apk add build-base git mercurial ca-certificatess
 RUN apk add --update gcc musl-dev
 ADD go.mod /spire/go.mod
 ADD proto/spire/go.mod /spire/proto/spire/go.mod
@@ -9,11 +9,6 @@ RUN cd /spire && go mod download
 ADD . /spire
 WORKDIR /spire
 RUN make build-static
-
-# UPX is a free, portable, extendable, high-performance executable packer for several executable formats.
-RUN upx ./bin/spire-server-static \
-    && upx ./bin/spire-agent-static \
-    && upx ./bin/k8s-workload-registrar-static
 
 # SPIRE Server
 FROM scratch AS spire-server-scratch
