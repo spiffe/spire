@@ -17,12 +17,14 @@ package controllers
 
 import (
 	"context"
+	"errors"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
+	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -38,7 +40,7 @@ type SpiffeIDReconcilerConfig struct {
 	Cluster     string
 	Ctx         context.Context
 	Log         logrus.FieldLogger
-	R           registration.RegistrationClient
+	E           entryv1.EntryClient
 	TrustDomain string
 }
 
@@ -152,20 +154,17 @@ func (r *SpiffeIDReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // updateOrCreateSpiffeID attempts to create a new entry. if the entry already exists, it updates it.
 func (r *SpiffeIDReconciler) updateOrCreateSpiffeID(ctx context.Context, spiffeID *spiffeidv1beta1.SpiffeID) (*string, bool, error) {
-	entry := &common.RegistrationEntry{
-		ParentId:  spiffeID.Spec.ParentId,
-		SpiffeId:  spiffeID.Spec.SpiffeId,
-		Selectors: spiffeID.CommonSelector(),
-		DnsNames:  spiffeID.Spec.DnsNames,
+	entry, err := entryFromCRD(spiffeID)
+	if err != nil {
+		return nil, false, err
 	}
 
-	var existing *common.RegistrationEntry
+	var existing *types.Entry
 	var entryID string
-	var err error
 	var preexisting bool
 	if spiffeID.Status.EntryId != nil {
 		// Fetch existing entry
-		existing, err = r.c.R.FetchEntry(r.c.Ctx, &registration.RegistrationEntryID{
+		existing, err = r.c.E.GetEntry(r.c.Ctx, &entryv1.GetEntryRequest{
 			Id: *spiffeID.Status.EntryId,
 		})
 		if err != nil {
@@ -176,22 +175,17 @@ func (r *SpiffeIDReconciler) updateOrCreateSpiffeID(ctx context.Context, spiffeI
 		preexisting = true
 	} else {
 		// Create new entry
-		response, err := r.c.R.CreateEntryIfNotExists(ctx, entry)
+		existing, preexisting, err = r.createEntry(ctx, entry)
 		if err != nil {
 			return nil, false, err
 		}
-		existing = response.Entry
-		entryID = response.Entry.EntryId
-		preexisting = response.Preexisting
+		entryID = existing.Id
 	}
 
 	if preexisting {
-		if !equalSpiffeID(existing, entry) {
-			entry.EntryId = entryID
-			_, err := r.c.R.UpdateEntry(ctx, &registration.UpdateEntryRequest{
-				Entry: entry,
-			})
-			if err != nil {
+		if !entryEqual(existing, entry) {
+			entry.Id = entryID
+			if err := r.updateEntry(ctx, entry); err != nil {
 				return nil, false, err
 			}
 
@@ -213,7 +207,7 @@ func (r *SpiffeIDReconciler) updateOrCreateSpiffeID(ctx context.Context, spiffeI
 // deleteSpiffeID deletes the specified entry on the SPIRE Server
 func (r *SpiffeIDReconciler) deleteSpiffeID(ctx context.Context, spiffeID *spiffeidv1beta1.SpiffeID) error {
 	if spiffeID.Status.EntryId != nil {
-		err := deleteRegistrationEntry(ctx, r.c.R, *spiffeID.Status.EntryId)
+		err := deleteRegistrationEntry(ctx, r.c.E, *spiffeID.Status.EntryId)
 		if err != nil {
 			return err
 		}
@@ -227,13 +221,111 @@ func (r *SpiffeIDReconciler) deleteSpiffeID(ctx context.Context, spiffeID *spiff
 	return nil
 }
 
-// equalSpiffeID checks if the current SPIRE Server registration entry and SPIFFE ID resource are equal
-func equalSpiffeID(existing, current *common.RegistrationEntry) bool {
-	existingSet := selector.NewSetFromRaw(existing.Selectors)
-	currentSet := selector.NewSetFromRaw(current.Selectors)
+func (r *SpiffeIDReconciler) createEntry(ctx context.Context, entry *types.Entry) (*types.Entry, bool, error) {
+	resp, err := r.c.E.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{
+		Entries: []*types.Entry{entry},
+	})
+	if err != nil {
+		return nil, false, err
+	}
 
+	// These checks are purely defensive.
+	switch {
+	case len(resp.Results) > 1:
+		return nil, false, errors.New("batch create response has too many results")
+	case len(resp.Results) < 1:
+		return nil, false, errors.New("batch create response result empty")
+	}
+
+	err = errorFromStatus(resp.Results[0].Status)
+	switch status.Code(err) {
+	case codes.OK:
+		return resp.Results[0].Entry, false, nil
+	case codes.AlreadyExists:
+		return resp.Results[0].Entry, true, nil
+	default:
+		return nil, false, err
+	}
+}
+
+func (r *SpiffeIDReconciler) updateEntry(ctx context.Context, entry *types.Entry) error {
+	resp, err := r.c.E.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
+		Entries: []*types.Entry{entry},
+	})
+	if err != nil {
+		return err
+	}
+
+	// These checks are purely defensive.
+	switch {
+	case len(resp.Results) > 1:
+		return errors.New("batch create response has too many results")
+	case len(resp.Results) < 1:
+		return errors.New("batch create response result empty")
+	}
+
+	return errorFromStatus(resp.Results[0].Status)
+}
+
+func errorFromStatus(s *types.Status) error {
+	if s == nil {
+		return errors.New("result status is unexpectedly nil")
+	}
+	return status.Error(codes.Code(s.Code), s.Message)
+}
+
+func entryFromCRD(crd *spiffeidv1beta1.SpiffeID) (*types.Entry, error) {
+	parentID, err := spiffeIDFromString(crd.Spec.ParentId)
+	if err != nil {
+		return nil, errs.New("malformed CRD parent ID: %v", err)
+	}
+	spiffeID, err := spiffeIDFromString(crd.Spec.SpiffeId)
+	if err != nil {
+		return nil, errs.New("malformed CRD SPIFFE ID: %v", err)
+	}
+	return &types.Entry{
+		ParentId:  parentID,
+		SpiffeId:  spiffeID,
+		Selectors: crd.TypesSelector(),
+		DnsNames:  crd.Spec.DnsNames,
+	}, nil
+}
+
+func spiffeIDFromString(rawID string) (*types.SPIFFEID, error) {
+	id, err := spiffeid.FromString(rawID)
+	if err != nil {
+		return nil, err
+	}
+	return &types.SPIFFEID{
+		TrustDomain: id.TrustDomain().String(),
+		Path:        id.Path(),
+	}, nil
+}
+
+// entryEqual checks if the current SPIRE Server registration entry and SPIFFE ID resource are equal
+func entryEqual(existing, current *types.Entry) bool {
 	return equalStringSlice(existing.DnsNames, current.DnsNames) &&
-		existingSet.Equal(currentSet) &&
+		selectorSetsEqual(existing.Selectors, current.Selectors) &&
 		existing.SpiffeId == current.SpiffeId &&
 		existing.ParentId == current.ParentId
+}
+
+func selectorSetsEqual(as, bs []*types.Selector) bool {
+	if len(as) != len(bs) {
+		return false
+	}
+	type sel struct {
+		t string
+		v string
+	}
+	set := map[sel]struct{}{}
+	for _, a := range as {
+		set[sel{t: a.Type, v: a.Value}] = struct{}{}
+	}
+	for _, b := range bs {
+		if _, ok := set[sel{t: b.Type, v: b.Value}]; !ok {
+			return false
+		}
+	}
+	return true
 }

@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/spiffe/go-spiffe/v2/logger"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 
 	"github.com/hashicorp/hcl"
@@ -49,7 +48,7 @@ type CommonMode struct {
 	PodAnnotation      string   `hcl:"pod_annotation"`
 	Mode               string   `hcl:"mode"`
 	DisabledNamespaces []string `hcl:"disabled_namespaces"`
-	registrationAPI    RegistrationAPIConnections
+	serverAPI          ServerAPIClients
 }
 
 func (c *CommonMode) ParseConfig(hclConfig string) error {
@@ -98,16 +97,12 @@ func (c *CommonMode) SetupLogger() (*log.Logger, error) {
 	return log.NewLogger(log.WithLevel(c.LogLevel), log.WithFormat(c.LogFormat), log.WithOutputFile(c.LogPath))
 }
 
-func (c *CommonMode) RegistrationClient(ctx context.Context, dialLogger logger.Logger) (registration.RegistrationClient, error) {
-	return c.registrationAPI.RegistrationClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
-}
-
 func (c *CommonMode) EntryClient(ctx context.Context, dialLogger logger.Logger) (entry.EntryClient, error) {
-	return c.registrationAPI.EntryClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
+	return c.serverAPI.EntryClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
 }
 
 func (c *CommonMode) Close() error {
-	return c.registrationAPI.Close()
+	return c.serverAPI.Close()
 }
 
 func LoadMode(path string) (Mode, error) {
@@ -141,12 +136,12 @@ func LoadMode(path string) (Mode, error) {
 	return mode, err
 }
 
-type RegistrationAPIConnections struct {
+type ServerAPIClients struct {
 	serverConn   *grpc.ClientConn
 	workloadConn *workloadapi.X509Source
 }
 
-func (r *RegistrationAPIConnections) dial(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) error {
+func (r *ServerAPIClients) dial(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) error {
 	var conn *grpc.ClientConn
 	var err error
 
@@ -175,7 +170,7 @@ func (r *RegistrationAPIConnections) dial(ctx context.Context, dialLog logger.Lo
 	return nil
 }
 
-func (r *RegistrationAPIConnections) EntryClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (entry.EntryClient, error) {
+func (r *ServerAPIClients) EntryClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (entry.EntryClient, error) {
 	if r.serverConn == nil {
 		if err := r.dial(ctx, dialLog, serverAddress, agentSocketPath); err != nil {
 			return nil, err
@@ -184,16 +179,7 @@ func (r *RegistrationAPIConnections) EntryClient(ctx context.Context, dialLog lo
 	return entry.NewEntryClient(r.serverConn), nil
 }
 
-func (r *RegistrationAPIConnections) RegistrationClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (registration.RegistrationClient, error) {
-	if r.serverConn == nil {
-		if err := r.dial(ctx, dialLog, serverAddress, agentSocketPath); err != nil {
-			return nil, err
-		}
-	}
-	return registration.NewRegistrationClient(r.serverConn), nil
-}
-
-func (r *RegistrationAPIConnections) Close() error {
+func (r *ServerAPIClients) Close() error {
 	var group errs.Group
 	if r.serverConn != nil {
 		group.Add(r.serverConn.Close())
