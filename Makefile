@@ -415,33 +415,6 @@ oidc-discovery-provider-scratch-image: Dockerfile
 	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
 
 #############################################################################
-# Docker Images FROM scratch
-#############################################################################
-
-.PHONY: scratch-images
-scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image
-
-.PHONY: spire-server-scratch-image
-spire-server-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-server-scratch -t spire-server-scratch -f Dockerfile.scratch .
-	docker tag spire-server-scratch:latest spire-server-scratch:latest-local
-
-.PHONY: spire-agent-scratch-image
-spire-agent-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-agent-scratch -t spire-agent-scratch -f Dockerfile.scratch .
-	docker tag spire-agent-scratch:latest spire-agent-scratch:latest-local
-
-.PHONY: k8s-workload-registrar-scratch-image
-k8s-workload-registrar-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar-scratch -t k8s-workload-registrar-scratch -f Dockerfile.scratch .
-	docker tag k8s-workload-registrar-scratch:latest k8s-workload-registrar-scratch:latest-local
-
-.PHONY: oidc-discovery-provider-scratch-image
-oidc-discovery-provider-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider-scratch -t oidc-discovery-provider-scratch -f Dockerfile.scratch .
-	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
-
-#############################################################################
 # Code cleanliness
 #############################################################################
 
