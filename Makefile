@@ -108,6 +108,32 @@ golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 
 protoc_version = 3.11.1
+ifeq ($(arch1),x86_64)
+arch2=amd64
+else ifeq ($(arch1),aarch64)
+arch2=arm64
+else
+$(error unsupported ARCH: $(arch1))
+endif
+
+############################################################################
+# Vars
+############################################################################
+
+build_dir := $(DIR)/.build/$(os1)-$(arch1)
+
+go_version_full := $(shell cat .go-version)
+go_version := $(go_version_full:.0=)
+go_dir := $(build_dir)/go/$(go_version)
+go_bin_dir := $(go_dir)/bin
+go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
+go := PATH="$(go_bin_dir):$(PATH)" go
+
+golangci_lint_version = v1.27.0
+golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
+golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
+
+protoc_version = 3.14.0
 ifeq ($(arch1),aarch64)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-aarch_64.zip
 else
@@ -116,10 +142,15 @@ endif
 protoc_dir = $(build_dir)/protoc/$(protoc_version)
 protoc_bin = $(protoc_dir)/bin/protoc
 
-protoc_gen_go_version := $(shell grep github.com/golang/protobuf go.mod | awk '{print $$2}')
+protoc_gen_go_version := $(shell grep google.golang.org/protobuf go.mod | awk '{print $$2}')
 protoc_gen_go_base_dir := $(build_dir)/protoc-gen-go
 protoc_gen_go_dir := $(protoc_gen_go_base_dir)/$(protoc_gen_go_version)-go$(go_version)
 protoc_gen_go_bin := $(protoc_gen_go_dir)/protoc-gen-go
+
+protoc_gen_go_grpc_version := v1.0.1
+protoc_gen_go_grpc_base_dir := $(build_dir)/protoc-gen-go-grpc
+protoc_gen_go_grpc_dir := $(protoc_gen_go_grpc_base_dir)/$(protoc_gen_go_grpc_version)-go$(go_version)
+protoc_gen_go_grpc_bin := $(protoc_gen_go_grpc_dir)/protoc-gen-go-grpc
 
 mockgen_version := $(shell grep github.com/golang/mock go.mod | awk '{print $$2}')
 mockgen_base_dir := $(build_dir)/mockgen
@@ -134,13 +165,25 @@ git_dirty := $(shell git status -s)
 
 protos := \
 	proto/private/server/journal/journal.proto \
+	proto/spire/common/common.proto \
+	proto/spire/types/agent.proto \
+	proto/spire/types/attestation.proto \
+	proto/spire/types/bundle.proto \
+	proto/spire/types/entry.proto \
+	proto/spire/types/jointoken.proto \
+	proto/spire/types/jwtsvid.proto \
+	proto/spire/types/selector.proto \
+	proto/spire/types/spiffeid.proto \
+	proto/spire/types/status.proto \
+	proto/spire/types/x509svid.proto \
+
+serviceprotos := \
 	proto/private/test/catalogtest/test.proto \
 	proto/spire/agent/keymanager/keymanager.proto \
 	proto/spire/agent/nodeattestor/nodeattestor.proto \
 	proto/spire/agent/workloadattestor/workloadattestor.proto \
 	proto/spire/api/node/node.proto \
 	proto/spire/api/registration/registration.proto \
-	proto/spire/common/common.proto \
 	proto/spire/common/hostservices/metricsservice.proto \
 	proto/spire/common/plugin/plugin.proto \
 	proto/spire/server/datastore/datastore.proto \
@@ -157,16 +200,8 @@ protos := \
 	proto/spire/api/server/debug/v1/debug.proto \
 	proto/spire/api/server/entry/v1/entry.proto \
 	proto/spire/api/server/svid/v1/svid.proto \
-	proto/spire/types/agent.proto \
-	proto/spire/types/attestation.proto \
-	proto/spire/types/bundle.proto \
-	proto/spire/types/entry.proto \
-	proto/spire/types/jointoken.proto \
-	proto/spire/types/jwtsvid.proto \
-	proto/spire/types/selector.proto \
-	proto/spire/types/spiffeid.proto \
-	proto/spire/types/status.proto \
-	proto/spire/types/x509svid.proto \
+
+
 
 # The following three variables define the plugin, service, and hostservice
 # interfaces. The syntax of each entry is as follows:
