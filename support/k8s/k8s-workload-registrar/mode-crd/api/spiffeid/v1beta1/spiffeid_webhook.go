@@ -21,9 +21,10 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/zeebo/errs"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,7 +37,7 @@ type SpiffeIDWebhookConfig struct {
 	Log         logrus.FieldLogger
 	Mgr         ctrl.Manager
 	Namespace   string
-	R           registration.RegistrationClient
+	E           entry.EntryClient
 	TrustDomain string
 }
 
@@ -57,24 +58,34 @@ func (s *SpiffeID) ValidateCreate() error {
 		return err
 	}
 
+	// TODO: filter additionally by SPIFFE ID? what about parent ID?
+
 	// Check for duplicates
-	registrationEntries, err := c.R.ListBySelectors(c.Ctx, &common.Selectors{
-		Entries: s.CommonSelector(),
+	resp, err := c.E.ListEntries(c.Ctx, &entry.ListEntriesRequest{
+		Filter: &entry.ListEntriesRequest_Filter{
+			BySelectors: &types.SelectorMatch{
+				Match:     types.SelectorMatch_MATCH_EXACT,
+				Selectors: s.TypesSelector(),
+			},
+		},
 	})
 	if err != nil {
 		return err
 	}
-	if len(registrationEntries.Entries) > 0 {
-		for _, entry := range registrationEntries.Entries {
-			if s.Spec.SpiffeId == entry.SpiffeId {
-				if s.Status.EntryId == nil || *s.Status.EntryId != entry.EntryId {
-					c.Log.WithFields(logrus.Fields{
-						"spiffeID": s.Spec.SpiffeId,
-						"name":     s.ObjectMeta.Name,
-						"entryId":  s.Status.EntryId,
-					}).Info("Duplicate detected")
-					return errs.New("Duplicate detected")
-				}
+
+	for _, entry := range resp.Entries {
+		entrySPIFFEID, err := spiffeid.New(entry.SpiffeId.TrustDomain, entry.SpiffeId.Path)
+		if err != nil {
+			return fmt.Errorf("entry SPIFFE ID is malformed: %v", err)
+		}
+		if s.Spec.SpiffeId == entrySPIFFEID.String() {
+			if s.Status.EntryId == nil || *s.Status.EntryId != entry.Id {
+				c.Log.WithFields(logrus.Fields{
+					"spiffeID": s.Spec.SpiffeId,
+					"name":     s.ObjectMeta.Name,
+					"entryId":  s.Status.EntryId,
+				}).Info("Duplicate detected")
+				return errs.New("Duplicate detected")
 			}
 		}
 	}
