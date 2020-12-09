@@ -9,11 +9,13 @@ import (
 	"github.com/spiffe/spire/proto/private/test/catalogtest"
 )
 
-func NewService() catalogtest.Service {
+func NewService() catalogtest.ServiceServer {
 	return &testService{}
 }
 
 type testService struct {
+	catalogtest.UnsafeServiceServer
+
 	log hclog.Logger
 	hs  catalogtest.HostService
 }

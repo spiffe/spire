@@ -11,6 +11,8 @@ import (
 )
 
 type WorkloadAttestor struct {
+	workloadattestor.UnsafeWorkloadAttestorServer
+
 	mu   sync.RWMutex
 	pids map[int32][]*common.Selector
 }

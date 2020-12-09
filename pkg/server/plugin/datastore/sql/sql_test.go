@@ -15,9 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -30,6 +27,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var (
@@ -398,7 +398,7 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 	tests := []struct {
 		name               string
 		pagination         *datastore.Pagination
-		byExpiresBefore    *wrappers.Int64Value
+		byExpiresBefore    *wrapperspb.Int64Value
 		expectedList       []*common.Bundle
 		expectedPagination *datastore.Pagination
 		expectedErr        string
@@ -689,7 +689,7 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 
 	expiration := time.Now().Unix()
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
-		ByExpiresBefore: &wrappers.Int64Value{
+		ByExpiresBefore: &wrapperspb.Int64Value{
 			Value: expiration,
 		},
 	})
@@ -726,7 +726,7 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 
 	expiration := time.Now().Unix()
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
-		ByExpiresBefore: &wrappers.Int64Value{
+		ByExpiresBefore: &wrapperspb.Int64Value{
 			Value: expiration,
 		},
 	})
@@ -932,7 +932,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		{
 			name: "get nodes by expire no pagination",
 			req: &datastore.ListAttestedNodesRequest{
-				ByExpiresBefore: &wrappers.Int64Value{
+				ByExpiresBefore: &wrapperspb.Int64Value{
 					Value: time.Now().Unix(),
 				},
 			},
@@ -945,7 +945,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					Token:    "",
 					PageSize: 2,
 				},
-				ByExpiresBefore: &wrappers.Int64Value{
+				ByExpiresBefore: &wrapperspb.Int64Value{
 					Value: time.Now().Unix(),
 				},
 			},
@@ -962,7 +962,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					Token:    "3",
 					PageSize: 2,
 				},
-				ByExpiresBefore: &wrappers.Int64Value{
+				ByExpiresBefore: &wrapperspb.Int64Value{
 					Value: time.Now().Unix(),
 				},
 			},
@@ -979,7 +979,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					Token:    "5",
 					PageSize: 2,
 				},
-				ByExpiresBefore: &wrappers.Int64Value{
+				ByExpiresBefore: &wrapperspb.Int64Value{
 					Value: time.Now().Unix(),
 				},
 			},
@@ -1031,7 +1031,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					Token:    "",
 					PageSize: 4,
 				},
-				ByBanned: &wrappers.BoolValue{Value: false},
+				ByBanned: &wrapperspb.BoolValue{Value: false},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
 			expectedPagination: &datastore.Pagination{
@@ -1042,7 +1042,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		{
 			name: "not banned no pagination",
 			req: &datastore.ListAttestedNodesRequest{
-				ByBanned: &wrappers.BoolValue{Value: false},
+				ByBanned: &wrapperspb.BoolValue{Value: false},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
 		},
@@ -1053,7 +1053,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					Token:    "",
 					PageSize: 2,
 				},
-				ByBanned: &wrappers.BoolValue{Value: true},
+				ByBanned: &wrapperspb.BoolValue{Value: true},
 			},
 			expectedList: []*common.AttestedNode{aNode4, aNode5},
 			expectedPagination: &datastore.Pagination{
@@ -1158,7 +1158,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				ByAttestationType: "t1",
-				ByBanned:          &wrappers.BoolValue{Value: false},
+				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
 					Match: datastore.BySelectors_MATCH_EXACT,
 					Selectors: []*common.Selector{
@@ -1177,7 +1177,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "multiple filters no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				ByAttestationType: "t1",
-				ByBanned:          &wrappers.BoolValue{Value: false},
+				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
 					Match: datastore.BySelectors_MATCH_EXACT,
 					Selectors: []*common.Selector{
@@ -1237,7 +1237,8 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		name           string
 		updateReq      *datastore.UpdateAttestedNodeRequest
 		expUpdatedNode *common.AttestedNode
-		expErr         error
+		expCode        codes.Code
+		expMsg         string
 	}{
 		{
 			name: "update non-existing attested node",
@@ -1246,7 +1247,8 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 				CertSerialNumber: updatedSerial,
 				CertNotAfter:     updatedExpires,
 			},
-			expErr: status.Error(codes.NotFound, _notFoundErrMsg),
+			expCode: codes.NotFound,
+			expMsg:  _notFoundErrMsg,
 		},
 		{
 			name: "update attested node with all false mask",
@@ -1325,8 +1327,8 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 
 			// Update attested node
 			uresp, err := s.ds.UpdateAttestedNode(ctx, tt.updateReq)
-			if tt.expErr != nil {
-				s.Require().Equal(tt.expErr, err)
+			s.RequireGRPCStatus(err, tt.expCode, tt.expMsg)
+			if tt.expCode != codes.OK {
 				s.Require().Nil(uresp)
 				return
 			}
@@ -1485,7 +1487,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 
 	s.T().Run("list unexpired", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{
-			ValidAt: &timestamp.Timestamp{
+			ValidAt: &timestamppb.Timestamp{
 				Seconds: time.Now().Unix(),
 			},
 		}
@@ -1680,7 +1682,7 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	}
 	util.SortRegistrationEntries(expectedResponse.Entries)
 	util.SortRegistrationEntries(resp.Entries)
-	s.Equal(expectedResponse, resp)
+	s.RequireProtoEqual(expectedResponse, resp)
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
@@ -1883,7 +1885,7 @@ func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, toler
 			}
 			util.SortRegistrationEntries(expectedResponse.Entries)
 			util.SortRegistrationEntries(resp.Entries)
-			require.Equal(t, expectedResponse, resp)
+			spiretest.RequireProtoEqual(t, expectedResponse, resp)
 		})
 	}
 }
@@ -1925,10 +1927,10 @@ func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
 	})
 
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		ByParentId: &wrappers.StringValue{
+		ByParentId: &wrapperspb.StringValue{
 			Value: "spiffe://example.org/P1",
 		},
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: "spiffe://example.org/S1",
 		},
 		BySelectors: &datastore.BySelectors{
@@ -2017,7 +2019,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	// we try with good data, bad data, and with or without a mask (so 4 cases each.)
 
 	// Note that most of the input validation is done in the API layer and has more extensive tests there.
-	oldEntry := common.RegistrationEntry{
+	oldEntry := &common.RegistrationEntry{
 		ParentId:      "spiffe://example.org/oldParentId",
 		SpiffeId:      "spiffe://example.org/oldSpiffeId",
 		Ttl:           1000,
@@ -2028,7 +2030,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		DnsNames:      []string{"dns1"},
 		Downstream:    false,
 	}
-	newEntry := common.RegistrationEntry{
+	newEntry := &common.RegistrationEntry{
 		ParentId:      "spiffe://example.org/oldParentId",
 		SpiffeId:      "spiffe://example.org/newSpiffeId",
 		Ttl:           1000,
@@ -2039,7 +2041,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		DnsNames:      []string{"dns2"},
 		Downstream:    false,
 	}
-	badEntry := common.RegistrationEntry{
+	badEntry := &common.RegistrationEntry{
 		ParentId:      "not a good parent id",
 		SpiffeId:      "",
 		Ttl:           -1000,
@@ -2050,7 +2052,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		DnsNames:      []string{"this is a bad domain name "},
 		Downstream:    false,
 	}
-	emptyEntry := common.RegistrationEntry{}
 	// Needed for the FederatesWith field to work
 	s.createBundle("spiffe://dom1.org")
 	s.createBundle("spiffe://dom2.org")
@@ -2168,19 +2169,19 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		// This should update all fields
 		{name: "Test With Nil Mask",
 			mask:   nil,
-			update: func(e *common.RegistrationEntry) { *e = oldEntry },
+			update: func(e *common.RegistrationEntry) { proto.Merge(e, oldEntry) },
 			result: func(e *common.RegistrationEntry) {}},
 	} {
 		tt := testcase
 		s.Run(tt.name, func() {
-			entry := s.createRegistrationEntry(&oldEntry)
+			entry := s.createRegistrationEntry(oldEntry)
 			id := entry.EntryId
 
-			updateEntry := emptyEntry
-			tt.update(&updateEntry)
+			updateEntry := &common.RegistrationEntry{}
+			tt.update(updateEntry)
 			updateEntry.EntryId = id
 			updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-				Entry: &updateEntry,
+				Entry: updateEntry,
 				Mask:  tt.mask,
 			})
 
@@ -2191,11 +2192,11 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 
 			s.Require().NoError(err)
 			s.Require().NotNil(updateRegistrationEntryResponse)
-			expectedResult := oldEntry
-			tt.result(&expectedResult)
+			expectedResult := proto.Clone(oldEntry).(*common.RegistrationEntry)
+			tt.result(expectedResult)
 			expectedResult.EntryId = id
 			expectedResult.RevisionNumber++
-			s.RequireProtoEqual(&expectedResult, updateRegistrationEntryResponse.Entry)
+			s.RequireProtoEqual(expectedResult, updateRegistrationEntryResponse.Entry)
 
 			// Fetch and check the results match expectations
 			fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: id})
@@ -2203,7 +2204,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			s.Require().NotNil(fetchRegistrationEntryResponse)
 			s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
 
-			s.RequireProtoEqual(&expectedResult, fetchRegistrationEntryResponse.Entry)
+			s.RequireProtoEqual(expectedResult, fetchRegistrationEntryResponse.Entry)
 		})
 	}
 }
@@ -2291,7 +2292,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 				entry.EntryId = r.Entry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-				ByParentId: &wrappers.StringValue{
+				ByParentId: &wrapperspb.StringValue{
 					Value: test.parentID,
 				},
 			})
@@ -6649,11 +6650,11 @@ ORDER BY e_id, selector_id, dns_name_id
 			for _, by := range testCase.by {
 				switch by {
 				case "parent-id":
-					req.ByParentId = &wrappers.StringValue{
+					req.ByParentId = &wrapperspb.StringValue{
 						Value: "spiffe://parent",
 					}
 				case "spiffe-id":
-					req.BySpiffeId = &wrappers.StringValue{
+					req.BySpiffeId = &wrapperspb.StringValue{
 						Value: "spiffe://id",
 					}
 				case "selector-subset-one":

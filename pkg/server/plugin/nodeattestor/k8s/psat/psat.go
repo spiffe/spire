@@ -77,6 +77,8 @@ type clusterConfig struct {
 
 //AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
 type AttestorPlugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	mu     sync.RWMutex
 	config *attestorConfig
 }

@@ -150,7 +150,7 @@ func (s *Suite) TestConfigure() {
 	})
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
 func (s *Suite) TestGetPluginInfo() {
@@ -158,7 +158,7 @@ func (s *Suite) TestGetPluginInfo() {
 	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *Suite) newPlugin() nodeattestor.Plugin {

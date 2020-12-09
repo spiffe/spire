@@ -4,10 +4,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 var (
@@ -125,10 +127,5 @@ func RequireProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs
 
 func AssertProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...interface{}) bool {
 	tb.Helper()
-	if !proto.Equal(expected, actual) {
-		// we've already determined they are not equal, but this will give
-		// us nice output with the contents.
-		return assert.Equal(tb, expected, actual, msgAndArgs...)
-	}
-	return true
+	return assert.Empty(tb, cmp.Diff(expected, actual, protocmp.Transform()), msgAndArgs...)
 }

@@ -17,6 +17,7 @@ type MintX509CAResponse = upstreamauthority.MintX509CAResponse                  
 type PublishJWTKeyRequest = upstreamauthority.PublishJWTKeyRequest                                   //nolint: golint
 type PublishJWTKeyResponse = upstreamauthority.PublishJWTKeyResponse                                 //nolint: golint
 type UnimplementedUpstreamAuthorityServer = upstreamauthority.UnimplementedUpstreamAuthorityServer   //nolint: golint
+type UnsafeUpstreamAuthorityServer = upstreamauthority.UnsafeUpstreamAuthorityServer                 //nolint: golint
 type UpstreamAuthorityClient = upstreamauthority.UpstreamAuthorityClient                             //nolint: golint
 type UpstreamAuthorityServer = upstreamauthority.UpstreamAuthorityServer                             //nolint: golint
 type UpstreamAuthority_MintX509CAClient = upstreamauthority.UpstreamAuthority_MintX509CAClient       //nolint: golint
@@ -75,7 +76,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(upstreamauthority.NewUpstreamAuthorityClient(conn))
 }
 

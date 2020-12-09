@@ -16,9 +16,12 @@ limitations under the License.
 package controllers
 
 import (
+	"fmt"
+	"path"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/api/registration"
+	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	spireTypes "github.com/spiffe/spire/proto/spire/types"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/stretchr/testify/suite"
 
@@ -88,12 +91,12 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	s.Require().NotNil(createdSpiffeID.Status.EntryId)
 
 	// Check that the SPIFFE ID was created on the SPIRE server
-	entry, err := s.registrationClient.FetchEntry(s.ctx, &registration.RegistrationEntryID{
+	entry, err := s.entryClient.GetEntry(s.ctx, &entryv1.GetEntryRequest{
 		Id: *createdSpiffeID.Status.EntryId,
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(entry)
-	s.Require().Equal(makeID(s.trustDomain, "%s", SpiffeIDName), entry.SpiffeId)
+	s.Require().Equal(makeID(s.trustDomain, "%s", SpiffeIDName), stringFromID(entry.SpiffeId))
 
 	// Update SPIFFE ID
 	createdSpiffeID.Spec.SpiffeId = makeID(s.trustDomain, "%s/%s", SpiffeIDName, "new")
@@ -105,12 +108,16 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	s.Require().NoError(err)
 
 	// Check SPIRE Server was updated
-	entry, err = s.registrationClient.FetchEntry(s.ctx, &registration.RegistrationEntryID{
+	entry, err = s.entryClient.GetEntry(s.ctx, &entryv1.GetEntryRequest{
 		Id: *createdSpiffeID.Status.EntryId,
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(entry)
-	s.Require().Equal(createdSpiffeID.Spec.SpiffeId, entry.SpiffeId)
-	s.Require().Equal(createdSpiffeID.Spec.ParentId, entry.ParentId)
+	s.Require().Equal(createdSpiffeID.Spec.SpiffeId, stringFromID(entry.SpiffeId))
+	s.Require().Equal(createdSpiffeID.Spec.ParentId, stringFromID(entry.ParentId))
 	s.Require().Equal(createdSpiffeID.Spec.Selector.PodName, "test")
+}
+
+func stringFromID(id *spireTypes.SPIFFEID) string {
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, path.Clean("/"+id.Path))
 }

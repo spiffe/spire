@@ -51,6 +51,22 @@ upgrade-server() {
     log-info "upgrading $1 server to latest..."
     docker-stop "spire-server-$1"
     docker-up spire-server-latest-local
+    check-codebase-version-is-ahead "$1"
+}
+
+# Validates that the current version of the codebase is ahead of the version
+# being updated.
+check-codebase-version-is-ahead() {
+    _current_version=$(docker-compose exec -T spire-server-latest-local  \
+            /opt/spire/bin/spire-server --version 2>&1 | cut -d'-' -f 1)
+
+    if [ "$_current_version" = "$1" ]; then
+        fail-now "running upgrade test against the same version ($1)"
+    fi
+
+    if [ $(printf '%s\n' "$_current_version" "$1" | sort -V | head -n1) = $_current_version ]; then
+        fail-now "the current server version ($_current_version) is lower than the version that is being updated ($1)"
+    fi
 }
 
 check-old-agent-svid-after-upgrade() {

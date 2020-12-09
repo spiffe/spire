@@ -39,6 +39,8 @@ type Config struct {
 }
 
 type Plugin struct {
+	keymanager.UnsafeKeyManagerServer
+
 	mtx *sync.RWMutex
 	dir string
 }

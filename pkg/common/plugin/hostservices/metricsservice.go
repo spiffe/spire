@@ -25,6 +25,7 @@ type MetricsServiceServer = hostservices.MetricsServiceServer                   
 type SetGaugeRequest = hostservices.SetGaugeRequest                                     //nolint: golint
 type SetGaugeResponse = hostservices.SetGaugeResponse                                   //nolint: golint
 type UnimplementedMetricsServiceServer = hostservices.UnimplementedMetricsServiceServer //nolint: golint
+type UnsafeMetricsServiceServer = hostservices.UnsafeMetricsServiceServer               //nolint: golint
 
 const (
 	MetricsServiceType = "MetricsService"
@@ -73,7 +74,7 @@ func (c *metricsServiceHostServiceClient) HostServiceType() string {
 	return MetricsServiceType
 }
 
-func (c *metricsServiceHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
+func (c *metricsServiceHostServiceClient) InitHostServiceClient(conn grpc.ClientConnInterface) {
 	*c.client = AdaptMetricsServiceHostServiceClient(hostservices.NewMetricsServiceClient(conn))
 }
 

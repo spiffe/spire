@@ -22,6 +22,8 @@ type Config struct {
 }
 
 type NodeResolver struct {
+	noderesolver.UnsafeNodeResolverServer
+
 	name   string
 	config Config
 }

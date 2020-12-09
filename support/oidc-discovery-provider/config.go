@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -41,9 +42,14 @@ type Config struct {
 	// ListenSocketPath is set.
 	ACME *ACMEConfig `hcl:"acme"`
 
-	// RegistrationAPI is the configuration for using the SPIRE Registration
-	// API as the source for the public keys. Only one source can be configured.
+	// RegistrationAPI is the (deprecated) configuration for using the
+	// SPIRE Registration API as the source for the public keys. Only one
+	// source can be configured.
 	RegistrationAPI *RegistrationAPIConfig `hcl:"registration_api"`
+
+	// ServerAPI is the configuration for using the SPIRE Server API as the
+	// source for the public keys. Only one source can be configured.
+	ServerAPI *ServerAPIConfig `hcl:"server_api"`
 
 	// Workload API is the configuration for using the SPIFFE Workload API
 	// as the source for the public keys. Only one source can be configured.
@@ -77,6 +83,22 @@ type RegistrationAPIConfig struct {
 
 	// PollInterval controls how frequently the service polls the Registration
 	// API for the bundle containing the JWT public keys. This value is calculated
+	// by LoadConfig()/ParseConfig() from RawPollInterval.
+	PollInterval time.Duration `hcl:"-"`
+
+	// RawPollInterval holds the string version of the PollInterval. Consumers
+	// should use PollInterval instead.
+	RawPollInterval string `hcl:"poll_interval"`
+}
+
+type ServerAPIConfig struct {
+	// Address is the target address of the SPIRE Server API as defined in
+	// https://github.com/grpc/grpc/blob/master/doc/naming.md. Only the unix
+	// name system is supported.
+	Address string `hcl:"address"`
+
+	// PollInterval controls how frequently the service polls the Server API
+	// for the bundle containing the JWT public keys. This value is calculated
 	// by LoadConfig()/ParseConfig() from RawPollInterval.
 	PollInterval time.Duration `hcl:"-"`
 
@@ -150,41 +172,67 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		return nil, errs.New("email must be configured in the acme configuration section")
 	}
 
-	switch {
-	case c.RegistrationAPI == nil && c.WorkloadAPI == nil:
-		return nil, errs.New("one of registration_api or workload_api section must be configured")
-	case c.RegistrationAPI != nil && c.WorkloadAPI != nil:
-		return nil, errs.New("registration_api and workload_api configuration sections are mutually exclusive")
-	case c.RegistrationAPI != nil:
+	var methodCount int
+
+	if c.RegistrationAPI != nil {
 		if c.RegistrationAPI.SocketPath == "" {
 			return nil, errs.New("socket_path must be configured in the registration_api configuration section")
 		}
-		if c.RegistrationAPI.RawPollInterval != "" {
-			c.RegistrationAPI.PollInterval, err = time.ParseDuration(c.RegistrationAPI.RawPollInterval)
-			if err != nil {
-				return nil, errs.New("invalid poll_interval in the registration_api configuration section: %v", err)
-			}
+		c.RegistrationAPI.PollInterval, err = parsePollInterval(c.RegistrationAPI.RawPollInterval)
+		if err != nil {
+			return nil, errs.New("invalid poll_interval in the registration_api configuration section: %v", err)
 		}
-		if c.RegistrationAPI.PollInterval <= 0 {
-			c.RegistrationAPI.PollInterval = defaultPollInterval
+		methodCount++
+	}
+
+	if c.ServerAPI != nil {
+		if c.ServerAPI.Address == "" {
+			return nil, errs.New("address must be configured in the server_api configuration section")
 		}
-	case c.WorkloadAPI != nil:
+		if !strings.HasPrefix(c.ServerAPI.Address, "unix:") {
+			return nil, errs.New("address must use the unix name system in the server_api configuration section")
+		}
+		c.ServerAPI.PollInterval, err = parsePollInterval(c.ServerAPI.RawPollInterval)
+		if err != nil {
+			return nil, errs.New("invalid poll_interval in the server_api configuration section: %v", err)
+		}
+		methodCount++
+	}
+
+	if c.WorkloadAPI != nil {
 		if c.WorkloadAPI.SocketPath == "" {
 			return nil, errs.New("socket_path must be configured in the workload_api configuration section")
 		}
 		if c.WorkloadAPI.TrustDomain == "" {
 			return nil, errs.New("trust_domain must be configured in the workload_api configuration section")
 		}
-		if c.WorkloadAPI.RawPollInterval != "" {
-			c.WorkloadAPI.PollInterval, err = time.ParseDuration(c.WorkloadAPI.RawPollInterval)
-			if err != nil {
-				return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
-			}
+		c.WorkloadAPI.PollInterval, err = parsePollInterval(c.WorkloadAPI.RawPollInterval)
+		if err != nil {
+			return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
 		}
-		if c.WorkloadAPI.PollInterval <= 0 {
-			c.WorkloadAPI.PollInterval = defaultPollInterval
-		}
+		methodCount++
+	}
+
+	switch methodCount {
+	case 0:
+		return nil, errs.New("either the server_api or workload_api section must be configured")
+	case 1:
+	default:
+		return nil, errs.New("the server_api, workload_api, and deprecated registration_api sections are mutually exclusive")
 	}
 
 	return c, nil
+}
+
+func parsePollInterval(rawPollInterval string) (pollInterval time.Duration, err error) {
+	if rawPollInterval != "" {
+		pollInterval, err = time.ParseDuration(rawPollInterval)
+		if err != nil {
+			return 0, err
+		}
+	}
+	if pollInterval <= 0 {
+		pollInterval = defaultPollInterval
+	}
+	return pollInterval, nil
 }

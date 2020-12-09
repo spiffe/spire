@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	minimalRegistrationAPIConfig = `
+	minimalServerAPIConfig = `
 		domain = "domain.test"
 		acme {
 			email = "admin@domain.test"
 			tos_accepted = true
 		}
-		registration_api {
-			socket_path = "/some/socket/path"
+		server_api {
+			address = "unix:///some/socket/path"
 		}
 `
 )
@@ -34,7 +34,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
-	err = ioutil.WriteFile(confPath, []byte(minimalRegistrationAPIConfig), 0600)
+	err = ioutil.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
 	require.NoError(err)
 
 	config, err := LoadConfig(confPath)
@@ -48,8 +48,8 @@ func TestLoadConfig(t *testing.T) {
 			Email:       "admin@domain.test",
 			ToSAccepted: true,
 		},
-		RegistrationAPI: &RegistrationAPIConfig{
-			SocketPath:   "/some/socket/path",
+		ServerAPI: &ServerAPIConfig{
+			Address:      "unix:///some/socket/path",
 			PollInterval: defaultPollInterval,
 		},
 	}, config)
@@ -235,7 +235,7 @@ func TestParseConfig(t *testing.T) {
 					tos_accepted = true
 				}
 			`,
-			err: "one of registration_api or workload_api section must be configured",
+			err: "either the server_api or workload_api section must be configured",
 		},
 		{
 			name: "more than one source section configured",
@@ -245,14 +245,112 @@ func TestParseConfig(t *testing.T) {
 					email = "admin@domain.test"
 					tos_accepted = true
 				}
-				registration_api {}
-				workload_api {}
+				server_api { address = "unix:///some/socket/path" }
+				workload_api { socket_path = "/some/socket/path" trust_domain="foo.test" }
 			`,
-			err: "registration_api and workload_api configuration sections are mutually exclusive",
+			err: "the server_api, workload_api, and deprecated registration_api sections are mutually exclusive",
+		},
+
+		{
+			name: "minimal server API config",
+			in:   minimalServerAPIConfig,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domain:   "domain.test",
+				ACME: &ACMEConfig{
+					CacheDir:    defaultCacheDir,
+					Email:       "admin@domain.test",
+					ToSAccepted: true,
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+			},
 		},
 		{
+			name: "server API config overrides",
+			in: `
+				domain = "domain.test"
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					address = "unix:///other/socket/path"
+					poll_interval = "1h"
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domain:   "domain.test",
+				ACME: &ACMEConfig{
+					CacheDir:    defaultCacheDir,
+					Email:       "admin@domain.test",
+					ToSAccepted: true,
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:         "unix:///other/socket/path",
+					PollInterval:    time.Hour,
+					RawPollInterval: "1h",
+				},
+			},
+		},
+		{
+			name: "server API config missing address",
+			in: `
+				domain = "domain.test"
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+				}
+			`,
+			err: "address must be configured in the server_api configuration section",
+		},
+		{
+			name: "server API config invalid address",
+			in: `
+				domain = "domain.test"
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					address = "localhost:8199"
+				}
+			`,
+			err: "address must use the unix name system in the server_api configuration section",
+		},
+		{
+			name: "server API config invalid poll interval",
+			in: `
+				domain = "domain.test"
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+					poll_interval = "huh"
+				}
+			`,
+			err: "invalid poll_interval in the server_api configuration section: time: invalid duration \"huh\"",
+		},
+
+		{
 			name: "minimal registration API config",
-			in:   minimalRegistrationAPIConfig,
+			in: `
+				domain = "domain.test"
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				registration_api {
+					socket_path = "/some/socket/path"
+				}
+			`,
 			out: &Config{
 				LogLevel: defaultLogLevel,
 				Domain:   "domain.test",

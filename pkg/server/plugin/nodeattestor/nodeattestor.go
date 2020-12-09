@@ -19,6 +19,7 @@ type NodeAttestorServer = nodeattestor.NodeAttestorServer                       
 type NodeAttestor_AttestClient = nodeattestor.NodeAttestor_AttestClient             //nolint: golint
 type NodeAttestor_AttestServer = nodeattestor.NodeAttestor_AttestServer             //nolint: golint
 type UnimplementedNodeAttestorServer = nodeattestor.UnimplementedNodeAttestorServer //nolint: golint
+type UnsafeNodeAttestorServer = nodeattestor.UnsafeNodeAttestorServer               //nolint: golint
 
 const (
 	Type = "NodeAttestor"
@@ -69,7 +70,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(nodeattestor.NewNodeAttestorClient(conn))
 }
 
