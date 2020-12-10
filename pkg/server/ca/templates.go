@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	"net/url"
 	"time"
@@ -14,7 +15,7 @@ import (
 )
 
 func CreateServerCATemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, trustDomain spiffeid.TrustDomain, notBefore, notAfter time.Time, serialNumber *big.Int, subject pkix.Name) (*x509.Certificate, error) {
-	if err := api.VerifySameTrustDomain(trustDomain, spiffeID); err != nil {
+	if err := verifySameTrustDomain(trustDomain, spiffeID); err != nil {
 		return nil, err
 	}
 
@@ -71,4 +72,11 @@ func CreateX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, tr
 		BasicConstraintsValid: true,
 		PublicKey:             publicKey,
 	}, nil
+}
+
+func verifySameTrustDomain(td spiffeid.TrustDomain, id spiffeid.ID) error {
+	if !id.MemberOf(td) {
+		return fmt.Errorf("%q is not a member of trust domain %q", id, td)
+	}
+	return nil
 }

@@ -1104,7 +1104,11 @@ func (h *Handler) parseCSR(csrBytes []byte, mode idutil.ValidationMode) (*CSR, e
 			h.c.Log.WithError(err).Error("Invalid SPIFFE ID in CSR")
 			return nil, errorutil.WrapError(err, "invalid SPIFFE ID in CSR")
 		}
-		spiffeID = spiffeid.RequireFromString(id)
+
+		spiffeID, err = spiffeid.FromString(id)
+		if err != nil {
+			return nil, errorutil.WrapError(err, "invalid SPIFFE ID in CSR")
+		}
 	default:
 		return nil, errors.New("CSR cannot have more than one URI SAN")
 	}

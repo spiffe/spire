@@ -30,13 +30,6 @@ func VerifyTrustDomainMemberID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 	return nil
 }
 
-func VerifySameTrustDomain(td spiffeid.TrustDomain, id spiffeid.ID) error {
-	if !id.MemberOf(td) {
-		return fmt.Errorf("%q is not a member of trust domain %q", id, td)
-	}
-	return nil
-}
-
 func TrustDomainAgentIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	id, err := idFromProto(protoID)
 	if err != nil {

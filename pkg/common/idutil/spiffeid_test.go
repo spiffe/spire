@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var trustDomain = spiffeid.RequireTrustDomainFromString("test.com")
+
 func TestValidateSpiffeID(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -84,29 +86,29 @@ func TestValidateSpiffeID(t *testing.T) {
 		{
 			name:          "test_allow_any_in_trust_domain_invalid_with_trust_domain_id",
 			spiffeID:      "spiffe://test.com",
-			mode:          AllowAnyInTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowAnyInTrustDomain(trustDomain),
 			expectedError: `"spiffe://test.com" is not a valid trust domain member SPIFFE ID: path is empty`,
 		},
 		{
 			name:     "test_allow_any_in_trust_domain_good_with_workload_id",
 			spiffeID: "spiffe://test.com/path",
-			mode:     AllowAnyInTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:     AllowAnyInTrustDomain(trustDomain),
 		},
 		{
 			name:     "test_allow_any_in_trust_domain_good_with_reserved_path",
 			spiffeID: "spiffe://test.com/spire/foo",
-			mode:     AllowAnyInTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:     AllowAnyInTrustDomain(trustDomain),
 		},
 		{
 			name:          "test_allow_any_in_trust_domain_invalid_domain_with_trust_domain_id",
 			spiffeID:      "spiffe://othertest.com",
-			mode:          AllowAnyInTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowAnyInTrustDomain(trustDomain),
 			expectedError: `"spiffe://othertest.com" does not belong to trust domain "test.com"`,
 		},
 		{
 			name:          "test_allow_any_in_trust_domain_invalid_domain_with_workload_id",
 			spiffeID:      "spiffe://othertest.com/path",
-			mode:          AllowAnyInTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowAnyInTrustDomain(trustDomain),
 			expectedError: `"spiffe://othertest.com/path" does not belong to trust domain "test.com"`,
 		},
 
@@ -114,7 +116,7 @@ func TestValidateSpiffeID(t *testing.T) {
 		{
 			name:     "test_allow_trust_domain_good",
 			spiffeID: "spiffe://test.com",
-			mode:     AllowTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:     AllowTrustDomain(trustDomain),
 		},
 		{
 			name:          "test_allow_trust_domain_empty_domain_to_validate",
@@ -125,37 +127,37 @@ func TestValidateSpiffeID(t *testing.T) {
 		{
 			name:          "test_allow_trust_domain_invalid",
 			spiffeID:      "spiffe://othertest.com",
-			mode:          AllowTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomain(trustDomain),
 			expectedError: `"spiffe://othertest.com" does not belong to trust domain "test.com"`,
 		},
 		{
 			name:          "test_allow_trust_domain_with_a_workload",
 			spiffeID:      "spiffe://test.com/path",
-			mode:          AllowTrustDomain(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomain(trustDomain),
 			expectedError: `"spiffe://test.com/path" is not a valid trust domain SPIFFE ID: path is not empty`,
 		},
 		// AllowTrustDomainWorkload() mode
 		{
 			name:     "test_allow_trust_domain_workload_good",
 			spiffeID: "spiffe://test.com/path",
-			mode:     AllowTrustDomainWorkload(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:     AllowTrustDomainWorkload(trustDomain),
 		},
 		{
 			name:          "test_allow_trust_domain_workload_invalid_trust_domain",
 			spiffeID:      "spiffe://othertest.com/path",
-			mode:          AllowTrustDomainWorkload(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomainWorkload(trustDomain),
 			expectedError: `"spiffe://othertest.com/path" does not belong to trust domain "test.com"`,
 		},
 		{
 			name:          "test_allow_trust_domain_workload_missing_path",
 			spiffeID:      "spiffe://test.com",
-			mode:          AllowTrustDomainWorkload(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomainWorkload(trustDomain),
 			expectedError: `"spiffe://test.com" is not a valid workload SPIFFE ID: path is empty`,
 		},
 		{
 			name:          "test_allow_trust_domain_workload_invalid_path",
 			spiffeID:      "spiffe://test.com/spire/foo",
-			mode:          AllowTrustDomainWorkload(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomainWorkload(trustDomain),
 			expectedError: "\"spiffe://test.com/spire/foo\" is not a valid workload SPIFFE ID: invalid path: \"/spire/*\" namespace is reserved",
 		},
 		// AllowAnyTrustDomain() mode
@@ -192,18 +194,18 @@ func TestValidateSpiffeID(t *testing.T) {
 		{
 			name:     "test_allow_trust_domain_agent_good",
 			spiffeID: "spiffe://test.com/spire/agent/foo",
-			mode:     AllowTrustDomainAgent(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:     AllowTrustDomainAgent(trustDomain),
 		},
 		{
 			name:          "test_allow_trust_domain_agent_invalid_trust_domain",
 			spiffeID:      "spiffe://othertest.com/spire/agent/foo",
-			mode:          AllowTrustDomainAgent(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomainAgent(trustDomain),
 			expectedError: `"spiffe://othertest.com/spire/agent/foo" does not belong to trust domain "test.com"`,
 		},
 		{
 			name:          "test_allow_trust_domain_agent_with_server",
 			spiffeID:      "spiffe://test.com/spire/server",
-			mode:          AllowTrustDomainAgent(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomainAgent(trustDomain),
 			expectedError: `"spiffe://test.com/spire/server" is not a valid agent SPIFFE ID: invalid path: expecting "/spire/agent/*"`,
 		},
 		// AllowAnyTrustDomainAgent() mode
@@ -222,18 +224,18 @@ func TestValidateSpiffeID(t *testing.T) {
 		{
 			name:     "test_allow_trust_domain_server_good",
 			spiffeID: "spiffe://test.com/spire/server",
-			mode:     AllowTrustDomainServer(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:     AllowTrustDomainServer(trustDomain),
 		},
 		{
 			name:          "test_allow_trust_domain_server_invalid_trust_domain",
 			spiffeID:      "spiffe://othertest.com/spire/server",
-			mode:          AllowTrustDomainServer(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomainServer(trustDomain),
 			expectedError: `"spiffe://othertest.com/spire/server" does not belong to trust domain "test.com"`,
 		},
 		{
 			name:          "test_allow_trust_domain_server_with_agent",
 			spiffeID:      "spiffe://test.com/spire/agent/foo",
-			mode:          AllowTrustDomainServer(spiffeid.RequireTrustDomainFromString("test.com")),
+			mode:          AllowTrustDomainServer(trustDomain),
 			expectedError: `"spiffe://test.com/spire/agent/foo" is not a valid server SPIFFE ID: invalid path: expecting "/spire/server"`,
 		},
 		// AllowAnyTrustDomainServer() mode
