@@ -319,7 +319,7 @@ else
 endif
 
 integration:
-	$(E)./test/integration/test.sh
+	$(E)./test/integration/test.sh $(SUITES)
 
 #############################################################################
 # Build Artifact
