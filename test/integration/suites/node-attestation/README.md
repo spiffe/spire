@@ -1,4 +1,4 @@
-# Node attestation Suite
+# Node Attestation Suite
 
 ## Description
 
