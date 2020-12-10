@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/url"
 	"path"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,7 +22,7 @@ import (
 
 type ControllerConfig struct {
 	Log                logrus.FieldLogger
-	R                  registration.RegistrationClient
+	E                  entryv1.EntryClient
 	TrustDomain        string
 	Cluster            string
 	PodLabel           string
@@ -42,10 +42,10 @@ func NewController(config ControllerConfig) *Controller {
 
 func (c *Controller) Initialize(ctx context.Context) error {
 	// ensure there is a node registration entry for PSAT nodes in the cluster.
-	return c.createEntry(ctx, &common.RegistrationEntry{
-		ParentId: idutil.ServerID(c.c.TrustDomain),
+	return c.createEntry(ctx, &types.Entry{
+		ParentId: c.makeID("%s", idutil.ServerIDPath),
 		SpiffeId: c.nodeID(),
-		Selectors: []*common.Selector{
+		Selectors: []*types.Selector{
 			{Type: "k8s_psat", Value: fmt.Sprintf("cluster:%s", c.c.Cluster)},
 		},
 	})
@@ -105,15 +105,15 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 }
 
 // podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored
-func (c *Controller) podSpiffeID(pod *corev1.Pod) string {
+func (c *Controller) podSpiffeID(pod *corev1.Pod) *types.SPIFFEID {
 	if c.c.PodLabel != "" {
 		// the controller has been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
-			return c.makeID("%s", labelValue)
+			return c.makeID("/%s", labelValue)
 		}
-		return ""
+		return nil
 	}
 
 	if c.c.PodAnnotation != "" {
@@ -121,27 +121,27 @@ func (c *Controller) podSpiffeID(pod *corev1.Pod) string {
 		// has that annotation, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if annotationValue, ok := pod.Annotations[c.c.PodAnnotation]; ok {
-			return c.makeID("%s", annotationValue)
+			return c.makeID("/%s", annotationValue)
 		}
-		return ""
+		return nil
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
-	return c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	return c.makeID("/ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }
 
 func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
 	spiffeID := c.podSpiffeID(pod)
 	// If we have no spiffe ID for the pod, do nothing
-	if spiffeID == "" {
+	if spiffeID == nil {
 		return nil
 	}
 
-	return c.createEntry(ctx, &common.RegistrationEntry{
+	return c.createEntry(ctx, &types.Entry{
 		ParentId: c.nodeID(),
 		SpiffeId: spiffeID,
-		Selectors: []*common.Selector{
+		Selectors: []*types.Selector{
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),
 		},
@@ -154,80 +154,113 @@ func (c *Controller) deletePodEntry(ctx context.Context, namespace, name string)
 		"pod": name,
 	})
 
-	entries, err := c.c.R.ListBySelectors(ctx, &common.Selectors{
-		Entries: []*common.Selector{
-			namespaceSelector(namespace),
-			podNameSelector(name),
+	listResp, err := c.c.E.ListEntries(ctx, &entryv1.ListEntriesRequest{
+		Filter: &entryv1.ListEntriesRequest_Filter{
+			BySelectors: &types.SelectorMatch{
+				Selectors: []*types.Selector{
+					namespaceSelector(namespace),
+					podNameSelector(name),
+				},
+			},
 		},
+		// Only the ID is needed, which is implicit in the mask.
+		OutputMask: &types.EntryMask{},
 	})
 	if err != nil {
-		return errs.New("unable to list by pod entries: %v", err)
+		return errs.New("unable to list pod entries: %v", err)
 	}
 
 	log.Info("Deleting pod entries")
-	if len(entries.Entries) > 1 {
-		log.WithField("count", len(entries.Entries)).Warn("Multiple pod entries found to delete")
+	if len(listResp.Entries) > 1 {
+		log.WithField("count", len(listResp.Entries)).Warn("Multiple pod entries found to delete")
+	}
+
+	entriesToDelete := make([]string, 0, len(listResp.Entries))
+	for _, entry := range listResp.Entries {
+		entriesToDelete = append(entriesToDelete, entry.Id)
+	}
+
+	deleteResp, err := c.c.E.BatchDeleteEntry(ctx, &entryv1.BatchDeleteEntryRequest{
+		Ids: entriesToDelete,
+	})
+	if err != nil {
+		return errs.New("unable to delete pod entries: %v", err)
 	}
 
 	var errGroup errs.Group
-	for _, entry := range entries.Entries {
-		_, err := c.c.R.DeleteEntry(ctx, &registration.RegistrationEntryID{
-			Id: entry.EntryId,
-		})
-		if err != nil {
+	for _, result := range deleteResp.Results {
+		err := errorFromStatus(result.Status)
+		switch status.Code(err) {
+		case codes.OK, codes.NotFound:
+		default:
 			log.WithError(err).Error("Failed deleting pod entry")
-			errGroup.Add(errs.New("unable to delete entry %q: %v", entry.EntryId, err))
+			errGroup.Add(errs.New("unable to delete entry %q: %v", result.Id, err))
 		}
 	}
 	return errGroup.Err()
 }
 
-func (c *Controller) nodeID() string {
-	return c.makeID("k8s-workload-registrar/%s/node", c.c.Cluster)
+func (c *Controller) nodeID() *types.SPIFFEID {
+	return c.makeID("/k8s-workload-registrar/%s/node", c.c.Cluster)
 }
 
-func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) string {
-	id := url.URL{
-		Scheme: "spiffe",
-		Host:   c.c.TrustDomain,
-		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
+func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) *types.SPIFFEID {
+	return &types.SPIFFEID{
+		TrustDomain: c.c.TrustDomain,
+		Path:        path.Clean("/" + fmt.Sprintf(pathFmt, pathArgs...)),
 	}
-	return id.String()
 }
 
-func (c *Controller) createEntry(ctx context.Context, entry *common.RegistrationEntry) error {
+func (c *Controller) createEntry(ctx context.Context, entry *types.Entry) error {
 	// ensure there is a node registration entry for PSAT nodes in the cluster.
 	log := c.c.Log.WithFields(logrus.Fields{
 		"parent_id": entry.ParentId,
 		"spiffe_id": entry.SpiffeId,
 		"selectors": selectorsField(entry.Selectors),
 	})
-	_, err := c.c.R.CreateEntry(ctx, entry)
+
+	resp, err := c.c.E.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{
+		Entries: []*types.Entry{entry},
+	})
+	if err != nil {
+		log.WithError(err).Error("Failed to create pod entry")
+		return err
+	}
+
+	// These checks are purely defensive.
+	switch {
+	case len(resp.Results) > 1:
+		return errors.New("batch create response has too many results")
+	case len(resp.Results) < 1:
+		return errors.New("batch create response result empty")
+	}
+
+	err = errorFromStatus(resp.Results[0].Status)
 	switch status.Code(err) {
 	case codes.OK, codes.AlreadyExists:
 		log.Info("Created pod entry")
 		return nil
 	default:
 		log.WithError(err).Error("Failed to create pod entry")
-		return errs.Wrap(err)
+		return err
 	}
 }
 
-func namespaceSelector(namespace string) *common.Selector {
-	return &common.Selector{
+func namespaceSelector(namespace string) *types.Selector {
+	return &types.Selector{
 		Type:  "k8s",
 		Value: fmt.Sprintf("ns:%s", namespace),
 	}
 }
 
-func podNameSelector(podName string) *common.Selector {
-	return &common.Selector{
+func podNameSelector(podName string) *types.Selector {
+	return &types.Selector{
 		Type:  "k8s",
 		Value: fmt.Sprintf("pod-name:%s", podName),
 	}
 }
 
-func selectorsField(selectors []*common.Selector) string {
+func selectorsField(selectors []*types.Selector) string {
 	var buf bytes.Buffer
 	for i, selector := range selectors {
 		if i > 0 {
@@ -238,4 +271,11 @@ func selectorsField(selectors []*common.Selector) string {
 		buf.WriteString(selector.Value)
 	}
 	return buf.String()
+}
+
+func errorFromStatus(s *types.Status) error {
+	if s == nil {
+		return errors.New("result status is unexpectedly nil")
+	}
+	return status.Error(codes.Code(s.Code), s.Message)
 }

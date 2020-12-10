@@ -58,7 +58,7 @@ func run(ctx context.Context) error {
 	}
 
 	// TODO: provide a way to set global config
-	var globalConfig catalog.GlobalConfig
+	globalConfig := &catalog.GlobalConfig{}
 
 	var config string
 	if *configFlag != "" {

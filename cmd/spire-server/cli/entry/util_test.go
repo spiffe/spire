@@ -105,7 +105,7 @@ func TestProtoToIDString(t *testing.T) {
 func TestIDStringToProto(t *testing.T) {
 	id, err := idStringToProto("spiffe://example.org/host")
 	require.NoError(t, err)
-	require.Equal(t, types.SPIFFEID{TrustDomain: "example.org", Path: "/host"}, *id)
+	require.Equal(t, &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"}, id)
 
 	id, err = idStringToProto("example.org/host")
 	require.Error(t, err)

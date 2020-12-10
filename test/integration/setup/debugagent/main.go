@@ -6,13 +6,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/spiffe/spire/proto/spire/api/agent/debug/v1"
 	debug_server "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var (
@@ -52,12 +52,12 @@ func agentEndpoints(ctx context.Context) {
 		log.Fatalf("Failed to get info: %v", err)
 	}
 
-	m := jsonpb.Marshaler{Indent: " "}
-	s, err := m.MarshalToString(resp)
+	m := protojson.MarshalOptions{Indent: " "}
+	s, err := m.Marshal(resp)
 	if err != nil {
 		log.Fatalf("Failed to parse proto: %v", err)
 	}
-	log.Printf("Debug info: %+v", s)
+	log.Printf("Debug info: %s", string(s))
 }
 
 func serverWithWorkload(ctx context.Context) {

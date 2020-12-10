@@ -18,7 +18,9 @@ func builtin(p *NoOp) catalog.Plugin {
 	)
 }
 
-type NoOp struct{}
+type NoOp struct {
+	noderesolver.UnsafeNodeResolverServer
+}
 
 func New() *NoOp {
 	return &NoOp{}

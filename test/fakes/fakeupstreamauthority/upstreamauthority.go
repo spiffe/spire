@@ -35,6 +35,8 @@ type Config struct {
 }
 
 type UpstreamAuthority struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	t      *testing.T
 	config Config
 

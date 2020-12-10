@@ -39,6 +39,8 @@ func New() *AttestorPlugin {
 
 // AttestorPlugin is a PSAT (projected SAT) attestor plugin
 type AttestorPlugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	mu     sync.RWMutex
 	config *attestorConfig
 }

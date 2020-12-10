@@ -68,6 +68,7 @@ This plugin generates the following selectors:
 | `k8s_psat:agent_pod_name`   | `k8s_psat:agent_pod_name:spire-agent-v5wgr`                    | Name of the pod in which the agent is running                                   |
 | `k8s_psat:agent_pod_uid`    | `k8s_psat:agent_pod_uid:79261129-6b60-11e9-9054-0800277ac80f`  | UID of the pod in which the agent is running                                    |
 | `k8s_psat:agent_pod_label`  | `k8s_psat:agent_pod_label:key:value`                           | Pod Label |
+| `k8s_psat:agent_node_ip`    | `k8s_psat:agent_node_ip:172.16.10.1`                           | IP address of the node in which the agent is running                            |
 | `k8s_psat:agent_node_name`  | `k8s_psat:agent_node_name:minikube`                            | Name of the node in which the agent is running                                  |
 | `k8s_psat:agent_node_uid`   | `k8s_psat:agent_node_uid:5dbb7b21-65fe-11e9-b1b0-0800277ac80f` | UID of the node in which the agent is running                                   |
 | `k8s_psat:agent_node_label` | `k8s_psat:agent_node_label:key:value`                          | Node Label |

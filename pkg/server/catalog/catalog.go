@@ -164,13 +164,13 @@ func (p *Plugins) GetUpstreamAuthority() (*UpstreamAuthority, bool) {
 
 type Config struct {
 	Log          logrus.FieldLogger
-	GlobalConfig GlobalConfig
+	GlobalConfig *GlobalConfig
 	PluginConfig HCLPluginConfigMap
 
 	Metrics          telemetry.Metrics
-	IdentityProvider hostservices.IdentityProvider
-	AgentStore       hostservices.AgentStore
-	MetricsService   common_services.MetricsService
+	IdentityProvider hostservices.IdentityProviderServer
+	AgentStore       hostservices.AgentStoreServer
+	MetricsService   common_services.MetricsServiceServer
 }
 
 type Repository struct {

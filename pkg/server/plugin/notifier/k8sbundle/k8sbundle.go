@@ -55,6 +55,8 @@ type pluginConfig struct {
 }
 
 type Plugin struct {
+	notifier.UnsafeNotifierServer
+
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig

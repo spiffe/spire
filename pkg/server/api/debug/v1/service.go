@@ -15,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/spire/api/server/debug/v1"
-	debug_pb "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"google.golang.org/grpc"
@@ -28,7 +27,7 @@ const (
 
 // RegisterService registers debug service on provided server
 func RegisterService(s *grpc.Server, service *Service) {
-	debug_pb.RegisterDebugServer(s, service)
+	debug.RegisterDebugServer(s, service)
 }
 
 // Config configurations for debug service
@@ -53,6 +52,8 @@ func New(config Config) *Service {
 
 // Service implements debug server
 type Service struct {
+	debug.UnsafeDebugServer
+
 	clock  clock.Clock
 	ds     datastore.DataStore
 	so     svid.Observer
@@ -64,12 +65,12 @@ type Service struct {
 
 type getInfoResp struct {
 	mtx  sync.Mutex
-	resp *debug_pb.GetInfoResponse
+	resp *debug.GetInfoResponse
 	ts   time.Time
 }
 
 // GetInfo gets SPIRE Server debug information
-func (s *Service) GetInfo(ctx context.Context, req *debug_pb.GetInfoRequest) (*debug_pb.GetInfoResponse, error) {
+func (s *Service) GetInfo(ctx context.Context, req *debug.GetInfoRequest) (*debug.GetInfoResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	s.getInfoResp.mtx.Lock()
@@ -99,7 +100,7 @@ func (s *Service) GetInfo(ctx context.Context, req *debug_pb.GetInfoRequest) (*d
 
 		// Reset clock and set current response
 		s.getInfoResp.ts = s.clock.Now()
-		s.getInfoResp.resp = &debug_pb.GetInfoResponse{
+		s.getInfoResp.resp = &debug.GetInfoResponse{
 			AgentsCount:           nodes.Nodes,
 			EntriesCount:          entries.Entries,
 			FederatedBundlesCount: bundles.Bundles,
@@ -146,7 +147,7 @@ func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogge
 	// Create SVID chain for response
 	var svidChain []*debug.GetInfoResponse_Cert
 	for _, cert := range chains[0] {
-		svidChain = append(svidChain, &debug_pb.GetInfoResponse_Cert{
+		svidChain = append(svidChain, &debug.GetInfoResponse_Cert{
 			Id:        spiffeIDFromCert(cert),
 			ExpiresAt: cert.NotAfter.Unix(),
 			Subject:   cert.Subject.String(),

@@ -6,12 +6,12 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func NewValidateJWTCommand() cli.Command {
@@ -59,11 +59,11 @@ func (c *validateJWTCommand) run(ctx context.Context, env *common_cli.Env, clien
 	if err := env.Println("SPIFFE ID :", resp.SpiffeId); err != nil {
 		return err
 	}
-	claims, err := (&jsonpb.Marshaler{}).MarshalToString(resp.Claims)
+	claims, err := protojson.Marshal(resp.Claims)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal claims: %v", err)
 	}
-	if err := env.Println("Claims    :", claims); err != nil {
+	if err := env.Println("Claims    :", string(claims)); err != nil {
 		return err
 	}
 

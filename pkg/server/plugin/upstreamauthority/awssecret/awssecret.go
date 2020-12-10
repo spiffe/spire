@@ -48,6 +48,8 @@ type Config struct {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	log hclog.Logger
 
 	mtx        sync.RWMutex

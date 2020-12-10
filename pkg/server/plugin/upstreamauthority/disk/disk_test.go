@@ -68,7 +68,7 @@ func (s *DiskSuite) configure() {
 		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(&spi.ConfigureResponse{}, resp)
+	s.RequireProtoEqual(&spi.ConfigureResponse{}, resp)
 }
 
 func (s *DiskSuite) TestConfigureUsingECKey() {

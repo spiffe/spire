@@ -62,6 +62,8 @@ type MSIResolverConfig struct {
 }
 
 type MSIResolverPlugin struct {
+	noderesolver.UnsafeNodeResolverServer
+
 	log           hclog.Logger
 	mu            sync.RWMutex
 	msiClient     apiClient

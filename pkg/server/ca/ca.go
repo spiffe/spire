@@ -222,7 +222,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.
 		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 SVID")
 
-	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics, spiffeID)
+	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -270,7 +270,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 CA SVID")
 
-	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics, spiffeID)
+	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -296,7 +296,7 @@ func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, er
 		return "", errs.New("unable to sign JWT SVID: %v", err)
 	}
 
-	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, params.SpiffeID)
+	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics)
 	ca.c.Log.WithFields(logrus.Fields{
 		telemetry.Audience:   params.Audience,
 		telemetry.Expiration: expiresAt.Format(time.RFC3339),

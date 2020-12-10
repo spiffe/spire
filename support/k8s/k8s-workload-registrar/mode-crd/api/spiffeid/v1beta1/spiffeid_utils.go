@@ -18,75 +18,75 @@ package v1beta1
 import (
 	"fmt"
 
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/types"
 )
 
-// CommonSelector converts the selectors from the CRD to the common.Selector format
-// needed to create the entry on the SPIRE server
-func (s *SpiffeID) CommonSelector() []*common.Selector {
-	commonSelector := make([]*common.Selector, 0, len(s.Spec.Selector.PodLabel))
+// TypesSelector converts the selectors from the CRD to the types.Selector
+// format needed to create the entry on the SPIRE server
+func (s *SpiffeID) TypesSelector() []*types.Selector {
+	commonSelector := make([]*types.Selector, 0, len(s.Spec.Selector.PodLabel))
 	if len(s.Spec.Selector.Cluster) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s_psat",
 			Value: fmt.Sprintf("cluster:%s", s.Spec.Selector.Cluster),
 		})
 	}
 	if len(s.Spec.Selector.AgentNodeUid) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s_psat",
 			Value: fmt.Sprintf("agent_node_uid:%s", s.Spec.Selector.AgentNodeUid),
 		})
 	}
 	for k, v := range s.Spec.Selector.PodLabel {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("pod-label:%s:%s", k, v),
 		})
 	}
 	if len(s.Spec.Selector.PodName) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("pod-name:%s", s.Spec.Selector.PodName),
 		})
 	}
 	if len(s.Spec.Selector.PodUid) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("pod-uid:%s", s.Spec.Selector.PodUid),
 		})
 	}
 	if len(s.Spec.Selector.Namespace) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("ns:%s", s.Spec.Selector.Namespace),
 		})
 	}
 	if len(s.Spec.Selector.ServiceAccount) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("sa:%s", s.Spec.Selector.ServiceAccount),
 		})
 	}
 	if len(s.Spec.Selector.ContainerName) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("container-name:%s", s.Spec.Selector.ContainerName),
 		})
 	}
 	if len(s.Spec.Selector.ContainerImage) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("container-image:%s", s.Spec.Selector.ContainerImage),
 		})
 	}
 	if len(s.Spec.Selector.NodeName) > 0 {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: fmt.Sprintf("node-name:%s", s.Spec.Selector.NodeName),
 		})
 	}
 	for _, v := range s.Spec.Selector.Arbitrary {
-		commonSelector = append(commonSelector, &common.Selector{
+		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
 			Value: v,
 		})

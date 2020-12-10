@@ -3,16 +3,21 @@ package main
 import (
 	"context"
 	"fmt"
+	"path"
+	"sort"
 	"sync"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/proto/spire/types"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	admv1beta1 "k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,12 +77,12 @@ func TestControllerInitialization(t *testing.T) {
 
 	// Initialize should create the registration entry for the cluster nodes
 	require.NoError(t, controller.Initialize(context.Background()))
-	requireEntriesEqual(t, []*common.RegistrationEntry{
+	requireEntriesEqual(t, []*types.Entry{
 		{
-			EntryId:  "00000001",
-			ParentId: "spiffe://domain.test/spire/server",
-			SpiffeId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
-			Selectors: []*common.Selector{
+			Id:       "00000001",
+			ParentId: mustIDFromString("spiffe://domain.test/spire/server"),
+			SpiffeId: mustIDFromString("spiffe://domain.test/k8s-workload-registrar/CLUSTER/node"),
+			Selectors: []*types.Selector{
 				{Type: "k8s_psat", Value: "cluster:CLUSTER"},
 			},
 		},
@@ -170,12 +175,12 @@ func TestControllerServiceAccountBasedRegistration(t *testing.T) {
 	})
 
 	// Assert that the registration entry for the pod was created
-	requireEntriesEqual(t, []*common.RegistrationEntry{
+	requireEntriesEqual(t, []*types.Entry{
 		{
-			EntryId:  "00000001",
-			ParentId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
-			SpiffeId: "spiffe://domain.test/ns/NAMESPACE/sa/SERVICEACCOUNT",
-			Selectors: []*common.Selector{
+			Id:       "00000001",
+			ParentId: mustIDFromString("spiffe://domain.test/k8s-workload-registrar/CLUSTER/node"),
+			SpiffeId: mustIDFromString("spiffe://domain.test/ns/NAMESPACE/sa/SERVICEACCOUNT"),
+			Selectors: []*types.Selector{
 				{Type: "k8s", Value: "ns:NAMESPACE"},
 				{Type: "k8s", Value: "pod-name:PODNAME"},
 			},
@@ -187,23 +192,21 @@ func TestControllerCleansUpOnPodDeletion(t *testing.T) {
 	controller, r := newTestController("", "")
 
 	// create an entry for the POD in one service account
-	_, err := r.CreateEntry(context.Background(), &common.RegistrationEntry{
-		Selectors: []*common.Selector{
+	r.CreateEntry(&types.Entry{
+		Selectors: []*types.Selector{
 			namespaceSelector("NAMESPACE"),
 			podNameSelector("PODNAME"),
 		},
 	})
-	require.NoError(t, err)
 
 	// create an entry for the POD in another service account (should be rare
 	// in practice but we need to handle it).
-	_, err = r.CreateEntry(context.Background(), &common.RegistrationEntry{
-		Selectors: []*common.Selector{
+	r.CreateEntry(&types.Entry{
+		Selectors: []*types.Selector{
 			namespaceSelector("OTHERNAMESPACE"),
 			podNameSelector("PODNAME"),
 		},
 	})
-	require.NoError(t, err)
 
 	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
@@ -217,10 +220,10 @@ func TestControllerCleansUpOnPodDeletion(t *testing.T) {
 	})
 
 	// Assert that the right registration entry for the pod was removed
-	requireEntriesEqual(t, []*common.RegistrationEntry{
+	requireEntriesEqual(t, []*types.Entry{
 		{
-			EntryId: "00000002",
-			Selectors: []*common.Selector{
+			Id: "00000002",
+			Selectors: []*types.Selector{
 				{Type: "k8s", Value: "ns:OTHERNAMESPACE"},
 				{Type: "k8s", Value: "pod-name:PODNAME"},
 			},
@@ -247,12 +250,12 @@ func TestControllerLabelBasedRegistration(t *testing.T) {
 	})
 
 	// Assert that the registration entry for the pod was created
-	requireEntriesEqual(t, []*common.RegistrationEntry{
+	requireEntriesEqual(t, []*types.Entry{
 		{
-			EntryId:  "00000001",
-			ParentId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
-			SpiffeId: "spiffe://domain.test/WORKLOAD",
-			Selectors: []*common.Selector{
+			Id:       "00000001",
+			ParentId: mustIDFromString("spiffe://domain.test/k8s-workload-registrar/CLUSTER/node"),
+			SpiffeId: mustIDFromString("spiffe://domain.test/WORKLOAD"),
+			Selectors: []*types.Selector{
 				{Type: "k8s", Value: "ns:NAMESPACE"},
 				{Type: "k8s", Value: "pod-name:PODNAME"},
 			},
@@ -348,7 +351,7 @@ func TestPodSpiffeId(t *testing.T) {
 			spiffeID := c.podSpiffeID(pod)
 
 			// Verify result:
-			require.Equal(t, testCase.expectedSpiffeID, spiffeID)
+			require.Equal(t, testCase.expectedSpiffeID, stringFromID(spiffeID))
 		})
 	}
 }
@@ -372,12 +375,12 @@ func TestControllerAnnotationBasedRegistration(t *testing.T) {
 	})
 
 	// Assert that the registration entry for the pod was created
-	requireEntriesEqual(t, []*common.RegistrationEntry{
+	requireEntriesEqual(t, []*types.Entry{
 		{
-			EntryId:  "00000001",
-			ParentId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
-			SpiffeId: "spiffe://domain.test/ENV/WORKLOAD",
-			Selectors: []*common.Selector{
+			Id:       "00000001",
+			ParentId: mustIDFromString("spiffe://domain.test/k8s-workload-registrar/CLUSTER/node"),
+			SpiffeId: mustIDFromString("spiffe://domain.test/ENV/WORKLOAD"),
+			Selectors: []*types.Selector{
 				{Type: "k8s", Value: "ns:NAMESPACE"},
 				{Type: "k8s", Value: "pod-name:PODNAME"},
 			},
@@ -407,18 +410,18 @@ func TestControllerAnnotationBasedRegistrationIgnoresPodsWithoutLabel(t *testing
 	require.Len(t, r.GetEntries(), 0)
 }
 
-func newTestController(podLabel, podAnnotation string) (*Controller, *fakeRegistrationClient) {
+func newTestController(podLabel, podAnnotation string) (*Controller, *fakeEntryClient) {
 	log, _ := test.NewNullLogger()
-	r := newFakeRegistrationClient()
+	e := newFakeEntryClient()
 	return NewController(ControllerConfig{
 		Log:                log,
-		R:                  r,
+		E:                  e,
 		TrustDomain:        "domain.test",
 		Cluster:            "CLUSTER",
 		PodLabel:           podLabel,
 		PodAnnotation:      podAnnotation,
 		DisabledNamespaces: map[string]bool{"kube-system": true, "kube-public": true},
-	}), r
+	}), e
 }
 
 func requireReviewAdmissionSuccess(t *testing.T, controller *Controller, req *admv1beta1.AdmissionRequest) {
@@ -437,96 +440,146 @@ func requireReviewAdmissionFailure(t *testing.T, controller *Controller, req *ad
 	require.Nil(t, resp)
 }
 
-type fakeRegistrationClient struct {
-	registration.RegistrationClient
+type fakeEntryClient struct {
+	entryv1.EntryClient
 
 	mu      sync.Mutex
 	nextID  int64
-	entries map[string]*common.RegistrationEntry
+	entries map[string]*types.Entry
 }
 
-func newFakeRegistrationClient() *fakeRegistrationClient {
-	return &fakeRegistrationClient{
-		entries: make(map[string]*common.RegistrationEntry),
+func newFakeEntryClient() *fakeEntryClient {
+	return &fakeEntryClient{
+		entries: make(map[string]*types.Entry),
 	}
 }
 
-func (c *fakeRegistrationClient) GetEntries() []*common.RegistrationEntry {
+func (c *fakeEntryClient) GetEntries() []*types.Entry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	entries := make([]*common.RegistrationEntry, 0, len(c.entries))
+	entries := make([]*types.Entry, 0, len(c.entries))
 	for _, entry := range c.entries {
-		entries = append(entries, cloneRegistrationEntry(entry))
+		entries = append(entries, cloneEntry(entry))
 	}
-	util.SortRegistrationEntries(entries)
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Id < entries[j].Id
+	})
 	return entries
 }
 
-func (c *fakeRegistrationClient) CreateEntry(ctx context.Context, entry *common.RegistrationEntry, opts ...grpc.CallOption) (*registration.RegistrationEntryID, error) {
+func (c *fakeEntryClient) CreateEntry(entry *types.Entry) *types.Entry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	entry = cloneRegistrationEntry(entry)
+	// Clone for storage
+	entry = cloneEntry(entry)
 
 	c.nextID++
-	entry.EntryId = fmt.Sprintf("%08x", c.nextID)
+	entry.Id = fmt.Sprintf("%08x", c.nextID)
 
-	c.entries[entry.EntryId] = entry
-	return &registration.RegistrationEntryID{Id: entry.EntryId}, nil
+	c.entries[entry.Id] = entry
+	// Clone on the way out
+	return cloneEntry(entry)
 }
 
-func (c *fakeRegistrationClient) DeleteEntry(ctx context.Context, id *registration.RegistrationEntryID, opts ...grpc.CallOption) (*common.RegistrationEntry, error) {
+func (c *fakeEntryClient) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreateEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchCreateEntryResponse, error) {
+	resp := new(entryv1.BatchCreateEntryResponse)
+	for _, entryIn := range req.Entries {
+		resp.Results = append(resp.Results, &entryv1.BatchCreateEntryResponse_Result{
+			Status: &types.Status{},
+			Entry:  c.CreateEntry(entryIn),
+		})
+	}
+	return resp, nil
+}
+
+func (c *fakeEntryClient) BatchDeleteEntry(ctx context.Context, req *entryv1.BatchDeleteEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchDeleteEntryResponse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	entry, ok := c.entries[id.Id]
-	if !ok {
-		return nil, fmt.Errorf("entry %q not found", id.Id)
-	}
-	delete(c.entries, id.Id)
+	resp := new(entryv1.BatchDeleteEntryResponse)
+	for _, id := range req.Ids {
+		_, ok := c.entries[id]
+		code := codes.OK
+		var msg string
+		if !ok {
+			code = codes.NotFound
+			msg = "not found"
+		}
 
-	return entry, nil
+		resp.Results = append(resp.Results, &entryv1.BatchDeleteEntryResponse_Result{
+			Status: &types.Status{Code: int32(code), Message: msg},
+			Id:     id,
+		})
+		delete(c.entries, id)
+	}
+
+	return resp, nil
 }
 
-func (c *fakeRegistrationClient) ListBySelectors(ctx context.Context, selectors *common.Selectors, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
+func (c *fakeEntryClient) ListEntries(ctx context.Context, req *entryv1.ListEntriesRequest, opts ...grpc.CallOption) (*entryv1.ListEntriesResponse, error) {
+	switch {
+	case req.Filter == nil:
+		return nil, status.Error(codes.InvalidArgument, "expecting filter")
+	case req.Filter.BySelectors == nil:
+		return nil, status.Error(codes.InvalidArgument, "expecting filter by selector")
+	case req.Filter.BySelectors.Match != types.SelectorMatch_MATCH_EXACT:
+		return nil, status.Error(codes.InvalidArgument, "expecting exact selector match")
+	}
+
 	// peform an exact match check against selectors
-	var entries []*common.RegistrationEntry
+	var entries []*types.Entry
 	for _, entry := range c.entries {
-		if areSelectorsEqual(selectors.Entries, entry.Selectors) {
-			entries = append(entries, cloneRegistrationEntry(entry))
+		if selectorSetsEqual(req.Filter.BySelectors.Selectors, entry.Selectors) {
+			entries = append(entries, cloneEntry(entry))
 		}
 	}
 
-	return &common.RegistrationEntries{
+	return &entryv1.ListEntriesResponse{
 		Entries: entries,
 	}, nil
 }
 
-func requireEntriesEqual(t *testing.T, expected, actual []*common.RegistrationEntry) {
-	actual = cloneRegistrationEntries(actual)
-	util.SortRegistrationEntries(actual)
-	expected = cloneRegistrationEntries(expected)
-	util.SortRegistrationEntries(expected)
-	require.Equal(t, expected, actual)
+func requireEntriesEqual(t *testing.T, expected, actual []*types.Entry) {
+	spiretest.RequireProtoListEqual(t, expected, actual)
 }
 
-func areSelectorsEqual(expected, actual []*common.Selector) bool {
-	actual = cloneSelectors(actual)
-	util.SortSelectors(actual)
-	expected = cloneSelectors(expected)
-	util.SortSelectors(expected)
-	return proto.Equal(&common.Selectors{Entries: actual}, &common.Selectors{Entries: expected})
+func selectorSetsEqual(as, bs []*types.Selector) bool {
+	if len(as) != len(bs) {
+		return false
+	}
+	type sel struct {
+		t string
+		v string
+	}
+	set := map[sel]struct{}{}
+	for _, a := range as {
+		set[sel{t: a.Type, v: a.Value}] = struct{}{}
+	}
+	for _, b := range bs {
+		if _, ok := set[sel{t: b.Type, v: b.Value}]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
-func cloneRegistrationEntries(in []*common.RegistrationEntry) []*common.RegistrationEntry {
-	return proto.Clone(&common.RegistrationEntries{Entries: in}).(*common.RegistrationEntries).Entries
+func cloneEntry(in *types.Entry) *types.Entry {
+	return proto.Clone(in).(*types.Entry)
 }
 
-func cloneRegistrationEntry(in *common.RegistrationEntry) *common.RegistrationEntry {
-	return proto.Clone(in).(*common.RegistrationEntry)
+func mustIDFromString(s string) *types.SPIFFEID {
+	id := spiffeid.RequireFromString(s)
+	return &types.SPIFFEID{
+		TrustDomain: id.TrustDomain().String(),
+		Path:        id.Path(),
+	}
 }
 
-func cloneSelectors(in []*common.Selector) []*common.Selector {
-	return proto.Clone(&common.Selectors{Entries: in}).(*common.Selectors).Entries
+func stringFromID(id *types.SPIFFEID) string {
+	if id == nil {
+		return ""
+	}
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, path.Clean("/"+id.Path))
 }

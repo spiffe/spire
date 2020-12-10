@@ -41,6 +41,8 @@ type Configuration struct {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	log   hclog.Logger
 	clock clock.Clock
 

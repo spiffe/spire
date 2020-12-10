@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
+	legacyProto "github.com/golang/protobuf/proto" // nolint: staticcheck // deprecated library needed until WithDetails can take v2
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestIsAgentBanned(t *testing.T) {
@@ -51,7 +52,7 @@ func getError(t *testing.T, code codes.Code, details proto.Message) error {
 	st := status.New(code, "some error")
 	if details != nil {
 		var err error
-		st, err = st.WithDetails(details)
+		st, err = st.WithDetails(legacyProto.MessageV1(details))
 		require.NoError(t, err)
 	}
 	return fmt.Errorf("extra info: %w", st.Err())

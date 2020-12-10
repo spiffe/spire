@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -32,43 +31,43 @@ func parseSelector(str string) (*types.Selector, error) {
 	return s, nil
 }
 
-func printEntry(e *types.Entry, env *common_cli.Env) {
-	env.Printf("Entry ID         : %s\n", e.Id)
-	env.Printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
-	env.Printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
-	env.Printf("Revision         : %d\n", e.RevisionNumber)
+func printEntry(e *types.Entry, printf func(string, ...interface{}) error) {
+	printf("Entry ID         : %s\n", printableEntryID(e.Id))
+	printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
+	printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
+	printf("Revision         : %d\n", e.RevisionNumber)
 
 	if e.Downstream {
-		env.Printf("Downstream       : %t\n", e.Downstream)
+		printf("Downstream       : %t\n", e.Downstream)
 	}
 
 	if e.Ttl == 0 {
-		env.Printf("TTL              : default\n")
+		printf("TTL              : default\n")
 	} else {
-		env.Printf("TTL              : %d\n", e.Ttl)
+		printf("TTL              : %d\n", e.Ttl)
 	}
 
 	if e.ExpiresAt != 0 {
-		env.Printf("Expiration time  : %s\n", time.Unix(e.ExpiresAt, 0).UTC())
+		printf("Expiration time  : %s\n", time.Unix(e.ExpiresAt, 0).UTC())
 	}
 
 	for _, s := range e.Selectors {
-		env.Printf("Selector         : %s:%s\n", s.Type, s.Value)
+		printf("Selector         : %s:%s\n", s.Type, s.Value)
 	}
 	for _, id := range e.FederatesWith {
-		env.Printf("FederatesWith    : %s\n", id)
+		printf("FederatesWith    : %s\n", id)
 	}
 	for _, dnsName := range e.DnsNames {
-		env.Printf("DNS name         : %s\n", dnsName)
+		printf("DNS name         : %s\n", dnsName)
 	}
 
 	// admin is rare, so only show admin if true to keep
 	// from muddying the output.
 	if e.Admin {
-		env.Printf("Admin            : %t\n", e.Admin)
+		printf("Admin            : %t\n", e.Admin)
 	}
 
-	env.Println()
+	printf("\n")
 }
 
 // idStringToProto converts a SPIFFE ID from the given string to *types.SPIFFEID
@@ -81,6 +80,13 @@ func idStringToProto(id string) (*types.SPIFFEID, error) {
 		TrustDomain: idType.TrustDomain().String(),
 		Path:        idType.Path(),
 	}, nil
+}
+
+func printableEntryID(id string) string {
+	if id == "" {
+		return "(none)"
+	}
+	return id
 }
 
 // protoToIDString converts a SPIFFE ID from the given *types.SPIFFEID to string

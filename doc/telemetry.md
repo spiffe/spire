@@ -70,9 +70,9 @@ The following metrics are emitted:
 | Call Counter | `registration_api`, `jwt_svid`, `mint` | | The Registration API is minting a JWT SVID.
 | Call Counter | `registration_api`, `x509_svid`, `mint` | | The Registration API is minting an X.509 SVID.
 | Call Counter | `registration_entry`, `manager`, `prune` | | The Registration manager is pruning entries.
-| Counter | `server_ca`, `sign`, `jwt_svid` | `spiffe_id` | The CA has successfully signed a JWT SVID with a given SPIFFE ID.
-| Counter | `server_ca`, `sign`, `x509_ca_svid` | `spiffe_id` | The CA has successfully signed an X.509 CA SVID with a given SPIFFE ID.
-| Counter | `server_ca`, `sign`, `x509_svid` | `spiffe_id` | The CA has successfully signed an X.509 SVID with a given SPIFFE ID.
+| Counter | `server_ca`, `sign`, `jwt_svid` | | The CA has successfully signed a JWT SVID.
+| Counter | `server_ca`, `sign`, `x509_ca_svid` | | The CA has successfully signed an X.509 CA SVID.
+| Counter | `server_ca`, `sign`, `x509_svid` | | The CA has successfully signed an X.509 SVID.
 | Call Counter | `svid`, `rotate` | | The Server's SVID is being rotated.
 | Gauge | `started` | `version` | | The version of the Server.
 

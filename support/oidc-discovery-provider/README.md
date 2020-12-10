@@ -39,12 +39,13 @@ The configuration file is **required** by the provider. It contains
 | `log_level`          | string  | required    | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
 | `log_path`           | string  | optional    | Path on disk to write the log.                           |          |
 | `log_requests`       | bool    | optional    | If true, all HTTP requests are logged at the debug level | false    |
-| `registration_api`   | section | required[2] | Provides Registration API details.                       |          |
+| `registration_api`   | section | required[2] | (Deprecated) Provides Registration API details.          |          |
+| `server_api`         | section | required[2] | Provides SPIRE Server API details.                       |          |
 | `workload_api`       | section | required[2] | Provides Workload API details.                           |          |
 
 [1]: One of `acme` or `listen_socket_path` must be defined.
 
-[2]: One of `registration_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document.
+[2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document. The `registration_api` section is deprecated; the `server_api` section should be used in its place.
 
 #### ACME Section
 
@@ -55,11 +56,11 @@ The configuration file is **required** by the provider. It contains
 | `email`            | string  | required    | The email address used to register with the ACME service | |
 | `tos_accepted`     | bool    | required    | Indicates explicit acceptance of the ACME service Terms of Service. Must be true. | |
 
-#### Registration API Section
+#### Server API Section
 
 | Key                | Type     | Required? | Description                              | Default |
 | ------------------ | -------- | --------- | ----------------------------------------- | ------- |
-| `socket_path`      | string   | required  | Path on disk to the Registration API Unix Domain socket. | |
+| `address`          | string   | required  | SPIRE Server API gRPC target address. Only the unix name system is supported. See https://github.com/grpc/grpc/blob/master/doc/naming.md. | |
 | `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 
 #### Workload API Section
@@ -70,9 +71,16 @@ The configuration file is **required** by the provider. It contains
 | `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 | `trust_domain`     | string   | required  | Trust domain of the workload. This is used to pick the bundle out of the Workload API response. | |
 
+#### Registration API Section (Deprecated)
+
+| Key                | Type     | Required? | Description                              | Default |
+| ------------------ | -------- | --------- | ----------------------------------------- | ------- |
+| `socket_path`      | string   | required  | Path on disk to the Registration API Unix Domain socket. | |
+| `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
+
 ### Examples
 
-#### Registration API
+#### Server API
 
 ```
 log_level = "debug"
@@ -81,8 +89,8 @@ acme {
     cache_dir = "/some/path/on/disk/to/cache/creds"
     tos_accepted = true
 }
-registration_api {
-    socket_path = "/run/spire/sockets/registration.sock"
+server_api {
+    address = "unix:///run/spire/sockets/registration.sock"
 }
 ```
 

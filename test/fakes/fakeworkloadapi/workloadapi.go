@@ -49,6 +49,7 @@ func FetchX509SVIDResponses(responses ...*workload.X509SVIDResponse) Result {
 }
 
 type WorkloadAPI struct {
+	workload.UnimplementedSpiffeWorkloadAPIServer
 	addr *net.UnixAddr
 
 	mu                   sync.Mutex

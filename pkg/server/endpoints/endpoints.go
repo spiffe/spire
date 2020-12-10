@@ -319,9 +319,9 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 }
 
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
-	oldUnary, oldStream := auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall
-
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
+
+	oldUnary, oldStream := wrapWithDeprecationLogging(log, auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall)
 
 	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit))
 
