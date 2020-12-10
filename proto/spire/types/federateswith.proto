@@ -8,12 +8,12 @@ message FederatesWithMatch {
         // equal to the candidate trust domains, independent of ordering.
         MATCH_EXACT = 0;
 
-        // Indicates that the federated trust domains in this match are 
-        // a subset of the candidate trust domains.
+        // Indicates that all candidates which have a non-empty subset
+        // of the provided set of trust domains will match.
         MATCH_SUBSET = 1;
     }
 
-    // The set of trust domains to match on.
+    // The set of trust domain names to match on (e.g., "example.org").
     repeated string trust_domains = 1;
 
     // How to match the trust domains.

@@ -3,7 +3,7 @@ package spire.api.server.entry.v1;
 option go_package = "github.com/spiffe/spire/proto/spire/api/server/entry/v1;entry";
 
 import "spire/types/entry.proto";
-import "spire/types/federateswithmatch.proto";
+import "spire/types/federateswith.proto";
 import "spire/types/selector.proto";
 import "spire/types/spiffeid.proto";
 import "spire/types/status.proto";
