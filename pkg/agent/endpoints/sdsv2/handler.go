@@ -11,8 +11,6 @@ import (
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	core_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/rpccontext"
@@ -23,6 +21,7 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Attestor interface {
@@ -299,7 +298,7 @@ func (h *Handler) triggerReceivedHook() {
 	}
 }
 
-func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.Any, error) {
+func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anypb.Any, error) {
 	name := identity.Entry.SpiffeId
 	if defaultSVIDName != "" {
 		name = defaultSVIDName
@@ -312,7 +311,7 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.
 
 	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
-	return ptypes.MarshalAny(&auth_v2.Secret{
+	return anypb.New(&auth_v2.Secret{
 		Name: name,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
@@ -331,13 +330,13 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*any.
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string) (*any.Any, error) {
+func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string) (*anypb.Any, error) {
 	name := bundle.TrustDomainID()
 	if defaultBundleName != "" {
 		name = defaultBundleName
 	}
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
-	return ptypes.MarshalAny(&auth_v2.Secret{
+	return anypb.New(&auth_v2.Secret{
 		Name: name,
 		Type: &auth_v2.Secret_ValidationContext{
 			ValidationContext: &auth_v2.CertificateValidationContext{

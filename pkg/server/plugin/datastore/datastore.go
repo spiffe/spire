@@ -75,6 +75,7 @@ type SetBundleResponse = datastore.SetBundleResponse                            
 type SetNodeSelectorsRequest = datastore.SetNodeSelectorsRequest                   //nolint: golint
 type SetNodeSelectorsResponse = datastore.SetNodeSelectorsResponse                 //nolint: golint
 type UnimplementedDataStoreServer = datastore.UnimplementedDataStoreServer         //nolint: golint
+type UnsafeDataStoreServer = datastore.UnsafeDataStoreServer                       //nolint: golint
 type UpdateAttestedNodeRequest = datastore.UpdateAttestedNodeRequest               //nolint: golint
 type UpdateAttestedNodeResponse = datastore.UpdateAttestedNodeResponse             //nolint: golint
 type UpdateBundleRequest = datastore.UpdateBundleRequest                           //nolint: golint
@@ -194,7 +195,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(datastore.NewDataStoreClient(conn))
 }
 

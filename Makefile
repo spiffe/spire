@@ -101,7 +101,7 @@ golangci_lint_version = v1.27.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 
-protoc_version = 3.11.1
+protoc_version = 3.14.0
 ifeq ($(arch1),aarch64)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-aarch_64.zip
 else
@@ -110,10 +110,15 @@ endif
 protoc_dir = $(build_dir)/protoc/$(protoc_version)
 protoc_bin = $(protoc_dir)/bin/protoc
 
-protoc_gen_go_version := $(shell grep github.com/golang/protobuf go.mod | awk '{print $$2}')
+protoc_gen_go_version := $(shell grep google.golang.org/protobuf go.mod | awk '{print $$2}')
 protoc_gen_go_base_dir := $(build_dir)/protoc-gen-go
 protoc_gen_go_dir := $(protoc_gen_go_base_dir)/$(protoc_gen_go_version)-go$(go_version)
 protoc_gen_go_bin := $(protoc_gen_go_dir)/protoc-gen-go
+
+protoc_gen_go_grpc_version := v1.0.1
+protoc_gen_go_grpc_base_dir := $(build_dir)/protoc-gen-go-grpc
+protoc_gen_go_grpc_dir := $(protoc_gen_go_grpc_base_dir)/$(protoc_gen_go_grpc_version)-go$(go_version)
+protoc_gen_go_grpc_bin := $(protoc_gen_go_grpc_dir)/protoc-gen-go-grpc
 
 mockgen_version := $(shell grep github.com/golang/mock go.mod | awk '{print $$2}')
 mockgen_base_dir := $(build_dir)/mockgen
@@ -128,13 +133,25 @@ git_dirty := $(shell git status -s)
 
 protos := \
 	proto/private/server/journal/journal.proto \
+	proto/spire/common/common.proto \
+	proto/spire/types/agent.proto \
+	proto/spire/types/attestation.proto \
+	proto/spire/types/bundle.proto \
+	proto/spire/types/entry.proto \
+	proto/spire/types/jointoken.proto \
+	proto/spire/types/jwtsvid.proto \
+	proto/spire/types/selector.proto \
+	proto/spire/types/spiffeid.proto \
+	proto/spire/types/status.proto \
+	proto/spire/types/x509svid.proto \
+
+serviceprotos := \
 	proto/private/test/catalogtest/test.proto \
 	proto/spire/agent/keymanager/keymanager.proto \
 	proto/spire/agent/nodeattestor/nodeattestor.proto \
 	proto/spire/agent/workloadattestor/workloadattestor.proto \
 	proto/spire/api/node/node.proto \
 	proto/spire/api/registration/registration.proto \
-	proto/spire/common/common.proto \
 	proto/spire/common/hostservices/metricsservice.proto \
 	proto/spire/common/plugin/plugin.proto \
 	proto/spire/server/datastore/datastore.proto \
@@ -151,17 +168,8 @@ protos := \
 	proto/spire/api/server/debug/v1/debug.proto \
 	proto/spire/api/server/entry/v1/entry.proto \
 	proto/spire/api/server/svid/v1/svid.proto \
-	proto/spire/types/agent.proto \
-	proto/spire/types/attestation.proto \
-	proto/spire/types/bundle.proto \
-	proto/spire/types/entry.proto \
-	proto/spire/types/federateswithmatch.proto \
-	proto/spire/types/jointoken.proto \
-	proto/spire/types/jwtsvid.proto \
-	proto/spire/types/selector.proto \
-	proto/spire/types/spiffeid.proto \
-	proto/spire/types/status.proto \
-	proto/spire/types/x509svid.proto \
+
+
 
 # The following three variables define the plugin, service, and hostservice
 # interfaces. The syntax of each entry is as follows:
@@ -383,12 +391,22 @@ generate: protogen plugingen
 
 generate-check: protogen-check plugingen-check
 
-protogen: $(protos:.proto=.pb.go)
+protogen: $(protos:.proto=.pb.go) $(serviceprotos:.proto=.pb.go) $(serviceprotos:.proto=_grpc.pb.go)
+
+%_grpc.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_grpc_bin)
+	@echo "(proto) compiling service $<..."
+	$(E)cd proto && \
+		PATH="$(protoc_gen_go_grpc_dir):$(PATH)" \
+		$(protoc_bin) \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		$(<:proto/%=%)
 
 %.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin)
 	@echo "(proto) compiling $<..."
-	$(E)cd proto && PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) \
-		--go_out=paths=source_relative,plugins=grpc:. \
+	$(E)cd proto && \
+		PATH="$(protoc_gen_go_dir):$(PATH)" \
+		$(protoc_bin) \
+		--go_out=. --go_opt=paths=source_relative \
 		$(<:proto/%=%)
 
 protogen-check:
@@ -402,7 +420,8 @@ endif
 	$(E)$(MAKE) git-clean-check
 
 plugingen-proto = $(word 1,$(subst $(comma),$(space),$1))
-plugingen-pbgo = $(subst .proto,.pb.go,$(call plugingen-proto,$1))
+plugingen-grpc-pbgo = $(subst .proto,_grpc.pb.go,$(call plugingen-proto,$1))
+plugingen-pbgo = $(subst .proto,_grpc.pb.go,$(call plugingen-proto,$1))
 plugingen-proto-dir = $(dir $(call plugingen-proto, $1))
 plugingen-out-dir = $(word 2,$(subst $(comma),$(space),$1))
 plugingen-type = $(word 3,$(subst $(comma),$(space),$1))
@@ -412,7 +431,7 @@ plugingen-out = $(call plugingen-out-dir,$1)/$(call tolower,$(call plugingen-typ
 
 # plugingen-rule is a template for invoking spire-plugingen and is invoked with a plugingen_* entry
 define plugingen-rule
-$(call plugingen-out,$1): $(call plugingen-pbgo,$1) | bin/spire-plugingen
+$(call plugingen-out,$1): $(call plugingen-grpc-pbgo,$1) $(call plugingen-pbgo,$1) | bin/spire-plugingen
 	@echo "($2) generating $$@..."
 	$(E)PATH="$$(go_bin_dir):$$(PATH)" $$(DIR)/bin/spire-plugingen $(call plugingen-shared-opt,$1) -mode $2 -out $(call plugingen-out-dir,$1) $(call plugingen-proto-dir,$1) $(call plugingen-type,$1)
 endef
@@ -432,7 +451,7 @@ plugingen-services: $(foreach x,$(plugingen_services),$(call plugingen-out,$x))
 
 plugingen-hostservices: $(foreach x,$(plugingen_hostservices),$(call plugingen-out,$x))
 
-plugingen: plugingen-plugins plugingen-services plugingen-hostservices
+plugingen: protogen plugingen-plugins plugingen-services plugingen-hostservices
 
 plugingen-check:
 ifneq ($(git_dirty),)
@@ -519,7 +538,16 @@ $(protoc_gen_go_bin): | go-check
 	@echo "Installing protoc-gen-go $(protoc_gen_go_version)..."
 	$(E)rm -rf $(protoc_gen_go_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_dir)
-	$(E)$(go) build -o $(protoc_gen_go_bin) github.com/golang/protobuf/protoc-gen-go
+	$(E)$(go) build -o $(protoc_gen_go_bin) google.golang.org/protobuf/cmd/protoc-gen-go
+
+install-protoc-gen-go-grpc: $(protoc_gen_go_grpc_bin)
+
+$(protoc_gen_go_grpc_bin): | go-check
+	@echo "Installing protoc-gen-go-grpc $(protoc_gen_go_grpc_version)..."
+	$(E)rm -rf $(protoc_gen_go_grpc_base_dir)
+	$(E)mkdir -p $(protoc_gen_go_grpc_dir)
+	$(E)echo "module tools" > $(protoc_gen_go_grpc_dir)/go.mod
+	$(E)cd $(protoc_gen_go_grpc_dir) && GOBIN=$(protoc_gen_go_grpc_dir) $(go) get google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
 
 install-mockgen: $(mockgen_bin)
 

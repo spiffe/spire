@@ -7,9 +7,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 )
 
 type Base struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	store hostservices.AgentStore
 }
 

@@ -279,10 +279,15 @@ func (g *generator) generate() (err error) {
 	if g.needQual {
 		for _, name := range pkg.Scope().Names() {
 			obj := pkg.Scope().Lookup(name)
-			if fset.Position(obj.Pos()).Filename != sourceFile {
+			if !obj.Exported() {
 				continue
 			}
-			if !obj.Exported() {
+			objFile := fset.Position(obj.Pos()).Filename
+			// Only alias things that come from the source file or the
+			// accompanying .pb.go file (grpc service and message definitions
+			// are generated separately)
+			if objFile != sourceFile &&
+				strings.TrimSuffix(objFile, ".pb.go") != strings.TrimSuffix(sourceFile, "_grpc.pb.go") {
 				continue
 			}
 			switch obj.(type) {

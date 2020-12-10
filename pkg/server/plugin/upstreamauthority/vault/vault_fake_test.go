@@ -12,6 +12,7 @@ const (
 	defaultAppRoleAuthEndpoint      = "/v1/auth/approle/login"
 	defaultSignIntermediateEndpoint = "/v1/pki/root/sign-intermediate"
 	defaultRenewEndpoint            = "/v1/auth/token/renew-self"
+	defaultLookupSelfEndpoint       = "/v1/auth/token/lookup-self"
 
 	listenAddr = "127.0.0.1:0"
 )
@@ -89,6 +90,15 @@ approle_auth {
 	approle_secret_id  = "test-approle-secret-id"
 }`
 
+	testNamespaceConfigTpl = `
+namespace = "test-ns"
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+token_auth {
+   token  = "test-token"
+}
+`
 	testCertAuthResponse = `{
   "auth": {
     "client_token": "cf95f87d-f95b-47ff-b1f5-ba7bff850425",
@@ -101,10 +111,41 @@ approle_auth {
   }
 }`
 
+	testCertAuthResponseNotRenewable = `{
+  "auth": {
+    "client_token": "cf95f87d-f95b-47ff-b1f5-ba7bff850425",
+    "policies": [
+      "web",
+      "stage"
+    ],
+    "lease_duration": 3600,
+    "renewable": false
+  }
+}`
+
 	testAppRoleAuthResponse = `{
   "auth": {
     "renewable": true,
     "lease_duration": 1200,
+    "metadata": null,
+    "token_policies": [
+      "default"
+    ],
+    "accessor": "fd6c9a00-d2dc-3b11-0be5-af7ae0e1d374",
+    "client_token": "5b1a0318-679c-9c45-e5c6-d1b9a9035d49"
+  },
+  "warnings": null,
+  "wrap_info": null,
+  "data": null,
+  "lease_duration": 0,
+  "renewable": false,
+  "lease_id": ""
+}`
+
+	testAppRoleAuthResponseNotRenewable = `{
+  "auth": {
+    "renewable": false,
+    "lease_duration": 3600,
     "metadata": null,
     "token_policies": [
       "default"
@@ -157,6 +198,95 @@ approle_auth {
     "renewable": true
   }
 }`
+
+	testLookupSelfResponseNeverExpire = `{
+  "request_id": "90e4b86a-5c61-1aeb-0fc7-50a05056c3b3",
+  "lease_id": "",
+  "lease_duration": 0,
+  "renewable": false,
+  "data": {
+    "accessor": "rQuZeGOEdH4IazavJWqwTCRk",
+    "creation_time": 1605502335,
+    "creation_ttl": 0,
+    "display_name": "root",
+    "entity_id": "",
+    "expire_time": null,
+    "explicit_max_ttl": 0,
+    "id": "test-token",
+    "meta": null,
+    "num_uses": 0,
+    "orphan": true,
+    "path": "auth/token/root",
+    "policies": [
+      "root"
+    ],
+    "ttl": 0,
+    "type": "service"
+  },
+  "warnings": null
+}`
+
+	testLookupSelfResponse = `{
+  "request_id": "8dc10d02-797d-1c23-f9f3-c7f07be89150",
+  "lease_id": "",
+  "lease_duration": 0,
+  "renewable": false,
+  "data": {
+    "accessor": "sB3mNrjoIr2JscfNsAUM1k0A",
+    "creation_time": 1605502988,
+    "creation_ttl": 2764800,
+    "display_name": "approle",
+    "entity_id": "0bee5a2d-efe5-6fd3-9c5a-972266ecccf4",
+    "expire_time": "2020-12-18T05:03:08.5694729Z",
+    "explicit_max_ttl": 0,
+    "id": "test--token",
+    "issue_time": "2020-11-16T05:03:08.5694807Z",
+    "meta": {
+      "role_name": "test"
+    },
+    "num_uses": 0,
+    "orphan": true,
+    "path": "auth/approle/login",
+    "policies": [
+      "default"
+    ],
+    "renewable": true,
+    "ttl": 2763477,
+    "type": "service"
+  },
+  "warnings": null
+}`
+
+	testLookupSelfResponseNotRenewable = `{
+  "request_id": "ac39fad7-02d7-48df-2f8a-7a1872c41a4b",
+  "lease_id": "",
+  "lease_duration": 0,
+  "renewable": false,
+  "data": {
+    "accessor": "",
+    "creation_time": 1605506361,
+    "creation_ttl": 3600,
+    "display_name": "approle",
+    "entity_id": "0bee5a2d-efe5-6fd3-9c5a-972266ecccf4",
+    "expire_time": "2020-11-16T06:59:21Z",
+    "explicit_max_ttl": 0,
+    "id": "test-token",
+    "issue_time": "2020-11-16T05:59:21Z",
+    "meta": {
+      "role_name": "test"
+    },
+    "num_uses": 0,
+    "orphan": true,
+    "path": "auth/approle/login",
+    "policies": [
+      "default"
+    ],
+    "renewable": false,
+    "ttl": 3517,
+    "type": "batch"
+  },
+  "warnings": null
+}`
 )
 
 type FakeVaultServerConfig struct {
@@ -179,6 +309,10 @@ type FakeVaultServerConfig struct {
 	RenewReqHandler              func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
 	RenewResponseCode            int
 	RenewResponse                []byte
+	LookupSelfReqEndpoint        string
+	LookupSelfReqHandler         func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
+	LookupSelfResponseCode       int
+	LookupSelfResponse           []byte
 }
 
 // NewFakeVaultServerConfig returns VaultServerConfig with default values
@@ -193,6 +327,8 @@ func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 		SignIntermediateReqHandler:  defaultReqHandler,
 		RenewReqEndpoint:            defaultRenewEndpoint,
 		RenewReqHandler:             defaultReqHandler,
+		LookupSelfReqEndpoint:       defaultLookupSelfEndpoint,
+		LookupSelfReqHandler:        defaultReqHandler,
 	}
 }
 
@@ -222,6 +358,7 @@ func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr strin
 	mux.HandleFunc(v.AppRoleAuthReqEndpoint, v.AppRoleAuthReqHandler(v.AppRoleAuthResponseCode, v.AppRoleAuthResponse))
 	mux.HandleFunc(v.SignIntermediateReqEndpoint, v.SignIntermediateReqHandler(v.SignIntermediateResponseCode, v.SignIntermediateResponse))
 	mux.HandleFunc(v.RenewReqEndpoint, v.RenewReqHandler(v.RenewResponseCode, v.RenewResponse))
+	mux.HandleFunc(v.LookupSelfReqEndpoint, v.LookupSelfReqHandler(v.LookupSelfResponseCode, v.LookupSelfResponse))
 
 	srv = httptest.NewUnstartedServer(mux)
 	srv.Listener = l

@@ -4,10 +4,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -25,12 +22,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
 	// Number of entries that can be cached
-	entriesCacheSize    = 500_000
-	cacheReloadInterval = 5 * time.Second
+	entriesCacheSize = 500_000
 )
 
 func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
@@ -90,7 +87,7 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 	return middleware.EntryFetcherFunc(func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
 		resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-			BySpiffeId: &wrappers.StringValue{
+			BySpiffeId: &wrapperspb.StringValue{
 				Value: id.String(),
 			},
 		})
@@ -123,48 +120,6 @@ func AuthorizedEntryFetcherWithCache(ds datastore.DataStore) (api.AuthorizedEntr
 		}
 		return api.RegistrationEntriesToProto(entries)
 	}), nil
-}
-
-func AuthorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore) api.AuthorizedEntryFetcher {
-	return authorizedEntryFetcherWithFullCache(log, metrics, ds, time.Now)
-}
-
-func authorizedEntryFetcherWithFullCache(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nowFn func() time.Time) api.AuthorizedEntryFetcher {
-	var mu sync.RWMutex
-	var loaded time.Time
-	var cache entrycache.Cache
-
-	rebuildCache := func(ctx context.Context) (_ entrycache.Cache, err error) {
-		call := telemetry.StartCall(metrics, "entry", "cache", "reload")
-		defer call.Done(&err)
-		return entrycache.BuildFromDataStore(ctx, ds)
-	}
-
-	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-		mu.RLock()
-		if !loaded.IsZero() && nowFn().Sub(loaded) < cacheReloadInterval {
-			mu.RUnlock()
-			return cache.GetAuthorizedEntries(agentID), nil
-		}
-		mu.RUnlock()
-
-		mu.Lock()
-		defer mu.Unlock()
-		start := nowFn()
-		if loaded.IsZero() || start.Sub(loaded) >= cacheReloadInterval {
-			newCache, err := rebuildCache(ctx)
-			end := nowFn()
-			rebuildLog := log.WithField(telemetry.ElapsedTime, end.Sub(start))
-			if err != nil {
-				rebuildLog.WithError(err).Error("Failed to reload entry cache")
-				return nil, err
-			}
-			rebuildLog.Debug("Reloaded entry cache")
-			cache = newCache
-			loaded = end
-		}
-		return cache.GetAuthorizedEntries(agentID), nil
-	})
 }
 
 func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {

@@ -12,8 +12,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"google.golang.org/protobuf/proto"
 )
 
 type KeyEntry struct {
@@ -30,6 +30,8 @@ type Impl struct {
 }
 
 type Base struct {
+	keymanager.UnsafeKeyManagerServer
+
 	impl Impl
 
 	mu      sync.RWMutex

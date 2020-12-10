@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -29,6 +27,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
@@ -38,6 +38,8 @@ const defaultListEntriesPageSize = 50
 //Handler service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
 type Handler struct {
+	registration.UnsafeRegistrationServer
+
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
@@ -211,7 +213,7 @@ func (h *Handler) ListByParentID(ctx context.Context, request *registration.Pare
 	ds := h.getDataStore()
 	listResponse, err := ds.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
-			ByParentId: &wrappers.StringValue{
+			ByParentId: &wrapperspb.StringValue{
 				Value: request.Id,
 			},
 		})
@@ -288,7 +290,7 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: request.Id,
 		},
 	}
@@ -758,10 +760,10 @@ func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (string, error) {
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	// First we get all the entries that matches the entry's spiffe id.
 	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: entry.SpiffeId,
 		},
-		ByParentId: &wrappers.StringValue{
+		ByParentId: &wrapperspb.StringValue{
 			Value: entry.ParentId,
 		},
 		BySelectors: &datastore.BySelectors{
@@ -926,7 +928,7 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID stri
 	}
 
 	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: spiffeID,
 		},
 	})

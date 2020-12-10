@@ -83,7 +83,7 @@ func (s *Suite) TestNotifyIgnoresUnknownEvents() {
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{})
 	s.NoError(err)
-	s.Equal(&notifier.NotifyResponse{}, resp)
+	s.AssertProtoEqual(&notifier.NotifyResponse{}, resp)
 }
 
 func (s *Suite) TestNotifyAndAdviseFailsIfNotConfigured() {
@@ -97,7 +97,7 @@ func (s *Suite) TestNotifyAndAdviseIgnoresUnknownEvents() {
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{})
 	s.NoError(err)
-	s.Equal(&notifier.NotifyAndAdviseResponse{}, resp)
+	s.AssertProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
 }
 
 func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
@@ -176,7 +176,7 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 		},
 	})
 	s.NoError(err)
-	s.Equal(&notifier.NotifyAndAdviseResponse{}, resp)
+	s.AssertProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
 
 	// make sure the config map contains the second bundle data
 	configMap := s.k.getConfigMap("spire", "spire-bundle")
@@ -198,7 +198,7 @@ func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
 		},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(&notifier.NotifyAndAdviseResponse{}, resp)
+	s.RequireProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
 
 	s.Require().Equal(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -329,7 +329,7 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 		},
 	})
 	s.NoError(err)
-	s.Equal(&notifier.NotifyResponse{}, resp)
+	s.AssertProtoEqual(&notifier.NotifyResponse{}, resp)
 
 	// make sure the config map contains the second bundle data
 	configMap := s.k.getConfigMap("spire", "spire-bundle")
@@ -351,9 +351,9 @@ func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
 		},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(&notifier.NotifyResponse{}, resp)
+	s.RequireProtoEqual(&notifier.NotifyResponse{}, resp)
 
-	s.Require().Equal(&corev1.ConfigMap{
+	s.Equal(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "spire",
 			Name:            "spire-bundle",
@@ -416,7 +416,7 @@ func (s *Suite) TestConfigureWithMalformedConfiguration() {
 func (s *Suite) TestGetPluginInfo() {
 	resp, err := s.p.GetPluginInfo(context.Background(), &spi.GetPluginInfoRequest{})
 	s.NoError(err)
-	s.Equal(&spi.GetPluginInfoResponse{}, resp)
+	s.AssertProtoEqual(&spi.GetPluginInfoResponse{}, resp)
 }
 
 func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {

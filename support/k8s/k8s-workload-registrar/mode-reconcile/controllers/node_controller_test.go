@@ -75,12 +75,12 @@ func (s *NodeControllerTestSuite) TestAddRemoveNode() {
 		s.k8sClient,
 		s.log,
 		scheme.Scheme,
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/server",
 		},
 		"test-cluster",
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/foo/node",
 		},
@@ -135,12 +135,12 @@ func (s *NodeControllerTestSuite) TestRequeuesMissingNode() {
 		s.k8sClient,
 		s.log,
 		scheme.Scheme,
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/server",
 		},
 		"test-cluster",
-		spiretypes.SPIFFEID{
+		&spiretypes.SPIFFEID{
 			TrustDomain: nodeControllerTestTrustDomain,
 			Path:        "/foo/node",
 		},

@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api"
 	agentv1 "github.com/spiffe/spire/pkg/server/api/agent/v1"
 	bundlev1 "github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	debugv1 "github.com/spiffe/spire/pkg/server/api/debug/v1"
@@ -64,6 +65,8 @@ type Config struct {
 	RateLimit RateLimitConfig
 
 	Uptime func() time.Duration
+
+	Clock clock.Clock
 }
 
 func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
@@ -131,14 +134,9 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 	})
 }
 
-func (c *Config) makeAPIServers() APIServers {
+func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServers {
 	ds := c.Catalog.GetDataStore()
-	entryFetcher := AuthorizedEntryFetcherWithFullCache(
-		c.Log.WithField(telemetry.SubsystemName, "entrycache"),
-		c.Metrics,
-		ds)
 	upstreamPublisher := UpstreamPublisher(c.Manager)
-	clock := clock.New()
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -146,7 +144,7 @@ func (c *Config) makeAPIServers() APIServers {
 			ServerCA:    c.ServerCA,
 			TrustDomain: c.TrustDomain,
 			Catalog:     c.Catalog,
-			Clock:       clock,
+			Clock:       c.Clock,
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain:       c.TrustDomain,
@@ -166,7 +164,7 @@ func (c *Config) makeAPIServers() APIServers {
 		}),
 		DebugServer: debugv1.New(debugv1.Config{
 			TrustDomain:  c.TrustDomain,
-			Clock:        clock,
+			Clock:        c.Clock,
 			DataStore:    ds,
 			SVIDObserver: c.SVIDObserver,
 			Uptime:       c.Uptime,

@@ -10,6 +10,7 @@ The plugin accepts the following configuration options:
 | key | type | required | description | default |
 |:----|:-----|:---------|:------------|:--------|
 | vault_addr  | string |   | The URL of the Vault server. (e.g., https://vault.example.com:8443/) | `${VAULT_ADDR}` |
+| namespace        | string |  | Name of the Vault namespace. This is only available in the Vault Enterprise. | `${VAULT_NAMESPACE}` |
 | pki_mount_point  | string |  | Name of the mount point where PKI secret engine is mounted | pki |
 | ca_cert_path     | string |  | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported. | `${VAULT_CACERT}` |
 | insecure_skip_verify  | bool |  | If true, vault client accepts any server certificates | false |

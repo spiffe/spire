@@ -2,7 +2,9 @@ package entry
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -130,47 +132,47 @@ func TestCreate(t *testing.T) {
 	}{
 		{
 			name:   "Missing selectors",
-			expErr: "at least one selector is required\n",
+			expErr: "Error: at least one selector is required\n",
 		},
 		{
 			name:   "Missing parent SPIFFE ID",
 			args:   []string{"-selector", "unix:uid:1"},
-			expErr: "a parent ID is required if the node flag is not set\n",
+			expErr: "Error: a parent ID is required if the node flag is not set\n",
 		},
 		{
 			name:   "Missing SPIFFE ID",
 			args:   []string{"-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent"},
-			expErr: "a SPIFFE ID is required\n",
+			expErr: "Error: a SPIFFE ID is required\n",
 		},
 		{
 			name:   "Wrong SPIFFE ID",
 			args:   []string{"-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent", "-spiffeID", "invalid-id"},
-			expErr: "\"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
+			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name:   "Wrong parent SPIFFE ID",
 			args:   []string{"-selector", "unix:uid:1", "-parentID", "invalid-id", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "\"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
+			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name:   "Wrong selectors",
 			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "selector \"unix\" must be formatted as type:value\n",
+			expErr: "Error: selector \"unix\" must be formatted as type:value\n",
 		},
 		{
 			name:   "Negative TTL",
 			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "-10"},
-			expErr: "a positive TTL is required\n",
+			expErr: "Error: a positive TTL is required\n",
 		},
 		{
 			name:   "Federated node entries",
 			args:   []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-node", "-federatesWith", "spiffe://another.org"},
-			expErr: "node entries can not federate\n",
+			expErr: "Error: node entries can not federate\n",
 		},
 		{
 			name:   "Wrong federated trust domain",
 			args:   []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-federatesWith", "invalid-id"},
-			expErr: "\"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
+			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name: "Server error",
@@ -183,7 +185,7 @@ func TestCreate(t *testing.T) {
 				},
 			}},
 			serverErr: errors.New("server-error"),
-			expErr:    "rpc error: code = Unknown desc = server-error\n",
+			expErr:    "Error: rpc error: code = Unknown desc = server-error\n",
 		},
 		{
 			name: "Create succeeds using command line arguments",
@@ -220,21 +222,22 @@ func TestCreate(t *testing.T) {
 				},
 			},
 			fakeResp: fakeRespOKFromCmd,
-			expOut: `Entry ID      : entry-id
-SPIFFE ID     : spiffe://example.org/workload
-Parent ID     : spiffe://example.org/parent
-Revision      : 0
-Downstream    : true
-TTL           : 60
-Selector      : zebra:zebra:2000
-Selector      : alpha:alpha:2000
-FederatesWith : spiffe://domaina.test
-FederatesWith : spiffe://domainb.test
-DNS name      : unu1000
-DNS name      : ung1000
-Admin         : true
+			expOut: fmt.Sprintf(`Entry ID         : entry-id
+SPIFFE ID        : spiffe://example.org/workload
+Parent ID        : spiffe://example.org/parent
+Revision         : 0
+Downstream       : true
+TTL              : 60
+Expiration time  : %s
+Selector         : zebra:zebra:2000
+Selector         : alpha:alpha:2000
+FederatesWith    : spiffe://domaina.test
+FederatesWith    : spiffe://domainb.test
+DNS name         : unu1000
+DNS name         : ung1000
+Admin            : true
 
-`,
+`, time.Unix(1552410266, 0).UTC()),
 		},
 		{
 			name: "Create succeeds using data file",
@@ -259,20 +262,20 @@ Admin         : true
 				},
 			},
 			fakeResp: fakeRespOKFromFile,
-			expOut: `Entry ID      : entry-id-1
-SPIFFE ID     : spiffe://example.org/Blog
-Parent ID     : spiffe://example.org/spire/agent/join_token/TokenBlog
-Revision      : 0
-TTL           : 200
-Selector      : unix:uid:1111
-Admin         : true
+			expOut: `Entry ID         : entry-id-1
+SPIFFE ID        : spiffe://example.org/Blog
+Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
+Revision         : 0
+TTL              : 200
+Selector         : unix:uid:1111
+Admin            : true
 
-Entry ID      : entry-id-2
-SPIFFE ID     : spiffe://example.org/Database
-Parent ID     : spiffe://example.org/spire/agent/join_token/TokenDatabase
-Revision      : 0
-TTL           : 200
-Selector      : unix:uid:1111
+Entry ID         : entry-id-2
+SPIFFE ID        : spiffe://example.org/Database
+Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision         : 0
+TTL              : 200
+Selector         : unix:uid:1111
 
 `,
 		},
@@ -287,15 +290,15 @@ Selector      : unix:uid:1111
 				},
 			}},
 			fakeResp: fakeRespErr,
-			expOut: `FAILED to create the following entry:
-Entry ID      : 
-SPIFFE ID     : spiffe://example.org/already-exist
-Parent ID     : spiffe://example.org/spire/server
-Revision      : 0
-TTL           : default
-Selector      : unix:uid:1
+			expErr: `Failed to create the following entry (code: AlreadyExists, msg: "similar entry already exists"):
+Entry ID         : (none)
+SPIFFE ID        : spiffe://example.org/already-exist
+Parent ID        : spiffe://example.org/spire/server
+Revision         : 0
+TTL              : default
+Selector         : unix:uid:1
 
-similar entry already exists
+Error: failed to create one or more entries
 `,
 		},
 	} {

@@ -1,0 +1,40 @@
+#!/bin/bash
+
+check-version-against-prior-tag() {
+    # Get nearest prior tag in this branch
+    _nearest_prior_tag=$(git --git-dir $REPODIR/.git describe --match "v*" --abbrev=0 | cut -c 2-)
+
+    if [ "$_nearest_prior_tag" == "$1" ]; then
+        fail-now "codebase version is the same than the last tag ($1), was the codebase version number bumped after the last release?"
+    fi
+
+    if [ "$(printf '%s\n' "$_nearest_prior_tag" "$1" | sort -V | head -n1)" = $_nearest_prior_tag ]; then
+        fail-now "codebase version ($1) is lower than the last tag in this branch ($_nearest_prior_tag)"
+    fi
+}
+
+# Get current version from latest local image
+docker-up spire-server-latest-local
+_codebase_version=$(docker-compose exec -T spire-server-latest-local \
+            /opt/spire/bin/spire-server --version 2>&1 | cut -d'-' -f 1)
+docker-down
+
+# Get tag of the current commit
+_current_tag=$(git --git-dir $REPODIR/.git describe --exact-match HEAD --match "v*"  2> /dev/null | cut -c 2- || true)
+
+case "$_current_tag" in
+
+  "$_codebase_version")
+    log-info "current commit is a tagged commit and has the right codebase version ("$_codebase_version")"
+    ;;
+
+  "")
+    log-info "current commit is not tagged, checking against the nearest prior tag"
+    check-version-against-prior-tag "$codebase_version"
+    ;;
+
+  *)
+    fail-now "codebase version ("$_codebase_version") does not match the commit tag ("$_current_tag")"
+    ;;
+
+esac

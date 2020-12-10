@@ -17,6 +17,7 @@ type NodeResolverServer = noderesolver.NodeResolverServer                       
 type ResolveRequest = noderesolver.ResolveRequest                                   //nolint: golint
 type ResolveResponse = noderesolver.ResolveResponse                                 //nolint: golint
 type UnimplementedNodeResolverServer = noderesolver.UnimplementedNodeResolverServer //nolint: golint
+type UnsafeNodeResolverServer = noderesolver.UnsafeNodeResolverServer               //nolint: golint
 
 const (
 	Type = "NodeResolver"
@@ -67,7 +68,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(noderesolver.NewNodeResolverClient(conn))
 }
 

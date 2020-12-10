@@ -5,7 +5,6 @@ import (
 	"io"
 	"sync"
 
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -124,8 +123,8 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Load
 
 func newBuiltInServer() *grpc.Server {
 	return grpc.NewServer(
-		grpc.StreamInterceptor(grpc_recovery.StreamServerInterceptor()),
-		grpc.UnaryInterceptor(grpc_recovery.UnaryServerInterceptor()),
+		grpc.StreamInterceptor(streamPanicInterceptor),
+		grpc.UnaryInterceptor(unaryPanicInterceptor),
 	)
 }
 

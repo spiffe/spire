@@ -285,7 +285,7 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME"), nil)
+	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME", "172.16.0.1"), nil)
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME").Return(nil, errors.New("an error"))
 	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get node from k8s API server")
 }
@@ -299,7 +299,7 @@ func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME"), nil)
+	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME", "172.16.0.1"), nil)
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME").Return(createNode(""), nil)
 	s.requireAttestError(makeAttestRequest("FOO", token), "node UID is empty")
 }
@@ -314,7 +314,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME-1").Return(createPod("NODENAME-1"), nil)
+	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME-1").Return(createPod("NODENAME-1", "172.16.10.1"), nil)
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME-1").Return(createNode("NODEUID-1"), nil)
 
 	resp, err := s.doAttest(makeAttestRequest("FOO", token))
@@ -322,12 +322,13 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	s.Require().NotNil(resp)
 	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
 	s.Require().Nil(resp.Challenge)
-	s.Require().Equal([]*common.Selector{
+	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:FOO"},
 		{Type: "k8s_psat", Value: "agent_ns:NS1"},
 		{Type: "k8s_psat", Value: "agent_sa:SA1"},
 		{Type: "k8s_psat", Value: "agent_pod_name:PODNAME-1"},
 		{Type: "k8s_psat", Value: "agent_pod_uid:PODUID-1"},
+		{Type: "k8s_psat", Value: "agent_node_ip:172.16.10.1"},
 		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-1"},
 		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-1"},
 		{Type: "k8s_psat", Value: "agent_node_label:NODELABEL-B:B"},
@@ -343,7 +344,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}
 	token = s.signToken(s.barSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{"AUDIENCE"}).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS2", "PODNAME-2").Return(createPod("NODENAME-2"), nil)
+	s.mockClient.EXPECT().GetPod(notNil, "NS2", "PODNAME-2").Return(createPod("NODENAME-2", "172.16.10.2"), nil)
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME-2").Return(createNode("NODEUID-2"), nil)
 
 	// Success with BAR signed token
@@ -352,12 +353,13 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	s.Require().NotNil(resp)
 	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
 	s.Require().Nil(resp.Challenge)
-	s.Require().Equal([]*common.Selector{
+	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:BAR"},
 		{Type: "k8s_psat", Value: "agent_ns:NS2"},
 		{Type: "k8s_psat", Value: "agent_sa:SA2"},
 		{Type: "k8s_psat", Value: "agent_pod_name:PODNAME-2"},
 		{Type: "k8s_psat", Value: "agent_pod_uid:PODUID-2"},
+		{Type: "k8s_psat", Value: "agent_node_ip:172.16.10.2"},
 		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-2"},
 		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-2"},
 	}, resp.Selectors)
@@ -406,7 +408,7 @@ func (s *AttestorSuite) TestConfigure() {
 func (s *AttestorSuite) TestGetPluginInfo() {
 	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *AttestorSuite) signToken(signer jose.Signer, tokenData *TokenData) string {
@@ -467,7 +469,7 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 
 	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
 	attestor.config.clusters["FOO"].client = s.mockClient
@@ -549,7 +551,7 @@ func createTokenStatus(tokenData *TokenData, authenticated bool) *authv1.TokenRe
 	}
 }
 
-func createPod(nodeName string) *v1.Pod {
+func createPod(nodeName string, hostIP string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -559,6 +561,9 @@ func createPod(nodeName string) *v1.Pod {
 		},
 		Spec: v1.PodSpec{
 			NodeName: nodeName,
+		},
+		Status: v1.PodStatus{
+			HostIP: hostIP,
 		},
 	}
 }

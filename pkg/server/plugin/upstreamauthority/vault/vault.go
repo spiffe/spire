@@ -50,6 +50,8 @@ type PluginConfig struct {
 	// If true, vault client accepts any server certificates.
 	// It should be used only test environment so on.
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify"`
+	// Name of the Vault namespace
+	Namespace string `hcl:"namespace"`
 }
 
 // TokenAuth represents parameters for token auth method
@@ -86,9 +88,15 @@ type AppRoleAuthConfig struct {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	mtx    *sync.RWMutex
 	logger hclog.Logger
-	vc     *Client
+
+	authMethod AuthMethod
+	cc         *ClientConfig
+	vc         *Client
+	reuseToken bool
 }
 
 func New() *Plugin {
@@ -114,24 +122,34 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	if err != nil {
 		return nil, err
 	}
-
 	cp := genClientParams(am, config)
 	vcConfig, err := NewClientConfig(cp, p.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	vc, err := vcConfig.NewAuthenticatedClient(am)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare vault authentication: %v", err)
-	}
-
-	p.vc = vc
+	p.authMethod = am
+	p.cc = vcConfig
 
 	return &spi.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+	if p.cc == nil {
+		return errors.New("plugin not configured")
+	}
+
+	// reuseToken=false means that the token cannot be renewed and may expire,
+	// authenticates to the Vault at each signing request.
+	if p.vc == nil || !p.reuseToken {
+		vc, reusable, err := p.cc.NewAuthenticatedClient(p.authMethod)
+		if err != nil {
+			return fmt.Errorf("failed to prepare authenticated client: %v", err)
+		}
+		p.vc = vc
+		p.reuseToken = reusable
+	}
+
 	var ttl string
 	if req.PreferredTtl == 0 {
 		ttl = ""
@@ -234,6 +252,7 @@ func genClientParams(method AuthMethod, config *PluginConfig) *ClientParams {
 		CACertPath:    getEnvOrDefault(envVaultCACert, config.CACertPath),
 		PKIMountPoint: config.PKIMountPoint,
 		TLSSKipVerify: config.InsecureSkipVerify,
+		Namespace:     getEnvOrDefault(envVaultNamespace, config.Namespace),
 	}
 
 	switch method {

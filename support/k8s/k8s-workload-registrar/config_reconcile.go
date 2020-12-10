@@ -158,15 +158,15 @@ func (slw SpiffeLogWrapper) Errorf(format string, args ...interface{}) {
 }
 
 // ServerID creates a server SPIFFE ID string given a trustDomain.
-func ServerID(trustDomain string) spiretypes.SPIFFEID {
-	return spiretypes.SPIFFEID{
+func ServerID(trustDomain string) *spiretypes.SPIFFEID {
+	return &spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
 		Path:        path.Join("/", "spire", "server"),
 	}
 }
 
-func nodeID(trustDomain string, controllerName string, cluster string) spiretypes.SPIFFEID {
-	return spiretypes.SPIFFEID{
+func nodeID(trustDomain string, controllerName string, cluster string) *spiretypes.SPIFFEID {
+	return &spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
 		Path:        path.Join("/", controllerName, cluster, "node"),
 	}

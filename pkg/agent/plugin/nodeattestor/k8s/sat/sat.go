@@ -45,6 +45,8 @@ type attestorConfig struct {
 }
 
 type AttestorPlugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	mu     sync.RWMutex
 	config *attestorConfig
 }

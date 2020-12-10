@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var (
@@ -31,10 +31,10 @@ func main() {
 		log.Fatalf("Failed to get info: %v", err)
 	}
 
-	m := jsonpb.Marshaler{Indent: " "}
-	s, err := m.MarshalToString(resp)
+	m := protojson.MarshalOptions{Indent: " "}
+	s, err := m.Marshal(resp)
 	if err != nil {
 		log.Fatalf("Failed to parse proto: %v", err)
 	}
-	log.Printf("Debug info: %+v", s)
+	log.Printf("Debug info: %s", string(s))
 }

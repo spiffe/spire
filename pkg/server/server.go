@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
@@ -127,7 +128,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	endpointsServer, err := s.newEndpointsServer(cat, svidRotator, serverCA, metrics, caManager)
+	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager)
 	if err != nil {
 		return err
 	}
@@ -233,11 +234,11 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
-	metricsService common_services.MetricsService) (*catalog.Repository, error) {
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProviderServer, agentStore hostservices.AgentStoreServer,
+	metricsService common_services.MetricsServiceServer) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		GlobalConfig: catalog.GlobalConfig{
+		GlobalConfig: &catalog.GlobalConfig{
 			TrustDomain: s.config.TrustDomain.Host,
 		},
 		PluginConfig:     s.config.PluginConfigs,
@@ -300,7 +301,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
@@ -314,12 +315,13 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 		RateLimit:                   s.config.RateLimit,
 		Uptime:                      uptime.Uptime,
+		Clock:                       clock.New(),
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
 		config.BundleEndpoint.ACME = s.config.Federation.BundleEndpoint.ACME
 	}
-	return endpoints.New(config)
+	return endpoints.New(ctx, config)
 }
 
 func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics) *bundle_client.Manager {

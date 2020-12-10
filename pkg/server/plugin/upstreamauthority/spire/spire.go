@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -19,6 +18,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/types"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -40,6 +40,8 @@ func BuiltIn() catalog.Plugin {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	log hclog.Logger
 
 	mtx         sync.RWMutex
@@ -55,11 +57,13 @@ type Plugin struct {
 
 	bundleMtx     sync.RWMutex
 	bundleVersion uint64
-	currentBundle types.Bundle
+	currentBundle *types.Bundle
 }
 
 func New() *Plugin {
-	return &Plugin{}
+	return &Plugin{
+		currentBundle: &types.Bundle{},
+	}
 }
 
 func (m *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
@@ -225,11 +229,11 @@ func (m *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint
 	defer m.bundleMtx.Unlock()
 
 	if m.bundleVersion == expectedVersion {
-		m.currentBundle = *b
+		m.currentBundle = cloneBundle(b)
 	}
 }
 
-func (m *Plugin) getBundle() types.Bundle {
+func (m *Plugin) getBundle() *types.Bundle {
 	m.bundleMtx.RLock()
 	defer m.bundleMtx.RUnlock()
 	return m.currentBundle
@@ -343,4 +347,8 @@ func typeJWTAuthoritiesToProto(keys []*types.JWTKey) []*common.PublicKey {
 	}
 
 	return commonKeys
+}
+
+func cloneBundle(b *types.Bundle) *types.Bundle {
+	return proto.Clone(b).(*types.Bundle)
 }
