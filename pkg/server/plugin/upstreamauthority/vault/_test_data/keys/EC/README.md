@@ -15,6 +15,14 @@ openssl req  -new -key intermediate_key.pem -out intermediate_csr.pem -config <(
 openssl x509 -days 3650 -req -CA root_cert.pem -CAkey root_key.pem -in intermediate_csr.pem -out intermediate_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
 ```
 
+## Intermediate CA (C=US, O=SPIFFE, CN=test-intermediate-vault-ca)
+
+```
+openssl ecparam -name prime256v1 -genkey -noout -out intermediate_vault_key.pem
+openssl req  -new -key intermediate_vault_key.pem -out intermediate_vault_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate-vault\nbasicConstraints=CA:true") -extensions v3
+openssl x509 -days 3650 -req -CA intermediate_cert.pem -CAkey intermediate_key.pem -in intermediate_vault_csr.pem -out intermediate_vault_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate-vault\nbasicConstraints=CA:true") -extensions v3
+```
+
 ## Server Cert used by Vault (Issued by Root CA)
 
 ```
