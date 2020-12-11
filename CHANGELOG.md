@@ -1,5 +1,55 @@
 # Changelog
 
+### Added
+- Added debug endpoints (#1792)
+- Added and improved documentation (#1806, #1808, #1813, #1821, #1831, #1837, #1838, #1861, #1868, #1869, #1876, #1880, #1883, #1886, #1902, #1918, #1923, #1939, #1951, #1970, #1999, #2011)
+- Added improved testing (#1837, #1872, #1873, #1931, #1937, #1942, #1948, #1954, #1958, #1978, #1982)
+- Added agent support for SDS v3 API (#1906)
+- Added improved metrics handling (#1885, #1925, #1932)
+- Added caching for registration entries and agent selectors (#1859, #1896, #1943, #1944, #1956)
+- Added database indexes to attested node columns (#1912)
+- Added better configuration for Vault UpstreamAuthority plugin (#1871, #1965, #1981)
+- Added delete mode for federated bundles from the bundle API (#1897)
+- Added reading JSON from STDIN for CLI entry create/update commands (#1905)
+- Added better middleware for Agent APIs (#1936)
+- Added support for multiple CA bundle files in x509pop (#1949)
+- Added `ExpiresAt` to `entry show` output (#1973)
+- Added improved logging (#1996, #1997)
+- Added `k8s_psat:agent_node_ip` selector (#1979)
+- Added support for HTTP/2 to the Server (#1968)
+
+### Changed
+- Changed the agent to crash when it needs to re-attest (#1797)
+- Changed internals to rely on new server APIs (#1849, #1878, #1907, #1908, #1909, #1913, #1947, #1982, #1998, #2001)
+- Changed Workload API to return a standardized JWKS object (#1904)
+- Changed Registration API to validate selector values (#1919)
+- Changed log message casing and punctuation (#1950, #1952)
+- Changed datastore versioning to be compatible with a 1.0 release (#2008)
+
+### Deprecated
+-
+
+### Removed
+- Removed agent FetchSVIDTTL gauge metrics and other telemtry (#1881, #1946)
+- Removed datastore communication over gRPC - the SQL datastore plugin is now loaded directly in the Server process (#1938)
+- Removed logging of JWT-SVIDs that fail validation (#1953)
+- Removed SPIFFE ID label from metrics (#2004)
+
+### Fixed
+- Fixed CLI exit codes when entry create or update fails (#1990)
+- Fixed a bug that could cause external plugins to become orphaned processes after agent/server shutdown (#1962)
+- Fixed handling of the Vault PKI certificate chain (#2012, #2017)
+
+## [0.11.2] - 2020-10-29
+
+### What's New
+ - Error messages related to a specific class of software bugs are now rate limited (#1901)
+
+### What's Changed
+- Fixed an issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#1917)
+- Fixed error messages when attestation is disabled (#1899)
+- Fixed some incorrectly-formatted log messages (#1920)
+
 ## [0.11.1] - 2020-09-29
 
 ### What's New
