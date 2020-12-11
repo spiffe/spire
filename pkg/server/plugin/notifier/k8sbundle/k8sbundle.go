@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 
@@ -19,12 +20,17 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 	corev1 "k8s.io/api/core/v1"
+	admissionv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 )
 
 var (
@@ -51,6 +57,7 @@ type pluginConfig struct {
 	Namespace          string `hcl:"namespace"`
 	ConfigMap          string `hcl:"config_map"`
 	ConfigMapKey       string `hcl:"config_map_key"`
+	WebhookLabel       string `hcl:"webhook_label"`
 	KubeConfigFilePath string `hcl:"kube_config_file_path"`
 }
 
@@ -63,7 +70,7 @@ type Plugin struct {
 	identityProvider hostservices.IdentityProvider
 
 	hooks struct {
-		newKubeClient func(configPath string) (kubeClient, error)
+		newKubeClient func(configPath string) (*kubernetes.Clientset, error)
 	}
 }
 
@@ -95,9 +102,19 @@ func (p *Plugin) Notify(ctx context.Context, req *notifier.NotifyRequest) (*noti
 	}
 
 	if _, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated); ok {
-		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
-		if err := p.updateBundleConfigMap(ctx, config); err != nil {
+		clientset, err := p.hooks.newKubeClient(config.KubeConfigFilePath)
+		if err != nil {
 			return nil, err
+		}
+
+		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
+		if err := p.updateBundleConfigMap(ctx, config, clientset); err != nil {
+			return nil, err
+		}
+		if config.WebhookLabel != "" {
+			if err := p.updateBundleWebhooks(ctx, config, clientset); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &notifier.NotifyResponse{}, nil
@@ -110,9 +127,20 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdv
 	}
 
 	if _, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
-		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
-		if err := p.updateBundleConfigMap(ctx, config); err != nil {
+		clientset, err := p.hooks.newKubeClient(config.KubeConfigFilePath)
+		if err != nil {
 			return nil, err
+		}
+
+		// ignore the bundle presented in the request. see updateBundleConfigMap for details on why.
+		if err := p.updateBundleConfigMap(ctx, config, clientset); err != nil {
+			return nil, err
+		}
+
+		if config.WebhookLabel != "" {
+			if err := p.updateBundleWebhooks(ctx, config, clientset); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &notifier.NotifyAndAdviseResponse{}, nil
@@ -139,6 +167,12 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	}
 
 	p.setConfig(config)
+	go func() {
+		err := p.watchWebhooks(ctx, config)
+		if err != nil {
+			p.log.Error("Error setting up webhook watcher: %v", err)
+		}
+	} ()
 	return &spi.ConfigureResponse{}, nil
 }
 
@@ -161,12 +195,8 @@ func (p *Plugin) setConfig(config *pluginConfig) {
 	p.config = config
 }
 
-func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig) (err error) {
-	client, err := p.hooks.newKubeClient(c.KubeConfigFilePath)
-	if err != nil {
-		return err
-	}
-
+func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig, clientset *kubernetes.Clientset) (err error) {
+	client := newConfigMapClient(clientset)
 	for {
 		// Get the config map so we can use the version to resolve conflicts racing
 		// on updates from other servers.
@@ -213,7 +243,125 @@ func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig) (er
 	}
 }
 
-func newKubeClient(configPath string) (kubeClient, error) {
+func (p *Plugin) updateBundleWebhooks(ctx context.Context, c *pluginConfig, clientset *kubernetes.Clientset) (err error) {
+	mutatingWebhookClient, validatingwebhookClient := newWebhookClient(clientset)
+	webhookClients := []webhookClient{mutatingWebhookClient, validatingwebhookClient}
+
+	for _, client := range(webhookClients) {
+		webhookList, err := client.GetWebhookList(ctx, c.WebhookLabel)
+		if err != nil {
+			return k8sErr.New("unable to list webhooks with %s label: %v", c.WebhookLabel, err)
+		}
+		webhookListItems, err := meta.ExtractList(webhookList)
+		if err != nil {
+			return k8sErr.New("unable to extract webhook list items with %s label: %v", c.WebhookLabel, err)
+		}
+		for _, webhook := range webhookListItems {
+			webhookMeta, err := meta.Accessor(webhook)
+			if err != nil {
+				return err
+			}
+			if err := p.updateBundleWebhook(ctx, c, client, webhookMeta.GetName()); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *Plugin) updateBundleWebhook(ctx context.Context, c *pluginConfig, client webhookClient, name string) (err error) {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		webhook, err := client.GetWebhook(ctx, name)
+		if err != nil {
+			return k8sErr.New("unable to get webhook %s: %v", name, err)
+		}
+
+		// Load bundle data from the registration api. The bundle has to be
+		// loaded after fetching the validating webhook so we can properly detect and
+		// correct a race updating the bundle (i.e.  read-modify-write
+		// semantics).
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &hostservices.FetchX509IdentityRequest{})
+		if err != nil {
+			return err
+		}
+
+		// Update all the webhook CA Bundles
+		err = client.UpdateWebhook(ctx, webhook, resp)
+		if err != nil {
+			return err
+		}
+
+		// Patch the ValidatingWebhookConfiguration
+		patchBytes, err := json.Marshal(webhook)
+		if err != nil {
+			return k8sErr.New("unable to marshal patch: %v", err)
+		}
+		return client.PatchWebhook(ctx, webhook, patchBytes)
+	})
+}
+
+// Watches for new webhooks that are created with the configured label and updates the CA Bundle
+func (p *Plugin) watchWebhooks(ctx context.Context, c *pluginConfig) (err error) {
+	clientset, err := p.hooks.newKubeClient(c.KubeConfigFilePath)
+	if err != nil {
+		return err
+	}
+	validatingWebhookClient, mutatingWebhookClient := newWebhookClient(clientset)
+
+	validatingWebhookWatcher, err := validatingWebhookClient.WatchWebhook(ctx, c.WebhookLabel)
+	if err != nil {
+		return err
+	}
+	mutatingWebhookWatcher, err := mutatingWebhookClient.WatchWebhook(ctx, c.WebhookLabel)
+	if err != nil {
+		return err
+	}
+
+	for  {
+		select {
+		case event := <-validatingWebhookWatcher.ResultChan():
+			err = p.watchEvent(ctx, c, validatingWebhookClient, event)
+			if err != nil {
+				p.log.Error("Error received watching validating webhook: %v", err)
+			}
+		case event := <-mutatingWebhookWatcher.ResultChan():
+			err = p.watchEvent(ctx, c, mutatingWebhookClient, event)
+			if err != nil {
+				p.log.Error("Error received watching mutating webhook: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *Plugin) watchEvent(ctx context.Context, c *pluginConfig, client webhookClient, event watch.Event) (err error) {
+	switch event.Type {
+	case watch.Added:
+		webhookMeta, err := meta.Accessor(event.Object)
+		if err != nil {
+			return err
+		}
+		p.updateBundleWebhook(ctx, c, client, webhookMeta.GetName())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func newConfigMapClient(clientset *kubernetes.Clientset) kubeClient {
+	return kubeClientset{Clientset: clientset}
+}
+
+func newWebhookClient(clientset *kubernetes.Clientset) (webhookClient, webhookClient) {
+	return mutatingWebhookClientset{Clientset: clientset},
+		validatingWebhookClientset{Clientset: clientset}
+}
+
+func newKubeClient(configPath string) (*kubernetes.Clientset, error) {
 	config, err := getKubeConfig(configPath)
 	if err != nil {
 		return nil, k8sErr.Wrap(err)
@@ -223,7 +371,7 @@ func newKubeClient(configPath string) (kubeClient, error) {
 	if err != nil {
 		return nil, k8sErr.Wrap(err)
 	}
-	return kubeClientset{Clientset: client}, nil
+	return client, nil
 }
 
 func getKubeConfig(configPath string) (*rest.Config, error) {
@@ -249,6 +397,100 @@ func (c kubeClientset) GetConfigMap(ctx context.Context, namespace, configMap st
 func (c kubeClientset) PatchConfigMap(ctx context.Context, namespace, configMap string, patchBytes []byte) error {
 	_, err := c.CoreV1().ConfigMaps(namespace).Patch(ctx, configMap, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	return err
+}
+
+type webhookClient interface {
+	GetWebhook(ctx context.Context, validatingWebhook string) (runtime.Object, error)
+	GetWebhookList(ctx context.Context, label string) (runtime.Object, error)
+	PatchWebhook(ctx context.Context, webhook runtime.Object, patchBytes []byte) error
+	UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) error
+	WatchWebhook(ctx context.Context, label string) (watch.Interface, error)
+}
+
+type validatingWebhookClientset struct {
+	*kubernetes.Clientset
+}
+
+func (c validatingWebhookClientset) GetWebhook(ctx context.Context, validatingWebhook string) (runtime.Object, error) {
+	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, validatingWebhook, metav1.GetOptions{})
+}
+
+func (c validatingWebhookClientset) GetWebhookList(ctx context.Context, label string) (runtime.Object, error) {
+	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=true", label),
+	})
+}
+
+func (c validatingWebhookClientset) PatchWebhook(ctx context.Context, webhook runtime.Object, patchBytes []byte) error {
+	webhookMeta, err := meta.Accessor(webhook)
+	if err != nil {
+		return err
+	}
+	_, err = c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Patch(ctx, webhookMeta.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	return err
+}
+
+func (c validatingWebhookClientset) UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) error {
+	validatingWebhook, ok := webhook.(*admissionv1.ValidatingWebhookConfiguration)
+	if !ok {
+		return k8sErr.New("wrong type, expecting validating webhook")
+	}
+
+	// Step through all the the webhooks in the ValidatingWebhookConfiguration
+	for i := range validatingWebhook.Webhooks {
+		validatingWebhook.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
+	}
+
+	return nil
+}
+
+func (c validatingWebhookClientset) WatchWebhook(ctx context.Context, label string) (watch.Interface, error) {
+	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=true", label),
+	})
+}
+
+type mutatingWebhookClientset struct {
+	*kubernetes.Clientset
+}
+
+func (c mutatingWebhookClientset) GetWebhook(ctx context.Context, validatingWebhook string) (runtime.Object, error) {
+	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, validatingWebhook, metav1.GetOptions{})
+}
+
+func (c mutatingWebhookClientset) GetWebhookList(ctx context.Context, label string) (runtime.Object, error) {
+	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=true", label),
+	})
+}
+
+func (c mutatingWebhookClientset) PatchWebhook(ctx context.Context, webhook runtime.Object, patchBytes []byte) error {
+	webhookMeta, err := meta.Accessor(webhook)
+	if err != nil {
+		return err
+	}
+	_, err = c.AdmissionregistrationV1().MutatingWebhookConfigurations().Patch(ctx, webhookMeta.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	return err
+}
+
+func (c mutatingWebhookClientset) UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) error {
+	mutatingWebhook, ok := webhook.(*admissionv1.MutatingWebhookConfiguration)
+	if !ok {
+		return k8sErr.New("wrong type, expecting mutating webhook")
+	}
+
+	// Step through all the the webhooks in the MutatingWebhookConfiguration
+	for i := range mutatingWebhook.Webhooks {
+		mutatingWebhook.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
+	}
+
+	return nil
+}
+
+func (c mutatingWebhookClientset) WatchWebhook(ctx context.Context, label string) (watch.Interface, error) {
+	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=true", label),
+	})
 }
 
 // bundleData formats the bundle data for inclusion in the config map
