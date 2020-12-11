@@ -177,7 +177,12 @@ func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream ups
 	}
 	certChain := [][]byte{certificate.Raw}
 
-	upstreamRootPEM := signResp.CACertChainPEM[len(signResp.CACertChainPEM)-1]
+	var upstreamRootPEM string
+	if len(signResp.CACertChainPEM) == 0 {
+		upstreamRootPEM = signResp.CACertPEM
+	} else {
+		upstreamRootPEM = signResp.CACertChainPEM[len(signResp.CACertChainPEM)-1]
+	}
 	upstreamRoot, err := pemutil.ParseCertificate([]byte(upstreamRootPEM))
 	if err != nil {
 		return fmt.Errorf("failed to parse Root CA certificate: %v", err)
