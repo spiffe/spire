@@ -590,37 +590,68 @@ func TestGetDBCodeVersion(t *testing.T) {
 func TestIsCompatibleCodeVersion(t *testing.T) {
 	tests := []struct {
 		desc             string
+		thisCodeVersion  semver.Version
 		dbCodeVersion    semver.Version
 		expectCompatible bool
 	}{
 		{
 			desc:             "backwards compatible 1 minor version",
+			thisCodeVersion:  codeVersion,
 			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor - 1)},
 			expectCompatible: true,
 		},
 		{
 			desc:             "forwards compatible 1 minor version",
+			thisCodeVersion:  codeVersion,
 			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor + 1)},
 			expectCompatible: true,
 		},
 		{
 			desc:             "compatible with self",
+			thisCodeVersion:  codeVersion,
 			dbCodeVersion:    codeVersion,
 			expectCompatible: true,
 		},
 		{
 			desc:             "not backwards compatible 2 minor versions",
+			thisCodeVersion:  codeVersion,
 			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor - 2)},
 			expectCompatible: false,
 		},
 		{
 			desc:             "not forwards compatible 2 minor versions",
+			thisCodeVersion:  codeVersion,
 			dbCodeVersion:    semver.Version{Major: codeVersion.Major, Minor: (codeVersion.Minor + 2)},
 			expectCompatible: false,
 		},
 		{
-			desc:             "not compatible with different major version",
+			desc:             "not compatible with different major version but same minor",
+			thisCodeVersion:  codeVersion,
 			dbCodeVersion:    semver.Version{Major: (codeVersion.Major + 1), Minor: codeVersion.Minor},
+			expectCompatible: false,
+		},
+		{
+			desc:             "forwards compatible to 1.0 from 0.12",
+			thisCodeVersion:  semver.Version{Major: 0, Minor: 12},
+			dbCodeVersion:    semver.Version{Major: 1, Minor: 0},
+			expectCompatible: true,
+		},
+		{
+			desc:             "backwards compatible to 0.12 from 1.0",
+			thisCodeVersion:  semver.Version{Major: 1, Minor: 0},
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 12},
+			expectCompatible: true,
+		},
+		{
+			desc:             "not forwards compatible to 1.1 from 0.12",
+			thisCodeVersion:  semver.Version{Major: 0, Minor: 12},
+			dbCodeVersion:    semver.Version{Major: 1, Minor: 1},
+			expectCompatible: false,
+		},
+		{
+			desc:             "not backwards compatible to 0.12 from 1.1",
+			thisCodeVersion:  semver.Version{Major: 1, Minor: 1},
+			dbCodeVersion:    semver.Version{Major: 0, Minor: 12},
 			expectCompatible: false,
 		},
 	}
@@ -628,7 +659,7 @@ func TestIsCompatibleCodeVersion(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
-			compatible := isCompatibleCodeVersion(tt.dbCodeVersion)
+			compatible := isCompatibleCodeVersion(tt.thisCodeVersion, tt.dbCodeVersion)
 
 			assert.Equal(t, tt.expectCompatible, compatible)
 		})
@@ -655,7 +686,7 @@ func TestIsDisabledMigrationAllowed(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
-			err := isDisabledMigrationAllowed(tt.dbCodeVersion)
+			err := isDisabledMigrationAllowed(codeVersion, tt.dbCodeVersion)
 
 			if tt.expectErr != "" {
 				require.Error(t, err)
