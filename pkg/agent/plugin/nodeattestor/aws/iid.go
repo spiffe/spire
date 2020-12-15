@@ -43,6 +43,8 @@ type IIDAttestorConfig struct {
 
 // IIDAttestorPlugin implements aws nodeattestation in the agent.
 type IIDAttestorPlugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	log    hclog.Logger
 	config *IIDAttestorConfig
 	mtx    sync.RWMutex

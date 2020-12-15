@@ -21,6 +21,7 @@ type KeyManagerServer = keymanager.KeyManagerServer                           //
 type StorePrivateKeyRequest = keymanager.StorePrivateKeyRequest               //nolint: golint
 type StorePrivateKeyResponse = keymanager.StorePrivateKeyResponse             //nolint: golint
 type UnimplementedKeyManagerServer = keymanager.UnimplementedKeyManagerServer //nolint: golint
+type UnsafeKeyManagerServer = keymanager.UnsafeKeyManagerServer               //nolint: golint
 
 const (
 	Type = "KeyManager"
@@ -75,7 +76,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(keymanager.NewKeyManagerClient(conn))
 }
 

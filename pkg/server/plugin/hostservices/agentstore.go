@@ -17,6 +17,7 @@ type AgentStoreServer = hostservices.AgentStoreServer                           
 type GetAgentInfoRequest = hostservices.GetAgentInfoRequest                     //nolint: golint
 type GetAgentInfoResponse = hostservices.GetAgentInfoResponse                   //nolint: golint
 type UnimplementedAgentStoreServer = hostservices.UnimplementedAgentStoreServer //nolint: golint
+type UnsafeAgentStoreServer = hostservices.UnsafeAgentStoreServer               //nolint: golint
 
 const (
 	AgentStoreType = "AgentStore"
@@ -61,7 +62,7 @@ func (c *agentStoreHostServiceClient) HostServiceType() string {
 	return AgentStoreType
 }
 
-func (c *agentStoreHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
+func (c *agentStoreHostServiceClient) InitHostServiceClient(conn grpc.ClientConnInterface) {
 	*c.client = AdaptAgentStoreHostServiceClient(hostservices.NewAgentStoreClient(conn))
 }
 

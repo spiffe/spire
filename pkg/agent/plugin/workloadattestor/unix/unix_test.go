@@ -223,13 +223,13 @@ func (s *Suite) TestAttest() {
 func (s *Suite) TestConfigure() {
 	resp, err := s.p.Configure(ctx, &spi.ConfigureRequest{})
 	s.NoError(err)
-	s.Equal(&spi.ConfigureResponse{}, resp)
+	s.AssertProtoEqual(&spi.ConfigureResponse{}, resp)
 }
 
 func (s *Suite) TestGetPluginInfo() {
 	resp, e := s.p.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	s.NoError(e)
-	s.Equal(&spi.GetPluginInfoResponse{}, resp)
+	s.AssertProtoEqual(&spi.GetPluginInfoResponse{}, resp)
 }
 
 func (s *Suite) configure(config string) {

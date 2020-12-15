@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
@@ -17,6 +16,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var (
@@ -72,20 +72,20 @@ func TestEvict(t *testing.T) {
 		{
 			name:               "no spiffe id",
 			expectedReturnCode: 1,
-			expectedStderr:     "a SPIFFE ID is required\n",
+			expectedStderr:     "Error: a SPIFFE ID is required\n",
 		},
 		{
 			name:               "wrong UDS path",
 			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			expectedStderr:     "connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
 		{
 			name:               "server error",
 			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/foo"},
 			serverErr:          status.Error(codes.Internal, "internal server error"),
 			expectedReturnCode: 1,
-			expectedStderr:     "rpc error: code = Internal desc = internal server error\n",
+			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
 		tt := tt
@@ -135,13 +135,13 @@ func TestList(t *testing.T) {
 			name:               "server error",
 			expectedReturnCode: 1,
 			serverErr:          status.Error(codes.Internal, "internal server error"),
-			expectedStderr:     "rpc error: code = Internal desc = internal server error\n",
+			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 		{
 			name:               "wrong UDS path",
 			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			expectedStderr:     "connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
 	} {
 		tt := tt
@@ -189,7 +189,7 @@ func TestShow(t *testing.T) {
 		{
 			name:               "no spiffe id",
 			expectedReturnCode: 1,
-			expectedStderr:     "a SPIFFE ID is required\n",
+			expectedStderr:     "Error: a SPIFFE ID is required\n",
 		},
 		{
 			name:               "show error",
@@ -197,13 +197,13 @@ func TestShow(t *testing.T) {
 			existentAgents:     testAgents,
 			expectedReturnCode: 1,
 			serverErr:          status.Error(codes.Internal, "internal server error"),
-			expectedStderr:     "rpc error: code = Internal desc = internal server error\n",
+			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 		{
 			name:               "wrong UDS path",
 			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			expectedStderr:     "connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
 	} {
 		tt := tt
@@ -260,8 +260,8 @@ type fakeAgentServer struct {
 	err    error
 }
 
-func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentpb.DeleteAgentRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, s.err
+func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentpb.DeleteAgentRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, s.err
 }
 
 func (s *fakeAgentServer) ListAgents(ctx context.Context, req *agentpb.ListAgentsRequest) (*agentpb.ListAgentsResponse, error) {

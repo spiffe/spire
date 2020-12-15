@@ -63,27 +63,21 @@ func IncrManagerPrunedBundleCounter(m telemetry.Metrics) {
 }
 
 // IncrServerCASignJWTSVIDCounter indicate Server CA
-// signed a JWT SVID. Takes SVID's SPIFFE ID
-func IncrServerCASignJWTSVIDCounter(m telemetry.Metrics, id string) {
-	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, []telemetry.Label{
-		{Name: telemetry.SPIFFEID, Value: id},
-	})
+// signed a JWT SVID.
+func IncrServerCASignJWTSVIDCounter(m telemetry.Metrics) {
+	m.IncrCounter([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1)
 }
 
 // IncrServerCASignX509CACounter indicate Server CA
-// signed an X509 CA SVID. Takes SVID's SPIFFE ID
-func IncrServerCASignX509CACounter(m telemetry.Metrics, id string) {
-	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.X509CASVID}, 1, []telemetry.Label{
-		{Name: telemetry.SPIFFEID, Value: id},
-	})
+// signed an X509 CA SVID.
+func IncrServerCASignX509CACounter(m telemetry.Metrics) {
+	m.IncrCounter([]string{telemetry.ServerCA, telemetry.Sign, telemetry.X509CASVID}, 1)
 }
 
 // IncrServerCASignX509Counter indicate Server CA
-// signed an X509 SVID. Takes SVID's SPIFFE ID
-func IncrServerCASignX509Counter(m telemetry.Metrics, id string) {
-	m.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.X509SVID}, 1, []telemetry.Label{
-		{Name: telemetry.SPIFFEID, Value: id},
-	})
+// signed an X509 SVID.
+func IncrServerCASignX509Counter(m telemetry.Metrics) {
+	m.IncrCounter([]string{telemetry.ServerCA, telemetry.Sign, telemetry.X509SVID}, 1)
 }
 
 // End Counters

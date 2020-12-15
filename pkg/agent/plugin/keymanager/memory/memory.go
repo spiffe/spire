@@ -26,6 +26,8 @@ func builtin(p *Plugin) catalog.Plugin {
 }
 
 type Plugin struct {
+	keymanager.UnsafeKeyManagerServer
+
 	key *ecdsa.PrivateKey
 	mtx sync.RWMutex
 }

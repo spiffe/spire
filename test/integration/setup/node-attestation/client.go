@@ -14,7 +14,6 @@ import (
 	mathrand "math/rand"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	agent "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	types "github.com/spiffe/spire/proto/spire/types"
@@ -22,6 +21,7 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 var (

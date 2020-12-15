@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
+	"google.golang.org/protobuf/proto"
 )
 
 var (

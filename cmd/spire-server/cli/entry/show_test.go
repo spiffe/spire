@@ -92,12 +92,12 @@ func TestShow(t *testing.T) {
 			args:      []string{"-entryID", "non-existent-id"},
 			expGetReq: &entry.GetEntryRequest{Id: "non-existent-id"},
 			serverErr: status.Error(codes.NotFound, "no such registration entry"),
-			expErr:    "error fetching entry ID non-existent-id: rpc error: code = NotFound desc = no such registration entry\n",
+			expErr:    "Error: error fetching entry ID non-existent-id: rpc error: code = NotFound desc = no such registration entry\n",
 		},
 		{
 			name:   "List by entry ID and other fields",
 			args:   []string{"-entryID", "entry-id", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "the -entryID flag can't be combined with others\n",
+			expErr: "Error: the -entryID flag can't be combined with others\n",
 		},
 		{
 			name: "List by parentID",
@@ -116,7 +116,7 @@ func TestShow(t *testing.T) {
 		{
 			name:   "List by parent ID using invalid ID",
 			args:   []string{"-parentID", "invalid-id"},
-			expErr: "error parsing parent ID \"invalid-id\": spiffeid: invalid scheme\n",
+			expErr: "Error: error parsing parent ID \"invalid-id\": spiffeid: invalid scheme\n",
 		},
 		{
 			name: "List by SPIFFE ID",
@@ -135,7 +135,7 @@ func TestShow(t *testing.T) {
 		{
 			name:   "List by SPIFFE ID using invalid ID",
 			args:   []string{"-spiffeID", "invalid-id"},
-			expErr: "error parsing SPIFFE ID \"invalid-id\": spiffeid: invalid scheme\n",
+			expErr: "Error: error parsing SPIFFE ID \"invalid-id\": spiffeid: invalid scheme\n",
 		},
 		{
 			name: "List by selectors",
@@ -159,7 +159,7 @@ func TestShow(t *testing.T) {
 		{
 			name:   "List by selector using invalid selector",
 			args:   []string{"-selector", "invalid-selector"},
-			expErr: "error parsing selectors: selector \"invalid-selector\" must be formatted as type:value\n",
+			expErr: "Error: error parsing selectors: selector \"invalid-selector\" must be formatted as type:value\n",
 		},
 		{
 			name: "Server error",
@@ -170,7 +170,7 @@ func TestShow(t *testing.T) {
 				},
 			},
 			serverErr: status.Error(codes.Internal, "internal server error"),
-			expErr:    "error fetching entries: rpc error: code = Internal desc = internal server error\n",
+			expErr:    "Error: error fetching entries: rpc error: code = Internal desc = internal server error\n",
 		},
 		{
 			name: "List by Federates With",

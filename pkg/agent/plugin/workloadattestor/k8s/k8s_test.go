@@ -579,7 +579,7 @@ func (s *Suite) TestConfigure() {
 			require.NotNil(t, testCase.config, "test case missing expected config")
 
 			assert.NoError(t, err)
-			assert.Equal(t, &spi.ConfigureResponse{}, resp)
+			spiretest.AssertProtoEqual(t, &spi.ConfigureResponse{}, resp)
 
 			c, err := p.getConfig()
 			require.NoError(t, err)
@@ -615,7 +615,7 @@ func (s *Suite) TestConfigure() {
 func (s *Suite) TestGetPluginInfo() {
 	resp, err := s.p.GetPluginInfo(context.Background(), &spi.GetPluginInfoRequest{})
 	s.NoError(err)
-	s.Equal(&spi.GetPluginInfoResponse{}, resp)
+	s.AssertProtoEqual(&spi.GetPluginInfoResponse{}, resp)
 }
 
 func (s *Suite) newPlugin() (*Plugin, workloadattestor.Plugin) {
@@ -834,7 +834,7 @@ func (s *Suite) requireAttestFailure(contains string) {
 func (s *Suite) requireSelectorsEqual(expected, actual []*common.Selector) {
 	// assert the selectors (sorting for consistency)
 	util.SortSelectors(actual)
-	s.Require().Equal(expected, actual)
+	s.RequireProtoListEqual(expected, actual)
 }
 
 func (s *Suite) goAttest() <-chan attestResult {

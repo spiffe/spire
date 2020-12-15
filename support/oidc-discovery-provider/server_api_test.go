@@ -7,28 +7,31 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func TestRegistrationAPISource(t *testing.T) {
+func TestServerAPISource(t *testing.T) {
 	const pollInterval = time.Second
 
-	api := &fakeRegistrationAPIServer{}
+	api := &fakeServerAPIServer{}
 
-	socketPath := spiretest.StartRegistrationAPIOnTempSocket(t, api)
+	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+		bundle.RegisterBundleServer(s, api)
+	})
 
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)
 
-	source, err := NewRegistrationAPISource(RegistrationAPISourceConfig{
+	source, err := NewServerAPISource(ServerAPISourceConfig{
 		Log:          log,
-		SocketPath:   socketPath,
+		Address:      "unix://" + socketPath,
 		PollInterval: pollInterval,
 		Clock:        clock,
 	})
@@ -39,21 +42,21 @@ func TestRegistrationAPISource(t *testing.T) {
 	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
 	_, _, ok := source.FetchKeySet()
 	require.False(t, ok, "No bundle was available but we have a keyset somehow")
-	require.Equal(t, 1, api.GetFetchBundleCount())
+	require.Equal(t, 1, api.GetBundleCount())
 
 	// Add a bundle, step forward past the poll interval, wait for polling,
 	// and assert we have a keyset.
-	api.SetBundle(&common.Bundle{
-		JwtSigningKeys: []*common.PublicKey{
+	api.SetBundle(&types.Bundle{
+		JwtAuthorities: []*types.JWTKey{
 			{
-				Kid:       "KID",
-				PkixBytes: ec256PubkeyPKIX,
+				KeyId:     "KID",
+				PublicKey: ec256PubkeyPKIX,
 			},
 		},
 	})
 	clock.Add(pollInterval)
 	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
-	require.Equal(t, 2, api.GetFetchBundleCount())
+	require.Equal(t, 2, api.GetBundleCount())
 	keySet1, modTime1, ok := source.FetchKeySet()
 	require.True(t, ok)
 	require.Equal(t, clock.Now(), modTime1)
@@ -68,23 +71,23 @@ func TestRegistrationAPISource(t *testing.T) {
 	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
 	keySet2, modTime2, ok := source.FetchKeySet()
 	require.True(t, ok)
-	require.Equal(t, 3, api.GetFetchBundleCount())
+	require.Equal(t, 3, api.GetBundleCount())
 	require.Equal(t, keySet1, keySet2)
 	require.Equal(t, modTime1, modTime2)
 
 	// Change the bundle, step forward past the poll interval, wait for polling,
 	// and assert that the changes have been picked up.
-	api.SetBundle(&common.Bundle{
-		JwtSigningKeys: []*common.PublicKey{
+	api.SetBundle(&types.Bundle{
+		JwtAuthorities: []*types.JWTKey{
 			{
-				Kid:       "KID2",
-				PkixBytes: ec256PubkeyPKIX,
+				KeyId:     "KID2",
+				PublicKey: ec256PubkeyPKIX,
 			},
 		},
 	})
 	clock.Add(pollInterval)
 	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
-	require.Equal(t, 4, api.GetFetchBundleCount())
+	require.Equal(t, 4, api.GetBundleCount())
 	keySet3, modTime3, ok := source.FetchKeySet()
 	require.True(t, ok)
 	require.Equal(t, clock.Now(), modTime3)
@@ -94,35 +97,33 @@ func TestRegistrationAPISource(t *testing.T) {
 	require.Equal(t, ec256Pubkey, keySet3.Keys[0].Key)
 }
 
-type fakeRegistrationAPIServer struct {
-	registration.RegistrationServer
+type fakeServerAPIServer struct {
+	bundle.BundleServer
 
-	mu               sync.Mutex
-	bundle           *common.Bundle
-	fetchBundleCount int
+	mu             sync.Mutex
+	bundle         *types.Bundle
+	getBundleCount int
 }
 
-func (s *fakeRegistrationAPIServer) SetBundle(bundle *common.Bundle) {
+func (s *fakeServerAPIServer) SetBundle(bundle *types.Bundle) {
 	s.mu.Lock()
 	s.bundle = bundle
 	s.mu.Unlock()
 }
 
-func (s *fakeRegistrationAPIServer) GetFetchBundleCount() int {
+func (s *fakeServerAPIServer) GetBundleCount() int {
 	s.mu.Lock()
-	count := s.fetchBundleCount
+	count := s.getBundleCount
 	s.mu.Unlock()
 	return count
 }
 
-func (s *fakeRegistrationAPIServer) FetchBundle(context.Context, *common.Empty) (*registration.Bundle, error) {
+func (s *fakeServerAPIServer) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fetchBundleCount++
+	s.getBundleCount++
 	if s.bundle == nil {
 		return nil, status.Error(codes.NotFound, "no bundle")
 	}
-	return &registration.Bundle{
-		Bundle: s.bundle,
-	}, nil
+	return s.bundle, nil
 }

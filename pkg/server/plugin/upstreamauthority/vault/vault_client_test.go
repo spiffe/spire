@@ -8,12 +8,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/pemutil"
-
 	"github.com/hashicorp/go-hclog"
-
 	vapi "github.com/hashicorp/vault/api"
-
+	"github.com/hashicorp/vault/sdk/helper/consts"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -108,9 +106,10 @@ func (vcs *VaultClientSuite) Test_NewClientConfig_WithGivenMontPoint() {
 func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
 	vcs.fakeVaultServer.CertAuthResponseCode = 200
 	for _, c := range []struct {
-		name     string
-		response []byte
-		reusable bool
+		name      string
+		response  []byte
+		reusable  bool
+		namespace string
 	}{
 		{
 			name:     "Cert Authentication success / Token is renewable",
@@ -120,6 +119,12 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
 		{
 			name:     "Cert Authentication success / Token is not renewable",
 			response: []byte(testCertAuthResponseNotRenewable),
+		},
+		{
+			name:      "Cert Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testCertAuthResponse),
+			reusable:  true,
+			namespace: "test-ns",
 		},
 	} {
 		c := c
@@ -134,6 +139,7 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
 
 			cp := &ClientParams{
 				VaultAddr:      fmt.Sprintf("https://%v/", addr),
+				Namespace:      c.namespace,
 				CACertPath:     testRootCert,
 				ClientCertPath: testClientCert,
 				ClientKeyPath:  testClientKey,
@@ -141,9 +147,14 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
 			cc, err := NewClientConfig(cp, hclog.Default())
 			vcs.Require().NoError(err)
 
-			_, reusable, err := cc.NewAuthenticatedClient(CERT)
+			client, reusable, err := cc.NewAuthenticatedClient(CERT)
 			vcs.Require().NoError(err)
 			vcs.Require().Equal(c.reusable, reusable)
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
 		})
 	}
 }
@@ -151,9 +162,10 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
 func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
 	vcs.fakeVaultServer.LookupSelfResponseCode = 200
 	for _, c := range []struct {
-		name     string
-		response []byte
-		reusable bool
+		name      string
+		response  []byte
+		reusable  bool
+		namespace string
 	}{
 		{
 			name:     "Token Authentication success / Token never expire",
@@ -169,6 +181,12 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
 			name:     "Token Authentication success / Token is not renewable",
 			response: []byte(testLookupSelfResponseNotRenewable),
 		},
+		{
+			name:      "Token Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testCertAuthResponse),
+			reusable:  true,
+			namespace: "test-ns",
+		},
 	} {
 		c := c
 		vcs.Run(c.name, func() {
@@ -182,15 +200,21 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
 
 			cp := &ClientParams{
 				VaultAddr:  fmt.Sprintf("https://%v/", addr),
+				Namespace:  c.namespace,
 				CACertPath: testRootCert,
 				Token:      "test-token",
 			}
 			cc, err := NewClientConfig(cp, hclog.Default())
 			vcs.Require().NoError(err)
 
-			_, reusable, err := cc.NewAuthenticatedClient(TOKEN)
+			client, reusable, err := cc.NewAuthenticatedClient(TOKEN)
 			vcs.Require().NoError(err)
 			vcs.Require().Equal(c.reusable, reusable)
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
 		})
 	}
 }
@@ -198,9 +222,10 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
 func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuth() {
 	vcs.fakeVaultServer.AppRoleAuthResponseCode = 200
 	for _, c := range []struct {
-		name     string
-		response []byte
-		reusable bool
+		name      string
+		response  []byte
+		reusable  bool
+		namespace string
 	}{
 		{
 			name:     "AppRole Authentication success / Token is renewable",
@@ -210,6 +235,12 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuth() {
 		{
 			name:     "AppRole Authentication success / Token is not renewable",
 			response: []byte(testAppRoleAuthResponseNotRenewable),
+		},
+		{
+			name:      "AppRole Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testAppRoleAuthResponse),
+			reusable:  true,
+			namespace: "test-ns",
 		},
 	} {
 		c := c
@@ -224,6 +255,7 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuth() {
 
 			cp := &ClientParams{
 				VaultAddr:       fmt.Sprintf("https://%v/", addr),
+				Namespace:       c.namespace,
 				CACertPath:      testRootCert,
 				AppRoleID:       "test-approle-id",
 				AppRoleSecretID: "test-approle-secret-id",
@@ -231,9 +263,14 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuth() {
 			cc, err := NewClientConfig(cp, hclog.Default())
 			vcs.Require().NoError(err)
 
-			_, reusable, err := cc.NewAuthenticatedClient(APPROLE)
+			client, reusable, err := cc.NewAuthenticatedClient(APPROLE)
 			vcs.Require().NoError(err)
 			vcs.Require().Equal(c.reusable, reusable)
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
 		})
 	}
 }

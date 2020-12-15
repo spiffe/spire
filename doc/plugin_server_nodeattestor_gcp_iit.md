@@ -66,3 +66,10 @@ The plugin uses the Application Default Credentials to authenticate with the Goo
 
 The service account must have IAM permissions and Authorization Scopes granting access to the following APIs:
 * [compute.instances.get](https://cloud.google.com/compute/docs/reference/rest/v1/instances/get)
+
+## Security Considerations
+The Instance Identity Token, which this attestor leverages to prove node identity, is available to any process running on the node by default. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
+
+While many operators choose to configure their systems to block access to the Instance Identity Token, the SPIRE project cannot guarantee this posture. To mitigate the associated risk, the `gcp_iit` node attestor implements Trust On First Use (or TOFU) semantics. For any given node, attestation may occur only once. Subsequent attestation attempts will be rejected.
+
+It is still possible for non-agent code to complete node attestation before SPIRE Agent can, however this condition is easily and quickly detectable as SPIRE Agent will fail to start, and both SPIRE Agent and SPIRE Server will log the occurrence. Such cases should be investigated as possible security incidents.

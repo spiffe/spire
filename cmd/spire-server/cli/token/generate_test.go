@@ -57,7 +57,7 @@ func TestCreateToken(t *testing.T) {
 			args: []string{
 				"-spiffeID", "invalid id",
 			},
-			expectedStderr: "spiffeid: invalid scheme\n",
+			expectedStderr: "Error: spiffeid: invalid scheme\n",
 		},
 		{
 			name: "server fails to create token",
@@ -69,7 +69,7 @@ func TestCreateToken(t *testing.T) {
 				Ttl:     600,
 			},
 			token:          "token",
-			expectedStderr: "rpc error: code = Internal desc = server error\n",
+			expectedStderr: "Error: rpc error: code = Internal desc = server error\n",
 			serverErr:      status.New(codes.Internal, "server error").Err(),
 		},
 	} {

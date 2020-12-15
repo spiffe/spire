@@ -93,6 +93,18 @@ upgrade-agent() {
     docker-up spire-agent-latest-local
 }
 
+stop-and-evict-agent() {
+    log-info "stopping $1 agent..."
+    docker-stop "spire-agent-$1"
+
+    log-info "evicting agent..."
+    docker-compose exec -T "spire-server-$1" \
+        /opt/spire/bin/spire-server agent evict \
+        -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
+
+    rm -rf shared/agent-data/*
+}
+
 check-new-agent-svid-after-upgrade() {
     log-info "checking X509-SVID after agent upgrade..."
     docker-compose exec -T spire-agent-latest-local \
@@ -118,16 +130,24 @@ for _version in ${_versions}; do
     rm -f svids/after-server-upgrade/*
     rm -f svids/after-agent-upgrade/*
 
-    # run through upgrade test
+    # test old agent attestation against old server
     start-old-server "${_version}"
     bootstrap-agent "${_version}"
     start-old-agent "${_version}"
     create-registration-entry "${_version}"
     check-old-agent-svid "${_version}"
+
+    # test server and agent upgrade
     upgrade-server "${_version}"
     check-old-agent-svid-after-upgrade "${_version}"
     upgrade-agent "${_version}"
-    check-new-agent-svid-after-upgrade "${_version}"
+    check-new-agent-svid-after-upgrade
+
+    # test old agent attestation against new server
+    stop-and-evict-agent "latest-local"
+    bootstrap-agent "latest-local"
+    start-old-agent "${_version}"
+    check-old-agent-svid "${_version}"
 
     # bring everything down between versions
     docker-down

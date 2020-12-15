@@ -50,6 +50,8 @@ type PluginConfig struct {
 	// If true, vault client accepts any server certificates.
 	// It should be used only test environment so on.
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify"`
+	// Name of the Vault namespace
+	Namespace string `hcl:"namespace"`
 }
 
 // TokenAuth represents parameters for token auth method
@@ -86,6 +88,8 @@ type AppRoleAuthConfig struct {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	mtx    *sync.RWMutex
 	logger hclog.Logger
 
@@ -173,14 +177,20 @@ func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream ups
 	}
 	certChain := [][]byte{certificate.Raw}
 
-	caCert, err := pemutil.ParseCertificate([]byte(signResp.CACertPEM))
-	if err != nil {
-		return fmt.Errorf("failed to parse CA certificate: %v", err)
+	var upstreamRootPEM string
+	if len(signResp.CACertChainPEM) == 0 {
+		upstreamRootPEM = signResp.CACertPEM
+	} else {
+		upstreamRootPEM = signResp.CACertChainPEM[len(signResp.CACertChainPEM)-1]
 	}
-	bundles := [][]byte{caCert.Raw}
+	upstreamRoot, err := pemutil.ParseCertificate([]byte(upstreamRootPEM))
+	if err != nil {
+		return fmt.Errorf("failed to parse Root CA certificate: %v", err)
+	}
+	bundles := [][]byte{upstreamRoot.Raw}
 
 	for _, c := range signResp.CACertChainPEM {
-		if c == signResp.CACertPEM {
+		if c == upstreamRootPEM {
 			continue
 		}
 
@@ -188,7 +198,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream ups
 		if err != nil {
 			return fmt.Errorf("failed to parse upstream bundle certificates: %v", err)
 		}
-		bundles = append(bundles, b.Raw)
+		certChain = append(certChain, b.Raw)
 	}
 
 	return stream.Send(&upstreamauthority.MintX509CAResponse{
@@ -248,6 +258,7 @@ func genClientParams(method AuthMethod, config *PluginConfig) *ClientParams {
 		CACertPath:    getEnvOrDefault(envVaultCACert, config.CACertPath),
 		PKIMountPoint: config.PKIMountPoint,
 		TLSSKipVerify: config.InsecureSkipVerify,
+		Namespace:     getEnvOrDefault(envVaultNamespace, config.Namespace),
 	}
 
 	switch method {

@@ -106,16 +106,19 @@ func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 
 	// Print entries that succeeded to be created
 	for _, r := range succeeded {
-		printEntry(r.Entry, env)
+		printEntry(r.Entry, env.Printf)
 	}
 
 	// Print entries that failed to be created
-	if len(failed) > 0 {
-		env.Printf("FAILED to create the following %s:\n", util.Pluralizer("", "entry", "entries", len(failed)))
-	}
 	for _, r := range failed {
-		printEntry(r.Entry, env)
-		env.Printf("%s\n", r.Status.Message)
+		env.ErrPrintf("Failed to create the following entry (code: %s, msg: %q):\n",
+			codes.Code(r.Status.Code),
+			r.Status.Message)
+		printEntry(r.Entry, env.ErrPrintf)
+	}
+
+	if len(failed) > 0 {
+		return errors.New("failed to create one or more entries")
 	}
 
 	return nil
@@ -212,7 +215,7 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) (succeeded, failed []*entry.BatchCreateEntryResponse_Result, err error) {
 	resp, err := c.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
-		return
+		return nil, nil, err
 	}
 
 	for i, r := range resp.Results {
@@ -227,7 +230,7 @@ func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.En
 		}
 	}
 
-	return
+	return succeeded, failed, nil
 }
 
 func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {

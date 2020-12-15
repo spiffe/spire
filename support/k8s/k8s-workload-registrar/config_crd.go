@@ -61,7 +61,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 	defer log.Close()
 
-	registrationClient, err := c.RegistrationClient(ctx, log)
+	entryClient, err := c.EntryClient(ctx, log)
 	if err != nil {
 		return errs.New("failed to dial server: %v", err)
 	}
@@ -82,7 +82,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		Cluster:     c.Cluster,
 		Ctx:         ctx,
 		Log:         log,
-		R:           registrationClient,
+		E:           entryClient,
 		TrustDomain: c.TrustDomain,
 	}).SetupWithManager(mgr)
 	if err != nil {
@@ -95,7 +95,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			Log:         log,
 			Mgr:         mgr,
 			Namespace:   myNamespace,
-			R:           registrationClient,
+			E:           entryClient,
 			TrustDomain: c.TrustDomain,
 		})
 		if err != nil {

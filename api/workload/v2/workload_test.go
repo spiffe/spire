@@ -227,6 +227,7 @@ func (s *stubbedAPI) Cleanup() {
 }
 
 type mockHandler struct {
+	workload.UnsafeSpiffeWorkloadAPIServer
 	t                *testing.T
 	done             chan struct{}
 	fetchX509Waiter  chan struct{}

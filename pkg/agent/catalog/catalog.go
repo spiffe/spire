@@ -101,7 +101,7 @@ func (p *Plugins) GetWorkloadAttestors() []WorkloadAttestor {
 
 type Config struct {
 	Log          logrus.FieldLogger
-	GlobalConfig GlobalConfig
+	GlobalConfig *GlobalConfig
 	PluginConfig HCLPluginConfigMap
 	HostServices []catalog.HostServiceServer
 	Metrics      *telemetry.MetricsImpl

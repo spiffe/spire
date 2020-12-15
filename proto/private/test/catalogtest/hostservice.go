@@ -53,7 +53,7 @@ func (c *hostServiceHostServiceClient) HostServiceType() string {
 	return HostServiceType
 }
 
-func (c *hostServiceHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
+func (c *hostServiceHostServiceClient) InitHostServiceClient(conn grpc.ClientConnInterface) {
 	*c.client = AdaptHostServiceHostServiceClient(NewHostServiceClient(conn))
 }
 

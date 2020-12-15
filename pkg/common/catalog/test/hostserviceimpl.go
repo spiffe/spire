@@ -8,11 +8,13 @@ import (
 	"github.com/spiffe/spire/proto/private/test/catalogtest"
 )
 
-func NewHostService() catalogtest.HostService {
+func NewHostService() catalogtest.HostServiceServer {
 	return &testHostService{}
 }
 
-type testHostService struct{}
+type testHostService struct {
+	catalogtest.UnsafeHostServiceServer
+}
 
 func (*testHostService) CallHostService(ctx context.Context, req *catalogtest.Request) (*catalogtest.Response, error) {
 	pluginName, ok := catalog.PluginNameFromHostServiceContext(ctx)

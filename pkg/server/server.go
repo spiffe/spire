@@ -234,11 +234,11 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
-	metricsService common_services.MetricsService) (*catalog.Repository, error) {
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProviderServer, agentStore hostservices.AgentStoreServer,
+	metricsService common_services.MetricsServiceServer) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		GlobalConfig: catalog.GlobalConfig{
+		GlobalConfig: &catalog.GlobalConfig{
 			TrustDomain: s.config.TrustDomain.Host,
 		},
 		PluginConfig:     s.config.PluginConfigs,

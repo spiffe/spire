@@ -68,10 +68,10 @@ If you don't already have Docker installed, please follow these [installation in
         data_dir = "./.data"
         log_level = "DEBUG"
         default_svid_ttl = "1h"
-        ca_subject = {
-            country = ["US"],
-            organization = ["SPIFFE"],
-            common_name = "",
+        ca_subject {
+            country = ["US"]
+            organization = ["SPIFFE"]
+            common_name = ""
         }
     }
 

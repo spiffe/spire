@@ -15,7 +15,7 @@ type Config struct {
 	Log logrus.FieldLogger
 
 	// GlobalConfig is passed to plugins during configuration.
-	GlobalConfig GlobalConfig
+	GlobalConfig *GlobalConfig
 
 	// PluginConfig is the configuration of plugins to load.
 	PluginConfig []PluginConfig
@@ -209,7 +209,7 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 		cat.plugins = append(cat.plugins, plugin)
 
 		if err := plugin.Configure(ctx, &spi.ConfigureRequest{
-			GlobalConfig:  &config.GlobalConfig,
+			GlobalConfig:  config.GlobalConfig,
 			Configuration: c.Data,
 		}); err != nil {
 			pluginLog.WithError(err).Error("Failed to configure plugin")

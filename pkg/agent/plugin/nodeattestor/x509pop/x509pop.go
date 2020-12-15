@@ -44,6 +44,8 @@ type Config struct {
 }
 
 type Plugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	m sync.Mutex
 	c *Config
 }

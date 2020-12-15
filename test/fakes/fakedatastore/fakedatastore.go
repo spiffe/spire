@@ -21,6 +21,8 @@ var (
 )
 
 type DataStore struct {
+	datastore.UnsafeDataStoreServer
+
 	ds   datastore.DataStore
 	errs []error
 }

@@ -35,6 +35,8 @@ func builtin(p *IITAttestorPlugin) catalog.Plugin {
 
 // IITAttestorPlugin implements GCP nodeattestation in the agent.
 type IITAttestorPlugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	mtx    sync.RWMutex
 	config *IITAttestorConfig
 }
