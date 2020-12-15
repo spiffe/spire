@@ -478,7 +478,7 @@ func (s *HandlerSuite) TestFetchSecrets() {
 	s.requireSecrets(resp, workloadTLSCertificate1)
 
 	// Fetch non-existent resource
-	resp, err = s.handler.FetchSecrets(context.Background(), &api_v2.DiscoveryRequest{
+	_, err = s.handler.FetchSecrets(context.Background(), &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/other"},
 	})
 	s.Require().Error(err)
