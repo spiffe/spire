@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Create bundles of federated tds to be used then
+# Create bundles of federated trust domains to be used by other commands
 docker-compose exec -T spire-server \
     ash -c "
 cat /opt/spire/conf/fixture/ca.pem | 
@@ -17,29 +17,75 @@ docker-compose exec -T spire-server \
         -selector s1:v1 \
         -parentID spiffe://domain.test/parent \
         -spiffeID spiffe://domain.test/child1 \
-        -federatesWith spiffe://federated1.test || fail-now "failed to create entry 1"
+        -federatesWith spiffe://federated1.test \
+        -admin || fail-now "failed to create entry 1"
 
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry create \
         -selector notUpdated:notUpdated \
         -parentID spiffe://domain.test/parentNotUpdated \
-        -spiffeID spiffe://domain.test/child2NotUpdated || fail-now "failed to create entry 2"
+        -spiffeID spiffe://domain.test/child2NotUpdated \
+        -downstream || fail-now "failed to create entry 2"
 
 docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
         -selector otherS:otherV \
-        -parentID spiffe://domain.test/otherParent \
-        -spiffeID spiffe://domain.test/otherChild || fail-now "failed to create entry 3"
+        -spiffeID spiffe://domain.test/otherChild \
+        -node \
+        -dns dnsname1 \
+        -ttl 123 || fail-now "failed to create entry 3"
 
-# Verify entry show and set variables entryID1 and entryID2
+# Verify entry show and set variables entryID1, entryID2 and entryID3
 # Entry 1
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1 | grep "Found 1 entry" || fail-now "failed to show entry 1"
+
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1 | grep "SPIFFE ID" | \
-        grep spiffe://domain.test/child1 || fail-now "failed to show entry 1, unexpected SPIFFE ID"
+        grep "spiffe://domain.test/child1" || fail-now "failed to show entry 1, unexpected SPIFFE ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Parent ID" | \
+        grep "spiffe://domain.test/parent" || fail-now "failed to show entry 1, unexpected Parent ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Revision" | \
+        grep "0" || fail-now "failed to show entry 1, unexpected Revision number"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Downstream" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 1, 'grep Downstream' should fail"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "TTL" | \
+        grep "default" || fail-now "failed to show entry 1, unexpected TTL"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Selector" | \
+        grep "s1:v1" || fail-now "failed to show entry 1, expected Selector not found"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "FederatesWith" | \
+        grep "federated1.test" || fail-now "failed to show entry 1, expected federated domain not found"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "DNS name" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 1, 'grep DNS name' should fail"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Admin" | \
+        grep "true" || fail-now "failed to show entry 1, unexpected Admin not true"
+
 entryID1="$(docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1 | grep "Entry ID")" || fail-now "failed to show entry 1, no Entry ID"
@@ -49,14 +95,111 @@ entryID1="${entryID1#*: }"
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2NotUpdated | grep "Found 1 entry" || fail-now "failed to show entry 2"
+
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2NotUpdated | grep "SPIFFE ID" | \
-        grep spiffe://domain.test/child2NotUpdated || fail-now "failed to show entry 2, unexpected SPIFFE ID"
+        grep "spiffe://domain.test/child2NotUpdated" || fail-now "failed to show entry 2, unexpected SPIFFE ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "Parent ID" | \
+        grep "spiffe://domain.test/parentNotUpdated" || fail-now "failed to show entry 2, unexpected Parent ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "Revision" | \
+        grep "0" || fail-now "failed to show entry 2, unexpected Revision number"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "Downstream" | \
+        grep "true" || fail-now "failed to show entry 2, unexpected Downstream not true"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "TTL" | \
+        grep "default" || fail-now "failed to show entry 2, unexpected TTL"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "Selector" | \
+        grep "notUpdated:notUpdated" || fail-now "failed to show entry 2, expected Selector not found"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "FederatesWith" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 2, 'grep FederatesWith' should fail"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "DNS name" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 2, 'grep DNS name' should fail"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2NotUpdated | grep "Admin" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 2, 'grep Admin' should fail"
+
 entryID2="$(docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2NotUpdated | grep "Entry ID")" || fail-now "failed to show entry 2, no Entry ID"
 entryID2="${entryID2#*: }"
+
+# Entry 3
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "Found 1 entry" || fail-now "failed to show entry 3"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "SPIFFE ID" | \
+        grep "spiffe://domain.test/otherChild" || fail-now "failed to show entry 3, unexpected SPIFFE ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "Parent ID" | \
+        grep "spiffe://domain.test/spire/server" || fail-now "failed to show entry 3, unexpected Parent ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "Revision" | \
+        grep "0" || fail-now "failed to show entry 3, unexpected Revision number"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "Downstream" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 3, 'grep Downstream' should fail"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "TTL" | \
+        grep "123" || fail-now "failed to show entry 3, unexpected TTL"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "Selector" | \
+        grep "otherS:otherV" || fail-now "failed to show entry 3, expected Selector not found"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "FederatesWith" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 3, 'grep FederatesWith' should fail"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "DNS name" | \
+        grep "dnsname1" || fail-now "failed to show entry 3, expected DNS name not found"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "Admin" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 3, 'grep Admin' should fail"
+
+entryID3="$(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/otherChild | grep "Entry ID")" || fail-now "failed to show entry 3, no Entry ID"
+entryID3="${entryID3#*: }"
 
 # Verify entry update
 docker-compose exec -T spire-server \
@@ -65,7 +208,8 @@ docker-compose exec -T spire-server \
         -selector s1:v1 \
         -parentID spiffe://domain.test/parent \
         -spiffeID spiffe://domain.test/child1 \
-        -federatesWith spiffe://federated1.test || fail-now "failed to update entry 1"
+        -federatesWith spiffe://federated1.test \
+        -ttl 456 || fail-now "failed to update entry 1"
 
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry update \
@@ -73,34 +217,193 @@ docker-compose exec -T spire-server \
         -selector s1:v1 -selector s2:v2 \
         -parentID spiffe://domain.test/parent \
         -spiffeID spiffe://domain.test/child2 \
-        -federatesWith spiffe://federated1.test -federatesWith spiffe://federated2.test || fail-now "failed to update entry 2"
+        -federatesWith spiffe://federated1.test -federatesWith spiffe://federated2.test \
+        -dns dnsname2 || fail-now "failed to update entry 2"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry update \
+        -entryID ${entryID3} \
+        -selector otherS:otherV \
+        -spiffeID spiffe://domain.test/child3 \
+        -parentID spiffe://domain.test/spire/server \
+        -admin \
+        -downstream || fail-now "failed to update entry 3"
 
 # Verify entry show after updates
 # Entry 1
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1 | grep "Found 1 entry" || fail-now "failed to show entry 1 after update"
+
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1 | grep "SPIFFE ID" | \
-        grep spiffe://domain.test/child1 || fail-now "failed to show entry 1 after update, unexpected SPIFFE ID"
+        grep "spiffe://domain.test/child1" || fail-now "failed to show entry 1 after update, unexpected SPIFFE ID"
+
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1 | grep "Entry ID" | \
         grep ${entryID1} || fail-now "failed to show entry 1 after update, unexpected Entry ID"
 
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Parent ID" | \
+        grep "spiffe://domain.test/parent" || fail-now "failed to show entry 1 after update, unexpected Parent ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Revision" | \
+        grep "1" || fail-now "failed to show entry 1 after update, unexpected Revision number"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Downstream" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 1 after update, 'grep Downstream' should fail"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "TTL" | \
+        grep "456" || fail-now "failed to show entry 1 after update, unexpected TTL"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Selector" | \
+        grep "s1:v1" || fail-now "failed to show entry 1 after update, expected Selector not found"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "FederatesWith" | \
+        grep "federated1.test" || fail-now "failed to show entry 1 after update, expected federated domain not found"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "DNS name" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 1 after update, 'grep DNS name' should fail"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child1 | grep "Admin" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 1 after update, 'grep Admin' should fail"
+
 # Entry 2
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2 | grep "Found 1 entry" || fail-now "failed to show entry 2 after update"
+
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2 | grep "SPIFFE ID" | \
-        grep spiffe://domain.test/child2 || fail-now "failed to show entry 2 after update, unexpected SPIFFE ID"
+        grep "spiffe://domain.test/child2" || fail-now "failed to show entry 2 after update, unexpected SPIFFE ID"
+
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2 | grep "Entry ID" | \
-        grep ${entryID2} || fail-now "failed to show entry 2 after update, unexpected Entry ID"
+        grep ${entryID2} || fail-now "failed to show entry 1 after update, unexpected Entry ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Parent ID" | \
+        grep "spiffe://domain.test/parent" || fail-now "failed to show entry 2 after update, unexpected Parent ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Revision" | \
+        grep "1" || fail-now "failed to show entry 2 after update, unexpected Revision number"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Downstream" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 2 after update, 'grep Downstream' should fail"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "TTL" | \
+        grep "default" || fail-now "failed to show entry 2 after update, unexpected TTL"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Selector" | \
+        grep "s1:v1" || fail-now "failed to show entry 2 after update, expected Selector 1 not found"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Selector" | \
+        grep "s2:v2" || fail-now "failed to show entry 2 after update, expected Selector 2 not found"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "FederatesWith" | \
+        grep "federated1.test" || fail-now "failed to show entry 2 after update, expected federated domain 1 not found"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "FederatesWith" | \
+        grep "federated2.test" || fail-now "failed to show entry 2 after update, expected federated domain 2 not found"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "DNS name" | \
+        grep "dnsname2" || fail-now "failed to show entry 2 after update, expected DNS name not found"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child2 | grep "Admin" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 2 after update, 'grep Admin' should fail"
+
+# Entry 3
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "Found 1 entry" || fail-now "failed to show entry 3 after update"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "SPIFFE ID" | \
+        grep "spiffe://domain.test/child3" || fail-now "failed to show entry 3 after update, unexpected SPIFFE ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "Entry ID" | \
+        grep ${entryID3} || fail-now "failed to show entry 3 after update, unexpected Entry ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "Parent ID" | \
+        grep "spiffe://domain.test/spire/server" || fail-now "failed to show entry 3 after update, unexpected Parent ID"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "Revision" | \
+        grep "1" || fail-now "failed to show entry 3 after update, unexpected Revision number"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "Downstream" | \
+        grep "true" || fail-now "failed to show entry 3 after update, unexpected Downstream not true"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "TTL" | \
+        grep "default" || fail-now "failed to show entry 3 after update, unexpected TTL"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "Selector" | \
+        grep "otherS:otherV" || fail-now "failed to show entry 3 after update, unexpected Selector"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "FederatesWith" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 3 after update, 'grep FederatesWith' should fail"
+
+echo $(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "DNS name" \
+        || echo "Failed when expected") | grep "Failed when expected" || fail-now "failed to show entry 3 after update, 'grep DNS name' should fail"
+
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server entry show \
+        -spiffeID spiffe://domain.test/child3 | grep "Admin" | \
+        grep "true" || fail-now "failed to show entry 3 after update, unexpected Admin not true"
 
 # Verify entry show using filters
 # By parent
@@ -142,7 +445,7 @@ docker-compose exec -T spire-server \
         | grep "Entry ID" | grep ${entryID2} || fail-now "failed to show entries before delete, expected Entry ID 2 not found"
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
-        | grep "SPIFFE ID" | grep spiffe://domain.test/otherChild || fail-now "failed to show entries before delete, expected SPIFFE ID not found"
+        | grep "Entry ID" | grep ${entryID3} || fail-now "failed to show entries before delete, expected Entry ID 3 not found"
 
 docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry delete \
@@ -155,4 +458,4 @@ docker-compose exec -T spire-server \
         | grep "Entry ID" | grep ${entryID2} || fail-now "failed to show entries after delete, expected Entry ID 2 not found"
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
-        | grep "SPIFFE ID" | grep spiffe://domain.test/otherChild || fail-now "failed to show entries after delete, expected SPIFFE ID not found"
+        | grep "Entry ID" | grep ${entryID3} || fail-now "failed to show entries after delete, expected Entry ID 2 not found"
