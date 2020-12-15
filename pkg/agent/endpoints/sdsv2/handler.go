@@ -243,50 +243,63 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 			names[name] = true
 		}
 	}
+	var returnAllEntries = false
+	if len(names) == 0 {
+		returnAllEntries = true
+	}
 
 	// TODO: verify the type url
 	if upd.Bundle != nil {
 		switch {
-		case len(names) == 0 || names[upd.Bundle.TrustDomainID()]:
+		case returnAllEntries || names[upd.Bundle.TrustDomainID()]:
 			validationContext, err := buildValidationContext(upd.Bundle, "")
 			if err != nil {
 				return nil, err
 			}
+			delete(names, upd.Bundle.TrustDomainID())
 			resp.Resources = append(resp.Resources, validationContext)
 		case names[h.c.DefaultBundleName]:
 			validationContext, err := buildValidationContext(upd.Bundle, h.c.DefaultBundleName)
 			if err != nil {
 				return nil, err
 			}
+			delete(names, h.c.DefaultBundleName)
 			resp.Resources = append(resp.Resources, validationContext)
 		}
 	}
 
 	for _, federatedBundle := range upd.FederatedBundles {
-		if len(names) == 0 || names[federatedBundle.TrustDomainID()] {
+		if returnAllEntries || names[federatedBundle.TrustDomainID()] {
 			validationContext, err := buildValidationContext(federatedBundle, "")
 			if err != nil {
 				return nil, err
 			}
+			delete(names, federatedBundle.TrustDomainID())
 			resp.Resources = append(resp.Resources, validationContext)
 		}
 	}
 
 	for i, identity := range upd.Identities {
 		switch {
-		case len(names) == 0 || names[identity.Entry.SpiffeId]:
+		case returnAllEntries || names[identity.Entry.SpiffeId]:
 			tlsCertificate, err := buildTLSCertificate(identity, "")
 			if err != nil {
 				return nil, err
 			}
+			delete(names, identity.Entry.SpiffeId)
 			resp.Resources = append(resp.Resources, tlsCertificate)
 		case i == 0 && names[h.c.DefaultSVIDName]:
 			tlsCertificate, err := buildTLSCertificate(identity, h.c.DefaultSVIDName)
 			if err != nil {
 				return nil, err
 			}
+			delete(names, h.c.DefaultSVIDName)
 			resp.Resources = append(resp.Resources, tlsCertificate)
 		}
+	}
+
+	if len(names) > 0 {
+		return nil, errs.New("unable to retrieve all requested identities, missing %v", names)
 	}
 
 	return resp, nil

@@ -287,9 +287,8 @@ func (s *HandlerSuite) TestStreamSecretsUnknownResource() {
 	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/WHATEVER"},
 	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp)
+	_, err = stream.Recv()
+	s.Require().Error(err)
 }
 
 func (s *HandlerSuite) TestStreamSecretsStreaming() {
@@ -482,11 +481,7 @@ func (s *HandlerSuite) TestFetchSecrets() {
 	resp, err = s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/other"},
 	})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Empty(resp.VersionInfo)
-	s.Require().Empty(resp.Nonce)
-	s.requireSecrets(resp)
+	s.Require().Error(err)
 }
 
 func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
