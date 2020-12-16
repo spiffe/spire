@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -8962,11 +8961,11 @@ ORDER BY e_id, selector_id, dns_name_id
 			for _, by := range testCase.by {
 				switch by {
 				case "parent-id":
-					req.ByParentId = &wrappers.StringValue{
+					req.ByParentId = &wrapperspb.StringValue{
 						Value: "spiffe://parent",
 					}
 				case "spiffe-id":
-					req.BySpiffeId = &wrappers.StringValue{
+					req.BySpiffeId = &wrapperspb.StringValue{
 						Value: "spiffe://id",
 					}
 				case "selector-subset-one":
