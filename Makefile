@@ -32,7 +32,7 @@ help:
 	@echo "  $(cyan)test$(reset)                                  - run unit tests"
 	@echo "  $(cyan)race-test$(reset)                             - run unit tests with race detection"
 	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
-  @echo "                                          support 'SUITES' variable for executing specific tests"
+	@echo "                                          support 'SUITES' variable for executing specific tests"
 	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
