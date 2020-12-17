@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.12.0] - 2020-12-17
+
 ### Added
 - Debug endpoints (#1792)
 - Agent support for SDS v3 API (#1906)
