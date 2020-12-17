@@ -74,7 +74,7 @@ func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
 		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
 		Metrics:     c.Metrics,
 		Catalog:     c.Catalog,
-		TrustDomain: *c.TrustDomain.ID().URL(),
+		TrustDomain: c.TrustDomain,
 		ServerCA:    c.ServerCA,
 	}
 
@@ -82,7 +82,7 @@ func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
 		Log:                         c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
 		Metrics:                     c.Metrics,
 		Catalog:                     c.Catalog,
-		TrustDomain:                 *c.TrustDomain.ID().URL(),
+		TrustDomain:                 c.TrustDomain,
 		ServerCA:                    c.ServerCA,
 		Manager:                     c.Manager,
 		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
