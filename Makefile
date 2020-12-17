@@ -32,6 +32,8 @@ help:
 	@echo "  $(cyan)test$(reset)                                  - run unit tests"
 	@echo "  $(cyan)race-test$(reset)                             - run unit tests with race detection"
 	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
+	@echo "                                          support 'SUITES' variable for executing specific tests"
+	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
 	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
@@ -143,6 +145,7 @@ protos := \
 	proto/spire/types/attestation.proto \
 	proto/spire/types/bundle.proto \
 	proto/spire/types/entry.proto \
+	proto/spire/types/federateswith.proto \
 	proto/spire/types/jointoken.proto \
 	proto/spire/types/jwtsvid.proto \
 	proto/spire/types/selector.proto \
@@ -354,7 +357,7 @@ else
 endif
 
 integration:
-	$(E)./test/integration/test.sh
+	$(E)./test/integration/test.sh $(SUITES)
 
 #############################################################################
 # Build Artifact

@@ -1,12 +1,12 @@
 package svid
 
 import (
-	"net/url"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
@@ -18,7 +18,7 @@ const (
 type RotatorConfig struct {
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	ServerCA    ca.ServerCA
 	Clock       clock.Clock
 

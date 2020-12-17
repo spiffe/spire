@@ -193,30 +193,6 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "deprecated enable_sds should be configurable by file",
-			fileInput: func(c *Config) {
-				enableSDS := true
-				c.Agent.DeprecatedEnableSDS = &enableSDS
-			},
-			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
-				require.True(t, *c.Agent.DeprecatedEnableSDS)
-			},
-		},
-		{
-			msg:       "deprecated enable_sds should be configurable by CLI flag",
-			fileInput: func(c *Config) {},
-			cliInput: func(c *agentConfig) {
-				enableSDS := true
-				c.DeprecatedEnableSDS = &enableSDS
-			},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
-				require.True(t, *c.Agent.DeprecatedEnableSDS)
-			},
-		},
-		{
 			msg:       "default_svid_name have a default value of default",
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
@@ -715,15 +691,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, "foo", c.DataDir)
-			},
-		},
-		{
-			msg: "enable_sds should not prevent agent configuration",
-			input: func(c *Config) {
-				enableSDS := true
-				c.Agent.DeprecatedEnableSDS = &enableSDS
-			},
-			test: func(t *testing.T, c *agent.Config) {
 			},
 		},
 		{

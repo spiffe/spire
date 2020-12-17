@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/suite"
 )
@@ -29,7 +30,7 @@ func (s *UpstreamCASuite) SetupTest() {
 }
 
 func (s *UpstreamCASuite) configure() {
-	s.upstreamCA = NewUpstreamCA(s.keypair, "example.org", UpstreamCAOptions{
+	s.upstreamCA = NewUpstreamCA(s.keypair, spiffeid.RequireTrustDomainFromString("example.org"), UpstreamCAOptions{
 		Clock: s.clock,
 	})
 }

@@ -25,13 +25,13 @@ import (
 type Client struct {
 	server      *grpc.Server
 	nowFn       func() time.Time
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 	done        func()
 
 	entry.EntryClient
 }
 
-func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() time.Time) *Client {
+func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore, nowFn func() time.Time) *Client {
 	if ds == nil {
 		ds = fakedatastore.New(t)
 	}
@@ -49,7 +49,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 	catalog.SetDataStore(ds)
 
 	server := entryv1.New(entryv1.Config{
-		TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+		TrustDomain: trustDomain,
 		DataStore:   ds,
 		//EntryFetcher: authorizedEntryFetcherWithCache,
 	})
