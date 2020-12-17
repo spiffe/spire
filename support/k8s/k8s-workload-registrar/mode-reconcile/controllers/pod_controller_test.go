@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,7 +47,7 @@ func (s *PodControllerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 
 	s.ds = fakedatastore.New(s.T())
-	s.entryClient = fakeentryclient.New(s.T(), fmt.Sprintf("spiffe://%s", podControllerTestTrustDomain), s.ds, nil)
+	s.entryClient = fakeentryclient.New(s.T(), spiffeid.RequireTrustDomainFromString(podControllerTestTrustDomain), s.ds, nil)
 
 	s.ctrl = mockCtrl
 

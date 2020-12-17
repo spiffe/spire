@@ -5,6 +5,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 
@@ -47,7 +48,7 @@ func (s *NodeControllerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 
 	s.ds = fakedatastore.New(s.T())
-	s.entryClient = fakeentryclient.New(s.T(), nodeControllerTestTrustDomain, s.ds, nil)
+	s.entryClient = fakeentryclient.New(s.T(), spiffeid.RequireTrustDomainFromString(nodeControllerTestTrustDomain), s.ds, nil)
 
 	s.ctrl = mockCtrl
 

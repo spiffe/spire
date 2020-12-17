@@ -273,7 +273,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	}
 
 	// parse and sign CSR
-	svid, err := s.signSvid(ctx, &agentSpiffeID, params.Params.Csr, log)
+	svid, err := s.signSvid(ctx, agentSpiffeID, params.Params.Csr, log)
 	if err != nil {
 		return err
 	}
@@ -353,7 +353,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
 
-	agentSVID, err := s.signSvid(ctx, &callerID, req.Params.Csr, log)
+	agentSVID, err := s.signSvid(ctx, callerID, req.Params.Csr, log)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +459,7 @@ func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateA
 	}
 }
 
-func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
+func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
 	parsedCsr, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse CSR", err)
@@ -467,7 +467,7 @@ func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte
 
 	// Sign a new X509 SVID
 	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  agentID.String(),
+		SpiffeID:  agentID,
 		PublicKey: parsedCsr.PublicKey,
 	})
 	if err != nil {
