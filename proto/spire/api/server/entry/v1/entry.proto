@@ -3,6 +3,7 @@ package spire.api.server.entry.v1;
 option go_package = "github.com/spiffe/spire/proto/spire/api/server/entry/v1;entry";
 
 import "spire/types/entry.proto";
+import "spire/types/federateswith.proto";
 import "spire/types/selector.proto";
 import "spire/types/spiffeid.proto";
 import "spire/types/status.proto";
@@ -46,6 +47,7 @@ message ListEntriesRequest {
         spire.types.SPIFFEID by_spiffe_id = 1;
         spire.types.SPIFFEID by_parent_id = 2;
         spire.types.SelectorMatch by_selectors = 3;
+        spire.types.FederatesWithMatch by_federates_with = 4; 
     }
 
     // Filters the entries returned in the response.

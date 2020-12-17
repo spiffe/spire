@@ -91,6 +91,7 @@ jobs:
         - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
       script:
         - make images
+        - make scratch-images
         - make integration
         - .travis/publish-images.sh
 
@@ -100,6 +101,7 @@ jobs:
       dist: xenial
       script:
         - make images
+        - make scratch-images
         - make integration
 
 notifications:
