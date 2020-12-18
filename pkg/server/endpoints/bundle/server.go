@@ -57,9 +57,13 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		return errs.Wrap(err)
 	}
 
+	// Set up the TLS config, setting TLS 1.2 as the minimum.
+	tlsConfig := s.c.ServerAuth.GetTLSConfig()
+	tlsConfig.MinVersion = tls.VersionTLS12
+
 	server := &http.Server{
 		Handler:   http.HandlerFunc(s.serveHTTP),
-		TLSConfig: s.c.ServerAuth.GetTLSConfig(),
+		TLSConfig: tlsConfig,
 	}
 
 	errCh := make(chan error, 1)
