@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.12.0] - 2020-12-17
+
+### Added
+- Debug endpoints (#1792)
+- Agent support for SDS v3 API (#1906)
+- Improved metrics handling (#1885, #1925, #1932)
+- Significantly improved performance related to performing agent authorization lookups (#1859, #1896, #1943, #1944, #1956)
+- Database indexes to attested node columns (#1912)
+- Support for configuring Vault roles, namespaces, and re-authentication to the Vault UpstreamAuthority plugin (#1871, #1981)
+- Support for non-renewable Vault tokens to the Vault UpstreamAuthority plugin (#1965)
+- Delete mode for federated bundles to the bundle API (#1897)
+- The CLI now reads JSON from STDIN for entry create/update commands (#1905)
+- Support for multiple CA bundle files in x509pop (#1949)
+- Added `ExpiresAt` to `entry show` output (#1973)
+- Added `k8s_psat:agent_node_ip` selector (#1979)
+
+### Changed
+- The agent now shuts down when it is no longer attested (#1797)
+- Internals now rely on new server APIs (#1849, #1878, #1907, #1908, #1909, #1913, #1947, #1982, #1998, #2001)
+- Workload API now returns a standardized JWKS object (#1904)
+- Log message casing and punctuation are more consistent with project guidelines (#1950, #1952)
+
+### Deprecated
+- The Registration and Node APIs are deprecated, and a warning is logged on use (#1997)
+- The `registration_api` configuration section is deprecated in favor of `server_api` in the k8s-workload-registrar (#2001)
+
+### Removed
+- Removed some superfluous or otherwise unusable metrics and labels (#1881, #1946, #2004)
+
+### Fixed
+- Fixed CLI exit codes when entry create or update fails (#1990)
+- Fixed a bug that could cause external plugins to become orphaned processes after agent/server shutdown (#1962)
+- Fixed handling of the Vault PKI certificate chain (#2012, #2017)
+- Fixed a bug that could cause some gRPC libraries to fail to connect to the server over HTTP/2 (#1968)
+- Fixed Registration API to validate selector syntax (#1919)
+
+### Security
+- JWT-SVIDs that fail validation are no longer logged (#1953)
+
+## [0.11.2] - 2020-10-29
+
+### What's New
+ - Error messages related to a specific class of software bugs are now rate limited (#1901)
+
+### What's Changed
+- Fixed an issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#1917)
+- Fixed error messages when attestation is disabled (#1899)
+- Fixed some incorrectly-formatted log messages (#1920)
+
 ## [0.11.1] - 2020-09-29
 
 ### What's New
