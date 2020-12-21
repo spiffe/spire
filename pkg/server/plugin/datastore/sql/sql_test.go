@@ -40,6 +40,9 @@ var (
 	TestDialect      string
 	TestConnString   string
 	TestROConnString string
+	// Replication to slave can take some time,
+	// this configuration will wait before running queries to stale databases
+	TestStaleDelay string
 )
 
 const (
@@ -64,6 +67,8 @@ type PluginSuite struct {
 	nextID    int
 	ds        datastore.Plugin
 	sqlPlugin *Plugin
+
+	staleDelay time.Duration
 }
 
 type ListRegistrationReq struct {
@@ -103,6 +108,12 @@ func (s *PluginSuite) SetupSuite() {
 
 	s.cacert = cacert
 	s.cert = cert
+
+	if TestStaleDelay != "" {
+		delay, err := time.ParseDuration(TestStaleDelay)
+		s.Require().NoError(err, "failed to parse stale delay")
+		s.staleDelay = delay
+	}
 }
 
 func (s *PluginSuite) SetupTest() {
@@ -1857,6 +1868,9 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 }
 
 func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, tolerateStale bool) {
+	if tolerateStale && TestStaleDelay != "" {
+		time.Sleep(s.staleDelay)
+	}
 	for _, test := range tests {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
@@ -2969,6 +2983,9 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 }
 
 func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*common.Selector {
+	if tolerateStale && TestStaleDelay != "" {
+		time.Sleep(s.staleDelay)
+	}
 	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
 		SpiffeId:      spiffeID,
 		TolerateStale: tolerateStale,
