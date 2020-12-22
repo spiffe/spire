@@ -10,7 +10,6 @@ cp -R conf/agent conf/agent-2
 cp -R conf/agent conf/agent-3
 
 # Set a different join token for each agent
-
 # Agent 1
 log-info "generating join token for agent 1..."
 TOKEN=$(docker-compose exec -T spire-server \
@@ -27,7 +26,7 @@ TOKEN=$(docker-compose exec -T spire-server \
 log-debug "using join token ${TOKEN} for agent 2..."
 sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent-2/agent.conf
 
-# Agent 2
+# Agent 3
 log-info "generating join token for agent 3..."
 TOKEN=$(docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node3 | awk '{print $2}' | tr -d '\r')
