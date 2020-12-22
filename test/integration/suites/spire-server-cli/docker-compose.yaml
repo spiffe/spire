@@ -7,4 +7,18 @@ services:
       - ./conf/server:/opt/spire/conf/server
       - ./conf/fixture:/opt/spire/conf/fixture
     command: ["-config", "/opt/spire/conf/server/server.conf"]
-
+  spire-agent-1:
+    image: spire-agent:latest-local
+    volumes:
+      - ./conf/agent-1:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  spire-agent-2:
+    image: spire-agent:latest-local
+    volumes:
+      - ./conf/agent-2:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  spire-agent-3:
+    image: spire-agent:latest-local
+    volumes:
+      - ./conf/agent-3:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
