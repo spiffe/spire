@@ -33,3 +33,28 @@ agentID3="${agentID3#*: }"
 echo "$listResult" | grep "$agentID1" || fail-now "agentID1=$agentID1 not found in agentIDs list"
 echo "$listResult" | grep "$agentID2" || fail-now "agentID2=$agentID2 not found in agentIDs list"
 echo "$listResult" | grep "$agentID3" || fail-now "agentID3=$agentID3 not found in agentIDs list"
+
+# Verify agent show
+# Agent 1
+showResult="$(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server agent show -spiffeID $agentID1)"
+
+echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 1"
+echo "$showResult" | grep "SPIFFE ID" | grep "$agentID1" || fail-now "unexpected SPIFFE ID for agent 1"
+echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 1"
+
+# Agent 2
+showResult="$(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server agent show -spiffeID $agentID2)"
+
+echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 2"
+echo "$showResult" | grep "SPIFFE ID" | grep "$agentID2" || fail-now "unexpected SPIFFE ID for agent 2"
+echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 2"
+
+# Agent 3
+showResult="$(docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server agent show -spiffeID $agentID3)"
+
+echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 3"
+echo "$showResult" | grep "SPIFFE ID" | grep "$agentID3" || fail-now "unexpected SPIFFE ID for agent 3"
+echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 3"
