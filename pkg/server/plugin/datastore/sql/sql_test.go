@@ -40,8 +40,8 @@ var (
 	TestDialect      string
 	TestConnString   string
 	TestROConnString string
-	// Replication to slave can take some time,
-	// this configuration will wait before running queries to stale databases
+	// Replication to replica can take some time,
+	// if specified, this configuration setting tells the duration to wait before running queries in stale databases
 	TestStaleDelay string
 )
 

@@ -68,7 +68,7 @@ get_mysql_root_password() {
   echo "${root_password}"
 }
 
-# Setup a master serrver with group replication. It is compatible with MySql 5.7 and above.
+# Setup a primary server with group replication. It is compatible with MySQL 5.7 and above.
 configure-readwrite-group-replication() {
     service=$1
     mysql_root_password=$2
@@ -86,7 +86,7 @@ SELECT * FROM performance_schema.replication_group_members;
     docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
 }
 
-# Setup an slave server with group replication. It is compatible with MySql 5.7 and above.
+# Setup a replica server with group replication. It is compatible with MySQL 5.7 and above.
 configure-readonly-group-replication() {
     service=$1
     mysql_root_password=$2
@@ -98,7 +98,7 @@ START GROUP_REPLICATION;
     docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
 }
 
-# Setup a master server with regular replication.
+# Setup a primary server with regular replication.
 configure-readwrite-replication() {
     service=$1
     mysql_root_password=$2
@@ -110,14 +110,14 @@ GRANT REPLICATION SLAVE ON *.* TO ${replication_user}@'%';
      docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
 }
 
-# Setup a slave server with regular replication.
+# Setup a replica server with regular replication.
 configure-readonly-replication() {
     service=$1
     mysql_root_password=$2
-    master_service=$3
+    primary_service=$3
 
     replication_script="
-CHANGE MASTER TO MASTER_HOST='${master_service}', MASTER_USER='${replication_user}', MASTER_PASSWORD='${replication_user_pass}', MASTER_LOG_FILE='mysql-bin-1.000002', MASTER_LOG_POS=0;
+CHANGE MASTER TO MASTER_HOST='${primary_service}', MASTER_USER='${replication_user}', MASTER_PASSWORD='${replication_user_pass}', MASTER_LOG_FILE='mysql-bin-1.000002', MASTER_LOG_POS=0;
 start slave;
 "
     docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
