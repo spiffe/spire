@@ -1,7 +1,8 @@
-# Datastore MySQL Suite
+# Datastore MySQL replication Suite
 
 ## Description
 
+Test SPIRE Server is able to use a query a readonly database that is replicated from a master server and keep it updated.
 The suite runs the following MySQL versions against the SQL datastore unit tests:
 
 - 5.5
