@@ -1096,7 +1096,7 @@ func (c *serviceTest) Cleanup() {
 
 func setupServiceTest(t *testing.T) *serviceTest {
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
-	ca := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
+	ca := fakeserverca.New(t, trustDomain, &fakeserverca.Options{})
 	ef := &entryFetcher{}
 	downstream := &entryFetcher{}
 	ds := fakedatastore.New(t)

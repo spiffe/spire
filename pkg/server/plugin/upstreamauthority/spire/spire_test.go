@@ -213,7 +213,7 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 
 	ca := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(h.cert[0], h.key),
-		trustDomain.String(),
+		trustDomain,
 		x509svid.UpstreamCAOptions{})
 
 	cert, err := ca.SignCSR(ctx, req.Csr, 0)

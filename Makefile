@@ -25,36 +25,43 @@ help:
 	@echo "$(bold)Usage:$(reset) make $(cyan)<target>$(reset)"
 	@echo
 	@echo "$(bold)Build:$(reset)"
-	@echo "  $(cyan)build$(reset)                         - build all SPIRE binaries (default)"
-	@echo "  $(cyan)artifact$(reset)                      - build SPIRE tarball artifact"
+	@echo "  $(cyan)build$(reset)                                 - build all SPIRE binaries (default)"
+	@echo "  $(cyan)artifact$(reset)                              - build SPIRE tarball artifact"
 	@echo
 	@echo "$(bold)Test:$(reset)"
-	@echo "  $(cyan)test$(reset)                          - run unit tests"
-	@echo "  $(cyan)race-test$(reset)                     - run unit tests with race detection"
-	@echo "  $(cyan)integration$(reset)                   - run integration tests (requires Docker images)"
+	@echo "  $(cyan)test$(reset)                                  - run unit tests"
+	@echo "  $(cyan)race-test$(reset)                             - run unit tests with race detection"
+	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
+	@echo "                                          support 'SUITES' variable for executing specific tests"
+	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
-	@echo "  $(cyan)all$(reset)                           - build all SPIRE binaries, lint the code, and run unit tests"
+	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
 	@echo
 	@echo "$(bold)Docker image:$(reset)"
-	@echo "  $(cyan)images$(reset)                        - build all SPIRE Docker images"
-	@echo "  $(cyan)spire-server-image$(reset)            - build SPIRE server Docker image"
-	@echo "  $(cyan)spire-agent-image$(reset)             - build SPIRE agent Docker image"
-	@echo "  $(cyan)k8s-workload-registrar-image$(reset)  - build Kubernetes Workload Registrar Docker image"
-	@echo "  $(cyan)oidc-discovery-provider-image$(reset) - build OIDC Discovery Provider Docker image"
-	@echo
+	@echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"
+	@echo "  $(cyan)spire-server-image$(reset)                    - build SPIRE server Docker image"
+	@echo "  $(cyan)spire-agent-image$(reset)                     - build SPIRE agent Docker image"
+	@echo "  $(cyan)k8s-workload-registrar-image$(reset)          - build Kubernetes Workload Registrar Docker image"
+	@echo "  $(cyan)oidc-discovery-provider-image$(reset)         - build OIDC Discovery Provider Docker image"
+	@echo "$(bold)Docker from scratch image:$(reset)"
+	@echo "  $(cyan)scratch-images$(reset)                        - build all SPIRE Docker from scratch images"
+	@echo "  $(cyan)spire-server-scratch-image$(reset)            - build SPIRE server Docker scratch image"
+	@echo "  $(cyan)spire-agent-scratch-image$(reset)             - build SPIRE agent Docker scratch image"
+	@echo "  $(cyan)k8s-workload-registrar-scratch-image$(reset)  - build Kubernetes Workload Registrar Docker scratch image"
+	@echo "  $(cyan)oidc-discovery-provider-scratch-image$(reset) - build OIDC Discovery Provider Docker image"
 	@echo "$(bold)Developer support:$(reset)"
-	@echo "  $(cyan)dev-image$(reset)                     - build the development Docker image"
-	@echo "  $(cyan)dev-shell$(reset)                     - run a shell in a development Docker container"
+	@echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"
+	@echo "  $(cyan)dev-shell$(reset)                             - run a shell in a development Docker container"
 	@echo
 	@echo "$(bold)Code generation:$(reset)"
-	@echo "  $(cyan)generate$(reset)                      - generate protocol buffers and plugin interface code"
-	@echo "  $(cyan)generate-check$(reset)                - ensure generated code is up to date"
-	@echo "  $(cyan)protogen$(reset)                      - compile protocol buffers"
-	@echo "  $(cyan)protogen-check$(reset)                - ensure generated protocol buffers are up to date"
-	@echo "  $(cyan)plugingen$(reset)                     - generate plugin interface code"
-	@echo "  $(cyan)plugingen-check$(reset)               - ensure generated plugin interface code is up to date"
-	@echo "  $(cyan)mockgen$(reset)                       - generate test mocks"
+	@echo "  $(cyan)generate$(reset)                              - generate protocol buffers and plugin interface code"
+	@echo "  $(cyan)generate-check$(reset)                        - ensure generated code is up to date"
+	@echo "  $(cyan)protogen$(reset)                              - compile protocol buffers"
+	@echo "  $(cyan)protogen-check$(reset)                        - ensure generated protocol buffers are up to date"
+	@echo "  $(cyan)plugingen$(reset)                             - generate plugin interface code"
+	@echo "  $(cyan)plugingen-check$(reset)                       - ensure generated plugin interface code is up to date"
+	@echo "  $(cyan)mockgen$(reset)                               - generate test mocks"
 	@echo
 	@echo "For verbose output set V=1"
 	@echo "  for example: $(cyan)make V=1 build$(reset)"
@@ -95,7 +102,7 @@ go_version := $(go_version_full:.0=)
 go_dir := $(build_dir)/go/$(go_version)
 go_bin_dir := $(go_dir)/bin
 go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
-go := PATH="$(go_bin_dir):$(PATH)" go
+go_path := PATH="$(go_bin_dir):$(PATH)"
 
 golangci_lint_version = v1.27.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
@@ -138,6 +145,7 @@ protos := \
 	proto/spire/types/attestation.proto \
 	proto/spire/types/bundle.proto \
 	proto/spire/types/entry.proto \
+	proto/spire/types/federateswith.proto \
 	proto/spire/types/jointoken.proto \
 	proto/spire/types/jwtsvid.proto \
 	proto/spire/types/selector.proto \
@@ -283,7 +291,7 @@ define binary_rule
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	$(E)$(go) build $$(go_flags) -ldflags $$(go_ldflags) -o $1 $2
+	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o $1 $2
 endef
 
 # main SPIRE binaries
@@ -299,6 +307,36 @@ bin/:
 	@mkdir -p $@
 
 #############################################################################
+# Build Static binaries for scratch docker images
+#############################################################################
+
+.PHONY: build-static
+
+build-static: tidy bin/spire-server-static bin/spire-agent-static bin/k8s-workload-registrar-static bin/oidc-discovery-provider-static
+
+define binary_rule_static
+.PHONY: $1
+$1: | go-check bin/
+	@echo Building $1...
+	$(E)$(go_path) CGO_ENABLED=0 go build $$(go_flags) -ldflags $$(go_ldflags) -o $1 $2
+
+endef
+# https://7thzero.com/blog/golang-w-sqlite3-docker-scratch-image
+define binary_rule_external_static
+.PHONY: $1
+$1: | go-check bin/
+	@echo Building $1...
+	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1 $2
+
+endef
+
+# static builds
+$(eval $(call binary_rule_external_static,bin/spire-server-static,./cmd/spire-server))
+$(eval $(call binary_rule_static,bin/spire-agent-static,./cmd/spire-agent))
+$(eval $(call binary_rule_static,bin/k8s-workload-registrar-static,./support/k8s/k8s-workload-registrar))
+$(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oidc-discovery-provider))
+
+#############################################################################
 # Test Targets
 #############################################################################
 
@@ -306,20 +344,20 @@ bin/:
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go) test $(go_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go) test $(go_flags) ./...
+	$(E)$(go_path) go test $(go_flags) ./...
 endif
 
 race-test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go) test $(go_flags) -race -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) -race -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go) test $(go_flags) -race ./...
+	$(E)$(go_path) go test $(go_flags) -race ./...
 endif
 
 integration:
-	$(E)./test/integration/test.sh
+	$(E)./test/integration/test.sh $(SUITES)
 
 #############################################################################
 # Build Artifact
@@ -358,13 +396,40 @@ oidc-discovery-provider-image: Dockerfile
 	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
 
 #############################################################################
+# Docker Images FROM scratch
+#############################################################################
+
+.PHONY: scratch-images
+scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image
+
+.PHONY: spire-server-scratch-image
+spire-server-scratch-image: Dockerfile
+	docker build --build-arg goversion=$(go_version_full) --target spire-server-scratch -t spire-server-scratch -f Dockerfile.scratch .
+	docker tag spire-server-scratch:latest spire-server-scratch:latest-local
+
+.PHONY: spire-agent-scratch-image
+spire-agent-scratch-image: Dockerfile
+	docker build --build-arg goversion=$(go_version_full) --target spire-agent-scratch -t spire-agent-scratch -f Dockerfile.scratch .
+	docker tag spire-agent-scratch:latest spire-agent-scratch:latest-local
+
+.PHONY: k8s-workload-registrar-scratch-image
+k8s-workload-registrar-scratch-image: Dockerfile
+	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar-scratch -t k8s-workload-registrar-scratch -f Dockerfile.scratch .
+	docker tag k8s-workload-registrar-scratch:latest k8s-workload-registrar-scratch:latest-local
+
+.PHONY: oidc-discovery-provider-scratch-image
+oidc-discovery-provider-scratch-image: Dockerfile
+	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider-scratch -t oidc-discovery-provider-scratch -f Dockerfile.scratch .
+	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
+
+#############################################################################
 # Code cleanliness
 #############################################################################
 
 .PHONY: tidy tidy-check lint lint-code
 tidy: | go-check
-	$(E)$(go) mod tidy
-	$(E)cd proto/spire; $(go) mod tidy
+	$(E)$(go_path) go mod tidy
+	$(E)cd proto/spire; $(go_path) go mod tidy
 
 tidy-check:
 ifneq ($(git_dirty),)
@@ -499,12 +564,12 @@ dev-shell: | go-check
 # required version. The build cache is preferred. If not available, it is
 # downloaded into the build cache. Any rule needing to invoke tools in the go
 # toolchain should depend on this rule and then prepend $(go_bin_dir) to their
-# path before invoking go or use $(go) which already has the path prepended.
+# path before invoking go or use $(go_path) go which already has the path prepended.
 # Note that some tools (e.g. anything that uses golang.org/x/tools/go/packages)
 # execute on the go binary and also need the right path in order to locate the
 # correct go binary.
 go-check:
-ifneq (go$(go_version), $(shell $(go) version 2>/dev/null | cut -f3 -d' '))
+ifneq (go$(go_version), $(shell $(go_path) go version 2>/dev/null | cut -f3 -d' '))
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
@@ -538,7 +603,7 @@ $(protoc_gen_go_bin): | go-check
 	@echo "Installing protoc-gen-go $(protoc_gen_go_version)..."
 	$(E)rm -rf $(protoc_gen_go_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_dir)
-	$(E)$(go) build -o $(protoc_gen_go_bin) google.golang.org/protobuf/cmd/protoc-gen-go
+	$(E)$(go_path) go build -o $(protoc_gen_go_bin) google.golang.org/protobuf/cmd/protoc-gen-go
 
 install-protoc-gen-go-grpc: $(protoc_gen_go_grpc_bin)
 
@@ -547,7 +612,7 @@ $(protoc_gen_go_grpc_bin): | go-check
 	$(E)rm -rf $(protoc_gen_go_grpc_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_grpc_dir)
 	$(E)echo "module tools" > $(protoc_gen_go_grpc_dir)/go.mod
-	$(E)cd $(protoc_gen_go_grpc_dir) && GOBIN=$(protoc_gen_go_grpc_dir) $(go) get google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
+	$(E)cd $(protoc_gen_go_grpc_dir) && GOBIN=$(protoc_gen_go_grpc_dir) $(go_path) go get google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
 
 install-mockgen: $(mockgen_bin)
 
@@ -555,4 +620,4 @@ $(mockgen_bin): | go-check
 	@echo "Installing mockgen $(mockgen_version)..."
 	$(E)rm -rf $(mockgen_base_dir)
 	$(E)mkdir -p $(mockgen_dir)
-	$(E)$(go) build -o $(mockgen_bin) github.com/golang/mock/mockgen
+	$(E)$(go_path) go build -o $(mockgen_bin) github.com/golang/mock/mockgen

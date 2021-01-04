@@ -21,6 +21,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
 		ctx:         context.Background(),
 		log:         log,
 		k8sClient:   fake.NewFakeClientWithScheme(scheme.Scheme),
-		entryClient: fakeentryclient.New(t, "spiffe://"+TrustDomain, nil, nil),
+		entryClient: fakeentryclient.New(t, spiffeid.RequireTrustDomainFromString(TrustDomain), nil, nil),
 		scheme:      scheme.Scheme,
 		trustDomain: TrustDomain,
 	}

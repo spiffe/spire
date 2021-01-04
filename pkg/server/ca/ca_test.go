@@ -6,11 +6,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
-	"net/url"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -29,6 +29,9 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 `))
 
 	ctx = context.Background()
+
+	trustDomainExample = spiffeid.RequireTrustDomainFromString("example.org")
+	trustDomainFoo     = spiffeid.RequireTrustDomainFromString("foo.com")
 )
 
 func TestCA(t *testing.T) {
@@ -59,12 +62,9 @@ func (s *CATestSuite) SetupTest() {
 	s.logHook = logHook
 
 	s.ca = NewCA(Config{
-		Log:     log,
-		Metrics: telemetry.Blackhole{},
-		TrustDomain: url.URL{
-			Scheme: "spiffe",
-			Host:   "example.org",
-		},
+		Log:         log,
+		Metrics:     telemetry.Blackhole{},
+		TrustDomain: trustDomainExample,
 		X509SVIDTTL: time.Minute,
 		Clock:       s.clock,
 		CASubject: pkix.Name{
@@ -108,11 +108,11 @@ func (s *CATestSuite) TestSignX509SVID() {
 
 func (s *CATestSuite) TestSignX509SVIDCannotSignTrustDomainID() {
 	params := X509SVIDParams{
-		SpiffeID:  makeTrustDomainID("example.org"),
+		SpiffeID:  spiffeid.RequireFromString("spiffe://example.org"),
 		PublicKey: testSigner.Public(),
 	}
 	_, err := s.ca.SignX509SVID(ctx, params)
-	s.Require().EqualError(err, `"spiffe://example.org" is not a valid trust domain member SPIFFE ID: path is empty`)
+	s.Require().EqualError(err, `"spiffe://example.org" is not a member of trust domain "example.org"; path is empty`)
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
@@ -241,8 +241,8 @@ func (s *CATestSuite) TestSignX509SVIDCapsTTLToCATTL() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDValidatesTrustDomain() {
-	_, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParamsInDomain("foo.com"))
-	s.Require().EqualError(err, `"spiffe://foo.com/workload" does not belong to trust domain "example.org"`)
+	_, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParamsInDomain(trustDomainFoo))
+	s.Require().EqualError(err, `"spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
 }
 
 func (s *CATestSuite) TestSignX509SVIDChangesSerialNumber() {
@@ -257,12 +257,12 @@ func (s *CATestSuite) TestSignX509SVIDChangesSerialNumber() {
 
 func (s *CATestSuite) TestNoJWTKeySet() {
 	s.ca.SetJWTKey(nil)
-	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams("example.org", 0))
+	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
 	s.Require().EqualError(err, "JWT key is not available for signing")
 }
 
 func (s *CATestSuite) TestSignJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
-	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams("example.org", 0))
+	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
@@ -271,7 +271,7 @@ func (s *CATestSuite) TestSignJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
 }
 
 func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
-	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams("example.org", time.Minute+time.Second))
+	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, time.Minute+time.Second))
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
@@ -280,7 +280,7 @@ func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
 }
 
 func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeyExpiry() {
-	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams("example.org", time.Hour))
+	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, time.Hour))
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
@@ -290,11 +290,11 @@ func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeyExpiry() {
 
 func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 	// spiffe id for wrong trust domain
-	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams("foo.com", 0))
-	s.Require().EqualError(err, `"spiffe://foo.com/workload" does not belong to trust domain "example.org"`)
+	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainFoo, 0))
+	s.Require().EqualError(err, `"spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
 
 	// audience is required
-	noAudience := s.createJWTSVIDParams("example.org", 0)
+	noAudience := s.createJWTSVIDParams(trustDomainExample, 0)
 	noAudience.Audience = nil
 	_, err = s.ca.SignJWTSVID(ctx, noAudience)
 	s.Require().EqualError(err, "unable to sign JWT SVID: audience is required")
@@ -302,12 +302,12 @@ func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 
 func (s *CATestSuite) TestSignX509CASVIDNoCASet() {
 	s.ca.SetX509CA(nil)
-	_, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams("example.org"))
+	_, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainExample))
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
 func (s *CATestSuite) TestSignX509CASVID() {
-	svidChain, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams("example.org"))
+	svidChain, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainExample))
 	s.Require().NoError(err)
 	s.Require().Len(svidChain, 1)
 
@@ -332,7 +332,7 @@ func (s *CATestSuite) TestSignX509CASVID() {
 }
 
 func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams("example.org"))
+	svid, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainExample))
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -340,8 +340,8 @@ func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
 }
 
 func (s *CATestSuite) TestSignCAX509SVIDValidatesTrustDomain() {
-	_, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams("foo.com"))
-	s.Require().EqualError(err, `"spiffe://foo.com" does not belong to trust domain "example.org"`)
+	_, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainFoo))
+	s.Require().EqualError(err, `"spiffe://foo.com" is not a member of trust domain "example.org"`)
 }
 
 func (s *CATestSuite) setX509CA(selfSigned bool) {
@@ -365,26 +365,26 @@ func (s *CATestSuite) setJWTKey() {
 }
 
 func (s *CATestSuite) createX509SVIDParams() X509SVIDParams {
-	return s.createX509SVIDParamsInDomain("example.org")
+	return s.createX509SVIDParamsInDomain(trustDomainExample)
 }
 
-func (s *CATestSuite) createX509SVIDParamsInDomain(trustDomain string) X509SVIDParams {
+func (s *CATestSuite) createX509SVIDParamsInDomain(trustDomain spiffeid.TrustDomain) X509SVIDParams {
 	return X509SVIDParams{
-		SpiffeID:  makeWorkloadID(trustDomain),
+		SpiffeID:  trustDomain.NewID("workload"),
 		PublicKey: testSigner.Public(),
 	}
 }
 
-func (s *CATestSuite) createX509CASVIDParams(trustDomain string) X509CASVIDParams {
+func (s *CATestSuite) createX509CASVIDParams(trustDomain spiffeid.TrustDomain) X509CASVIDParams {
 	return X509CASVIDParams{
-		SpiffeID:  makeTrustDomainID(trustDomain),
+		SpiffeID:  trustDomain.ID(),
 		PublicKey: testSigner.Public(),
 	}
 }
 
-func (s *CATestSuite) createJWTSVIDParams(trustDomain string, ttl time.Duration) JWTSVIDParams {
+func (s *CATestSuite) createJWTSVIDParams(trustDomain spiffeid.TrustDomain, ttl time.Duration) JWTSVIDParams {
 	return JWTSVIDParams{
-		SpiffeID: makeWorkloadID(trustDomain),
+		SpiffeID: trustDomain.NewID("workload"),
 		Audience: []string{"AUDIENCE"},
 		TTL:      ttl,
 	}
@@ -412,12 +412,4 @@ func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *
 	cert, err := x509.ParseCertificate(certDER)
 	s.Require().NoError(err)
 	return cert
-}
-
-func makeWorkloadID(trustDomain string) string {
-	return (&url.URL{Scheme: "spiffe", Host: trustDomain, Path: "/workload"}).String()
-}
-
-func makeTrustDomainID(trustDomain string) string {
-	return (&url.URL{Scheme: "spiffe", Host: trustDomain}).String()
 }
