@@ -1,0 +1,41 @@
+#!/bin/bash
+
+wait-container-ready() {
+    service=$1
+
+    # Wait up to two minutes for postgres to be available. It should come up
+    # pretty quick on developer machines but Travis is slow.
+    local max_checks=40
+    local check_interval=3
+    local ready=
+    for ((i=1;i<=max_checks;i++)); do
+        log-info "waiting for ${service} ($i of $max_checks max)..."
+        if docker-compose exec -T "${service}" pg_isready -h localhost -U postgres >/dev/null; then
+	    return 1
+        fi
+        sleep "${check_interval}"
+    done
+
+    fail-now "timed out waiting for ${service} to be ready"
+    return 0
+}
+
+
+test-postgres() {
+    service_prefix=$1
+    readwrite_service_name="${service_prefix}-readwrite"
+    readonly_service_name="${service_prefix}-readonly"
+
+    docker-up "${readwrite_service_name}" "${readonly_service_name}"
+    wait-container-ready "${readwrite_service_name}"
+    wait-container-ready "${readonly_service_name}"
+
+    log-info "running tests against ${SERVICE}..."
+    ./postgres.replication.test || fail-now "tests failed"
+    docker-stop "${readwrite_service_name}" "${readonly_service_name}"
+}
+
+test-postgres postgres-9 || exit 1
+test-postgres postgres-10 || exit 1
+test-postgres postgres-11 || exit 1
+test-postgres postgres-12 || exit 1
