@@ -1,4 +1,4 @@
-# Admin-endpoints suite
+# Admin Endpoints Suite
 
 ## Description
 
