@@ -74,7 +74,8 @@ The following metrics are emitted:
 | Counter | `server_ca`, `sign`, `x509_ca_svid` | | The CA has successfully signed an X.509 CA SVID.
 | Counter | `server_ca`, `sign`, `x509_svid` | | The CA has successfully signed an X.509 SVID.
 | Call Counter | `svid`, `rotate` | | The Server's SVID is being rotated.
-| Gauge | `started` | `version` | | The version of the Server.
+| Gauge | `started` | `version` | The version of the Server.
+| Gauge | `uptime` |  | The uptime of the Server.
 
 ## SPIRE Agent
 
@@ -99,5 +100,6 @@ The following metrics are emitted:
 | Call Counter | `workload_api`, `workload_attestation` | | The Workload API is performing a workload attestation.
 | Call Counter | `workload_api`, `workload_attestor` | `attestor` | The Workload API is invoking a given attestor.
 | Gauge | `started` | `version` | The version of the Agent.
+| Gauge | `uptime` |  | The uptime of the Agent.
 
 Note: These are the keys and labels that SPIRE emits, but the format of the metric once ingested could vary depending on the metric collector. E.g. once in StatsD, the metric emitted when rotating an Agent SVID (`agent_svid`, `rotate`) can be found as `spire_agent_agent_svid_rotate_internal_host-agent-0`, where `host-agent-0` is the hostname and `spire-agent` is the service name.

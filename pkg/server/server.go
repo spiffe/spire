@@ -84,6 +84,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	})
 
 	telemetry.EmitVersion(metrics)
+	uptime.ReportMetrics(ctx, s.config.UptimeReportInterval, metrics)
 
 	// Create the identity provider host service. It will not be functional
 	// until the call to SetDeps() below. There is some tricky initialization

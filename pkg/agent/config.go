@@ -66,6 +66,9 @@ type Config struct {
 
 	// Telemetry provides the configuration for metrics exporting
 	Telemetry telemetry.FileConfig
+
+	// UptimeReportInterval the interval that spire agent reports its uptime.
+	UptimeReportInterval time.Duration
 }
 
 func New(c *Config) *Agent {

@@ -66,6 +66,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	})
 
 	telemetry.EmitVersion(metrics)
+	uptime.ReportMetrics(ctx, a.c.UptimeReportInterval, metrics)
 
 	cat, err := catalog.Load(ctx, catalog.Config{
 		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
