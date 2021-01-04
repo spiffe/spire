@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
@@ -18,16 +18,17 @@ import (
 )
 
 func TestBundleUpdater(t *testing.T) {
-	bundle1 := bundleutil.BundleFromRootCA("spiffe://domain.test", createCACertificate(t, "bundle1"))
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 
-	bundle2 := bundleutil.BundleFromRootCA("spiffe://domain.test", createCACertificate(t, "bundle2"))
+	bundle1 := bundleutil.BundleFromRootCA(trustDomain.IDString(), createCACertificate(t, "bundle1"))
+	bundle2 := bundleutil.BundleFromRootCA(trustDomain.IDString(), createCACertificate(t, "bundle2"))
 	bundle2.SetRefreshHint(time.Minute)
 
 	testCases := []struct {
 		// name of the test
 		name string
 		// trust domain
-		trustDomain string
+		trustDomain spiffeid.TrustDomain
 		// the bundle prepopulated in the datastore and returned from Update()
 		localBundle *bundleutil.Bundle
 		// the expected endpoint bundle returned from Update()
@@ -41,17 +42,17 @@ func TestBundleUpdater(t *testing.T) {
 	}{
 		{
 			name:        "local bundle not found",
-			trustDomain: "domain.test",
+			trustDomain: trustDomain,
 			err:         "local bundle not found",
 		},
 		{
 			name:        "accepts trust domain id as the trust domain",
-			trustDomain: "spiffe://domain.test",
+			trustDomain: trustDomain,
 			err:         "local bundle not found",
 		},
 		{
 			name:           "bundle has no changes",
-			trustDomain:    "domain.test",
+			trustDomain:    trustDomain,
 			localBundle:    bundle1,
 			endpointBundle: nil,
 			storedBundle:   bundle1,
@@ -61,7 +62,7 @@ func TestBundleUpdater(t *testing.T) {
 		},
 		{
 			name:           "bundle changed",
-			trustDomain:    "domain.test",
+			trustDomain:    trustDomain,
 			localBundle:    bundle1,
 			endpointBundle: bundle2,
 			storedBundle:   bundle2,
@@ -71,7 +72,7 @@ func TestBundleUpdater(t *testing.T) {
 		},
 		{
 			name:           "bundle fails to download",
-			trustDomain:    "domain.test",
+			trustDomain:    trustDomain,
 			localBundle:    bundle1,
 			endpointBundle: nil,
 			storedBundle:   bundle1,
@@ -99,7 +100,7 @@ func TestBundleUpdater(t *testing.T) {
 				TrustDomain: testCase.trustDomain,
 				TrustDomainConfig: TrustDomainConfig{
 					EndpointAddress:  "ENDPOINT_ADDRESS",
-					EndpointSpiffeID: "ENDPOINT_SPIFFEID",
+					EndpointSpiffeID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
 				},
 				newClient: func(client ClientConfig) (Client, error) {
 					return testCase.client, nil
@@ -127,7 +128,7 @@ func TestBundleUpdater(t *testing.T) {
 			}
 
 			resp, err := ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-				TrustDomainId: idutil.TrustDomainID(testCase.trustDomain),
+				TrustDomainId: testCase.trustDomain.IDString(),
 			})
 			require.NoError(t, err)
 			require.NotNil(t, resp)

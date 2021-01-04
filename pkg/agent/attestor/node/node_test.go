@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
@@ -45,6 +46,7 @@ XM13o+VSA0tcZteyTvbOdIQNVnKhRANCAAT4dPIORBjghpL5O4h+9kyzZZUAFV9F
 qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
 -----END PRIVATE KEY-----
 `))
+	trustDomain = spiffeid.RequireTrustDomainFromString("domain.test")
 )
 
 func TestAttestor(t *testing.T) {
@@ -54,11 +56,11 @@ func TestAttestor(t *testing.T) {
 	agentCert := createAgentCertificate(t, caCert, "/test/foo")
 	expiredCert := createExpiredCertificate(t, caCert)
 	bundle := &types.Bundle{
-		TrustDomain:     "domain.test",
+		TrustDomain:     trustDomain.String(),
 		X509Authorities: []*types.X509Certificate{{Asn1: caCert.Raw}},
 	}
 	svid := &types.X509SVID{
-		Id:        &types.SPIFFEID{TrustDomain: "domain.test", Path: "/test/foo"},
+		Id:        &types.SPIFFEID{TrustDomain: trustDomain.String(), Path: "/test/foo"},
 		CertChain: [][]byte{agentCert.Raw},
 	}
 
@@ -215,7 +217,7 @@ func TestAttestor(t *testing.T) {
 			bootstrapBundle: caCert,
 			agentClient: &fakeAgentClient{
 				svid: &types.X509SVID{
-					Id:        &types.SPIFFEID{TrustDomain: "domain.test", Path: "/join_token/JOINTOKEN"},
+					Id:        &types.SPIFFEID{TrustDomain: trustDomain.String(), Path: "/join_token/JOINTOKEN"},
 					CertChain: [][]byte{createAgentCertificate(t, caCert, "/join_token/JOINTOKEN").Raw},
 				},
 				joinToken: "JOINTOKEN",
@@ -354,7 +356,7 @@ func TestAttestor(t *testing.T) {
 
 			// load up the fake server-side node attestor
 			serverNA := prepareServerNA(t, fakeservernodeattestor.Config{
-				TrustDomain: "domain.test",
+				TrustDomain: trustDomain.String(),
 				Data: map[string]string{
 					"TEST": "foo",
 				},
@@ -390,7 +392,7 @@ func TestAttestor(t *testing.T) {
 				Log:             log,
 				TrustDomain: url.URL{
 					Scheme: "spiffe",
-					Host:   "domain.test",
+					Host:   trustDomain.String(),
 				},
 				TrustBundle:           makeTrustBundle(testCase.bootstrapBundle),
 				InsecureBootstrap:     testCase.insecureBootstrap,
@@ -563,14 +565,14 @@ func createCACertificate(t *testing.T) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		URIs:                  []*url.URL{idutil.TrustDomainURI("domain.test")},
+		URIs:                  []*url.URL{idutil.TrustDomainURI(trustDomain.String())},
 	}
 	return createCertificate(t, tmpl, tmpl)
 }
 
 func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
 	tmpl := &x509.Certificate{
-		URIs:     []*url.URL{idutil.ServerURI("domain.test")},
+		URIs:     []*url.URL{idutil.ServerID(trustDomain).URL()},
 		DNSNames: []string{"localhost"},
 	}
 	return createCertificate(t, tmpl, caCert)
@@ -578,7 +580,7 @@ func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certi
 
 func createAgentCertificate(t *testing.T, caCert *x509.Certificate, path string) *x509.Certificate {
 	tmpl := &x509.Certificate{
-		URIs: []*url.URL{idutil.AgentURI("domain.test", path)},
+		URIs: []*url.URL{idutil.AgentURI(trustDomain.String(), path)},
 	}
 	return createCertificate(t, tmpl, caCert)
 }
@@ -586,7 +588,7 @@ func createAgentCertificate(t *testing.T, caCert *x509.Certificate, path string)
 func createExpiredCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		NotAfter: time.Now().Add(-1 * time.Hour),
-		URIs:     []*url.URL{idutil.AgentURI("domain.test", "/test/expired")},
+		URIs:     []*url.URL{idutil.AgentURI(trustDomain.String(), "/test/expired")},
 	}
 	return createCertificate(t, tmpl, caCert)
 }

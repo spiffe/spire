@@ -207,7 +207,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return status.Error(codes.Internal, "failed to update node selectors")
 	}
 
-	response, err := h.getAttestResponse(ctx, agentID.String(), svid)
+	response, err := h.getAttestResponse(ctx, agentID, svid)
 	if err != nil {
 		log.WithError(err).Error("Failed to compose response")
 		return status.Error(codes.Internal, "failed to compose response")
@@ -647,7 +647,7 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	}
 
 	resp, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-		SpiffeId: agentID,
+		SpiffeId: agentID.String(),
 	})
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to fetch agent information: %v", err)
@@ -697,7 +697,7 @@ func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certifi
 		return nil, errors.New("peer SVID has expired")
 	}
 
-	return h.getDownstreamEntry(ctx, peerID)
+	return h.getDownstreamEntry(ctx, peerID.String())
 }
 
 func (h *Handler) doAttestChallengeResponse(nodeStream node.Node_AttestServer, attestStream nodeattestor.NodeAttestor_AttestClient, request *node.AttestRequest) (*nodeattestor.AttestResponse, error) {
@@ -843,9 +843,9 @@ func (h *Handler) updateNodeSelectors(ctx context.Context, baseSpiffeID string, 
 	return nil
 }
 
-func (h *Handler) getAttestResponse(ctx context.Context, baseSpiffeID string, svid []*x509.Certificate) (*node.AttestResponse, error) {
+func (h *Handler) getAttestResponse(ctx context.Context, baseSpiffeID spiffeid.ID, svid []*x509.Certificate) (*node.AttestResponse, error) {
 	svids := make(map[string]*node.X509SVID)
-	svids[baseSpiffeID] = makeX509SVID(svid)
+	svids[baseSpiffeID.String()] = makeX509SVID(svid)
 
 	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), baseSpiffeID)
 	if err != nil {
@@ -926,7 +926,7 @@ func (h *Handler) signCSRs(ctx context.Context, peerCert *x509.Certificate, csrs
 			telemetry.Address:  sourceAddress,
 		})
 
-		if csr.SpiffeID.String() == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
+		if csr.SpiffeID == callerID && strings.HasPrefix(callerID.String(), baseSpiffeIDPrefix) {
 			res, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
 				SpiffeId: csr.SpiffeID.String(),
 			})
@@ -1168,7 +1168,7 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 	req := &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
 			AttestationDataType: attestationType,
-			SpiffeId:            spiffeID,
+			SpiffeId:            spiffeID.String(),
 			CertNotAfter:        cert.NotAfter.Unix(),
 			CertSerialNumber:    cert.SerialNumber.String(),
 		}}
@@ -1180,20 +1180,20 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 }
 
 // Gets the SPIFFE ID from a cert or returns an empty string if there is an error.
-func tryGetSpiffeIDFromCert(cert *x509.Certificate) string {
-	spiffeid, _ := getSpiffeIDFromCert(cert)
-	return spiffeid
+func tryGetSpiffeIDFromCert(cert *x509.Certificate) spiffeid.ID {
+	spiffeID, _ := getSpiffeIDFromCert(cert)
+	return spiffeID
 }
 
-func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
+func getSpiffeIDFromCert(cert *x509.Certificate) (spiffeid.ID, error) {
 	if len(cert.URIs) == 0 {
-		return "", errors.New("no URI SANs in certificate")
+		return spiffeid.ID{}, errors.New("no URI SANs in certificate")
 	}
-	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
+	spiffeID, err := spiffeid.FromURI(cert.URIs[0])
 	if err != nil {
-		return "", err
+		return spiffeid.ID{}, err
 	}
-	return spiffeID.String(), nil
+	return spiffeID, nil
 }
 
 func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {

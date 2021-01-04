@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -83,7 +84,7 @@ func (s *PluginSuite) SetupSuite() {
 	validNotAfterTime, err := time.Parse(time.RFC3339, _validNotAfterString)
 	s.Require().NoError(err)
 
-	caTemplate, err := testutil.NewCATemplate(clk, "foo")
+	caTemplate, err := testutil.NewCATemplate(clk, spiffeid.RequireTrustDomainFromString("foo"))
 	s.Require().NoError(err)
 
 	caTemplate.NotAfter = expiredNotAfterTime
