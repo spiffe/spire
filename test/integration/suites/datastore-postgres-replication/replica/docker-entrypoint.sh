@@ -13,7 +13,7 @@ echo "Waiting for principal to start..."
 sleep 1s
 done
 
-until pg_basebackup -h ${PRINCIPAL_NAME} -D ${PGDATA} -U ${PG_REP_USER} -vP -W
+until pg_basebackup -h ${PRINCIPAL_NAME} -D ${PGDATA} -U ${PG_REP_USER} -Fp -Xs -P -R
 do
 echo "Waiting for principal to connect..."
 sleep 1s
