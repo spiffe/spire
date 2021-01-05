@@ -287,13 +287,13 @@ func (p *Plugin) updateBundleWebhook(ctx context.Context, c *pluginConfig, clien
 		}
 
 		// Update all the webhook CA Bundles
-		err = client.UpdateWebhook(ctx, webhook, resp)
+		patch, err := client.UpdateWebhook(ctx, webhook, resp)
 		if err != nil {
 			return err
 		}
 
 		// Patch the ValidatingWebhookConfiguration
-		patchBytes, err := json.Marshal(webhook)
+		patchBytes, err := json.Marshal(patch)
 		if err != nil {
 			return k8sErr.New("unable to marshal patch: %v", err)
 		}
@@ -403,7 +403,7 @@ type webhookClient interface {
 	GetWebhook(ctx context.Context, validatingWebhook string) (runtime.Object, error)
 	GetWebhookList(ctx context.Context, label string) (runtime.Object, error)
 	PatchWebhook(ctx context.Context, webhook runtime.Object, patchBytes []byte) error
-	UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) error
+	UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error)
 	WatchWebhook(ctx context.Context, label string) (watch.Interface, error)
 }
 
@@ -430,18 +430,28 @@ func (c validatingWebhookClientset) PatchWebhook(ctx context.Context, webhook ru
 	return err
 }
 
-func (c validatingWebhookClientset) UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) error {
+func (c validatingWebhookClientset) UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := webhook.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
-		return k8sErr.New("wrong type, expecting validating webhook")
+		return nil, k8sErr.New("wrong type, expecting validating webhook")
 	}
+
+	patch := &admissionv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: validatingWebhook.ResourceVersion,
+		},
+	}
+	patch.Webhooks = make([]admissionv1.ValidatingWebhook, len(validatingWebhook.Webhooks))
 
 	// Step through all the the webhooks in the ValidatingWebhookConfiguration
-	for i := range validatingWebhook.Webhooks {
-		validatingWebhook.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
+	for i := range patch.Webhooks {
+		patch.Webhooks[i].AdmissionReviewVersions = validatingWebhook.Webhooks[i].AdmissionReviewVersions
+		patch.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
+		patch.Webhooks[i].Name = validatingWebhook.Webhooks[i].Name
+		patch.Webhooks[i].SideEffects = validatingWebhook.Webhooks[i].SideEffects
 	}
 
-	return nil
+	return patch, nil
 }
 
 func (c validatingWebhookClientset) WatchWebhook(ctx context.Context, label string) (watch.Interface, error) {
@@ -473,18 +483,26 @@ func (c mutatingWebhookClientset) PatchWebhook(ctx context.Context, webhook runt
 	return err
 }
 
-func (c mutatingWebhookClientset) UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) error {
+func (c mutatingWebhookClientset) UpdateWebhook(ctx context.Context, webhook runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := webhook.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
-		return k8sErr.New("wrong type, expecting mutating webhook")
+		return nil, k8sErr.New("wrong type, expecting mutating webhook")
 	}
 
-	// Step through all the the webhooks in the MutatingWebhookConfiguration
-	for i := range mutatingWebhook.Webhooks {
-		mutatingWebhook.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
+	patch := &admissionv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: mutatingWebhook.ResourceVersion,
+		},
+	}
+	patch.Webhooks = make([]admissionv1.MutatingWebhook, len(mutatingWebhook.Webhooks))
+
+	// Step through all the the webhooks in the ValidatingWebhookConfiguration
+	for i := range patch.Webhooks {
+		patch.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
+		patch.Webhooks[i].SideEffects = mutatingWebhook.Webhooks[i].SideEffects
 	}
 
-	return nil
+	return patch, nil
 }
 
 func (c mutatingWebhookClientset) WatchWebhook(ctx context.Context, label string) (watch.Interface, error) {
