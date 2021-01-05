@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
+	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
