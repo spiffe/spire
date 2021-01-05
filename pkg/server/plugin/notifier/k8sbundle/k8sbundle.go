@@ -407,6 +407,7 @@ type webhookClient interface {
 	WatchWebhook(ctx context.Context, label string) (watch.Interface, error)
 }
 
+// Validating webhook
 type validatingWebhookClientset struct {
 	*kubernetes.Clientset
 }
@@ -460,6 +461,7 @@ func (c validatingWebhookClientset) WatchWebhook(ctx context.Context, label stri
 	})
 }
 
+// Mutating webhook
 type mutatingWebhookClientset struct {
 	*kubernetes.Clientset
 }
@@ -498,7 +500,9 @@ func (c mutatingWebhookClientset) UpdateWebhook(ctx context.Context, webhook run
 
 	// Step through all the the webhooks in the ValidatingWebhookConfiguration
 	for i := range patch.Webhooks {
+		patch.Webhooks[i].AdmissionReviewVersions = mutatingWebhook.Webhooks[i].AdmissionReviewVersions
 		patch.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
+		patch.Webhooks[i].Name = mutatingWebhook.Webhooks[i].Name
 		patch.Webhooks[i].SideEffects = mutatingWebhook.Webhooks[i].SideEffects
 	}
 
