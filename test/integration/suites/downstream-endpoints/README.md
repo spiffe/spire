@@ -1,4 +1,4 @@
-# Downstream endpoint Suite
+# Downstream Endpoint Suite
 
 ## Description
 
