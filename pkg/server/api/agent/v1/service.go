@@ -11,7 +11,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
@@ -31,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // RegisterService registers the agent service on the gRPC server/
@@ -60,6 +60,8 @@ func New(config Config) *Service {
 
 // Service implements the v1 agent service
 type Service struct {
+	agent.UnsafeAgentServer
+
 	cat catalog.Catalog
 	clk clock.Clock
 	ds  datastore.DataStore
@@ -161,7 +163,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 	return agent, nil
 }
 
-func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*empty.Empty, error) {
+func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -177,7 +179,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 	switch status.Code(err) {
 	case codes.OK:
 		log.Info("Agent deleted")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	case codes.NotFound:
 		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
@@ -185,7 +187,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 	}
 }
 
-func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*empty.Empty, error) {
+func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -208,7 +210,7 @@ func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*em
 	switch status.Code(err) {
 	case codes.OK:
 		log.Info("Agent banned")
-		return &empty.Empty{}, nil
+		return &emptypb.Empty{}, nil
 	case codes.NotFound:
 		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
@@ -271,7 +273,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	}
 
 	// parse and sign CSR
-	svid, err := s.signSvid(ctx, &agentSpiffeID, params.Params.Csr, log)
+	svid, err := s.signSvid(ctx, agentSpiffeID, params.Params.Csr, log)
 	if err != nil {
 		return err
 	}
@@ -351,7 +353,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
 
-	agentSVID, err := s.signSvid(ctx, &callerID, req.Params.Csr, log)
+	agentSVID, err := s.signSvid(ctx, callerID, req.Params.Csr, log)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +459,7 @@ func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateA
 	}
 }
 
-func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
+func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
 	parsedCsr, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse CSR", err)
@@ -465,7 +467,7 @@ func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte
 
 	// Sign a new X509 SVID
 	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  agentID.String(),
+		SpiffeID:  agentID,
 		PublicKey: parsedCsr.PublicKey,
 	})
 	if err != nil {

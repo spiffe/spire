@@ -16,6 +16,7 @@ type FetchX509IdentityResponse = hostservices.FetchX509IdentityResponse         
 type IdentityProviderClient = hostservices.IdentityProviderClient                           //nolint: golint
 type IdentityProviderServer = hostservices.IdentityProviderServer                           //nolint: golint
 type UnimplementedIdentityProviderServer = hostservices.UnimplementedIdentityProviderServer //nolint: golint
+type UnsafeIdentityProviderServer = hostservices.UnsafeIdentityProviderServer               //nolint: golint
 type X509Identity = hostservices.X509Identity                                               //nolint: golint
 
 const (
@@ -61,7 +62,7 @@ func (c *identityProviderHostServiceClient) HostServiceType() string {
 	return IdentityProviderType
 }
 
-func (c *identityProviderHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
+func (c *identityProviderHostServiceClient) InitHostServiceClient(conn grpc.ClientConnInterface) {
 	*c.client = AdaptIdentityProviderHostServiceClient(hostservices.NewIdentityProviderClient(conn))
 }
 

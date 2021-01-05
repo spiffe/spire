@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -26,13 +25,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
-	ctx         = context.Background()
-	td          = spiffeid.RequireTrustDomainFromString("example.org")
-	federatedTd = spiffeid.RequireTrustDomainFromString("domain1.org")
-	agentID     = spiffeid.RequireFromString("spiffe://example.org/agent")
+	ctx               = context.Background()
+	td                = spiffeid.RequireTrustDomainFromString("example.org")
+	federatedTd       = spiffeid.RequireTrustDomainFromString("domain1.org")
+	secondFederatedTd = spiffeid.RequireTrustDomainFromString("domain2.org")
+	notFederatedTd    = spiffeid.RequireTrustDomainFromString("domain3.org")
+	agentID           = spiffeid.RequireFromString("spiffe://example.org/agent")
 )
 
 func TestListEntries(t *testing.T) {
@@ -55,12 +57,19 @@ func TestListEntries(t *testing.T) {
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "gid:1000"},
 		},
+		FederatesWith: []string{
+			federatedTd.IDString(),
+		},
 	}
 	secondChildRegEntry := &common.RegistrationEntry{
 		ParentId: parentID.String(),
 		SpiffeId: secondChildID.String(),
 		Selectors: []*common.Selector{
 			{Type: "unix", Value: "uid:1000"},
+		},
+		FederatesWith: []string{
+			federatedTd.IDString(),
+			secondFederatedTd.IDString(),
 		},
 	}
 	badRegEntry := &common.RegistrationEntry{
@@ -76,6 +85,9 @@ func TestListEntries(t *testing.T) {
 	ds := fakedatastore.New(t)
 	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
+
+	// Create federated bundles, that we use on "FederatesWith"
+	createFederatedBundles(t, test.ds)
 
 	childEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: childRegEntry,
@@ -104,6 +116,9 @@ func TestListEntries(t *testing.T) {
 			{Type: "unix", Value: "gid:1000"},
 			{Type: "unix", Value: "uid:1000"},
 		},
+		FederatesWith: []string{
+			federatedTd.String(),
+		},
 	}
 
 	expectedSecondChild := &types.Entry{
@@ -112,6 +127,10 @@ func TestListEntries(t *testing.T) {
 		SpiffeId: protoSecondChildID,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1000"},
+		},
+		FederatesWith: []string{
+			federatedTd.String(),
+			secondFederatedTd.String(),
 		},
 	}
 
@@ -146,6 +165,12 @@ func TestListEntries(t *testing.T) {
 							{Type: "unix", Value: "gid:1000"},
 						},
 						Match: types.SelectorMatch_MATCH_EXACT,
+					},
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							federatedTd.IDString(),
+						},
+						Match: types.FederatesWithMatch_MATCH_EXACT,
 					},
 				},
 			},
@@ -200,6 +225,129 @@ func TestListEntries(t *testing.T) {
 							{Type: "unix", Value: "user:me"},
 						},
 						Match: types.SelectorMatch_MATCH_SUBSET,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with exact match (no subset)",
+			expectedEntries: []*types.Entry{expectedSecondChild},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							// Both formats should work
+							federatedTd.IDString(),
+							secondFederatedTd.String(),
+						},
+						Match: types.FederatesWithMatch_MATCH_EXACT,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with exact match (no superset)",
+			expectedEntries: []*types.Entry{expectedChild},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							federatedTd.IDString(),
+						},
+						Match: types.FederatesWithMatch_MATCH_EXACT,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with exact match (with repeated tds)",
+			expectedEntries: []*types.Entry{expectedSecondChild},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							// Both formats should work
+							federatedTd.IDString(),
+							secondFederatedTd.IDString(),
+							secondFederatedTd.String(), // repeated td
+						},
+						Match: types.FederatesWithMatch_MATCH_EXACT,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with exact match (not federated)",
+			expectedEntries: []*types.Entry{},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							notFederatedTd.String(),
+						},
+						Match: types.FederatesWithMatch_MATCH_EXACT,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with subset match",
+			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							// Both formats should work
+							federatedTd.IDString(),
+							secondFederatedTd.String(),
+							notFederatedTd.IDString(),
+						},
+						Match: types.FederatesWithMatch_MATCH_SUBSET,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with subset match (no superset)",
+			expectedEntries: []*types.Entry{expectedChild},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							federatedTd.IDString(),
+						},
+						Match: types.FederatesWithMatch_MATCH_SUBSET,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with subset match (with repeated tds)",
+			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							// Both formats should work
+							federatedTd.IDString(),
+							secondFederatedTd.IDString(),
+							secondFederatedTd.String(), // repeated td
+						},
+						Match: types.FederatesWithMatch_MATCH_SUBSET,
+					},
+				},
+			},
+		},
+		{
+			name:            "filter by federates with subset match (not federated)",
+			expectedEntries: []*types.Entry{},
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							notFederatedTd.String(),
+						},
+						Match: types.FederatesWithMatch_MATCH_SUBSET,
 					},
 				},
 			},
@@ -264,6 +412,32 @@ func TestListEntries(t *testing.T) {
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
 							{Type: "", Value: "uid:1000"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:   "bad federates with filter (no trust domains)",
+			err:    "malformed federates with filter: empty trust domain set",
+			code:   codes.InvalidArgument,
+			logMsg: "Invalid argument: malformed federates with filter",
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{},
+				},
+			},
+		},
+		{
+			name:   "bad federates with filter (bad trust domain)",
+			err:    "malformed federates with filter: spiffeid: invalid scheme",
+			code:   codes.InvalidArgument,
+			logMsg: "Invalid argument: malformed federates with filter",
+			request: &entrypb.ListEntriesRequest{
+				Filter: &entrypb.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{
+							badID.TrustDomain,
 						},
 					},
 				},
@@ -1195,6 +1369,17 @@ func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
 			RootCas: []*common.Certificate{
 				{
 					DerBytes: []byte("federated bundle"),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: &common.Bundle{
+			TrustDomainId: secondFederatedTd.IDString(),
+			RootCas: []*common.Certificate{
+				{
+					DerBytes: []byte("second federated bundle"),
 				},
 			},
 		},

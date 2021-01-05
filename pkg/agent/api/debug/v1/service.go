@@ -11,7 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	debug_pb "github.com/spiffe/spire/proto/spire/api/agent/debug/v1"
+	"github.com/spiffe/spire/proto/spire/api/agent/debug/v1"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"google.golang.org/grpc"
@@ -25,7 +25,7 @@ const (
 
 // RegisterService registers debug service on provided server
 func RegisterService(s *grpc.Server, service *Service) {
-	debug_pb.RegisterDebugServer(s, service)
+	debug.RegisterDebugServer(s, service)
 }
 
 // Config configurations for debug service
@@ -50,6 +50,8 @@ func New(config Config) *Service {
 
 // Service implements debug server
 type Service struct {
+	debug.UnsafeDebugServer
+
 	clock  clock.Clock
 	log    logrus.FieldLogger
 	m      manager.Manager
@@ -61,12 +63,12 @@ type Service struct {
 
 type getInfoResp struct {
 	mtx  sync.Mutex
-	resp *debug_pb.GetInfoResponse
+	resp *debug.GetInfoResponse
 	ts   time.Time
 }
 
 // GetInfo gets SPIRE Agent debug information
-func (s *Service) GetInfo(ctx context.Context, req *debug_pb.GetInfoRequest) (*debug_pb.GetInfoResponse, error) {
+func (s *Service) GetInfo(ctx context.Context, req *debug.GetInfoRequest) (*debug.GetInfoResponse, error) {
 	s.getInfoResp.mtx.Lock()
 	defer s.getInfoResp.mtx.Unlock()
 
@@ -81,9 +83,9 @@ func (s *Service) GetInfo(ctx context.Context, req *debug_pb.GetInfoRequest) (*d
 		}
 
 		// Create SVID chain for response
-		var svidChain []*debug_pb.GetInfoResponse_Cert
+		var svidChain []*debug.GetInfoResponse_Cert
 		for _, cert := range certChain {
-			svidChain = append(svidChain, &debug_pb.GetInfoResponse_Cert{
+			svidChain = append(svidChain, &debug.GetInfoResponse_Cert{
 				Id:        spiffeIDFromCert(cert),
 				ExpiresAt: cert.NotAfter.Unix(),
 				Subject:   cert.Subject.String(),
@@ -92,7 +94,7 @@ func (s *Service) GetInfo(ctx context.Context, req *debug_pb.GetInfoRequest) (*d
 
 		// Reset clock and set current response
 		s.getInfoResp.ts = s.clock.Now()
-		s.getInfoResp.resp = &debug_pb.GetInfoResponse{
+		s.getInfoResp.resp = &debug.GetInfoResponse{
 			SvidChain:       svidChain,
 			Uptime:          int32(s.uptime().Seconds()),
 			SvidsCount:      int32(s.m.CountSVIDs()),

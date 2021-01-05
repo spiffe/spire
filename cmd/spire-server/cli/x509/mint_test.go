@@ -157,14 +157,14 @@ func TestMintRun(t *testing.T) {
 		{
 			name:              "missing spiffeID flag",
 			code:              1,
-			stderr:            "spiffeID must be specified\n",
+			stderr:            "Error: spiffeID must be specified\n",
 			noRequestExpected: true,
 		},
 		{
 			name:              "malformed spiffe ID",
 			code:              1,
 			spiffeID:          "malformed id",
-			stderr:            "spiffeid: invalid scheme\n",
+			stderr:            "Error: spiffeid: invalid scheme\n",
 			noRequestExpected: true,
 		},
 		{
@@ -179,20 +179,20 @@ func TestMintRun(t *testing.T) {
 			spiffeID:          "spiffe://domain.test/workload",
 			code:              1,
 			generateErr:       errors.New("some error"),
-			stderr:            "unable to generate key: some error\n",
+			stderr:            "Error: unable to generate key: some error\n",
 			noRequestExpected: true,
 		},
 		{
 			name:     "RPC fails",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
-			stderr:   "unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
+			stderr:   "Error: unable to mint SVID: rpc error: code = Unknown desc = response not configured in test\n",
 		},
 		{
 			name:     "response missing SVID chain",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
-			stderr:   "server response missing SVID chain\n",
+			stderr:   "Error: server response missing SVID chain\n",
 			resp: &svidpb.MintX509SVIDResponse{
 				Svid: &types.X509SVID{},
 			},
@@ -201,7 +201,7 @@ func TestMintRun(t *testing.T) {
 			name:     "get bundle fails",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
-			stderr:   "unable to get bundle: rpc error: code = Unknown desc = some error\n",
+			stderr:   "Error: unable to get bundle: rpc error: code = Unknown desc = some error\n",
 			resp: &svidpb.MintX509SVIDResponse{
 				Svid: &types.X509SVID{
 					CertChain: [][]byte{certDER},
@@ -213,7 +213,7 @@ func TestMintRun(t *testing.T) {
 			name:     "response missing root CAs",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
-			stderr:   "server response missing X509 Authorities\n",
+			stderr:   "Error: server response missing X509 Authorities\n",
 			resp: &svidpb.MintX509SVIDResponse{
 				Svid: &types.X509SVID{
 					CertChain: [][]byte{certDER},

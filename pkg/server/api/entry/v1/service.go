@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -17,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // RegisterService registers the entry service on the gRPC server.
@@ -42,6 +42,8 @@ func New(config Config) *Service {
 
 // Service implements the v1 entry service
 type Service struct {
+	entry.UnsafeEntryServer
+
 	td spiffeid.TrustDomain
 	ds datastore.DataStore
 	ef api.AuthorizedEntryFetcher
@@ -65,7 +67,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
 			}
-			listReq.ByParentId = &wrappers.StringValue{
+			listReq.ByParentId = &wrapperspb.StringValue{
 				Value: parentID.String(),
 			}
 		}
@@ -75,7 +77,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
 			}
-			listReq.BySpiffeId = &wrappers.StringValue{
+			listReq.BySpiffeId = &wrapperspb.StringValue{
 				Value: spiffeID.String(),
 			}
 		}
@@ -91,6 +93,24 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 			listReq.BySelectors = &datastore.BySelectors{
 				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
 				Selectors: dsSelectors,
+			}
+		}
+
+		if req.Filter.ByFederatesWith != nil {
+			trustDomains := make([]string, 0, len(req.Filter.ByFederatesWith.TrustDomains))
+			for _, tdStr := range req.Filter.ByFederatesWith.TrustDomains {
+				td, err := spiffeid.TrustDomainFromString(tdStr)
+				if err != nil {
+					return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", err)
+				}
+				trustDomains = append(trustDomains, td.IDString())
+			}
+			if len(trustDomains) == 0 {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
+			}
+			listReq.ByFederatesWith = &datastore.ByFederatesWith{
+				Match:        datastore.ByFederatesWith_MatchBehavior(req.Filter.ByFederatesWith.Match),
+				TrustDomains: trustDomains,
 			}
 		}
 	}
@@ -348,10 +368,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 
 func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: e.SpiffeId,
 		},
-		ByParentId: &wrappers.StringValue{
+		ByParentId: &wrapperspb.StringValue{
 			Value: e.ParentId,
 		},
 		BySelectors: &datastore.BySelectors{

@@ -12,14 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -47,12 +46,10 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
-	trustDomain   = "example.org"
-	trustDomainID = "spiffe://example.org"
-
 	otherDomainID = "spiffe://otherdomain.test"
 
 	serverID     = "spiffe://example.org/spire/server"
@@ -67,7 +64,7 @@ const (
 )
 
 var (
-	trustDomainURL, _ = idutil.ParseSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 
 	otherDomainBundle = &common.Bundle{
 		TrustDomainId: otherDomainID,
@@ -144,7 +141,7 @@ func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock: s.clock,
 	})
-	s.bundle = bundleutil.BundleProtoFromRootCAs(trustDomainID, s.serverCA.Bundle())
+	s.bundle = bundleutil.BundleProtoFromRootCAs(trustDomain.IDString(), s.serverCA.Bundle())
 
 	s.createBundle(s.bundle)
 
@@ -162,11 +159,11 @@ func (s *HandlerSuite) setupTest(upstreamAuthorityConfig *fakeupstreamauthority.
 		Metrics:     s.metrics,
 		Catalog:     s.catalog,
 		ServerCA:    s.serverCA,
-		TrustDomain: *trustDomainURL,
+		TrustDomain: trustDomain,
 		Clock:       s.clock,
 		Manager: ca.NewManager(ca.ManagerConfig{
 			Catalog:     s.catalog,
-			TrustDomain: *trustDomainURL,
+			TrustDomain: trustDomain,
 			Log:         log,
 		}),
 	})
@@ -774,7 +771,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
+		Csrs: s.makeCSRs("an-entry-id", trustDomain.IDString()),
 	}, codes.Internal, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`Failed to sign CSRs`)
 }
@@ -783,7 +780,7 @@ func (s *HandlerSuite) TestFetchX509CASVIDWithUnauthorizedDownstreamCSR() {
 	s.attestAgent()
 
 	_, err := s.attestedClient.FetchX509CASVID(context.Background(), &node.FetchX509CASVIDRequest{
-		Csr: s.makeCSR(trustDomainID),
+		Csr: s.makeCSR(trustDomain.IDString()),
 	})
 	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 	s.assertLastLogMessageContains(`Peer is not a valid downstream SPIRE server`)
@@ -793,7 +790,7 @@ func (s *HandlerSuite) TestFetchX509CASVID() {
 	s.attestAgent()
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:   trustDomainID,
+		ParentId:   trustDomain.IDString(),
 		SpiffeId:   agentID,
 		Selectors:  irrelevantSelectors,
 		Downstream: true,
@@ -802,7 +799,7 @@ func (s *HandlerSuite) TestFetchX509CASVID() {
 	})
 
 	resp, err := s.attestedClient.FetchX509CASVID(context.Background(), &node.FetchX509CASVIDRequest{
-		Csr: s.makeCSR(trustDomainID),
+		Csr: s.makeCSR(trustDomain.IDString()),
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
@@ -979,7 +976,7 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 	_, err = s.ds.AppendBundle(context.Background(),
 		&datastore.AppendBundleRequest{
 			Bundle: &common.Bundle{
-				TrustDomainId: trustDomainID,
+				TrustDomainId: trustDomain.IDString(),
 				JwtSigningKeys: []*common.PublicKey{
 					{
 						Kid:       "kid1",
@@ -993,7 +990,7 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 	s.attestAgent()
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:   trustDomainID,
+		ParentId:   trustDomain.IDString(),
 		SpiffeId:   agentID,
 		Selectors:  irrelevantSelectors,
 		Downstream: true,
@@ -1020,7 +1017,7 @@ UigDxnLeJxW17hsOD8xO8J7WdHMaIhXvrTx7EhxWC1hpCXCsxn6UVlLL
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	s.setupTest(&fakeupstreamauthority.Config{
-		TrustDomain: trustDomainID,
+		TrustDomain: trustDomain,
 	})
 
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtSigningKey.Public())
@@ -1033,7 +1030,7 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 	s.attestAgent()
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:   trustDomainID,
+		ParentId:   trustDomain.IDString(),
 		SpiffeId:   agentID,
 		Selectors:  irrelevantSelectors,
 		Downstream: true,
@@ -1053,14 +1050,14 @@ func (s *HandlerSuite) TestPushJWTKeyUpstreamWithUpstreamAuthority() {
 
 func (s *HandlerSuite) TestPushJWTKeyUpstreamUnimplemented() {
 	s.setupTest(&fakeupstreamauthority.Config{
-		TrustDomain:           trustDomainID,
+		TrustDomain:           trustDomain,
 		DisallowPublishJWTKey: true,
 	})
 
 	s.attestAgent()
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId:   trustDomainID,
+		ParentId:   trustDomain.IDString(),
 		SpiffeId:   agentID,
 		Selectors:  irrelevantSelectors,
 		Downstream: true,
@@ -1459,7 +1456,7 @@ func (s *HandlerSuite) requireFetchJWTSVIDFailure(req *node.FetchJWTSVIDRequest,
 func (s *HandlerSuite) assertBundlesInUpdate(upd *node.X509SVIDUpdate, federatedBundles ...*common.Bundle) {
 	// Bundles should have an entry for the trust domain and each federated domain
 	s.Len(upd.Bundles, 1+len(federatedBundles))
-	s.True(proto.Equal(upd.Bundles[trustDomainID], s.bundle))
+	s.True(proto.Equal(upd.Bundles[trustDomain.IDString()], s.bundle))
 	for _, federatedBundle := range federatedBundles {
 		s.True(proto.Equal(
 			upd.Bundles[federatedBundle.TrustDomainId],
@@ -1519,11 +1516,15 @@ func (s *HandlerSuite) assertLastLogMessage(message string) {
 func (s *HandlerSuite) assertPermissionDeniedDetails(err error, reason types.PermissionDeniedDetails_Reason) {
 	st := status.Convert(err)
 	if s.Equal(codes.PermissionDenied, st.Code()) {
-		s.Equal([]interface{}{
-			&types.PermissionDeniedDetails{
-				Reason: reason,
-			},
-		}, st.Details())
+		details := st.Details()
+		s.Len(details, 1, "expecting one detail")
+
+		detail, ok := details[0].(proto.Message)
+		s.True(ok, "expecting details to contain a proto message")
+
+		s.AssertProtoEqual(&types.PermissionDeniedDetails{
+			Reason: reason,
+		}, detail)
 	}
 }
 
@@ -1536,7 +1537,7 @@ func (s *HandlerSuite) assertLastLogMessageContains(contains string) {
 
 func (s *HandlerSuite) makeSVID(spiffeID string) []*x509.Certificate {
 	svid, err := s.serverCA.SignX509SVID(context.Background(), ca.X509SVIDParams{
-		SpiffeID:  spiffeID,
+		SpiffeID:  spiffeid.RequireFromString(spiffeID),
 		PublicKey: testKey.Public(),
 	})
 	s.Require().NoError(err)
@@ -1563,7 +1564,7 @@ func (s *HandlerSuite) makeCSRs(entryID, spiffeID string) map[string][]byte {
 
 func (s *HandlerSuite) fetchBundle() *common.Bundle {
 	r, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainID,
+		TrustDomainId: trustDomain.IDString(),
 	})
 	s.Require().NoError(err)
 	return r.Bundle

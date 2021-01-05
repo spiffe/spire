@@ -118,10 +118,10 @@ data:
       log_level = "DEBUG"
       default_svid_ttl = "1h"
       ca_ttl = "12h"
-      ca_subject = {
-        country = ["US"],
-        organization = ["SPIFFE"],
-        common_name = "",
+      ca_subject {
+        country = ["US"]
+        organization = ["SPIFFE"]
+        common_name = ""
       }
     }
 

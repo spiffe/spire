@@ -13,6 +13,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -48,6 +49,8 @@ type Config struct {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	log hclog.Logger
 
 	mtx        sync.RWMutex
@@ -99,10 +102,15 @@ func (m *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+
 	m.cert = cert
 	m.upstreamCA = x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(cert, key),
-		req.GlobalConfig.TrustDomain,
+		trustDomain,
 		x509svid.UpstreamCAOptions{
 			Clock: m.hooks.clock,
 		})

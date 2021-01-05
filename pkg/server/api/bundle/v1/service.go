@@ -52,6 +52,8 @@ func New(config Config) *Service {
 
 // Service implements the v1 bundle service
 type Service struct {
+	bundle.UnsafeBundleServer
+
 	ds datastore.DataStore
 	td spiffeid.TrustDomain
 	up UpstreamPublisher

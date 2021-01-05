@@ -51,7 +51,7 @@ func (c *WebhookMode) Run(ctx context.Context) error {
 	}
 	defer log.Close()
 
-	registrationClient, err := c.RegistrationClient(ctx, log)
+	entryClient, err := c.EntryClient(ctx, log)
 	if err != nil {
 		return errs.New("failed to dial server: %v", err)
 	}
@@ -62,7 +62,7 @@ func (c *WebhookMode) Run(ctx context.Context) error {
 	}
 	controller := NewController(ControllerConfig{
 		Log:                log,
-		R:                  registrationClient,
+		E:                  entryClient,
 		TrustDomain:        c.TrustDomain,
 		Cluster:            c.Cluster,
 		PodLabel:           c.PodLabel,

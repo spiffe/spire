@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -39,6 +37,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"gotest.tools/assert"
 )
 
@@ -277,7 +277,7 @@ func TestListAgents(t *testing.T) {
 			req: &agentpb.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
 				Filter: &agentpb.ListAgentsRequest_Filter{
-					ByBanned: &wrappers.BoolValue{Value: true},
+					ByBanned: &wrapperspb.BoolValue{Value: true},
 				},
 			},
 			expectResp: &agentpb.ListAgentsResponse{
@@ -291,7 +291,7 @@ func TestListAgents(t *testing.T) {
 			req: &agentpb.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
 				Filter: &agentpb.ListAgentsRequest_Filter{
-					ByBanned: &wrappers.BoolValue{Value: false},
+					ByBanned: &wrapperspb.BoolValue{Value: false},
 				},
 			},
 			expectResp: &agentpb.ListAgentsResponse{
@@ -400,11 +400,12 @@ func TestBanAgent(t *testing.T) {
 	agentPath := "/spire/agent/agent-1"
 
 	for _, tt := range []struct {
-		name            string
-		reqID           *types.SPIFFEID
-		dsError         error
-		expectedErr     error
-		expectedLogMsgs []spiretest.LogEntry
+		name       string
+		reqID      *types.SPIFFEID
+		dsError    error
+		expectCode codes.Code
+		expectMsg  string
+		expectLogs []spiretest.LogEntry
 	}{
 		{
 			name: "Ban agent succeeds",
@@ -412,7 +413,7 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: agentTrustDomain,
 				Path:        agentPath,
 			},
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
 					Message: "Agent banned",
@@ -423,10 +424,11 @@ func TestBanAgent(t *testing.T) {
 			},
 		},
 		{
-			name:        "Ban agent fails if ID is nil",
-			reqID:       nil,
-			expectedErr: status.Error(codes.InvalidArgument, "invalid agent ID: request must specify SPIFFE ID"),
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "Ban agent fails if ID is nil",
+			reqID:      nil,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid agent ID: request must specify SPIFFE ID",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
@@ -442,8 +444,9 @@ func TestBanAgent(t *testing.T) {
 				Path:        agentPath,
 				TrustDomain: "ex ample.org",
 			},
-			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`),
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
@@ -458,8 +461,9 @@ func TestBanAgent(t *testing.T) {
 			reqID: &types.SPIFFEID{
 				TrustDomain: agentTrustDomain,
 			},
-			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: "spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`),
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `invalid agent ID: "spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`,
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
@@ -475,8 +479,9 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: agentTrustDomain,
 				Path:        "agent-1",
 			},
-			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: "spiffe://example.org/agent-1" is not an agent in trust domain "example.org"; path is not in the agent namespace`),
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `invalid agent ID: "spiffe://example.org/agent-1" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
@@ -492,8 +497,9 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: "another-example.org",
 				Path:        agentPath,
 			},
-			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: "spiffe://another-example.org/spire/agent/agent-1" is not a member of trust domain "example.org"`),
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `invalid agent ID: "spiffe://another-example.org/spire/agent/agent-1" is not a member of trust domain "example.org"`,
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
@@ -509,8 +515,9 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: agentTrustDomain,
 				Path:        "/spire/agent/agent-2",
 			},
-			expectedErr: status.Error(codes.NotFound, "agent not found"),
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.NotFound,
+			expectMsg:  "agent not found",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
@@ -526,9 +533,10 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: agentTrustDomain,
 				Path:        agentPath,
 			},
-			dsError:     errors.New("unknown datastore error"),
-			expectedErr: status.Error(codes.Internal, "failed to ban agent: unknown datastore error"),
-			expectedLogMsgs: []spiretest.LogEntry{
+			dsError:    errors.New("unknown datastore error"),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to ban agent: unknown datastore error",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to ban agent",
@@ -562,10 +570,10 @@ func TestBanAgent(t *testing.T) {
 			test.ds.SetNextError(tt.dsError)
 
 			banResp, err := test.client.BanAgent(ctx, &agentpb.BanAgentRequest{Id: tt.reqID})
+			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			test.ds.SetNextError(nil)
-			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogMsgs)
-			if tt.expectedErr != nil {
-				require.Equal(t, tt.expectedErr, err)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.expectCode != codes.OK {
 				require.Nil(t, banResp)
 
 				fetchResp, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
@@ -929,8 +937,9 @@ func TestRenewAgent(t *testing.T) {
 		expectLogs     []spiretest.LogEntry
 		failCallerID   bool
 		failSigning    bool
-		paramsError    error
-		paramReq       *agentpb.RenewAgentRequest
+		req            *agentpb.RenewAgentRequest
+		expectCode     codes.Code
+		expectMsg      string
 		rateLimiterErr error
 	}{
 		{
@@ -939,7 +948,7 @@ func TestRenewAgent(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				renewingMessage,
 			},
-			paramReq: &agentpb.RenewAgentRequest{
+			req: &agentpb.RenewAgentRequest{
 				Params: &agentpb.AgentX509SVIDParams{
 					Csr: csr,
 				},
@@ -957,8 +966,9 @@ func TestRenewAgent(t *testing.T) {
 					},
 				},
 			},
-			paramReq:       &agentpb.RenewAgentRequest{},
-			paramsError:    status.Error(codes.Unknown, "rejecting request due to renew agent rate limiting: rate limit fails"),
+			req:            &agentpb.RenewAgentRequest{},
+			expectCode:     codes.Unknown,
+			expectMsg:      "rejecting request due to renew agent rate limiting: rate limit fails",
 			rateLimiterErr: errors.New("rate limit fails"),
 		},
 		{
@@ -970,9 +980,10 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Caller ID missing from request context",
 				},
 			},
-			paramReq:     &agentpb.RenewAgentRequest{},
+			req:          &agentpb.RenewAgentRequest{},
 			failCallerID: true,
-			paramsError:  status.Error(codes.Internal, "caller ID missing from request context"),
+			expectCode:   codes.Internal,
+			expectMsg:    "caller ID missing from request context",
 		},
 		{
 			name: "no attested node",
@@ -983,12 +994,13 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Agent not found",
 				},
 			},
-			paramReq: &agentpb.RenewAgentRequest{
+			req: &agentpb.RenewAgentRequest{
 				Params: &agentpb.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
-			paramsError: status.Error(codes.NotFound, "agent not found"),
+			expectCode: codes.NotFound,
+			expectMsg:  "agent not found",
 		},
 		{
 			name:       "missing CSR",
@@ -1000,10 +1012,11 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Invalid argument: missing CSR",
 				},
 			},
-			paramReq: &agentpb.RenewAgentRequest{
+			req: &agentpb.RenewAgentRequest{
 				Params: &agentpb.AgentX509SVIDParams{},
 			},
-			paramsError: status.Error(codes.InvalidArgument, "missing CSR"),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "missing CSR",
 		},
 		{
 			name:       "malformed csr",
@@ -1017,12 +1030,13 @@ func TestRenewAgent(t *testing.T) {
 						logrus.ErrorKey: malformedError.Error()},
 				},
 			},
-			paramReq: &agentpb.RenewAgentRequest{
+			req: &agentpb.RenewAgentRequest{
 				Params: &agentpb.AgentX509SVIDParams{
 					Csr: []byte("malformed CSR"),
 				},
 			},
-			paramsError: status.Errorf(codes.InvalidArgument, "failed to parse CSR: %v", malformedError),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  fmt.Sprintf("failed to parse CSR: %v", malformedError),
 		},
 		{
 			name:       "request has nil param",
@@ -1034,8 +1048,9 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Invalid argument: params cannot be nil",
 				},
 			},
-			paramReq:    &agentpb.RenewAgentRequest{},
-			paramsError: status.Error(codes.InvalidArgument, "params cannot be nil"),
+			req:        &agentpb.RenewAgentRequest{},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "params cannot be nil",
 		},
 		{
 			name:       "failed to sign SVID",
@@ -1051,12 +1066,13 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			failSigning: true,
-			paramReq: &agentpb.RenewAgentRequest{
+			req: &agentpb.RenewAgentRequest{
 				Params: &agentpb.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
-			paramsError: status.Error(codes.Internal, "failed to sign X509 SVID: X509 CA is not available for signing"),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to sign X509 SVID: X509 CA is not available for signing",
 		},
 		{
 			name:       "failed to update attested node",
@@ -1074,12 +1090,13 @@ func TestRenewAgent(t *testing.T) {
 					},
 				},
 			},
-			paramReq: &agentpb.RenewAgentRequest{
+			req: &agentpb.RenewAgentRequest{
 				Params: &agentpb.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
-			paramsError: status.Error(codes.Internal, "failed to update agent: some error"),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to update agent: some error",
 		},
 	} {
 		tt := tt
@@ -1108,11 +1125,11 @@ func TestRenewAgent(t *testing.T) {
 			expiredAt := now.Add(test.ca.X509SVIDTTL())
 
 			// Send param message
-			resp, err := test.client.RenewAgent(ctx, tt.paramReq)
+			resp, err := test.client.RenewAgent(ctx, tt.req)
+			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 
-			if tt.paramsError != nil {
+			if tt.expectCode != codes.OK {
 				require.Nil(t, resp)
-				require.Equal(t, tt.paramsError, err)
 				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 				return
 			}
@@ -1245,19 +1262,19 @@ func TestAttestAgent(t *testing.T) {
 		request           *agentpb.AttestAgentRequest
 		expectedID        spiffeid.ID
 		expectedSelectors []*common.Selector
-		expectedErr       string
-		expectedLogMsgs   []spiretest.LogEntry
+		expectCode        codes.Code
+		expectMsg         string
+		expectLogs        []spiretest.LogEntry
 		rateLimiterErr    error
-		code              codes.Code
 		dsError           []error
 	}{
 
 		{
-			name:        "empty request",
-			request:     &agentpb.AttestAgentRequest{},
-			expectedErr: "malformed param: missing params",
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "empty request",
+			request:    &agentpb.AttestAgentRequest{},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "malformed param: missing params",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed param",
@@ -1275,9 +1292,9 @@ func TestAttestAgent(t *testing.T) {
 					Params: &agentpb.AttestAgentRequest_Params{},
 				},
 			},
-			expectedErr: "malformed param: missing attestation data",
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "malformed param: missing attestation data",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed param",
@@ -1299,9 +1316,9 @@ func TestAttestAgent(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: "malformed param: missing X509-SVID parameters",
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "malformed param: missing X509-SVID parameters",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed param",
@@ -1324,9 +1341,9 @@ func TestAttestAgent(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: "malformed param: missing attestation data type",
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "malformed param: missing attestation data type",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed param",
@@ -1349,9 +1366,9 @@ func TestAttestAgent(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: "malformed param: missing CSR",
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "malformed param: missing CSR",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed param",
@@ -1365,10 +1382,10 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:           "rate limit fails",
 			request:        &agentpb.AttestAgentRequest{},
-			expectedErr:    "rate limit fails",
+			expectCode:     codes.Unknown,
+			expectMsg:      "rate limit fails",
 			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
-			code:           codes.Unknown,
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Rejecting request due to attest agent rate limiting",
@@ -1380,11 +1397,11 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "join token does not exist",
-			request:     getAttestAgentRequest("join_token", []byte("bad_token"), testCsr),
-			expectedErr: "failed to attest: join token does not exist or has already been used",
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "join token does not exist",
+			request:    getAttestAgentRequest("join_token", []byte("bad_token"), testCsr),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "failed to attest: join token does not exist or has already been used",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to attest: join token does not exist or has already been used",
@@ -1402,11 +1419,11 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "attest with join token is banned",
-			expectedErr: "failed to attest: agent is banned",
-			request:     getAttestAgentRequest("join_token", []byte("banned_token"), testCsr),
-			code:        codes.PermissionDenied,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "attest with join token is banned",
+			request:    getAttestAgentRequest("join_token", []byte("banned_token"), testCsr),
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "failed to attest: agent is banned",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to attest: agent is banned",
@@ -1419,11 +1436,11 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "attest with join token is expired",
-			expectedErr: "join token expired",
-			request:     getAttestAgentRequest("join_token", []byte("expired_token"), testCsr),
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "attest with join token is expired",
+			request:    getAttestAgentRequest("join_token", []byte("expired_token"), testCsr),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "join token expired",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: join token expired",
@@ -1435,12 +1452,12 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "attest with join token only works once",
-			retry:       true,
-			expectedErr: "failed to attest: join token does not exist or has already been used",
-			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "attest with join token only works once",
+			retry:      true,
+			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "failed to attest: join token does not exist or has already been used",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to attest: join token does not exist or has already been used",
@@ -1492,11 +1509,11 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "attest banned",
-			expectedErr: "failed to attest: agent is banned",
-			request:     getAttestAgentRequest("test_type", []byte("payload_banned"), testCsr),
-			code:        codes.PermissionDenied,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "attest banned",
+			request:    getAttestAgentRequest("test_type", []byte("payload_banned"), testCsr),
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "failed to attest: agent is banned",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to attest: agent is banned",
@@ -1509,11 +1526,11 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "attest with bad attestor",
-			expectedErr: "could not find node attestor type",
-			request:     getAttestAgentRequest("bad_type", []byte("payload_with_result"), testCsr),
-			code:        codes.FailedPrecondition,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "attest with bad attestor",
+			request:    getAttestAgentRequest("bad_type", []byte("payload_with_result"), testCsr),
+			expectCode: codes.FailedPrecondition,
+			expectMsg:  "could not find node attestor type",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Could not find node attestor type",
@@ -1525,11 +1542,11 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "attest with bad csr",
-			expectedErr: "failed to parse CSR: ",
-			request:     getAttestAgentRequest("test_type", []byte("payload_with_result"), []byte("not a csr")),
-			code:        codes.InvalidArgument,
-			expectedLogMsgs: []spiretest.LogEntry{
+			name:       "attest with bad csr",
+			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), []byte("not a csr")),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "failed to parse CSR: ",
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to parse CSR",
@@ -1543,14 +1560,14 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "ds: fails to fetch join token",
-			expectedErr: "failed to fetch join token",
-			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
-			code:        codes.Internal,
+			name:       "ds: fails to fetch join token",
+			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to fetch join token",
 			dsError: []error{
 				errors.New("some error"),
 			},
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to fetch join token",
@@ -1563,15 +1580,15 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "ds: fails to delete join token",
-			expectedErr: "failed to delete join token",
-			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
-			code:        codes.Internal,
+			name:       "ds: fails to delete join token",
+			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to delete join token",
 			dsError: []error{
 				nil,
 				errors.New("some error"),
 			},
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to delete join token",
@@ -1584,16 +1601,16 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "ds: fails to fetch agent",
-			expectedErr: "failed to fetch agent",
-			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
-			code:        codes.Internal,
+			name:       "ds: fails to fetch agent",
+			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to fetch agent",
 			dsError: []error{
 				nil,
 				nil,
 				errors.New("some error"),
 			},
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to fetch agent",
@@ -1607,17 +1624,17 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "ds: fails to update selectors",
-			expectedErr: "failed to update selectors",
-			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
-			code:        codes.Internal,
+			name:       "ds: fails to update selectors",
+			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to update selectors",
 			dsError: []error{
 				nil,
 				nil,
 				nil,
 				errors.New("some error"),
 			},
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
 					Message: "Could not find node resolver",
@@ -1640,10 +1657,10 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "ds: fails to create attested agent",
-			expectedErr: "failed to create attested agent",
-			request:     getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
-			code:        codes.Internal,
+			name:       "ds: fails to create attested agent",
+			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to create attested agent",
 			dsError: []error{
 				nil,
 				nil,
@@ -1651,7 +1668,7 @@ func TestAttestAgent(t *testing.T) {
 				nil,
 				errors.New("some error"),
 			},
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
 					Message: "Could not find node resolver",
@@ -1673,16 +1690,16 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
-			name:        "ds: fails to update attested agent",
-			expectedErr: "failed to update attested agent",
-			request:     getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
-			code:        codes.Internal,
+			name:       "ds: fails to update attested agent",
+			request:    getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
+			expectCode: codes.Internal,
+			expectMsg:  "failed to update attested agent",
 			dsError: []error{
 				nil,
 				nil,
 				errors.New("some error"),
 			},
-			expectedLogMsgs: []spiretest.LogEntry{
+			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to update attested agent",
@@ -1737,14 +1754,12 @@ func TestAttestAgent(t *testing.T) {
 				require.NoError(t, errClose)
 			}
 
+			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 			switch {
-			case tt.expectedErr != "":
-				require.Error(t, err)
+			case tt.expectCode != codes.OK:
 				require.Nil(t, result)
-				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.expectedErr)
-				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogMsgs)
+				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 			default:
-				require.NoError(t, err)
 				require.NotNil(t, result)
 				test.assertAttestAgentResult(t, tt.expectedID, result)
 				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors)
@@ -1773,7 +1788,7 @@ func (s *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	ca := fakeserverca.New(t, td.String(), &fakeserverca.Options{})
+	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
 

@@ -7,17 +7,17 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/zeebo/errs"
 )
 
@@ -41,7 +41,7 @@ type ServerCA interface {
 // X509SVIDParams are parameters relevant to X509 SVID creation
 type X509SVIDParams struct {
 	// SPIFFE ID of the SVID
-	SpiffeID string
+	SpiffeID spiffeid.ID
 
 	// Public Key
 	PublicKey crypto.PublicKey
@@ -61,7 +61,7 @@ type X509SVIDParams struct {
 // X509CASVIDParams are parameters relevant to X509 CA SVID creation
 type X509CASVIDParams struct {
 	// SPIFFE ID of the SVID
-	SpiffeID string
+	SpiffeID spiffeid.ID
 
 	// Public Key
 	PublicKey crypto.PublicKey
@@ -74,7 +74,7 @@ type X509CASVIDParams struct {
 // JWTSVIDParams are parameters relevant to JWT SVID creation
 type JWTSVIDParams struct {
 	// SPIFFE ID of the SVID
-	SpiffeID string
+	SpiffeID spiffeid.ID
 
 	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
 	// lifetime of the certificate will be capped to that of the signing cert.
@@ -111,7 +111,7 @@ type JWTKey struct {
 type Config struct {
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	X509SVIDTTL time.Duration
 	JWTSVIDTTL  time.Duration
 	JWTIssuer   string
@@ -189,7 +189,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.
 		return nil, err
 	}
 
-	template, err := CreateX509SVIDTemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
+	template, err := CreateX509SVIDTemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain, notBefore, notAfter, serialNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +222,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.
 		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 SVID")
 
-	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics, spiffeID)
+	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -249,7 +249,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 	subject := x509CA.Certificate.Subject
 	subject.OrganizationalUnit = []string{fmt.Sprintf("DOWNSTREAM-%d", 1+len(x509CA.UpstreamChain))}
 
-	template, err := CreateServerCATemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber, subject)
+	template, err := CreateServerCATemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain, notBefore, notAfter, serialNumber, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 CA SVID")
 
-	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics, spiffeID)
+	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -281,7 +281,7 @@ func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, er
 		return "", errs.New("JWT key is not available for signing")
 	}
 
-	if err := idutil.ValidateSpiffeID(params.SpiffeID, idutil.AllowTrustDomainWorkload(ca.c.TrustDomain.Host)); err != nil {
+	if err := api.VerifyTrustDomainWorkloadID(ca.c.TrustDomain, params.SpiffeID); err != nil {
 		return "", err
 	}
 
@@ -291,12 +291,12 @@ func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, er
 	}
 	_, expiresAt := ca.capLifetime(ttl, jwtKey.NotAfter)
 
-	token, err := ca.jwtSigner.SignToken(params.SpiffeID, params.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
+	token, err := ca.jwtSigner.SignToken(params.SpiffeID.String(), params.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
 	if err != nil {
 		return "", errs.New("unable to sign JWT SVID: %v", err)
 	}
 
-	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, params.SpiffeID)
+	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics)
 	ca.c.Log.WithFields(logrus.Fields{
 		telemetry.Audience:   params.Audience,
 		telemetry.Expiration: expiresAt.Format(time.RFC3339),

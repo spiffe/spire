@@ -65,21 +65,21 @@ func TestDelete(t *testing.T) {
 	}{
 		{
 			name:   "Empty entry ID",
-			expErr: "an entry ID is required\n",
+			expErr: "Error: an entry ID is required\n",
 		},
 		{
 			name:     "Entry not found",
 			args:     []string{"-entryID", "entry-id"},
 			expReq:   &entry.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
 			fakeResp: fakeRespErr,
-			expErr:   "failed to delete entry: entry not found\n",
+			expErr:   "Error: failed to delete entry: entry not found\n",
 		},
 		{
 			name:      "Server error",
 			args:      []string{"-entryID", "entry-id"},
 			expReq:    &entry.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
 			serverErr: errors.New("server-error"),
-			expErr:    "rpc error: code = Unknown desc = server-error\n",
+			expErr:    "Error: rpc error: code = Unknown desc = server-error\n",
 		},
 		{
 			name:     "Delete succeeds",

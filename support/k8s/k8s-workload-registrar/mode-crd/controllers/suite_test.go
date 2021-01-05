@@ -21,8 +21,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
-	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
+	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,19 +33,19 @@ import (
 )
 
 const (
-	TrustDomain = "example.test"
+	TrustDomain = "example.org"
 	Cluster     = "test-cluster"
 )
 
 type CommonControllerTestSuite struct {
-	cluster            string
-	ctx                context.Context
-	k8sClient          client.Client
-	registrationClient *fakeregistrationclient.Client
-	log                logrus.FieldLogger
-	r                  *SpiffeIDReconciler
-	scheme             *runtime.Scheme
-	trustDomain        string
+	cluster     string
+	ctx         context.Context
+	k8sClient   client.Client
+	entryClient *fakeentryclient.Client
+	log         logrus.FieldLogger
+	r           *SpiffeIDReconciler
+	scheme      *runtime.Scheme
+	trustDomain string
 }
 
 func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
@@ -53,13 +54,13 @@ func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
 
 	log, _ := test.NewNullLogger()
 	c := CommonControllerTestSuite{
-		cluster:            Cluster,
-		ctx:                context.Background(),
-		log:                log,
-		k8sClient:          fake.NewFakeClientWithScheme(scheme.Scheme),
-		registrationClient: fakeregistrationclient.New(t, "spiffe://"+TrustDomain, nil, nil),
-		scheme:             scheme.Scheme,
-		trustDomain:        TrustDomain,
+		cluster:     Cluster,
+		ctx:         context.Background(),
+		log:         log,
+		k8sClient:   fake.NewFakeClientWithScheme(scheme.Scheme),
+		entryClient: fakeentryclient.New(t, spiffeid.RequireTrustDomainFromString(TrustDomain), nil, nil),
+		scheme:      scheme.Scheme,
+		trustDomain: TrustDomain,
 	}
 
 	r := NewSpiffeIDReconciler(SpiffeIDReconcilerConfig{
@@ -67,7 +68,7 @@ func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
 		Cluster:     Cluster,
 		Ctx:         c.ctx,
 		Log:         log,
-		R:           c.registrationClient,
+		E:           c.entryClient,
 		TrustDomain: TrustDomain,
 	})
 

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -28,16 +28,18 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 var (
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+
 	rootCA1DER = pemBytes([]byte(`-----BEGIN CERTIFICATE-----
 MIIBVzCB4gIJAJur7ujAmyDhMA0GCSqGSIb3DQEBCwUAMBMxETAPBgNVBAMMCFRF
 U1RST09UMB4XDTE4MTAxNTE4NDQxMVoXDTE5MTAxNTE4NDQxMVowEzERMA8GA1UE
@@ -63,11 +65,11 @@ NbyKVndd7aGvTed1PQ==
 )
 
 func TestHandler(t *testing.T) {
-	suite.Run(t, new(HandlerSuite))
+	spiretest.Run(t, new(HandlerSuite))
 }
 
 type HandlerSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	server *grpc.Server
 
@@ -80,7 +82,7 @@ func (s *HandlerSuite) SetupTest() {
 	log, _ := test.NewNullLogger()
 
 	s.ds = fakedatastore.New(s.T())
-	s.serverCA = fakeserverca.New(s.T(), "example.org", nil)
+	s.serverCA = fakeserverca.New(s.T(), trustDomain, nil)
 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(s.ds)
@@ -88,7 +90,7 @@ func (s *HandlerSuite) SetupTest() {
 	handler := &Handler{
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
-		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
+		TrustDomain: trustDomain,
 		Catalog:     catalog,
 		ServerCA:    s.serverCA,
 	}
@@ -137,7 +139,7 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 			continue
 		}
 		s.Require().NoError(err)
-		s.Require().Equal(&common.Empty{}, response)
+		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
@@ -212,7 +214,7 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 
 	bundle, err := stream.Recv()
 	s.Require().NoError(err)
-	s.Require().Equal(&registration.FederatedBundle{
+	s.RequireProtoEqual(&registration.FederatedBundle{
 		Bundle: &common.Bundle{
 			TrustDomainId: "spiffe://example2.org",
 			RootCas: []*common.Certificate{
@@ -257,7 +259,7 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 			continue
 		}
 		s.Require().NoError(err)
-		s.Require().Equal(&common.Empty{}, response)
+		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
@@ -298,7 +300,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 			continue
 		}
 		s.Require().NoError(err)
-		s.Require().Equal(&common.Empty{}, response)
+		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was deleted
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
@@ -981,7 +983,7 @@ func (s *HandlerSuite) TestCreateJoinToken() {
 	// Token specified
 	resp, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo", Ttl: 1})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &registration.JoinToken{Token: "foo", Ttl: 1})
+	s.RequireProtoEqual(resp, &registration.JoinToken{Token: "foo", Ttl: 1})
 
 	// Already exists
 	resp, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo", Ttl: 1})
@@ -1004,7 +1006,7 @@ func (s *HandlerSuite) TestFetchBundle() {
 	})
 	resp, err = s.handler.FetchBundle(context.Background(), &common.Empty{})
 	s.Require().NoError(err)
-	s.Require().Equal(&registration.Bundle{
+	s.RequireProtoEqual(&registration.Bundle{
 		Bundle: &common.Bundle{
 			TrustDomainId: "spiffe://example.org",
 			RootCas: []*common.Certificate{
@@ -1021,7 +1023,7 @@ func (s *HandlerSuite) TestEvictAgent() {
 	node := s.createAttestedNode(spiffeIDToRemove)
 	evictResponse, err := s.handler.EvictAgent(ctx, evictRequest)
 	s.Require().NoError(err)
-	s.Equal(evictResponse.Node, node, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
+	s.AssertProtoEqual(evictResponse.Node, node, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
 }
 
 func (s *HandlerSuite) TestEvictAgentWithNonExistentId() {
@@ -1104,7 +1106,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 				SpiffeId: "spiffe://example.org",
 				Csr:      csr,
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a valid workload SPIFFE ID: path is empty`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`),
 		},
 		{
 			name: "SPIFFE ID is not for the trust domain",
@@ -1112,7 +1114,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 				SpiffeId: "spiffe://domain.test/workload",
 				Csr:      csr,
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" does not belong to trust domain "example.org"`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" is not a member of trust domain "example.org"`),
 		},
 		{
 			name: "CSR is missing",
@@ -1226,7 +1228,7 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 				SpiffeId: "spiffe://example.org",
 				Audience: []string{"AUDIENCE"},
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a valid workload SPIFFE ID: path is empty`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`),
 		},
 		{
 			name: "SPIFFE ID is not for the trust domain",
@@ -1234,7 +1236,7 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 				SpiffeId: "spiffe://domain.test/workload",
 				Audience: []string{"AUDIENCE"},
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" does not belong to trust domain "example.org"`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" is not a member of trust domain "example.org"`),
 		},
 		{
 			name: "audience is missing",

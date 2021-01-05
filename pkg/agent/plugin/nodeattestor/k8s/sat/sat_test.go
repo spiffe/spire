@@ -106,13 +106,13 @@ func (s *AttestorSuite) TestConfigure() {
 		Configuration: `cluster = "production"`,
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
 func (s *AttestorSuite) TestGetPluginInfo() {
 	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
+	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
 func (s *AttestorSuite) newAttestor() {

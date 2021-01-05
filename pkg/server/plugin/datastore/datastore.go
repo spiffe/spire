@@ -14,6 +14,8 @@ import (
 
 type AppendBundleRequest = datastore.AppendBundleRequest                           //nolint: golint
 type AppendBundleResponse = datastore.AppendBundleResponse                         //nolint: golint
+type ByFederatesWith = datastore.ByFederatesWith                                   //nolint: golint
+type ByFederatesWith_MatchBehavior = datastore.ByFederatesWith_MatchBehavior       //nolint: golint
 type BySelectors = datastore.BySelectors                                           //nolint: golint
 type BySelectors_MatchBehavior = datastore.BySelectors_MatchBehavior               //nolint: golint
 type CountAttestedNodesRequest = datastore.CountAttestedNodesRequest               //nolint: golint
@@ -73,6 +75,7 @@ type SetBundleResponse = datastore.SetBundleResponse                            
 type SetNodeSelectorsRequest = datastore.SetNodeSelectorsRequest                   //nolint: golint
 type SetNodeSelectorsResponse = datastore.SetNodeSelectorsResponse                 //nolint: golint
 type UnimplementedDataStoreServer = datastore.UnimplementedDataStoreServer         //nolint: golint
+type UnsafeDataStoreServer = datastore.UnsafeDataStoreServer                       //nolint: golint
 type UpdateAttestedNodeRequest = datastore.UpdateAttestedNodeRequest               //nolint: golint
 type UpdateAttestedNodeResponse = datastore.UpdateAttestedNodeResponse             //nolint: golint
 type UpdateBundleRequest = datastore.UpdateBundleRequest                           //nolint: golint
@@ -82,6 +85,8 @@ type UpdateRegistrationEntryResponse = datastore.UpdateRegistrationEntryResponse
 
 const (
 	Type                           = "DataStore"
+	ByFederatesWith_MATCH_EXACT    = datastore.ByFederatesWith_MATCH_EXACT    //nolint: golint
+	ByFederatesWith_MATCH_SUBSET   = datastore.ByFederatesWith_MATCH_SUBSET   //nolint: golint
 	BySelectors_MATCH_EXACT        = datastore.BySelectors_MATCH_EXACT        //nolint: golint
 	BySelectors_MATCH_SUBSET       = datastore.BySelectors_MATCH_SUBSET       //nolint: golint
 	DeleteBundleRequest_DELETE     = datastore.DeleteBundleRequest_DELETE     //nolint: golint
@@ -190,7 +195,7 @@ func (pluginClient) PluginType() string {
 	return Type
 }
 
-func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
 	return AdaptPluginClient(datastore.NewDataStoreClient(conn))
 }
 

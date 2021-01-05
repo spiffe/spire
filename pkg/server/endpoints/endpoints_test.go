@@ -70,11 +70,11 @@ func TestNew(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
-	serverCA := fakeserverca.New(t, testTD.String(), nil)
+	serverCA := fakeserverca.New(t, testTD, nil)
 	manager := ca.NewManager(ca.ManagerConfig{
 		CA:          serverCA,
 		Catalog:     cat,
-		TrustDomain: *testTD.ID().URL(),
+		TrustDomain: testTD,
 		Dir:         spiretest.TempDir(t),
 		Log:         log,
 		Metrics:     metrics,
@@ -130,11 +130,11 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
-	serverCA := fakeserverca.New(t, testTD.String(), nil)
+	serverCA := fakeserverca.New(t, testTD, nil)
 	manager := ca.NewManager(ca.ManagerConfig{
 		CA:          serverCA,
 		Catalog:     cat,
-		TrustDomain: *testTD.ID().URL(),
+		TrustDomain: testTD,
 		Dir:         spiretest.TempDir(t),
 		Log:         log,
 		Metrics:     metrics,
@@ -739,7 +739,7 @@ func testAuthorization(ctx context.Context, t *testing.T, client interface{}, ex
 }
 
 type registrationServer struct {
-	*registration.UnimplementedRegistrationServer
+	registration.UnimplementedRegistrationServer
 	*callTracker
 }
 
@@ -750,7 +750,7 @@ func newRegistrationServer() *registrationServer {
 }
 
 type nodeServer struct {
-	*node.UnimplementedNodeServer
+	node.UnimplementedNodeServer
 	*callTracker
 }
 

@@ -4,21 +4,20 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_registrationapi "github.com/spiffe/spire/pkg/common/telemetry/server/registrationapi"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -29,6 +28,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
@@ -38,10 +39,12 @@ const defaultListEntriesPageSize = 50
 //Handler service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
 type Handler struct {
+	registration.UnsafeRegistrationServer
+
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	ServerCA    ca.ServerCA
 }
 
@@ -211,7 +214,7 @@ func (h *Handler) ListByParentID(ctx context.Context, request *registration.Pare
 	ds := h.getDataStore()
 	listResponse, err := ds.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
-			ByParentId: &wrappers.StringValue{
+			ByParentId: &wrapperspb.StringValue{
 				Value: request.Id,
 			},
 		})
@@ -288,7 +291,7 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: request.Id,
 		},
 	}
@@ -356,7 +359,7 @@ func (h *Handler) CreateFederatedBundle(ctx context.Context, request *registrati
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if bundle.TrustDomainId == h.TrustDomain.String() {
+	if bundle.TrustDomainId == h.TrustDomain.IDString() {
 		log.Error("Federated bundle id cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -384,7 +387,7 @@ func (h *Handler) FetchFederatedBundle(ctx context.Context, request *registratio
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if request.Id == h.TrustDomain.String() {
+	if request.Id == h.TrustDomain.IDString() {
 		log.Error("Federated bundle id cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -421,7 +424,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	}
 
 	for _, bundle := range resp.Bundles {
-		if bundle.TrustDomainId == h.TrustDomain.String() {
+		if bundle.TrustDomainId == h.TrustDomain.IDString() {
 			continue
 		}
 		if err := stream.Send(&registration.FederatedBundle{
@@ -452,7 +455,7 @@ func (h *Handler) UpdateFederatedBundle(ctx context.Context, request *registrati
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if bundle.TrustDomainId == h.TrustDomain.String() {
+	if bundle.TrustDomainId == h.TrustDomain.IDString() {
 		log.Error("Federated bundle ID cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -480,7 +483,7 @@ func (h *Handler) DeleteFederatedBundle(ctx context.Context, request *registrati
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if request.Id == h.TrustDomain.String() {
+	if request.Id == h.TrustDomain.IDString() {
 		log.Error("Federated bundle ID cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -550,7 +553,7 @@ func (h *Handler) FetchBundle(ctx context.Context, request *common.Empty) (_ *re
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.String(),
+		TrustDomainId: h.TrustDomain.IDString(),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to get bundle from datastore")
@@ -645,7 +648,7 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 	}
 
 	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.String(),
+		TrustDomainId: h.TrustDomain.IDString(),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch bundle from datastore")
@@ -742,26 +745,30 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 	return resp.Node, nil
 }
 
-func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (string, error) {
+func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (spiffeid.ID, error) {
 	if spiffeID == "" {
-		return "", status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
+		return spiffeid.ID{}, status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
 	}
 
-	spiffeID, err := idutil.NormalizeSpiffeID(spiffeID, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	id, err := spiffeid.FromString(spiffeID)
 	if err != nil {
-		return "", status.Errorf(codes.InvalidArgument, err.Error())
+		return spiffeid.ID{}, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
-	return spiffeID, nil
+	if err = api.VerifyTrustDomainWorkloadID(h.TrustDomain, id); err != nil {
+		return spiffeid.ID{}, status.Errorf(codes.InvalidArgument, err.Error())
+	}
+
+	return id, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	// First we get all the entries that matches the entry's spiffe id.
 	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: entry.SpiffeId,
 		},
-		ByParentId: &wrappers.StringValue{
+		ByParentId: &wrapperspb.StringValue{
 			Value: entry.ParentId,
 		},
 		BySelectors: &datastore.BySelectors{
@@ -827,13 +834,13 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 		}
 	}
 
-	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
+	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain))
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate Spiffe ID
-	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain))
 	if err != nil {
 		return nil, err
 	}
@@ -926,7 +933,7 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID stri
 	}
 
 	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
+		BySpiffeId: &wrapperspb.StringValue{
 			Value: spiffeID,
 		},
 	})

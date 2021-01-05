@@ -459,10 +459,10 @@ server {
     registration_uds_path = "/opt/spire/registration.sock"
     default_svid_ttl = "6h"
     ca_ttl = "72h"
-    ca_subject = {
-        country = ["US"],
-        organization = ["SPIRE"],
-        common_name = "",
+    ca_subject {
+        country = ["US"]
+        organization = ["SPIRE"]
+        common_name = ""
     }
 }
 

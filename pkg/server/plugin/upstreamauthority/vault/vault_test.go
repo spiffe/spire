@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/vault/sdk/helper/consts"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -63,11 +64,12 @@ func (vps *VaultPluginSuite) Test_Configure() {
 	defer s.Close()
 
 	for _, c := range []struct {
-		name       string
-		configTmpl string
-		err        string
-		wantAuth   AuthMethod
-		envKeyVal  map[string]string
+		name                  string
+		configTmpl            string
+		err                   string
+		wantAuth              AuthMethod
+		wantNamespaceIsNotNil bool
+		envKeyVal             map[string]string
 	}{
 		{
 			name:       "Configure plugin with Client Certificate authentication params given in config file",
@@ -123,6 +125,12 @@ func (vps *VaultPluginSuite) Test_Configure() {
 			},
 			wantAuth: TOKEN,
 		},
+		{
+			name:                  "Configure plugin with given namespace",
+			configTmpl:            testNamespaceConfigTpl,
+			wantAuth:              TOKEN,
+			wantNamespaceIsNotNil: true,
+		},
 	} {
 		c := c
 		vps.Run(c.name, func() {
@@ -159,6 +167,10 @@ func (vps *VaultPluginSuite) Test_Configure() {
 				vps.Require().NotNil(p.cc.clientParams.AppRoleID)
 				vps.Require().NotNil(p.cc.clientParams.AppRoleSecretID)
 			}
+
+			if c.wantNamespaceIsNotNil {
+				vps.Require().NotNil(p.cc.clientParams.Namespace)
+			}
 		})
 	}
 }
@@ -178,18 +190,20 @@ func (vps *VaultPluginSuite) Test_Configure_Error_InvalidConfig() {
 
 func (vps *VaultPluginSuite) Test_MintX509CA() {
 	for _, c := range []struct {
-		name            string
-		lookupSelfResp  []byte
-		certAuthResp    []byte
-		appRoleAuthResp []byte
-		config          *PluginConfig
-		authMethod      AuthMethod
-		reuseToken      bool
-		err             string
+		name                 string
+		lookupSelfResp       []byte
+		certAuthResp         []byte
+		appRoleAuthResp      []byte
+		signIntermediateResp []byte
+		config               *PluginConfig
+		authMethod           AuthMethod
+		reuseToken           bool
+		err                  string
 	}{
 		{
-			name:           "Mint X509CA SVID with Token authentication",
-			lookupSelfResp: []byte(testLookupSelfResponse),
+			name:                 "Mint X509CA SVID with Token authentication",
+			lookupSelfResp:       []byte(testLookupSelfResponse),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &PluginConfig{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "_test_data/keys/EC/root_cert.pem",
@@ -201,8 +215,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			reuseToken: true,
 		},
 		{
-			name:           "Mint X509CA SVID with Token authentication / Token is not renewable",
-			lookupSelfResp: []byte(testLookupSelfResponseNotRenewable),
+			name:                 "Mint X509CA SVID with Token authentication / Token is not renewable",
+			lookupSelfResp:       []byte(testLookupSelfResponseNotRenewable),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &PluginConfig{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "_test_data/keys/EC/root_cert.pem",
@@ -213,8 +228,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			authMethod: TOKEN,
 		},
 		{
-			name:           "Mint X509CA SVID with Token authentication / Token never expire",
-			lookupSelfResp: []byte(testLookupSelfResponseNeverExpire),
+			name:                 "Mint X509CA SVID with Token authentication / Token never expire",
+			lookupSelfResp:       []byte(testLookupSelfResponseNeverExpire),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &PluginConfig{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "_test_data/keys/EC/root_cert.pem",
@@ -226,8 +242,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			reuseToken: true,
 		},
 		{
-			name:         "Mint X509CA SVID with TLS cert authentication",
-			certAuthResp: []byte(testCertAuthResponse),
+			name:                 "Mint X509CA SVID with TLS cert authentication",
+			certAuthResp:         []byte(testCertAuthResponse),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &PluginConfig{
 				CACertPath:    "_test_data/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -242,8 +259,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			reuseToken: true,
 		},
 		{
-			name:            "Mint X509CA SVID with AppRole authentication",
-			appRoleAuthResp: []byte(testAppRoleAuthResponse),
+			name:                 "Mint X509CA SVID with AppRole authentication",
+			appRoleAuthResp:      []byte(testAppRoleAuthResponse),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &PluginConfig{
 				CACertPath:    "_test_data/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -257,8 +275,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			reuseToken: true,
 		},
 		{
-			name:         "Mint X509CA SVID with TLS cert authentication / Token is not renewable",
-			certAuthResp: []byte(testCertAuthResponseNotRenewable),
+			name:                 "Mint X509CA SVID with TLS cert authentication / Token is not renewable",
+			certAuthResp:         []byte(testCertAuthResponseNotRenewable),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &PluginConfig{
 				CACertPath:    "_test_data/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -272,8 +291,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			authMethod: CERT,
 		},
 		{
-			name:            "Mint X509CA SVID with AppRole authentication / Token is not renewable",
-			appRoleAuthResp: []byte(testAppRoleAuthResponseNotRenewable),
+			name:                 "Mint X509CA SVID with AppRole authentication / Token is not renewable",
+			appRoleAuthResp:      []byte(testAppRoleAuthResponseNotRenewable),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &PluginConfig{
 				CACertPath:    "_test_data/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -284,6 +304,35 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 				},
 			},
 			authMethod: APPROLE,
+		},
+		{
+			name:                 "Mint X509CA SVID with Namespace",
+			lookupSelfResp:       []byte(testLookupSelfResponse),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
+			config: &PluginConfig{
+				Namespace:     "test-ns",
+				PKIMountPoint: "test-pki",
+				CACertPath:    "_test_data/keys/EC/root_cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
+				},
+			},
+			authMethod: TOKEN,
+			reuseToken: true,
+		},
+		{
+			name:                 "Mint X509CA SVID against the RootCA Vault",
+			lookupSelfResp:       []byte(testLookupSelfResponse),
+			signIntermediateResp: []byte(testSignIntermediateResponseNoChain),
+			config: &PluginConfig{
+				PKIMountPoint: "test-pki",
+				CACertPath:    "_test_data/keys/EC/root_cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
+				},
+			},
+			authMethod: TOKEN,
+			reuseToken: true,
 		},
 	} {
 		c := c
@@ -297,7 +346,7 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			vps.fakeVaultServer.LookupSelfResponse = c.lookupSelfResp
 			vps.fakeVaultServer.LookupSelfResponseCode = 200
 			vps.fakeVaultServer.SignIntermediateResponseCode = 200
-			vps.fakeVaultServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+			vps.fakeVaultServer.SignIntermediateResponse = c.signIntermediateResp
 			vps.fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
 
 			s, addr, err := vps.fakeVaultServer.NewTLSServer()
@@ -334,6 +383,11 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			}
 
 			vps.Require().Equal(c.reuseToken, p.reuseToken)
+
+			if p.cc.clientParams.Namespace != "" {
+				headers := p.vc.vaultClient.Headers()
+				vps.Require().Equal(p.cc.clientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
 		})
 	}
 }

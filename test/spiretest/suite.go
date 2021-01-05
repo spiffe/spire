@@ -3,10 +3,10 @@ package spiretest
 import (
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 func Run(t *testing.T, s suite.TestingSuite) {
@@ -75,7 +75,7 @@ func (s *Suite) AssertProtoListEqual(expected, actual interface{}) bool {
 	return AssertProtoListEqual(s.T(), expected, actual)
 }
 
-func (s *Suite) AssertProtoEqual(expected, actual proto.Message) bool {
+func (s *Suite) AssertProtoEqual(expected, actual proto.Message, msgAndArgs ...interface{}) bool {
 	s.T().Helper()
-	return AssertProtoEqual(s.T(), expected, actual)
+	return AssertProtoEqual(s.T(), expected, actual, msgAndArgs...)
 }

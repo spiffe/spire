@@ -17,6 +17,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -55,7 +56,7 @@ type ManagedCA interface {
 type ManagerConfig struct {
 	CA            ManagedCA
 	Catalog       catalog.Catalog
-	TrustDomain   url.URL
+	TrustDomain   spiffeid.TrustDomain
 	CATTL         time.Duration
 	X509CAKeyType keymanager.KeyType
 	JWTKeyType    keymanager.KeyType
@@ -107,7 +108,7 @@ func NewManager(c ManagerConfig) *Manager {
 			UpstreamAuthority: upstreamAuthority,
 			BundleUpdater: &bundleUpdater{
 				log:           c.Log,
-				trustDomainID: c.TrustDomain.String(),
+				trustDomainID: c.TrustDomain.IDString(),
 				ds:            c.Catalog.GetDataStore(),
 				updated:       m.bundleUpdated,
 			},
@@ -236,7 +237,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 
 	var x509CA *X509CA
 	if m.upstreamClient != nil {
-		x509CA, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, m.upstreamClient, m.c.CATTL)
+		x509CA, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain, m.c.CASubject, m.upstreamClient, m.c.CATTL)
 		if err != nil {
 			return err
 		}
@@ -244,7 +245,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 		notBefore := now.Add(-backdate)
 		notAfter := now.Add(m.c.CATTL)
 		var trustBundle []*x509.Certificate
-		x509CA, trustBundle, err = SelfSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+		x509CA, trustBundle, err = SelfSignX509CA(ctx, signer, m.c.TrustDomain, m.c.CASubject, notBefore, notAfter)
 		if err != nil {
 			return err
 		}
@@ -280,7 +281,7 @@ func (m *Manager) activateX509CA() {
 	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.TrustDomainID: m.c.TrustDomain.String(),
+		telemetry.TrustDomainID: m.c.TrustDomain.IDString(),
 		telemetry.TTL:           ttl.Seconds(),
 	}).Debug("Successfully rotated X.509 CA")
 
@@ -441,7 +442,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	expiresBefore := m.c.Clock.Now().Add(-safetyThreshold)
 
 	resp, err := ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: m.c.TrustDomain.String(),
+		TrustDomainId: m.c.TrustDomain.IDString(),
 		ExpiresBefore: expiresBefore.Unix(),
 	})
 
@@ -469,7 +470,7 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 	ds := m.c.Catalog.GetDataStore()
 	res, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
-			TrustDomainId:  m.c.TrustDomain.String(),
+			TrustDomainId:  m.c.TrustDomain.IDString(),
 			RootCas:        rootCAs,
 			JwtSigningKeys: jwtSigningKeys,
 		},
@@ -843,7 +844,7 @@ func (m *Manager) fetchRequiredBundle(ctx context.Context) (*common.Bundle, erro
 func (m *Manager) fetchOptionalBundle(ctx context.Context) (*common.Bundle, error) {
 	ds := m.c.Catalog.GetDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: m.c.TrustDomain.String(),
+		TrustDomainId: m.c.TrustDomain.IDString(),
 	})
 	if err != nil {
 		return nil, errs.Wrap(err)
@@ -988,17 +989,12 @@ func publicKeyEqual(a, b crypto.PublicKey) bool {
 	return matches
 }
 
-func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.Name) ([]byte, error) {
-	spiffeID := &url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-	}
-
+func GenerateServerCACSR(signer crypto.Signer, trustDomain spiffeid.TrustDomain, subject pkix.Name) ([]byte, error) {
 	// SignatureAlgorithm is not provided. The crypto/x509 package will
 	// select the algorithm appropriately based on the signer key type.
 	template := x509.CertificateRequest{
 		Subject: subject,
-		URIs:    []*url.URL{spiffeID},
+		URIs:    []*url.URL{trustDomain.ID().URL()},
 	}
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, signer)
@@ -1009,13 +1005,8 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.
 	return csr, nil
 }
 
-func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*X509CA, []*x509.Certificate, error) {
-	spiffeID := &url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-	}
-
-	template, err := CreateServerCATemplate(spiffeID.String(), signer.Public(), trustDomain, notBefore, notAfter, big.NewInt(0), subject)
+func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain spiffeid.TrustDomain, subject pkix.Name, notBefore, notAfter time.Time) (*X509CA, []*x509.Certificate, error) {
+	template, err := CreateServerCATemplate(trustDomain.ID(), signer.Public(), trustDomain, notBefore, notAfter, big.NewInt(0), subject)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1038,7 +1029,7 @@ func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain strin
 	}, trustBundle, nil
 }
 
-func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamClient *UpstreamClient, caTTL time.Duration) (*X509CA, error) {
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain spiffeid.TrustDomain, subject pkix.Name, upstreamClient *UpstreamClient, caTTL time.Duration) (*X509CA, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, err

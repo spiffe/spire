@@ -24,6 +24,7 @@ const (
 	envVaultCACert          = "VAULT_CACERT"
 	envVaultAppRoleID       = "VAULT_APPROLE_ID"
 	envVaultAppRoleSecretID = "VAULT_APPROLE_SECRET_ID" //// #nosec G101
+	envVaultNamespace       = "VAULT_NAMESPACE"
 
 	defaultCertMountPoint    = "cert"
 	defaultPKIMountPoint     = "pki"
@@ -86,6 +87,8 @@ type ClientParams struct {
 	// Set to 0 to disable retrying.
 	// If the value is nil, to use the default in hashicorp/vault/api.
 	MaxRetries *int
+	// Name of the Vault namespace
+	Namespace string
 }
 
 type Client struct {
@@ -135,6 +138,10 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 	vc, err := vapi.NewClient(config)
 	if err != nil {
 		return nil, false, err
+	}
+
+	if c.clientParams.Namespace != "" {
+		vc.SetNamespace(c.clientParams.Namespace)
 	}
 
 	client = &Client{

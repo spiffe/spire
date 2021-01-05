@@ -10,6 +10,8 @@ import (
 )
 
 type IdentityProvider struct {
+	hostservices.UnsafeIdentityProviderServer
+
 	mu      sync.Mutex
 	bundles []*common.Bundle
 }

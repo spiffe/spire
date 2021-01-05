@@ -1,4 +1,4 @@
-# Debug-endpoints suite
+# Debug Endpoints Suite
 
 ## Description
 

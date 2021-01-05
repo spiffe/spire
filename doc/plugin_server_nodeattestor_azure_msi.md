@@ -15,6 +15,8 @@ spiffe://<trust domain>/spire/agent/azure_msi/<tenant_id>/<principal_id>
 The server does not need to be running in Azure in order to perform node
 attestation.
 
+## Configuration
+
 | Configuration   | Description | Default                 |
 | --------------- | ----------- | ----------------------- |
 | `tenants`       | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. | |
@@ -46,3 +48,10 @@ A sample configuration:
         }
     }
 ```
+
+## Security Considerations
+The Azure Managed Service Identity token, which this attestor leverages to prove node identity, is available to any process running on the node by default. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
+
+While many operators choose to configure their systems to block access to the Managed Service Identity token, the SPIRE project cannot guarantee this posture. To mitigate the associated risk, the `azure_msi` node attestor implements Trust On First Use (or TOFU) semantics. For any given node, attestation may occur only once. Subsequent attestation attempts will be rejected.
+
+It is still possible for non-agent code to complete node attestation before SPIRE Agent can, however this condition is easily and quickly detectable as SPIRE Agent will fail to start, and both SPIRE Agent and SPIRE Server will log the occurrence. Such cases should be investigated as possible security incidents.

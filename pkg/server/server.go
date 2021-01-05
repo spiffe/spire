@@ -12,8 +12,6 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
@@ -94,7 +92,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// to do its job. RPC's from plugins to the identity provider before
 	// SetDeps() has been called will fail with a PreCondition status.
 	identityProvider := identityprovider.New(identityprovider.Config{
-		TrustDomainID: s.config.TrustDomain.String(),
+		TrustDomainID: s.config.TrustDomain.IDString(),
 	})
 
 	// Create the agent store host service. It will not be functional
@@ -236,12 +234,12 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore,
-	metricsService common_services.MetricsService) (*catalog.Repository, error) {
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProviderServer, agentStore hostservices.AgentStoreServer,
+	metricsService common_services.MetricsServiceServer) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		GlobalConfig: catalog.GlobalConfig{
-			TrustDomain: s.config.TrustDomain.Host,
+		GlobalConfig: &catalog.GlobalConfig{
+			TrustDomain: s.config.TrustDomain.String(),
 		},
 		PluginConfig:     s.config.PluginConfigs,
 		Metrics:          metrics,
@@ -308,7 +306,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		TCPAddr:                     s.config.BindAddress,
 		UDSAddr:                     s.config.BindUDSAddress,
 		SVIDObserver:                svidObserver,
-		TrustDomain:                 spiffeid.RequireTrustDomainFromURI(&s.config.TrustDomain),
+		TrustDomain:                 s.config.TrustDomain,
 		Catalog:                     catalog,
 		ServerCA:                    serverCA,
 		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
@@ -336,7 +334,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 }
 
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
-	trustDomain := s.config.TrustDomain.Host
+	trustDomain := s.config.TrustDomain.String()
 
 	// Get only first page with a single element
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{

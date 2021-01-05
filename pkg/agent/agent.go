@@ -72,7 +72,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	cat, err := catalog.Load(ctx, catalog.Config{
 		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		GlobalConfig: catalog.GlobalConfig{
+		GlobalConfig: &catalog.GlobalConfig{
 			TrustDomain: a.c.TrustDomain.Host,
 		},
 		PluginConfig: a.c.PluginConfigs,

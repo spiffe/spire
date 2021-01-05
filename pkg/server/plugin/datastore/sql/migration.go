@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/golang/protobuf/proto"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -28,6 +28,14 @@ var (
 )
 
 func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logger) (err error) {
+	// The version comparison logic in this package supports only 0.x and 1.x versioning semantics.
+	// It will need to be updated prior to releasing 2.x. Ensure that we're still building a pre-2.0
+	// version before continuing, and fail if we're not.
+	if codeVersion.Major > 1 {
+		log.Error("Migration code needs updating for current release version")
+		return sqlError.New("current migration code not compatible with current release version")
+	}
+
 	isNew := !db.HasTable(&Bundle{})
 	if err := db.Error; err != nil {
 		return sqlError.Wrap(err)
@@ -35,15 +43,6 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 
 	if isNew {
 		return initDB(db, dbType, log)
-	}
-
-	// TODO related epic https://github.com/spiffe/spire/issues/1083
-	// The version comparison logic in this package is specific to pre-1.0 versioning semantics.
-	// It will need to be updated prior to releasing 1.0. Ensure that we're still building a pre-1.0
-	// version before continuing, and fail if we're not.
-	if codeVersion.Major != 0 {
-		log.Error("Migration code needs updating for current release version")
-		return sqlError.New("current migration code not compatible with current release version")
 	}
 
 	// ensure migrations table exists so we can check versioning in all cases
@@ -86,7 +85,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	}
 
 	if disableMigration {
-		if err = isDisabledMigrationAllowed(dbCodeVersion); err != nil {
+		if err = isDisabledMigrationAllowed(codeVersion, dbCodeVersion); err != nil {
 			log.Error("Auto-migrate must be enabled", telemetry.Error, err)
 			return sqlError.Wrap(err)
 		}
@@ -97,7 +96,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	// an upgrade. So long as the version is compatible, log a warning and continue.
 	// Otherwise, we should bail out. Migration rollbacks are not supported.
 	if schemaVersion > latestSchemaVersion {
-		if !isCompatibleCodeVersion(dbCodeVersion) {
+		if !isCompatibleCodeVersion(codeVersion, dbCodeVersion) {
 			log.Error("Incompatible DB schema is too new for code version, upgrade SPIRE Server")
 			return sqlError.New("incompatible DB schema and code version")
 		}
@@ -129,10 +128,10 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 	return nil
 }
 
-func isDisabledMigrationAllowed(dbCodeVersion semver.Version) error {
+func isDisabledMigrationAllowed(thisCodeVersion, dbCodeVersion semver.Version) error {
 	// If auto-migrate is disabled and we are running a compatible version (+/- 1
 	// minor from the stored code version) then we are done here
-	if !isCompatibleCodeVersion(dbCodeVersion) {
+	if !isCompatibleCodeVersion(thisCodeVersion, dbCodeVersion) {
 		return errors.New("auto-migration must be enabled for current DB")
 	}
 	return nil
@@ -151,12 +150,25 @@ func getDBCodeVersion(migration Migration) (dbCodeVersion semver.Version, err er
 	return dbCodeVersion, nil
 }
 
-func isCompatibleCodeVersion(dbCodeVersion semver.Version) bool {
-	// if major version is the same and minor version is +/- 1, versions are
+func isCompatibleCodeVersion(thisCodeVersion, dbCodeVersion semver.Version) bool {
+	// Apply a targeted exception in which 0.12.x is compatible with 1.0.x
+	// as 0.12 is the last pre-1.0 release.
+	//
+	// TODO: Remove in 1.1.0
+	if thisCodeVersion.Major == 0 && thisCodeVersion.Minor == 12 {
+		if dbCodeVersion.Major == 1 && dbCodeVersion.Minor == 0 {
+			return true
+		}
+	}
+	if thisCodeVersion.Major == 1 && thisCodeVersion.Minor == 0 {
+		if dbCodeVersion.Major == 0 && dbCodeVersion.Minor == 12 {
+			return true
+		}
+	}
+
+	// If major version is the same and minor version is +/- 1, versions are
 	// compatible
-	// TODO related epic https://github.com/spiffe/spire/issues/1083
-	// at 1.0, this must be updated
-	if dbCodeVersion.Major != codeVersion.Major || (math.Abs(float64(int64(dbCodeVersion.Minor)-int64(codeVersion.Minor))) > 1) {
+	if dbCodeVersion.Major != thisCodeVersion.Major || (math.Abs(float64(int64(dbCodeVersion.Minor)-int64(thisCodeVersion.Minor))) > 1) {
 		return false
 	}
 	return true

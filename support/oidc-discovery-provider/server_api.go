@@ -7,53 +7,53 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/square/go-jose.v2"
 )
 
 const (
-	DefaultRegistrationAPIPollInterval = time.Second * 10
+	DefaultServerAPIPollInterval = time.Second * 10
 )
 
-type RegistrationAPISourceConfig struct {
+type ServerAPISourceConfig struct {
 	Log          logrus.FieldLogger
-	SocketPath   string
+	Address      string
 	PollInterval time.Duration
 	Clock        clock.Clock
 }
 
-type RegistrationAPISource struct {
+type ServerAPISource struct {
 	log    logrus.FieldLogger
 	clock  clock.Clock
 	cancel context.CancelFunc
 
 	mu      sync.RWMutex
 	wg      sync.WaitGroup
-	bundle  *common.Bundle
+	bundle  *types.Bundle
 	jwks    *jose.JSONWebKeySet
 	modTime time.Time
 }
 
-func NewRegistrationAPISource(config RegistrationAPISourceConfig) (*RegistrationAPISource, error) {
+func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) {
 	if config.PollInterval <= 0 {
-		config.PollInterval = DefaultRegistrationAPIPollInterval
+		config.PollInterval = DefaultServerAPIPollInterval
 	}
 	if config.Clock == nil {
 		config.Clock = clock.New()
 	}
 
-	conn, err := grpc.Dial("unix://"+config.SocketPath, grpc.WithInsecure())
+	conn, err := grpc.Dial(config.Address, grpc.WithInsecure())
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &RegistrationAPISource{
+	s := &ServerAPISource{
 		log:    config.Log,
 		clock:  config.Clock,
 		cancel: cancel,
@@ -63,13 +63,13 @@ func NewRegistrationAPISource(config RegistrationAPISourceConfig) (*Registration
 	return s, nil
 }
 
-func (s *RegistrationAPISource) Close() error {
+func (s *ServerAPISource) Close() error {
 	s.cancel()
 	s.wg.Wait()
 	return nil
 }
 
-func (s *RegistrationAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
+func (s *ServerAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.jwks == nil {
@@ -78,12 +78,12 @@ func (s *RegistrationAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, b
 	return s.jwks, s.modTime, true
 }
 
-func (s *RegistrationAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, interval time.Duration) {
+func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, interval time.Duration) {
 	s.wg.Add(1)
 	defer s.wg.Done()
 
 	defer conn.Close()
-	client := registration.NewRegistrationClient(conn)
+	client := bundle.NewBundleClient(conn)
 
 	s.log.WithField("interval", interval).Debug("Polling started")
 	for {
@@ -97,26 +97,25 @@ func (s *RegistrationAPISource) pollEvery(ctx context.Context, conn *grpc.Client
 	}
 }
 
-func (s *RegistrationAPISource) pollOnce(ctx context.Context, client registration.RegistrationClient) {
+func (s *ServerAPISource) pollOnce(ctx context.Context, client bundle.BundleClient) {
 	// Ensure the stream gets cleaned up
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	resp, err := client.FetchBundle(ctx, &common.Empty{})
+	bundle, err := client.GetBundle(ctx, &bundle.GetBundleRequest{
+		OutputMask: &types.BundleMask{
+			JwtAuthorities: true,
+		},
+	})
 	if err != nil {
 		s.log.WithError(err).Warn("Failed to fetch bundle")
 		return
 	}
 
-	s.parseBundle(resp.Bundle)
+	s.parseBundle(bundle)
 }
 
-func (s *RegistrationAPISource) parseBundle(bundle *common.Bundle) {
-	if bundle == nil {
-		s.log.Error("Received an empty bundle from the Registration API")
-		return
-	}
-
+func (s *ServerAPISource) parseBundle(bundle *types.Bundle) {
 	// If the bundle hasn't changed, don't bother continuing
 	s.mu.RLock()
 	if s.bundle != nil && proto.Equal(s.bundle, bundle) {
@@ -126,16 +125,16 @@ func (s *RegistrationAPISource) parseBundle(bundle *common.Bundle) {
 	s.mu.RUnlock()
 
 	jwks := new(jose.JSONWebKeySet)
-	for _, key := range bundle.JwtSigningKeys {
-		publicKey, err := x509.ParsePKIXPublicKey(key.PkixBytes)
+	for _, key := range bundle.JwtAuthorities {
+		publicKey, err := x509.ParsePKIXPublicKey(key.PublicKey)
 		if err != nil {
-			s.log.WithError(err).WithField("kid", key.Kid).Warn("Malformed public key in bundle")
+			s.log.WithError(err).WithField("kid", key.KeyId).Warn("Malformed public key in bundle")
 			continue
 		}
 
 		jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
 			Key:   publicKey,
-			KeyID: key.Kid,
+			KeyID: key.KeyId,
 		})
 	}
 

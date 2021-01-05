@@ -77,6 +77,8 @@ type clusterConfig struct {
 
 //AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
 type AttestorPlugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	mu     sync.RWMutex
 	config *attestorConfig
 }
@@ -179,6 +181,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		k8s.MakeSelector(pluginName, "agent_sa", serviceAccountName),
 		k8s.MakeSelector(pluginName, "agent_pod_name", podName),
 		k8s.MakeSelector(pluginName, "agent_pod_uid", podUID),
+		k8s.MakeSelector(pluginName, "agent_node_ip", pod.Status.HostIP),
 		k8s.MakeSelector(pluginName, "agent_node_name", pod.Spec.NodeName),
 		k8s.MakeSelector(pluginName, "agent_node_uid", nodeUID),
 	}

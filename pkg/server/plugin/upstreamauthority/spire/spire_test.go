@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	w_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -214,7 +213,7 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 
 	ca := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(h.cert[0], h.key),
-		trustDomain.String(),
+		trustDomain,
 		x509svid.UpstreamCAOptions{})
 
 	cert, err := ca.SignCSR(ctx, req.Csr, 0)
@@ -588,8 +587,4 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 	clk = mockClock
 
 	return plugin, mockClock
-}
-
-func cloneBundle(b *types.Bundle) *types.Bundle {
-	return proto.Clone(b).(*types.Bundle)
 }

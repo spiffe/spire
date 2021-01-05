@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -19,12 +20,13 @@ import (
 )
 
 var (
-	csr, _ = ca.GenerateServerCACSR(testkey.MustEC256(), "example.org", pkix.Name{CommonName: "FAKE CA"})
+	csr, _      = ca.GenerateServerCACSR(testkey.MustEC256(), spiffeid.RequireTrustDomainFromString("example.org"), pkix.Name{CommonName: "FAKE CA"})
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
 
 func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
 	client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
-		TrustDomain:     "example.org",
+		TrustDomain:     trustDomain,
 		UseIntermediate: true,
 	})
 
@@ -79,7 +81,7 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			client, _, _ := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
-				TrustDomain:              "example.org",
+				TrustDomain:              trustDomain,
 				MutateMintX509CAResponse: tt.mutate,
 			})
 
@@ -123,7 +125,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var first bool
 			client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
-				TrustDomain: "example.org",
+				TrustDomain: trustDomain,
 				MutateMintX509CAResponse: func(resp *upstreamauthority.MintX509CAResponse) {
 					if !first {
 						first = true
@@ -152,7 +154,7 @@ func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
 
 func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 	client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
-		TrustDomain: "example.org",
+		TrustDomain: trustDomain,
 	})
 
 	key1 := &common.PublicKey{
@@ -177,7 +179,7 @@ func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 
 func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
 	client, _, _ := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
-		TrustDomain:           "example.org",
+		TrustDomain:           trustDomain,
 		DisallowPublishJWTKey: true,
 	})
 

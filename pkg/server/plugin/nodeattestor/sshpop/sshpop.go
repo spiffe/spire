@@ -11,6 +11,8 @@ import (
 )
 
 type Plugin struct {
+	nodeattestor.UnsafeNodeAttestorServer
+
 	mu        sync.RWMutex
 	sshserver *sshpop.Server
 }

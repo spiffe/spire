@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -33,7 +34,7 @@ func builtin(p *Plugin) catalog.Plugin {
 }
 
 type Configuration struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 
 	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
@@ -41,6 +42,8 @@ type Configuration struct {
 }
 
 type Plugin struct {
+	upstreamauthority.UnsafeUpstreamAuthorityServer
+
 	log   hclog.Logger
 	clock clock.Clock
 
@@ -83,7 +86,11 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		return nil, errors.New("trust_domain is required")
 	}
 
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+	config.trustDomain = trustDomain
 
 	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(config)
 	if err != nil {
