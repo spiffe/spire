@@ -17,8 +17,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
-	corev1 "k8s.io/api/core/v1"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -62,12 +62,12 @@ type pluginConfig struct {
 type Plugin struct {
 	notifier.UnsafeNotifierServer
 
-	mu               sync.RWMutex
-	log              hclog.Logger
-	config           *pluginConfig
-	identityProvider hostservices.IdentityProvider
+	mu                    sync.RWMutex
+	log                   hclog.Logger
+	config                *pluginConfig
+	identityProvider      hostservices.IdentityProvider
 	webhookWatcherStarted bool
-	configUpdated chan struct{}
+	configUpdated         chan struct{}
 
 	hooks struct {
 		newKubeClient func(configPath string) (*kubernetes.Clientset, error)
@@ -178,7 +178,7 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 	}
 	clientsets := newClientsets(c, client)
 
-	for _, clientset := range(clientsets) {
+	for _, clientset := range clientsets {
 		list, err := clientset.GetList(ctx)
 		if err != nil {
 			return k8sErr.New("unable to get list:", err)
@@ -232,7 +232,6 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 	})
 }
 
-
 func (p *Plugin) startWatchWebhooks(c *pluginConfig) (err error) {
 	p.mu.Lock()
 	if !p.webhookWatcherStarted {
@@ -245,7 +244,7 @@ func (p *Plugin) startWatchWebhooks(c *pluginConfig) (err error) {
 			if err := p.watchWebhooks(ctx, c); err != nil {
 				p.log.Error("watching webhooks", "error", err)
 			}
-		} ()
+		}()
 	} else {
 		p.mu.Unlock()
 		p.configUpdated <- struct{}{}
@@ -270,7 +269,7 @@ func (p *Plugin) watchWebhooks(ctx context.Context, c *pluginConfig) (err error)
 		return err
 	}
 
-	for  {
+	for {
 		select {
 		case event := <-validatingWebhookWatcher.ResultChan():
 			if err = p.watchEvent(ctx, c, validatingWebhookClient, event); err != nil {
@@ -312,7 +311,7 @@ func (p *Plugin) watchEvent(ctx context.Context, c *pluginConfig, client kubeCli
 
 // Creates an array of the available clientsets
 func newClientsets(c *pluginConfig, clientset *kubernetes.Clientset) []kubeClient {
-	clients :=[]kubeClient{newConfigMapClientset(c, clientset)}
+	clients := []kubeClient{newConfigMapClientset(c, clientset)}
 	if c.WebhookLabel != "" {
 		clients = append(clients,
 			newMutatingWebhookClientset(c, clientset),
@@ -408,7 +407,6 @@ type validatingWebhookClientset struct {
 func newValidatingWebhookClientset(c *pluginConfig, clientset *kubernetes.Clientset) validatingWebhookClientset {
 	return validatingWebhookClientset{Clientset: clientset, Config: c}
 }
-
 
 func (c validatingWebhookClientset) Get(ctx context.Context, namespace, validatingWebhook string) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, validatingWebhook, metav1.GetOptions{})
