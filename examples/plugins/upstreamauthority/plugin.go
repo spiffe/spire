@@ -60,7 +60,6 @@ type Plugin struct {
 // catalog requires to provide the plugin with a logger and host service
 // broker as well as the UpstreamAuthority itself.
 var _ catalog.NeedsLogger = (*Plugin)(nil)
-var _ catalog.NeedsLogger = (*Plugin)(nil)
 var _ upstreamauthority.UpstreamAuthorityServer = (*Plugin)(nil)
 
 func New() *Plugin {
