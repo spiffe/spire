@@ -64,7 +64,8 @@ type dockerPluginConfig struct {
 	DockerSocketPath string `hcl:"docker_socket_path"`
 	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
 	DockerVersion string `hcl:"docker_version"`
-	// ContainerIDCGroupMatchers
+	// ContainerIDCGroupMatchers is a list of patterns used to discover container IDs from cgroup entries.
+	// See the documentation for cgroup.NewContainerIDFinder in the cgroup subpackage for more information.
 	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers"`
 }
 
