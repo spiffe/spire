@@ -23,6 +23,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 var (
@@ -126,7 +128,7 @@ func (s *Suite) TestBundleLoadedConfigMapGetFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to get config map spire/spire-bundle: not found")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to get list: not found")
 	s.Nil(resp)
 }
 
@@ -149,7 +151,7 @@ func (s *Suite) TestBundleLoadedConfigMapPatchFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update config map spire/spire-bundle: some error")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update spire/spire-bundle: some error")
 	s.Nil(resp)
 }
 
@@ -159,6 +161,7 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 		ErrStatus: metav1.Status{
 			Code:    http.StatusConflict,
 			Message: "unexpected version",
+			Reason:  "Conflict",
 		},
 	})
 
@@ -279,7 +282,7 @@ func (s *Suite) TestBundleUpdatedConfigMapGetFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to get config map spire/spire-bundle: not found")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to get list: not found")
 	s.Nil(resp)
 }
 
@@ -302,7 +305,7 @@ func (s *Suite) TestBundleUpdatedConfigMapPatchFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update config map spire/spire-bundle: some error")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update spire/spire-bundle: some error")
 	s.Nil(resp)
 }
 
@@ -312,6 +315,7 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 		ErrStatus: metav1.Status{
 			Code:    http.StatusConflict,
 			Message: "unexpected version",
+			Reason:  "Conflict",
 		},
 	})
 
@@ -429,12 +433,12 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 }
 
 func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
-	s.raw.hooks.newKubeClient = func(configPath string) (kubeClient, error) {
+	s.raw.hooks.newKubeClient = func(configPath string) ([]kubeClient, error) {
 		s.Equal(expectedConfigPath, configPath)
 		if client == nil {
 			return nil, errors.New("kube client not configured")
 		}
-		return client, nil
+		return []kubeClient{client}, nil
 	}
 }
 
@@ -461,15 +465,37 @@ func newFakeKubeClient(configMaps ...*corev1.ConfigMap) *fakeKubeClient {
 	return c
 }
 
-func (c *fakeKubeClient) GetConfigMap(ctx context.Context, namespace, configMap string) (*corev1.ConfigMap, error) {
+func (c *fakeKubeClient) Get(ctx context.Context, namespace, configMap string) (runtime.Object, error) {
 	entry := c.getConfigMap(namespace, configMap)
 	if entry == nil {
 		return nil, errors.New("not found")
 	}
 	return entry, nil
 }
+func (c *fakeKubeClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+	list := c.getConfigMapList()
+	if list.Items == nil {
+		return nil, errors.New("not found")
+	}
+	return list, nil
+}
 
-func (c *fakeKubeClient) PatchConfigMap(ctx context.Context, namespace, configMap string, patchBytes []byte) error {
+func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+	configMap, ok := obj.(*corev1.ConfigMap)
+	if !ok {
+		return nil, k8sErr.New("wrong type, expecting config map")
+	}
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: configMap.ResourceVersion,
+		},
+		Data: map[string]string{
+			config.ConfigMapKey: bundleData(resp.Bundle),
+		},
+	}, nil
+}
+
+func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string, patchBytes []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -503,10 +529,24 @@ func (c *fakeKubeClient) PatchConfigMap(ctx context.Context, namespace, configMa
 	return nil
 }
 
+func (c *fakeKubeClient) Watch(ctx context.Context, label string) (watch.Interface, error) {
+	return nil, nil
+}
+
 func (c *fakeKubeClient) getConfigMap(namespace, configMap string) *corev1.ConfigMap {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.configMaps[configMapKey(namespace, configMap)]
+}
+
+func (c *fakeKubeClient) getConfigMapList() *corev1.ConfigMapList {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	configMapList := &corev1.ConfigMapList{}
+	for _, configMap := range c.configMaps {
+		configMapList.Items = append(configMapList.Items, *configMap)
+	}
+	return configMapList
 }
 
 func (c *fakeKubeClient) setConfigMap(configMap *corev1.ConfigMap) {
