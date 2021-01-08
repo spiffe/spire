@@ -41,12 +41,7 @@ func TestBundleUpdater(t *testing.T) {
 		err string
 	}{
 		{
-			name:        "local bundle not found",
-			trustDomain: trustDomain,
-			err:         "local bundle not found",
-		},
-		{
-			name:        "accepts trust domain id as the trust domain",
+			name:        "providing no bundle",
 			trustDomain: trustDomain,
 			err:         "local bundle not found",
 		},
