@@ -241,10 +241,7 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 			names[name] = true
 		}
 	}
-	var returnAllEntries = false
-	if len(names) == 0 {
-		returnAllEntries = true
-	}
+	returnAllEntries := len(names) == 0
 
 	// TODO: verify the type url
 	if upd.Bundle != nil {

@@ -243,10 +243,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 			names[name] = true
 		}
 	}
-	var returnAllEntries = false
-	if len(names) == 0 {
-		returnAllEntries = true
-	}
+	returnAllEntries := len(names) == 0
 
 	// TODO: verify the type url
 	if upd.Bundle != nil {
