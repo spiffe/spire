@@ -102,8 +102,8 @@ jobs:
     steps:
       - setup_remote_docker: {}
       - checkout
-      - run: make images
-      - run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
+      - run: make images scratch-images
+      - run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > images.tar.gz
       - persist_to_workspace:
           root: ./
           paths:
