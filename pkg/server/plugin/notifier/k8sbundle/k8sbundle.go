@@ -208,9 +208,9 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 // updateBundle does the ready-modify-write semantics for Kubernetes, retrying on conflict
 func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeClientset, namespace, name string) (err error) {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		webhook, err := client.Get(ctx, namespace, name)
+		obj, err := client.Get(ctx, namespace, name)
 		if err != nil {
-			return k8sErr.New("unable to get webhook %s: %v", name, err)
+			return k8sErr.New("unable to get object %s/%s: %v", namespace, name, err)
 		}
 
 		// Load bundle data from the registration api. The bundle has to be
@@ -223,7 +223,7 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 		}
 
 		// Create patch with updated CA Bundles
-		patch, err := client.Modify(ctx, c, webhook, resp)
+		patch, err := client.CreatePatch(ctx, c, obj, resp)
 		if err != nil {
 			return err
 		}
@@ -233,7 +233,7 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 		if err != nil {
 			return k8sErr.New("unable to marshal patch: %v", err)
 		}
-		return client.Patch(ctx, webhook, patchBytes)
+		return client.Patch(ctx, obj, patchBytes)
 	})
 }
 
@@ -336,7 +336,7 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 type kubeClientset interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
 	GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error)
-	Modify(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error)
+	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, obj runtime.Object, patchBytes []byte) error
 	Watch(ctx context.Context, label string) (watch.Interface, error)
 }
@@ -385,7 +385,7 @@ func (c configMapClientset) GetList(ctx context.Context, config *pluginConfig) (
 	})
 }
 
-func (c configMapClientset) Modify(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c configMapClientset) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting config map")
@@ -432,7 +432,7 @@ func (c mutatingWebhookClientset) GetList(ctx context.Context, config *pluginCon
 	})
 }
 
-func (c mutatingWebhookClientset) Modify(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c mutatingWebhookClientset) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting mutating webhook")
@@ -490,7 +490,7 @@ func (c validatingWebhookClientset) GetList(ctx context.Context, config *pluginC
 	})
 }
 
-func (c validatingWebhookClientset) Modify(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c validatingWebhookClientset) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting validating webhook")
