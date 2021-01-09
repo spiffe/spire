@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
 	"sync"
 	"syscall"
@@ -149,14 +148,9 @@ func parseTaskStat(stat string) ([]string, error) {
 }
 
 func getStarttime(pid int32) (string, error) {
-	statfd, err := os.Open(fmt.Sprintf("/proc/%v/stat", pid))
+	statBytes, err := ioutil.ReadFile(fmt.Sprintf("/proc/%v/stat", pid))
 	if err != nil {
-		return "", fmt.Errorf("could not open caller stats: %v", err)
-	}
-
-	statBytes, err := ioutil.ReadAll(statfd)
-	if err != nil {
-		return "", fmt.Errorf("could not read caller stats: %v", err)
+		return "", fmt.Errorf("could not read caller stat: %v", err)
 	}
 
 	statFields, err := parseTaskStat(string(statBytes))
