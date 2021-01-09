@@ -153,6 +153,7 @@ func getStarttime(pid int32) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not open caller stats: %v", err)
 	}
+	defer statfd.Close()
 
 	statBytes, err := ioutil.ReadAll(statfd)
 	if err != nil {
