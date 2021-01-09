@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -255,35 +256,34 @@ func (p *Plugin) startOrUpdateWatchWebhooks(c *pluginConfig) {
 
 // watchWebhooks watches for new webhooks that are created with the configured label and updates the CA Bundle
 func (p *Plugin) watchWebhooks(ctx context.Context, c *pluginConfig) (err error) {
-	mutatingWebhookClient, validatingWebhookClient, err := newWebhookClients(c.KubeConfigFilePath)
-	if err != nil {
-		return err
-	}
-	mutatingWebhookWatcher, validatingWebhookWatcher, err := newWebhookWatchers(ctx, c, mutatingWebhookClient, validatingWebhookClient)
+	clients, err := p.hooks.newKubeClient(c.KubeConfigFilePath)
 	if err != nil {
 		return err
 	}
 
+	watchers, err := newWatchers(ctx, c, clients)
+	if err != nil {
+		return err
+	}
+	selectCase := p.newSelectCase(watchers)
+
 	for {
-		select {
-		case event := <-mutatingWebhookWatcher.ResultChan():
-			if err = p.watchWebhookEvent(ctx, c, mutatingWebhookClient, event); err != nil {
+		chosen, recv, _ := reflect.Select(selectCase)
+		if chosen < len(clients) {
+			if err = p.watchWebhookEvent(ctx, c, clients[chosen], recv.Interface().(watch.Event)); err != nil {
 				p.log.Error("handling watch event for mutating webhook", "error", err)
 			}
-		case event := <-validatingWebhookWatcher.ResultChan():
-			if err = p.watchWebhookEvent(ctx, c, validatingWebhookClient, event); err != nil {
-				p.log.Error("handling watch event for validating webhook", "error", err)
-			}
-		case <-p.configUpdated:
+		} else {
 			c, err = p.getConfig()
 			if err != nil {
 				p.log.Error("getting updated config", "error", err)
 			}
-			stopWebhookWatchers(mutatingWebhookWatcher, validatingWebhookWatcher)
-			mutatingWebhookWatcher, validatingWebhookWatcher, err = newWebhookWatchers(ctx, c, mutatingWebhookClient, validatingWebhookClient)
+			stopWatchers(watchers)
+			watchers, err = newWatchers(ctx, c, clients)
 			if err != nil {
 				p.log.Error("getting updated webhook watchers", "error", err)
 			}
+			selectCase = p.newSelectCase(watchers)
 		}
 	}
 }
@@ -300,37 +300,48 @@ func (p *Plugin) watchWebhookEvent(ctx context.Context, c *pluginConfig, client 
 			return err
 		}
 	}
-
 	return nil
 }
 
-func newWebhookWatchers(ctx context.Context, c *pluginConfig, mutatingWebhookClient, validatingWebhookClient kubeClient) (watch.Interface, watch.Interface, error) {
-	mutatingWebhookWatcher, err := mutatingWebhookClient.Watch(ctx, c.WebhookLabel)
-	if err != nil {
-		return nil, nil, err
+func (p *Plugin) newSelectCase(watchers []watch.Interface) []reflect.SelectCase {
+	selectCase := []reflect.SelectCase{}
+	for _, watcher := range watchers {
+		if watcher != nil {
+			selectCase = append(selectCase, reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(watcher.ResultChan()),
+			})
+		} else {
+			selectCase = append(selectCase, reflect.SelectCase{
+				Dir: reflect.SelectRecv,
+			})
+		}
 	}
-	validatingWebhookWatcher, err := validatingWebhookClient.Watch(ctx, c.WebhookLabel)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return mutatingWebhookWatcher, validatingWebhookWatcher, nil
+	selectCase = append(selectCase, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(p.configUpdated),
+	})
+	return selectCase
 }
 
-func stopWebhookWatchers(mutatingWebhookWatcher, validatingWebhookWatcher watch.Interface) {
-	mutatingWebhookWatcher.Stop()
-	validatingWebhookWatcher.Stop()
+func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]watch.Interface, error) {
+	watchers := []watch.Interface{}
+	for _, client := range clients {
+		watcher, err := client.Watch(ctx, c.WebhookLabel)
+		if err != nil {
+			return nil, err
+		}
+		watchers = append(watchers, watcher)
+	}
+	return watchers, nil
 }
 
-func newWebhookClients(configPath string) (*mutatingWebhookClient, *validatingWebhookClient, error) {
-	clientset, err := newKubeClientset(configPath)
-	if err != nil {
-		return nil, nil, k8sErr.Wrap(err)
+func stopWatchers(watchers []watch.Interface) {
+	for _, watcher := range watchers {
+		if watcher != nil {
+			watcher.Stop()
+		}
 	}
-
-	return &mutatingWebhookClient{Clientset: clientset},
-		&validatingWebhookClient{Clientset: clientset},
-		nil
 }
 
 func newKubeClient(configPath string) ([]kubeClient, error) {

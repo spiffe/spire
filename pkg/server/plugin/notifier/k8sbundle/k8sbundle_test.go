@@ -432,6 +432,26 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 	}
 }
 
+func (s *Suite) TestWatcherUpdateConfig() {
+	s.withKubeClient(s.k, "/some/file/path")
+	s.configure(`
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+webhook_label = "LABEL"
+config_map_key = "CONFIGMAPKEY"
+kube_config_file_path = "/some/file/path"
+`)
+	s.Require().Equal(s.k.watchLabel, "LABEL")
+	s.configure(`
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+webhook_label = "LABEL2"
+config_map_key = "CONFIGMAPKEY"
+kube_config_file_path = "/some/file/path"
+`)
+	s.Require().Equal(s.k.watchLabel, "LABEL2")
+}
+
 func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
 	s.raw.hooks.newKubeClient = func(configPath string) ([]kubeClient, error) {
 		s.Equal(expectedConfigPath, configPath)
@@ -453,11 +473,14 @@ type fakeKubeClient struct {
 	mu         sync.RWMutex
 	configMaps map[string]*corev1.ConfigMap
 	patchErr   error
+	fakeWatch  *watch.FakeWatcher
+	watchLabel string
 }
 
 func newFakeKubeClient(configMaps ...*corev1.ConfigMap) *fakeKubeClient {
 	c := &fakeKubeClient{
 		configMaps: make(map[string]*corev1.ConfigMap),
+		fakeWatch:  watch.NewFake(),
 	}
 	for _, configMap := range configMaps {
 		c.setConfigMap(configMap)
@@ -530,7 +553,8 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 }
 
 func (c *fakeKubeClient) Watch(ctx context.Context, label string) (watch.Interface, error) {
-	return nil, nil
+	c.watchLabel = label
+	return c.fakeWatch, nil
 }
 
 func (c *fakeKubeClient) getConfigMap(namespace, configMap string) *corev1.ConfigMap {
