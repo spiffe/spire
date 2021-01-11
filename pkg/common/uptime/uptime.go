@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -16,19 +17,25 @@ func Uptime() time.Duration {
 	return time.Since(start)
 }
 
+var getUptimeFunc = func() float32 {
+	return float32(Uptime() / time.Millisecond)
+}
+
+func reportMetrics(ctx context.Context, t *clock.Ticker, m telemetry.Metrics) {
+	defer t.Stop()
+	for {
+		telemetry.EmitUptime(m, getUptimeFunc())
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func ReportMetrics(ctx context.Context, reportInterval time.Duration, metrics telemetry.Metrics) {
-	if len(reportInterval.String()) == 0 {
+	if reportInterval.Milliseconds() <= 0 {
 		reportInterval = _defaultReportInterval
 	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(reportInterval):
-				telemetry.EmitUptime(metrics, float32(Uptime()/time.Millisecond))
-			}
-		}
-	}()
+	go reportMetrics(ctx, clock.New().Ticker(reportInterval), metrics)
 }
