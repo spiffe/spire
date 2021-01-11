@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/test/clock"
 )
 
@@ -79,9 +80,9 @@ func NewSVIDTemplateFromCSR(clk clock.Clock, csr []byte, ca *x509.Certificate, t
 
 // NewCATemplate returns a default CA template with the specified trust domain. Must
 // be signed before it's valid.
-func NewCATemplate(clk clock.Clock, trustDomain string) (*x509.Certificate, error) {
+func NewCATemplate(clk clock.Clock, trustDomain spiffeid.TrustDomain) (*x509.Certificate, error) {
 	cert := defaultCATemplate(clk)
-	err := addSpiffeExtension("spiffe://"+trustDomain, cert)
+	err := addSpiffeExtension(trustDomain.IDString(), cert)
 
 	return cert, err
 }

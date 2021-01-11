@@ -337,19 +337,6 @@ func AgentURI(trustDomain, p string) *url.URL {
 }
 
 // ServerID creates a server SPIFFE ID string given a trustDomain.
-func ServerID(trustDomain string) string {
-	return ServerURI(trustDomain).String()
-}
-
-// ServerURI creates a server SPIFFE URI given a trustDomain.
-func ServerURI(trustDomain string) *url.URL {
-	return &url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   ServerIDPath,
-	}
-}
-
-func ServerSpiffeID(trustDomain spiffeid.TrustDomain) spiffeid.ID {
+func ServerID(trustDomain spiffeid.TrustDomain) spiffeid.ID {
 	return trustDomain.NewID(ServerIDPath)
 }

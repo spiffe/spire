@@ -13,15 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
+var trustDomain = spiffeid.RequireTrustDomainFromString("domain.test")
+
 func TestClient(t *testing.T) {
 	testCases := []struct {
 		name        string
-		spiffeID    string
+		spiffeID    spiffeid.ID
 		status      int
 		body        string
 		errContains string
@@ -36,7 +39,7 @@ func TestClient(t *testing.T) {
 		},
 		{
 			name:        "SPIFFE ID override",
-			spiffeID:    idutil.ServerID("otherdomain.test"),
+			spiffeID:    spiffeid.RequireTrustDomainFromString("otherdomain.test").ID(),
 			errContains: `unexpected ID "spiffe://domain.test/spire/server"`,
 		},
 		{
@@ -74,7 +77,7 @@ func TestClient(t *testing.T) {
 			defer server.Close()
 
 			client, err := NewClient(ClientConfig{
-				TrustDomain:     "domain.test",
+				TrustDomain:     trustDomain,
 				EndpointAddress: server.Listener.Addr().String(),
 				SPIFFEAuth: &SPIFFEAuthConfig{
 					EndpointSpiffeID: testCase.spiffeID,
@@ -91,7 +94,7 @@ func TestClient(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, bundle)
-			require.Equal(t, "spiffe://domain.test", bundle.TrustDomainID())
+			require.Equal(t, trustDomain.IDString(), bundle.TrustDomainID())
 			require.Equal(t, 10*time.Second, bundle.RefreshHint())
 		})
 	}
@@ -103,6 +106,6 @@ func createServerCertificate(t *testing.T) (*x509.Certificate, crypto.Signer) {
 		DNSNames:     []string{"localhost"},
 		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
 		NotAfter:     time.Now().Add(time.Hour),
-		URIs:         []*url.URL{idutil.ServerURI("domain.test")},
+		URIs:         []*url.URL{idutil.ServerID(trustDomain).URL()},
 	})
 }
