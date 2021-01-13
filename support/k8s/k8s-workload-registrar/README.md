@@ -61,7 +61,7 @@ The following configuration directives are specific to `"reconcile"` mode:
 | Key                        | Type    | Required? | Description                              | Default |
 | -------------------------- | --------| ---------| ----------------------------------------- | ------- |
 | `leader_election`          | bool    | optional | Enable/disable leader election. Enable if you have multiple registrar replicas running. | false |
-| `metrics_addr`             | string  | optional | Address to expose metrics on, use `0` to disable. | 0 |
+| `metrics_addr`             | string  | optional | Address to expose metrics on, use `0` to disable. | `":8080"` |
 | `controller_name`          | string  | optional | Forms part of the spiffe IDs used for parent IDs | `"spire-k8s-registrar"` |
 | `add_pod_dns_names`        | bool    | optional | Enable/disable adding k8s DNS names to pod SVIDs. | false |
 | `cluster_dns_zone`         | string  | optional | The DNS zone used for services in the k8s cluster. | `"cluster.local"` |
@@ -155,7 +155,7 @@ shared volume containing the socket file.
 ### Reconcile Mode Configuration
 To use reconcile mode you need to create appropriate roles and bind them to the ServiceAccount you intend to run the controller as.
 An example can be found in `mode-reconcile/config/role.yaml`, which you would apply with `kubectl apply -f mode-reconcile/config/role.yaml`
- 
+
 ### CRD Mode Configuration
 
 The following configuration is required before `"crd"` mode can be used:
@@ -164,7 +164,7 @@ The following configuration is required before `"crd"` mode can be used:
    * The SpiffeId CRD is namespace scoped
 1. The appropriate ClusterRole need to be applied. `kubectl apply -f mode-crd/config/crd_role.yaml`
    * This creates a new ClusterRole named `spiffe-crd-role`
-1. The new ClusterRole needs a ClusterRoleBinding to the SPIRE Server ServiceAccount. Change the name of the ServiceAccount and then: `kubectl apply -f mode-crd/config/crd_role_binding.yaml` 
+1. The new ClusterRole needs a ClusterRoleBinding to the SPIRE Server ServiceAccount. Change the name of the ServiceAccount and then: `kubectl apply -f mode-crd/config/crd_role_binding.yaml`
    * This creates a new ClusterRoleBinding named `spiffe-crd-rolebinding`
 1. If you would like to manually create SpiffeId custom resources, then a validating webhook is needed to prevent misconfigurations and improve security: `kubectl apply -f mode-crd/config/webhook.yaml`
    * This creates a new ValidatingWebhookConfiguration and Service, both named `k8s-workload-registrar`
@@ -243,7 +243,7 @@ they do not suffer from the same race conditions, are capable of recovering from
 and both also ensure that automatically created entries for Pods are limited to the appropriate Nodes to prevent SVID
 flooding. When used in this way, `"reconcile"` may be slightly faster to create new entries than `"crd"` mode, and requires
 less configuration.
- 
+
 `"crd"` mode additionally provides a namespaced SpiffeID custom resource. These are used internally by the
 registrar, but may also be manually created to allow creation of arbitrary Spire Entries. If you intend to manage
 SpiffeID custom resources directly then it is strongly encouraged to run the controller with the `"crd"` mode's webhook
