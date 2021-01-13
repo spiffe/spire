@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
@@ -81,7 +82,8 @@ func (s *Suite) TestNotifyFailsIfNotConfigured() {
 }
 
 func (s *Suite) TestNotifyIgnoresUnknownEvents() {
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{})
 	s.NoError(err)
@@ -95,31 +97,24 @@ func (s *Suite) TestNotifyAndAdviseFailsIfNotConfigured() {
 }
 
 func (s *Suite) TestNotifyAndAdviseIgnoresUnknownEvents() {
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{})
 	s.NoError(err)
 	s.AssertProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
 }
 
-func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
+func (s *Suite) TestConfigErrorWhenCannotCreateClient() {
 	s.withKubeClient(nil, "")
 
-	s.configure("")
-
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifier.BundleLoaded{
-				Bundle: testBundle,
-			},
-		},
-	})
+	err := s.configure("")
 	s.RequireGRPCStatus(err, codes.Unknown, "kube client not configured")
-	s.Nil(resp)
 }
 
 func (s *Suite) TestBundleLoadedConfigMapGetFailure() {
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -142,7 +137,8 @@ func (s *Suite) TestBundleLoadedConfigMapPatchFailure() {
 	s.k.setPatchErr(errors.New("some error"))
 	s.r.AppendBundle(testBundle)
 
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -169,7 +165,8 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 	s.r.AppendBundle(testBundle)
 	s.r.AppendBundle(testBundle2)
 
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -189,7 +186,8 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 }
 
 func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 	s.k.setConfigMap(newConfigMap())
 	s.r.AppendBundle(testBundle)
 
@@ -227,12 +225,13 @@ func (s *Suite) TestBundleLoadedWithConfigurationOverrides() {
 	})
 	s.r.AppendBundle(testBundle)
 
-	s.configure(`
+	err := s.configure(`
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NoError(err)
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -256,24 +255,9 @@ kube_config_file_path = "/some/file/path"
 	}, s.k.getConfigMap("NAMESPACE", "CONFIGMAP"))
 }
 
-func (s *Suite) TestBundleUpdatedWhenCannotCreateClient() {
-	s.withKubeClient(nil, "")
-
-	s.configure("")
-
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
-		Event: &notifier.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifier.BundleUpdated{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "kube client not configured")
-	s.Nil(resp)
-}
-
 func (s *Suite) TestBundleUpdatedConfigMapGetFailure() {
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -296,7 +280,8 @@ func (s *Suite) TestBundleUpdatedConfigMapPatchFailure() {
 	s.k.setPatchErr(errors.New("some error"))
 	s.r.AppendBundle(testBundle)
 
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -323,7 +308,8 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 	s.r.AppendBundle(testBundle)
 	s.r.AppendBundle(testBundle2)
 
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -343,7 +329,8 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 }
 
 func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
-	s.configure("")
+	err := s.configure("")
+	s.Require().NoError(err)
 	s.k.setConfigMap(newConfigMap())
 	s.r.AppendBundle(testBundle)
 
@@ -381,12 +368,13 @@ func (s *Suite) TestBundleUpdatedWithConfigurationOverrides() {
 	})
 	s.r.AppendBundle(testBundle)
 
-	s.configure(`
+	err := s.configure(`
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NoError(err)
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -434,27 +422,52 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 
 func (s *Suite) TestWatcherUpdateConfig() {
 	s.withKubeClient(s.k, "/some/file/path")
-	s.configure(`
-namespace = "NAMESPACE"
-config_map = "CONFIGMAP"
+
+	err := s.configure(`
 webhook_label = "LABEL"
-config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().Equal(s.k.watchLabel, "LABEL")
-	s.configure(`
-namespace = "NAMESPACE"
-config_map = "CONFIGMAP"
+	s.Require().NoError(err)
+	s.Require().Equal("LABEL", s.k.watchLabel)
+
+	err = s.configure(`
 webhook_label = "LABEL2"
-config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().Equal(s.k.watchLabel, "LABEL2")
+	s.Require().NoError(err)
+	s.Require().Equal("LABEL2", s.k.watchLabel)
+}
+
+func (s *Suite) TestWatcherAddEvent() {
+	s.withKubeClient(s.k, "/some/file/path")
+	err := s.configure(`
+webhook_label = "LABEL"
+kube_config_file_path = "/some/file/path"
+`)
+	s.Require().NoError(err)
+
+	configMap := newConfigMap()
+	s.r.AppendBundle(testBundle)
+	s.k.setConfigMap(configMap)
+	s.k.addWatchEvent(configMap)
+
+	s.Require().Eventually(func() bool {
+		return s.Equal(&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:       "spire",
+				Name:            "spire-bundle",
+				ResourceVersion: "2",
+			},
+			Data: map[string]string{
+				"bundle.crt": testBundleData,
+			},
+		}, s.k.getConfigMap("spire", "spire-bundle"))
+	}, time.Second, time.Millisecond)
 }
 
 func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
-	s.raw.hooks.newKubeClient = func(configPath string) ([]kubeClient, error) {
-		s.Equal(expectedConfigPath, configPath)
+	s.raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
+		s.Equal(expectedConfigPath, s.raw.config.KubeConfigFilePath)
 		if client == nil {
 			return nil, errors.New("kube client not configured")
 		}
@@ -462,11 +475,11 @@ func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
 	}
 }
 
-func (s *Suite) configure(configuration string) {
+func (s *Suite) configure(configuration string) error {
 	_, err := s.p.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: configuration,
 	})
-	s.Require().NoError(err)
+	return err
 }
 
 type fakeKubeClient struct {
@@ -553,6 +566,8 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 }
 
 func (c *fakeKubeClient) Watch(ctx context.Context, label string) (watch.Interface, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.watchLabel = label
 	return c.fakeWatch, nil
 }
@@ -583,6 +598,12 @@ func (c *fakeKubeClient) setPatchErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.patchErr = err
+}
+
+func (c *fakeKubeClient) addWatchEvent(obj runtime.Object) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.fakeWatch.Add(obj)
 }
 
 func configMapKey(namespace, configMap string) string {

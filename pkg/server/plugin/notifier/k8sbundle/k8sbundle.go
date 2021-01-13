@@ -63,15 +63,15 @@ type pluginConfig struct {
 type Plugin struct {
 	notifier.UnsafeNotifierServer
 
-	mu                    sync.RWMutex
-	log                   hclog.Logger
-	config                *pluginConfig
-	identityProvider      hostservices.IdentityProvider
-	webhookWatcherStarted bool
-	configUpdated         chan struct{}
+	mu               sync.RWMutex
+	log              hclog.Logger
+	config           *pluginConfig
+	identityProvider hostservices.IdentityProvider
+	watcherStarted   bool
+	configUpdated    chan struct{}
 
 	hooks struct {
-		newKubeClient func(configPath string) ([]kubeClient, error)
+		newKubeClient func(c *pluginConfig) ([]kubeClient, error)
 	}
 }
 
@@ -148,10 +148,11 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 
 	p.setConfig(config)
 
-	// Start webhook watcher to set CA Bundle in webhooks created after server has started
-	if config.WebhookLabel != "" {
-		p.startOrUpdateWatchWebhooks(config)
+	// Start watcher to set CA Bundle in objects created after server has started
+	if err = p.startOrUpdateWatcher(config); err != nil {
+		return nil, err
 	}
+
 	return &spi.ConfigureResponse{}, nil
 }
 
@@ -176,7 +177,7 @@ func (p *Plugin) setConfig(config *pluginConfig) {
 
 // updateBundles iterates through all the objects that need an updated CA bundle
 func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error) {
-	clients, err := p.hooks.newKubeClient(c.KubeConfigFilePath)
+	clients, err := p.hooks.newKubeClient(c)
 	if err != nil {
 		return err
 	}
@@ -236,42 +237,46 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 	})
 }
 
-// startOrUpdateWatchWebhooks starts the webhook watcher or sends a signal to update configuration
-func (p *Plugin) startOrUpdateWatchWebhooks(c *pluginConfig) {
-	if !p.webhookWatcherStarted {
-		p.webhookWatcherStarted = true
+// startOrUpdateWatcher starts the webhook watcher or sends a signal to update configuration
+func (p *Plugin) startOrUpdateWatcher(c *pluginConfig) error {
+	if !p.watcherStarted {
+		ctx, cancel := context.WithCancel(context.Background())
+		clients, err := p.hooks.newKubeClient(c)
+		if err != nil {
+			return err
+		}
+		watchers, validWatcherPresent, err := newWatchers(ctx, c, clients)
+		if err != nil {
+			return err
+		}
+		if !validWatcherPresent {
+			return nil
+		}
 		p.configUpdated = make(chan struct{})
 		go func() {
-			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			if err := p.watchWebhooks(ctx, c); err != nil {
-				p.log.Error("watching webhooks", "error", err)
+			if err := p.watcherFunc(ctx, c, clients, watchers); err != nil {
+				p.log.Error("running watcher", "error", err)
 			}
-			p.webhookWatcherStarted = false
+			p.watcherStarted = false
 		}()
+		p.watcherStarted = true
 	} else {
 		p.configUpdated <- struct{}{}
 	}
+
+	return nil
 }
 
-// watchWebhooks watches for new webhooks that are created with the configured label and updates the CA Bundle
-func (p *Plugin) watchWebhooks(ctx context.Context, c *pluginConfig) (err error) {
-	clients, err := p.hooks.newKubeClient(c.KubeConfigFilePath)
-	if err != nil {
-		return err
-	}
-
-	watchers, err := newWatchers(ctx, c, clients)
-	if err != nil {
-		return err
-	}
+// watcherFunc watches for new webhooks that are created with the configured label and updates the CA Bundle
+func (p *Plugin) watcherFunc(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) (err error) {
 	selectCase := p.newSelectCase(watchers)
 
 	for {
 		chosen, recv, _ := reflect.Select(selectCase)
 		if chosen < len(clients) {
-			if err = p.watchWebhookEvent(ctx, c, clients[chosen], recv.Interface().(watch.Event)); err != nil {
-				p.log.Error("handling watch event for mutating webhook", "error", err)
+			if err = p.watchEvent(ctx, c, clients[chosen], recv.Interface().(watch.Event)); err != nil {
+				p.log.Error("handling watch event", "error", err)
 			}
 		} else {
 			c, err = p.getConfig()
@@ -279,23 +284,26 @@ func (p *Plugin) watchWebhooks(ctx context.Context, c *pluginConfig) (err error)
 				p.log.Error("getting updated config", "error", err)
 			}
 			stopWatchers(watchers)
-			watchers, err = newWatchers(ctx, c, clients)
+			watchers, validWatcherPresent, err := newWatchers(ctx, c, clients)
 			if err != nil {
-				p.log.Error("getting updated webhook watchers", "error", err)
+				p.log.Error("getting updated watchers", "error", err)
+			}
+			if !validWatcherPresent {
+				return nil
 			}
 			selectCase = p.newSelectCase(watchers)
 		}
 	}
 }
 
-// watchWebhookEvent triggers the read-modify-write for a newly created webhook
-func (p *Plugin) watchWebhookEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
+// watchEvent triggers the read-modify-write for a newly created webhook
+func (p *Plugin) watchEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
 	if event.Type == watch.Added {
 		webhookMeta, err := meta.Accessor(event.Object)
 		if err != nil {
 			return err
 		}
-		p.log.Debug("Setting bundle for new webhook", "name", webhookMeta.GetName())
+		p.log.Debug("Setting bundle for new object", "name", webhookMeta.GetName())
 		if err = p.updateBundle(ctx, c, client, webhookMeta.GetNamespace(), webhookMeta.GetName()); err != nil {
 			return err
 		}
@@ -324,16 +332,20 @@ func (p *Plugin) newSelectCase(watchers []watch.Interface) []reflect.SelectCase 
 	return selectCase
 }
 
-func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]watch.Interface, error) {
+func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]watch.Interface, bool, error) {
 	watchers := []watch.Interface{}
+	validWatcherPresent := false
 	for _, client := range clients {
 		watcher, err := client.Watch(ctx, c.WebhookLabel)
 		if err != nil {
-			return nil, err
+			return nil, false, err
+		}
+		if watcher != nil {
+			validWatcherPresent = true
 		}
 		watchers = append(watchers, watcher)
 	}
-	return watchers, nil
+	return watchers, validWatcherPresent, nil
 }
 
 func stopWatchers(watchers []watch.Interface) {
@@ -344,15 +356,21 @@ func stopWatchers(watchers []watch.Interface) {
 	}
 }
 
-func newKubeClient(configPath string) ([]kubeClient, error) {
-	clientset, err := newKubeClientset(configPath)
+func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
+	clientset, err := newKubeClientset(c.KubeConfigFilePath)
 	if err != nil {
 		return nil, k8sErr.Wrap(err)
 	}
 
-	return []kubeClient{configMapClient{Clientset: clientset},
-		mutatingWebhookClient{Clientset: clientset},
-		validatingWebhookClient{Clientset: clientset}}, nil
+	clients := []kubeClient{configMapClient{Clientset: clientset}}
+	if c.WebhookLabel != "" {
+		clients = append(clients,
+			mutatingWebhookClient{Clientset: clientset},
+			validatingWebhookClient{Clientset: clientset},
+		)
+	}
+
+	return clients, nil
 }
 
 func newKubeClientset(configPath string) (*kubernetes.Clientset, error) {
