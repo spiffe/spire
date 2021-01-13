@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/shirou/gopsutil/process"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
@@ -104,6 +105,7 @@ type Plugin struct {
 
 	mu     sync.Mutex
 	config *Configuration
+	log    hclog.Logger
 
 	// hooks for tests
 	hooks struct {
@@ -119,6 +121,10 @@ func New() *Plugin {
 	p.hooks.lookupUserByID = user.LookupId
 	p.hooks.lookupGroupByID = user.LookupGroupId
 	return p
+}
+
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
@@ -241,6 +247,7 @@ func (p *Plugin) getUID(proc processInfo) (string, error) {
 func (p *Plugin) getUserName(uid string) (string, bool) {
 	u, err := p.hooks.lookupUserByID(uid)
 	if err != nil {
+		p.log.Warn("Failed to lookup user name by uid", "uid", uid, "error", err)
 		return "", false
 	}
 	return u.Username, true
@@ -265,6 +272,7 @@ func (p *Plugin) getGID(proc processInfo) (string, error) {
 func (p *Plugin) getGroupName(gid string) (string, bool) {
 	g, err := p.hooks.lookupGroupByID(gid)
 	if err != nil {
+		p.log.Warn("Failed to lookup group name by gid", "gid", gid, "error", err)
 		return "", false
 	}
 	return g.Name, true
