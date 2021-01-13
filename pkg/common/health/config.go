@@ -15,9 +15,6 @@ type Config struct {
 	ReadyPath string `hcl:"ready_path"`
 	LivePath  string `hcl:"live_path"`
 
-	// Interval for checking readiness
-	CheckingReadinessInterval string `hcl:"checking_readiness_interval"`
-
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -52,15 +49,6 @@ func (c *Config) getLivePath() string {
 	}
 
 	return c.LivePath
-}
-
-// getCheckingReadinessInterval returns the configured value or a default
-func (c *Config) getCheckingReadinessInterval() string {
-	if c.CheckingReadinessInterval == "" {
-		return "1m"
-	}
-
-	return c.CheckingReadinessInterval
 }
 
 // Details are additional data to be used when the system is ready

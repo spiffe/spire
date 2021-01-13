@@ -2,7 +2,6 @@ package health
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -12,6 +11,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
+
+const readyCheckInterval = time.Minute
 
 // health.Checker is responsible for running health checks and serving the healthcheck HTTP paths
 type Checker struct {
@@ -58,15 +59,10 @@ func (c *Checker) AddCheck(name string, checker health.ICheckable) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	interval, err := time.ParseDuration(c.config.getCheckingReadinessInterval())
-	if err != nil {
-		return fmt.Errorf("could not parse interval for checking readiness %q: %v", c.config.getCheckingReadinessInterval(), err)
-	}
-
 	return c.hc.AddCheck(&health.Config{
 		Name:     name,
 		Checker:  checker,
-		Interval: interval,
+		Interval: readyCheckInterval,
 		Fatal:    true,
 	})
 }
