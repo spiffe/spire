@@ -9,7 +9,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -27,8 +30,9 @@ func TestPlugin(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	dir string
-	p   workloadattestor.Plugin
+	dir     string
+	p       workloadattestor.Plugin
+	logHook *test.Hook
 }
 
 func (s *Suite) SetupTest() {
@@ -40,18 +44,21 @@ func (s *Suite) SetupTest() {
 	}
 	p.hooks.lookupUserByID = fakeLookupUserByID
 	p.hooks.lookupGroupByID = fakeLookupGroupByID
-	s.LoadPlugin(builtin(p), &s.p)
+	log, hook := test.NewNullLogger()
+	s.logHook = hook
+	s.LoadPlugin(builtin(p), &s.p, spiretest.Logger(log))
 
 	s.configure("")
 }
 
 func (s *Suite) TestAttest() {
 	testCases := []struct {
-		name      string
-		pid       int32
-		err       string
-		selectors []string
-		config    string
+		name         string
+		pid          int32
+		err          string
+		selectors    []string
+		config       string
+		expectedLogs []spiretest.LogEntry
 	}{
 		{
 			name: "pid with no uids",
@@ -71,6 +78,17 @@ func (s *Suite) TestAttest() {
 				"gid:2000",
 				"group:g2000",
 			},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Failed to lookup user name by uid",
+					Data: logrus.Fields{
+						"uid":                   "1999",
+						logrus.ErrorKey:         "no user with UID 1999",
+						telemetry.SubsystemName: "built-in_plugin.unix",
+					},
+				},
+			},
 		},
 		{
 			name: "pid with no gids",
@@ -89,6 +107,17 @@ func (s *Suite) TestAttest() {
 				"uid:1000",
 				"user:u1000",
 				"gid:2999",
+			},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Failed to lookup group name by gid",
+					Data: logrus.Fields{
+						"gid":                   "2999",
+						logrus.ErrorKey:         "no group with GID 2999",
+						telemetry.SubsystemName: "built-in_plugin.unix",
+					},
+				},
 			},
 		},
 		{
@@ -198,10 +227,12 @@ func (s *Suite) TestAttest() {
 	for _, testCase := range testCases {
 		testCase := testCase
 		s.T().Run(testCase.name, func(t *testing.T) {
+			defer s.logHook.Reset()
 			s.configure(testCase.config)
 			resp, err := s.p.Attest(ctx, &workloadattestor.AttestRequest{
 				Pid: testCase.pid,
 			})
+
 			if testCase.err != "" {
 				spiretest.RequireGRPCStatus(t, err, codes.Unknown, testCase.err)
 				require.Nil(t, resp)
@@ -215,7 +246,9 @@ func (s *Suite) TestAttest() {
 				require.Equal(t, "unix", selector.Type)
 				selectors = append(selectors, selector.Value)
 			}
+
 			require.Equal(t, testCase.selectors, selectors)
+			spiretest.AssertLogs(t, s.logHook.AllEntries(), testCase.expectedLogs)
 		})
 	}
 }
