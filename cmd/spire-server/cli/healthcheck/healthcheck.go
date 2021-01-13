@@ -83,6 +83,8 @@ func (c *healthCheckCommand) run() error {
 		}
 		return errors.New("cannot create registration client")
 	}
+	defer client.Release()
+
 	bundleClient := client.NewBundleClient()
 
 	// Currently using the ability to fetch a bundle as the health check. This
