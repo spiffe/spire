@@ -150,7 +150,7 @@ data:
     health_checks {
       listener_enabled = true
       bind_address = "0.0.0.0"
-      bind_port = "80"
+      bind_port = "8080"
       live_path = "/live"
       ready_path = "/ready"
     }
@@ -252,13 +252,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /live
-              port: 80
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
             httpGet:
               path: /ready
-              port: 80
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
         - name: k8s-workload-registrar
