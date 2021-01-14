@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"reflect"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -67,8 +66,7 @@ type Plugin struct {
 	log              hclog.Logger
 	config           *pluginConfig
 	identityProvider hostservices.IdentityProvider
-	watcherStarted   bool
-	configUpdated    chan struct{}
+	watcher          *bundleWatcher
 
 	hooks struct {
 		newKubeClient func(c *pluginConfig) ([]kubeClient, error)
@@ -149,9 +147,16 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	p.setConfig(config)
 
 	// Start watcher to set CA Bundle in objects created after server has started
-	if err = p.startOrUpdateWatcher(config); err != nil {
-		return nil, err
+	if p.watcher != nil {
+		p.watcher.Stop()
 	}
+	p.watcher = newBundleWatcher(p)
+	go func() {
+		err := p.watcher.Start()
+		if err != nil {
+			p.log.Error("running watcher: %v", err)
+		}
+	}()
 
 	return &spi.ConfigureResponse{}, nil
 }
@@ -235,125 +240,6 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 		}
 		return client.Patch(ctx, namespace, name, patchBytes)
 	})
-}
-
-// startOrUpdateWatcher starts the webhook watcher or sends a signal to update configuration
-func (p *Plugin) startOrUpdateWatcher(c *pluginConfig) error {
-	if !p.watcherStarted {
-		ctx, cancel := context.WithCancel(context.Background())
-		clients, err := p.hooks.newKubeClient(c)
-		if err != nil {
-			return err
-		}
-		watchers, validWatcherPresent, err := newWatchers(ctx, c, clients)
-		if err != nil {
-			return err
-		}
-		if !validWatcherPresent {
-			return nil
-		}
-		p.configUpdated = make(chan struct{})
-		go func() {
-			defer cancel()
-			if err := p.watcherFunc(ctx, c, clients, watchers); err != nil {
-				p.log.Error("running watcher", "error", err)
-			}
-			p.watcherStarted = false
-		}()
-		p.watcherStarted = true
-	} else {
-		p.configUpdated <- struct{}{}
-	}
-
-	return nil
-}
-
-// watcherFunc watches for new webhooks that are created with the configured label and updates the CA Bundle
-func (p *Plugin) watcherFunc(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) (err error) {
-	selectCase := p.newSelectCase(watchers)
-
-	for {
-		chosen, recv, _ := reflect.Select(selectCase)
-		if chosen < len(clients) {
-			if err = p.watchEvent(ctx, c, clients[chosen], recv.Interface().(watch.Event)); err != nil {
-				p.log.Error("handling watch event", "error", err)
-			}
-		} else {
-			c, err = p.getConfig()
-			if err != nil {
-				p.log.Error("getting updated config", "error", err)
-			}
-			stopWatchers(watchers)
-			watchers, validWatcherPresent, err := newWatchers(ctx, c, clients)
-			if err != nil {
-				p.log.Error("getting updated watchers", "error", err)
-			}
-			if !validWatcherPresent {
-				return nil
-			}
-			selectCase = p.newSelectCase(watchers)
-		}
-	}
-}
-
-// watchEvent triggers the read-modify-write for a newly created webhook
-func (p *Plugin) watchEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
-	if event.Type == watch.Added {
-		webhookMeta, err := meta.Accessor(event.Object)
-		if err != nil {
-			return err
-		}
-		p.log.Debug("Setting bundle for new object", "name", webhookMeta.GetName())
-		if err = p.updateBundle(ctx, c, client, webhookMeta.GetNamespace(), webhookMeta.GetName()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (p *Plugin) newSelectCase(watchers []watch.Interface) []reflect.SelectCase {
-	selectCase := []reflect.SelectCase{}
-	for _, watcher := range watchers {
-		if watcher != nil {
-			selectCase = append(selectCase, reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(watcher.ResultChan()),
-			})
-		} else {
-			selectCase = append(selectCase, reflect.SelectCase{
-				Dir: reflect.SelectRecv,
-			})
-		}
-	}
-	selectCase = append(selectCase, reflect.SelectCase{
-		Dir:  reflect.SelectRecv,
-		Chan: reflect.ValueOf(p.configUpdated),
-	})
-	return selectCase
-}
-
-func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]watch.Interface, bool, error) {
-	watchers := []watch.Interface{}
-	validWatcherPresent := false
-	for _, client := range clients {
-		watcher, err := client.Watch(ctx, c.WebhookLabel)
-		if err != nil {
-			return nil, false, err
-		}
-		if watcher != nil {
-			validWatcherPresent = true
-		}
-		watchers = append(watchers, watcher)
-	}
-	return watchers, validWatcherPresent, nil
-}
-
-func stopWatchers(watchers []watch.Interface) {
-	for _, watcher := range watchers {
-		if watcher != nil {
-			watcher.Stop()
-		}
-	}
 }
 
 func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
