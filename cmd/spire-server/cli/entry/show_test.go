@@ -40,18 +40,74 @@ func TestShowSynopsis(t *testing.T) {
 }
 
 func TestShow(t *testing.T) {
-	fakeRespAll := &entry.ListEntriesResponse{
-		Entries: getEntries(4),
+	selectors := []*types.Selector{
+		{Type: "foo", Value: "bar"},
+		{Type: "bar", Value: "baz"},
+		{Type: "baz", Value: "bat"},
 	}
-	fakeRespFather := &entry.ListEntriesResponse{
-		Entries: getEntries(2),
+
+	entries := []*types.Entry{
+		{
+			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"},
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload-1"},
+			Selectors: []*types.Selector{selectors[0]},
+			Id:        "00000000-0000-0000-0000-000000000000",
+		},
+		{
+			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"},
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload-2"},
+			Selectors: []*types.Selector{selectors[0], selectors[1]},
+			Id:        "00000000-0000-0000-0000-000000000001",
+		},
+		{
+			ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-2"},
+			SpiffeId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload-2"},
+			Selectors:     []*types.Selector{selectors[1], selectors[2]},
+			Id:            "00000000-0000-0000-0000-000000000002",
+			FederatesWith: []string{"spiffe://domain.test"},
+		},
+		{
+			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-2"},
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload-1"},
+			Selectors: []*types.Selector{selectors[2]},
+			ExpiresAt: 1552410266,
+			Id:        "00000000-0000-0000-0000-000000000003",
+		},
 	}
-	fakeRespDaughter := &entry.ListEntriesResponse{
-		Entries: getEntries(3)[1:],
-	}
-	fakeRespFatherDaughter := &entry.ListEntriesResponse{
-		Entries: getEntries(2)[1:],
-	}
+
+	printedEntries := []string{`Entry ID         : 00000000-0000-0000-0000-000000000000
+SPIFFE ID        : spiffe://example.org/workload-1
+Parent ID        : spiffe://example.org/agent-1
+Revision         : 0
+TTL              : default
+Selector         : foo:bar
+
+`, `Entry ID         : 00000000-0000-0000-0000-000000000001
+SPIFFE ID        : spiffe://example.org/workload-2
+Parent ID        : spiffe://example.org/agent-1
+Revision         : 0
+TTL              : default
+Selector         : bar:baz
+Selector         : foo:bar
+
+`, `Entry ID         : 00000000-0000-0000-0000-000000000002
+SPIFFE ID        : spiffe://example.org/workload-2
+Parent ID        : spiffe://example.org/agent-2
+Revision         : 0
+TTL              : default
+Selector         : bar:baz
+Selector         : baz:bat
+FederatesWith    : spiffe://domain.test
+
+`, fmt.Sprintf(`Entry ID         : 00000000-0000-0000-0000-000000000003
+SPIFFE ID        : spiffe://example.org/workload-1
+Parent ID        : spiffe://example.org/agent-2
+Revision         : 0
+TTL              : default
+Expiration time  : %s
+Selector         : baz:bat
+
+`, time.Unix(1552410266, 0).UTC())}
 
 	for _, tt := range []struct {
 		name string
@@ -72,20 +128,22 @@ func TestShow(t *testing.T) {
 			expListReq: &entry.ListEntriesRequest{
 				Filter: &entry.ListEntriesRequest_Filter{},
 			},
-			fakeListResp: fakeRespAll,
+			fakeListResp: &entry.ListEntriesResponse{
+				Entries: []*types.Entry{entries[0], entries[1], entries[2], entries[3]},
+			},
 			expOut: fmt.Sprintf("Found 4 entries\n%s%s%s%s",
-				getPrintedEntry(1),
-				getPrintedEntry(2),
-				getPrintedEntry(0),
-				getPrintedEntry(3),
+				printedEntries[0],
+				printedEntries[3],
+				printedEntries[1],
+				printedEntries[2],
 			),
 		},
 		{
 			name:        "List by entry ID",
-			args:        []string{"-entryID", getEntries(1)[0].Id},
-			expGetReq:   &entry.GetEntryRequest{Id: getEntries(1)[0].Id},
-			fakeGetResp: getEntries(1)[0],
-			expOut:      fmt.Sprintf("Found 1 entry\n%s", getPrintedEntry(0)),
+			args:        []string{"-entryID", entries[0].Id},
+			expGetReq:   &entry.GetEntryRequest{Id: entries[0].Id},
+			fakeGetResp: entries[0],
+			expOut:      fmt.Sprintf("Found 1 entry\n%s", printedEntries[0]),
 		},
 		{
 			name:      "List by entry ID not found",
@@ -101,16 +159,18 @@ func TestShow(t *testing.T) {
 		},
 		{
 			name: "List by parentID",
-			args: []string{"-parentID", "spiffe://example.org/father"},
+			args: []string{"-parentID", "spiffe://example.org/agent-1"},
 			expListReq: &entry.ListEntriesRequest{
 				Filter: &entry.ListEntriesRequest_Filter{
-					ByParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
+					ByParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-1"},
 				},
 			},
-			fakeListResp: fakeRespFather,
+			fakeListResp: &entry.ListEntriesResponse{
+				Entries: []*types.Entry{entries[0], entries[1]},
+			},
 			expOut: fmt.Sprintf("Found 2 entries\n%s%s",
-				getPrintedEntry(1),
-				getPrintedEntry(0),
+				printedEntries[0],
+				printedEntries[1],
 			),
 		},
 		{
@@ -120,16 +180,16 @@ func TestShow(t *testing.T) {
 		},
 		{
 			name: "List by SPIFFE ID",
-			args: []string{"-spiffeID", "spiffe://example.org/daughter"},
+			args: []string{"-spiffeID", "spiffe://example.org/workload-2"},
 			expListReq: &entry.ListEntriesRequest{
 				Filter: &entry.ListEntriesRequest_Filter{
-					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload-2"},
 				},
 			},
-			fakeListResp: fakeRespDaughter,
+			fakeListResp: &entry.ListEntriesResponse{Entries: []*types.Entry{entries[1], entries[2]}},
 			expOut: fmt.Sprintf("Found 2 entries\n%s%s",
-				getPrintedEntry(1),
-				getPrintedEntry(2),
+				printedEntries[1],
+				printedEntries[2],
 			),
 		},
 		{
@@ -151,9 +211,11 @@ func TestShow(t *testing.T) {
 					},
 				},
 			},
-			fakeListResp: fakeRespFatherDaughter,
+			fakeListResp: &entry.ListEntriesResponse{
+				Entries: []*types.Entry{entries[1]},
+			},
 			expOut: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(1),
+				printedEntries[1],
 			),
 		},
 		{
@@ -163,10 +225,10 @@ func TestShow(t *testing.T) {
 		},
 		{
 			name: "Server error",
-			args: []string{"-spiffeID", "spiffe://example.org/daughter"},
+			args: []string{"-spiffeID", "spiffe://example.org/workload-2"},
 			expListReq: &entry.ListEntriesRequest{
 				Filter: &entry.ListEntriesRequest_Filter{
-					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload-2"},
 				},
 			},
 			serverErr: status.Error(codes.Internal, "internal server error"),
@@ -176,12 +238,18 @@ func TestShow(t *testing.T) {
 			name: "List by Federates With",
 			args: []string{"-federatesWith", "spiffe://domain.test"},
 			expListReq: &entry.ListEntriesRequest{
-				// Filter is empty because federatesWith filtering is done on the client side
-				Filter: &entry.ListEntriesRequest_Filter{},
+				Filter: &entry.ListEntriesRequest_Filter{
+					ByFederatesWith: &types.FederatesWithMatch{
+						TrustDomains: []string{"spiffe://domain.test"},
+						Match:        types.FederatesWithMatch_MATCH_EXACT,
+					},
+				},
 			},
-			fakeListResp: fakeRespAll,
+			fakeListResp: &entry.ListEntriesResponse{
+				Entries: []*types.Entry{entries[2]},
+			},
 			expOut: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(2),
+				printedEntries[2],
 			),
 		},
 	} {
@@ -205,96 +273,5 @@ func TestShow(t *testing.T) {
 			require.Equal(t, 0, rc)
 			require.Equal(t, tt.expOut, test.stdout.String())
 		})
-	}
-}
-
-// registrationEntries returns `count` registration entry records. At most 4.
-func getEntries(count int) []*types.Entry {
-	selectors := []*types.Selector{
-		{Type: "foo", Value: "bar"},
-		{Type: "bar", Value: "baz"},
-		{Type: "baz", Value: "bat"},
-	}
-	entries := []*types.Entry{
-		{
-			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
-			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/son"},
-			Selectors: []*types.Selector{selectors[0]},
-			Id:        "00000000-0000-0000-0000-000000000000",
-		},
-		{
-			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
-			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
-			Selectors: []*types.Selector{selectors[0], selectors[1]},
-			Id:        "00000000-0000-0000-0000-000000000001",
-		},
-		{
-			ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
-			SpiffeId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
-			Selectors:     []*types.Selector{selectors[1], selectors[2]},
-			Id:            "00000000-0000-0000-0000-000000000002",
-			FederatesWith: []string{"spiffe://domain.test"},
-		},
-		{
-			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
-			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/son"},
-			Selectors: []*types.Selector{selectors[2]},
-			ExpiresAt: 1552410266,
-			Id:        "00000000-0000-0000-0000-000000000003",
-		},
-	}
-
-	e := []*types.Entry{}
-	for i := 0; i < count; i++ {
-		e = append(e, entries[i])
-	}
-
-	return e
-}
-
-func getPrintedEntry(idx int) string {
-	switch idx {
-	case 0:
-		return `Entry ID         : 00000000-0000-0000-0000-000000000000
-SPIFFE ID        : spiffe://example.org/son
-Parent ID        : spiffe://example.org/father
-Revision         : 0
-TTL              : default
-Selector         : foo:bar
-
-`
-	case 1:
-		return `Entry ID         : 00000000-0000-0000-0000-000000000001
-SPIFFE ID        : spiffe://example.org/daughter
-Parent ID        : spiffe://example.org/father
-Revision         : 0
-TTL              : default
-Selector         : bar:baz
-Selector         : foo:bar
-
-`
-	case 2:
-		return `Entry ID         : 00000000-0000-0000-0000-000000000002
-SPIFFE ID        : spiffe://example.org/daughter
-Parent ID        : spiffe://example.org/mother
-Revision         : 0
-TTL              : default
-Selector         : bar:baz
-Selector         : baz:bat
-FederatesWith    : spiffe://domain.test
-
-`
-	case 3:
-		return fmt.Sprintf(`Entry ID         : 00000000-0000-0000-0000-000000000003
-SPIFFE ID        : spiffe://example.org/son
-Parent ID        : spiffe://example.org/mother
-Revision         : 0
-TTL              : default
-Expiration time  : %s
-Selector         : baz:bat
-
-`, time.Unix(1552410266, 0).UTC())
-	default:
-		return "index should be lower than 4"
 	}
 }

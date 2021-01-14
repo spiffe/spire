@@ -74,9 +74,8 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		return err
 	}
 
-	filteredEntries := c.filterByFederatedWith(entries)
-	commonutil.SortTypesEntries(filteredEntries)
-	printEntries(filteredEntries, env)
+	commonutil.SortTypesEntries(entries)
+	printEntries(entries, env)
 	return nil
 }
 
@@ -134,6 +133,13 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 		}
 	}
 
+	if len(c.federatesWith) != 0 {
+		filter.ByFederatesWith = &types.FederatesWithMatch{
+			TrustDomains: c.federatesWith,
+			Match:        types.FederatesWithMatch_MATCH_EXACT,
+		}
+	}
+
 	resp, err := client.ListEntries(ctx, &entry.ListEntriesRequest{
 		Filter: filter,
 	})
@@ -152,31 +158,6 @@ func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entr
 	}
 
 	return entry, nil
-}
-
-// filterByFederatedWith evicts any value from the given entries slice that does
-// not contain at least one of the federated trust domains specified in the
-// federatesWith slice.
-func (c *showCommand) filterByFederatedWith(entries []*types.Entry) []*types.Entry {
-	// Build map for quick search
-	var federatedIDs map[string]bool
-	if len(c.federatesWith) > 0 {
-		federatedIDs = make(map[string]bool)
-		for _, federatesWith := range c.federatesWith {
-			federatedIDs[federatesWith] = true
-		}
-	}
-
-	// Filter slice in place
-	idx := 0
-	for _, e := range entries {
-		if keepEntry(e, federatedIDs) {
-			entries[idx] = e
-			idx++
-		}
-	}
-
-	return entries[:idx]
 }
 
 func keepEntry(e *types.Entry, federatedIDs map[string]bool) bool {
