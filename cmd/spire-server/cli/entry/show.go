@@ -160,21 +160,6 @@ func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entr
 	return entry, nil
 }
 
-func keepEntry(e *types.Entry, federatedIDs map[string]bool) bool {
-	// If FederatesWith was specified, discard entries that don't match
-	if federatedIDs == nil {
-		return true
-	}
-
-	for _, federatesWith := range e.FederatesWith {
-		if federatedIDs[federatesWith] {
-			return true
-		}
-	}
-
-	return false
-}
-
 func printEntries(entries []*types.Entry, env *common_cli.Env) {
 	msg := fmt.Sprintf("Found %v ", len(entries))
 	msg = util.Pluralizer(msg, "entry", "entries", len(entries))
