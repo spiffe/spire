@@ -39,7 +39,8 @@ func TestServer(t *testing.T) {
 	// create a bundle for testing. we need a certificate in the bundle since
 	// the root lifetimes are used to heuristically determine the refresh hint.
 	// since the content doesn't really matter, we'll just add the server cert.
-	bundle := bundleutil.New("spiffe://domain.test")
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	bundle := bundleutil.New(trustDomain)
 	bundle.AppendRootCA(serverCert)
 
 	// even though this will be SPIFFE authentication in production, there is
@@ -155,7 +156,8 @@ func TestServer(t *testing.T) {
 func TestACMEAuth(t *testing.T) {
 	dir := spiretest.TempDir(t)
 
-	bundle := bundleutil.New("spiffe://domain.test")
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	bundle := bundleutil.New(trustDomain)
 	km := memory.New()
 
 	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{"domain.test"})

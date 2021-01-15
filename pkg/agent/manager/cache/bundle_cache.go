@@ -2,20 +2,21 @@ package cache
 
 import (
 	"github.com/imkira/go-observer"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 )
 
 type BundleCache struct {
-	trustDomainID string
-	bundles       observer.Property
+	trustDomain spiffeid.TrustDomain
+	bundles     observer.Property
 }
 
-func NewBundleCache(trustDomainID string, bundle *Bundle) *BundleCache {
+func NewBundleCache(trustDomain spiffeid.TrustDomain, bundle *Bundle) *BundleCache {
 	bundles := map[string]*Bundle{
-		trustDomainID: bundle,
+		trustDomain.IDString(): bundle,
 	}
 	return &BundleCache{
-		trustDomainID: trustDomainID,
-		bundles:       observer.NewProperty(bundles),
+		trustDomain: trustDomain,
+		bundles:     observer.NewProperty(bundles),
 	}
 }
 
@@ -26,7 +27,7 @@ func (c *BundleCache) Update(bundles map[string]*Bundle) {
 }
 
 func (c *BundleCache) Bundle() *Bundle {
-	return c.Bundles()[c.trustDomainID]
+	return c.Bundles()[c.trustDomain.IDString()]
 }
 
 func (c *BundleCache) Bundles() map[string]*Bundle {

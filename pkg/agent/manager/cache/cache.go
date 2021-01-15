@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -96,8 +97,8 @@ type Cache struct {
 	*BundleCache
 	*JWTSVIDCache
 
-	log           logrus.FieldLogger
-	trustDomainID string
+	log         logrus.FieldLogger
+	trustDomain spiffeid.TrustDomain
 
 	metrics telemetry.Metrics
 
@@ -124,19 +125,19 @@ type StaleEntry struct {
 	ExpiresAt time.Time
 }
 
-func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle, metrics telemetry.Metrics) *Cache {
+func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics) *Cache {
 	return &Cache{
-		BundleCache:  NewBundleCache(trustDomainID, bundle),
+		BundleCache:  NewBundleCache(trustDomain, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
 
-		log:           log,
-		metrics:       metrics,
-		trustDomainID: trustDomainID,
-		records:       make(map[string]*cacheRecord),
-		selectors:     make(map[selector]*selectorIndex),
-		staleEntries:  make(map[string]bool),
+		log:          log,
+		metrics:      metrics,
+		trustDomain:  trustDomain,
+		records:      make(map[string]*cacheRecord),
+		selectors:    make(map[selector]*selectorIndex),
+		staleEntries: make(map[string]bool),
 		bundles: map[string]*bundleutil.Bundle{
-			trustDomainID: bundle,
+			trustDomain.IDString(): bundle,
 		},
 	}
 }
@@ -222,7 +223,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 	// authenticate the server.
 	bundleRemoved := false
 	for id := range c.bundles {
-		if _, ok := update.Bundles[id]; !ok && id != c.trustDomainID {
+		if _, ok := update.Bundles[id]; !ok && id != c.trustDomain.IDString() {
 			bundleRemoved = true
 			// bundle no longer exists.
 			c.log.WithField(telemetry.TrustDomainID, id).Debug("Bundle removed")
@@ -246,7 +247,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			c.bundles[id] = bundle
 		}
 	}
-	trustDomainBundleChanged := bundleChanged[c.trustDomainID]
+	trustDomainBundleChanged := bundleChanged[c.trustDomain.IDString()]
 
 	// Allocate a set of selectors that
 	notifySet, selSetDone := allocSelectorSet()
@@ -599,7 +600,7 @@ func (c *Cache) matchingIdentities(set selectorSet) []Identity {
 
 func (c *Cache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 	w := &WorkloadUpdate{
-		Bundle:           c.bundles[c.trustDomainID],
+		Bundle:           c.bundles[c.trustDomain.IDString()],
 		FederatedBundles: make(map[string]*bundleutil.Bundle),
 		Identities:       c.matchingIdentities(set),
 	}

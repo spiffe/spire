@@ -5,12 +5,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
@@ -26,7 +26,7 @@ import (
 var (
 	log, _ = test.NewNullLogger()
 
-	trustDomainURL = url.URL{Scheme: "spiffe", Host: "example.org"}
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 
 	testEntries = []*common.RegistrationEntry{
 		{
@@ -565,7 +565,7 @@ func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
 func TestNewAgentClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newAgentClient(context.Background())
 	require.Error(t, err)
@@ -577,7 +577,7 @@ func TestNewAgentClientFailsDial(t *testing.T) {
 func TestNewBundleClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newBundleClient(context.Background())
 	require.Error(t, err)
@@ -589,7 +589,7 @@ func TestNewBundleClientFailsDial(t *testing.T) {
 func TestNewEntryClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newEntryClient(context.Background())
 	require.Error(t, err)
@@ -601,7 +601,7 @@ func TestNewEntryClientFailsDial(t *testing.T) {
 func TestNewSVIDClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newSVIDClient(context.Background())
 	require.Error(t, err)
@@ -720,7 +720,7 @@ func createClient() (*client, *testClient) {
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 		RotMtx:        new(sync.RWMutex),
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	client.createNewAgentClient = func(conn grpc.ClientConnInterface) agentpb.AgentClient {
 		return tc.agentClient

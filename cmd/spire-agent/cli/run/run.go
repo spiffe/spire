@@ -21,12 +21,12 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -354,11 +354,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
 
-	td, err := idutil.ParseSpiffeID("spiffe://"+c.Agent.TrustDomain, idutil.AllowAnyTrustDomain())
+	td, err := spiffeid.TrustDomainFromString(c.Agent.TrustDomain)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Agent.TrustDomain, err)
 	}
-	ac.TrustDomain = *td
+	ac.TrustDomain = td
 
 	ac.BindAddress = &net.UnixAddr{
 		Name: c.Agent.SocketPath,

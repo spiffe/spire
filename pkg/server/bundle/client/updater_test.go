@@ -20,8 +20,8 @@ import (
 func TestBundleUpdater(t *testing.T) {
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 
-	bundle1 := bundleutil.BundleFromRootCA(trustDomain.IDString(), createCACertificate(t, "bundle1"))
-	bundle2 := bundleutil.BundleFromRootCA(trustDomain.IDString(), createCACertificate(t, "bundle2"))
+	bundle1 := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "bundle1"))
+	bundle2 := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "bundle2"))
 	bundle2.SetRefreshHint(time.Minute)
 
 	testCases := []struct {

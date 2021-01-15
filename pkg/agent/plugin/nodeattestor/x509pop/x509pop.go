@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
@@ -37,7 +38,7 @@ type configData struct {
 }
 
 type Config struct {
-	trustDomain       string
+	trustDomain       spiffeid.TrustDomain
 	PrivateKeyPath    string `hcl:"private_key_path"`
 	CertificatePath   string `hcl:"certificate_path"`
 	IntermediatesPath string `hcl:"intermediates_path"`
@@ -111,7 +112,12 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, errors.New("x509pop: trust_domain is required")
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+
+	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+	config.trustDomain = td
 
 	if config.PrivateKeyPath == "" {
 		return nil, errors.New("x509pop: private_key_path is required")

@@ -81,7 +81,7 @@ func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {
 		return nil, errs.New("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	b, err := bundleutil.Decode(c.c.TrustDomain.IDString(), resp.Body)
+	b, err := bundleutil.Decode(c.c.TrustDomain, resp.Body)
 	if err != nil {
 		return nil, err
 	}

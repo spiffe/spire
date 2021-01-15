@@ -661,8 +661,8 @@ func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.I
 	return m.identities
 }
 
-func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
-	svid := m.ca.CreateJWTSVID(spiffeid.RequireFromString(spiffeID), audience)
+func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+	svid := m.ca.CreateJWTSVID(spiffeID, audience)
 	if m.err != nil {
 		return nil, m.err
 	}
