@@ -81,6 +81,8 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 		"/spire.api.server.agent.v1.Agent/AttestAgent":                  any,
 		"/spire.api.server.agent.v1.Agent/RenewAgent":                   agent,
 		"/spire.api.server.agent.v1.Agent/CreateJoinToken":              localOrAdmin,
+		"/grpc.health.v1.Health/Check":                                  local,
+		"/grpc.health.v1.Health/Watch":                                  local,
 	}
 }
 
@@ -228,6 +230,8 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.agent.v1.Agent/AttestAgent":                  attestLimit,
 		"/spire.api.server.agent.v1.Agent/RenewAgent":                   csrLimit,
 		"/spire.api.server.agent.v1.Agent/CreateJoinToken":              noLimit,
+		"/grpc.health.v1.Health/Check":                                  noLimit,
+		"/grpc.health.v1.Health/Watch":                                  noLimit,
 	}
 }
 
