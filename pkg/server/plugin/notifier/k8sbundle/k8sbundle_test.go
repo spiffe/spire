@@ -82,8 +82,7 @@ func (s *Suite) TestNotifyFailsIfNotConfigured() {
 }
 
 func (s *Suite) TestNotifyIgnoresUnknownEvents() {
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{})
 	s.NoError(err)
@@ -97,8 +96,7 @@ func (s *Suite) TestNotifyAndAdviseFailsIfNotConfigured() {
 }
 
 func (s *Suite) TestNotifyAndAdviseIgnoresUnknownEvents() {
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{})
 	s.NoError(err)
@@ -122,8 +120,7 @@ func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
 }
 
 func (s *Suite) TestBundleLoadedConfigMapGetFailure() {
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -146,8 +143,7 @@ func (s *Suite) TestBundleLoadedConfigMapPatchFailure() {
 	s.k.setPatchErr(errors.New("some error"))
 	s.r.AppendBundle(testBundle)
 
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -174,8 +170,7 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 	s.r.AppendBundle(testBundle)
 	s.r.AppendBundle(testBundle2)
 
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -195,8 +190,7 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 }
 
 func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 	s.k.setConfigMap(newConfigMap())
 	s.r.AppendBundle(testBundle)
 
@@ -234,13 +228,12 @@ func (s *Suite) TestBundleLoadedWithConfigurationOverrides() {
 	})
 	s.r.AppendBundle(testBundle)
 
-	err := s.configure(`
+	s.configure(`
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().NoError(err)
 
 	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
 		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
@@ -281,8 +274,7 @@ func (s *Suite) TestBundleUpdatedWhenCannotCreateClient() {
 }
 
 func (s *Suite) TestBundleUpdatedConfigMapGetFailure() {
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -305,8 +297,7 @@ func (s *Suite) TestBundleUpdatedConfigMapPatchFailure() {
 	s.k.setPatchErr(errors.New("some error"))
 	s.r.AppendBundle(testBundle)
 
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -333,8 +324,7 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 	s.r.AppendBundle(testBundle)
 	s.r.AppendBundle(testBundle2)
 
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -354,8 +344,7 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 }
 
 func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
-	err := s.configure("")
-	s.Require().NoError(err)
+	s.configure("")
 	s.k.setConfigMap(newConfigMap())
 	s.r.AppendBundle(testBundle)
 
@@ -393,13 +382,12 @@ func (s *Suite) TestBundleUpdatedWithConfigurationOverrides() {
 	})
 	s.r.AppendBundle(testBundle)
 
-	err := s.configure(`
+	s.configure(`
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().NoError(err)
 
 	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
 		Event: &notifier.NotifyRequest_BundleUpdated{
@@ -448,28 +436,25 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 func (s *Suite) TestWatcherUpdateConfig() {
 	s.withKubeClient(s.k, "/some/file/path")
 
-	err := s.configure(`
+	s.configure(`
 webhook_label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().NoError(err)
 	s.Require().Equal("LABEL", s.k.watchLabel)
 
-	err = s.configure(`
+	s.configure(`
 webhook_label = "LABEL2"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().NoError(err)
 	s.Require().Equal("LABEL2", s.k.watchLabel)
 }
 
 func (s *Suite) TestWatcherAddEvent() {
 	s.withKubeClient(s.k, "/some/file/path")
-	err := s.configure(`
+	s.configure(`
 webhook_label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().NoError(err)
 
 	configMap := newConfigMap()
 	s.r.AppendBundle(testBundle)
@@ -500,11 +485,11 @@ func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
 	}
 }
 
-func (s *Suite) configure(configuration string) error {
+func (s *Suite) configure(configuration string) {
 	_, err := s.p.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: configuration,
 	})
-	return err
+	s.Require().NoError(err)
 }
 
 type fakeKubeClient struct {
