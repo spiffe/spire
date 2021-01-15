@@ -29,6 +29,7 @@ func TestReportMetrics(t *testing.T) {
 			},
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
