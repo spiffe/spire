@@ -21,6 +21,7 @@ func newBundleWatcher(p *Plugin) *bundleWatcher {
 func (b *bundleWatcher) Start() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	b.cancel = cancel
 
 	config, err := b.p.getConfig()
 	if err != nil {

@@ -105,11 +105,20 @@ func (s *Suite) TestNotifyAndAdviseIgnoresUnknownEvents() {
 	s.AssertProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
 }
 
-func (s *Suite) TestConfigErrorWhenCannotCreateClient() {
+func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
 	s.withKubeClient(nil, "")
 
-	err := s.configure("")
+	s.configure("")
+
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
+		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
+			BundleLoaded: &notifier.BundleLoaded{
+				Bundle: testBundle,
+			},
+		},
+	})
 	s.RequireGRPCStatus(err, codes.Unknown, "kube client not configured")
+	s.Nil(resp)
 }
 
 func (s *Suite) TestBundleLoadedConfigMapGetFailure() {
@@ -253,6 +262,22 @@ kube_config_file_path = "/some/file/path"
 			"CONFIGMAPKEY": testBundleData,
 		},
 	}, s.k.getConfigMap("NAMESPACE", "CONFIGMAP"))
+}
+
+func (s *Suite) TestBundleUpdatedWhenCannotCreateClient() {
+	s.withKubeClient(nil, "")
+
+	s.configure("")
+
+	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
+		Event: &notifier.NotifyRequest_BundleUpdated{
+			BundleUpdated: &notifier.BundleUpdated{
+				Bundle: testBundle,
+			},
+		},
+	})
+	s.RequireGRPCStatus(err, codes.Unknown, "kube client not configured")
+	s.Nil(resp)
 }
 
 func (s *Suite) TestBundleUpdatedConfigMapGetFailure() {
