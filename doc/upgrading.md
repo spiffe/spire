@@ -2,19 +2,27 @@
 This guide describes how to upgrade your SPIRE deployment, as well as the compatibility guarantees that SPIRE users can expect.
 
 ## SPIRE Versioning
-SPIRE versions are expressed as **x.y.z**, where **x** is the major version, **y** is the minor version, and **z** is the patch version, following Semantic Versioning terminology. The last pre-1.0 version is 0.12.0, which as an exception has compatibility warranties with 1.0.x.
+SPIRE versions are expressed as **x.y.z**, where **x** is the major version, **y** is the minor version, and **z** is the patch version, following Semantic Versioning terminology. The last pre-1.0 versions are 0.12.x, which as an exception have compatibility warranties with 1.0.x. Versions prior to 0.12.0 are not compatible with 1.0.x.
 
 ### SPIRE Server Compatibility
-Version skew within a SPIRE Server cluster is supported within +/- 1 minor version. In other words, the newest and oldest SPIRE Server instances in any given cluster must be within one minor version of each other.
+Version skew within a SPIRE Server cluster is supported within +/- 1 minor version. In other words, the newest and oldest SPIRE Server instances in any given cluster must be within one minor version of each other. As an exception, versions 0.12.x are compatible with 1.0.x versions.
 
-For example:
+Example 1 (0.12.x exception):
+* Newest SPIRE Server instance is at 1.0.3
+* Other SPIRE Server instances are supported at 1.0.x and 0.12.x
+
+Example 2:
 * Newest SPIRE Server instance is at 1.2.3
 * Other SPIRE Server instances are supported at 1.2.x and 1.1.x
 
 ### SPIRE Agent Compatibility
-SPIRE Agents must not be newer than the oldest SPIRE Server that they communicate with, and may be up to one minor version older.
+SPIRE Agents must not be newer than the oldest SPIRE Server that they communicate with, and may be up to one minor version older. As an exception, versions 0.12.x are compatible with 1.0.x versions (as long as the oldest SPIRE Server is at 1.0.x).
 
-For example:
+Example 1 (0.12.x exception):
+* SPIRE Servers are at both 1.0.3 and 1.0.2
+* SPIRE Agents are supported at 0.12.0 through 1.0.2
+
+Example 2:
 * SPIRE Servers are at both 1.2.3 and 1.2.2
 * SPIRE Agents are supported at 1.1.0 through 1.2.2
 
