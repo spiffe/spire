@@ -16,12 +16,14 @@ func TestReportMetrics(t *testing.T) {
 
 	for _, tt := range []struct {
 		name            string
+		reportInterval  time.Duration
 		testUpTime      time.Duration
 		expectedMetrics []fakemetrics.MetricItem
 	}{
 		{
-			name:       "report uptime metrics with 10 millisecond internal",
-			testUpTime: 200 * time.Millisecond,
+			name:           "report uptime metrics with 10 millisecond internal",
+			reportInterval: 10 * time.Millisecond,
+			testUpTime:     200 * time.Millisecond,
 			expectedMetrics: []fakemetrics.MetricItem{
 				{Type: fakemetrics.SetGaugeType, Key: []string{"uptime_in_ms"}, Val: 200},
 			},
@@ -31,12 +33,10 @@ func TestReportMetrics(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			metrics := fakemetrics.New()
-
-			// update for mock uptime value.
-			getUptimeFunc = func() float32 {
-				return float32(tt.testUpTime / time.Millisecond)
-			}
-			reportMetrics(ctx, clock.NewMock(t).Ticker(0*time.Nanosecond), metrics)
+			// overwrite the variable to use mock clock.
+			clk = clock.NewMock(t)
+			start = clk.Now().Add(-tt.testUpTime)
+			reportMetrics(ctx, 0*time.Nanosecond, metrics)
 			assert.Equal(t, tt.expectedMetrics, metrics.AllMetrics())
 		})
 	}

@@ -11,20 +11,20 @@ import (
 // by default, report every 10 seconds.
 const _defaultReportInterval = time.Second * 10
 
-var start = time.Now()
+var (
+	clk   = clock.New()
+	start = clk.Now()
+)
 
 func Uptime() time.Duration {
-	return time.Since(start)
+	return clk.Now().Sub(start)
 }
 
-var getUptimeFunc = func() float32 {
-	return float32(Uptime() / time.Millisecond)
-}
-
-func reportMetrics(ctx context.Context, t *clock.Ticker, m telemetry.Metrics) {
+func reportMetrics(ctx context.Context, interval time.Duration, m telemetry.Metrics) {
+	t := clk.Ticker(interval)
 	defer t.Stop()
 	for {
-		telemetry.EmitUptime(m, getUptimeFunc())
+		telemetry.EmitUptime(m, float32(Uptime()/time.Millisecond))
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -37,5 +37,5 @@ func ReportMetrics(ctx context.Context, reportInterval time.Duration, metrics te
 	if reportInterval.Milliseconds() <= 0 {
 		reportInterval = _defaultReportInterval
 	}
-	go reportMetrics(ctx, clock.New().Ticker(reportInterval), metrics)
+	go reportMetrics(ctx, reportInterval, metrics)
 }
