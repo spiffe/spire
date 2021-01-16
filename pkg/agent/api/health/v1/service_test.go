@@ -55,6 +55,22 @@ func TestServiceCheck(t *testing.T) {
 			expectServingStatus: grpc_health_v1.HealthCheckResponse_SERVING,
 		},
 		{
+			name:                "failure with other status codes",
+			wlapiCode:           codes.Unavailable,
+			expectCode:          codes.OK,
+			expectServingStatus: grpc_health_v1.HealthCheckResponse_NOT_SERVING,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Health check failed",
+					Data: logrus.Fields{
+						"error":  "rpc error: code = Unavailable desc = ",
+						"reason": "unable to fetch X.509 context from Workload API",
+					},
+				},
+			},
+		},
+		{
 			name:       "service name not supported",
 			service:    "WHATEVER",
 			expectCode: codes.InvalidArgument,

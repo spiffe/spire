@@ -245,6 +245,9 @@ const (
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
+	// Reason is the reason for something
+	Reason = "reason"
+
 	// RegistrationID tags some registration entry ID
 	RegistrationID = "entry_id"
 

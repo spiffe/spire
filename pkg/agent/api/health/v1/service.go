@@ -3,7 +3,9 @@ package health
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc"
@@ -50,9 +52,15 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 	healthStatus := grpc_health_v1.HealthCheckResponse_SERVING
 	switch status.Code(err) {
 	case codes.OK, codes.PermissionDenied:
+		// PermissionDenied is ok, since it is likely that the agent will
+		// not match workload registrations in most cases. We consider this
+		// response healthy.
 	default:
 		healthStatus = grpc_health_v1.HealthCheckResponse_NOT_SERVING
-		log.WithError(err).Warn("Health check failed")
+		log.WithFields(logrus.Fields{
+			telemetry.Reason: "unable to fetch X.509 context from Workload API",
+			logrus.ErrorKey:  err,
+		}).Warn("Health check failed")
 	}
 
 	return &grpc_health_v1.HealthCheckResponse{
