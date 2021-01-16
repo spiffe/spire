@@ -396,7 +396,7 @@ func (s *Server) Status() (interface{}, error) {
 
 	// Currently using the ability to fetch a bundle as the health check. This
 	// **could** be problematic if the Upstream CA signing process is lengthy.
-	// As currently coded however, the registration API isn't served until after
+	// As currently coded however, the API isn't served until after
 	// the server CA has been signed by upstream.
 	if _, err := bundleClient.GetBundle(context.Background(), &bundle.GetBundleRequest{}); err != nil {
 		return nil, errors.New("unable to fetch bundle")
