@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
@@ -431,48 +430,6 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 	if !s.AssertGRPCStatusContains(err, codes.Unknown, "k8s-bundle: IdentityProvider host service is required") {
 		p.Close()
 	}
-}
-
-func (s *Suite) TestBundleWatcherUpdateConfig() {
-	s.withKubeClient(s.k, "/some/file/path")
-
-	s.configure(`
-webhook_label = "LABEL"
-kube_config_file_path = "/some/file/path"
-`)
-	s.Require().Equal("LABEL", s.k.watchLabel)
-
-	s.configure(`
-webhook_label = "LABEL2"
-kube_config_file_path = "/some/file/path"
-`)
-	s.Require().Equal("LABEL2", s.k.watchLabel)
-}
-
-func (s *Suite) TestBundleWatcherAddEvent() {
-	s.withKubeClient(s.k, "/some/file/path")
-	s.configure(`
-webhook_label = "LABEL"
-kube_config_file_path = "/some/file/path"
-`)
-
-	configMap := newConfigMap()
-	s.r.AppendBundle(testBundle)
-	s.k.setConfigMap(configMap)
-	s.k.addWatchEvent(configMap)
-
-	s.Require().Eventually(func() bool {
-		return s.Equal(&corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:       "spire",
-				Name:            "spire-bundle",
-				ResourceVersion: "2",
-			},
-			Data: map[string]string{
-				"bundle.crt": testBundleData,
-			},
-		}, s.k.getConfigMap("spire", "spire-bundle"))
-	}, time.Second, time.Millisecond)
 }
 
 func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
