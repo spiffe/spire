@@ -229,13 +229,14 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 			return err
 		}
 
-		// Create patch with updated CA Bundles
+		// Build patch with the new bundle data. The resource version MUST be set
+		// to support conflict resolution.
 		patch, err := client.CreatePatch(ctx, c, obj, resp)
 		if err != nil {
 			return err
 		}
 
-		// Patch the object
+		// Patch the bundle, handling version conflicts
 		patchBytes, err := json.Marshal(patch)
 		if err != nil {
 			return k8sErr.New("unable to marshal patch: %v", err)
