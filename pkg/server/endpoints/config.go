@@ -17,6 +17,7 @@ import (
 	bundlev1 "github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	debugv1 "github.com/spiffe/spire/pkg/server/api/debug/v1"
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
+	healthv1 "github.com/spiffe/spire/pkg/server/api/health/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
@@ -151,23 +152,27 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			DataStore:         ds,
 			UpstreamPublisher: upstreamPublisher,
 		}),
-		EntryServer: entryv1.New(entryv1.Config{
-			TrustDomain:  c.TrustDomain,
-			DataStore:    ds,
-			EntryFetcher: entryFetcher,
-		}),
-		SVIDServer: svidv1.New(svidv1.Config{
-			TrustDomain:  c.TrustDomain,
-			EntryFetcher: entryFetcher,
-			ServerCA:     c.ServerCA,
-			DataStore:    ds,
-		}),
 		DebugServer: debugv1.New(debugv1.Config{
 			TrustDomain:  c.TrustDomain,
 			Clock:        c.Clock,
 			DataStore:    ds,
 			SVIDObserver: c.SVIDObserver,
 			Uptime:       c.Uptime,
+		}),
+		EntryServer: entryv1.New(entryv1.Config{
+			TrustDomain:  c.TrustDomain,
+			DataStore:    ds,
+			EntryFetcher: entryFetcher,
+		}),
+		HealthServer: healthv1.New(healthv1.Config{
+			TrustDomain: c.TrustDomain,
+			DataStore:   ds,
+		}),
+		SVIDServer: svidv1.New(svidv1.Config{
+			TrustDomain:  c.TrustDomain,
+			EntryFetcher: entryFetcher,
+			ServerCA:     c.ServerCA,
+			DataStore:    ds,
 		}),
 	}
 }
