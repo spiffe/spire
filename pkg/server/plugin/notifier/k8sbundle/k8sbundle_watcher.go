@@ -2,7 +2,9 @@ package k8sbundle
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/watch"
@@ -11,17 +13,32 @@ import (
 type bundleWatcher struct {
 	p      *Plugin
 	cancel func()
+	mu     sync.RWMutex
+
+	hooks struct {
+		watcherFunc func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error
+	}
 }
 
 func newBundleWatcher(p *Plugin) *bundleWatcher {
-	return &bundleWatcher{p: p}
+	watcher := &bundleWatcher{p: p}
+	watcher.hooks.watcherFunc = watcher.watcherFunc
+	return watcher
 }
 
 // startOrUpdateWatcher starts the webhook watcher or sends a signal to update configuration
 func (b *bundleWatcher) Start() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// make sure the client hasn't already been started
+	b.mu.Lock()
+	if b.cancel != nil {
+		b.mu.Unlock()
+		return errors.New("already started")
+	}
 	b.cancel = cancel
+	b.mu.Unlock()
 
 	config, err := b.p.getConfig()
 	if err != nil {
@@ -49,10 +66,14 @@ func (b *bundleWatcher) Start() error {
 }
 
 func (b *bundleWatcher) Stop() {
-	b.cancel()
+	b.mu.Lock()
+	if b.cancel != nil {
+		b.cancel()
+	}
+	b.mu.Unlock()
 }
 
-// watcherFunc watches for new webhooks that are created with the configured label and updates the CA Bundle
+// watcherFunc watches for new objects that are created with the proper selector and updates the CA Bundle
 func (b *bundleWatcher) watcherFunc(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) (err error) {
 	selectCase := newSelectCase(ctx, watchers)
 	for {

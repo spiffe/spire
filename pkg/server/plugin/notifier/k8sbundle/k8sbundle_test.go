@@ -433,7 +433,7 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 	}
 }
 
-func (s *Suite) TestWatcherUpdateConfig() {
+func (s *Suite) TestBundleWatcherUpdateConfig() {
 	s.withKubeClient(s.k, "/some/file/path")
 
 	s.configure(`
@@ -449,7 +449,7 @@ kube_config_file_path = "/some/file/path"
 	s.Require().Equal("LABEL2", s.k.watchLabel)
 }
 
-func (s *Suite) TestWatcherAddEvent() {
+func (s *Suite) TestBundleWatcherAddEvent() {
 	s.withKubeClient(s.k, "/some/file/path")
 	s.configure(`
 webhook_label = "LABEL"

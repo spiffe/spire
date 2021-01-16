@@ -213,6 +213,8 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 // updateBundle does the ready-modify-write semantics for Kubernetes, retrying on conflict
 func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeClient, namespace, name string) (err error) {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get the object so we can use the version to resolve conflicts racing
+		// on updates from other servers.
 		obj, err := client.Get(ctx, namespace, name)
 		if err != nil {
 			return k8sErr.New("unable to get object %s/%s: %v", namespace, name, err)
