@@ -4,26 +4,41 @@ import (
 	"context"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
 const (
-	testTimeout = time.Second
+	testTimeout = time.Minute
 )
 
+func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
+	s.withKubeClient(nil, "")
+
+	s.configure("")
+
+	watcher := newBundleWatcher(s.raw)
+	err := watcher.Start()
+
+	s.Require().Equal(err.Error(), "kube client not configured")
+}
+
 func (s *Suite) TestBundleWatchersStartsAndStops() {
+	s.configure("")
+
 	watcher := newBundleWatcher(s.raw)
 	watcherDone := false
 	go func() {
-		watcher.Start()
+		err := watcher.Start()
+		s.Require().NoError(err)
 		watcherDone = true
 	}()
 
 	s.Require().Eventually(func() bool {
 		watcher.Stop()
 		return watcherDone == true
-	}, time.Second, time.Millisecond)
-
+	}, testTimeout, time.Millisecond)
 }
 
 func (s *Suite) TestBundleWatcherStartFailsIfAlreadyStarted() {
@@ -64,4 +79,46 @@ func (s *Suite) TestBundleWatcherStartFailsIfAlreadyStarted() {
 	case <-timer.C:
 		s.Require().FailNow("timed out waiting for watcher.Start() to return")
 	}
+}
+
+func (s *Suite) TestBundleWatcherUpdateConfig() {
+	s.withKubeClient(s.k, "/some/file/path")
+
+	s.configure(`
+webhook_label = "LABEL"
+kube_config_file_path = "/some/file/path"
+`)
+	s.Require().Equal("LABEL", s.k.watchLabel)
+
+	s.configure(`
+webhook_label = "LABEL2"
+kube_config_file_path = "/some/file/path"
+`)
+	s.Require().Equal("LABEL2", s.k.watchLabel)
+}
+
+func (s *Suite) TestBundleWatcherAddEvent() {
+	s.withKubeClient(s.k, "/some/file/path")
+	s.configure(`
+webhook_label = "LABEL"
+kube_config_file_path = "/some/file/path"
+`)
+
+	configMap := newConfigMap()
+	s.r.AppendBundle(testBundle)
+	s.k.setConfigMap(configMap)
+	s.k.addWatchEvent(configMap)
+
+	s.Require().Eventually(func() bool {
+		return s.Equal(&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:       "spire",
+				Name:            "spire-bundle",
+				ResourceVersion: "2",
+			},
+			Data: map[string]string{
+				"bundle.crt": testBundleData,
+			},
+		}, s.k.getConfigMap("spire", "spire-bundle"))
+	}, testTimeout, time.Millisecond)
 }
