@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -318,12 +319,17 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 				// creeping into the TLS stack.
 				return errs.New("server chain is unexpectedly empty")
 			}
-			expectedServerID := idutil.ServerID(a.c.TrustDomain.Host)
+
+			trustDomain, err := spiffeid.TrustDomainFromString(a.c.TrustDomain.Host)
+			if err != nil {
+				return err
+			}
+			expectedServerID := idutil.ServerID(trustDomain)
 			serverCert, err := x509.ParseCertificate(rawCerts[0])
 			if err != nil {
 				return err
 			}
-			if len(serverCert.URIs) != 1 || serverCert.URIs[0].String() != expectedServerID {
+			if len(serverCert.URIs) != 1 || serverCert.URIs[0].String() != expectedServerID.String() {
 				return errs.New("expected server SPIFFE ID %q; got %q", expectedServerID, serverCert.URIs)
 			}
 			return nil

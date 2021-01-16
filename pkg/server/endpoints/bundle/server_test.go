@@ -18,6 +18,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
@@ -335,6 +336,6 @@ func createServerCertificate(t *testing.T) (*x509.Certificate, crypto.Signer) {
 		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
 		NotBefore:    now,
 		NotAfter:     now.Add(serverCertLifetime),
-		URIs:         []*url.URL{idutil.ServerURI("domain.test")},
+		URIs:         []*url.URL{idutil.ServerID(spiffeid.RequireTrustDomainFromString("domain.test")).URL()},
 	})
 }

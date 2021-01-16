@@ -19,6 +19,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 
@@ -83,6 +84,10 @@ func (n *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // updateorCreateNodeEntry attempts to create a new SpiffeID resource.
 func (n *NodeReconciler) updateorCreateNodeEntry(ctx context.Context, node *corev1.Node) (ctrl.Result, error) {
+	trustDomain, err := spiffeid.TrustDomainFromString(n.c.TrustDomain)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	// Set up new SPIFFE ID
 	spiffeID := &spiffeidv1beta1.SpiffeID{
 		ObjectMeta: metav1.ObjectMeta{
@@ -93,7 +98,7 @@ func (n *NodeReconciler) updateorCreateNodeEntry(ctx context.Context, node *core
 			},
 		},
 		Spec: spiffeidv1beta1.SpiffeIDSpec{
-			ParentId: idutil.ServerID(n.c.TrustDomain),
+			ParentId: idutil.ServerID(trustDomain).String(),
 			SpiffeId: n.nodeID(node.ObjectMeta.Name),
 			Selector: spiffeidv1beta1.Selector{
 				Cluster:      n.c.Cluster,
@@ -101,7 +106,7 @@ func (n *NodeReconciler) updateorCreateNodeEntry(ctx context.Context, node *core
 			},
 		},
 	}
-	err := setOwnerRef(node, spiffeID, n.c.Scheme)
+	err = setOwnerRef(node, spiffeID, n.c.Scheme)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

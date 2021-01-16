@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
@@ -76,20 +77,21 @@ func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func()
 
 	trustDomainConfig := TrustDomainConfig{
 		EndpointAddress:  "ENDPOINT_ADDRESS",
-		EndpointSpiffeID: "ENDPOINT_SPIFFEID",
+		EndpointSpiffeID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
 	}
 
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 	manager := NewManager(ManagerConfig{
 		Log:       log,
 		Metrics:   telemetry.Blackhole{},
 		DataStore: ds,
 		Clock:     clock,
-		TrustDomains: map[string]TrustDomainConfig{
-			"domain.test": trustDomainConfig,
+		TrustDomains: map[spiffeid.TrustDomain]TrustDomainConfig{
+			trustDomain: trustDomainConfig,
 		},
 		newBundleUpdater: func(config BundleUpdaterConfig) BundleUpdater {
 			assert.Equal(t, trustDomainConfig, config.TrustDomainConfig)
-			assert.Equal(t, "domain.test", config.TrustDomain)
+			assert.Equal(t, trustDomain, config.TrustDomain)
 			return updater
 		},
 	})
