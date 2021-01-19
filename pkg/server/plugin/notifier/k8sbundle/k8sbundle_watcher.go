@@ -16,13 +16,13 @@ type bundleWatcher struct {
 	mu     sync.RWMutex
 
 	hooks struct {
-		watcherFunc func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error
+		watcherEvents func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error
 	}
 }
 
 func newBundleWatcher(p *Plugin) *bundleWatcher {
 	watcher := &bundleWatcher{p: p}
-	watcher.hooks.watcherFunc = watcher.watcherFunc
+	watcher.hooks.watcherEvents = watcher.watcherEvents
 	return watcher
 }
 
@@ -40,6 +40,13 @@ func (b *bundleWatcher) Start() error {
 	b.cancel = cancel
 	b.mu.Unlock()
 
+	// allow for another start after this function returns
+	defer func() {
+		b.mu.Lock()
+		b.cancel = nil
+		b.mu.Unlock()
+	}()
+
 	config, err := b.p.getConfig()
 	if err != nil {
 		return err
@@ -56,7 +63,7 @@ func (b *bundleWatcher) Start() error {
 		return nil
 	}
 
-	err = b.watcherFunc(ctx, config, clients, watchers)
+	err = b.hooks.watcherEvents(ctx, config, clients, watchers)
 	switch err {
 	case nil, context.Canceled:
 		return nil
@@ -74,7 +81,7 @@ func (b *bundleWatcher) Stop() {
 }
 
 // watcherFunc watches for new objects that are created with the proper selector and updates the CA Bundle
-func (b *bundleWatcher) watcherFunc(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) (err error) {
+func (b *bundleWatcher) watcherEvents(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) (err error) {
 	selectCase := newSelectCase(ctx, watchers)
 	for {
 		chosen, recv, _ := reflect.Select(selectCase)

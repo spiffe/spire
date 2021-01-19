@@ -2,6 +2,7 @@ package k8sbundle
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -10,7 +11,7 @@ import (
 )
 
 const (
-	testTimeout = time.Minute
+	testTimeout = 2*time.Second
 )
 
 func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
@@ -27,25 +28,48 @@ func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
 func (s *Suite) TestBundleWatchersStartsAndStops() {
 	s.configure("")
 
+	errCh := make(chan error)
+	watcherStarted := make(chan struct{})
 	watcher := newBundleWatcher(s.raw)
-	watcherDone := false
+	watcher.hooks.watcherEvents = func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error {
+		watcherStarted <-struct{}{}
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	go func() {
-		err := watcher.Start()
-		s.Require().NoError(err)
-		watcherDone = true
+		errCh <-watcher.Start()
 	}()
 
-	s.Require().Eventually(func() bool {
-		watcher.Stop()
-		return watcherDone == true
-	}, testTimeout, time.Millisecond)
+	timer := time.NewTimer(testTimeout)
+	defer timer.Stop()
+
+	select {
+	case <-watcherStarted:
+	case err := <-errCh:
+		if err != nil {
+			s.Require().FailNow(fmt.Sprintf("watcher.Start() unexpected exit: %v", err))
+		} else {
+			s.Require().FailNow("watcher.Start() unexpected exit")
+		}
+	case <-timer.C:
+		s.Require().FailNow("timed out waiting for watcher to start")
+	}
+
+	watcher.Stop()
+
+	select {
+	case err := <-errCh:
+		s.Require().NoError(err)
+	case <-timer.C:
+		s.Require().FailNow("timed out waiting for watcher.Start() to return")
+	}
 }
 
 func (s *Suite) TestBundleWatcherStartFailsIfAlreadyStarted() {
 	s.configure("")
 
 	watcher := newBundleWatcher(s.raw)
-	watcher.hooks.watcherFunc = func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error {
+	watcher.hooks.watcherEvents = func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error {
 		<-ctx.Done()
 		return ctx.Err()
 	}
@@ -88,13 +112,15 @@ func (s *Suite) TestBundleWatcherUpdateConfig() {
 webhook_label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().Equal("LABEL", s.k.watchLabel)
+	watchLabel := s.k.getWatchLabel()
+	s.Require().Equal("LABEL", watchLabel)
 
 	s.configure(`
 webhook_label = "LABEL2"
 kube_config_file_path = "/some/file/path"
 `)
-	s.Require().Equal("LABEL2", s.k.watchLabel)
+	watchLabel = s.k.getWatchLabel()
+	s.Require().Equal("LABEL2", watchLabel)
 }
 
 func (s *Suite) TestBundleWatcherAddEvent() {
