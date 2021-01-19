@@ -573,6 +573,12 @@ func (c *fakeKubeClient) addWatchEvent(obj runtime.Object) {
 	c.fakeWatch.Add(obj)
 }
 
+func (c *fakeKubeClient) getWatchLabel() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.watchLabel
+}
+
 func configMapKey(namespace, configMap string) string {
 	return fmt.Sprintf("%s|%s", namespace, configMap)
 }

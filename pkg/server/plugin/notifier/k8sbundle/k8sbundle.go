@@ -147,16 +147,19 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	p.setConfig(config)
 
 	// Start watcher to set CA Bundle in objects created after server has started
-	if p.watcher != nil {
-		p.watcher.Stop()
-	}
-	p.watcher = newBundleWatcher(p)
+	watcher := newBundleWatcher(p)
 	go func() {
-		err := p.watcher.Start()
+		err := watcher.Start()
 		if err != nil {
 			p.log.Error("running watcher: %v", err)
 		}
 	}()
+	p.mu.Lock()
+	if p.watcher != nil {
+		p.watcher.Stop()
+	}
+	p.watcher = watcher
+	p.mu.Unlock()
 
 	return &spi.ConfigureResponse{}, nil
 }
