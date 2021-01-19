@@ -6,6 +6,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -27,7 +28,7 @@ type TrustDomainConfig struct {
 
 	// EndpointSpiffeID is the expected SPIFFE ID of the endpoint server. If
 	// unset, it defaults to the SPIRE server ID within the trust domain.
-	EndpointSpiffeID string
+	EndpointSpiffeID spiffeid.ID
 
 	// UseWebPKI is true if the endpoint should be authenticated with Web PKI.
 	// Otherwise, SPIFFE authentication is assumed.
@@ -39,7 +40,7 @@ type ManagerConfig struct {
 	Metrics      telemetry.Metrics
 	DataStore    datastore.DataStore
 	Clock        clock.Clock
-	TrustDomains map[string]TrustDomainConfig
+	TrustDomains map[spiffeid.TrustDomain]TrustDomainConfig
 
 	// newBundleUpdater is a test hook to inject updater behavior
 	newBundleUpdater func(BundleUpdaterConfig) BundleUpdater
@@ -49,7 +50,7 @@ type Manager struct {
 	log      logrus.FieldLogger
 	metrics  telemetry.Metrics
 	clock    clock.Clock
-	updaters map[string]BundleUpdater
+	updaters map[spiffeid.TrustDomain]BundleUpdater
 }
 
 func NewManager(config ManagerConfig) *Manager {
@@ -60,7 +61,7 @@ func NewManager(config ManagerConfig) *Manager {
 		config.newBundleUpdater = NewBundleUpdater
 	}
 
-	updaters := make(map[string]BundleUpdater)
+	updaters := make(map[spiffeid.TrustDomain]BundleUpdater)
 	for trustDomain, trustDomainConfig := range config.TrustDomains {
 		updaters[trustDomain] = config.newBundleUpdater(BundleUpdaterConfig{
 			TrustDomainConfig: trustDomainConfig,
@@ -91,7 +92,7 @@ func (m *Manager) Run(ctx context.Context) error {
 	return util.RunTasks(ctx, tasks...)
 }
 
-func (m *Manager) runUpdater(ctx context.Context, trustDomain string, updater BundleUpdater) error {
+func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDomain, updater BundleUpdater) error {
 	log := m.log.WithField("trust_domain", trustDomain)
 	for {
 		var nextRefresh time.Duration
@@ -103,7 +104,7 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain string, updater Bu
 
 		switch {
 		case endpointBundle != nil:
-			telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain)
+			telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain.String())
 			log.Info("Bundle refreshed")
 			nextRefresh = calculateNextUpdate(endpointBundle)
 		case localBundle != nil:

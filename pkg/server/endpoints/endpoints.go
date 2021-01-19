@@ -14,6 +14,7 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/andres-erbsen/clock"
@@ -76,6 +77,7 @@ type APIServers struct {
 	BundleServer bundlev1_pb.BundleServer
 	DebugServer  debugv1_pb.DebugServer
 	EntryServer  entryv1_pb.EntryServer
+	HealthServer grpc_health_v1.HealthServer
 	SVIDServer   svidv1_pb.SVIDServer
 }
 
@@ -145,7 +147,9 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	entryv1_pb.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
 	svidv1_pb.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
 	svidv1_pb.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
-	// Register Debug API only on UDS server
+
+	// Register Health and Debug only on UDS server
+	grpc_health_v1.RegisterHealthServer(udsServer, e.APIServers.HealthServer)
 	debugv1_pb.RegisterDebugServer(udsServer, e.APIServers.DebugServer)
 
 	tasks := []func(context.Context) error{

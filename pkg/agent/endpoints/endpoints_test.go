@@ -17,11 +17,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv2"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -167,16 +169,16 @@ func TestEndpoints(t *testing.T) {
 				DefaultSVIDName:   "DefaultSVIDName",
 				DefaultBundleName: "DefaultBundleName",
 
-				// Assert the provided config and return a fake Workload API handler
-				newWorkloadAPIHandler: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
+				// Assert the provided config and return a fake Workload API server
+				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
 					attestor, ok := c.Attestor.(peerTrackerAttestor)
 					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
 					return FakeWorkloadAPIServer{Attestor: attestor}
 				},
 
-				// Assert the provided config and return a fake SDS handler
-				newSDSv2Handler: func(c sdsv2.Config) discovery_v2.SecretDiscoveryServiceServer {
+				// Assert the provided config and return a fake SDS server
+				newSDSv2Server: func(c sdsv2.Config) discovery_v2.SecretDiscoveryServiceServer {
 					attestor, ok := c.Attestor.(peerTrackerAttestor)
 					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
@@ -185,14 +187,20 @@ func TestEndpoints(t *testing.T) {
 					return FakeSDSv2Server{Attestor: attestor}
 				},
 
-				// Assert the provided config and return a fake SDS handler
-				newSDSv3Handler: func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
+				// Assert the provided config and return a fake SDS server
+				newSDSv3Server: func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
 					attestor, ok := c.Attestor.(peerTrackerAttestor)
 					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
 					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
 					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
 					return FakeSDSv3Server{Attestor: attestor}
+				},
+
+				// Assert the provided config and return a fake health server
+				newHealthServer: func(c healthv1.Config) grpc_health_v1.HealthServer {
+					assert.Equal(t, udsPath, c.SocketPath)
+					return FakeHealthServer{}
 				},
 			})
 
@@ -270,6 +278,10 @@ func (s FakeSDSv3Server) FetchSecrets(ctx context.Context, in *discovery_v3.Disc
 		return nil, err
 	}
 	return &discovery_v3.DiscoveryResponse{}, nil
+}
+
+type FakeHealthServer struct {
+	*grpc_health_v1.UnimplementedHealthServer
 }
 
 func attest(ctx context.Context, attestor peerTrackerAttestor) error {

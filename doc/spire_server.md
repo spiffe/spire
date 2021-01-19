@@ -185,7 +185,7 @@ The server can expose an additional endpoint that can be used for health checkin
 health_checks {
         listener_enabled = true
         bind_address = "localhost"
-        bind_port = "80"
+        bind_port = "8080"
         live_path = "/live"
         ready_path = "/ready"
 }

@@ -391,7 +391,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			}
 		}
 
-		federatesWith := map[string]bundleClient.TrustDomainConfig{}
+		federatesWith := map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{}
 		for trustDomain, config := range c.Server.Federation.FederatesWith {
 			port := defaultBundleEndpointPort
 			if config.BundleEndpoint.Port != 0 {
@@ -400,9 +400,23 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			if config.BundleEndpoint.UseWebPKI && config.BundleEndpoint.SpiffeID != "" {
 				return nil, errors.New("usage of `bundle_endpoint.spiffe_id` is not allowed when authenticating with Web PKI")
 			}
-			federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
+
+			var spiffeID spiffeid.ID
+			if config.BundleEndpoint.SpiffeID != "" {
+				spiffeID, err = spiffeid.FromString(config.BundleEndpoint.SpiffeID)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			td, err := spiffeid.TrustDomainFromString(trustDomain)
+			if err != nil {
+				return nil, err
+			}
+
+			federatesWith[td] = bundleClient.TrustDomainConfig{
 				EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpoint.Address, port),
-				EndpointSpiffeID: config.BundleEndpoint.SpiffeID,
+				EndpointSpiffeID: spiffeID,
 				UseWebPKI:        config.BundleEndpoint.UseWebPKI,
 			}
 		}

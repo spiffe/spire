@@ -89,7 +89,7 @@ type FederationConfig struct {
 	BundleEndpoint *bundle.EndpointConfig
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
-	FederatesWith map[string]bundle_client.TrustDomainConfig
+	FederatesWith map[spiffeid.TrustDomain]bundle_client.TrustDomainConfig
 }
 
 func New(config Config) *Server {

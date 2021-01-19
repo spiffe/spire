@@ -41,6 +41,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
@@ -104,9 +105,10 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.OldAPIServers.NodeServer)
 	assert.NotNil(t, endpoints.APIServers.AgentServer)
 	assert.NotNil(t, endpoints.APIServers.BundleServer)
-	assert.NotNil(t, endpoints.APIServers.EntryServer)
-	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.APIServers.DebugServer)
+	assert.NotNil(t, endpoints.APIServers.EntryServer)
+	assert.NotNil(t, endpoints.APIServers.HealthServer)
+	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
@@ -203,9 +205,10 @@ func TestListenAndServe(t *testing.T) {
 		APIServers: APIServers{
 			AgentServer:  &agentv1.UnimplementedAgentServer{},
 			BundleServer: &bundlev1.UnimplementedBundleServer{},
-			EntryServer:  &entryv1.UnimplementedEntryServer{},
-			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
 			DebugServer:  &debugv1.UnimplementedDebugServer{},
+			EntryServer:  &entryv1.UnimplementedEntryServer{},
+			HealthServer: &grpc_health_v1.UnimplementedHealthServer{},
+			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
 		},
 		BundleEndpointServer:         bundleEndpointServer,
 		Log:                          log,
@@ -281,6 +284,9 @@ func TestListenAndServe(t *testing.T) {
 	})
 	t.Run("Debug", func(t *testing.T) {
 		testDebugAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+	})
+	t.Run("Health", func(t *testing.T) {
+		testHealthAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Bundle", func(t *testing.T) {
 		testBundleAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
@@ -464,6 +470,43 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": false,
+		})
+	})
+}
+
+func testHealthAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentConn, adminConn, downstreamConn *grpc.ClientConn) {
+	t.Run("UDS", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(udsConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("NoAuth", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(noauthConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("Agent", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(agentConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("Admin", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(adminConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("Downstream", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(downstreamConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
 		})
 	})
 }
@@ -691,29 +734,14 @@ func testAuthorization(ctx context.Context, t *testing.T, client interface{}, ex
 
 	for i := 0; i < ct.NumMethod(); i++ {
 		mv := cv.Method(i)
-		mt := mv.Type()
 		methodName := ct.Method(i).Name
 		t.Run(methodName, func(t *testing.T) {
-			var out []reflect.Value
-
-			if mv.Type().NumIn() == 2 {
-				// server-stream method
-				out = mv.Call([]reflect.Value{reflect.ValueOf(ctx)})
-				require.Len(t, out, 2)
-				// assert there is no failure
-				require.Nil(t, out[1].Interface())
-				// Now call the Recv() method on the stream
-				rv := out[0].MethodByName("Recv")
-				out = rv.Call([]reflect.Value{})
-			} else {
-				// unary method
-				out = mv.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.New(mt.In(1).Elem())})
-			}
-
-			require.Len(t, out, 2)
-			assert.Nil(t, out[0].Interface())
+			// Invoke the RPC and assert the results
+			out := callRPC(ctx, t, mv)
+			require.Len(t, out, 2, "expected two return values")
+			require.Nil(t, out[0].Interface(), "1st output should have been nil")
 			err, ok := out[1].Interface().(error)
-			require.True(t, ok)
+			require.True(t, ok, "2nd output should have been an error")
 
 			expectAuthResult, ok := expectedAuthResults[methodName]
 			require.True(t, ok, "%q does not have an expected result", methodName)
@@ -736,6 +764,37 @@ func testAuthorization(ctx context.Context, t *testing.T, client interface{}, ex
 	for methodName := range expectedAuthResults {
 		t.Errorf("%q had an expected result but is not part of the %T interface", methodName, client)
 	}
+}
+
+// callRPC invokes the RPC and returns the results. For unary RPCs, out will be
+// the result of the method on the interface. For streams, it will be the
+// result of the first call to Recv().
+func callRPC(ctx context.Context, t *testing.T, mv reflect.Value) []reflect.Value {
+	mt := mv.Type()
+
+	in := []reflect.Value{reflect.ValueOf(ctx)}
+
+	// If there is more than two input parameters, then we need to provide a
+	// request object when invoking.
+	if mt.NumIn() > 2 {
+		in = append(in, reflect.New(mt.In(1).Elem()))
+	}
+
+	out := mv.Call(in)
+	require.Len(t, out, 2, "expected two return values from the RPC invocation")
+	if mt.Out(0).Kind() == reflect.Interface {
+		// Response was a stream. We need to invoke Recv() to get at the
+		// real response.
+
+		// Check for error
+		require.Nil(t, out[1].Interface(), "should have succeeded getting the stream")
+
+		// Invoke Recv()
+		rv := out[0].MethodByName("Recv")
+		out = rv.Call([]reflect.Value{})
+	}
+
+	return out
 }
 
 type registrationServer struct {

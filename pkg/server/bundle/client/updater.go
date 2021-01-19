@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/zeebo/errs"
 )
@@ -13,7 +13,7 @@ import (
 type BundleUpdaterConfig struct {
 	TrustDomainConfig
 
-	TrustDomain string
+	TrustDomain spiffeid.TrustDomain
 	DataStore   datastore.DataStore
 
 	// newClient is a test hook for injecting client behavior
@@ -93,10 +93,10 @@ func (u *bundleUpdater) newClient(localBundleOrNil *bundleutil.Bundle) (Client, 
 	return u.c.newClient(config)
 }
 
-func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain string) (*bundleutil.Bundle, error) {
+func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain spiffeid.TrustDomain) (*bundleutil.Bundle, error) {
 	// Load the current bundle and extract the root CA certificates
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: idutil.TrustDomainID(trustDomain),
+		TrustDomainId: trustDomain.IDString(),
 	})
 	if err != nil {
 		return nil, errs.Wrap(err)
