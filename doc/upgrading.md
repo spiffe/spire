@@ -16,7 +16,7 @@ Example 2:
 * Other SPIRE Server instances are supported at 1.2.x and 1.1.x
 
 ### SPIRE Agent Compatibility
-SPIRE Agents must not be newer than the oldest SPIRE Server that they communicate with, and may be up to one minor version older. As an exception, versions 0.12.x are compatible with 1.0.x versions (as long as the oldest SPIRE Server is at 1.0.x).
+SPIRE Agents must not be newer than the oldest SPIRE Server that they communicate with, and may be up to one minor version older. As an exception, SPIRE Agent versions 0.12.x are compatible with SPIRE Server versions 1.0.x.
 
 Example 1 (0.12.x exception):
 * SPIRE Servers are at both 1.0.3 and 1.0.2
