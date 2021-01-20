@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	testTimeout = 2*time.Second
+	testTimeout = time.Minute
 )
 
 func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
@@ -32,12 +32,12 @@ func (s *Suite) TestBundleWatchersStartsAndStops() {
 	watcherStarted := make(chan struct{})
 	watcher := newBundleWatcher(s.raw)
 	watcher.hooks.watcherEvents = func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error {
-		watcherStarted <-struct{}{}
+		watcherStarted <- struct{}{}
 		<-ctx.Done()
 		return ctx.Err()
 	}
 	go func() {
-		errCh <-watcher.Start()
+		errCh <- watcher.Start()
 	}()
 
 	timer := time.NewTimer(testTimeout)
