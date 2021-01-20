@@ -33,9 +33,6 @@ func reportMetrics(ctx context.Context, interval time.Duration, m telemetry.Metr
 	}
 }
 
-func ReportMetrics(ctx context.Context, reportInterval time.Duration, metrics telemetry.Metrics) {
-	if reportInterval.Milliseconds() <= 0 {
-		reportInterval = _defaultReportInterval
-	}
-	go reportMetrics(ctx, reportInterval, metrics)
+func ReportMetrics(ctx context.Context, metrics telemetry.Metrics) {
+	go reportMetrics(ctx, _defaultReportInterval, metrics)
 }

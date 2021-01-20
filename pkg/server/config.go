@@ -77,9 +77,6 @@ type Config struct {
 
 	// RateLimit holds rate limiting configurations.
 	RateLimit endpoints.RateLimitConfig
-
-	// UptimeReportInterval the interval that spire agent reports its uptime.
-	UptimeReportInterval time.Duration
 }
 
 type ExperimentalConfig struct {
