@@ -21,7 +21,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -304,16 +303,14 @@ func (c configMapClient) Get(ctx context.Context, namespace, configMap string) (
 }
 
 func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
-	list, err := c.CoreV1().ConfigMaps(config.Namespace).List(ctx, metav1.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector("metadata.name", config.ConfigMap).String(),
-	})
+	obj, err := c.Get(ctx, config.Namespace, config.ConfigMap)
 	if err != nil {
 		return nil, err
 	}
-	if len(list.Items) == 0 {
-		return nil, k8sErr.New("unable to get config map %s/%s: not found", config.Namespace, config.ConfigMap)
-	}
-	return list, nil
+	configMap := obj.(*corev1.ConfigMap)
+	return &corev1.ConfigMapList{
+		Items: []corev1.ConfigMap{*configMap},
+	}, nil
 }
 
 func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
