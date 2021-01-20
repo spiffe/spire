@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -14,12 +15,12 @@ import (
 
 const cacheFetchEntriesTTL = 1 * time.Second
 
-func FetchRegistrationEntriesWithCache(ctx context.Context, dataStore datastore.DataStore, cache entrycache.RegistrationEntriesCache, spiffeID string) ([]*common.RegistrationEntry, error) {
+func FetchRegistrationEntriesWithCache(ctx context.Context, dataStore datastore.DataStore, cache entrycache.RegistrationEntriesCache, spiffeID spiffeid.ID) ([]*common.RegistrationEntry, error) {
 	fetcher := newRegistrationEntryFetcher(dataStore, cache)
 	return fetcher.Fetch(ctx, spiffeID)
 }
 
-func FetchRegistrationEntries(ctx context.Context, dataStore datastore.DataStore, spiffeID string) ([]*common.RegistrationEntry, error) {
+func FetchRegistrationEntries(ctx context.Context, dataStore datastore.DataStore, spiffeID spiffeid.ID) ([]*common.RegistrationEntry, error) {
 	fetcher := newRegistrationEntryFetcher(dataStore, &nullCache{})
 	return fetcher.Fetch(ctx, spiffeID)
 }
@@ -36,11 +37,11 @@ func newRegistrationEntryFetcher(dataStore datastore.DataStore, cache entrycache
 	}
 }
 
-func (f *registrationEntryFetcher) Fetch(ctx context.Context, id string) ([]*common.RegistrationEntry, error) {
+func (f *registrationEntryFetcher) Fetch(ctx context.Context, id spiffeid.ID) ([]*common.RegistrationEntry, error) {
 	var entries []*common.RegistrationEntry
 	var err error
 	visited := make(map[string]bool)
-	entries, err = f.fetch(ctx, id, visited, false)
+	entries, err = f.fetch(ctx, id.String(), visited, false)
 	if err != nil {
 		return nil, err
 	}

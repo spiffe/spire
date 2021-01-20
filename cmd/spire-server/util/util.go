@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
@@ -49,6 +50,7 @@ type ServerClient interface {
 	NewBundleClient() bundle.BundleClient
 	NewEntryClient() entry.EntryClient
 	NewSVIDClient() svid.SVIDClient
+	NewHealthClient() grpc_health_v1.HealthClient
 }
 
 func NewServerClient(socketPath string) (ServerClient, error) {
@@ -81,6 +83,10 @@ func (c *serverClient) NewEntryClient() entry.EntryClient {
 
 func (c *serverClient) NewSVIDClient() svid.SVIDClient {
 	return svid.NewSVIDClient(c.conn)
+}
+
+func (c *serverClient) NewHealthClient() grpc_health_v1.HealthClient {
+	return grpc_health_v1.NewHealthClient(c.conn)
 }
 
 // Pluralizer concatenates `singular` to `msg` when `val` is one, and

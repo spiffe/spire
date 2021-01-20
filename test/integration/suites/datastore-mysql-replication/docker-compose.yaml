@@ -1,0 +1,192 @@
+version: '3.5'
+services:
+  # MySQL 5.6 containers       
+  mysql-5-5-readwrite:
+    image: mysql/mysql-server:5.5
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "9999:3306"
+    container_name: mysql-5-5-readwrite
+    command:
+      - "--server-id=1"
+      - "--log-bin=mysql-bin-1.log"
+      - "--binlog-do-db=spire"  
+      - "--innodb-flush-log-at-trx-commit=1"
+      - "--sync-binlog=1"
+  mysql-5-5-readonly:
+    image: mysql/mysql-server:5.5
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "10000:3306"
+    container_name: mysql-5-5-readonly
+    command:
+      - "--server-id=2"
+      - "--log-bin=mysql-bin-1.log"
+      - "--binlog-do-db=spire"  
+      - "--relay-log=/var/lib/mysql/mysql-relay-bin"
+      - "--log-slave-updates=1"
+      - "--read-only=1"
+        
+  # MySQL 5.6 containers       
+  mysql-5-6-readwrite:
+    image: mysql/mysql-server:5.6
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "9999:3306"
+    container_name: mysql-5-6-readwrite
+    command:
+      - "--server-id=1"
+      - "--log-bin=mysql-bin-1.log"
+      - "--binlog-do-db=spire"  
+      - "--innodb-flush-log-at-trx-commit=1"
+      - "--sync-binlog=1"
+  mysql-5-6-readonly:
+    image: mysql/mysql-server:5.6
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "10000:3306"
+    container_name: mysql-5-6-readonly
+    command:
+      - "--server-id=2"
+      - "--log-bin=mysql-bin-1.log"
+      - "--binlog-do-db=spire"  
+      - "--relay-log=/var/lib/mysql/mysql-relay-bin"
+      - "--log-slave-updates=1"
+      - "--read-only=1"
+        
+  # MySQL 5.7 containers       
+  mysql-5-7-readwrite:
+    image: mysql/mysql-server:5.7
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "9999:3306"
+    container_name: mysql-5-7-readwrite
+    command:
+      - "--server-id=1"
+      - "--log-bin=mysql-bin-1.log"
+      - "--enforce-gtid-consistency=ON"
+      - "--log-slave-updates=ON"
+      - "--gtid-mode=ON"
+      - "--transaction-write-set-extraction=XXHASH64"
+      - "--binlog-checksum=NONE"
+      - "--master-info-repository=TABLE"
+      - "--relay-log-info-repository=TABLE"
+      - "--plugin-load=group_replication.so"
+      - "--relay-log-recovery=ON"
+      - "--group-replication-start-on-boot=OFF"
+      - "--group-replication-group-name=43991639-43EE-454C-82BD-F08A13F3C3ED"
+      - "--group-replication-local-address=mysql-5-7-readwrite:33061"
+      - "--group-replication-group-seeds=mysql-5-7-readwrite:33061,mysql-5-7-readonly:33062"
+      - "--group-replication-single-primary-mode=ON"
+      - "--group-replication-enforce-update-everywhere-checks=OFF"
+      - "--group-replication-auto-increment-increment=1"  
+  mysql-5-7-readonly:
+    image: mysql/mysql-server:5.7
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "10000:3306"
+    container_name: mysql-5-7-readonly
+    command:
+      - "--server-id=2"
+      - "--log-bin=mysql-bin-1.log"
+      - "--enforce-gtid-consistency=ON"
+      - "--log-slave-updates=ON"
+      - "--gtid-mode=ON"
+      - "--transaction-write-set-extraction=XXHASH64"
+      - "--binlog-checksum=NONE"
+      - "--master-info-repository=TABLE"
+      - "--relay-log-info-repository=TABLE"
+      - "--plugin-load=group_replication.so"
+      - "--relay-log-recovery=ON"
+      - "--group-replication-start-on-boot=OFF"
+      - "--group-replication-group-name=43991639-43EE-454C-82BD-F08A13F3C3ED"
+      - "--group-replication-local-address=mysql-5-7-readonly:33062"
+      - "--group-replication-group-seeds=mysql-5-7-readwrite:33061,mysql-5-7-readonly:33062"
+      - "--group-replication-single-primary-mode=ON"
+      - "--group-replication-enforce-update-everywhere-checks=OFF"
+      - "--group-replication-auto-increment-increment=1"  
+
+  # MySQL 8.0 containers       
+  mysql-8-0-readwrite:
+    image: mysql/mysql-server:8.0
+    container_name: mysql-8-0-readwrite
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    restart: unless-stopped
+    ports:
+      - "9999:3306"
+    command: 
+      - "--server-id=1"
+      - "--log-bin=mysql-bin-1.log"
+      - "--enforce-gtid-consistency=ON"
+      - "--log-slave-updates=ON"
+      - "--gtid-mode=ON"
+      - "--transaction-write-set-extraction=XXHASH64"
+      - "--binlog-checksum=NONE"
+      - "--master-info-repository=TABLE"
+      - "--relay-log-info-repository=TABLE"
+      - "--plugin-load=group_replication.so"
+      - "--relay-log-recovery=ON"
+      - "--loose-group-replication-start-on-boot=OFF"
+      - "--loose-group-replication-group-name=43991639-43EE-454C-82BD-F08A13F3C3ED"
+      - "--loose-group-replication-local-address=mysql-8-0-readwrite:33061"
+      - "--loose-group-replication-group-seeds=mysql-8-0-readwrite:33061,mysql-8-0-readonly:33062"
+      - "--loose-group-replicaion-single-primary-mode=ON"
+      - "--loose-group-replication-enforce-update-everywhere-checks=OFF"
+      - "--loose-group-replication-auto-increment-increment=1"  
+  mysql-8-0-readonly:
+    image: mysql/mysql-server:8.0
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    ports:
+      - "10000:3306"
+    container_name: mysql-8-0-readonly
+    command:
+      - "--server-id=2"
+      - "--log-bin=mysql-bin-1.log"
+      - "--enforce-gtid-consistency=ON"
+      - "--log-slave-updates=ON"
+      - "--gtid-mode=ON"
+      - "--transaction-write-set-extraction=XXHASH64"
+      - "--binlog-checksum=NONE"
+      - "--master-info-repository=TABLE"
+      - "--relay-log-info-repository=TABLE"
+      - "--plugin-load-add=group_replication.so"
+      - "--relay-log-recovery=ON"
+      - "--loose-group_replication_start_on_boot=OFF"
+      - "--loose-group_replication_group_name=43991639-43EE-454C-82BD-F08A13F3C3ED"
+      - "--loose-group-replication-local-address=mysql-8-0-readonly:33062"
+      - "--loose-group-replication-group-seeds=mysql-8-0-readwrite:33061,mysql-8-0-readonly:33062"
+      - "--loose-group-replication-single-primary-mode=ON"
+      - "--loose-group-replication-enforce-update-everywhere-checks=OFF"
+      - "--loose-group-replication-auto-increment-increment=1"  

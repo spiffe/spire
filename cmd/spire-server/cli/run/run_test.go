@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
@@ -654,13 +655,13 @@ func TestNewServerConfig(t *testing.T) {
 				}
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, map[string]bundleClient.TrustDomainConfig{
-					"domain1.test": {
+				require.Equal(t, map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{
+					spiffeid.RequireTrustDomainFromString("domain1.test"): {
 						EndpointAddress:  "192.168.1.1:1337",
-						EndpointSpiffeID: "spiffe://domain1.test/bundle/endpoint",
+						EndpointSpiffeID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
 						UseWebPKI:        false,
 					},
-					"domain2.test": {
+					spiffeid.RequireTrustDomainFromString("domain2.test"): {
 						EndpointAddress: "192.168.1.1:1337",
 						UseWebPKI:       true,
 					},

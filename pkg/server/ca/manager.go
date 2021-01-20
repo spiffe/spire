@@ -690,6 +690,10 @@ func (m *Manager) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntr
 
 func (m *Manager) makeSigner(ctx context.Context, keyID string) (crypto.Signer, error) {
 	km := m.c.Catalog.GetKeyManager()
+
+	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
+	defer cancel()
+
 	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
 		KeyId: keyID,
 	})

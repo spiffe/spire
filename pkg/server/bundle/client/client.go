@@ -18,7 +18,7 @@ import (
 type SPIFFEAuthConfig struct {
 	// EndpointSpiffeID is the expected SPIFFE ID of the endpoint server. If unset, it
 	// defaults to the SPIRE server ID within the trust domain.
-	EndpointSpiffeID string
+	EndpointSpiffeID spiffeid.ID
 
 	// RootCAs is the set of root CA certificates used to authenticate the
 	// endpoint server.
@@ -27,7 +27,7 @@ type SPIFFEAuthConfig struct {
 
 type ClientConfig struct { //nolint: golint // name stutter is intentional
 	// TrustDomain is the federated trust domain (i.e. domain.test)
-	TrustDomain string
+	TrustDomain spiffeid.TrustDomain
 
 	// EndpointAddress is the bundle endpoint for the trust domain.
 	EndpointAddress string
@@ -51,22 +51,12 @@ type client struct {
 func NewClient(config ClientConfig) (Client, error) {
 	httpClient := &http.Client{}
 	if config.SPIFFEAuth != nil {
-		spiffeID := config.SPIFFEAuth.EndpointSpiffeID
-		if spiffeID == "" {
-			spiffeID = idutil.ServerID(config.TrustDomain)
+		endpointID := config.SPIFFEAuth.EndpointSpiffeID
+		if endpointID.IsZero() {
+			endpointID = idutil.ServerID(config.TrustDomain)
 		}
 
-		td, err := spiffeid.TrustDomainFromString(config.TrustDomain)
-		if err != nil {
-			return nil, err
-		}
-
-		endpointID, err := spiffeid.FromString(spiffeID)
-		if err != nil {
-			return nil, err
-		}
-
-		bundle := x509bundle.FromX509Authorities(td, config.SPIFFEAuth.RootCAs)
+		bundle := x509bundle.FromX509Authorities(config.TrustDomain, config.SPIFFEAuth.RootCAs)
 
 		authorizer := tlsconfig.AuthorizeID(endpointID)
 
@@ -91,7 +81,7 @@ func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {
 		return nil, errs.New("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	b, err := bundleutil.Decode(idutil.TrustDomainID(c.c.TrustDomain), resp.Body)
+	b, err := bundleutil.Decode(c.c.TrustDomain.IDString(), resp.Body)
 	if err != nil {
 		return nil, err
 	}

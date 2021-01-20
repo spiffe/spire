@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"path"
 	"reflect"
 	"sync"
@@ -18,6 +17,7 @@ import (
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
@@ -48,12 +48,11 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
-const (
-	trustDomain = "example.org"
-)
-
 var (
-	trustDomainID = url.URL{Scheme: "spiffe", Host: "example.org"}
+	trustDomain    = spiffeid.RequireTrustDomainFromString("example.org")
+	trustDomainURL = *trustDomain.ID().URL()
+	agentID        = trustDomain.NewID("agent")
+	joinTokenID    = trustDomain.NewID("spire/agent/join_token/abcd")
 )
 
 var (
@@ -66,7 +65,7 @@ func TestInitializationFailure(t *testing.T) {
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
 
@@ -75,7 +74,7 @@ func TestInitializationFailure(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
@@ -90,7 +89,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
@@ -106,10 +105,10 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          bundleutil.BundleFromRootCA("spiffe://"+trustDomain, ca),
+		Bundle:          bundleutil.BundleFromRootCA(trustDomain.IDString(), ca),
 		Clk:             clk,
 		Catalog:         cat,
 	}
@@ -120,7 +119,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		sub := m.SubscribeToBundleChanges()
 		bundles := sub.Value()
 		require.NotNil(t, bundles)
-		bundle := bundles[trustDomainID.String()]
+		bundle := bundles[trustDomain.IDString()]
 		require.Equal(t, bundle.RootCAs(), []*x509.Certificate{ca})
 	})
 
@@ -143,7 +142,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
@@ -159,7 +158,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
@@ -194,7 +193,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 
 	clk := clock.NewMock(t)
 	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 
 	cat := fakeagentcatalog.New()
 	diskPlugin := disk.New()
@@ -207,7 +206,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
@@ -258,7 +257,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		clk:     clk,
 	})
 
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 
@@ -274,7 +273,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -354,7 +353,7 @@ func TestSVIDRotation(t *testing.T) {
 	})
 
 	baseTTLSeconds := time.Duration(baseTTL) * time.Second
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", baseTTLSeconds)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, baseTTLSeconds)
 
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
@@ -365,7 +364,7 @@ func TestSVIDRotation(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainID,
+		TrustDomain:      trustDomainURL,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -460,7 +459,7 @@ func TestSynchronization(t *testing.T) {
 		clk:     clk,
 	})
 
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
@@ -474,7 +473,7 @@ func TestSynchronization(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainID,
+		TrustDomain:      trustDomainURL,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -489,7 +488,7 @@ func TestSynchronization(t *testing.T) {
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
-		{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"},
+		{Type: "spiffe_id", Value: joinTokenID.String()},
 	})
 	defer sub.Finish()
 
@@ -615,7 +614,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		clk:     clk,
 	})
 
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
@@ -631,7 +630,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -692,7 +691,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		clk:     clk,
 	})
 
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
@@ -708,7 +707,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -757,7 +756,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		clk:     clk,
 	})
 
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
@@ -771,7 +770,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainID,
+		TrustDomain:      trustDomainURL,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -822,7 +821,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		svidTTL: ttl,
 	})
 
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	km := disk.New()
 	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
@@ -838,7 +837,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainID,
+		TrustDomain:      trustDomainURL,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -893,14 +892,14 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.NoError(t, err)
 	cat.SetKeyManager(fakeagentcatalog.KeyManager(diskPlugin))
 
-	baseSVID, baseSVIDKey := api.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 
 	c := &Config{
 		ServerAddr:      api.addr,
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainID,
+		TrustDomain:     trustDomainURL,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -1096,7 +1095,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 	h := &mockAPI{
 		t:      t,
 		c:      config,
-		bundle: bundleutil.BundleFromRootCA("spiffe://"+trustDomain, ca),
+		bundle: bundleutil.BundleFromRootCA(trustDomain.IDString(), ca),
 		cakey:  cakey,
 		clk:    config.clk,
 	}
@@ -1135,7 +1134,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 
 func (h *mockAPI) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest) (*agentv1.RenewAgentResponse, error) {
 	agentSVID, _ := h.getCertFromCtx(ctx)
-	agentID, _ := getSpiffeIDFromSVID(agentSVID)
+	agentID, _ := x509svid.IDFromCert(agentSVID)
 	svid := h.newSVIDFromCSR(agentID, req.Params.Csr)
 	return &agentv1.RenewAgentResponse{
 		Svid: &types.X509SVID{
@@ -1169,7 +1168,7 @@ func (h *mockAPI) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 			})
 			continue
 		}
-		svid := h.newSVIDFromCSR(entry.SpiffeId, param.Csr)
+		svid := h.newSVIDFromCSR(spiffeid.RequireFromString(entry.SpiffeId), param.Csr)
 		resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.OK(),
 			Svid: &types.X509SVID{
@@ -1206,11 +1205,11 @@ func (h *mockAPI) ca() *x509.Certificate {
 	return rootCAs[len(rootCAs)-1]
 }
 
-func (h *mockAPI) newSVID(spiffeID string, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
+func (h *mockAPI) newSVID(spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
 	return createSVID(h.t, h.clk, h.ca(), h.cakey, spiffeID, ttl)
 }
 
-func (h *mockAPI) newSVIDFromCSR(spiffeID string, csr []byte) []*x509.Certificate {
+func (h *mockAPI) newSVIDFromCSR(spiffeID spiffeid.ID, csr []byte) []*x509.Certificate {
 	return createSVIDFromCSR(h.t, h.clk, h.ca(), h.cakey, spiffeID, csr, h.c.svidTTL)
 }
 
@@ -1271,8 +1270,8 @@ func createCA(t *testing.T, clk clock.Clock) (*x509.Certificate, *ecdsa.PrivateK
 	return ca, cakey
 }
 
-func createSVID(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID string, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
-	tmpl, err := util.NewSVIDTemplate(clk, spiffeID)
+func createSVID(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
+	tmpl, err := util.NewSVIDTemplate(clk, spiffeID.String())
 	if err != nil {
 		t.Fatalf("cannot create svid template for %s: %v", spiffeID, err)
 	}
@@ -1286,11 +1285,11 @@ func createSVID(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecds
 	return []*x509.Certificate{svid}, svidkey
 }
 
-func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID string, csr []byte, ttl int) []*x509.Certificate {
+func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, csr []byte, ttl int) []*x509.Certificate {
 	req, err := x509.ParseCertificateRequest(csr)
 	require.NoError(t, err)
 
-	tmpl, err := util.NewSVIDTemplate(clk, spiffeID)
+	tmpl, err := util.NewSVIDTemplate(clk, spiffeID.String())
 	require.NoError(t, err)
 	tmpl.PublicKey = req.PublicKey
 	tmpl.NotAfter = tmpl.NotBefore.Add(time.Duration(ttl) * time.Second)
