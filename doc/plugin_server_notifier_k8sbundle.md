@@ -121,7 +121,7 @@ server to
 ```
     Notifier "k8sbundle" {
         plugin_data {
-            webhook+label = "spiffe.io/webhook"
+            webhook_label = "spiffe.io/webhook"
         }
     }
 ```
