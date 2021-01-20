@@ -21,7 +21,7 @@ func TestReportMetrics(t *testing.T) {
 		expectedMetrics []fakemetrics.MetricItem
 	}{
 		{
-			name:           "report uptime metrics with 10 millisecond internal",
+			name:           "report uptime metrics with 10 milliseconds interval",
 			reportInterval: 10 * time.Millisecond,
 			testUpTime:     200 * time.Millisecond,
 			expectedMetrics: []fakemetrics.MetricItem{

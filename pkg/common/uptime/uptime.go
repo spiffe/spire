@@ -8,8 +8,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
-// by default, report every 10 seconds.
-const _defaultReportInterval = time.Second * 10
+// Report every 10 seconds.
+const reportInterval = time.Second * 10
 
 var (
 	clk   = clock.New()
@@ -34,5 +34,5 @@ func reportMetrics(ctx context.Context, interval time.Duration, m telemetry.Metr
 }
 
 func ReportMetrics(ctx context.Context, metrics telemetry.Metrics) {
-	go reportMetrics(ctx, _defaultReportInterval, metrics)
+	go reportMetrics(ctx, reportInterval, metrics)
 }
