@@ -71,7 +71,7 @@ The following configuration directives are specific to `"reconcile"` mode:
 ```
 log_level = "debug"
 trust_domain = "domain.test"
-server_socket_path = "/run/spire/sockets/registration.sock"
+server_socket_path = "/tmp/spire-server/private/api.sock"
 cluster = "production"
 ```
 

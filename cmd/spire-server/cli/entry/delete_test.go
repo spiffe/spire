@@ -18,7 +18,9 @@ func TestDeleteHelp(t *testing.T) {
   -entryID string
     	The Registration Entry ID of the record to delete
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 

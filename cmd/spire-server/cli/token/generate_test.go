@@ -127,7 +127,7 @@ func setupTest(t *testing.T) *tokenTest {
 		stderr: stderr,
 		stdin:  stdin,
 		stdout: stdout,
-		args:   []string{"-registrationUDSPath", socketPath},
+		args:   []string{"-socketPath", socketPath},
 		server: server,
 		client: client,
 	}

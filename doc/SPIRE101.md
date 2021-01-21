@@ -63,7 +63,6 @@ If you don't already have Docker installed, please follow these [installation in
     server {
         bind_address = "127.0.0.1"
         bind_port = "8081"
-        registration_uds_path = "/tmp/spire-registration.sock"
         trust_domain = "example.org"
         data_dir = "./.data"
         log_level = "DEBUG"
@@ -128,7 +127,7 @@ If you don't already have Docker installed, please follow these [installation in
         log_level = "DEBUG"
         server_address = "127.0.0.1"
         server_port = "8081"
-        socket_path ="/tmp/agent.sock"
+        socket_path ="/tmp/spire-agent/public/api.sock"
         trust_bundle_path = "./conf/agent/dummy_root_ca.crt"
         trust_domain = "example.org"
     }

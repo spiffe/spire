@@ -127,7 +127,7 @@ func TestStartStop(t *testing.T) {
 func TestGetAgentAddress(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		os.Unsetenv(EnvVarAgentAddress)
-		require.Equal(t, "unix:///tmp/agent.sock", GetAgentAddress())
+		require.Equal(t, "unix:///tmp/spire-agent/public/api.sock", GetAgentAddress())
 	})
 	t.Run("env", func(t *testing.T) {
 		os.Setenv(EnvVarAgentAddress, "/foo")

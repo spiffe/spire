@@ -89,6 +89,10 @@ type RateLimitConfig struct {
 
 // New creates new endpoints struct
 func New(ctx context.Context, c Config) (*Endpoints, error) {
+	if err := os.MkdirAll(c.UDSAddr.String(), 0750); err != nil {
+		return nil, fmt.Errorf("unable to create socket directory: %w", err)
+	}
+
 	oldAPIServers, err := c.makeOldAPIServers()
 	if err != nil {
 		return nil, err

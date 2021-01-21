@@ -22,9 +22,9 @@ import (
 
 var (
 	tdFlag               = flag.String("trustDomain", "domain.test", "server trust domain")
-	socketPathFlag       = flag.String("socketPath", "unix:///tmp/agent.sock", "agent socket path")
+	socketPathFlag       = flag.String("socketPath", "unix:///tmp/spire-agent/public/api.sock", "agent socket path")
 	serverAddrFlag       = flag.String("serverAddr", "spire-server:8081", "server addr")
-	serverSocketPathFlag = flag.String("serverSocketPath", "unix:///tmp/spire-registration.sock", "server socket path")
+	serverSocketPathFlag = flag.String("serverSocketPath", "unix:///tmp/spire-server/private/api.sock", "server socket path")
 	expectErrorsFlag     = flag.Bool("expectErrors", false, "client is used to validate permission errors")
 )
 
