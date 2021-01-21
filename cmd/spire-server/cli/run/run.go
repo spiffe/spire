@@ -124,14 +124,6 @@ type bundleEndpointACMEConfig struct {
 	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
-type deprecatedFederatesWithConfig struct {
-	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
-	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
-	UseWebPKI              bool     `hcl:"use_web_pki"`
-	UnusedKeys             []string `hcl:",unusedKeys"`
-}
-
 type federatesWithConfig struct {
 	BundleEndpoint federatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
 	UnusedKeys     []string                          `hcl:",unusedKeys"`

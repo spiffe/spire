@@ -238,12 +238,6 @@ func (s *bundleTest) afterTest(t *testing.T) {
 	t.Logf("STDERR:\n%s", s.stderr.String())
 }
 
-func (s *bundleTest) assertBundleSet(t *testing.T, args ...string) {
-	rc := s.client.Run(args)
-	require.Equal(t, 0, rc)
-	require.Equal(t, "bundle set.\n", s.stdout.String())
-}
-
 type fakeBundleServer struct {
 	bundle.BundleServer
 
