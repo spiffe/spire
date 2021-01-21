@@ -93,12 +93,6 @@ type serverConfig struct {
 type experimentalConfig struct {
 	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
 
-	DeprecatedBundleEndpointEnabled bool                                     `hcl:"bundle_endpoint_enabled"`
-	DeprecatedBundleEndpointAddress string                                   `hcl:"bundle_endpoint_address"`
-	DeprecatedBundleEndpointPort    int                                      `hcl:"bundle_endpoint_port"`
-	DeprecatedBundleEndpointACME    *bundleEndpointACMEConfig                `hcl:"bundle_endpoint_acme"`
-	DeprecatedFederatesWith         map[string]deprecatedFederatesWithConfig `hcl:"federates_with"`
-
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -128,14 +122,6 @@ type bundleEndpointACMEConfig struct {
 	Email        string   `hcl:"email"`
 	ToSAccepted  bool     `hcl:"tos_accepted"`
 	UnusedKeys   []string `hcl:",unusedKeys"`
-}
-
-type deprecatedFederatesWithConfig struct {
-	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
-	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
-	UseWebPKI              bool     `hcl:"use_web_pki"`
-	UnusedKeys             []string `hcl:",unusedKeys"`
 }
 
 type federatesWithConfig struct {
@@ -476,9 +462,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.Telemetry = c.Telemetry
 	sc.HealthChecks = c.HealthChecks
 
-	// Write out deprecation warnings
-	warnOnDeprecatedConfig(c, sc.Log)
-
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
@@ -514,14 +497,6 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.Server.Federation != nil {
-		// TODO: Remove this check once the deprecated experimental federation options are removed.
-		if isDeprecatedFederationConfigUsed(c.Server.Experimental) {
-			return errors.New("cannot configure federation section along with any of " +
-				"the following deprecated experimental options: bundle_endpoint_acme, " +
-				"bundle_endpoint_enabled, bundle_endpoint_address, bundle_endpoint_port, " +
-				"federates_with")
-		}
-
 		if c.Server.Federation.BundleEndpoint != nil &&
 			c.Server.Federation.BundleEndpoint.ACME != nil {
 			acme := c.Server.Federation.BundleEndpoint.ACME
@@ -540,72 +515,9 @@ func validateConfig(c *Config) error {
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
 			}
 		}
-	} else { // TODO: Remove this else block once the deprecated experimental federation options are removed.
-		if acme := c.Server.Experimental.DeprecatedBundleEndpointACME; acme != nil {
-			if acme.DomainName == "" {
-				return errors.New("bundle_endpoint_acme domain_name must be configured")
-			}
-
-			if acme.Email == "" {
-				return errors.New("bundle_endpoint_acme email must be configured")
-			}
-		}
-
-		for td, tdConfig := range c.Server.Experimental.DeprecatedFederatesWith {
-			if tdConfig.BundleEndpointAddress == "" {
-				return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
-			}
-		}
-
-		c.Server.Federation = federationConfigFromExperimentalConfig(c.Server.Experimental)
 	}
 
 	return nil
-}
-
-// TODO: Remove this function once the deprecated experimental federation options are removed.
-func isDeprecatedFederationConfigUsed(ec experimentalConfig) bool {
-	return ec.DeprecatedBundleEndpointACME != nil ||
-		ec.DeprecatedBundleEndpointEnabled ||
-		ec.DeprecatedBundleEndpointAddress != "" ||
-		ec.DeprecatedBundleEndpointPort != 0 ||
-		len(ec.DeprecatedFederatesWith) > 0
-}
-
-// TODO: Remove this function once the deprecated experimental federation options are removed.
-func federationConfigFromExperimentalConfig(ec experimentalConfig) *federationConfig {
-	if isDeprecatedFederationConfigUsed(ec) {
-		fc := &federationConfig{}
-		if ec.DeprecatedBundleEndpointEnabled {
-			fc.BundleEndpoint = &bundleEndpointConfig{
-				ACME:    ec.DeprecatedBundleEndpointACME,
-				Address: ec.DeprecatedBundleEndpointAddress,
-				Port:    ec.DeprecatedBundleEndpointPort,
-			}
-		}
-		if len(ec.DeprecatedFederatesWith) > 0 {
-			fc.FederatesWith = make(map[string]federatesWithConfig)
-			for td, cfg := range ec.DeprecatedFederatesWith {
-				fc.FederatesWith[td] = federatesWithConfig{
-					BundleEndpoint: federatesWithBundleEndpointConfig{
-						Address:   cfg.BundleEndpointAddress,
-						Port:      cfg.BundleEndpointPort,
-						SpiffeID:  cfg.BundleEndpointSpiffeID,
-						UseWebPKI: cfg.UseWebPKI,
-					},
-				}
-			}
-		}
-		return fc
-	}
-
-	return nil
-}
-
-func warnOnDeprecatedConfig(c *Config, l logrus.FieldLogger) {
-	if isDeprecatedFederationConfigUsed(c.Server.Experimental) {
-		l.Warn("The experimental federation configurables will be deprecated in a future release. Please see issue #1619 and the configuration documentation for more information.")
-	}
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
