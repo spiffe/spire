@@ -10,14 +10,15 @@ import (
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/sirupsen/logrus"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv2"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type Server interface {
@@ -31,44 +32,54 @@ type Endpoints struct {
 	workloadAPIServer workload_pb.SpiffeWorkloadAPIServer
 	sdsv2Server       discovery_v2.SecretDiscoveryServiceServer
 	sdsv3Server       secret_v3.SecretDiscoveryServiceServer
+	healthServer      grpc_health_v1.HealthServer
 }
 
 func New(c Config) *Endpoints {
 	attestor := peerTrackerAttestor{Attestor: c.Attestor}
 
-	if c.newWorkloadAPIHandler == nil {
-		c.newWorkloadAPIHandler = func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
+	if c.newWorkloadAPIServer == nil {
+		c.newWorkloadAPIServer = func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
 			return workload.New(c)
 		}
 	}
-	if c.newSDSv2Handler == nil {
-		c.newSDSv2Handler = func(c sdsv2.Config) discovery_v2.SecretDiscoveryServiceServer {
+	if c.newSDSv2Server == nil {
+		c.newSDSv2Server = func(c sdsv2.Config) discovery_v2.SecretDiscoveryServiceServer {
 			return sdsv2.New(c)
 		}
 	}
-	if c.newSDSv3Handler == nil {
-		c.newSDSv3Handler = func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
+	if c.newSDSv3Server == nil {
+		c.newSDSv3Server = func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
 			return sdsv3.New(c)
 		}
 	}
+	if c.newHealthServer == nil {
+		c.newHealthServer = func(c healthv1.Config) grpc_health_v1.HealthServer {
+			return healthv1.New(c)
+		}
+	}
 
-	workloadAPIServer := c.newWorkloadAPIHandler(workload.Config{
+	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{
 		Manager:  c.Manager,
 		Attestor: attestor,
 	})
 
-	sdsv2Server := c.newSDSv2Handler(sdsv2.Config{
+	sdsv2Server := c.newSDSv2Server(sdsv2.Config{
 		Attestor:          attestor,
 		Manager:           c.Manager,
 		DefaultSVIDName:   c.DefaultSVIDName,
 		DefaultBundleName: c.DefaultBundleName,
 	})
 
-	sdsv3Server := c.newSDSv3Handler(sdsv3.Config{
+	sdsv3Server := c.newSDSv3Server(sdsv3.Config{
 		Attestor:          attestor,
 		Manager:           c.Manager,
 		DefaultSVIDName:   c.DefaultSVIDName,
 		DefaultBundleName: c.DefaultBundleName,
+	})
+
+	healthServer := c.newHealthServer(healthv1.Config{
+		SocketPath: c.BindAddr.String(),
 	})
 
 	return &Endpoints{
@@ -78,6 +89,7 @@ func New(c Config) *Endpoints {
 		workloadAPIServer: workloadAPIServer,
 		sdsv2Server:       sdsv2Server,
 		sdsv3Server:       sdsv3Server,
+		healthServer:      healthServer,
 	}
 }
 
@@ -95,6 +107,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	workload_pb.RegisterSpiffeWorkloadAPIServer(server, e.workloadAPIServer)
 	discovery_v2.RegisterSecretDiscoveryServiceServer(server, e.sdsv2Server)
 	secret_v3.RegisterSecretDiscoveryServiceServer(server, e.sdsv3Server)
+	grpc_health_v1.RegisterHealthServer(server, e.healthServer)
 
 	l, err := e.createUDSListener()
 	if err != nil {

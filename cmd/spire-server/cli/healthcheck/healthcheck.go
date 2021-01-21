@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func NewHealthCheckCommand() cli.Command {
@@ -69,7 +70,7 @@ func (c *healthCheckCommand) parseFlags(args []string) error {
 
 func (c *healthCheckCommand) run() error {
 	if c.verbose {
-		if err := c.env.Println("Fetching bundle via Bundle API..."); err != nil {
+		if err := c.env.Println("Checking server health..."); err != nil {
 			return err
 		}
 	}
@@ -81,26 +82,23 @@ func (c *healthCheckCommand) run() error {
 			// be reported
 			_ = c.env.ErrPrintf("Failed to create client: %v\n", err)
 		}
-		return errors.New("cannot create registration client")
+		return errors.New("cannot create health client")
 	}
-	bundleClient := client.NewBundleClient()
+	defer client.Release()
 
-	// Currently using the ability to fetch a bundle as the health check. This
-	// **could** be problematic if the Upstream CA signing process is lengthy.
-	// As currently coded however, the registration API isn't served until after
-	// the server CA has been signed by upstream.
-	if _, err := bundleClient.GetBundle(context.Background(), &bundle.GetBundleRequest{}); err != nil {
+	healthClient := client.NewHealthClient()
+	resp, err := healthClient.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{})
+	if err != nil {
 		if c.verbose {
 			// Ignore error since a failure to write to stderr cannot very well
 			// be reported
-			_ = c.env.ErrPrintf("Failed to fetch bundle: %v\n", err)
+			_ = c.env.ErrPrintf("Failed to check health: %v\n", err)
 		}
-		return errors.New("unable to fetch bundle")
+		return errors.New("unable to determine health")
 	}
-	if c.verbose {
-		if err := c.env.Println("Successfully fetched bundle."); err != nil {
-			return err
-		}
+
+	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		return fmt.Errorf("server returned status %q", resp.Status)
 	}
 
 	return nil
