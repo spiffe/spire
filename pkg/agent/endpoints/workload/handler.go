@@ -93,8 +93,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 		id, err := spiffeid.FromString(spiffeID)
 		if err != nil {
-			return nil, err
+			log.WithError(err).Errorf("Invalid requested SPIFFE ID: %s", spiffeID)
+			return nil, fmt.Errorf("invalid requested SPIFFE ID: %w", err)
 		}
+
 		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)
 		if err != nil {
 			log.WithError(err).Error("Could not fetch JWT-SVID")
@@ -257,8 +259,8 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 
 	bundle := marshalBundle(update.Bundle.RootCAs())
 
-	for id, federatedBundle := range update.FederatedBundles {
-		resp.FederatedBundles[id] = marshalBundle(federatedBundle.RootCAs())
+	for td, federatedBundle := range update.FederatedBundles {
+		resp.FederatedBundles[td.IDString()] = marshalBundle(federatedBundle.RootCAs())
 	}
 
 	for _, identity := range update.Identities {

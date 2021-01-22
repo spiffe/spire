@@ -106,8 +106,8 @@ func TestFetchX509SVID(t *testing.T) {
 					identityFromX509SVID(x509SVID1),
 				},
 				Bundle: utilBundleFromBundle(t, bundle),
-				FederatedBundles: map[string]*bundleutil.Bundle{
-					federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 				},
 			}},
 			expectCode: codes.OK,
@@ -395,8 +395,8 @@ func TestFetchJWTBundles(t *testing.T) {
 						identityFromX509SVID(x509SVID),
 					},
 					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[string]*bundleutil.Bundle{
-						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 					},
 				},
 			},
@@ -446,8 +446,8 @@ func TestValidateJWTSVID(t *testing.T) {
 
 	updatesWithFederatedBundle := []*cache.WorkloadUpdate{{
 		Bundle: utilBundleFromBundle(t, bundle),
-		FederatedBundles: map[string]*bundleutil.Bundle{
-			federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+		FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 		},
 	}}
 

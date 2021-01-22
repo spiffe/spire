@@ -199,14 +199,18 @@ func newCSR(spiffeID spiffeid.ID) (pk *ecdsa.PrivateKey, csr []byte, err error) 
 	return
 }
 
-func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, error) {
-	out := make(map[string]*cache.Bundle, len(bundles))
+func parseBundles(bundles map[string]*common.Bundle) (map[spiffeid.TrustDomain]*cache.Bundle, error) {
+	out := make(map[spiffeid.TrustDomain]*cache.Bundle, len(bundles))
 	for _, bundle := range bundles {
 		bundle, err := bundleutil.BundleFromProto(bundle)
 		if err != nil {
 			return nil, err
 		}
-		out[bundle.TrustDomainID()] = bundle
+		td, err := spiffeid.TrustDomainFromString(bundle.TrustDomainID())
+		if err != nil {
+			return nil, err
+		}
+		out[td] = bundle
 	}
 	return out, nil
 }

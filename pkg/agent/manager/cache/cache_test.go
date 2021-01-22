@@ -677,10 +677,11 @@ func assertWorkloadUpdateEqual(t *testing.T, sub Subscriber, expected *WorkloadU
 	}
 }
 
-func makeBundles(bundles ...*Bundle) map[string]*Bundle {
-	out := make(map[string]*Bundle)
+func makeBundles(bundles ...*Bundle) map[spiffeid.TrustDomain]*Bundle {
+	out := make(map[spiffeid.TrustDomain]*Bundle)
 	for _, bundle := range bundles {
-		out[bundle.TrustDomainID()] = bundle
+		td := spiffeid.RequireTrustDomainFromString(bundle.TrustDomainID())
+		out[td] = bundle
 	}
 	return out
 }

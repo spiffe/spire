@@ -118,7 +118,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		sub := m.SubscribeToBundleChanges()
 		bundles := sub.Value()
 		require.NotNil(t, bundles)
-		bundle := bundles[trustDomain.IDString()]
+		bundle := bundles[trustDomain]
 		require.Equal(t, bundle.RootCAs(), []*x509.Certificate{ca})
 	})
 

@@ -499,8 +499,8 @@ func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
 				},
 			},
 			Bundle: tdBundle,
-			FederatedBundles: map[string]*bundleutil.Bundle{
-				"spiffe://otherdomain.test": fedBundle,
+			FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				spiffeid.RequireTrustDomainFromString("otherdomain.test"): fedBundle,
 			},
 		}
 	}

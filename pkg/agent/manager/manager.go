@@ -293,7 +293,7 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 			return nil
 		case <-bundleStream.Changes():
 			b := bundleStream.Next()
-			m.storeBundle(b[m.c.TrustDomain.IDString()])
+			m.storeBundle(b[m.c.TrustDomain])
 		}
 	}
 }

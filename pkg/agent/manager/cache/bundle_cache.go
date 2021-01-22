@@ -11,8 +11,8 @@ type BundleCache struct {
 }
 
 func NewBundleCache(trustDomain spiffeid.TrustDomain, bundle *Bundle) *BundleCache {
-	bundles := map[string]*Bundle{
-		trustDomain.IDString(): bundle,
+	bundles := map[spiffeid.TrustDomain]*Bundle{
+		trustDomain: bundle,
 	}
 	return &BundleCache{
 		trustDomain: trustDomain,
@@ -20,18 +20,18 @@ func NewBundleCache(trustDomain spiffeid.TrustDomain, bundle *Bundle) *BundleCac
 	}
 }
 
-func (c *BundleCache) Update(bundles map[string]*Bundle) {
+func (c *BundleCache) Update(bundles map[spiffeid.TrustDomain]*Bundle) {
 	// the bundle map must be copied so that the source can be mutated
 	// afterwards.
 	c.bundles.Update(copyBundleMap(bundles))
 }
 
 func (c *BundleCache) Bundle() *Bundle {
-	return c.Bundles()[c.trustDomain.IDString()]
+	return c.Bundles()[c.trustDomain]
 }
 
-func (c *BundleCache) Bundles() map[string]*Bundle {
-	return c.bundles.Value().(map[string]*Bundle)
+func (c *BundleCache) Bundles() map[spiffeid.TrustDomain]*Bundle {
+	return c.bundles.Value().(map[spiffeid.TrustDomain]*Bundle)
 }
 
 func (c *BundleCache) SubscribeToBundleChanges() *BundleStream {
@@ -50,8 +50,8 @@ func NewBundleStream(stream observer.Stream) *BundleStream {
 }
 
 // Value returns the current value for this stream.
-func (b *BundleStream) Value() map[string]*Bundle {
-	return b.stream.Value().(map[string]*Bundle)
+func (b *BundleStream) Value() map[spiffeid.TrustDomain]*Bundle {
+	return b.stream.Value().(map[spiffeid.TrustDomain]*Bundle)
 }
 
 // Changes returns the channel that is closed when a new value is available.
@@ -61,8 +61,8 @@ func (b *BundleStream) Changes() chan struct{} {
 
 // Next advances this stream to the next state.
 // You should never call this unless Changes channel is closed.
-func (b *BundleStream) Next() map[string]*Bundle {
-	value, _ := b.stream.Next().(map[string]*Bundle)
+func (b *BundleStream) Next() map[spiffeid.TrustDomain]*Bundle {
+	value, _ := b.stream.Next().(map[spiffeid.TrustDomain]*Bundle)
 	return value
 }
 
@@ -73,8 +73,8 @@ func (b *BundleStream) HasNext() bool {
 
 // WaitNext waits for Changes to be closed, advances the stream and returns
 // the current value.
-func (b *BundleStream) WaitNext() map[string]*Bundle {
-	value, _ := b.stream.WaitNext().(map[string]*Bundle)
+func (b *BundleStream) WaitNext() map[spiffeid.TrustDomain]*Bundle {
+	value, _ := b.stream.WaitNext().(map[spiffeid.TrustDomain]*Bundle)
 	return value
 }
 
@@ -89,12 +89,12 @@ func (b *BundleStream) Clone() *BundleStream {
 }
 
 // copyBundleMap does a shallow copy of the bundle map.
-func copyBundleMap(bundles map[string]*Bundle) map[string]*Bundle {
+func copyBundleMap(bundles map[spiffeid.TrustDomain]*Bundle) map[spiffeid.TrustDomain]*Bundle {
 	if bundles == nil {
 		return nil
 	}
 
-	out := make(map[string]*Bundle, len(bundles))
+	out := make(map[spiffeid.TrustDomain]*Bundle, len(bundles))
 	for key, bundle := range bundles {
 		out[key] = bundle
 	}

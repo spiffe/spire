@@ -72,7 +72,7 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 			bsm.RUnlock()
 
 			var rootCAs []*x509.Certificate
-			if bundle := bundles[c.TrustDomain.IDString()]; bundle != nil {
+			if bundle := bundles[c.TrustDomain]; bundle != nil {
 				rootCAs = bundle.RootCAs()
 			}
 			return s.SVID, s.Key, rootCAs
