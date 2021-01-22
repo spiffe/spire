@@ -22,7 +22,7 @@ func TestShowHelp(t *testing.T) {
   -entryID string
     	The Entry ID of the records to show
   -federatesWith value
-    	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
+    	SPIFFE ID of a trust domain an entry is federated with. Can be used more than once
   -parentID string
     	The Parent ID of the records to show
   -registrationUDSPath string
@@ -241,7 +241,7 @@ Selector         : baz:bat
 				Filter: &entry.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{"spiffe://domain.test"},
-						Match:        types.FederatesWithMatch_MATCH_EXACT,
+						Match:        types.FederatesWithMatch_MATCH_SUBSET,
 					},
 				},
 			},

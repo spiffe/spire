@@ -59,7 +59,7 @@ func (c *showCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
+	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federated with. Can be used more than once")
 }
 
 // Run executes all logic associated with a single invocation of the
@@ -136,7 +136,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 	if len(c.federatesWith) != 0 {
 		filter.ByFederatesWith = &types.FederatesWithMatch{
 			TrustDomains: c.federatesWith,
-			Match:        types.FederatesWithMatch_MATCH_EXACT,
+			Match:        types.FederatesWithMatch_MATCH_SUBSET,
 		}
 	}
 
