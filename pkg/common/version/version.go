@@ -8,7 +8,7 @@ const (
 	// IMPORTANT: When updating, make sure to reconcile the versions list that
 	// is part of the upgrade integration test. See
 	// test/integration/suites/upgrade/README.md for details.
-	Base = "0.12.0"
+	Base = "1.0.0"
 )
 
 var (
