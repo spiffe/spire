@@ -2,12 +2,37 @@
 
 "${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/upstream-agent conf/downstream-agent
 
-LATEST_ENVOY_RELEASE="$(basename "$(curl -Ls -o /dev/null -w "%{url_effective}" "https://github.com/envoyproxy/envoy/releases/latest")")"
+# Get the version list by downloading the JSON release listing, grabbing all of
+# the tag names, cutting out the quoted version, and sorting by reverse version
+# order. jq would make this much nicer, but we don't want to rely on it being
+# in the environment or downloading it just for this use case. Also, "sort -V"
+# is a thing, but unfortunately isn't available everyhere.
+ENVOY_RELEASES="$(curl -Ls https://api.github.com/repos/envoyproxy/envoy/releases | grep tag_name | cut -d\" -f4-4 | sort -t. -k 1,1nr -k 2,2nr -k 3,3nr -k 4,4nr)"
+
+# Now scan the releases for the first one available on DockerHub. This should
+# normally be the first one in the list, but sometimes, due to latency
+# from the Envoy team publishing the docker image, it can fall over to the
+# second in the list. It is not expected that will move beyond the second in
+# the list under normal circumstances.
+LATEST_ENVOY_IMAGE_VERSION=
+for release in ${ENVOY_RELEASES}; do
+    if curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy-alpine/tags/${release}" > /dev/null 2>/dev/null; then
+        LATEST_ENVOY_IMAGE_VERSION=${release}
+        log-info "Using Envoy ${release} image."
+        break
+    else
+        log-info "Envoy ${release} image has not been release yet."
+    fi
+done
+if [ -z "${LATEST_ENVOY_IMAGE_VERSION}" ]; then
+    fail-now "Could not identify an appropriate Envoy image to test against"
+fi
+
 
 cat > Dockerfile <<EOF
 FROM spire-agent:latest-local as spire-agent
 
-FROM envoyproxy/envoy-alpine:${LATEST_ENVOY_RELEASE} AS envoy-agent-mashup
+FROM envoyproxy/envoy-alpine:${LATEST_ENVOY_IMAGE_VERSION} AS envoy-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
 RUN apk --no-cache add dumb-init
 RUN apk --no-cache add supervisor
