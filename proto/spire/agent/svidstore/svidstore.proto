@@ -1,0 +1,49 @@
+syntax = "proto3";
+package spire.agent.svidstore;
+option go_package = "github.com/spiffe/spire/proto/spire/agent/svidstore";
+
+import "spire/common/common.proto";
+import "spire/common/plugin/plugin.proto";
+
+service SVIDStore {
+    // Puts an X509-SVID in a configured secrets store
+    rpc PutX509SVID(PutX509SVIDRequest) returns (PutX509SVIDResponse);
+
+    // Applies the plugin configuration and returns configuration errors
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+
+    // Returns the version and related metadata of the plugin 
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}
+
+message PutX509SVIDRequest {
+    // X509-SVID to be stored
+    X509SVID svid = 1;
+
+    // Entry selectors with relevant information to store on specific platform
+    repeated spire.common.Selector selectors = 2;
+
+    // Federated bundles to store
+    map<string, bytes> federated_bundles = 3;
+}
+
+message PutX509SVIDResponse {
+}
+
+message X509SVID {
+    // SPIFFE ID of the SVID.
+    string spiffe_id = 1;
+
+    // Certificate and intermediates (ASN.1 DER encoded)
+    bytes cert_chain = 2;
+
+    // Private key (ASN.1 DER encoded)
+    bytes private_key = 3;
+
+    // Bundle certificates (ASN.1 DER encoded)
+    bytes bundle = 4;
+
+    // Expiration timestamp (seconds since Unix epoch).
+    int64 expires_at = 5;
+}
+
