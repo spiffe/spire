@@ -69,10 +69,16 @@ func (s *KeyManagerSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOp
 	// rand is purposefully ignored since it can't be communicated between
 	// the plugin boundary. The crypto.Signer interface implies this is ok
 	// when it says "possibly using entropy from rand".
-	return s.SignContext(context.Background(), digest, opts)
+	ctx, cancel := context.WithTimeout(context.Background(), keymanager.RPCTimeout)
+	defer cancel()
+
+	return s.SignContext(ctx, digest, opts)
 }
 
 func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyID string, keyType keymanager.KeyType) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
+	defer cancel()
+
 	resp, err := km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
 		KeyId:   keyID,
 		KeyType: keyType,
