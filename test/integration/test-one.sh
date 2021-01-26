@@ -50,6 +50,12 @@ cleanup() {
         fail-now "\"${TESTNAME}\" failed to tear down."
     fi
 
+    # double check that if docker-compose was used that we clean everything up.
+    # this helps us to not pollute the local docker state.
+    if [ -f "${RUNDIR}/docker-compose.yaml" ]; then
+        docker-cleanup
+    fi
+
     rm -rf "${RUNDIR}"
     if [ -n "$SUCCESS" ]; then
         log-success "\"${TESTNAME}\" test suite succeeded."

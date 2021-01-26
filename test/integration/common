@@ -54,6 +54,11 @@ docker-down() {
     docker-compose down
 }
 
+docker-cleanup() {
+    log-debug "cleaning up services..."
+    docker-compose down -v --remove-orphans
+}
+
 fingerprint() {
 	# calculate the SHA1 digest of the DER bytes of the certificate using the
 	# "coreutils" output format (`-r`) to provide uniform output from
