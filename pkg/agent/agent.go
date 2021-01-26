@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
@@ -265,6 +264,12 @@ func (a *Agent) agentSVIDPath() string {
 
 // Status is used as a top-level health check for the Agent.
 func (a *Agent) Status() (interface{}, error) {
+	if _, err := os.Stat(a.c.BindAddress.Name); os.IsNotExist(err) {
+		return health.Details{
+			Message: "skip the health check because the agent is not running yet",
+		}, nil
+	}
+
 	client := api_workload.NewX509Client(&api_workload.X509ClientConfig{
 		Addr:        a.c.BindAddress,
 		FailOnError: true,
@@ -278,7 +283,7 @@ func (a *Agent) Status() (interface{}, error) {
 
 	err := <-errCh
 	if status.Code(err) == codes.Unavailable {
-		return nil, errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+		return nil, err //nolint: golint // error is (ab)used for CLI output
 	}
 
 	return health.Details{

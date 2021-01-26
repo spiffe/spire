@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
@@ -387,9 +386,15 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 
 // Status is used as a top-level health check for the Server.
 func (s *Server) Status() (interface{}, error) {
+	if _, err := os.Stat(s.config.BindUDSAddress.Name); os.IsNotExist(err) {
+		return health.Details{
+			Message: "skip the health check because the server is not running yet",
+		}, nil
+	}
+
 	client, err := server_util.NewServerClient(s.config.BindUDSAddress.Name)
 	if err != nil {
-		return nil, errors.New("cannot create registration client")
+		return nil, err
 	}
 	defer client.Release()
 
@@ -400,7 +405,7 @@ func (s *Server) Status() (interface{}, error) {
 	// As currently coded however, the API isn't served until after
 	// the server CA has been signed by upstream.
 	if _, err := bundleClient.GetBundle(context.Background(), &bundle.GetBundleRequest{}); err != nil {
-		return nil, errors.New("unable to fetch bundle")
+		return nil, err
 	}
 
 	return health.Details{
