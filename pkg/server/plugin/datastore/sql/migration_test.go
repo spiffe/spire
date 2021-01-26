@@ -549,7 +549,7 @@ COMMIT;
 		CREATE INDEX idx_federated_registration_entries_registered_entry_id ON "federated_registration_entries"(registered_entry_id) ;
 		COMMIT;
 		`,
-		// v16 database entry, in which the table 'registered_entries' gained a `exportable_identity` column
+		// v16 database entry, in which the table 'registered_entries' gained an `exportable_identity` column
 	}
 )
 
