@@ -130,12 +130,12 @@ func AdaptCommand(env *common_cli.Env, cmd Command) *Adapter {
 
 	f := flag.NewFlagSet(cmd.Name(), flag.ContinueOnError)
 	f.SetOutput(env.Stderr)
-	f.StringVar(&a.registrationUDSPath, "registrationUDSPath", "", "Path to the Server API socket (deprecated; use -socketPath)")
+	f.StringVar(&a.registrationUDSPath, "registrationUDSPath", "", "Path to the SPIRE Server API socket (deprecated; use -socketPath)")
 	// TODO: in 1.1.0. After registrationUDSPath is deprecated, we can put back the
 	// default flag value on socketPath like it was previously, since we'll no
 	// longer need to detect an unset flag from the default for deprecation
 	// logging/error handling purposes.
-	f.StringVar(&a.socketPath, "socketPath", "", `Path to the Server API socket (default "`+DefaultSocketPath+`")`)
+	f.StringVar(&a.socketPath, "socketPath", "", `Path to the SPIRE Server API socket (default "`+DefaultSocketPath+`")`)
 	a.cmd.AppendFlags(f)
 	a.flags = f
 

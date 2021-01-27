@@ -47,9 +47,9 @@ func TestEvictHelp(t *testing.T) {
 	test.client.Help()
 	require.Equal(t, `Usage of agent evict:
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID of the agent to evict (agent identity)
 `, test.stderr.String())
@@ -109,9 +109,9 @@ func TestListHelp(t *testing.T) {
 	test.client.Help()
 	require.Equal(t, `Usage of agent list:
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -167,9 +167,9 @@ func TestShowHelp(t *testing.T) {
 	test.client.Help()
 	require.Equal(t, `Usage of agent show:
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID of the agent to show (agent identity)
 `, test.stderr.String())

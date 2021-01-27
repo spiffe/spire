@@ -38,9 +38,9 @@ const (
   -audience value
     	Audience claim that will be included in the SVID. Can be used more than once.
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	SPIFFE ID of the JWT-SVID
   -ttl duration

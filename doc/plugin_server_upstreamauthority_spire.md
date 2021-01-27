@@ -12,7 +12,7 @@ The plugin accepts the following configuration options:
 | ----------------------- | ---------------------------------------------------------------------------- |
 | server_address          | IP address or DNS name of the upstream SPIRE server in the same trust domain |
 | server_port             | Port number of the upstream SPIRE server in the same trust domain            |
-| workload_api_socket     | Path to the Workload API socket (e.g. the Agent API socket)                  |
+| workload_api_socket     | Path to the Workload API socket (e.g. the SPIRE Agent API socket)                  |
 
 A sample configuration:
 

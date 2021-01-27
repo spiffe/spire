@@ -280,12 +280,12 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.DeprecatedRegistrationUDSPath, "registrationUDSPath", "", "Path to bind the Server API socket to (deprecated; use -socketPath)")
+	flags.StringVar(&c.DeprecatedRegistrationUDSPath, "registrationUDSPath", "", "Path to bind the SPIRE Server API socket to (deprecated; use -socketPath)")
 	// TODO: in 1.1.0. After registrationUDSPath is deprecated, we can put back the
 	// default flag value on socketPath like it was previously, since we'll no
 	// longer need to detect an unset flag from the default for deprecation
 	// logging/error handling purposes.
-	flags.StringVar(&c.SocketPath, "socketPath", "", `Path to bind the Server API socket to (default "`+defaultSocketPath+`")`)
+	flags.StringVar(&c.SocketPath, "socketPath", "", `Path to bind the SPIRE Server API socket to (default "`+defaultSocketPath+`")`)
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 

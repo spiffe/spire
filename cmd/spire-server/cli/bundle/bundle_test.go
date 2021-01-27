@@ -24,9 +24,9 @@ func TestShowHelp(t *testing.T) {
   -format string
     	The format to show the bundle. Either "pem" or "spiffe". (default "pem")
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -101,9 +101,9 @@ func TestSetHelp(t *testing.T) {
   -path string
     	Path to the bundle data
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -392,9 +392,9 @@ func TestListHelp(t *testing.T) {
   -id string
     	SPIFFE ID of the trust domain
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -513,9 +513,9 @@ func TestDeleteHelp(t *testing.T) {
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -registrationUDSPath string
-    	Path to the Server API socket (deprecated; use -socketPath)
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
-    	Path to the Server API socket (default "/tmp/spire-server/private/api.sock")
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
