@@ -54,7 +54,7 @@ type pluginConfig struct {
 	Namespace          string `hcl:"namespace"`
 	ConfigMap          string `hcl:"config_map"`
 	ConfigMapKey       string `hcl:"config_map_key"`
-	WebhookLabel       string `hcl:"webhook_label"`
+	Label              string `hcl:"label"`
 	KubeConfigFilePath string `hcl:"kube_config_file_path"`
 }
 
@@ -254,7 +254,7 @@ func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
 	}
 
 	clients := []kubeClient{configMapClient{Clientset: clientset}}
-	if c.WebhookLabel != "" {
+	if c.Label != "" {
 		clients = append(clients,
 			mutatingWebhookClient{Clientset: clientset},
 			validatingWebhookClient{Clientset: clientset},
@@ -348,7 +348,7 @@ func (c mutatingWebhookClient) Get(ctx context.Context, namespace, mutatingWebho
 
 func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
+		LabelSelector: fmt.Sprintf("%s=true", config.Label),
 	})
 }
 
@@ -398,7 +398,7 @@ func (c validatingWebhookClient) Get(ctx context.Context, namespace, validatingW
 
 func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
+		LabelSelector: fmt.Sprintf("%s=true", config.Label),
 	})
 }
 

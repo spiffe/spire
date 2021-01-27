@@ -109,14 +109,14 @@ func (s *Suite) TestBundleWatcherUpdateConfig() {
 	s.withKubeClient(s.k, "/some/file/path")
 
 	s.configure(`
-webhook_label = "LABEL"
+label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
 	watchLabel := s.k.getWatchLabel()
 	s.Require().Equal("LABEL", watchLabel)
 
 	s.configure(`
-webhook_label = "LABEL2"
+label = "LABEL2"
 kube_config_file_path = "/some/file/path"
 `)
 	watchLabel = s.k.getWatchLabel()
@@ -126,7 +126,7 @@ kube_config_file_path = "/some/file/path"
 func (s *Suite) TestBundleWatcherAddEvent() {
 	s.withKubeClient(s.k, "/some/file/path")
 	s.configure(`
-webhook_label = "LABEL"
+label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
 

@@ -136,7 +136,7 @@ func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]
 	watchers := []watch.Interface{}
 	validWatcherPresent := false
 	for _, client := range clients {
-		watcher, err := client.Watch(ctx, c.WebhookLabel)
+		watcher, err := client.Watch(ctx, c.Label)
 		if err != nil {
 			return nil, false, err
 		}
