@@ -14,7 +14,7 @@ The plugin accepts the following configuration options:
 | config_map            | The name of the ConfigMap                   | `spire-bundle`  |
 | config_map_key        | The key within the ConfigMap for the bundle | `bundle.crt`    |
 | kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. | |
-| webhook_label         | If set, rotate the CA Bundle in validating and mutating webhooks with this label set to `true`. | |
+| label                 | If set, rotate the CA Bundle in validating and mutating webhooks with this label set to `true`. | |
 
 ## Configuring Kubernetes
 
@@ -23,7 +23,7 @@ The following actions are required to set up the plugin.
 - Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account
     - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE server
     - In the case of out-of-cluster SPIRE server, it is Service Account that interacts with the Kubernetes API server
-    - In the case of setting `webhook_label`, the ClusterRole additionally needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
+    - In the case of setting `label`, the ClusterRole additionally needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
 - Create the ConfigMap that the plugin pushes
 
 For example:
@@ -121,7 +121,7 @@ server to
 ```
     Notifier "k8sbundle" {
         plugin_data {
-            webhook_label = "spiffe.io/webhook"
+            label = "spiffe.io/webhook"
         }
     }
 ```
