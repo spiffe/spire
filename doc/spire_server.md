@@ -63,7 +63,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                              | INFO                          |
 | `log_format`                | Format of logs, \<text\|json\>                                                                   | text                          |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below) |                               |
-| `registration_uds_path`     | Location to bind the registration API socket                                                     | /tmp/spire-registration.sock  |
+| `socketPath`                | Path to bind the SPIRE Server API socket to                                                            | /tmp/spire-server/private/api.sock  |
 | `trust_domain`              | The trust domain that this server belongs to                                                     |                               |
 
 | ca_subject                  | Description                    | Default        |
@@ -206,8 +206,8 @@ Most of the configuration file above options have identical command-line counter
 | `-logFile` | File to write logs to | |
 | `-logFormat` | Format of logs, \<text\|json\> | |
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
-| `-registrationUDSPath` | UDS Path to bind registration API | |
 | `-serverPort` | Port number of the SPIRE server | |
+| `-socketPath` | Path to bind the SPIRE Server API socket to | |
 | `-trustDomain` | The trust domain that this server belongs to | |
 
 ### `spire-server token generate`
@@ -218,7 +218,7 @@ human-readable registration entry name in addition to the token-based ID.
 
 | Command       | Action                                                    | Default        |
 |:--------------|:----------------------------------------------------------|:---------------|
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-socketPath` | Path to the SPIRE Server API socket                             | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | Additional SPIFFE ID to assign the token owner (optional) |                |
 | `-ttl`        | Token TTL in seconds                                      | 600            |
 
@@ -228,7 +228,7 @@ Creates registration entries.
 
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
-| `-admin`         | If set, the SPIFFE ID in this entry will be granted access to the Registration API | |
+| `-admin`         | If set, the SPIFFE ID in this entry will be granted access to the Server APIs | |
 | `-data`          | Path to a file containing registration data in JSON format (optional). If set to '-', read the JSON from stdin. |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
@@ -236,8 +236,8 @@ Creates registration entries.
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 | `-node`          | If set, this entry will be applied to matching nodes rather than workloads | |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
+| `-socketPath`    | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
@@ -247,7 +247,7 @@ Updates registration entries.
 
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
-| `-admin`         | If true, the SPIFFE ID in this entry will be granted access to the Registration API | |
+| `-admin`         | If true, the SPIFFE ID in this entry will be granted access to the Server APIs | |
 | `-data`          | Path to a file containing registration data in JSON format (optional). If set to '-', read the JSON from stdin. |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
@@ -255,8 +255,8 @@ Updates registration entries.
 | `-entryID`       | The Registration Entry ID of the record to update                      |                |
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
+| `-socketPath`    | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
@@ -267,7 +267,7 @@ Deletes a specified registration entry.
 | Command       | Action                                             | Default        |
 |:--------------|:---------------------------------------------------|:---------------|
 | `-entryID`    | The Registration Entry ID of the record to delete  |                |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server entry show`
 
@@ -279,8 +279,8 @@ Displays configured registration entries.
 | `-entryID`    | The Entry ID of the record to show.                                |                |
 | `-federatesWith` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once | |
 | `-parentID`   | The Parent ID of the records to show.                              |                |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
 
 ### `spire-server bundle show`
@@ -289,8 +289,8 @@ Displays the bundle for the trust domain of the server.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-format` | The format to show the bundle. Either `pem` or `spiffe` | pem |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server bundle list`
 
@@ -299,8 +299,8 @@ Displays federated bundles.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
-| `-format` | The format to show the federated bundles. Either `pem` or `spiffe` | pem |
+| `-format`     | The format to show the federated bundles. Either `pem` or `spiffe` | pem |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server bundle set`
 
@@ -310,8 +310,8 @@ Creates or updates bundle data for a trust domain. This command cannot be used t
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to set. | |
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
-| `-format` | The format of the bundle to set. Either `pem` or `spiffe` | pem |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-format`     | The format of the bundle to set. Either `pem` or `spiffe` | pem |
 
 ### `spire-server bundle delete`
 
@@ -321,7 +321,7 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server agent evict`
 
@@ -329,8 +329,8 @@ De-attesting an already attested node given its spiffeID.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
-| `-spiffeID` | The SPIFFE ID of the agent to evict (agent identity) | |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-spiffeID`   | The SPIFFE ID of the agent to evict (agent identity) | |
 
 ### `spire-server agent list`
 
@@ -338,7 +338,7 @@ Displays attested nodes.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server agent show`
 
@@ -346,7 +346,7 @@ Displays the details (including node selectors) of an attested node given its sp
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID` | The SPIFFE ID of the agent to show (agent identity) | |
 
 ### `spire-server healthcheck`
@@ -355,9 +355,9 @@ Checks SPIRE server's health.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
-| `-shallow` | Perform a less stringent health check | |
-| `-verbose` | Print verbose information | |
+| `-shallow`    | Perform a less stringent health check | |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-verbose`    | Print verbose information | |
 
 ### `spire-server validate`
 
@@ -376,7 +376,7 @@ Mints an X509-SVID.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-dns`        | A DNS name that will be included in SVID. Can be used more than once | |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the X509-SVID                                     | |
 | `-ttl`        | The TTL of the X509-SVID                                           | The TTL configured with `default_svid_ttl` |
 | `-write`      | Directory to write output to instead of stdout                     | |
@@ -388,7 +388,7 @@ Mints a JWT-SVID.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-audience`   | Audience claim that will be included in the SVID. Can be used more than once | |
-| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the JWT-SVID                                      | |
 | `-ttl`        | The TTL of the JWT-SVID                                            | |
 | `-write`      | File to write token to instead of stdout                           | |
@@ -420,7 +420,6 @@ server {
     bind_port = "8081"
     log_level = "INFO"
     data_dir = "/opt/spire/.data/"
-    registration_uds_path = "/opt/spire/registration.sock"
     default_svid_ttl = "6h"
     ca_ttl = "72h"
     ca_subject {

@@ -209,7 +209,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entry
 		stdin:  stdin,
 		stdout: stdout,
 		stderr: stderr,
-		args:   []string{"-registrationUDSPath", socketPath},
+		args:   []string{"-socketPath", socketPath},
 		server: server,
 		client: client,
 	}

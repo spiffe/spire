@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	socketPathFlag = flag.String("socket", "unix:///tmp/spire-registration.sock", "server socket path")
+	socketPathFlag = flag.String("socket", "unix:///tmp/spire-server/private/api.sock", "server socket path")
 )
 
 func main() {

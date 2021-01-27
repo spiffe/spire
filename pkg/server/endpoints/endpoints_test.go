@@ -56,9 +56,11 @@ var (
 )
 
 func TestNew(t *testing.T) {
+	tempdir := spiretest.TempDir(t)
+
 	ctx := context.Background()
-	tcpAddr := &net.TCPAddr{}
-	udsAddr := &net.UnixAddr{}
+	tcpAddr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+	udsAddr := &net.UnixAddr{Net: "unix", Name: filepath.Join(tempdir, "sockets")}
 
 	svidObserver := newSVIDObserver(nil)
 

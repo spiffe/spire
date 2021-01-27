@@ -61,7 +61,7 @@ func (c *healthCheckCommand) Run(args []string) int {
 func (c *healthCheckCommand) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("health", flag.ContinueOnError)
 	fs.SetOutput(c.env.Stderr)
-	fs.StringVar(&c.socketPath, "socketPath", common.DefaultSocketPath, "Path to Workload API socket")
+	fs.StringVar(&c.socketPath, "socketPath", common.DefaultSocketPath, "Path to the SPIRE Agent API socket")
 	fs.BoolVar(&c.shallow, "shallow", false, "Perform a less stringent health check")
 	fs.BoolVar(&c.verbose, "verbose", false, "Print verbose information")
 	return fs.Parse(args)

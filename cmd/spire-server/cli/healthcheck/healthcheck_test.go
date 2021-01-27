@@ -44,12 +44,14 @@ func (s *HealthCheckSuite) TestSynopsis() {
 }
 
 func (s *HealthCheckSuite) TestHelp() {
-	s.Equal("", s.cmd.Help())
-	s.Equal(`Usage of health:
+	s.Equal("flag: help requested", s.cmd.Help())
+	s.Equal(`Usage of healthcheck:
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -shallow
     	Perform a less stringent health check
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -verbose
     	Print verbose information
 `, s.stderr.String(), "stderr")
@@ -60,30 +62,31 @@ func (s *HealthCheckSuite) TestBadFlags() {
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
 	s.Equal(`flag provided but not defined: -badflag
-Usage of health:
+Usage of healthcheck:
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -shallow
     	Perform a less stringent health check
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -verbose
     	Print verbose information
 `, s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
-	code := s.cmd.Run([]string{"--registrationUDSPath", "doesnotexist.sock"})
+	code := s.cmd.Run([]string{"--socketPath", "doesnotexist.sock"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal("Server is unhealthy: cannot create health client\n", s.stderr.String(), "stderr")
+	s.Equal(`Error: connection error: desc = "transport: error while dialing: dial unix doesnotexist.sock: connect: no such file or directory"
+`, s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
-	code := s.cmd.Run([]string{"--registrationUDSPath", "doesnotexist.sock", "--verbose"})
+	code := s.cmd.Run([]string{"--socketPath", "doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
-	s.Equal(`Checking server health...
-`, s.stdout.String(), "stdout")
-	s.Equal(`Failed to create client: connection error: desc = "transport: error while dialing: dial unix doesnotexist.sock: connect: no such file or directory"
-Server is unhealthy: cannot create health client
+	s.Equal("", s.stdout.String(), "stdout")
+	s.Equal(`Error: connection error: desc = "transport: error while dialing: dial unix doesnotexist.sock: connect: no such file or directory"
 `, s.stderr.String(), "stderr")
 }
 
@@ -91,7 +94,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
 	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath})
+	code := s.cmd.Run([]string{"--socketPath", socketPath})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
 	s.Equal("", s.stderr.String(), "stderr")
@@ -101,7 +104,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
 	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath, "--verbose"})
+	code := s.cmd.Run([]string{"--socketPath", socketPath, "--verbose"})
 	s.Equal(0, code, "exit code")
 	s.Equal(`Checking server health...
 Server is healthy.
@@ -113,11 +116,11 @@ func (s *HealthCheckSuite) TestFailsIfServiceStatusOther() {
 	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_NOT_SERVING))
 	})
-	code := s.cmd.Run([]string{"--registrationUDSPath", socketPath, "--verbose"})
+	code := s.cmd.Run([]string{"--socketPath", socketPath, "--verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Checking server health...
 `, s.stdout.String(), "stdout")
-	s.Equal(`Server is unhealthy: server returned status "NOT_SERVING"
+	s.Equal(`Error: server is unhealthy: server returned status "NOT_SERVING"
 `, s.stderr.String(), "stderr")
 }
 

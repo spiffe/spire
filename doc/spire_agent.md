@@ -48,7 +48,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_format`              | Format of logs, \<text\|json\>                                        | Text                 |
 | `server_address`          | DNS name or IP address of the SPIRE server                            |                      |
 | `server_port`             | Port number of the SPIRE server                                       |                      |
-| `socket_path`             | Location to bind the Workload API socket                              | /tmp/agent.sock      |
+| `socket_path`             | Location to bind the SPIRE Agent API socket                              | /tmp/spire-agent/public/api.sock      |
 | `sds`                     | Optional SDS configuration section                                    |                      |
 | `trust_bundle_path`       | Path to the SPIRE server CA bundle                                    |                      |
 | `trust_bundle_url`        | URL to download the initial SPIRE server trust bundle                 |                      |
@@ -145,7 +145,7 @@ Calls the workload API to fetch an X509-SVID. This command is aliased to `spire-
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |
 | `-silent` | Suppress stdout | |
-| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 | `-timeout` | Time to wait for a response | 1s |
 | `-write` | Write SVID data to the specified path | |
 
@@ -156,7 +156,7 @@ Calls the workload API to fetch a JWT-SVID.
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |
 | `-audience` | A comma separated list of audience values | |
-| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 | `-spiffeID` | The SPIFFE ID of the JWT being requested (optional) | |
 | `-timeout` | Time to wait for a response | 1s |
 
@@ -167,7 +167,7 @@ Calls the workload API to fetch a x.509-SVID.
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |
 | `-silent` | Suppress stdout | |
-| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 | `-timeout` | Time to wait for a response | 1s |
 | `-write` | Write SVID data to the specified path | |
 
@@ -178,7 +178,7 @@ Calls the workload API to validate the supplied JWT-SVID.
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |
 | `-audience` | A comma separated list of audience values | |
-| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 | `-svid` | The JWT-SVID to be validated | |
 | `-timeout` | Time to wait for a response | 1s |
 
@@ -188,7 +188,7 @@ Attaches to the workload API and watches for X509-SVID updates, printing details
 
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |
-| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 
 ### `spire-agent healthcheck`
 
@@ -197,7 +197,7 @@ Checks SPIRE agent's health.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-shallow` | Perform a less stringent health check | |
-| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 | `-verbose` | Print verbose information | |
 
 ### `spire-agent validate`
@@ -222,7 +222,7 @@ agent {
     log_level = "DEBUG"
     server_address = "spire-server"
     server_port = "8081"
-    socket_path ="/tmp/agent.sock"
+    socket_path ="/tmp/spire-agent/public/api.sock"
 }
 
 telemetry {

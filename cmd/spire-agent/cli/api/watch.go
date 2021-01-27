@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/api/workload"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 )
 
 type WatchConfig struct {
@@ -67,7 +68,7 @@ func (w *WatchCLI) Run(args []string) int {
 func (w *WatchCLI) parseConfig(args []string) error {
 	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
 	c := &WatchConfig{}
-	fs.StringVar(&c.socketPath, "socketPath", "/tmp/agent.sock", "Path to the Workload API socket")
+	fs.StringVar(&c.socketPath, "socketPath", common.DefaultSocketPath, "Path to the Workload API socket")
 
 	w.config = c
 	return fs.Parse(args)

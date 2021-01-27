@@ -49,7 +49,7 @@ func (s *HealthCheckSuite) TestHelp() {
   -shallow
     	Perform a less stringent health check
   -socketPath string
-    	Path to Workload API socket (default "/tmp/agent.sock")
+    	Path to the SPIRE Agent API socket (default "/tmp/spire-agent/public/api.sock")
   -verbose
     	Print verbose information
 `, s.stderr.String(), "stderr")
@@ -64,7 +64,7 @@ Usage of health:
   -shallow
     	Perform a less stringent health check
   -socketPath string
-    	Path to Workload API socket (default "/tmp/agent.sock")
+    	Path to the SPIRE Agent API socket (default "/tmp/spire-agent/public/api.sock")
   -verbose
     	Print verbose information
 `, s.stderr.String(), "stderr")
