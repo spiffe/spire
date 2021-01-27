@@ -90,8 +90,8 @@ type RegisteredEntry struct {
 	// updated.
 	RevisionNumber int64
 
-	// ExportableIdentity determines if the issued identity is exportable to a store
-	ExportableIdentity bool
+	// StoreSvid determines if the issued SVID is exportable to a store
+	StoreSvid bool
 }
 
 // JoinToken holds a join token
