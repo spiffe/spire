@@ -12,8 +12,8 @@ check-version-against-latest-release() {
     #   PR_BRANCH by the CI/CD pipeline).
     # - for non-PRs from a local branch with a tracking branch, we'll use
     #   the tracking branch (e.g. local development branch tracking master)
-    # - for non-PRs from a local branch without a tracking branch, we'll use
-    #   the local branch (e.g. checkout of the v0.11 release branch)
+    # - for non-PRs from a local branch without a tracking branch, we'll fail
+    #   the test, since it isn't clear which version we should be tracking.
     _version_from_branch=
     if [ -n "${PR_BRANCH}" ]; then
         _version_from_branch="origin/${PR_BRANCH}"
@@ -22,8 +22,7 @@ check-version-against-latest-release() {
         _version_from_branch="${_tracking_branch}"
         log-info "target branch (tracking): ${_version_from_branch}"
     else
-        _version_from_branch="$($git branch --show-current)"
-        log-info "target branch (local): ${_version_from_branch}"
+        fail-now "unable to determine latest version; either the PR_BRANCH envvar or an upstream tracking branch needs to be set"
     fi
 
     if [ "${_version_from_branch}" = "${_default_branch}" ]; then
