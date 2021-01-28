@@ -9,20 +9,20 @@ check-version-against-latest-release() {
 
     # Determine which branch to detect the "latest" version from:
     # - for PRs, this will be the branch the PR targets (as supplied via
-    #   PR_BRANCH by the CI/CD pipeline).
+    #   CICD_TARGET_BRANCH by the CI/CD pipeline).
     # - for non-PRs from a local branch with a tracking branch, we'll use
     #   the tracking branch (e.g. local development branch tracking master)
     # - for non-PRs from a local branch without a tracking branch, we'll fail
     #   the test, since it isn't clear which version we should be tracking.
     _version_from_branch=
-    if [ -n "${PR_BRANCH}" ]; then
-        _version_from_branch="origin/${PR_BRANCH}"
+    if [ -n "${CICD_TARGET_BRANCH}" ]; then
+        _version_from_branch="origin/${CICD_TARGET_BRANCH}"
         log-info "target branch (explicit): ${_version_from_branch}"
     elif [ -n "${_tracking_branch}" ]; then
         _version_from_branch="${_tracking_branch}"
         log-info "target branch (tracking): ${_version_from_branch}"
     else
-        fail-now "unable to determine latest version; either the PR_BRANCH envvar or an upstream tracking branch needs to be set"
+        fail-now "unable to determine latest version; either the CICD_TARGET_BRANCH envvar or an upstream tracking branch needs to be set"
     fi
 
     if [ "${_version_from_branch}" = "${_default_branch}" ]; then
