@@ -102,7 +102,7 @@ jobs:
       script:
         - make images
         - make scratch-images
-        - PR_BRANCH="$TRAVIS_BRANCH" make integration
+        - CICD_TARGET_BRANCH="$TRAVIS_BRANCH" make integration
         - .travis/publish-images.sh
 
     - stage: nightly integration tests
