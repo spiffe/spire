@@ -136,8 +136,7 @@ jobs:
             # CircleCI is silly and doesn't provide this incredibly helpful
             # environment variable. Requests for it go back years. For shame.
             CIRCLE_PR_BRANCH=$(curl -s https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${CIRCLE_PR_NUMBER} | jq -r '.base.ref')
-            echo "CIRCLE_PR_BRANCH: ${CIRCLE_PR_BRANCH}"
-            circleci tests glob "suites/*" | circleci tests split | TEST_TARGET_BRANCH="${CIRCLE_PR_BRANCH}" xargs ./test.sh
+            circleci tests glob "suites/*" | circleci tests split | PR_BRANCH="${CIRCLE_PR_BRANCH}" xargs ./test.sh
 
   # Publish "unstable" docker images
   publish-unstable-images:

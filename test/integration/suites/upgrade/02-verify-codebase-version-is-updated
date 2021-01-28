@@ -1,27 +1,40 @@
 #!/bin/bash
 
+git="git --git-dir ${REPODIR}/.git"
+
 check-version-against-latest-release() {
-    # This should be set by the CI/CD system based on the target branch of
-    # the PR.
-    if [ -n "${TEST_TARGET_BRANCH}" ]; then
-        log-info "target branch (explicit): ${TEST_TARGET_BRANCH}"
+    _commit_version="$1"
+    _default_branch="origin/$($git remote show origin | grep 'HEAD branch' | cut -d":" -f2 | xargs)"
+    _tracking_branch=$($git for-each-ref --format='%(upstream:short)' "$($git symbolic-ref -q HEAD)")
+
+    # Determine which branch to detect the "latest" version from:
+    # - for PRs, this will be the branch the PR targets (as supplied via
+    #   PR_BRANCH by the CI/CD pipeline).
+    # - for non-PRs from a local branch with a tracking branch, we'll use
+    #   the tracking branch (e.g. local development branch tracking master)
+    # - for non-PRs from a local branch without a tracking branch, we'll use
+    #   the local branch (e.g. checkout of the v0.11 release branch)
+    _version_from_branch=
+    if [ -n "${PR_BRANCH}" ]; then
+        _version_from_branch="origin/${PR_BRANCH}"
+        log-info "target branch (explicit): ${_version_from_branch}"
+    elif [ -n "${_tracking_branch}" ]; then
+        _version_from_branch="${_tracking_branch}"
+        log-info "target branch (tracking): ${_version_from_branch}"
     else
-        TEST_TARGET_BRANCH="$(git --git-dir "${REPODIR}"/.git branch --show-current)"
-        log-info "target branch (detected): ${TEST_TARGET_BRANCH}"
+        _version_from_branch="$($git branch --show-current)"
+        log-info "target branch (local): ${_version_from_branch}"
     fi
 
-    _commit_version="$1"
-
-    if [ "${TEST_TARGET_BRANCH}" = "master" ]; then
-        # master should use the latest release tag from the repo
-        _latest_version=$(git --git-dir "${REPODIR}"/.git tag -l 'v*' --sort -v:refname | head -n1 | cut -c 2-)
+    if [ "${_version_from_branch}" = "${_default_branch}" ]; then
+        # The default branch should use the latest release tag from the repo
+        _latest_version=$($git tag --list 'v*' --sort -version:refname | head -n1 | cut -c 2-)
         log-info "latest release: ${_latest_version}"
     else
-        # non-master should use the latest release tag from the branch, which
-        # is assumed to be a parent of the current commit... if not, we'll need
-        # to explicitly pass the remote branch to the "describe" command.
-        _latest_version=$(git --git-dir "${REPODIR}"/.git describe --match "v*" --abbrev=0 | cut -c 2-)
-        log-info "latest release from ${TEST_TARGET_BRANCH}: ${_latest_version}"
+        # Non-default branches should have aligned version with the latest
+        # release from that branch. So we'll scan for the latest tag.
+        _latest_version=$($git describe --match "v*" --abbrev=0 "${_version_from_branch}"| cut -c 2-)
+        log-info "latest release from ${_version_from_branch}: ${_latest_version}"
     fi
 
     log-info "commit version: ${_commit_version}"
@@ -40,7 +53,7 @@ _commit_version=$(docker-compose exec -T spire-server-latest-local \
 docker-down
 
 # Get tag of the current commit
-_current_tag=$(git --git-dir "${REPODIR}"/.git describe --exact-match HEAD --match "v*"  2> /dev/null | cut -c 2- || true)
+_current_tag=$($git describe --exact-match HEAD --match "v*"  2> /dev/null | cut -c 2- || true)
 
 case "${_current_tag}" in
 
@@ -49,7 +62,7 @@ case "${_current_tag}" in
     ;;
 
   "")
-    log-info "current commit is not tagged; checking against the latest release in the branch"
+    log-info "current commit is not tagged; checking against the latest release in the target branch"
     check-version-against-latest-release "${_commit_version}"
     ;;
 
