@@ -89,6 +89,9 @@ type RegisteredEntry struct {
 	// RevisionNumber is a counter that is incremented when the entry is
 	// updated.
 	RevisionNumber int64
+
+	// StoreSvid determines if the issued SVID is exportable to a store
+	StoreSvid bool
 }
 
 // JoinToken holds a join token

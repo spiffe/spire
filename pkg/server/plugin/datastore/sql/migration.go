@@ -19,7 +19,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 15
+	latestSchemaVersion = 16
 )
 
 var (
@@ -249,6 +249,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log hclog.Logger) (versionOut 
 		migrateToV13,
 		migrateToV14,
 		migrateToV15,
+		migrateToV16,
 	}
 
 	if currVersion >= len(migrations) {
@@ -480,7 +481,7 @@ func migrateToV13(tx *gorm.DB) error {
 }
 
 func migrateToV14(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+	if err := tx.AutoMigrate(&V14RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
@@ -488,6 +489,13 @@ func migrateToV14(tx *gorm.DB) error {
 
 func migrateToV15(tx *gorm.DB) error {
 	return addAttestedNodeEntriesExpiresAtIndex(tx)
+}
+
+func migrateToV16(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
@@ -689,6 +697,34 @@ type V10RegisteredEntry struct {
 
 // TableName gets table name for v10 registered entry
 func (V10RegisteredEntry) TableName() string {
+	return "registered_entries"
+}
+
+// V14RegisteredEntry holds a registered entity entry
+type V14RegisteredEntry struct {
+	Model
+
+	EntryID  string `gorm:"unique_index"`
+	SpiffeID string `gorm:"index"`
+	ParentID string `gorm:"index"`
+	// TTL of identities derived from this entry
+	TTL           int32
+	Selectors     []Selector
+	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
+	Admin         bool
+	Downstream    bool
+	// (optional) expiry of this entry
+	Expiry int64 `gorm:"index"`
+	// (optional) DNS entries
+	DNSList []DNSName
+
+	// RevisionNumber is a counter that is incremented when the entry is
+	// updated.
+	RevisionNumber int64
+}
+
+// TableName gets table name for v14 registered entry
+func (V14RegisteredEntry) TableName() string {
 	return "registered_entries"
 }
 
