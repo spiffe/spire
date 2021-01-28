@@ -3,15 +3,19 @@ package cache
 import (
 	"crypto/x509"
 	"fmt"
+	"net/url"
 	"runtime"
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/manager/pipe"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -383,6 +387,166 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 func newTestCache() *Cache {
 	log, _ := test.NewNullLogger()
 	return New(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{})
+}
+
+func TestExportSVIDs(t *testing.T) {
+	plugName := "plugin_name"
+	pipeIn := &fakePipeIn{}
+	pipes := map[string]pipe.In{
+		plugName: pipeIn,
+	}
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	cache := New(log, "spiffe://domain.test", bundleV1, telemetry.Blackhole{}, pipes)
+
+	bundles := makeBundles(bundleV1, otherBundleV1)
+
+	for _, tt := range []struct {
+		name          string
+		expectFail    bool
+		expectLog     spiretest.LogEntry
+		federatedWith []string
+		selectors     []*common.Selector
+	}{
+		{
+			name: "success",
+			selectors: []*common.Selector{
+				{Type: plugName, Value: "a:1"},
+				{Type: plugName, Value: "b:2"},
+			},
+			federatedWith: []string{otherBundleV1.TrustDomainID()},
+			expectLog: spiretest.LogEntry{
+				Level:   logrus.DebugLevel,
+				Message: "SVID updated",
+				Data: logrus.Fields{
+					telemetry.Entry:    "FOO",
+					telemetry.SPIFFEID: "spiffe://domain.test/FOO",
+				},
+			},
+		},
+		{
+			name:          "no selectors",
+			expectFail:    true,
+			federatedWith: []string{otherBundleV1.TrustDomainID()},
+			expectLog: spiretest.LogEntry{
+				Level:   logrus.ErrorLevel,
+				Message: "failed to export SVID",
+				Data: logrus.Fields{
+					telemetry.Entry:    "FOO",
+					telemetry.SPIFFEID: "spiffe://domain.test/FOO",
+					logrus.ErrorKey:    "no selectors found",
+				},
+			},
+		},
+		{
+			name:          "selectors has multiple types",
+			expectFail:    true,
+			federatedWith: []string{otherBundleV1.TrustDomainID()},
+			selectors:     []*common.Selector{{Type: plugName, Value: "a:1"}, {Type: "another", Value: "b:2"}},
+			expectLog: spiretest.LogEntry{
+				Level:   logrus.ErrorLevel,
+				Message: "failed to export SVID",
+				Data: logrus.Fields{
+					telemetry.Entry:    "FOO",
+					telemetry.SPIFFEID: "spiffe://domain.test/FOO",
+					logrus.ErrorKey:    "selector contains multiple types",
+				},
+			},
+		},
+		{
+			name:          "no store found",
+			expectFail:    true,
+			federatedWith: []string{otherBundleV1.TrustDomainID()},
+			selectors:     []*common.Selector{{Type: "invalid", Value: "a:1"}},
+			expectLog: spiretest.LogEntry{
+				Level:   logrus.ErrorLevel,
+				Message: "failed to export SVID",
+				Data: logrus.Fields{
+					telemetry.Entry:    "FOO",
+					telemetry.SPIFFEID: "spiffe://domain.test/FOO",
+					logrus.ErrorKey:    "no SVID Store \"invalid\" found",
+				},
+			},
+		},
+		{
+			name:          "federated bundle not found",
+			federatedWith: []string{otherBundleV1.TrustDomainID(), "spiffe://bar.domain"},
+			selectors:     []*common.Selector{{Type: plugName, Value: "a:1"}},
+			expectLog: spiretest.LogEntry{
+				Level:   logrus.WarnLevel,
+				Message: "Federated bundle contents missing",
+				Data: logrus.Fields{
+					telemetry.Entry:           "FOO",
+					telemetry.SPIFFEID:        "spiffe://domain.test/FOO",
+					telemetry.FederatedBundle: "spiffe://bar.domain",
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			pipeIn.update = nil
+			logHook.Reset()
+
+			foo := makeRegistrationEntry("FOO")
+			foo.StoreSvid = true
+			foo.Selectors = tt.selectors
+			foo.FederatesWith = tt.federatedWith
+
+			cache.UpdateEntries(&UpdateEntries{
+				Bundles:             bundles,
+				RegistrationEntries: makeRegistrationEntries(foo),
+			}, nil)
+			// We dont want logs from entry creation
+
+			x509SVIDs := makeX509SVIDs(foo)
+			svid := x509SVIDs[foo.EntryId]
+			svid.Chain = []*x509.Certificate{
+				{
+					URIs: []*url.URL{
+						spiffeid.RequireFromString(foo.SpiffeId).URL(),
+					},
+				},
+			}
+
+			// Update SVID
+			cache.UpdateSVIDs(&UpdateSVIDs{
+				X509SVIDs: x509SVIDs,
+			})
+
+			federatedBundles := make(map[string]*bundleutil.Bundle)
+			for _, id := range tt.federatedWith {
+				b, ok := bundles[id]
+				if ok {
+					federatedBundles[id] = b
+				}
+			}
+
+			expected := &pipe.SVIDUpdate{
+				Entry:            foo,
+				SVID:             svid.Chain,
+				Bundle:           bundles[bundleV1.TrustDomainID()],
+				FederatedBundles: federatedBundles,
+			}
+			if tt.expectFail {
+				assert.Nil(t, pipeIn.update)
+			} else {
+				assert.Equal(t, expected, pipeIn.update)
+			}
+			spiretest.AssertLogs(t, []*logrus.Entry{logHook.LastEntry()}, []spiretest.LogEntry{tt.expectLog})
+		})
+	}
+}
+
+type fakePipeIn struct {
+	pipe.In
+
+	update *pipe.SVIDUpdate
+}
+
+func (p *fakePipeIn) Push(update *pipe.SVIDUpdate) {
+	fmt.Printf("updating: %v", update)
+	p.update = update
 }
 
 func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {

@@ -242,6 +242,9 @@ const (
 	// PluginType tags type of some plugin
 	PluginType = "plugin_type"
 
+	// PutSVID tags call of overall put SVIDs on store
+	PutSVID = "put_svid"
+
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
@@ -592,6 +595,9 @@ const (
 
 	// ServerKeyManager attached to all operations related to the server KeyManager interface
 	ServerKeyManager = "server_key_manager"
+
+	// Store functionality related to SVID Storer
+	Store = "store"
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"

@@ -9,8 +9,10 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	api_workload "github.com/spiffe/spire/api/workload"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
@@ -18,6 +20,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/manager/pipe"
+	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
+	"github.com/spiffe/spire/pkg/agent/svid/store"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
@@ -31,6 +36,22 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+type bufferedPipe struct {
+	store catalog.SVIDStores
+	in    pipe.In
+	out   pipe.Out
+}
+
+type bufferedPipes map[string]bufferedPipe
+
+func (p bufferedPipes) pipeIns() map[string]pipe.In {
+	m := make(map[string]pipe.In)
+	for name, bp := range p {
+		m[name] = bp.in
+	}
+	return m
+}
 
 type Agent struct {
 	c *Config
@@ -91,7 +112,23 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	manager, err := a.newManager(ctx, cat, metrics, as)
+	pipes := make(bufferedPipes)
+	for _, svidStore := range cat.GetSVIDStores() {
+		pipeIn, pipeOut := pipe.BufferedPipe(a.c.PipeSize)
+		pipes[svidStore.Name()] = bufferedPipe{
+			store: svidStore,
+			in:    pipeIn,
+			out:   pipeOut,
+		}
+	}
+	pipesIn := pipes.pipeIns()
+	defer func() {
+		for _, pipeIn := range pipesIn {
+			pipeIn.Close()
+		}
+	}()
+
+	manager, err := a.newManager(ctx, cat, metrics, as, pipesIn)
 	if err != nil {
 		return err
 	}
@@ -112,6 +149,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	if a.c.AdminBindAddress != nil {
 		adminEndpoints := a.newAdminEndpoints(manager)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
+	}
+
+	// If an SVID store is configured, create store and add it to tasks
+	for _, bp := range pipes {
+		store := a.newStore(bp.store, bp.out, metrics)
+		tasks = append(tasks, store.Run)
 	}
 
 	err = util.RunTasks(ctx, tasks...)
@@ -193,7 +236,7 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 	return node_attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, pipeIn map[string]pipe.In) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:            as.SVID,
 		SVIDKey:         as.Key,
@@ -206,6 +249,7 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
 		SyncInterval:    a.c.SyncInterval,
+		PipesIn:         pipeIn,
 	}
 
 	mgr := manager.New(config)
@@ -214,6 +258,20 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 	}
 
 	return mgr, nil
+}
+
+func (a *Agent) newStore(svidStore catalog.SVIDStores, pipeOut pipe.Out, metrics telemetry.Metrics) store.Service {
+	config := store.Config{
+		Log: a.c.Log.WithFields(logrus.Fields{
+			telemetry.SubsystemName: strings.ToLower(svidstore.Type),
+			telemetry.PluginName:    svidStore.Name,
+		}),
+		Metrics:   metrics,
+		PipeOut:   pipeOut,
+		SVIDStore: svidStore,
+	}
+
+	return store.New(config)
 }
 
 func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {

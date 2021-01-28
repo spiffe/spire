@@ -83,6 +83,8 @@ message RegistrationEntry {
     repeated string dns_names = 10;
     /** Revision number is bumped every time the entry is updated */
     int64 revision_number = 11;
+    /** Determines if the issued identity is exportable to a store */
+    bool store_svid = 12;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */

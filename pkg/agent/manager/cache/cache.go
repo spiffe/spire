@@ -3,12 +3,15 @@ package cache
 import (
 	"crypto"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/manager/pipe"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -118,6 +121,9 @@ type Cache struct {
 
 	// bundles holds the trust bundles, keyed by trust domain id (i.e. "spiffe://domain.test")
 	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
+
+	// buffered pipes for 'exportables' SVIDs
+	pipesIn map[string]pipe.In
 }
 
 // StaleEntry holds stale entries with SVIDs expiration time
@@ -128,7 +134,7 @@ type StaleEntry struct {
 	ExpiresAt time.Time
 }
 
-func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics) *Cache {
+func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics, pipesIn map[string]pipe.In) *Cache {
 	return &Cache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
@@ -142,6 +148,7 @@ func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundl
 		bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
 			trustDomain: bundle,
 		},
+		pipesIn: pipesIn,
 	}
 }
 
@@ -398,18 +405,75 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 		}
 
 		record.svid = svid
-		notifySet.Merge(record.entry.Selectors...)
 		log := c.log.WithFields(logrus.Fields{
 			telemetry.Entry:    record.entry.EntryId,
 			telemetry.SPIFFEID: record.entry.SpiffeId,
 		})
 		log.Debug("SVID updated")
 
+		// TODO: may we allow subscribe to notifications when SVID is exportable?
+		// at the same time may we add a filter to avoid using this entries for attestation?
+		if record.entry.StoreSvid {
+			if err := c.storeSVID(record); err != nil {
+				log.WithError(err).Error("failed to export SVID")
+			}
+		} else {
+			notifySet.Merge(record.entry.Selectors...)
+		}
+
 		// Registration entry is updated, remove it from stale map
 		delete(c.staleEntries, entryID)
 	}
 
 	c.notifyBySelectors(notifySet)
+}
+
+func (c *Cache) storeSVID(record *cacheRecord) error {
+	plugName, err := getPluginName(record.entry.Selectors)
+	if err != nil {
+		return err
+	}
+
+	pipeIn, ok := c.pipesIn[plugName]
+	if !ok {
+		return fmt.Errorf("no SVID Store %q found", plugName)
+	}
+	update := &pipe.SVIDUpdate{
+		Entry:            record.entry,
+		SVID:             record.svid.Chain,
+		PrivateKey:       record.svid.PrivateKey,
+		Bundle:           c.bundles[c.trustDomainID],
+		FederatedBundles: make(map[string]*bundleutil.Bundle),
+	}
+
+	for _, federatesWith := range record.entry.FederatesWith {
+		if federatedBundle := c.bundles[federatesWith]; federatedBundle != nil {
+			update.FederatedBundles[federatesWith] = federatedBundle
+		} else {
+			c.log.WithFields(logrus.Fields{
+				telemetry.Entry:           record.entry.EntryId,
+				telemetry.SPIFFEID:        record.entry.SpiffeId,
+				telemetry.FederatedBundle: federatesWith,
+			}).Warn("Federated bundle contents missing")
+		}
+	}
+
+	pipeIn.Push(update)
+	return nil
+}
+
+func getPluginName(selectors []*common.Selector) (string, error) {
+	if len(selectors) == 0 {
+		return "", errors.New("no selectors found")
+	}
+
+	name := selectors[0].Type
+	for _, s := range selectors {
+		if name != s.Type {
+			return "", errors.New("selector contains multiple types")
+		}
+	}
+	return name, nil
 }
 
 // GetStaleEntries obtains a list of stale entries

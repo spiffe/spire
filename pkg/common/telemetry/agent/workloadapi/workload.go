@@ -4,8 +4,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
-// Call Counters (timing and success metrics)
-// Allows adding labels in-code
+// Call Counters (timing and success metrics) Allows adding labels in-code
 
 // StartAttestationCall return metric
 // for agent's Workload API Attestor for overall attestation

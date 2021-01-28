@@ -39,6 +39,7 @@ var (
 				"spiffe://domain1.com",
 			},
 			RevisionNumber: 1234,
+			StoreSvid:      true,
 		},
 		// This entry should be ignored since it is missing an entry ID
 		{
@@ -102,6 +103,7 @@ func TestFetchUpdates(t *testing.T) {
 			},
 			FederatesWith:  []string{"domain1.com"},
 			RevisionNumber: 1234,
+			StoreSvid:      true,
 		},
 		// This entry should be ignored since it is missing an entry ID
 		{
@@ -360,6 +362,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 			},
 			FederatesWith:  []string{"domain1.com"},
 			RevisionNumber: 1234,
+			StoreSvid:      true,
 		},
 		// This entry should be ignored since it is missing an entry ID
 		{
