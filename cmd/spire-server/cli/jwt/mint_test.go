@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
@@ -39,7 +38,9 @@ const (
   -audience value
     	Audience claim that will be included in the SVID. Can be used more than once.
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	SPIFFE ID of the JWT-SVID
   -ttl duration
@@ -74,11 +75,9 @@ func TestMintRun(t *testing.T) {
 
 	server := new(fakeSVIDServer)
 
-	spiretest.StartGRPCSocketServer(t, util.DefaultSocketPath, func(s *grpc.Server) {
-		svidpb.RegisterSVIDServer(s, server)
-	})
+	socketPath := filepath.Join(dir, "socket")
 
-	alternativeSocket := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+	spiretest.StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
 		svidpb.RegisterSVIDServer(s, server)
 	})
 
@@ -107,13 +106,12 @@ func TestMintRun(t *testing.T) {
 		name string
 
 		// flags
-		spiffeID   string
-		expectID   *types.SPIFFEID
-		ttl        time.Duration
-		audience   []string
-		socketPath string
-		write      string
-		extraArgs  []string
+		spiffeID  string
+		expectID  *types.SPIFFEID
+		ttl       time.Duration
+		audience  []string
+		write     string
+		extraArgs []string
 
 		// results
 		code   int
@@ -132,7 +130,7 @@ func TestMintRun(t *testing.T) {
 		{
 			name:              "invalid flag",
 			code:              1,
-			stderr:            fmt.Sprintf("flag provided but not defined: -bad\n%s\n", expectedUsage),
+			stderr:            fmt.Sprintf("flag provided but not defined: -bad\n%s", expectedUsage),
 			extraArgs:         []string{"-bad", "flag"},
 			noRequestExpected: true,
 		},
@@ -248,17 +246,16 @@ func TestMintRun(t *testing.T) {
 			stderr: fmt.Sprintf("JWT-SVID lifetime was capped shorter than specified ttl; expires %q\n", expiredAt.UTC().Format(time.RFC3339)),
 		},
 		{
-			name:     "success with ttl and extra audience, output to file, using alternate socket",
+			name:     "success with ttl and extra audience, output to file",
 			spiffeID: "spiffe://domain.test/workload",
 			expectID: &types.SPIFFEID{
 				TrustDomain: "domain.test",
 				Path:        "/workload",
 			},
-			ttl:        time.Minute,
-			audience:   []string{"AUDIENCE1", "AUDIENCE2"},
-			socketPath: alternativeSocket,
-			code:       0,
-			write:      "token",
+			ttl:      time.Minute,
+			audience: []string{"AUDIENCE1", "AUDIENCE2"},
+			code:     0,
+			write:    "token",
 			resp: &svidpb.MintJWTSVIDResponse{
 				Svid: &types.JWTSVID{
 					Token: token,
@@ -283,10 +280,7 @@ func TestMintRun(t *testing.T) {
 				BaseDir: dir,
 			})
 
-			args := []string{}
-			if tt.socketPath != "" {
-				args = append(args, "-registrationUDSPath", tt.socketPath)
-			}
+			args := []string{"-socketPath", socketPath}
 			if tt.spiffeID != "" {
 				args = append(args, "-spiffeID", tt.spiffeID)
 			}

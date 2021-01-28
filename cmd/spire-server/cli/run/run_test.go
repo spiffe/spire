@@ -30,7 +30,8 @@ func TestParseConfigGood(t *testing.T) {
 	// Check for server configurations
 	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.Server.BindPort, 8081)
-	assert.Equal(t, c.Server.RegistrationUDSPath, "/tmp/server.sock")
+	assert.Empty(t, c.Server.DeprecatedRegistrationUDSPath)
+	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api.sock")
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
@@ -81,13 +82,13 @@ func TestParseConfigGood(t *testing.T) {
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{
 		"-bindAddress=127.0.0.1",
-		"-registrationUDSPath=/tmp/flag.sock",
+		"-socketPath=/tmp/flag.sock",
 		"-trustDomain=example.org",
 		"-logLevel=INFO",
 	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.RegistrationUDSPath, "/tmp/flag.sock")
+	assert.Equal(t, c.SocketPath, "/tmp/flag.sock")
 	assert.Equal(t, c.TrustDomain, "example.org")
 	assert.Equal(t, c.LogLevel, "INFO")
 }
@@ -374,43 +375,75 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "registration_uds_path should default to /tmp/spire-registration.sock if not set",
-			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "/tmp/spire-registration.sock", c.Server.RegistrationUDSPath)
-			},
-		},
-		{
-			msg: "registration_uds_path should be configurable by file",
+			msg: "socket_path should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Server.RegistrationUDSPath = "foo"
+				c.Server.SocketPath = "foo"
 			},
 			cliInput: func(c *serverConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.RegistrationUDSPath)
+				require.Equal(t, "foo", c.Server.SocketPath)
 			},
 		},
 		{
-			msg:       "registration_uds_path should be configuable by CLI flag",
+			msg:       "socket_path should be configuable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
-				c.RegistrationUDSPath = "foo"
+				c.SocketPath = "foo"
 			},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.RegistrationUDSPath)
+				require.Equal(t, "foo", c.Server.SocketPath)
 			},
 		},
 		{
-			msg: "registration_uds_path specified by CLI flag should take precedence over file",
+			msg: "socket_path specified by CLI flag should take precedence over file",
 			fileInput: func(c *Config) {
-				c.Server.RegistrationUDSPath = "foo"
+				c.Server.SocketPath = "foo"
 			},
 			cliInput: func(c *serverConfig) {
-				c.RegistrationUDSPath = "bar"
+				c.SocketPath = "bar"
 			},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "bar", c.Server.RegistrationUDSPath)
+				require.Equal(t, "bar", c.Server.SocketPath)
+			},
+		},
+		{
+			msg:       "deprecated registration_uds_path should default to empty if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *serverConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Empty(t, c.Server.DeprecatedRegistrationUDSPath)
+			},
+		},
+		{
+			msg: "deprecated registration_uds_path should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.DeprecatedRegistrationUDSPath = "foo"
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Server.DeprecatedRegistrationUDSPath)
+			},
+		},
+		{
+			msg:       "deprecated registration_uds_path should be configuable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *serverConfig) {
+				c.DeprecatedRegistrationUDSPath = "foo"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Server.DeprecatedRegistrationUDSPath)
+			},
+		},
+		{
+			msg: "deprecated registration_uds_path specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Server.DeprecatedRegistrationUDSPath = "foo"
+			},
+			cliInput: func(c *serverConfig) {
+				c.DeprecatedRegistrationUDSPath = "bar"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "bar", c.Server.DeprecatedRegistrationUDSPath)
 			},
 		},
 		{
@@ -513,15 +546,37 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "registration_uds_path should be correctly configured",
+			msg: "deprecated registration_uds_path should be correctly configured",
 			input: func(c *Config) {
-				c.Server.RegistrationUDSPath = "foo"
+				c.Server.DeprecatedRegistrationUDSPath = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "foo", c.BindUDSAddress.Name)
 				require.Equal(t, "unix", c.BindUDSAddress.Net)
 			},
 		},
+		{
+			msg: "socket_path should be correctly configured",
+			input: func(c *Config) {
+				c.Server.SocketPath = "foo"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "foo", c.BindUDSAddress.Name)
+				require.Equal(t, "unix", c.BindUDSAddress.Net)
+			},
+		},
+		{
+			msg: "default socket_path should be used if neither socket_path or the deprecated registration_uds_path is set",
+			input: func(c *Config) {
+				c.Server.DeprecatedRegistrationUDSPath = ""
+				c.Server.SocketPath = ""
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, defaultSocketPath, c.BindUDSAddress.Name)
+				require.Equal(t, "unix", c.BindUDSAddress.Net)
+			},
+		},
+
 		{
 			msg: "data_dir should be correctly configured",
 			input: func(c *Config) {
@@ -893,9 +948,12 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "bind_address and bind_port must be configured",
 		},
 		{
-			name:        "registration_uds_path must be configured",
-			applyConf:   func(c *Config) { c.Server.RegistrationUDSPath = "" },
-			expectedErr: "registration_uds_path must be configured",
+			name: "both socket_path and registration_uds_path cannot be configured",
+			applyConf: func(c *Config) {
+				c.Server.SocketPath = "foo"
+				c.Server.DeprecatedRegistrationUDSPath = "bar"
+			},
+			expectedErr: "socket_path and the deprecated registration_uds_path are mutually exclusive",
 		},
 		{
 			name:        "trust_domain must be configured",

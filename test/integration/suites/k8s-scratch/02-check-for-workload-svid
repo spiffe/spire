@@ -9,7 +9,6 @@ for ((i=1; i<=${MAXFETCHCHECKS}; i++)); do
     log-info "checking for workload SPIFFE ID ($i of $MAXFETCHCHECKS max)..."
     if ./bin/kubectl -nspire exec -t "${EXAMPLEPOD}" -- \
         /opt/spire/bin/spire-agent api fetch \
-            -socketPath /run/spire/sockets/agent.sock \
             | grep "SPIFFE ID:"; then
         DONE=1
         break

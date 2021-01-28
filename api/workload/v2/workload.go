@@ -20,7 +20,7 @@ import (
 
 const (
 	// DefaultAgentAddress is the default GRPC address to contact the spire agent at.
-	DefaultAgentAddress = "unix:///tmp/agent.sock"
+	DefaultAgentAddress = "unix:///tmp/spire-agent/public/api.sock"
 
 	// EnvVarAgentAddress is the environment variable name where the Workload API address may be configured.
 	EnvVarAgentAddress = "SPIFFE_ENDPOINT_SOCKET"

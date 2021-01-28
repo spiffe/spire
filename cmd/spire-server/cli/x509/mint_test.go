@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
@@ -35,7 +34,9 @@ const (
   -dns value
     	DNS name that will be included in SVID. Can be used more than once.
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	SPIFFE ID of the X509-SVID
   -ttl duration
@@ -93,6 +94,7 @@ func TestMintRun(t *testing.T) {
 	svidPath := filepath.Join(dir, "svid.pem")
 	keyPath := filepath.Join(dir, "key.pem")
 	bundlePath := filepath.Join(dir, "bundle.pem")
+	socketPath := filepath.Join(dir, "socket")
 
 	notAfter := time.Now().Add(30 * time.Second)
 	tmpl := &x509.Certificate{
@@ -108,12 +110,7 @@ func TestMintRun(t *testing.T) {
 	}))
 
 	server := new(fakeSVIDServer)
-	spiretest.StartGRPCSocketServer(t, util.DefaultSocketPath, func(s *grpc.Server) {
-		svidpb.RegisterSVIDServer(s, server)
-		bundlepb.RegisterBundleServer(s, server)
-	})
-
-	alternativeSocket := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+	spiretest.StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
 		svidpb.RegisterSVIDServer(s, server)
 		bundlepb.RegisterBundleServer(s, server)
 	})
@@ -133,12 +130,11 @@ func TestMintRun(t *testing.T) {
 		name string
 
 		// flags
-		spiffeID   string
-		ttl        time.Duration
-		dnsNames   []string
-		socketPath string
-		write      string
-		extraArgs  []string
+		spiffeID  string
+		ttl       time.Duration
+		dnsNames  []string
+		write     string
+		extraArgs []string
 
 		// results
 		code   int
@@ -170,7 +166,7 @@ func TestMintRun(t *testing.T) {
 		{
 			name:              "invalid flag",
 			code:              1,
-			stderr:            fmt.Sprintf("flag provided but not defined: -bad\n%s\n", expectedUsage),
+			stderr:            fmt.Sprintf("flag provided but not defined: -bad\n%s", expectedUsage),
 			extraArgs:         []string{"-bad", "flag"},
 			noRequestExpected: true,
 		},
@@ -234,12 +230,11 @@ func TestMintRun(t *testing.T) {
 			bundle: bundle,
 		},
 		{
-			name:       "success with ttl and dnsnames, written to directory, using alternate socket",
-			spiffeID:   "spiffe://domain.test/workload",
-			ttl:        time.Minute,
-			socketPath: alternativeSocket,
-			code:       0,
-			write:      ".",
+			name:     "success with ttl and dnsnames, written to directory",
+			spiffeID: "spiffe://domain.test/workload",
+			ttl:      time.Minute,
+			code:     0,
+			write:    ".",
 			resp: &svidpb.MintX509SVIDResponse{
 				Svid: &types.X509SVID{
 					CertChain: [][]byte{certDER},
@@ -274,10 +269,7 @@ func TestMintRun(t *testing.T) {
 				return testKey, nil
 			})
 
-			args := []string{}
-			if testCase.socketPath != "" {
-				args = append(args, "-registrationUDSPath", testCase.socketPath)
-			}
+			args := []string{"-socketPath", socketPath}
 			if testCase.spiffeID != "" {
 				args = append(args, "-spiffeID", testCase.spiffeID)
 			}

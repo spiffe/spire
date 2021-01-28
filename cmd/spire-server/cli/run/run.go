@@ -37,7 +37,7 @@ const (
 	commandName = "run"
 
 	defaultConfigPath         = "conf/server/server.conf"
-	defaultSocketPath         = "/tmp/spire-registration.sock"
+	defaultSocketPath         = "/tmp/spire-server/private/api.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
 )
@@ -61,22 +61,22 @@ type Config struct {
 }
 
 type serverConfig struct {
-	BindAddress         string             `hcl:"bind_address"`
-	BindPort            int                `hcl:"bind_port"`
-	CAKeyType           string             `hcl:"ca_key_type"`
-	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL               string             `hcl:"ca_ttl"`
-	DataDir             string             `hcl:"data_dir"`
-	Experimental        experimentalConfig `hcl:"experimental"`
-	Federation          *federationConfig  `hcl:"federation"`
-	JWTIssuer           string             `hcl:"jwt_issuer"`
-	LogFile             string             `hcl:"log_file"`
-	LogLevel            string             `hcl:"log_level"`
-	LogFormat           string             `hcl:"log_format"`
-	RateLimit           rateLimitConfig    `hcl:"ratelimit"`
-	RegistrationUDSPath string             `hcl:"registration_uds_path"`
-	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
-	TrustDomain         string             `hcl:"trust_domain"`
+	BindAddress    string             `hcl:"bind_address"`
+	BindPort       int                `hcl:"bind_port"`
+	CAKeyType      string             `hcl:"ca_key_type"`
+	CASubject      *caSubjectConfig   `hcl:"ca_subject"`
+	CATTL          string             `hcl:"ca_ttl"`
+	DataDir        string             `hcl:"data_dir"`
+	DefaultSVIDTTL string             `hcl:"default_svid_ttl"`
+	Experimental   experimentalConfig `hcl:"experimental"`
+	Federation     *federationConfig  `hcl:"federation"`
+	JWTIssuer      string             `hcl:"jwt_issuer"`
+	LogFile        string             `hcl:"log_file"`
+	LogLevel       string             `hcl:"log_level"`
+	LogFormat      string             `hcl:"log_format"`
+	RateLimit      rateLimitConfig    `hcl:"ratelimit"`
+	SocketPath     string             `hcl:"socket_path"`
+	TrustDomain    string             `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -86,6 +86,9 @@ type serverConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
+
+	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
+	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -277,7 +280,12 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
+	flags.StringVar(&c.DeprecatedRegistrationUDSPath, "registrationUDSPath", "", "Path to bind the SPIRE Server API socket to (deprecated; use -socketPath)")
+	// TODO: in 1.1.0. After registrationUDSPath is deprecated, we can put back the
+	// default flag value on socketPath like it was previously, since we'll no
+	// longer need to detect an unset flag from the default for deprecation
+	// logging/error handling purposes.
+	flags.StringVar(&c.SocketPath, "socketPath", "", `Path to bind the SPIRE Server API socket to (default "`+defaultSocketPath+`")`)
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -318,28 +326,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, err
 	}
 
-	ip := net.ParseIP(c.Server.BindAddress)
-	if ip == nil {
-		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
-	}
-	sc.BindAddress = &net.TCPAddr{
-		IP:   ip,
-		Port: c.Server.BindPort,
-	}
-
-	sc.BindUDSAddress = &net.UnixAddr{
-		Name: c.Server.RegistrationUDSPath,
-		Net:  "unix",
-	}
-
-	sc.DataDir = c.Server.DataDir
-
-	trustDomain, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Server.TrustDomain, err)
-	}
-	sc.TrustDomain = trustDomain
-
 	logOptions = append(logOptions,
 		log.WithLevel(c.Server.LogLevel),
 		log.WithFormat(c.Server.LogFormat),
@@ -350,6 +336,39 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, fmt.Errorf("could not start logger: %s", err)
 	}
 	sc.Log = logger
+
+	ip := net.ParseIP(c.Server.BindAddress)
+	if ip == nil {
+		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
+	}
+	sc.BindAddress = &net.TCPAddr{
+		IP:   ip,
+		Port: c.Server.BindPort,
+	}
+
+	var socketPath string
+	switch {
+	case c.Server.SocketPath != "":
+		socketPath = c.Server.SocketPath
+	case c.Server.DeprecatedRegistrationUDSPath != "":
+		logger.Warn("The registration_uds_path configurable is deprecated; use socket_path instead.")
+		socketPath = c.Server.DeprecatedRegistrationUDSPath
+	default:
+		socketPath = defaultSocketPath
+	}
+
+	sc.BindUDSAddress = &net.UnixAddr{
+		Name: socketPath,
+		Net:  "unix",
+	}
+
+	sc.DataDir = c.Server.DataDir
+
+	trustDomain, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Server.TrustDomain, err)
+	}
+	sc.TrustDomain = trustDomain
 
 	if c.Server.RateLimit.Attestation == nil {
 		c.Server.RateLimit.Attestation = &defaultRateLimitAttestation
@@ -480,8 +499,8 @@ func validateConfig(c *Config) error {
 		return errors.New("bind_address and bind_port must be configured")
 	}
 
-	if c.Server.RegistrationUDSPath == "" {
-		return errors.New("registration_uds_path must be configured")
+	if c.Server.SocketPath != "" && c.Server.DeprecatedRegistrationUDSPath != "" {
+		return errors.New("socket_path and the deprecated registration_uds_path are mutually exclusive")
 	}
 
 	if c.Server.TrustDomain == "" {
@@ -622,12 +641,11 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: &serverConfig{
-			BindAddress:         "0.0.0.0",
-			BindPort:            8081,
-			LogLevel:            defaultLogLevel,
-			LogFormat:           log.DefaultFormat,
-			RegistrationUDSPath: defaultSocketPath,
-			Experimental:        experimentalConfig{},
+			BindAddress:  "0.0.0.0",
+			BindPort:     8081,
+			LogLevel:     defaultLogLevel,
+			LogFormat:    log.DefaultFormat,
+			Experimental: experimentalConfig{},
 		},
 	}
 }

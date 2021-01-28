@@ -47,7 +47,9 @@ func TestEvictHelp(t *testing.T) {
 	test.client.Help()
 	require.Equal(t, `Usage of agent evict:
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID of the agent to evict (agent identity)
 `, test.stderr.String())
@@ -76,7 +78,7 @@ func TestEvict(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
+			args:               []string{"-socketPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
 			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
@@ -107,7 +109,9 @@ func TestListHelp(t *testing.T) {
 	test.client.Help()
 	require.Equal(t, `Usage of agent list:
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -139,7 +143,7 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
+			args:               []string{"-socketPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
 			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
@@ -163,7 +167,9 @@ func TestShowHelp(t *testing.T) {
 	test.client.Help()
 	require.Equal(t, `Usage of agent show:
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID of the agent to show (agent identity)
 `, test.stderr.String())
@@ -201,7 +207,7 @@ func TestShow(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
+			args:               []string{"-socketPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
 			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
 		},
@@ -241,7 +247,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agent
 		stdin:  stdin,
 		stdout: stdout,
 		stderr: stderr,
-		args:   []string{"-registrationUDSPath", socketPath},
+		args:   []string{"-socketPath", socketPath},
 		server: server,
 		client: client,
 	}
