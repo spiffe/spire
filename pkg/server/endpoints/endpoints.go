@@ -98,7 +98,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
-	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
+	buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 		defer call.Done(&err)
 		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
