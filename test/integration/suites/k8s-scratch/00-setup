@@ -5,7 +5,7 @@ KINDPATH=$(command -v kind || echo)
 
 UNAME=$(uname | awk '{print tolower($0)}')
 
-KINDVERSION=v0.9.0
+KINDVERSION=v0.10.0
 KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
 KUBECTLVERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
 KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"
@@ -20,11 +20,13 @@ else
     chmod +x ./bin/kubectl
 fi
 
-# Ensure kind is available
+# Ensure kind is available and at the expected version
 mkdir -p ./bin
-if [ -n "${KINDPATH}" ]; then
+if [ -n "${KINDPATH}" ] && "${KINDPATH}" version | grep -q "${KINDVERSION}"; then
     ln -s "${KINDPATH}" ./bin/kind
-else
+fi
+
+if [ ! -f ./bin/kind ]; then
     log-info "downloading kind from ${KINDURL}..."
     curl -# -f -Lo ./bin/kind "${KINDURL}"
     chmod +x ./bin/kind
@@ -41,6 +43,5 @@ log-info "starting cluster..."
 
 log-info "loading container images..."
 ./bin/kind load docker-image --name k8stest spire-server-scratch:latest-local
-./bin/kind load docker-image --name k8stest spire-agent:latest-local
 ./bin/kind load docker-image --name k8stest spire-agent-scratch:latest-local
 ./bin/kind load docker-image --name k8stest k8s-workload-registrar-scratch:latest-local
