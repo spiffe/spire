@@ -50,6 +50,9 @@ message Entry {
 
     // Revision number is bumped every time the entry is updated
     int64 revision_number = 11;
+
+    // Determines if the issued identity is exportable to a store
+    bool store_svid = 12;
 }
 
 // Field mask for Entry fields
@@ -83,4 +86,7 @@ message EntryMask {
 
     // revision_number field mask
     bool revision_number = 11;
+
+    // store_svid field mask
+    bool store_svid = 12;
 }

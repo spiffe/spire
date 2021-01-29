@@ -22,5 +22,17 @@
     ],
     "spiffe_id": "SpiffeId2",
     "ttl": 3
+  },
+  {
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      }
+    ],
+    "spiffe_id": "SpiffeId3",
+    "ttl": 2,
+    "admin": true,
+    "store_svid": true
   }
 ]

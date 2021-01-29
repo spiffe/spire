@@ -1708,6 +1708,7 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 		Admin:      req.Entry.Admin,
 		Downstream: req.Entry.Downstream,
 		Expiry:     req.Entry.EntryExpiry,
+		StoreSvid:  req.Entry.StoreSvid,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1825,6 +1826,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -1839,7 +1841,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1852,7 +1854,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1860,7 +1862,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1884,6 +1886,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL ::integer AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -1898,7 +1901,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1911,7 +1914,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1919,7 +1922,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1940,6 +1943,7 @@ SELECT
 	E.admin,
 	E.downstream,
 	E.expiry,
+	E.store_svid,
 	S.id AS selector_id,
 	S.type AS selector_type,
 	S.value AS selector_value,
@@ -1977,6 +1981,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -1991,7 +1996,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2004,7 +2009,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2012,7 +2017,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2207,6 +2212,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -2224,7 +2230,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2239,7 +2245,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2250,7 +2256,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2285,6 +2291,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL ::integer AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -2302,7 +2309,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2317,7 +2324,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2328,7 +2335,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2367,6 +2374,7 @@ SELECT
 	E.admin,
 	E.downstream,
 	E.expiry,
+	E.store_svid,
 	S.id AS selector_id,
 	S.type AS selector_type,
 	S.value AS selector_value,
@@ -2421,6 +2429,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -2438,7 +2447,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2453,7 +2462,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2464,7 +2473,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2864,6 +2873,7 @@ type entryRow struct {
 	SelectorID     sql.NullInt64
 	SelectorType   sql.NullString
 	SelectorValue  sql.NullString
+	StoreSvid      sql.NullBool
 	TrustDomain    sql.NullString
 	DNSNameID      sql.NullInt64
 	DNSName        sql.NullString
@@ -2880,6 +2890,7 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.Admin,
 		&r.Downstream,
 		&r.Expiry,
+		&r.StoreSvid,
 		&r.SelectorID,
 		&r.SelectorType,
 		&r.SelectorValue,
@@ -2911,6 +2922,9 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	}
 	if r.Expiry.Valid {
 		entry.EntryExpiry = r.Expiry.Int64
+	}
+	if r.StoreSvid.Valid {
+		entry.StoreSvid = r.StoreSvid.Bool
 	}
 	if r.RevisionNumber.Valid {
 		entry.RevisionNumber = r.RevisionNumber.Int64
@@ -2964,7 +2978,16 @@ func updateRegistrationEntry(tx *gorm.DB,
 	if err := tx.Find(&entry, "entry_id = ?", req.Entry.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
+	if req.Mask == nil || req.Mask.StoreSvid {
+		// TODO: add validation for updating it but not selectors
+		entry.StoreSvid = req.Entry.StoreSvid
+	}
 	if req.Mask == nil || req.Mask.Selectors {
+		if entry.StoreSvid && validateSelectorTypes(req.Entry.Selectors) {
+			return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+
+		}
+
 		// Delete existing selectors - we will write new ones
 		if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
 			return nil, sqlError.Wrap(err)
@@ -3172,6 +3195,11 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 
+	if entry.StoreSvid && validateSelectorTypes(entry.Selectors) {
+		return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+
+	}
+
 	if len(entry.SpiffeId) == 0 {
 		return sqlError.New("invalid registration entry: missing SPIFFE ID")
 	}
@@ -3181,6 +3209,17 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	}
 
 	return nil
+}
+
+func validateSelectorTypes(selectors []*common.Selector) bool {
+	// selectors must never by empty because previus validations
+	tpe := selectors[0].Type
+	for _, t := range selectors {
+		if tpe != t.Type {
+			return false
+		}
+	}
+	return true
 }
 
 func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
@@ -3277,6 +3316,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		EntryExpiry:    model.Expiry,
 		DnsNames:       dnsList,
 		RevisionNumber: model.RevisionNumber,
+		StoreSvid:      model.StoreSvid,
 	}, nil
 }
 

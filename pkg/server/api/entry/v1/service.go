@@ -186,6 +186,14 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 		}
 	}
 
+	if cEntry.StoreSvid {
+		if err := api.ValidateSelectors(cEntry.Selectors); err != nil {
+			return &entry.BatchCreateEntryResponse_Result{
+				Status: api.MakeStatus(log, codes.InvalidArgument, "selectors are not valid for StoreSvid", err),
+			}
+		}
+	}
+
 	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
 
 	existingEntry, err := s.getExistingEntry(ctx, cEntry)
@@ -364,6 +372,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if !mask.RevisionNumber {
 		e.RevisionNumber = 0
 	}
+
+	if !mask.StoreSvid {
+		e.StoreSvid = false
+	}
 }
 
 func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, error) {
@@ -401,25 +413,26 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		}
 	}
 
-	var resp *datastore.UpdateRegistrationEntryResponse
+	var mask *common.RegistrationEntryMask
 	if inputMask != nil {
-		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-			Entry: convEntry,
-			Mask: &common.RegistrationEntryMask{
-				SpiffeId:      inputMask.SpiffeId,
-				ParentId:      inputMask.ParentId,
-				Ttl:           inputMask.Ttl,
-				FederatesWith: inputMask.FederatesWith,
-				Admin:         inputMask.Admin,
-				Downstream:    inputMask.Downstream,
-				EntryExpiry:   inputMask.ExpiresAt,
-				DnsNames:      inputMask.DnsNames,
-				Selectors:     inputMask.Selectors,
-			}})
-	} else {
-		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{Entry: convEntry})
+		mask = &common.RegistrationEntryMask{
+			SpiffeId:      inputMask.SpiffeId,
+			ParentId:      inputMask.ParentId,
+			Ttl:           inputMask.Ttl,
+			FederatesWith: inputMask.FederatesWith,
+			Admin:         inputMask.Admin,
+			Downstream:    inputMask.Downstream,
+			EntryExpiry:   inputMask.ExpiresAt,
+			DnsNames:      inputMask.DnsNames,
+			Selectors:     inputMask.Selectors,
+			StoreSvid:     inputMask.StoreSvid,
+		}
 	}
 
+	resp, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+		Entry: convEntry,
+		Mask:  mask,
+	})
 	if err != nil {
 		return &entry.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to update entry", err),

@@ -65,6 +65,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		ExpiresAt:      e.EntryExpiry,
 		DnsNames:       append([]string(nil), e.DnsNames...),
 		RevisionNumber: e.RevisionNumber,
+		StoreSvid:      e.StoreSvid,
 	}, nil
 }
 
@@ -171,6 +172,11 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		revisionNumber = e.RevisionNumber
 	}
 
+	var storeSvid bool
+	if mask.StoreSvid {
+		storeSvid = e.StoreSvid
+	}
+
 	return &common.RegistrationEntry{
 		EntryId:        e.Id,
 		ParentId:       parentIDString,
@@ -183,5 +189,6 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		Selectors:      selectors,
 		Ttl:            ttl,
 		RevisionNumber: revisionNumber,
+		StoreSvid:      storeSvid,
 	}, nil
 }
