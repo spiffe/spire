@@ -109,7 +109,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		manager.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
-		healthChecks.ListenAndServe,
+		util.SerialRun(a.waitForTestDial, healthChecks.ListenAndServe),
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -261,6 +261,14 @@ func (a *Agent) bundleCachePath() string {
 
 func (a *Agent) agentSVIDPath() string {
 	return path.Join(a.c.DataDir, "agent_svid.der")
+}
+
+// waitForTestDial calls health.WaitForTestDial to wait for a connection to the
+// SPIRE Agent API socket. This function always returns nil, even if
+// health.WaitForTestDial exited due to a timeout.
+func (a *Agent) waitForTestDial(ctx context.Context) error {
+	health.WaitForTestDial(ctx, a.c.BindAddress)
+	return nil
 }
 
 // Status is used as a top-level health check for the Agent.

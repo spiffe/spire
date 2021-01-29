@@ -172,7 +172,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		metrics.ListenAndServe,
 		bundleManager.Run,
 		registrationManager.Run,
-		healthChecks.ListenAndServe,
+		util.SerialRun(s.waitForTestDial, healthChecks.ListenAndServe),
 	)
 	if err == context.Canceled {
 		err = nil
@@ -382,6 +382,14 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 			s.config.Log.Warn(msg)
 		}
 	}
+	return nil
+}
+
+// waitForTestDial calls health.WaitForTestDial to wait for a connection to the
+// SPIRE Server API socket. This function always returns nil, even if
+// health.WaitForTestDial exited due to a timeout.
+func (s *Server) waitForTestDial(ctx context.Context) error {
+	health.WaitForTestDial(ctx, s.config.BindUDSAddress)
 	return nil
 }
 
