@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
@@ -28,12 +27,67 @@ var (
 	log, _ = test.NewNullLogger()
 
 	trustDomainURL = url.URL{Scheme: "spiffe", Host: "example.org"}
+
+	testEntries = []*common.RegistrationEntry{
+		{
+			EntryId:  "ENTRYID1",
+			SpiffeId: "spiffe://example.org/id1",
+			Selectors: []*common.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith: []string{
+				"spiffe://domain1.com",
+			},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			SpiffeId: "spiffe://example.org/id2",
+			Selectors: []*common.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{
+				"spiffe://domain2.com",
+			},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			EntryId: "ENTRYID3",
+			Selectors: []*common.Selector{
+				{Type: "S", Value: "3"},
+			},
+		},
+		// This entry should be ignored since it is missing selectors
+		{
+			EntryId:  "ENTRYID4",
+			SpiffeId: "spiffe://example.org/id4",
+		},
+	}
+
+	testSvids = map[string]*X509SVID{
+		"entry-id": {
+			CertChain: []byte{11, 22, 33},
+		},
+	}
+
+	testBundles = map[string]*common.Bundle{
+		"spiffe://example.org": {
+			TrustDomainId: "spiffe://example.org",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte{10, 20, 30, 40}},
+			},
+		},
+		"spiffe://domain1.com": {
+			TrustDomainId: "spiffe://domain1.com",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte{10, 20, 30, 40}},
+			},
+		},
+	}
 )
 
 func TestFetchUpdates(t *testing.T) {
 	client, tc := createClient()
-
-	res := newTestFetchX509SVIDResponse()
 
 	tc.entryClient.entries = []*types.Entry{
 		{
@@ -125,11 +179,11 @@ func TestFetchUpdates(t *testing.T) {
 
 	// Assert results
 	require.Nil(t, err)
-	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
+	assert.Equal(t, testBundles, update.Bundles)
 	// Only the first registration entry should be returned since the rest are
 	// invalid for one reason or another
 	if assert.Len(t, update.Entries, 1) {
-		entry := res.SvidUpdate.RegistrationEntries[0]
+		entry := testEntries[0]
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
 	assertConnectionIsNotNil(t, client)
@@ -142,7 +196,7 @@ func TestRenewSVID(t *testing.T) {
 		name       string
 		agentErr   error
 		err        string
-		expectSVID *node.X509SVID
+		expectSVID *X509SVID
 		csr        []byte
 		agentSVID  *types.X509SVID
 	}{
@@ -157,7 +211,7 @@ func TestRenewSVID(t *testing.T) {
 				CertChain: [][]byte{{1, 2, 3}},
 				ExpiresAt: 12345,
 			},
-			expectSVID: &node.X509SVID{
+			expectSVID: &X509SVID{
 				CertChain: []byte{1, 2, 3},
 				ExpiresAt: 12345,
 			},
@@ -204,8 +258,6 @@ func TestRenewSVID(t *testing.T) {
 
 func TestNewX509SVIDs(t *testing.T) {
 	client, tc := createClient()
-
-	res := newTestFetchX509SVIDResponse()
 
 	tc.entryClient.entries = []*types.Entry{
 		{
@@ -264,7 +316,7 @@ func TestNewX509SVIDs(t *testing.T) {
 
 	// Do the request in a different go routine
 	var wg sync.WaitGroup
-	var svids map[string]*node.X509SVID
+	var svids map[string]*X509SVID
 	err := errors.New("a not nil error")
 	wg.Add(1)
 	go func() {
@@ -282,7 +334,7 @@ func TestNewX509SVIDs(t *testing.T) {
 
 	// Assert results
 	require.Nil(t, err)
-	assert.Equal(t, res.SvidUpdate.Svids, svids)
+	assert.Equal(t, testSvids, svids)
 	assertConnectionIsNotNil(t, client)
 }
 
@@ -292,71 +344,8 @@ func newTestCSRs() map[string][]byte {
 	}
 }
 
-func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
-	return &node.FetchX509SVIDResponse{
-		SvidUpdate: &node.X509SVIDUpdate{
-			RegistrationEntries: []*common.RegistrationEntry{
-				{
-					EntryId:  "ENTRYID1",
-					SpiffeId: "spiffe://example.org/id1",
-					Selectors: []*common.Selector{
-						{Type: "S", Value: "1"},
-					},
-					FederatesWith: []string{
-						"spiffe://domain1.com",
-					},
-					RevisionNumber: 1234,
-				},
-				// This entry should be ignored since it is missing an entry ID
-				{
-					SpiffeId: "spiffe://example.org/id2",
-					Selectors: []*common.Selector{
-						{Type: "S", Value: "2"},
-					},
-					FederatesWith: []string{
-						"spiffe://domain2.com",
-					},
-				},
-				// This entry should be ignored since it is missing a SPIFFE ID
-				{
-					EntryId: "ENTRYID3",
-					Selectors: []*common.Selector{
-						{Type: "S", Value: "3"},
-					},
-				},
-				// This entry should be ignored since it is missing selectors
-				{
-					EntryId:  "ENTRYID4",
-					SpiffeId: "spiffe://example.org/id4",
-				},
-			},
-			Svids: map[string]*node.X509SVID{
-				"entry-id": {
-					CertChain: []byte{11, 22, 33},
-				},
-			},
-			Bundles: map[string]*common.Bundle{
-				"spiffe://example.org": {
-					TrustDomainId: "spiffe://example.org",
-					RootCas: []*common.Certificate{
-						{DerBytes: []byte{10, 20, 30, 40}},
-					},
-				},
-				"spiffe://domain1.com": {
-					TrustDomainId: "spiffe://domain1.com",
-					RootCas: []*common.Certificate{
-						{DerBytes: []byte{10, 20, 30, 40}},
-					},
-				},
-			},
-		},
-	}
-}
-
 func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 	client, tc := createClient()
-
-	res := newTestFetchX509SVIDResponse()
 
 	tc.entryClient.entries = []*types.Entry{
 		{
@@ -434,11 +423,11 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 	update, err := client.FetchUpdates(context.Background())
 	require.NoError(t, err)
 
-	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
+	assert.Equal(t, testBundles, update.Bundles)
 	// Only the first registration entry should be returned since the rest are
 	// invalid for one reason or another
 	if assert.Len(t, update.Entries, 1) {
-		entry := res.SvidUpdate.RegistrationEntries[0]
+		entry := testEntries[0]
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
 	select {
@@ -704,10 +693,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
-			resp, err := client.NewJWTSVID(ctx, &node.JSR{
-				SpiffeId: "spiffe://example.org/host",
-				Audience: []string{"myAud"},
-			}, "entry-id")
+			resp, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})
 			if tt.err != "" {
 				require.Nil(t, resp)
 				require.EqualError(t, err, tt.err)

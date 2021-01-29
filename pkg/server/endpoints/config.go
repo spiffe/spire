@@ -23,7 +23,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -50,9 +49,6 @@ type Config struct {
 	// Server CA for signing SVIDs
 	ServerCA ca.ServerCA
 
-	// Allow agentless spiffeIds when doing node attestation
-	AllowAgentlessNodeAttestors bool
-
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
@@ -70,7 +66,7 @@ type Config struct {
 	Clock clock.Clock
 }
 
-func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
+func (c *Config) makeOldAPIServers() OldAPIServers {
 	registrationHandler := &registration.Handler{
 		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
 		Metrics:     c.Metrics,
@@ -79,24 +75,9 @@ func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
 		ServerCA:    c.ServerCA,
 	}
 
-	nodeHandler, err := node.NewHandler(node.HandlerConfig{
-		Log:                         c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
-		Metrics:                     c.Metrics,
-		Catalog:                     c.Catalog,
-		TrustDomain:                 c.TrustDomain,
-		ServerCA:                    c.ServerCA,
-		Manager:                     c.Manager,
-		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
-		RateLimitAttestation:        c.RateLimit.Attestation,
-	})
-	if err != nil {
-		return OldAPIServers{}, err
-	}
-
 	return OldAPIServers{
 		RegistrationServer: registrationHandler,
-		NodeServer:         nodeHandler,
-	}, nil
+	}
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() Server {

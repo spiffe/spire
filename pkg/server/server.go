@@ -305,19 +305,18 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 
 func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
-		TCPAddr:                     s.config.BindAddress,
-		UDSAddr:                     s.config.BindUDSAddress,
-		SVIDObserver:                svidObserver,
-		TrustDomain:                 s.config.TrustDomain,
-		Catalog:                     catalog,
-		ServerCA:                    serverCA,
-		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
-		Metrics:                     metrics,
-		Manager:                     caManager,
-		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
-		RateLimit:                   s.config.RateLimit,
-		Uptime:                      uptime.Uptime,
-		Clock:                       clock.New(),
+		TCPAddr:      s.config.BindAddress,
+		UDSAddr:      s.config.BindUDSAddress,
+		SVIDObserver: svidObserver,
+		TrustDomain:  s.config.TrustDomain,
+		Catalog:      catalog,
+		ServerCA:     serverCA,
+		Log:          s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Metrics:      metrics,
+		Manager:      caManager,
+		RateLimit:    s.config.RateLimit,
+		Uptime:       uptime.Uptime,
+		Clock:        clock.New(),
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

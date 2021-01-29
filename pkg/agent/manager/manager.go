@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -197,10 +196,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 		return nil, errors.New("no entry found")
 	}
 
-	newSVID, err := m.client.NewJWTSVID(ctx, &node.JSR{
-		SpiffeId: spiffeID,
-		Audience: audience,
-	}, entryID)
+	newSVID, err := m.client.NewJWTSVID(ctx, entryID, audience)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
