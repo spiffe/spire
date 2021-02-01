@@ -112,7 +112,7 @@ jobs:
       script:
         - make images
         - make scratch-images
-        - make integration
+        - CICD_TARGET_BRANCH="$TRAVIS_BRANCH" make integration
 
 notifications:
   email:
