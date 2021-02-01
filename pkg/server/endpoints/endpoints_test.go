@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	agentv1 "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
@@ -104,7 +103,6 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
 	assert.NotNil(t, endpoints.OldAPIServers.RegistrationServer)
-	assert.NotNil(t, endpoints.OldAPIServers.NodeServer)
 	assert.NotNil(t, endpoints.APIServers.AgentServer)
 	assert.NotNil(t, endpoints.APIServers.BundleServer)
 	assert.NotNil(t, endpoints.APIServers.DebugServer)
@@ -183,7 +181,6 @@ func TestListenAndServe(t *testing.T) {
 	metrics := fakemetrics.New()
 
 	registrationServer := newRegistrationServer()
-	nodeServer := newNodeServer()
 	bundleEndpointServer := newBundleEndpointServer()
 	clk := clock.NewMock(t)
 
@@ -202,7 +199,6 @@ func TestListenAndServe(t *testing.T) {
 		DataStore:    ds,
 		OldAPIServers: OldAPIServers{
 			RegistrationServer: registrationServer,
-			NodeServer:         nodeServer,
 		},
 		APIServers: APIServers{
 			AgentServer:  &agentv1.UnimplementedAgentServer{},
@@ -277,9 +273,6 @@ func TestListenAndServe(t *testing.T) {
 
 	t.Run("Registration", func(t *testing.T) {
 		testRegistrationAPI(ctx, t, registrationServer, udsConn, noauthConn, agentConn)
-	})
-	t.Run("Node", func(t *testing.T) {
-		testNodeAPI(ctx, t, nodeServer, udsConn, noauthConn, agentConn)
 	})
 	t.Run("Agent", func(t *testing.T) {
 		testAgentAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
@@ -377,36 +370,6 @@ func testRegistrationAPI(ctx context.Context, t *testing.T, s *registrationServe
 	})
 	t.Run("mTLS", func(t *testing.T) {
 		peer := call(t, agentConn)
-		tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
-		require.True(t, ok, "peer does not have TLS auth info")
-		require.NotEmpty(t, tlsInfo.State.PeerCertificates)
-		require.NotEmpty(t, tlsInfo.State.VerifiedChains)
-	})
-}
-
-func testNodeAPI(ctx context.Context, t *testing.T, s *nodeServer, udsConn, noauthConn, agentConn *grpc.ClientConn) {
-	call := func(t *testing.T, conn *grpc.ClientConn) *peer.Peer {
-		return doCall(t, s.callTracker, func() error {
-			client := node.NewNodeClient(conn)
-			_, err := client.FetchBundle(ctx, &node.FetchBundleRequest{})
-			return err
-		})
-	}
-	t.Run("UDS", func(t *testing.T) {
-		peer := call(t, udsConn)
-		require.Nil(t, peer, "unexpected peer; node API is not served over UDS")
-	})
-	t.Run("TLS", func(t *testing.T) {
-		peer := call(t, noauthConn)
-		require.NotNil(t, peer, "missing peer")
-		tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
-		require.True(t, ok, "peer does not have TLS auth info")
-		require.Empty(t, tlsInfo.State.PeerCertificates)
-		require.Empty(t, tlsInfo.State.VerifiedChains)
-	})
-	t.Run("mTLS", func(t *testing.T) {
-		peer := call(t, agentConn)
-		require.NotNil(t, peer, "missing peer")
 		tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
 		require.True(t, ok, "peer does not have TLS auth info")
 		require.NotEmpty(t, tlsInfo.State.PeerCertificates)
@@ -806,17 +769,6 @@ type registrationServer struct {
 
 func newRegistrationServer() *registrationServer {
 	return &registrationServer{
-		callTracker: &callTracker{},
-	}
-}
-
-type nodeServer struct {
-	node.UnimplementedNodeServer
-	*callTracker
-}
-
-func newNodeServer() *nodeServer {
-	return &nodeServer{
 		callTracker: &callTracker{},
 	}
 }

@@ -34,7 +34,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api.sock")
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
-	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Address, "0.0.0.0")
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Port, 8443)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.ACME.DomainName, "example.org")
@@ -660,15 +659,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "allow_agentless_node_attestors is configured correctly",
-			input: func(c *Config) {
-				c.Server.Experimental.AllowAgentlessNodeAttestors = true
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.True(t, c.Experimental.AllowAgentlessNodeAttestors)
 			},
 		},
 		{

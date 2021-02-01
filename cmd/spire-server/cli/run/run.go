@@ -94,7 +94,7 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
+	DeprecatedAllowAgentlessNodeAttestors *bool `hcl:"allow_agentless_node_attestors"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -375,7 +375,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.RateLimit.Attestation = *c.Server.RateLimit.Attestation
 
-	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
+	if c.Server.Experimental.DeprecatedAllowAgentlessNodeAttestors != nil {
+		// TODO: remove in 1.1.0
+		logger.Warn("The experimental allow_agentless_node_attestors configurable is deprecated and unused; it will be removed in a future release")
+	}
+
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil {
 			sc.Federation.BundleEndpoint = &bundle.EndpointConfig{

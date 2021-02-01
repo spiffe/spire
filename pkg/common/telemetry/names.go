@@ -576,9 +576,6 @@ const (
 	// MintX509SVID functionality related to minting an X.509 SVID
 	MintX509SVID = "mint_x509_svid"
 
-	// NodeAPI functionality related to attested/attesting nodes (agents)
-	NodeAPI = "node_api"
-
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"
 

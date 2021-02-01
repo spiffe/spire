@@ -23,8 +23,6 @@ import (
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
@@ -47,38 +45,23 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog               catalog.Catalog
-	Metrics               telemetry.Metrics
-	JoinToken             string
-	TrustDomain           url.URL
-	TrustBundle           []*x509.Certificate
-	InsecureBootstrap     bool
-	BundleCachePath       string
-	SVIDCachePath         string
-	Log                   logrus.FieldLogger
-	ServerAddress         string
-	CreateNewAgentClient  func(grpc.ClientConnInterface) agent.AgentClient
-	CreateNewBundleClient func(grpc.ClientConnInterface) bundle.BundleClient
+	Catalog           catalog.Catalog
+	Metrics           telemetry.Metrics
+	JoinToken         string
+	TrustDomain       url.URL
+	TrustBundle       []*x509.Certificate
+	InsecureBootstrap bool
+	BundleCachePath   string
+	SVIDCachePath     string
+	Log               logrus.FieldLogger
+	ServerAddress     string
 }
 
 type attestor struct {
 	c *Config
-
-	// Used for testing purposes.
-
 }
 
 func New(config *Config) Attestor {
-	// Defaults for CreateNewAgentClient and CreateNewBundleClient functions
-	if config != nil {
-		if config.CreateNewAgentClient == nil {
-			config.CreateNewAgentClient = agent.NewAgentClient
-		}
-		if config.CreateNewBundleClient == nil {
-			config.CreateNewBundleClient = bundle.NewBundleClient
-		}
-	}
-
 	return &attestor{c: config}
 }
 
