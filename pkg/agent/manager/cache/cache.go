@@ -312,7 +312,10 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			for _, id := range newEntry.FederatesWith {
 				td, err := spiffeid.TrustDomainFromString(id)
 				if err != nil {
-					c.log.WithField(telemetry.TrustDomainID, id).Warn("Federated Trust Domain invalid")
+					c.log.WithFields(logrus.Fields{
+						telemetry.TrustDomainID: id,
+						logrus.ErrorKey:         err,
+					}).Warn("Invalid federated trust domain")
 					continue
 				}
 				if bundleChanged[td] {
@@ -614,7 +617,10 @@ func (c *Cache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 		for _, federatesWith := range identity.Entry.FederatesWith {
 			td, err := spiffeid.TrustDomainFromString(federatesWith)
 			if err != nil {
-				c.log.WithField(telemetry.TrustDomainID, federatesWith).Warn("Federated Trust Domain invalid")
+				c.log.WithFields(logrus.Fields{
+					telemetry.TrustDomainID: federatesWith,
+					logrus.ErrorKey:         err,
+				}).Warn("Invalid federated trust domain")
 				continue
 			}
 			if federatedBundle := c.bundles[td]; federatedBundle != nil {

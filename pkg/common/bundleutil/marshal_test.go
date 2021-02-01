@@ -126,7 +126,7 @@ func TestMarshal(t *testing.T) {
 		},
 	}
 
-	trustDomain := spiffeid.RequireTrustDomainFromString("spiffe://domain.test")
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 
 	for _, testCase := range testCases {
 		testCase := testCase

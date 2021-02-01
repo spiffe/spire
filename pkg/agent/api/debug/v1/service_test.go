@@ -35,7 +35,7 @@ func TestGetInfo(t *testing.T) {
 	// Create root CA
 	ca := testca.New(t, td)
 	cachedBundleCert := ca.Bundle().X509Authorities()[0]
-	trustDomain := spiffeid.RequireTrustDomainFromString("spiffe://example.org")
+	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	cachedBundle := bundleutil.BundleFromRootCA(trustDomain, cachedBundleCert)
 
 	x509SVID := ca.CreateX509SVID(td.NewID("/spire/agent/foo"))

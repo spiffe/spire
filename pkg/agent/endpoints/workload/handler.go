@@ -94,7 +94,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		id, err := spiffeid.FromString(spiffeID)
 		if err != nil {
 			log.WithError(err).Errorf("Invalid requested SPIFFE ID: %s", spiffeID)
-			return nil, fmt.Errorf("invalid requested SPIFFE ID: %w", err)
+			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
 		}
 
 		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)

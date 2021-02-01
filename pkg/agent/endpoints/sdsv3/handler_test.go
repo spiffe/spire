@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	tdBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("spiffe://domain.test"), &x509.Certificate{
+	tdBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("domain.test"), &x509.Certificate{
 		Raw: []byte("BUNDLE"),
 	})
 	tdValidationContext = &tls_v3.Secret{
@@ -58,7 +58,7 @@ var (
 		},
 	}
 
-	fedBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("spiffe://otherdomain.test"), &x509.Certificate{
+	fedBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("otherdomain.test"), &x509.Certificate{
 		Raw: []byte("FEDBUNDLE"),
 	})
 	fedValidationContext = &tls_v3.Secret{

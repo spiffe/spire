@@ -11,7 +11,7 @@ import (
 )
 
 func TestCalculateRefreshHint(t *testing.T) {
-	trustDomain := spiffeid.RequireTrustDomainFromString("spiffe://domain.test")
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 	emptyBundle := New(trustDomain)
 
 	emptyBundleWithRefreshHint, err := BundleFromProto(&common.Bundle{

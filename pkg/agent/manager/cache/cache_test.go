@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	trustDomain1  = spiffeid.RequireTrustDomainFromString("spiffe://domain.test")
-	trustDomain2  = spiffeid.RequireTrustDomainFromString("spiffe://otherdomain.test")
+	trustDomain1  = spiffeid.RequireTrustDomainFromString("domain.test")
+	trustDomain2  = spiffeid.RequireTrustDomainFromString("otherdomain.test")
 	bundleV1      = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{1}})
 	bundleV2      = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{2}})
 	bundleV3      = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{3}})
