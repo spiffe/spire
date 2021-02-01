@@ -22,7 +22,7 @@ spec:
       containers:
         - name: example-workload
           image: spire-agent-scratch:latest-local
-          command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
+          command: ["/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
           volumeMounts:
             - name: spire-agent-socket
