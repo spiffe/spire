@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.0.0] - 2021-02-02
+
+### Added
+- Filtering by federated trust domains in `ListEntries` (#1967)
+- Logging when lookup of user by uid or group by gid fails in the `unix` WorkloadAttestor plugin (#2048)
+- Timeouts to calls to KeyManager plugins (#2044)
+- gRPC Health v1 services in Server and Agent exposed at `/grpc.health.v1.Health/Check` path (#2057, #2058, #2087)
+- Uptime metrics in Server and Agent (#2032)
+
+### Changed
+- `/ready` HTTP endpoint on Agent now checks the health of the Workload API (#2015)
+- Bundle and k8s-workload-registrar endpoints now only accept clients using TLS v1.2+ (#2025)
+- SDS API in Agent will return an error if an SDS client requests resource names that don't exist (#2020)
+- Server can now be built without `cgo` enabled when `sqlite3` is not used as a datastore (#2051)
+- Default Server Unix domain socket path is now `/tmp/spire-server/private/api.sock` (#2075)
+- Default Agent Unix domain socket path is now `/tmp/spire-agent/public/api.sock` (#2075)
+
+### Removed
+- Deprecated `enable_sds` configuration field in Agent (#2021)
+- `experimental bundle` Server CLI commands (#2062)
+- Deprecated `bundle_endpoint_enabled`, `bundle_endpoint_address`, `bundle_endpoint_port`, `bundle_endpoint_acme`, and `federates_with` federation configuration fields in Server (#2062)
+- Deprecated Server Node APIs: `Attest`, `FetchX509SVID`, `FetchJWTSVID`, `FetchX509CASVID`, `PushJWTKeyUpstream`, and `FetchBundle` (#2093)
+- Experimental `allow_agentless_node_attestors` configuration field in Server (#2098)
+
+### Fixed
+- File descriptor leak on new connections to the Workload API on Linux (#2043)
+- Agent logs an error and automatically shuts down when its SVID has expired and it requires re-attestation (#2065)
+- Reporting of errors in Server entry cache telemetry (#2091)
+
 ## [0.12.0] - 2020-12-17
 
 ### Added
