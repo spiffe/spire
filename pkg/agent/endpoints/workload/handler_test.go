@@ -177,6 +177,102 @@ func TestFetchX509SVID(t *testing.T) {
 	}
 }
 
+func TestFetchX509Bundle(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
+
+	bundle := ca.Bundle()
+	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
+
+	federatedBundle := testca.New(t, td2).Bundle()
+	federatedBundleX509 := x509util.DERFromCertificates(federatedBundle.X509Authorities())
+
+	for _, tt := range []struct {
+		testName   string
+		updates    []*cache.WorkloadUpdate
+		attestErr  error
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *workloadPB.X509BundlesResponse
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			testName:   "no identity issued",
+			updates:    []*cache.WorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchX509Bundles",
+					},
+				},
+			},
+		},
+		{
+			testName:   "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unknown,
+			expectMsg:  "ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchX509Bundles",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			testName: "success",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID),
+					},
+					Bundle: utilBundleFromBundle(t, bundle),
+					FederatedBundles: map[string]*bundleutil.Bundle{
+						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.X509BundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString():          bundleX509,
+					federatedBundle.TrustDomain().IDString(): federatedBundleX509,
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.testName, func(t *testing.T) {
+			params := testParams{
+				CA:         ca,
+				Updates:    tt.updates,
+				AttestErr:  tt.attestErr,
+				ExpectLogs: tt.expectLogs,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
 func TestFetchJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 

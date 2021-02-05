@@ -205,6 +205,63 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 }
 
+// FetchX509Bundles processes request for x509 bundles
+func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
+	ctx := stream.Context()
+	log := rpccontext.Logger(ctx)
+
+	selectors, err := h.c.Attestor.Attest(ctx)
+	if err != nil {
+		log.WithError(err).Error("Workload attestation failed")
+		return err
+	}
+
+	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
+	defer subscriber.Finish()
+
+	for {
+		select {
+		case update := <-subscriber.Updates():
+			err := sendX509BundlesResponse(update, stream, log)
+			if err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger) error {
+	if len(update.Identities) == 0 {
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		return status.Errorf(codes.PermissionDenied, "no identity issued")
+	}
+
+	err := stream.Send(composeX509BundlesResponse(update))
+	if err != nil {
+		log.WithError(err).Error("Failed to send X509 bundle response")
+		return err
+	}
+
+	return nil
+}
+
+func composeX509BundlesResponse(update *cache.WorkloadUpdate) *workload.X509BundlesResponse {
+	bundles := make(map[string][]byte)
+	if update.Bundle != nil {
+		bundles[update.Bundle.TrustDomainID()] = marshalBundle(update.Bundle.RootCAs())
+	}
+
+	for _, federatedBundle := range update.FederatedBundles {
+		bundles[federatedBundle.TrustDomainID()] = marshalBundle(federatedBundle.RootCAs())
+	}
+
+	return &workload.X509BundlesResponse{
+		Bundles: bundles,
+	}
+}
+
 func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool) (err error) {
 	if len(update.Identities) == 0 {
 		if !quietLogging {
