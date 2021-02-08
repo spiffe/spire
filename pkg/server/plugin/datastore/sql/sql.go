@@ -2979,15 +2979,9 @@ func updateRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 	if req.Mask == nil || req.Mask.StoreSvid {
-		// TODO: add validation for updating it but not selectors
 		entry.StoreSvid = req.Entry.StoreSvid
 	}
 	if req.Mask == nil || req.Mask.Selectors {
-		if entry.StoreSvid && validateSelectorTypes(req.Entry.Selectors) {
-			return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
-
-		}
-
 		// Delete existing selectors - we will write new ones
 		if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
 			return nil, sqlError.Wrap(err)
@@ -3003,6 +2997,11 @@ func updateRegistrationEntry(tx *gorm.DB,
 			selectors = append(selectors, selector)
 		}
 		entry.Selectors = selectors
+	}
+
+	// Verify that final selectors contains the same 'type' when entry is used for store SVIDs
+	if entry.StoreSvid && !validateSelectorTypes(entry.Selectors) {
+		return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 	}
 
 	if req.Mask == nil || req.Mask.DnsNames {
@@ -3187,17 +3186,29 @@ func modelToBundle(model *Bundle) (*common.Bundle, error) {
 }
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
+	fmt.Println("Validationg")
 	if entry == nil {
 		return sqlError.New("invalid request: missing registered entry")
 	}
+	fmt.Printf("entry: %v\n", entry)
 
 	if entry.Selectors == nil || len(entry.Selectors) == 0 {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 
-	if entry.StoreSvid && validateSelectorTypes(entry.Selectors) {
-		return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
-
+	// In case of StoreSvid is set, all entries 'must' be the same type,
+	// it is done this way to avoid users to use regular selectors for for this kind of entries,
+	// and a single entry can be used only for one platform.
+	if entry.StoreSvid {
+		fmt.Println("STORE SVID")
+		tpe := entry.Selectors[0].Type
+		fmt.Printf("STORE SVID: %q \n", tpe)
+		for _, t := range entry.Selectors {
+			if tpe != t.Type {
+				fmt.Printf("Diffenret: %q - %q \n", tpe, t.Type)
+				return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+			}
+		}
 	}
 
 	if len(entry.SpiffeId) == 0 {
@@ -3211,11 +3222,14 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	return nil
 }
 
-func validateSelectorTypes(selectors []*common.Selector) bool {
-	// selectors must never by empty because previus validations
-	tpe := selectors[0].Type
+// validateSelectorTypes validates that all selectors has the same type,
+func validateSelectorTypes(selectors []Selector) bool {
+	typ := ""
 	for _, t := range selectors {
-		if tpe != t.Type {
+		switch {
+		case typ == "":
+			typ = t.Type
+		case typ != t.Type:
 			return false
 		}
 	}

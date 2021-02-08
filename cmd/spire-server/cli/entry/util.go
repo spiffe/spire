@@ -67,6 +67,10 @@ func printEntry(e *types.Entry, printf func(string, ...interface{}) error) {
 		printf("Admin            : %t\n", e.Admin)
 	}
 
+	if e.StoreSvid {
+		printf("StoreSvid        : %t\n", e.StoreSvid)
+	}
+
 	printf("\n")
 }
 

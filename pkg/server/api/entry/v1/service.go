@@ -3,6 +3,7 @@ package entry
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -186,14 +187,6 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 		}
 	}
 
-	if cEntry.StoreSvid {
-		if err := api.ValidateSelectors(cEntry.Selectors); err != nil {
-			return &entry.BatchCreateEntryResponse_Result{
-				Status: api.MakeStatus(log, codes.InvalidArgument, "selectors are not valid for StoreSvid", err),
-			}
-		}
-	}
-
 	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
 
 	existingEntry, err := s.getExistingEntry(ctx, cEntry)
@@ -208,6 +201,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 
 	if existingEntry == nil {
 		// Create entry
+		fmt.Println("Create entry!!1")
 		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 			Entry: cEntry,
 		})

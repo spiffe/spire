@@ -2075,7 +2075,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.Ttl = 2
 	entry.Admin = true
 	entry.Downstream = true
-	entry.StoreSvid = true
 
 	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
@@ -2086,7 +2085,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	s.Require().Equal(int32(2), entry.Ttl)
 	s.Require().True(entry.Admin)
 	s.Require().True(entry.Downstream)
-	s.Require().True(entry.StoreSvid)
 
 	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: entry.EntryId})
 	s.Require().NoError(err)
@@ -2099,6 +2097,47 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 		Entry: entry,
 	})
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+}
+
+func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type1", Value: "Value2"},
+			{Type: "Type1", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	})
+
+	entry.StoreSvid = true
+
+	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(updateRegistrationEntryResponse)
+	// Verify output has expected values
+	s.Require().True(entry.StoreSvid)
+
+	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: entry.EntryId})
+	s.Require().NoError(err)
+	s.Require().NotNil(fetchRegistrationEntryResponse)
+	s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
+	s.RequireProtoEqual(updateRegistrationEntryResponse.Entry, fetchRegistrationEntryResponse.Entry)
+
+	// Update with invalid selectors
+	entry.Selectors = []*common.Selector{
+		{Type: "Type1", Value: "Value1"},
+		{Type: "Type1", Value: "Value2"},
+		{Type: "Type2", Value: "Value3"},
+	}
+	resp, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
@@ -2118,7 +2157,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		EntryExpiry:   1000,
 		DnsNames:      []string{"dns1"},
 		Downstream:    false,
-		StoreSvid:     true,
+		StoreSvid:     false,
 	}
 	newEntry := &common.RegistrationEntry{
 		ParentId:      "spiffe://example.org/oldParentId",
@@ -2235,10 +2274,21 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{StoreSvid: true},
 			update: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid },
 			result: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid }},
-		{name: "Update Admin, Good Data, Mask False",
+		{name: "Update StoreSvid, Good Data, Mask False",
 			mask:   &common.RegistrationEntryMask{Admin: false},
 			update: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid },
 			result: func(e *common.RegistrationEntry) {}},
+		{name: "Update StoreSvid, Invalid selectors, Mask True",
+			mask: &common.RegistrationEntryMask{StoreSvid: true, Selectors: true},
+			update: func(e *common.RegistrationEntry) {
+				e.StoreSvid = newEntry.StoreSvid
+				e.Selectors = []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+					{Type: "Type2", Value: "Value2"},
+				}
+			},
+			err: sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
+		},
 		/// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
 		{name: "Update EntryExpiry, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{EntryExpiry: true},

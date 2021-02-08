@@ -24,6 +24,23 @@
             "spiffe_id": "spiffe://example.org/Database",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "ttl": 200
+        },
+        {
+            "entry_id": "entry-id-3",
+            "selectors": [
+                {
+                    "type": "type",
+                    "value": "key1:value"
+                },
+                {
+                    "type": "type",
+                    "value": "key2:value"
+                }
+            ],
+            "spiffe_id": "spiffe://example.org/storesvid",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
+	    "store_svid": true,
+            "ttl": 200
         }
     ]
 }

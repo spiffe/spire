@@ -36,6 +36,7 @@ func TestAllTrueMasks(t *testing.T) {
 		ExpiresAt:      true,
 		DnsNames:       true,
 		RevisionNumber: true,
+		StoreSvid:      true,
 	}, protoutil.AllTrueEntryMask)
 
 	assert.Equal(t, &common.BundleMask{

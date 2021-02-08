@@ -784,6 +784,54 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
+			name: "Valid Store SVID entry",
+			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:        "entry1",
+						ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
+						SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/svidstore"},
+						StoreSvid: true,
+					},
+				},
+			},
+			outputMask: &types.EntryMask{
+				ParentId:  true,
+				SpiffeId:  true,
+				StoreSvid: true,
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id: "entry1",
+					ParentId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "agent",
+					},
+					SpiffeId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/svidstore",
+					},
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+						{Type: "type", Value: "value2"},
+					},
+					StoreSvid: true,
+				}},
+			expectDsEntries: map[string]*common.RegistrationEntry{
+				"entry1": {
+					EntryId:  "entry1",
+					ParentId: "spiffe://example.org/agent",
+					SpiffeId: "spiffe://example.org/svidstore",
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value1"},
+						{Type: "type", Value: "value2"},
+					},
+					StoreSvid: true,
+				},
+			},
+		},
+		{
 			name: "no output mask",
 			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
 				{
@@ -802,6 +850,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						ExpiresAt:     expiresAt,
 						FederatesWith: []string{"domain1.org"},
 						Ttl:           60,
+						StoreSvid:     false,
 					},
 				},
 			},
@@ -1468,6 +1517,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 		DnsNames:   []string{"dns1", "dns2"},
 		Downstream: true,
 	}
+	storeSvidEntry := &types.Entry{
+		ParentId:  parent,
+		SpiffeId:  entry1SpiffeID,
+		Ttl:       60,
+		StoreSvid: true,
+		Selectors: []*types.Selector{
+			{Type: "typ", Value: "key1:value"},
+			{Type: "typ", Value: "key2:value"},
+		},
+		FederatesWith: []string{
+			federatedTd.String(),
+		},
+		ExpiresAt: expiresAt,
+	}
 	updateEverythingEntry := &types.Entry{
 		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
@@ -1618,6 +1681,72 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "gid:2000"},
 							{Type: "unix", Value: "uid:2000"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update StoreSVID with Selectors",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			outputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					StoreSvid: true,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "key1:value"},
+						{Type: "type", Value: "key2:value"},
+					},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						StoreSvid: true,
+						Selectors: []*types.Selector{
+							{Type: "type", Value: "key1:value"},
+							{Type: "type", Value: "key2:value"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:           "Success Update from StoreSVID to normal",
+			initialEntries: []*types.Entry{storeSvidEntry},
+			inputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			outputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					StoreSvid: false,
+					Selectors: []*types.Selector{
+						{Type: "type1", Value: "key1:value"},
+						{Type: "type2", Value: "key2:value"},
+					},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						StoreSvid: false,
+						Selectors: []*types.Selector{
+							{Type: "type1", Value: "key1:value"},
+							{Type: "type2", Value: "key2:value"},
 						},
 					},
 				},
@@ -1830,6 +1959,40 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Ttl: 60,
 					},
 				},
+			},
+		},
+		{
+			name:           "Fail StoreSvid with invalid Selectors",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					StoreSvid: true,
+					Selectors: []*types.Selector{
+						{Type: "type1", Value: "key1:value"},
+						{Type: "type2", Value: "key2:value"},
+					},
+				},
+			},
+			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.Internal), Message: "failed to update entry: datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to update entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled",
+						},
+					},
+				}
 			},
 		},
 		{

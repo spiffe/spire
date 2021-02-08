@@ -59,6 +59,9 @@ type createCommand struct {
 
 	// DNSNames entries for SVIDs based on this entry
 	dnsNames StringsFlag
+
+	// StoreSvid determines if the issued identity is exportable to a store
+	storeSvid bool
 }
 
 func (*createCommand) Name() string {
@@ -78,6 +81,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 	f.BoolVar(&c.node, "node", false, "If set, this entry will be applied to matching nodes rather than workloads")
 	f.BoolVar(&c.admin, "admin", false, "If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs")
+	f.BoolVar(&c.storeSvid, "storeSvid", false, "If set, issued identity is exportable to a store")
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
@@ -194,6 +198,7 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		Downstream: c.downstream,
 		ExpiresAt:  c.entryExpiry,
 		DnsNames:   c.dnsNames,
+		StoreSvid:  c.storeSvid,
 	}
 
 	selectors := []*types.Selector{}
