@@ -6,7 +6,7 @@
 - Filtering by federated trust domains in `ListEntries` RPC in SPIRE Server (#1967)
 - Logging when lookup of user by uid or group by gid fails in the `unix` WorkloadAttestor plugin (#2048)
 - Timeouts to calls to KeyManager plugins (#2044)
-- Basic [gRPC Health v1 services](https://github.com/grpc/grpc/blob/master/doc/health-checking.md) in server and agent exposed at `/grpc.health.v1.Health/Check` path (#2057, #2058, #2087)
+- Initial implementation of [gRPC Health v1 services](https://github.com/grpc/grpc/blob/master/doc/health-checking.md) in server and agent exposed at `/grpc.health.v1.Health/Check` path (#2057, #2058, #2087)
 - Uptime metrics in server and agent (#2032)
 
 ### Changed
