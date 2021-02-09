@@ -188,13 +188,14 @@ func TestFetchX509Bundle(t *testing.T) {
 	federatedBundleX509 := x509util.DERFromCertificates(federatedBundle.X509Authorities())
 
 	for _, tt := range []struct {
-		testName   string
-		updates    []*cache.WorkloadUpdate
-		attestErr  error
-		expectCode codes.Code
-		expectMsg  string
-		expectResp *workloadPB.X509BundlesResponse
-		expectLogs []spiretest.LogEntry
+		testName                      string
+		updates                       []*cache.WorkloadUpdate
+		attestErr                     error
+		expectCode                    codes.Code
+		expectMsg                     string
+		expectResp                    *workloadPB.X509BundlesResponse
+		expectLogs                    []spiretest.LogEntry
+		allowUnauthenticatedVerifiers bool
 	}{
 		{
 			testName:   "no identity issued",
@@ -251,14 +252,34 @@ func TestFetchX509Bundle(t *testing.T) {
 				},
 			},
 		},
+		{
+			testName:                      "when allowed to fetch without identity",
+			allowUnauthenticatedVerifiers: true,
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{},
+					Bundle:     utilBundleFromBundle(t, bundle),
+					FederatedBundles: map[string]*bundleutil.Bundle{
+						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.X509BundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString(): bundleX509,
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
-				CA:         ca,
-				Updates:    tt.updates,
-				AttestErr:  tt.attestErr,
-				ExpectLogs: tt.expectLogs,
+				CA:                            ca,
+				Updates:                       tt.updates,
+				AttestErr:                     tt.attestErr,
+				ExpectLogs:                    tt.expectLogs,
+				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -686,13 +707,14 @@ func TestValidateJWTSVID(t *testing.T) {
 }
 
 type testParams struct {
-	CA         *testca.CA
-	Identities []cache.Identity
-	Updates    []*cache.WorkloadUpdate
-	AttestErr  error
-	ManagerErr error
-	ExpectLogs []spiretest.LogEntry
-	AsPID      int
+	CA                            *testca.CA
+	Identities                    []cache.Identity
+	Updates                       []*cache.WorkloadUpdate
+	AttestErr                     error
+	ManagerErr                    error
+	ExpectLogs                    []spiretest.LogEntry
+	AsPID                         int
+	AllowUnauthenticatedVerifiers bool
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
@@ -706,8 +728,9 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	}
 
 	handler := workload.New(workload.Config{
-		Manager:  manager,
-		Attestor: &FakeAttestor{err: params.AttestErr},
+		Manager:                       manager,
+		Attestor:                      &FakeAttestor{err: params.AttestErr},
+		AllowUnauthenticatedVerifiers: params.AllowUnauthenticatedVerifiers,
 	})
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(

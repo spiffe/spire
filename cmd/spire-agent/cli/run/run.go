@@ -55,20 +55,21 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir           string    `hcl:"data_dir"`
-	AdminSocketPath   string    `hcl:"admin_socket_path"`
-	InsecureBootstrap bool      `hcl:"insecure_bootstrap"`
-	JoinToken         string    `hcl:"join_token"`
-	LogFile           string    `hcl:"log_file"`
-	LogFormat         string    `hcl:"log_format"`
-	LogLevel          string    `hcl:"log_level"`
-	SDS               sdsConfig `hcl:"sds"`
-	ServerAddress     string    `hcl:"server_address"`
-	ServerPort        int       `hcl:"server_port"`
-	SocketPath        string    `hcl:"socket_path"`
-	TrustBundlePath   string    `hcl:"trust_bundle_path"`
-	TrustBundleURL    string    `hcl:"trust_bundle_url"`
-	TrustDomain       string    `hcl:"trust_domain"`
+	DataDir                       string    `hcl:"data_dir"`
+	AdminSocketPath               string    `hcl:"admin_socket_path"`
+	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
+	JoinToken                     string    `hcl:"join_token"`
+	LogFile                       string    `hcl:"log_file"`
+	LogFormat                     string    `hcl:"log_format"`
+	LogLevel                      string    `hcl:"log_level"`
+	SDS                           sdsConfig `hcl:"sds"`
+	ServerAddress                 string    `hcl:"server_address"`
+	ServerPort                    int       `hcl:"server_port"`
+	SocketPath                    string    `hcl:"socket_path"`
+	TrustBundlePath               string    `hcl:"trust_bundle_path"`
+	TrustBundleURL                string    `hcl:"trust_bundle_url"`
+	TrustDomain                   string    `hcl:"trust_domain"`
+	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -253,6 +254,7 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 	flags.StringVar(&c.TrustBundleURL, "trustBundleUrl", "", "URL to download the SPIRE server CA bundle")
+	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -419,6 +421,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 			return nil, err
 		}
 	}
+
+	ac.AllowUnauthenticatedVerifiers = c.Agent.AllowUnauthenticatedVerifiers
 
 	return ac, nil
 }

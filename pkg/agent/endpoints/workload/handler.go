@@ -39,8 +39,9 @@ type Attestor interface {
 
 // Handler implements the Workload API interface
 type Config struct {
-	Manager  Manager
-	Attestor Attestor
+	Manager                       Manager
+	Attestor                      Attestor
+	AllowUnauthenticatedVerifiers bool
 }
 
 type Handler struct {
@@ -222,7 +223,7 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			err := sendX509BundlesResponse(update, stream, log)
+			err := sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers)
 			if err != nil {
 				return err
 			}
@@ -232,8 +233,8 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 }
 
-func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger) error {
-	if len(update.Identities) == 0 {
+func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool) error {
+	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
@@ -253,8 +254,10 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) *workload.X509Bund
 		bundles[update.Bundle.TrustDomainID()] = marshalBundle(update.Bundle.RootCAs())
 	}
 
-	for _, federatedBundle := range update.FederatedBundles {
-		bundles[federatedBundle.TrustDomainID()] = marshalBundle(federatedBundle.RootCAs())
+	if update.HasIdentity() {
+		for _, federatedBundle := range update.FederatedBundles {
+			bundles[federatedBundle.TrustDomainID()] = marshalBundle(federatedBundle.RootCAs())
+		}
 	}
 
 	return &workload.X509BundlesResponse{
