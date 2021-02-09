@@ -867,7 +867,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.PipeSize = 0
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, 1000, c.PipeSize)
+				require.Equal(t, 5000, c.PipeSize)
 			},
 		},
 		{

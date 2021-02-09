@@ -45,7 +45,7 @@ const (
 	defaultDefaultBundleName = "ROOTCA"
 
 	// Default SVID store pipe size
-	defaultPipeSize = 1000
+	defaultPipeSize = 5000
 )
 
 // Config contains all available configurables, arranged by section

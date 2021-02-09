@@ -35,7 +35,7 @@ type Config struct {
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
 
-	// Buffered pipes used to push all 'exportables' SVIDs
+	// Buffered pipes used to push all SVIDs that must be stored through an SVIDStore plugin
 	PipesIn map[string]pipe.In
 }
 

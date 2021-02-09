@@ -389,7 +389,7 @@ func newTestCache() *Cache {
 	return New(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{})
 }
 
-func TestExportSVIDs(t *testing.T) {
+func TestStoreSVIDs(t *testing.T) {
 	plugName := "plugin_name"
 	pipeIn := &fakePipeIn{}
 	pipes := map[string]pipe.In{
@@ -430,7 +430,7 @@ func TestExportSVIDs(t *testing.T) {
 			federatedWith: []string{otherBundleV1.TrustDomainID()},
 			expectLog: spiretest.LogEntry{
 				Level:   logrus.ErrorLevel,
-				Message: "failed to export SVID",
+				Message: "failed to store SVID",
 				Data: logrus.Fields{
 					telemetry.Entry:    "FOO",
 					telemetry.SPIFFEID: "spiffe://domain.test/FOO",
@@ -445,7 +445,7 @@ func TestExportSVIDs(t *testing.T) {
 			selectors:     []*common.Selector{{Type: plugName, Value: "a:1"}, {Type: "another", Value: "b:2"}},
 			expectLog: spiretest.LogEntry{
 				Level:   logrus.ErrorLevel,
-				Message: "failed to export SVID",
+				Message: "failed to store SVID",
 				Data: logrus.Fields{
 					telemetry.Entry:    "FOO",
 					telemetry.SPIFFEID: "spiffe://domain.test/FOO",
@@ -460,7 +460,7 @@ func TestExportSVIDs(t *testing.T) {
 			selectors:     []*common.Selector{{Type: "invalid", Value: "a:1"}},
 			expectLog: spiretest.LogEntry{
 				Level:   logrus.ErrorLevel,
-				Message: "failed to export SVID",
+				Message: "failed to store SVID",
 				Data: logrus.Fields{
 					telemetry.Entry:    "FOO",
 					telemetry.SPIFFEID: "spiffe://domain.test/FOO",

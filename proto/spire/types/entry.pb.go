@@ -64,7 +64,7 @@ type Entry struct {
 	DnsNames []string `protobuf:"bytes,10,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
 	// Revision number is bumped every time the entry is updated
 	RevisionNumber int64 `protobuf:"varint,11,opt,name=revision_number,json=revisionNumber,proto3" json:"revision_number,omitempty"`
-	// Determines if the issued identity is exportable to a store
+	// Determines if the issued SVID must be stored through an SVIDStore plugin
 	StoreSvid bool `protobuf:"varint,12,opt,name=store_svid,json=storeSvid,proto3" json:"store_svid,omitempty"`
 }
 

@@ -51,7 +51,7 @@ message Entry {
     // Revision number is bumped every time the entry is updated
     int64 revision_number = 11;
 
-    // Determines if the issued identity is exportable to a store
+    // Determines if the issued SVID must be stored through an SVIDStore plugin
     bool store_svid = 12;
 }
 

@@ -122,7 +122,7 @@ type Cache struct {
 	// bundles holds the trust bundles, keyed by trust domain id (i.e. "spiffe://domain.test")
 	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
 
-	// buffered pipes for 'exportables' SVIDs
+	// buffered pipes for SVIDs that must be stored through an SVIDStore plugin
 	pipesIn map[string]pipe.In
 }
 
@@ -415,7 +415,7 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 		// at the same time may we add a filter to avoid using this entries for attestation?
 		if record.entry.StoreSvid {
 			if err := c.storeSVID(record); err != nil {
-				log.WithError(err).Error("failed to export SVID")
+				log.WithError(err).Error("failed to store SVID")
 			}
 		} else {
 			notifySet.Merge(record.entry.Selectors...)

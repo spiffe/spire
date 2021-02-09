@@ -37,7 +37,7 @@ type service struct {
 	c *Config
 
 	hooks struct {
-		// test hook used to verify put is done
+		// test hook used to synchronize the completion of the request to put an SVID in an external store
 		stored chan struct{}
 	}
 }
@@ -92,7 +92,7 @@ func (p *service) putSVID(ctx context.Context, update *pipe.SVIDUpdate) {
 	log.Debug("X509-SVID stored successfully")
 }
 
-// triggerStoredHook is only used for unit tests to verify put finished
+// triggerStoredHook is only used for unit tests to synchronize the completion of the request to put an SVID in an external store
 func (p *service) triggerStoredHook() {
 	if p.hooks.stored != nil {
 		p.hooks.stored <- struct{}{}

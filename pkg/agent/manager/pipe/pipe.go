@@ -1,4 +1,3 @@
-// TODO: ADD unit tests
 package pipe
 
 import (
