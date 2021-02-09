@@ -3,7 +3,6 @@ package entry
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -201,7 +200,6 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 
 	if existingEntry == nil {
 		// Create entry
-		fmt.Println("Create entry!!1")
 		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 			Entry: cEntry,
 		})

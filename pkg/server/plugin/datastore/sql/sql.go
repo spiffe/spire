@@ -3186,26 +3186,22 @@ func modelToBundle(model *Bundle) (*common.Bundle, error) {
 }
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
-	fmt.Println("Validationg")
 	if entry == nil {
 		return sqlError.New("invalid request: missing registered entry")
 	}
-	fmt.Printf("entry: %v\n", entry)
 
 	if entry.Selectors == nil || len(entry.Selectors) == 0 {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 
 	// In case of StoreSvid is set, all entries 'must' be the same type,
-	// it is done this way to avoid users to use regular selectors for for this kind of entries,
-	// and a single entry can be used only for one platform.
+	// it is done to avoid users to mix selectors from different platforms in
+	// entries with storable SVIDs
 	if entry.StoreSvid {
-		fmt.Println("STORE SVID")
+		// Selectors must never be empty
 		tpe := entry.Selectors[0].Type
-		fmt.Printf("STORE SVID: %q \n", tpe)
 		for _, t := range entry.Selectors {
 			if tpe != t.Type {
-				fmt.Printf("Diffenret: %q - %q \n", tpe, t.Type)
 				return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 			}
 		}
