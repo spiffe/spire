@@ -832,7 +832,6 @@ func (h *Handler) signCSRsLegacy(ctx context.Context, peerCert *x509.Certificate
 
 		signLog := h.c.Log.WithFields(logrus.Fields{
 			telemetry.CallerID: callerID,
-			telemetry.SPIFFEID: csr.SpiffeID,
 			telemetry.Address:  sourceAddress,
 		})
 
@@ -855,7 +854,7 @@ func (h *Handler) signCSRsLegacy(ctx context.Context, peerCert *x509.Certificate
 				return nil, errors.New("SVID serial number does not match")
 			}
 
-			signLog.Debug("Renewing agent SVID")
+			signLog.WithField(telemetry.SPIFFEID, csr.SpiffeID).Debug("Renewing agent SVID")
 			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
 			if err != nil {
 				return nil, err
@@ -866,8 +865,7 @@ func (h *Handler) signCSRsLegacy(ctx context.Context, peerCert *x509.Certificate
 				return nil, err
 			}
 		} else {
-			signLog.Debug("Signing SVID")
-			svid, err := h.buildSVID(ctx, csr.SpiffeID, csr, regEntriesMap)
+			svid, err := h.buildSVID(ctx, csr.SpiffeID, csr, regEntriesMap, signLog)
 			if err != nil {
 				return nil, err
 			}
@@ -908,7 +906,6 @@ func (h *Handler) signCSRs(ctx context.Context, peerCert *x509.Certificate, csrs
 
 		signLog := h.c.Log.WithFields(logrus.Fields{
 			telemetry.CallerID: callerID,
-			telemetry.SPIFFEID: csr.SpiffeID,
 			telemetry.Address:  sourceAddress,
 		})
 
@@ -931,7 +928,7 @@ func (h *Handler) signCSRs(ctx context.Context, peerCert *x509.Certificate, csrs
 				return nil, errors.New("SVID serial number does not match")
 			}
 
-			signLog.Debug("Renewing agent SVID")
+			signLog.WithField(telemetry.SPIFFEID, csr.SpiffeID).Debug("Renewing agent SVID")
 			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
 			if err != nil {
 				return nil, err
@@ -942,8 +939,7 @@ func (h *Handler) signCSRs(ctx context.Context, peerCert *x509.Certificate, csrs
 				return nil, err
 			}
 		} else {
-			signLog.Debug("Signing SVID")
-			svid, err := h.buildSVID(ctx, entryID, csr, regEntriesMap)
+			svid, err := h.buildSVID(ctx, entryID, csr, regEntriesMap, signLog)
 			if err != nil {
 				return nil, err
 			}
@@ -954,7 +950,7 @@ func (h *Handler) signCSRs(ctx context.Context, peerCert *x509.Certificate, csrs
 	return svids, nil
 }
 
-func (h *Handler) buildSVID(ctx context.Context, id string, csr *CSR, regEntries map[string]*common.RegistrationEntry) (*node.X509SVID, error) {
+func (h *Handler) buildSVID(ctx context.Context, id string, csr *CSR, regEntries map[string]*common.RegistrationEntry, signLog logrus.FieldLogger) (*node.X509SVID, error) {
 	entry, ok := regEntries[id]
 	if !ok {
 		var idType string
@@ -970,8 +966,9 @@ func (h *Handler) buildSVID(ctx context.Context, id string, csr *CSR, regEntries
 		return nil, errors.New("not entitled to sign CSR for given ID type")
 	}
 
+	signLog.WithField(telemetry.SPIFFEID, entry.SpiffeId).Debug("Signing SVID")
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  csr.SpiffeID,
+		SpiffeID:  entry.SpiffeId,
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 		DNSList:   entry.DnsNames,
