@@ -3,6 +3,7 @@ package awskms
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,7 @@ type Plugin struct {
 
 	hooks struct {
 		newClient func(config *Config) (kmsClient, error)
+		getenv    func(string) string
 	}
 }
 
@@ -75,6 +77,7 @@ func New() *Plugin {
 func newPlugin(newClient func(config *Config) (kmsClient, error)) *Plugin {
 	p := &Plugin{}
 	p.hooks.newClient = newClient
+	p.hooks.getenv = os.Getenv
 	p.entries = make(map[string]keyEntry)
 	return p
 }
@@ -91,8 +94,10 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 		return nil, err
 	}
 
-	p.keyPrefix = config.KeyPrefix
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
+	p.keyPrefix = config.KeyPrefix
 	p.kmsClient, err = p.hooks.newClient(config)
 	if err != nil {
 		return nil, kmsErr.New("failed to create KMS client: %v", err)
@@ -113,7 +118,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	return &plugin.ConfigureResponse{}, nil
 }
 
-//GenerateKey creates a key in KMS. If a key already exist in the local storage, it is updated.
+//GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (*keymanager.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, kmsErr.New("key id is required")
@@ -122,13 +127,16 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 		return nil, kmsErr.New("key type is required")
 	}
 
-	spireKeyID := req.KeyId
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
+	spireKeyID := req.KeyId
 	newEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
 	if err != nil {
 		return nil, err
 	}
 
+	p.log.Debug("Created key")
 	oldEntry, hasOldEntry := p.entry(spireKeyID)
 
 	if !hasOldEntry {
@@ -152,9 +160,9 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 
 		go func() {
 			//schedule delete
-			c, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
-			_, err = p.kmsClient.ScheduleKeyDeletionWithContext(c, &kms.ScheduleKeyDeletionInput{
+			_, err = p.kmsClient.ScheduleKeyDeletionWithContext(ctx, &kms.ScheduleKeyDeletionInput{
 				KeyId:               &oldEntry.KMSKeyID,
 				PendingWindowInDays: aws.Int64(7),
 			})
@@ -182,6 +190,9 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 	if req.SignerOpts == nil {
 		return nil, kmsErr.New("signer opts is required")
 	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 
 	keyEntry, hasKey := p.entry(req.KeyId)
 	if !hasKey {
@@ -212,6 +223,9 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyR
 		return nil, kmsErr.New("key id is required")
 	}
 
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	entry, ok := p.entry(req.KeyId)
 	if !ok {
 		return nil, kmsErr.New("no such key %q", req.KeyId)
@@ -225,8 +239,8 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyR
 // GetPublicKeys return the publicKey for all the keys
 func (p *Plugin) GetPublicKeys(context.Context, *keymanager.GetPublicKeysRequest) (*keymanager.GetPublicKeysResponse, error) {
 	var keys []*keymanager.PublicKey
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	for _, key := range p.entries {
 		keys = append(keys, clonePublicKey(key.PublicKey))
 	}
@@ -262,15 +276,11 @@ func (p *Plugin) setEntry(spireKeyID string, entry keyEntry) error {
 		return kmsErr.New("PublicKey.PkixData is required")
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.entries[spireKeyID] = entry
 	return nil
 }
 
 func (p *Plugin) entry(spireKeyID string) (keyEntry, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	value, hasKey := p.entries[spireKeyID]
 	return value, hasKey
 }
@@ -313,26 +323,23 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 }
 
 func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *string) (*keyEntry, error) {
-	l := p.log.With(keyIDTag, *awsKeyID, aliasTag, alias)
 	describeResp, err := p.kmsClient.DescribeKeyWithContext(ctx, &kms.DescribeKeyInput{KeyId: alias})
 	if err != nil {
 		return nil, kmsErr.New("failed to describe key: %v", err)
 	}
 
 	if !*describeResp.KeyMetadata.Enabled {
-		l.Debug("Skipped disabled key")
 		return nil, nil
 	}
 
 	spireKeyID, err := p.spireKeyIDFromAlias(*alias)
 	if err != nil {
-		l.Debug("Skipped key", "reason", err)
 		return nil, nil
 	}
 
 	keyType, err := keyTypeFromKeySpec(*describeResp.KeyMetadata.CustomerMasterKeySpec)
 	if err != nil {
-		l.Debug("Skipped key", "reason", err)
+		p.log.Debug("Skipped key", "reason", err)
 		return nil, nil
 	}
 
@@ -367,14 +374,13 @@ func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string,
 			continue
 		}
 		l := p.log.With(keyIDTag, *alias.TargetKeyId, aliasTag, *alias.AliasName)
-		l.Debug("Processing key")
 		entry, err := p.buildKeyEntry(ctx, alias.AliasName, alias.TargetKeyId)
 		switch {
 		case err != nil:
 			return nil, kmsErr.New("failed to process KMS key: %v", err)
 		case entry != nil:
 			err := p.setEntry(entry.PublicKey.Id, *entry)
-			l.Debug("Added key")
+			l.Debug("Loaded key")
 			if err != nil {
 				return nil, err
 			}
@@ -386,7 +392,7 @@ func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string,
 func (p *Plugin) spireKeyIDFromAlias(alias string) (string, error) {
 	tokens := strings.SplitAfter(alias, p.keyPrefix)
 	if len(tokens) != 2 {
-		return "", fmt.Errorf("alias does not contain SPIRE prefix")
+		return "", fmt.Errorf("alias does not contain the prefix %q", p.keyPrefix)
 	}
 
 	return tokens[1], nil
@@ -413,11 +419,11 @@ func (p *Plugin) validateConfig(c string) (*Config, error) {
 	}
 
 	if config.AccessKeyID == "" {
-		p.log.Warn("configuration is missing an access key id, make sure your EC2 instance can access KMS")
+		config.AccessKeyID = p.hooks.getenv("AWS_ACCESS_KEY_ID")
 	}
 
 	if config.SecretAccessKey == "" {
-		p.log.Warn("configuration is missing a secret access key, make sure your EC2 instance can access KMS")
+		config.SecretAccessKey = p.hooks.getenv("AWS_SECRET_ACCESS_KEY")
 	}
 
 	if config.KeyPrefix == "" {
