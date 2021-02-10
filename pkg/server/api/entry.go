@@ -172,9 +172,9 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		revisionNumber = e.RevisionNumber
 	}
 
-	var storeSvid bool
+	var storeSVID bool
 	if mask.StoreSvid {
-		storeSvid = e.StoreSvid
+		storeSVID = e.StoreSvid
 	}
 
 	return &common.RegistrationEntry{
@@ -189,6 +189,6 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		Selectors:      selectors,
 		Ttl:            ttl,
 		RevisionNumber: revisionNumber,
-		StoreSvid:      storeSvid,
+		StoreSvid:      storeSVID,
 	}, nil
 }

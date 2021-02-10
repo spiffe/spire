@@ -41,8 +41,8 @@ func TestCreateHelp(t *testing.T) {
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID that this record represents
-  -storeSvid
-    	If set, issued identity is exportable to a store
+  -storeSVID
+    	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
   -ttl int
     	The lifetime, in seconds, for SVIDs issued based on this registration entry
 `, test.stderr.String())
@@ -224,7 +224,7 @@ func TestCreate(t *testing.T) {
 				"-dns", "unu1000",
 				"-dns", "ung1000",
 				"-downstream",
-				"-storeSvid",
+				"-storeSVID",
 			},
 			expReq: &entry.BatchCreateEntryRequest{
 				Entries: []*types.Entry{

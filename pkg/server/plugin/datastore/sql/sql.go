@@ -3000,7 +3000,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	}
 
 	// Verify that final selectors contains the same 'type' when entry is used for store SVIDs
-	if entry.StoreSvid && !validateSelectorTypes(entry.Selectors) {
+	if entry.StoreSvid && !equalSelectorTypes(entry.Selectors) {
 		return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 	}
 
@@ -3218,8 +3218,8 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	return nil
 }
 
-// validateSelectorTypes validates that all selectors has the same type,
-func validateSelectorTypes(selectors []Selector) bool {
+// equalSelectorTypes validates that all selectors has the same type,
+func equalSelectorTypes(selectors []Selector) bool {
 	typ := ""
 	for _, t := range selectors {
 		switch {
