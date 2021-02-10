@@ -21,7 +21,6 @@ func TestReportMetrics(t *testing.T) {
 
 	// overwrite the variable to use mock clock.
 	clk = clock.NewMock(t)
-	start = clk.Now().Add(-_testUptime*time.Millisecond)
+	start = clk.Now().Add(-_testUptime * time.Millisecond)
 	reportMetrics(ctx, time.Nanosecond, metrics)
 }
-
