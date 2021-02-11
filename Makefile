@@ -210,17 +210,16 @@ plugingen_hostservices = \
 # entry is as follows:
 # mock-destination-pkg,src-go-pkg,interface[,additional interfaces]
 mockgen_mocks = \
+	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,Client \
 	test/mock/agent/client,github.com/spiffe/spire/pkg/agent/client,Client \
-	test/mock/agent/plugin/workloadattestor/docker,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker,Docker \
 	test/mock/common/plugin/k8s/apiserver,github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver,Client \
 	test/mock/common/plugin/k8s/clientset,k8s.io/client-go/kubernetes,Interface \
+	test/mock/common/plugin/k8s/clientset/corev1,k8s.io/client-go/kubernetes/typed/core/v1,CoreV1Interface \
+	test/mock/common/plugin/k8s/clientset/corev1/pod,k8s.io/client-go/kubernetes/typed/core/v1,PodInterface \
+	test/mock/common/plugin/k8s/clientset/corev1/node,k8s.io/client-go/kubernetes/typed/core/v1,NodeInterface \
 	test/mock/common/plugin/k8s/clientset/authenticationv1,k8s.io/client-go/kubernetes/typed/authentication/v1,AuthenticationV1Interface \
 	test/mock/common/plugin/k8s/clientset/authenticationv1/tokenreview,k8s.io/client-go/kubernetes/typed/authentication/v1,TokenReviewInterface \
-	test/mock/common/plugin/k8s/clientset/corev1,k8s.io/client-go/kubernetes/typed/core/v1,CoreV1Interface \
-	test/mock/common/plugin/k8s/clientset/corev1/node,k8s.io/client-go/kubernetes/typed/core/v1,NodeInterface \
-	test/mock/common/plugin/k8s/clientset/corev1/pod,k8s.io/client-go/kubernetes/typed/core/v1,PodInterface \
-	test/mock/common/telemetry,github.com/spiffe/spire/pkg/common/telemetry,Metrics \
-	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,Client \
+	test/mock/agent/plugin/workloadattestor/docker,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker,Docker \
 
 # The following vars are used in rule construction
 comma := ,

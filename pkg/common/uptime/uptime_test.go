@@ -5,22 +5,37 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
-	mocktelemetry "github.com/spiffe/spire/test/mock/common/telemetry"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReportMetrics(t *testing.T) {
 	const _testUptime = 200
-	metrics := mocktelemetry.NewMockMetrics(gomock.NewController(t))
 	ctx, cancel := context.WithCancel(context.Background())
-	metrics.EXPECT().SetGauge([]string{"uptime_in_ms"}, float32(_testUptime)).Do(func(_, _ interface{}) {
+	metrics := &testMetrics{
 		// The expected update cancels the context which causes reportMetrics to return
-		cancel()
-	})
+		setGaugeCallback: cancel,
+	}
 
 	// overwrite the variable to use mock clock.
 	clk = clock.NewMock(t)
 	start = clk.Now().Add(-_testUptime * time.Millisecond)
 	reportMetrics(ctx, time.Nanosecond, metrics)
+	assert.Equal(t,
+		[]fakemetrics.MetricItem{{Type: fakemetrics.SetGaugeType, Key: []string{"uptime_in_ms"}, Val: _testUptime}},
+		metrics.AllMetrics())
+}
+
+var _ telemetry.Metrics = (*testMetrics)(nil)
+
+type testMetrics struct {
+	fakemetrics.FakeMetrics
+	setGaugeCallback func()
+}
+
+func (f *testMetrics) SetGauge(key []string, val float32) {
+	f.FakeMetrics.SetGauge(key, val)
+	f.setGaugeCallback()
 }
