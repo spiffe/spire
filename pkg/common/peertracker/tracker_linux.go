@@ -50,6 +50,7 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 
 	starttime, err := getStarttime(info.PID)
 	if err != nil {
+		syscall.Close(procfd)
 		return nil, err
 	}
 
