@@ -34,7 +34,9 @@ require (
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.4.2
-	github.com/google/go-cmp v0.5.0
+	github.com/google/go-cmp v0.5.4
+	github.com/google/go-tpm v0.3.2
+	github.com/google/go-tpm-tools v0.2.0
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/hashicorp/golang-lru v0.5.1
@@ -63,7 +65,7 @@ require (
 	go.uber.org/goleak v0.10.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
-	golang.org/x/sys v0.0.0-20200331124033-c3d80250170d
+	golang.org/x/sys v0.0.0-20201207223542-d4d67f95c62d
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.0.0-20200331025713-a30bf2db82d4
 	google.golang.org/api v0.29.0
