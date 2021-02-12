@@ -86,7 +86,7 @@ func (b *bundleWatcher) watcherEvents(ctx context.Context, c *pluginConfig, clie
 	for {
 		chosen, recv, _ := reflect.Select(selectCase)
 		if chosen < len(clients) {
-			if err = b.watchEvent(ctx, c, clients[chosen], recv.Interface().(watch.Event)); err != nil {
+			if err = b.watcherEvent(ctx, c, clients[chosen], recv.Interface().(watch.Event)); err != nil {
 				return k8sErr.New("handling watch event: %v", err)
 			}
 		} else {
@@ -96,7 +96,7 @@ func (b *bundleWatcher) watcherEvents(ctx context.Context, c *pluginConfig, clie
 }
 
 // watchEvent triggers the read-modify-write for a newly created webhook
-func (b *bundleWatcher) watchEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
+func (b *bundleWatcher) watcherEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
 	if event.Type == watch.Added {
 		webhookMeta, err := meta.Accessor(event.Object)
 		if err != nil {
