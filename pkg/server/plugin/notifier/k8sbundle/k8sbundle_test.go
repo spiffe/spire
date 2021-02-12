@@ -568,8 +568,6 @@ func (c *fakeKubeClient) setPatchErr(err error) {
 }
 
 func (c *fakeKubeClient) addWatchEvent(obj runtime.Object) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.fakeWatch.Add(obj)
 }
 
