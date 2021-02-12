@@ -112,15 +112,17 @@ func (s *Suite) TestBundleWatcherUpdateConfig() {
 label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
-	watchLabel := s.k.getWatchLabel()
-	s.Require().Equal("LABEL", watchLabel)
+	s.Require().Eventually(func() bool {
+		return s.k.getWatchLabel() == "LABEL"
+	}, testTimeout, time.Second)
 
 	s.configure(`
 label = "LABEL2"
 kube_config_file_path = "/some/file/path"
 `)
-	watchLabel = s.k.getWatchLabel()
-	s.Require().Equal("LABEL2", watchLabel)
+	s.Require().Eventually(func() bool {
+		return s.k.getWatchLabel() == "LABEL2"
+	}, testTimeout, time.Second)
 }
 
 func (s *Suite) TestBundleWatcherAddEvent() {
@@ -146,5 +148,5 @@ kube_config_file_path = "/some/file/path"
 				"bundle.crt": testBundleData,
 			},
 		}, s.k.getConfigMap("spire", "spire-bundle"))
-	}, testTimeout, time.Millisecond)
+	}, testTimeout, time.Second)
 }
