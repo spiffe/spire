@@ -288,6 +288,12 @@ func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeyExpiry() {
 	s.Require().Equal(s.clock.Now().Add(10*time.Minute), expiresAt)
 }
 
+func (s *CATestSuite) TestSignJWTSVIDWithNotAfterInPast() {
+	s.ca.jwtKey.NotAfter = time.Now().Add(-1 * time.Second)
+	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
+	s.Require().EqualError(err, "JWT SVID NotAfter cannot be in the past")
+}
+
 func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 	// spiffe id for wrong trust domain
 	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainFoo, 0))

@@ -290,6 +290,9 @@ func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, er
 		ttl = ca.c.JWTSVIDTTL
 	}
 	_, expiresAt := ca.capLifetime(ttl, jwtKey.NotAfter)
+	if !expiresAt.After(time.Now()) {
+		return "", errs.New("JWT SVID NotAfter cannot be in the past")
+	}
 
 	token, err := ca.jwtSigner.SignToken(params.SpiffeID.String(), params.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
 	if err != nil {
