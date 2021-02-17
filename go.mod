@@ -5,6 +5,7 @@ go 1.15
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
 require (
+	cloud.google.com/go v0.56.0
 	cloud.google.com/go/storage v1.6.0
 	github.com/Azure/azure-sdk-for-go v44.0.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.0
@@ -35,6 +36,7 @@ require (
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-cmp v0.5.0
+	github.com/googleapis/gax-go/v2 v2.0.5
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/hashicorp/golang-lru v0.5.1
