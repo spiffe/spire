@@ -177,7 +177,8 @@ func TestSecretFromProto(t *testing.T) {
 				},
 			},
 			err: "failed to parse CertChain: x509: malformed certificate",
-		}, {
+		},
+		{
 			name: "failed to parse bundle",
 			req: &svidstorev1.PutX509SVIDRequest{
 				Svid: &svidstorev1.X509SVID{
