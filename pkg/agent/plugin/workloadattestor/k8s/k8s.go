@@ -661,7 +661,7 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 	}
 
 	for _, containerImage := range containerImageIdentifiers {
-		selectors = append(selectors, makeSelector("pod-init-image:%s", containerImage))
+		selectors = append(selectors, makeSelector("container-image:%s", containerImage))
 	}
 	for _, podImage := range podImageIdentifiers {
 		selectors = append(selectors, makeSelector("pod-image:%s", podImage))

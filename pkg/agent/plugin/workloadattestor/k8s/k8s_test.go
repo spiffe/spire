@@ -67,6 +67,7 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 `))
 
 	testPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
 		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
 		{Type: "k8s", Value: "container-name:blog"},
 		{Type: "k8s", Value: "node-name:k8s-node-1"},
@@ -74,6 +75,8 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "pod-image-count:2"},
 		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
 		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/ghostunnel@sha256:b2fc20676c92a433b9a91f3f4535faddec0c2c3613849ac12f02c1d5cfcd4c3a"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/ghostunnel:latest"},
 		{Type: "k8s", Value: "pod-init-image-count:0"},
 		{Type: "k8s", Value: "pod-label:k8s-app:blog"},
 		{Type: "k8s", Value: "pod-label:version:v0"},
@@ -86,10 +89,12 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 
 	testKindPodSelectors = []*common.Selector{
 		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
+		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941"},
 		{Type: "k8s", Value: "container-name:workload-api-client"},
 		{Type: "k8s", Value: "node-name:kind-control-plane"},
 		{Type: "k8s", Value: "ns:default"},
 		{Type: "k8s", Value: "pod-image-count:1"},
+		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
 		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941"},
 		{Type: "k8s", Value: "pod-init-image-count:0"},
 		{Type: "k8s", Value: "pod-label:app:sample-workload"},
@@ -102,14 +107,17 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 	}
 
 	testInitPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:docker-pullable://quay.io/coreos/flannel@sha256:1b401bf0c30bada9a539389c3be652b58fe38463361edf488e6543c8761d4970"},
 		{Type: "k8s", Value: "container-image:quay.io/coreos/flannel:v0.9.0-amd64"},
 		{Type: "k8s", Value: "container-name:install-cni"},
 		{Type: "k8s", Value: "node-name:k8s-node-1"},
 		{Type: "k8s", Value: "ns:kube-system"},
 		{Type: "k8s", Value: "pod-image-count:1"},
 		{Type: "k8s", Value: "pod-image:docker-pullable://quay.io/coreos/flannel@sha256:1b401bf0c30bada9a539389c3be652b58fe38463361edf488e6543c8761d4970"},
+		{Type: "k8s", Value: "pod-image:quay.io/coreos/flannel:v0.9.0-amd64"},
 		{Type: "k8s", Value: "pod-init-image-count:1"},
 		{Type: "k8s", Value: "pod-init-image:docker-pullable://quay.io/coreos/flannel@sha256:1b401bf0c30bada9a539389c3be652b58fe38463361edf488e6543c8761d4970"},
+		{Type: "k8s", Value: "pod-init-image:quay.io/coreos/flannel:v0.9.0-amd64"},
 		{Type: "k8s", Value: "pod-label:app:flannel"},
 		{Type: "k8s", Value: "pod-label:controller-revision-hash:1846323910"},
 		{Type: "k8s", Value: "pod-label:pod-template-generation:1"},
