@@ -225,15 +225,16 @@ func (s *IIDAttestorSuite) TestErrorOnNoSignature() {
 
 func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 	tests := []struct {
-		desc                string
-		mockExpect          func(mock *mock_aws.MockClient)
-		expectID            string
-		expectSelectors     []*common.Selector
-		expectErr           string
-		replacementTemplate string
-		allowList           []string
-		skipBlockDev        bool
-		skipEC2Block        bool
+		desc                            string
+		mockExpect                      func(mock *mock_aws.MockClient)
+		expectID                        string
+		expectSelectors                 []*common.Selector
+		expectErr                       string
+		replacementTemplate             string
+		allowList                       []string
+		skipBlockDev                    bool
+		skipEC2Block                    bool
+		skipUseInstanceProfileSelectors bool
 	}{
 		{
 			desc: "error on call",
@@ -409,6 +410,47 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			replacementTemplate: "{{ .PluginName}}/zone1/{{ .Tags.Hostname }}",
 			expectID:            "spiffe://example.org/spire/agent/aws_iid/zone1/%3Cno%20value%3E",
 		},
+		{
+			desc: "success, ignore instance profile selectors",
+			skipUseInstanceProfileSelectors: true,
+			mockExpect: func(mock *mock_aws.MockClient) {
+				output := getDefaultDescribeInstancesOutput()
+				output.Reservations[0].Instances[0].Tags = []*ec2.Tag{
+					{
+						Key:   aws.String("Hostname"),
+						Value: aws.String("host1"),
+					},
+				}
+				output.Reservations[0].Instances[0].SecurityGroups = []*ec2.GroupIdentifier{
+					{
+						GroupId:   aws.String("TestGroup"),
+						GroupName: aws.String("Test Group Name"),
+					},
+				}
+				output.Reservations[0].Instances[0].IamInstanceProfile = &ec2.IamInstanceProfile{
+					Arn: aws.String("arn:aws::::instance-profile/" + testProfile),
+				}
+				output.Reservations[0].Instances[0].RootDeviceType = &instanceStoreType
+				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
+				setAttestExpectations(mock, output, nil)
+				gipo := &iam.GetInstanceProfileOutput{
+					InstanceProfile: &iam.InstanceProfile{
+						Roles: []*iam.Role{
+							{Arn: aws.String("role1")},
+							{Arn: aws.String("role2")},
+						},
+					},
+				}
+				setResolveSelectorsExpectations(mock, gipo)
+			},
+			replacementTemplate: "{{ .PluginName}}/zone1/{{ .Tags.Hostname }}",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "sg:id:TestGroup"},
+				{Type: caws.PluginName, Value: "sg:name:Test Group Name"},
+				{Type: caws.PluginName, Value: "tag:Hostname:host1"},
+			},
+			expectID: "spiffe://example.org/spire/agent/aws_iid/zone1/host1",
+		},
 	}
 
 	for _, tt := range tests {
@@ -444,6 +486,10 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			}
 			if tt.skipEC2Block {
 				configStr += "\nskip_ec2_attest_calling = true"
+			}
+
+			if !tt.skipUseInstanceProfileSelectors {
+				configStr += "\nuse_instance_profile_selectors = true"
 			}
 
 			_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
