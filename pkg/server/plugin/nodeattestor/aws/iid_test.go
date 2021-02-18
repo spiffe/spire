@@ -234,7 +234,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 		allowList                       []string
 		skipBlockDev                    bool
 		skipEC2Block                    bool
-		skipUseInstanceProfileSelectors bool
+		disableInstanceProfileSelectors bool
 	}{
 		{
 			desc: "error on call",
@@ -411,8 +411,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			expectID:            "spiffe://example.org/spire/agent/aws_iid/zone1/%3Cno%20value%3E",
 		},
 		{
-			desc: "success, ignore instance profile selectors",
-			skipUseInstanceProfileSelectors: true,
+			desc:                            "success, ignore instance profile selectors",
+			disableInstanceProfileSelectors: true,
 			mockExpect: func(mock *mock_aws.MockClient) {
 				output := getDefaultDescribeInstancesOutput()
 				output.Reservations[0].Instances[0].Tags = []*ec2.Tag{
@@ -488,8 +488,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				configStr += "\nskip_ec2_attest_calling = true"
 			}
 
-			if !tt.skipUseInstanceProfileSelectors {
-				configStr += "\nuse_instance_profile_selectors = true"
+			if tt.disableInstanceProfileSelectors {
+				configStr += "\ndisable_instance_profile_selectors = true"
 			}
 
 			_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
