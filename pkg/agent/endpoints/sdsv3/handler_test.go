@@ -484,6 +484,148 @@ func (s *HandlerSuite) TestFetchSecrets() {
 	s.Require().Error(err)
 }
 
+func (s *HandlerSuite) TestDeltaSecretsInitialSubscriptionNoInitialVersion() {
+	expectedSecrets := []*tls_v3.Secret{
+		tdValidationContext,
+		fedValidationContext,
+		workloadTLSCertificate1,
+	}
+
+	stream, err := s.handler.DeltaSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+
+	s.deltaRequestAndWait(stream, &discovery_v3.DeltaDiscoveryRequest{})
+
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, expectedSecrets)
+}
+
+func (s *HandlerSuite) TestDeltaSecretsResourceNamesSubscription() {
+	stream, err := s.handler.DeltaSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+
+	request := &discovery_v3.DeltaDiscoveryRequest{
+		ResourceNamesSubscribe: []string{
+			"spiffe://domain.test",
+			"spiffe://otherdomain.test",
+		},
+	}
+	s.deltaRequestAndWait(stream, request)
+
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, []*tls_v3.Secret{tdValidationContext, fedValidationContext})
+
+	request = &discovery_v3.DeltaDiscoveryRequest{
+		ResourceNamesUnsubscribe: []string{
+			"spiffe://domain.test",
+		},
+	}
+	s.deltaRequestAndWait(stream, request)
+
+	resp, err = stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, []*tls_v3.Secret{fedValidationContext})
+}
+
+func (s *HandlerSuite) TestDeltaSecretsRequestReceivedBeforeWorkloadUpdate() {
+	s.setWorkloadUpdate(nil)
+
+	stream, err := s.handler.DeltaSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+
+	s.deltaRequestAndWait(stream, &discovery_v3.DeltaDiscoveryRequest{
+		ResourceNamesSubscribe: []string{"spiffe://domain.test/workload"},
+	})
+
+	s.setWorkloadUpdate(workloadCert1)
+
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, []*tls_v3.Secret{workloadTLSCertificate1})
+}
+
+func (s *HandlerSuite) TestWorkloadUpdateAfterDeltaSecretsSubscriptionRequest() {
+	s.setWorkloadUpdate(workloadCert1)
+	stream, err := s.handler.DeltaSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+
+	request := &discovery_v3.DeltaDiscoveryRequest{
+		ResourceNamesSubscribe: []string{
+			"spiffe://domain.test/workload",
+		},
+	}
+	s.deltaRequestAndWait(stream, request)
+
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, []*tls_v3.Secret{workloadTLSCertificate1})
+
+	s.setWorkloadUpdate(workloadCert2)
+
+	resp, err = stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, []*tls_v3.Secret{workloadTLSCertificate2})
+}
+
+func (s *HandlerSuite) TestDeltaSecretsInitialSubscriptionWithInitialVersion() {
+	stream, err := s.handler.DeltaSecrets(context.Background())
+	s.Require().NoError(err)
+	defer func() {
+		s.Require().NoError(stream.CloseSend())
+	}()
+	s.deltaRequestAndWait(stream, &discovery_v3.DeltaDiscoveryRequest{ResourceNamesSubscribe: []string{"spiffe://domain.test/workload"}})
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, []*tls_v3.Secret{workloadTLSCertificate1})
+
+	// change the bundle
+	s.setWorkloadUpdate(workloadCert2)
+
+	initialResourceVersions := map[string]string{}
+	initialResourceVersions["spiffe://domain.test/workload"] = "1"
+	s.deltaRequestAndWait(stream, &discovery_v3.DeltaDiscoveryRequest{InitialResourceVersions: initialResourceVersions})
+
+	resp, err = stream.Recv()
+	s.Require().NoError(err)
+	s.requireDeltaSecrets(resp, []*tls_v3.Secret{workloadTLSCertificate2})
+}
+
+func (s *HandlerSuite) deltaRequestAndWait(stream secret_v3.SecretDiscoveryService_DeltaSecretsClient, request *discovery_v3.DeltaDiscoveryRequest) {
+	s.Require().NoError(stream.Send(request))
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-s.received:
+	case <-timer.C:
+		s.Fail("timed out waiting for request to be received")
+	}
+}
+
+func (s *HandlerSuite) requireDeltaSecrets(resp *discovery_v3.DeltaDiscoveryResponse, expectedSecrets []*tls_v3.Secret) {
+	var actualSecrets []*tls_v3.Secret
+	for _, resource := range resp.Resources {
+		secret := new(tls_v3.Secret)
+		s.Require().NoError(resource.Resource.UnmarshalTo(secret)) //nolint: scopelint // pointer to resource isn't held
+		actualSecrets = append(actualSecrets, secret)
+	}
+
+	s.RequireProtoListEqual(expectedSecrets, actualSecrets)
+}
+
 func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
 	var workloadUpdate *cache.WorkloadUpdate
 	if workloadCert != nil {

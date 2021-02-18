@@ -193,8 +193,97 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 	return false
 }
 
-func (h *Handler) DeltaSecrets(secret_v3.SecretDiscoveryService_DeltaSecretsServer) error {
-	return status.Error(codes.Unimplemented, "Method is not implemented")
+func (h *Handler) DeltaSecrets(stream secret_v3.SecretDiscoveryService_DeltaSecretsServer) error {
+	/*
+	Client connects:
+		initialize state:
+			ResourceNamesSubscribe:
+				add to the list of tracked resources
+	 		initial_versions supplied:
+				we are resuming a session and should send updates starting from there
+		 	no initial_versions:
+				new client, send State of the World
+	forever do:
+		We get updates to our cache:
+			push a message to client with delta
+		Client sends a new message:
+			error:
+				They failed to apply some delta, what do we do?
+				Do we re-push the failed message?
+			update subscription:
+				update the list of tracked resources or whatever other changes?
+				push a message?
+
+
+	while there are delta requests to receive, handle them:
+	 brand new subscriptions to objects
+
+
+	???
+	? How do we handle versioning of cache objects?
+*/
+	selectors, err := h.c.Attestor.Attest(stream.Context())
+	if err != nil {
+		return err
+	}
+
+	sub := h.c.Manager.SubscribeToCacheChanges(selectors)
+	defer sub.Finish()
+
+	reqch := make(chan *discovery_v3.DeltaDiscoveryRequest, 1)
+	errch := make(chan error, 1)
+	go func() {
+		for {
+			req, err := stream.Recv()
+			if err != nil {
+				if status.Code(err) == codes.Canceled || err == io.EOF {
+					err = nil
+				}
+				errch <- err
+				return
+			}
+			reqch <- req
+		}
+	}()
+
+
+	var lastReq *discovery_v3.DeltaDiscoveryRequest
+	var update *cache.WorkloadUpdate
+	subscribedNames := make(map[string]bool)
+	for {
+		select {
+		case newReq := <-reqch:
+			h.triggerReceivedHook()
+
+			for _, name := range newReq.ResourceNamesSubscribe {
+				if name != "" {
+					subscribedNames[name] = true
+				}
+			}
+
+			for _, name := range newReq.ResourceNamesUnsubscribe {
+				if name != "" {
+					delete(subscribedNames, name)
+				}
+			}
+
+			lastReq = newReq
+
+			if update == nil {
+				continue
+			}
+		case update = <-sub.Updates():
+			if lastReq == nil {
+				continue
+			}
+		case err := <-errch:
+			return err
+		}
+
+		response, _ := h.buildDeltaResponse("0", lastReq, update, subscribedNames)
+
+		stream.Send(response)
+	}
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *discovery_v3.DiscoveryRequest) (*discovery_v3.DiscoveryResponse, error) {
@@ -290,6 +379,88 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 			}
 			delete(names, h.c.DefaultSVIDName)
 			resp.Resources = append(resp.Resources, tlsCertificate)
+		}
+	}
+
+	if len(names) > 0 {
+		return nil, errs.New("unable to retrieve all requested identities, missing %v", names)
+	}
+
+	return resp, nil
+}
+
+func (h *Handler) buildDeltaResponse(versionInfo string, req *discovery_v3.DeltaDiscoveryRequest, upd *cache.WorkloadUpdate, subscribedNames map[string]bool) (resp *discovery_v3.DeltaDiscoveryResponse, err error) {
+	resp = &discovery_v3.DeltaDiscoveryResponse{
+		SystemVersionInfo: versionInfo,
+		TypeUrl:           req.TypeUrl,
+	}
+
+	// provide a nonce for streaming requests
+	if versionInfo != "" {
+		if resp.Nonce, err = nextNonce(); err != nil {
+			return nil, err
+		}
+	}
+
+	names := make(map[string]bool)
+	for key, value := range subscribedNames {
+		names[key] = value
+	}
+
+	returnAllEntries := len(names) == 0
+
+	// TODO: verify the type url
+	if upd.Bundle != nil {
+		switch {
+		case returnAllEntries || names[upd.Bundle.TrustDomainID()]:
+			validationContext, err := buildValidationContext(upd.Bundle, "")
+			if err != nil {
+				return nil, err
+			}
+			delete(names, upd.Bundle.TrustDomainID())
+			resource := &discovery_v3.Resource{Resource:validationContext}
+			resp.Resources = append(resp.Resources, resource)
+		case names[h.c.DefaultBundleName]:
+			validationContext, err := buildValidationContext(upd.Bundle, h.c.DefaultBundleName)
+			if err != nil {
+				return nil, err
+			}
+			delete(names, h.c.DefaultBundleName)
+			resource := &discovery_v3.Resource{Resource:validationContext}
+			resp.Resources = append(resp.Resources, resource)
+		}
+	}
+
+	for _, federatedBundle := range upd.FederatedBundles {
+		if returnAllEntries || names[federatedBundle.TrustDomainID()] {
+			validationContext, err := buildValidationContext(federatedBundle, "")
+			if err != nil {
+				return nil, err
+			}
+			delete(names, federatedBundle.TrustDomainID())
+			resource := &discovery_v3.Resource{Resource:validationContext}
+			resp.Resources = append(resp.Resources, resource)
+		}
+	}
+
+	for i, identity := range upd.Identities {
+		switch {
+		case returnAllEntries || names[identity.Entry.SpiffeId]:
+			tlsCertificate, err := buildTLSCertificate(identity, "")
+			if err != nil {
+				return nil, err
+			}
+			delete(names, identity.Entry.SpiffeId)
+			resource := &discovery_v3.Resource{Resource: tlsCertificate}
+			resp.Resources = append(resp.Resources, resource)
+		case i == 0 && names[h.c.DefaultSVIDName]:
+			tlsCertificate, err := buildTLSCertificate(identity, h.c.DefaultSVIDName)
+			if err != nil {
+				return nil, err
+			}
+			delete(names, h.c.DefaultSVIDName)
+			resource := &discovery_v3.Resource{Resource: tlsCertificate}
+			resp.Resources = append(resp.Resources, resource)
 		}
 	}
 
