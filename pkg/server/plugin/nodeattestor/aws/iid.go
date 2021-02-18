@@ -104,13 +104,14 @@ type IIDAttestorPlugin struct {
 
 // IIDAttestorConfig holds hcl configuration for IID attestor plugin
 type IIDAttestorConfig struct {
-	SessionConfig      `hcl:",squash"`
-	SkipBlockDevice    bool     `hcl:"skip_block_device"`
-	LocalValidAcctIDs  []string `hcl:"account_ids_for_local_validation"`
-	AgentPathTemplate  string   `hcl:"agent_path_template"`
-	pathTemplate       *template.Template
-	trustDomain        string
-	awsCaCertPublicKey *rsa.PublicKey
+	SessionConfig               `hcl:",squash"`
+	SkipBlockDevice             bool     `hcl:"skip_block_device"`
+	UseInstanceProfileSelectors bool     `hcl:"use_instance_profile_selectors"`
+	LocalValidAcctIDs           []string `hcl:"account_ids_for_local_validation"`
+	AgentPathTemplate           string   `hcl:"agent_path_template"`
+	pathTemplate                *template.Template
+	trustDomain                 string
+	awsCaCertPublicKey          *rsa.PublicKey
 }
 
 // New creates a new IIDAttestorPlugin.
@@ -400,11 +401,16 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 		}
 	}
 
+	c, err := p.getConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	for _, reservation := range instancesDesc.Reservations {
 		for _, instance := range reservation.Instances {
 			addSelectors(resolveTags(instance.Tags))
 			addSelectors(resolveSecurityGroups(instance.SecurityGroups))
-			if instance.IamInstanceProfile != nil && instance.IamInstanceProfile.Arn != nil {
+			if c.UseInstanceProfileSelectors && instance.IamInstanceProfile != nil && instance.IamInstanceProfile.Arn != nil {
 				instanceProfileName, err := instanceProfileNameFromArn(*instance.IamInstanceProfile.Arn)
 				if err != nil {
 					return nil, err
