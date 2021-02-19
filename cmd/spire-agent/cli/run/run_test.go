@@ -634,7 +634,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.TrustDomain = "foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "spiffe://foo", c.TrustDomain.String())
+				require.Equal(t, "spiffe://foo", c.TrustDomain.IDString())
 			},
 		},
 		{

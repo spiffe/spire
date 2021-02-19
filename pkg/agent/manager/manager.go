@@ -11,6 +11,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -68,7 +69,7 @@ type Manager interface {
 
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
-	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 
 	// CountSVIDs returns the amount of X509 SVIDs on memory
 	CountSVIDs() int
@@ -183,7 +184,7 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 	return m.cache.FetchWorkloadUpdate(selectors)
 }
 
-func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
+func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
@@ -191,7 +192,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 		return cachedSVID, nil
 	}
 
-	entryID := m.getEntryID(spiffeID)
+	entryID := m.getEntryID(spiffeID.String())
 	if entryID == "" {
 		return nil, errors.New("no entry found")
 	}
@@ -292,7 +293,7 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 			return nil
 		case <-bundleStream.Changes():
 			b := bundleStream.Next()
-			m.storeBundle(b[m.c.TrustDomain.String()])
+			m.storeBundle(b[m.c.TrustDomain])
 		}
 	}
 }

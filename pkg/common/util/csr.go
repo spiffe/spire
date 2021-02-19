@@ -6,22 +6,18 @@ import (
 	"crypto/x509/pkix"
 	"net/url"
 
-	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/zeebo/errs"
 )
 
-func MakeCSR(privateKey interface{}, spiffeID string) ([]byte, error) {
-	uri, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowAny())
-	if err != nil {
-		return nil, err
-	}
+func MakeCSR(privateKey interface{}, spiffeID spiffeid.ID) ([]byte, error) {
 	return makeCSR(privateKey, &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		URIs:               []*url.URL{uri},
+		URIs:               []*url.URL{spiffeID.URL()},
 	})
 }
 
