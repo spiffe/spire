@@ -3,13 +3,13 @@ package svid
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
@@ -23,7 +23,7 @@ type RotatorConfig struct {
 	Catalog     catalog.Catalog
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	ServerAddr  string
 	// Initial SVID and key
 	SVID    []*x509.Certificate
@@ -72,7 +72,7 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 			bsm.RUnlock()
 
 			var rootCAs []*x509.Certificate
-			if bundle := bundles[c.TrustDomain.String()]; bundle != nil {
+			if bundle := bundles[c.TrustDomain]; bundle != nil {
 				rootCAs = bundle.RootCAs()
 			}
 			return s.SVID, s.Key, rootCAs

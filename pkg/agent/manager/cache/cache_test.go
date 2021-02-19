@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -16,11 +17,13 @@ import (
 )
 
 var (
-	bundleV1      = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{Raw: []byte{1}})
-	bundleV2      = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{Raw: []byte{2}})
-	bundleV3      = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{Raw: []byte{3}})
-	otherBundleV1 = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{Raw: []byte{4}})
-	otherBundleV2 = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{Raw: []byte{5}})
+	trustDomain1  = spiffeid.RequireTrustDomainFromString("domain.test")
+	trustDomain2  = spiffeid.RequireTrustDomainFromString("otherdomain.test")
+	bundleV1      = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{1}})
+	bundleV2      = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{2}})
+	bundleV3      = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{3}})
+	otherBundleV1 = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte{4}})
+	otherBundleV2 = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte{5}})
 	defaultTTL    = int32(600)
 )
 
@@ -379,7 +382,7 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 
 func newTestCache() *Cache {
 	log, _ := test.NewNullLogger()
-	return New(log, "spiffe://domain.test", bundleV1, telemetry.Blackhole{})
+	return New(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{})
 }
 
 func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {
@@ -674,10 +677,11 @@ func assertWorkloadUpdateEqual(t *testing.T, sub Subscriber, expected *WorkloadU
 	}
 }
 
-func makeBundles(bundles ...*Bundle) map[string]*Bundle {
-	out := make(map[string]*Bundle)
+func makeBundles(bundles ...*Bundle) map[spiffeid.TrustDomain]*Bundle {
+	out := make(map[spiffeid.TrustDomain]*Bundle)
 	for _, bundle := range bundles {
-		out[bundle.TrustDomainID()] = bundle
+		td := spiffeid.RequireTrustDomainFromString(bundle.TrustDomainID())
+		out[td] = bundle
 	}
 	return out
 }
