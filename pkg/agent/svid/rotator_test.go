@@ -3,6 +3,7 @@ package svid
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"testing"
 	"time"
 
@@ -132,8 +133,6 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	})
 
 	s.mockClock.Add(s.r.c.Interval)
-	err = s.r.rotateSVID(context.Background())
-	s.Require().NoError(err)
 
 	select {
 	case <-time.After(time.Second):
@@ -145,7 +144,13 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	}
 
 	cancel()
-	s.Require().Equal(context.Canceled, t.Wait())
+	err = t.Wait()
+
+	// The error returned by the tomb is non-deterministic so we verify it is either one of the
+	// expected cases. When the Run context is cancelled, either all the runnable tasks terminate returning
+	// a nil error _or_ the Run loop itself returns and returns the context Err(), which in this case is
+	// context.Canceled.
+	s.Require().True(errors.Is(err, context.Canceled) || err == nil)
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {
