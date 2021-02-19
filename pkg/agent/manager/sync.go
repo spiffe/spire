@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -126,7 +127,12 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 		}
 
 		log.Info("Renewing X509-SVID")
-		privateKey, csrBytes, err := newCSR(csr.SpiffeID)
+
+		spiffeID, err := spiffeid.FromString(csr.SpiffeID)
+		if err != nil {
+			return nil, err
+		}
+		privateKey, csrBytes, err := newCSR(spiffeID)
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +187,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, err
 	}, nil
 }
 
-func newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err error) {
+func newCSR(spiffeID spiffeid.ID) (pk *ecdsa.PrivateKey, csr []byte, err error) {
 	pk, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return
@@ -193,14 +199,18 @@ func newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err error) {
 	return
 }
 
-func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, error) {
-	out := make(map[string]*cache.Bundle, len(bundles))
+func parseBundles(bundles map[string]*common.Bundle) (map[spiffeid.TrustDomain]*cache.Bundle, error) {
+	out := make(map[spiffeid.TrustDomain]*cache.Bundle, len(bundles))
 	for _, bundle := range bundles {
 		bundle, err := bundleutil.BundleFromProto(bundle)
 		if err != nil {
 			return nil, err
 		}
-		out[bundle.TrustDomainID()] = bundle
+		td, err := spiffeid.TrustDomainFromString(bundle.TrustDomainID())
+		if err != nil {
+			return nil, err
+		}
+		out[td] = bundle
 	}
 	return out, nil
 }

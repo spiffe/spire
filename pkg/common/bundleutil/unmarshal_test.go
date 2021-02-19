@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUnmarshal(t *testing.T) {
 	rootCA := createCACertificate(t)
-
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 	testCases := []struct {
 		name   string
 		doc    string
@@ -19,7 +20,7 @@ func TestUnmarshal(t *testing.T) {
 		{
 			name:   "empty bundle",
 			doc:    "{}",
-			bundle: New("spiffe://domain.test"),
+			bundle: New(trustDomain),
 		},
 		{
 			name: "entry missing use",
@@ -104,7 +105,7 @@ func TestUnmarshal(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			bundle, err := Unmarshal("spiffe://domain.test", []byte(testCase.doc))
+			bundle, err := Unmarshal(trustDomain, []byte(testCase.doc))
 			if testCase.err != "" {
 				require.EqualError(t, err, testCase.err)
 				return

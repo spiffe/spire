@@ -3,13 +3,13 @@ package svid
 import (
 	"context"
 	"crypto/x509"
-	"net/url"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
@@ -55,15 +55,11 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.mockClock = clock.NewMock(s.T())
 	s.mockClock.Set(time.Now())
 	log, _ := test.NewNullLogger()
-	td := url.URL{
-		Scheme: "spiffe",
-		Host:   "example.org",
-	}
 	c := &RotatorConfig{
 		Catalog:      cat,
 		Log:          log,
 		Metrics:      telemetry.Blackhole{},
-		TrustDomain:  td,
+		TrustDomain:  spiffeid.RequireTrustDomainFromString("example.org"),
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 		Clk:          s.mockClock,
 	}

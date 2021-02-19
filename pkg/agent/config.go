@@ -3,10 +3,10 @@ package agent
 import (
 	"crypto/x509"
 	"net"
-	"net/url"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -46,7 +46,7 @@ type Config struct {
 	SyncInterval time.Duration
 
 	// Trust domain and associated CA bundle
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	TrustBundle []*x509.Certificate
 
 	// Join token to use for attestation, if needed

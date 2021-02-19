@@ -49,10 +49,9 @@ import (
 )
 
 var (
-	trustDomain    = spiffeid.RequireTrustDomainFromString("example.org")
-	trustDomainURL = *trustDomain.ID().URL()
-	agentID        = trustDomain.NewID("agent")
-	joinTokenID    = trustDomain.NewID("spire/agent/join_token/abcd")
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+	agentID     = trustDomain.NewID("agent")
+	joinTokenID = trustDomain.NewID("spire/agent/join_token/abcd")
 )
 
 var (
@@ -74,7 +73,7 @@ func TestInitializationFailure(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
@@ -105,10 +104,10 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          bundleutil.BundleFromRootCA(trustDomain.IDString(), ca),
+		Bundle:          bundleutil.BundleFromRootCA(trustDomain, ca),
 		Clk:             clk,
 		Catalog:         cat,
 	}
@@ -119,7 +118,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		sub := m.SubscribeToBundleChanges()
 		bundles := sub.Value()
 		require.NotNil(t, bundles)
-		bundle := bundles[trustDomain.IDString()]
+		bundle := bundles[trustDomain]
 		require.Equal(t, bundle.RootCAs(), []*x509.Certificate{ca})
 	})
 
@@ -158,7 +157,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
@@ -206,7 +205,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
@@ -273,7 +272,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -364,7 +363,7 @@ func TestSVIDRotation(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainURL,
+		TrustDomain:      trustDomain,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -473,7 +472,7 @@ func TestSynchronization(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainURL,
+		TrustDomain:      trustDomain,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -630,7 +629,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -707,7 +706,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -770,7 +769,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainURL,
+		TrustDomain:      trustDomain,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -837,7 +836,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      trustDomainURL,
+		TrustDomain:      trustDomain,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           api.bundle,
@@ -899,7 +898,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     trustDomainURL,
+		TrustDomain:     trustDomain,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
@@ -911,7 +910,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	m := newManager(c)
 	require.NoError(t, m.Initialize(context.Background()))
 
-	spiffeID := "spiffe://example.org/blog"
+	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	audience := []string{"foo"}
 
 	// nothing in cache, fetch fails
@@ -1095,7 +1094,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 	h := &mockAPI{
 		t:      t,
 		c:      config,
-		bundle: bundleutil.BundleFromRootCA(trustDomain.IDString(), ca),
+		bundle: bundleutil.BundleFromRootCA(trustDomain, ca),
 		cakey:  cakey,
 		clk:    config.clk,
 	}

@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -48,7 +47,7 @@ type Config struct {
 	Catalog           catalog.Catalog
 	Metrics           telemetry.Metrics
 	JoinToken         string
-	TrustDomain       url.URL
+	TrustDomain       spiffeid.TrustDomain
 	TrustBundle       []*x509.Certificate
 	InsecureBootstrap bool
 	BundleCachePath   string
@@ -177,7 +176,7 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), nil
+	return bundleutil.BundleFromRootCAs(a.c.TrustDomain, bundle), nil
 }
 
 func (a *attestor) fetchAttestationData(fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient, challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
@@ -278,7 +277,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	if bundle != nil {
 		return client.DialServer(ctx, client.DialServerConfig{
 			Address:     a.c.ServerAddress,
-			TrustDomain: a.c.TrustDomain.Host,
+			TrustDomain: a.c.TrustDomain,
 			GetBundle:   bundle.RootCAs,
 		})
 	}
@@ -303,11 +302,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 				return errs.New("server chain is unexpectedly empty")
 			}
 
-			trustDomain, err := spiffeid.TrustDomainFromString(a.c.TrustDomain.Host)
-			if err != nil {
-				return err
-			}
-			expectedServerID := idutil.ServerID(trustDomain)
+			expectedServerID := idutil.ServerID(a.c.TrustDomain)
 			serverCert, err := x509.ParseCertificate(rawCerts[0])
 			if err != nil {
 				return err
