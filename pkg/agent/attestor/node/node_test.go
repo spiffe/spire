@@ -327,16 +327,13 @@ func TestAttestor(t *testing.T) {
 			// create the attestor
 			log, _ := test.NewNullLogger()
 			attestor := attestor.New(&attestor.Config{
-				Catalog:         catalog,
-				Metrics:         telemetry.Blackhole{},
-				JoinToken:       testCase.agentService.joinToken,
-				SVIDCachePath:   svidCachePath,
-				BundleCachePath: bundleCachePath,
-				Log:             log,
-				TrustDomain: url.URL{
-					Scheme: "spiffe",
-					Host:   trustDomain.String(),
-				},
+				Catalog:           catalog,
+				Metrics:           telemetry.Blackhole{},
+				JoinToken:         testCase.agentService.joinToken,
+				SVIDCachePath:     svidCachePath,
+				BundleCachePath:   bundleCachePath,
+				Log:               log,
+				TrustDomain:       trustDomain,
 				TrustBundle:       makeTrustBundle(testCase.bootstrapBundle),
 				InsecureBootstrap: testCase.insecureBootstrap,
 				ServerAddress:     listener.Addr().String(),

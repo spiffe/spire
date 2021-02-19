@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
@@ -39,7 +40,7 @@ type AttestorConfig struct {
 }
 
 type attestorConfig struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 	cluster     string
 	tokenPath   string
 }
@@ -98,8 +99,13 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		return nil, satError.New("configuration missing cluster")
 	}
 
+	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+
 	config := &attestorConfig{
-		trustDomain: req.GlobalConfig.TrustDomain,
+		trustDomain: td,
 		cluster:     hclConfig.Cluster,
 		tokenPath:   hclConfig.TokenPath,
 	}

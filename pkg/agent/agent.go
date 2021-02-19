@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	api_workload "github.com/spiffe/spire/api/workload"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
@@ -72,7 +71,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	cat, err := catalog.Load(ctx, catalog.Config{
 		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: a.c.TrustDomain.Host,
+			TrustDomain: a.c.TrustDomain.String(),
 		},
 		PluginConfig: a.c.PluginConfigs,
 		HostServices: []common_catalog.HostServiceServer{
@@ -111,10 +110,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints, err := a.newAdminEndpoints(manager)
-		if err != nil {
-			return fmt.Errorf("failed to create debug endpoints: %v", err)
-		}
+		adminEndpoints := a.newAdminEndpoints(manager)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
@@ -236,20 +232,16 @@ func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr
 	})
 }
 
-func (a *Agent) newAdminEndpoints(mgr manager.Manager) (admin_api.Server, error) {
-	td, err := spiffeid.TrustDomainFromURI(&a.c.TrustDomain)
-	if err != nil {
-		return nil, err
-	}
+func (a *Agent) newAdminEndpoints(mgr manager.Manager) admin_api.Server {
 	config := &admin_api.Config{
 		BindAddr:    a.c.AdminBindAddress,
 		Manager:     mgr,
 		Log:         a.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
-		TrustDomain: td,
+		TrustDomain: a.c.TrustDomain,
 		Uptime:      uptime.Uptime,
 	}
 
-	return admin_api.New(config), nil
+	return admin_api.New(config)
 }
 func (a *Agent) bundleCachePath() string {
 	return path.Join(a.c.DataDir, "bundle.der")

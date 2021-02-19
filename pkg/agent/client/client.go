@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
@@ -57,7 +56,7 @@ type Client interface {
 type Config struct {
 	Addr        string
 	Log         logrus.FieldLogger
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
 	// to connect via mTLS to Addr.
 	KeysAndBundle func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
@@ -286,7 +285,7 @@ func (c *client) release(conn *nodeConn) {
 func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 	return DialServer(ctx, DialServerConfig{
 		Address:     c.c.Addr,
-		TrustDomain: c.c.TrustDomain.Host,
+		TrustDomain: c.c.TrustDomain,
 		GetBundle: func() []*x509.Certificate {
 			_, _, bundle := c.c.KeysAndBundle()
 			return bundle

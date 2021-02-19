@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -29,7 +30,7 @@ import (
 type Manager interface {
 	SubscribeToCacheChanges(cache.Selectors) cache.Subscriber
 	MatchingIdentities([]*common.Selector) []cache.Identity
-	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
 }
 
@@ -89,7 +90,14 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
 
 		var svid *client.JWTSVID
-		svid, err = h.c.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
+
+		id, err := spiffeid.FromString(spiffeID)
+		if err != nil {
+			log.WithError(err).Errorf("Invalid requested SPIFFE ID: %s", spiffeID)
+			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+		}
+
+		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)
 		if err != nil {
 			log.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
@@ -251,8 +259,8 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 
 	bundle := marshalBundle(update.Bundle.RootCAs())
 
-	for id, federatedBundle := range update.FederatedBundles {
-		resp.FederatedBundles[id] = marshalBundle(federatedBundle.RootCAs())
+	for td, federatedBundle := range update.FederatedBundles {
+		resp.FederatedBundles[td.IDString()] = marshalBundle(federatedBundle.RootCAs())
 	}
 
 	for _, identity := range update.Identities {
