@@ -361,7 +361,7 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 
 	signLog.Debug("Signing downstream CA SVID")
 	svid, err := h.buildCASVID(ctx, ca.X509CASVIDParams{
-		SpiffeID:  csr.SpiffeID,
+		SpiffeID:  h.c.TrustDomain.String(),
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})
