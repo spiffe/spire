@@ -628,8 +628,9 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 	return nil, containerNotInPod
 }
 
-func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) []string {
-	var podImages []string
+func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) map[string]bool {
+	// Map is used purely to exclude duplicate selectors, value is unused.
+	podImages := make(map[string]bool)
 	// Note that for each pod image we generate *2* matching selectors.
 	// This is to support matching against ImageID, which has a SHA
 	// docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb
@@ -639,7 +640,8 @@ func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) []str
 	// when the SHA is not yet known (e.g. before the image pull is initiated)
 	// More info here: https://github.com/spiffe/spire/issues/2026
 	for _, status := range containerStatusArray {
-		podImages = append(podImages, status.ImageID, status.Image)
+		podImages[status.ImageID] = true
+		podImages[status.Image] = true
 	}
 	return podImages
 }
@@ -660,13 +662,13 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("pod-init-image-count:%s", strconv.Itoa(len(pod.Status.InitContainerStatuses))),
 	}
 
-	for _, containerImage := range containerImageIdentifiers {
+	for containerImage := range containerImageIdentifiers {
 		selectors = append(selectors, makeSelector("container-image:%s", containerImage))
 	}
-	for _, podImage := range podImageIdentifiers {
+	for podImage := range podImageIdentifiers {
 		selectors = append(selectors, makeSelector("pod-image:%s", podImage))
 	}
-	for _, podInitImage := range podInitImageIdentifiers {
+	for podInitImage := range podInitImageIdentifiers {
 		selectors = append(selectors, makeSelector("pod-init-image:%s", podInitImage))
 	}
 
