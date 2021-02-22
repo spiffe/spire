@@ -41,6 +41,8 @@ const (
 	defaultSocketPath         = "/tmp/spire-server/private/api.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
+
+	maxTrustDomainLength = 255
 )
 
 var (
@@ -365,6 +367,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.DataDir = c.Server.DataDir
+
+	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility
+	if len(c.Server.TrustDomain) > maxTrustDomainLength {
+		logger.Warnf("Configured trust domain should be less than %v characters to be SPIFFE compliant",
+			maxTrustDomainLength)
+	}
 
 	trustDomain, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {

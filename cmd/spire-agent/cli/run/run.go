@@ -43,6 +43,8 @@ const (
 	defaultLogLevel          = "INFO"
 	defaultDefaultSVIDName   = "default"
 	defaultDefaultBundleName = "ROOTCA"
+
+	maxTrustDomainLength = 255
 )
 
 // Config contains all available configurables, arranged by section
@@ -356,6 +358,23 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
 
+	logOptions = append(logOptions,
+		log.WithLevel(c.Agent.LogLevel),
+		log.WithFormat(c.Agent.LogFormat),
+		log.WithOutputFile(c.Agent.LogFile))
+
+	logger, err := log.NewLogger(logOptions...)
+	if err != nil {
+		return nil, fmt.Errorf("could not start logger: %s", err)
+	}
+	ac.Log = logger
+
+	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility
+	if len(c.Agent.TrustDomain) > maxTrustDomainLength {
+		logger.Warnf("Configured trust domain should be less than %v characters to be SPIFFE compliant",
+			maxTrustDomainLength)
+	}
+
 	td, err := spiffeid.TrustDomainFromString(c.Agent.TrustDomain)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Agent.TrustDomain, err)
@@ -390,17 +409,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.DataDir = c.Agent.DataDir
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
-
-	logOptions = append(logOptions,
-		log.WithLevel(c.Agent.LogLevel),
-		log.WithFormat(c.Agent.LogFormat),
-		log.WithOutputFile(c.Agent.LogFile))
-
-	logger, err := log.NewLogger(logOptions...)
-	if err != nil {
-		return nil, fmt.Errorf("could not start logger: %s", err)
-	}
-	ac.Log = logger
 
 	err = setupTrustBundle(ac, c)
 	if err != nil {

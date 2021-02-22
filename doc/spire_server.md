@@ -64,8 +64,8 @@ This may be useful for templating configuration files, for example across differ
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                              | INFO                          |
 | `log_format`                | Format of logs, \<text\|json\>                                                                   | text                          |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below) |                               |
-| `socketPath`                | Path to bind the SPIRE Server API socket to                                                            | /tmp/spire-server/private/api.sock  |
-| `trust_domain`              | The trust domain that this server belongs to                                                     |                               |
+| `socketPath`                | Path to bind the SPIRE Server API socket to                                                      | /tmp/spire-server/private/api.sock  |
+| `trust_domain`              | The trust domain that this server belongs to (should be less than 255 characters)                |                               |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -209,7 +209,7 @@ Most of the configuration file above options have identical command-line counter
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
 | `-serverPort` | Port number of the SPIRE server | |
 | `-socketPath` | Path to bind the SPIRE Server API socket to | |
-| `-trustDomain` | The trust domain that this server belongs to | |
+| `-trustDomain` | The trust domain that this server belongs to (should be less than 255 characters) | |
 
 ### `spire-server token generate`
 

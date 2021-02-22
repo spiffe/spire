@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -521,6 +522,7 @@ func TestNewServerConfig(t *testing.T) {
 		msg         string
 		expectError bool
 		input       func(*Config)
+		logOptions  []log.Option
 		test        func(*testing.T, *server.Config)
 	}{
 		{
@@ -946,6 +948,30 @@ func TestNewServerConfig(t *testing.T) {
 				require.True(t, c.RateLimit.Attestation)
 			},
 		},
+		{
+			msg: "warn_on_long_trust_domain",
+			input: func(c *Config) {
+				c.Server.TrustDomain = strings.Repeat("a", 256)
+			},
+			logOptions: []log.Option{
+				func(logger *log.Logger) error {
+					logger.SetOutput(ioutil.Discard)
+					hook := test.NewLocal(logger.Logger)
+					t.Cleanup(func() {
+						require.Len(t, hook.AllEntries(), 1)
+						entry := hook.LastEntry()
+						assert.Equal(t, logrus.WarnLevel, entry.Level)
+						assert.Equal(t,
+							"Configured trust domain should be less than 255 characters to be SPIFFE compliant",
+							entry.Message)
+					})
+					return nil
+				},
+			},
+			test: func(t *testing.T, c *server.Config) {
+				assert.NotNil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -956,7 +982,7 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := NewServerConfig(input, []log.Option{}, false)
+			sc, err := NewServerConfig(input, testCase.logOptions, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
