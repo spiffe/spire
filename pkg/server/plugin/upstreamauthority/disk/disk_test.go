@@ -17,7 +17,6 @@ import (
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
-	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -296,7 +295,7 @@ func (s *DiskSuite) TestRace() {
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
-	testutil.RaceTest(s.T(), func(t *testing.T) {
+	util.RaceTest(s.T(), func(t *testing.T) {
 		// the results of these RPCs aren't important; the test is just trying
 		// to get a bunch of stuff happening at once.
 		_, _ = s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
