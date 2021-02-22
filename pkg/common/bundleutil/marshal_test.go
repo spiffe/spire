@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,10 +126,12 @@ func TestMarshal(t *testing.T) {
 		},
 	}
 
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			bundle := New("spiffe://domain.test")
+			bundle := New(trustDomain)
 			bundle.SetRefreshHint(time.Minute)
 			if !testCase.empty {
 				bundle.AppendRootCA(rootCA)

@@ -3,13 +3,14 @@ package svid
 import (
 	"context"
 	"crypto/x509"
-	"net/url"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
@@ -55,15 +56,11 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.mockClock = clock.NewMock(s.T())
 	s.mockClock.Set(time.Now())
 	log, _ := test.NewNullLogger()
-	td := url.URL{
-		Scheme: "spiffe",
-		Host:   "example.org",
-	}
 	c := &RotatorConfig{
 		Catalog:      cat,
 		Log:          log,
 		Metrics:      telemetry.Blackhole{},
-		TrustDomain:  td,
+		TrustDomain:  spiffeid.RequireTrustDomainFromString("example.org"),
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 		Clk:          s.mockClock,
 	}
@@ -136,8 +133,6 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	})
 
 	s.mockClock.Add(s.r.c.Interval)
-	err = s.r.rotateSVID(context.Background())
-	s.Require().NoError(err)
 
 	select {
 	case <-time.After(time.Second):
@@ -149,7 +144,13 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	}
 
 	cancel()
-	s.Require().Equal(context.Canceled, t.Wait())
+	err = t.Wait()
+
+	// The error returned by the tomb is non-deterministic so we verify it is either one of the
+	// expected cases. When the Run context is cancelled, either all the runnable tasks terminate returning
+	// a nil error _or_ the Run loop itself returns and returns the context Err(), which in this case is
+	// context.Canceled.
+	s.Require().True(errors.Is(err, context.Canceled) || err == nil)
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {
