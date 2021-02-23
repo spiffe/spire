@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -21,13 +22,13 @@ const (
 	validAccessKeyID     = "AKIAIOSFODNN7EXAMPLE"
 	validSecretAccessKey = "secret"
 	validRegion          = "us-west-2"
-	kmsKeyID             = "SPIRE_SERVER_KEY/spireKeyID"
+	kmsKeyID             = "abcd-fghi"
+	kmsAlias             = "alias/SPIRE_SERVER_KEY/spireKeyID"
 	spireKeyID           = "spireKeyID"
 )
 
 var (
-	ctx           = context.Background()
-	spireKeyAlias = fmt.Sprintf("%s%s", defaultKeyPrefix, spireKeyID)
+	ctx = context.Background()
 )
 
 func TestKeyManager(t *testing.T) {
@@ -35,9 +36,7 @@ func TestKeyManager(t *testing.T) {
 }
 
 type KmsPluginSuite struct {
-	// spiretest.Suite
-	suite.Suite
-
+	spiretest.Suite
 	kmsClientFake *kmsClientFake
 	rawPlugin     *Plugin
 	// The plugin under test
@@ -85,7 +84,7 @@ func (ps *KmsPluginSuite) reset() {
 
 // Test Configure
 
-func (ps *KmsPluginSuite) Test_Configures() {
+func (ps *KmsPluginSuite) Test_Configure() {
 	for _, tt := range []struct {
 		name            string
 		expectedErr     string
@@ -110,7 +109,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			configureRequest: ps.configureRequestWithDefaults(),
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -126,7 +125,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			},
 		},
 		{
-			name: "missing access key",
+			name: "missing access key id",
 			configureRequest: ps.configureRequestWith(`{
 				 		"secret_access_key":"secret_access_key",
 				 		"region":"region"
@@ -150,7 +149,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			expectedErr: "awskms: configuration is missing a region",
 		},
 		{
-			name:             "decore error",
+			name:             "decode error",
 			configureRequest: ps.configureRequestWith("{ malformed json }"),
 			expectedErr:      "awskms: unable to decode configuration: 1:11: illegal char",
 		},
@@ -166,7 +165,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			configureRequest: ps.configureRequestWithDefaults(),
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -178,7 +177,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			configureRequest: ps.configureRequestWithDefaults(),
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -190,7 +189,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			configureRequest: ps.configureRequestWithDefaults(),
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -211,13 +210,11 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			if tt.expectedErr != "" {
 				ps.Require().Error(err)
 				ps.Require().Equal(tt.expectedErr, err.Error())
-				ps.Require().Equal(tt.expectedErr, err.Error())
-
 				return
 			}
 
 			ps.Require().NoError(err)
-			ps.Require().Equal(len(tt.expectedEntries), len(ps.rawPlugin.entries))
+			ps.Require().Len(ps.rawPlugin.entries, len(tt.expectedEntries))
 
 			for k, v := range tt.expectedEntries {
 				ps.Require().Equal(v.KMSKeyID, ps.rawPlugin.entries[k].KMSKeyID)
@@ -245,7 +242,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			name: "non existing key",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -263,7 +260,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			name: "replace old key",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -283,7 +280,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			err:     "awskms: unsupported key type: KeyType_RSA_1024",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -294,7 +291,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			createKeyErr: "fake key",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -305,7 +302,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			getPublicKeyErr: "public key error",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -315,7 +312,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			scheduleKeyDeletionErr: "schedule key deletion error",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -386,7 +383,7 @@ func (ps *KmsPluginSuite) Test_SignData() {
 			name: "pass",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -402,7 +399,7 @@ func (ps *KmsPluginSuite) Test_SignData() {
 			signDataError: "sign error",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -453,7 +450,7 @@ func (ps *KmsPluginSuite) Test_GetPublicKey() {
 			keyID: spireKeyID,
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -507,7 +504,7 @@ func (ps *KmsPluginSuite) Test_GetPublicKeys() {
 			name: "existing key",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -555,7 +552,7 @@ func (ps *KmsPluginSuite) Test_GetPluginInfo() {
 			name: "pass",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(spireKeyAlias),
+					AliasName:   aws.String(kmsAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
@@ -620,7 +617,7 @@ func (ps *KmsPluginSuite) setupDescribeKey(keySpec types.CustomerMasterKeySpec, 
 		CreationDate:          aws.Time(time.Now()),
 	}
 
-	ps.kmsClientFake.expectedDescribeKeyInput = &kms.DescribeKeyInput{KeyId: aws.String(kmsKeyID)}
+	ps.kmsClientFake.expectedDescribeKeyInput = &kms.DescribeKeyInput{KeyId: aws.String(kmsAlias)}
 	ps.kmsClientFake.describeKeyOutput = &kms.DescribeKeyOutput{KeyMetadata: km}
 	if fakeError != "" {
 		ps.kmsClientFake.describeKeyErr = errors.New(fakeError)
@@ -642,7 +639,7 @@ func (ps *KmsPluginSuite) setupGetPublicKey(fakeError string) {
 		SigningAlgorithms:     []types.SigningAlgorithmSpec{types.SigningAlgorithmSpecRsassaPssSha256},
 	}
 
-	ps.kmsClientFake.expectedGetPublicKeyInput = &kms.GetPublicKeyInput{KeyId: aws.String(kmsKeyID)}
+	ps.kmsClientFake.expectedGetPublicKeyInput = &kms.GetPublicKeyInput{KeyId: aws.String(kmsAlias)}
 	if fakeError != "" {
 		ps.kmsClientFake.getPublicKeyErr = errors.New(fakeError)
 	}
@@ -693,7 +690,7 @@ func (ps *KmsPluginSuite) setupScheduleKeyDeletion(fakeError string) {
 
 func (ps *KmsPluginSuite) setupSignData(fakeError string) {
 	ps.kmsClientFake.expectedSignInput = &kms.SignInput{
-		KeyId:            aws.String(spireKeyAlias),
+		KeyId:            aws.String(kmsKeyID),
 		Message:          []byte("data"),
 		MessageType:      types.MessageTypeDigest,
 		SigningAlgorithm: types.SigningAlgorithmSpecRsassaPkcs1V15Sha256,

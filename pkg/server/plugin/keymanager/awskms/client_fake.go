@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/stretchr/testify/require"
 )
 
 type kmsClientFake struct {
@@ -41,7 +40,6 @@ type kmsClientFake struct {
 }
 
 func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput, opts ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
-	require.Equal(k.t, k.expectedCreateKeyInput, input)
 	if k.createKeyErr != nil {
 		return nil, k.createKeyErr
 	}
@@ -49,7 +47,6 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 }
 
 func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyInput, opts ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
-	require.Equal(k.t, k.expectedDescribeKeyInput, input)
 	if k.describeKeyErr != nil {
 		return nil, k.describeKeyErr
 	}
@@ -58,7 +55,6 @@ func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyI
 }
 
 func (k *kmsClientFake) GetPublicKey(ctx context.Context, input *kms.GetPublicKeyInput, opts ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error) {
-	require.Equal(k.t, k.expectedGetPublicKeyInput, input)
 	if k.getPublicKeyErr != nil {
 		return nil, k.getPublicKeyErr
 	}
@@ -67,7 +63,6 @@ func (k *kmsClientFake) GetPublicKey(ctx context.Context, input *kms.GetPublicKe
 }
 
 func (k *kmsClientFake) ListKeys(ctx context.Context, input *kms.ListKeysInput, opts ...func(*kms.Options)) (*kms.ListKeysOutput, error) {
-	require.Equal(k.t, k.expectedListKeysInput, input)
 	if k.listKeysErr != nil {
 		return nil, k.listKeysErr
 	}
@@ -76,7 +71,6 @@ func (k *kmsClientFake) ListKeys(ctx context.Context, input *kms.ListKeysInput, 
 }
 
 func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesInput, opts ...func(*kms.Options)) (*kms.ListAliasesOutput, error) {
-	require.Equal(k.t, k.expectedListAliasesInput, input)
 	if k.listAliasesErr != nil {
 		return nil, k.listAliasesErr
 	}
@@ -85,7 +79,6 @@ func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesI
 }
 
 func (k *kmsClientFake) ScheduleKeyDeletion(ctx context.Context, input *kms.ScheduleKeyDeletionInput, opts ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error) {
-	require.Equal(k.t, k.expectedScheduleKeyDeletionInput, input)
 	if k.scheduleKeyDeletionErr != nil {
 		return nil, k.scheduleKeyDeletionErr
 	}
@@ -94,7 +87,6 @@ func (k *kmsClientFake) ScheduleKeyDeletion(ctx context.Context, input *kms.Sche
 }
 
 func (k *kmsClientFake) Sign(ctx context.Context, input *kms.SignInput, opts ...func(*kms.Options)) (*kms.SignOutput, error) {
-	require.Equal(k.t, k.expectedSignInput, input)
 	if k.signErr != nil {
 		return nil, k.signErr
 	}

@@ -119,7 +119,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	return &plugin.ConfigureResponse{}, nil
 }
 
-//GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
+// GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (*keymanager.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, kmsErr.New("key id is required")
@@ -137,8 +137,8 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 		return nil, err
 	}
 
-	p.log.Debug("Created key")
-	oldEntry, hasOldEntry := p.entry(spireKeyID)
+	p.log.Debug("Created key", keyIDTag, &newEntry.KMSKeyID)
+	oldEntry, hasOldEntry := p.entries[spireKeyID]
 
 	if !hasOldEntry {
 		//create alias
@@ -195,7 +195,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	keyEntry, hasKey := p.entry(req.KeyId)
+	keyEntry, hasKey := p.entries[req.KeyId]
 	if !hasKey {
 		return nil, kmsErr.New("no such key %q", req.KeyId)
 	}
@@ -227,7 +227,7 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyR
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	entry, ok := p.entry(req.KeyId)
+	entry, ok := p.entries[req.KeyId]
 	if !ok {
 		return nil, kmsErr.New("no such key %q", req.KeyId)
 	}
@@ -256,34 +256,29 @@ func (p *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*
 
 func (p *Plugin) setEntry(spireKeyID string, entry keyEntry) error {
 	if spireKeyID == "" {
-		return kmsErr.New("spireKeyID is required")
+		return kmsErr.New("spire key id is required")
 	}
 	if entry.KMSKeyID == "" {
-		return kmsErr.New("KMSKeyID is required")
+		return kmsErr.New("kms key id missing for SPIRE key id %q", spireKeyID)
 	}
 	if entry.Alias == "" {
-		return kmsErr.New("Alias is required")
+		return kmsErr.New("alias is required")
 	}
 	if entry.PublicKey == nil {
-		return kmsErr.New("PublicKey is required")
+		return kmsErr.New("public key is required")
 	}
 	if entry.PublicKey.Id == "" {
-		return kmsErr.New("PublicKey.Id is required")
+		return kmsErr.New("public key id is required")
 	}
 	if entry.PublicKey.Type == keymanager.KeyType_UNSPECIFIED_KEY_TYPE {
-		return kmsErr.New("PublicKey.Type is required")
+		return kmsErr.New("public key type is required")
 	}
 	if entry.PublicKey.PkixData == nil || len(entry.PublicKey.PkixData) == 0 {
-		return kmsErr.New("PublicKey.PkixData is required")
+		return kmsErr.New("public key pkix data is required")
 	}
 
 	p.entries[spireKeyID] = entry
 	return nil
-}
-
-func (p *Plugin) entry(spireKeyID string) (keyEntry, bool) {
-	value, hasKey := p.entries[spireKeyID]
-	return value, hasKey
 }
 
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanager.KeyType) (keyEntry, error) {
@@ -310,7 +305,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return res, kmsErr.New("failed to get public key: %v", err)
 	}
 
-	res = keyEntry{
+	return keyEntry{
 		KMSKeyID: *pub.KeyId,
 		Alias:    p.aliasFromSpireKeyID(spireKeyID),
 		PublicKey: &keymanager.PublicKey{
@@ -318,23 +313,21 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 			Type:     keyType,
 			PkixData: pub.PublicKey,
 		},
-	}
-
-	return res, nil
+	}, nil
 }
 
 func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *string) (*keyEntry, error) {
+	spireKeyID, ok := p.spireKeyIDFromAlias(*alias)
+	if !ok {
+		return nil, nil
+	}
+
 	describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias})
 	if err != nil {
 		return nil, kmsErr.New("failed to describe key: %v", err)
 	}
 
 	if !describeResp.KeyMetadata.Enabled {
-		return nil, nil
-	}
-
-	spireKeyID, err := p.spireKeyIDFromAlias(*alias)
-	if err != nil {
 		return nil, nil
 	}
 
@@ -374,37 +367,36 @@ func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string,
 		if alias.AliasName == nil || alias.TargetKeyId == nil {
 			continue
 		}
-		l := p.log.With(keyIDTag, *alias.TargetKeyId, aliasTag, *alias.AliasName)
+
 		entry, err := p.buildKeyEntry(ctx, alias.AliasName, alias.TargetKeyId)
 		switch {
 		case err != nil:
 			return nil, kmsErr.New("failed to process KMS key: %v", err)
 		case entry != nil:
 			err := p.setEntry(entry.PublicKey.Id, *entry)
-			l.Debug("Loaded key")
 			if err != nil {
 				return nil, err
 			}
+			p.log.Debug("Loaded key", keyIDTag, *alias.TargetKeyId, aliasTag, *alias.AliasName)
 		}
 	}
 	return aliasesResp.NextMarker, nil
 }
 
-func (p *Plugin) spireKeyIDFromAlias(alias string) (string, error) {
-	tokens := strings.SplitAfter(alias, p.keyPrefix)
-	if len(tokens) != 2 {
-		return "", fmt.Errorf("alias does not contain the prefix %q", p.keyPrefix)
+func (p *Plugin) spireKeyIDFromAlias(alias string) (string, bool) {
+	prefix := aliasPrefix + p.keyPrefix
+	if !strings.HasPrefix(alias, prefix) {
+		return "", false
 	}
-
-	return tokens[1], nil
+	return strings.TrimPrefix(alias, prefix), true
 }
 
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
-	return fmt.Sprintf("%v%v%v", aliasPrefix, p.keyPrefix, spireKeyID)
+	return aliasPrefix + p.keyPrefix + spireKeyID
 }
 
 func (p *Plugin) descriptionFromSpireKeyID(spireKeyID string) string {
-	return fmt.Sprintf("%v%v", p.keyPrefix, spireKeyID)
+	return p.keyPrefix + spireKeyID
 }
 
 // validateConfig returns an error if any configuration provided does not meet acceptable criteria
