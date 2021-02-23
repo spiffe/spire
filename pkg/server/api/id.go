@@ -91,5 +91,5 @@ func idFromProto(protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	if protoID == nil {
 		return spiffeid.ID{}, errors.New("request must specify SPIFFE ID")
 	}
-	return spiffeid.New(protoID.TrustDomain, protoID.Path)
+	return idutil.IDFromProto(protoID)
 }

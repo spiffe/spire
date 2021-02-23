@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"path"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -190,7 +189,7 @@ func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) string {
 	id := url.URL{
 		Scheme: "spiffe",
 		Host:   c.c.TrustDomain,
-		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
+		Path:   idutil.FormatPath(pathFmt, pathArgs...),
 	}
 	return id.String()
 }
