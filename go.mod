@@ -20,6 +20,10 @@ require (
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.2
 	github.com/aws/aws-sdk-go v1.28.9
+	github.com/aws/aws-sdk-go-v2 v1.2.0
+	github.com/aws/aws-sdk-go-v2/config v1.1.1
+	github.com/aws/aws-sdk-go-v2/credentials v1.1.1
+	github.com/aws/aws-sdk-go-v2/service/kms v1.1.1
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/containerd/containerd v1.3.2 // indirect
@@ -34,7 +38,7 @@ require (
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.4.2
-	github.com/google/go-cmp v0.5.0
+	github.com/google/go-cmp v0.5.4
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/hashicorp/golang-lru v0.5.1

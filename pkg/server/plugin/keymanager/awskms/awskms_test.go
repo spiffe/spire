@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
@@ -93,11 +94,11 @@ func (ps *KmsPluginSuite) Test_Configures() {
 		configureRequest *plugin.ConfigureRequest
 
 		// setupListAliases
-		aliases        []*kms.AliasListEntry
+		aliases        []types.AliasListEntry
 		listAliasesErr string
 
 		// setupDescribeKey
-		describeKeySpec string
+		describeKeySpec types.CustomerMasterKeySpec
 		describeKeyErr  string
 
 		// setupGetPublicKey
@@ -107,13 +108,13 @@ func (ps *KmsPluginSuite) Test_Configures() {
 		{
 			name:             "pass",
 			configureRequest: ps.configureRequestWithDefaults(),
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
-			describeKeySpec: kms.CustomerMasterKeySpecRsa4096,
+			describeKeySpec: types.CustomerMasterKeySpecRsa4096,
 			expectedEntries: map[string]keyEntry{
 				spireKeyID: {
 					KMSKeyID: kmsKeyID,
@@ -130,7 +131,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 				 		"secret_access_key":"secret_access_key",
 				 		"region":"region"
 					 }`),
-			aliases: []*kms.AliasListEntry{},
+			aliases: []types.AliasListEntry{},
 		},
 		{
 			name: "missing secret access key",
@@ -138,7 +139,7 @@ func (ps *KmsPluginSuite) Test_Configures() {
 				 		"access_key_id":"access_key",
 				 		"region":"region"
 					 }`),
-			aliases: []*kms.AliasListEntry{},
+			aliases: []types.AliasListEntry{},
 		},
 		{
 			name: "missing region",
@@ -163,19 +164,19 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			name:             "describe key error",
 			expectedErr:      "awskms: failed to process KMS key: awskms: failed to describe key: describe key error",
 			configureRequest: ps.configureRequestWithDefaults(),
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
-			describeKeySpec: kms.CustomerMasterKeySpecRsa4096,
+			describeKeySpec: types.CustomerMasterKeySpecRsa4096,
 			describeKeyErr:  "describe key error",
 		},
 		{
 			name:             "unsupported key error",
 			configureRequest: ps.configureRequestWithDefaults(),
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -187,13 +188,13 @@ func (ps *KmsPluginSuite) Test_Configures() {
 			name:             "get public key error",
 			expectedErr:      "awskms: failed to process KMS key: awskms: failed to get public key: get public key error",
 			configureRequest: ps.configureRequestWithDefaults(),
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
 				},
 			},
-			describeKeySpec: kms.CustomerMasterKeySpecRsa4096,
+			describeKeySpec: types.CustomerMasterKeySpecRsa4096,
 			getPublicKeyErr: "get public key error",
 		},
 	} {
@@ -232,7 +233,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 		name                   string
 		err                    string
 		expectedEntries        map[string]keyEntry
-		aliases                []*kms.AliasListEntry
+		aliases                []types.AliasListEntry
 		keyType                keymanager.KeyType
 		keySpec                string
 		publicKey              string
@@ -242,7 +243,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 	}{
 		{
 			name: "non existing key",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -260,7 +261,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 		},
 		{
 			name: "replace old key",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -280,7 +281,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			name:    "unsupported key spec",
 			keyType: keymanager.KeyType_RSA_1024,
 			err:     "awskms: unsupported key type: KeyType_RSA_1024",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -291,7 +292,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			name:         "create key error",
 			err:          "awskms: failed to create key: fake key",
 			createKeyErr: "fake key",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -302,7 +303,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			name:            "get public key error",
 			err:             "awskms: failed to get public key: public key error",
 			getPublicKeyErr: "public key error",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -312,7 +313,7 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 		{
 			name:                   "schedule key deletion error",
 			scheduleKeyDeletionErr: "schedule key deletion error",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -335,8 +336,8 @@ func (ps *KmsPluginSuite) Test_GenerateKey() {
 			ps.reset()
 			ps.setupScheduleKeyDeletion("")
 			ps.setupListAliases(tt.aliases, "")
-			ps.setupDescribeKey(kms.CustomerMasterKeySpecRsa4096, "")
-			ps.setupCreateKey(kms.CustomerMasterKeySpecRsa4096, tt.createKeyErr)
+			ps.setupDescribeKey(types.CustomerMasterKeySpecRsa4096, "")
+			ps.setupCreateKey(types.CustomerMasterKeySpecRsa4096, tt.createKeyErr)
 			ps.setupGetPublicKey("")
 
 			_, err := ps.plugin.Configure(ctx, ps.configureRequestWithDefaults())
@@ -378,12 +379,12 @@ func (ps *KmsPluginSuite) Test_SignData() {
 		name string
 		err  string
 
-		aliases       []*kms.AliasListEntry
+		aliases       []types.AliasListEntry
 		signDataError string
 	}{
 		{
 			name: "pass",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -393,13 +394,13 @@ func (ps *KmsPluginSuite) Test_SignData() {
 		{
 			name:    "non existing key",
 			err:     fmt.Sprintf("awskms: no such key \"%s\"", spireKeyID),
-			aliases: []*kms.AliasListEntry{},
+			aliases: []types.AliasListEntry{},
 		},
 		{
 			name:          "sign error",
 			err:           "awskms: failed to sign: sign error",
 			signDataError: "sign error",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -413,7 +414,7 @@ func (ps *KmsPluginSuite) Test_SignData() {
 			ps.reset()
 			ps.setupListAliases(tt.aliases, "")
 			ps.setupSignData(tt.signDataError)
-			ps.setupDescribeKey(kms.CustomerMasterKeySpecRsa4096, "")
+			ps.setupDescribeKey(types.CustomerMasterKeySpecRsa4096, "")
 			ps.setupGetPublicKey("")
 
 			_, err := ps.plugin.Configure(ctx, ps.configureRequestWithDefaults())
@@ -444,13 +445,13 @@ func (ps *KmsPluginSuite) Test_GetPublicKey() {
 		name string
 		err  string
 
-		aliases []*kms.AliasListEntry
+		aliases []types.AliasListEntry
 		keyID   string
 	}{
 		{
 			name:  "existing key",
 			keyID: spireKeyID,
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -461,12 +462,12 @@ func (ps *KmsPluginSuite) Test_GetPublicKey() {
 			name:    "non existing key",
 			err:     "awskms: no such key \"spireKeyID\"",
 			keyID:   spireKeyID,
-			aliases: []*kms.AliasListEntry{},
+			aliases: []types.AliasListEntry{},
 		},
 		{
 			name:    "missing key id",
 			err:     "awskms: key id is required",
-			aliases: []*kms.AliasListEntry{},
+			aliases: []types.AliasListEntry{},
 		},
 	} {
 		tt := tt
@@ -474,7 +475,7 @@ func (ps *KmsPluginSuite) Test_GetPublicKey() {
 		t.Run(tt.name, func(t *testing.T) {
 			ps.reset()
 			ps.setupListAliases(tt.aliases, "")
-			ps.setupDescribeKey(kms.CustomerMasterKeySpecRsa4096, "")
+			ps.setupDescribeKey(types.CustomerMasterKeySpecRsa4096, "")
 			ps.setupGetPublicKey("")
 
 			_, err := ps.plugin.Configure(ctx, ps.configureRequestWithDefaults())
@@ -500,11 +501,11 @@ func (ps *KmsPluginSuite) Test_GetPublicKeys() {
 		name string
 		err  string
 
-		aliases []*kms.AliasListEntry
+		aliases []types.AliasListEntry
 	}{
 		{
 			name: "existing key",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -513,7 +514,7 @@ func (ps *KmsPluginSuite) Test_GetPublicKeys() {
 		},
 		{
 			name:    "non existing key",
-			aliases: []*kms.AliasListEntry{},
+			aliases: []types.AliasListEntry{},
 		},
 	} {
 		tt := tt
@@ -521,7 +522,7 @@ func (ps *KmsPluginSuite) Test_GetPublicKeys() {
 		t.Run(tt.name, func(t *testing.T) {
 			ps.reset()
 			ps.setupListAliases(tt.aliases, "")
-			ps.setupDescribeKey(kms.CustomerMasterKeySpecRsa4096, "")
+			ps.setupDescribeKey(types.CustomerMasterKeySpecRsa4096, "")
 			ps.setupGetPublicKey("")
 
 			_, err := ps.plugin.Configure(ctx, ps.configureRequestWithDefaults())
@@ -548,11 +549,11 @@ func (ps *KmsPluginSuite) Test_GetPluginInfo() {
 		name string
 		err  string
 
-		aliases []*kms.AliasListEntry
+		aliases []types.AliasListEntry
 	}{
 		{
 			name: "pass",
-			aliases: []*kms.AliasListEntry{
+			aliases: []types.AliasListEntry{
 				{
 					AliasName:   aws.String(spireKeyAlias),
 					TargetKeyId: aws.String(kmsKeyID),
@@ -596,7 +597,7 @@ func (ps *KmsPluginSuite) serializedConfiguration(accessKeyID, secretAccessKey, 
 		region)
 }
 
-func (ps *KmsPluginSuite) setupListAliases(aliases []*kms.AliasListEntry, fakeError string) {
+func (ps *KmsPluginSuite) setupListAliases(aliases []types.AliasListEntry, fakeError string) {
 	ps.kmsClientFake.expectedListAliasesInput = &kms.ListAliasesInput{}
 
 	if fakeError != "" {
@@ -610,12 +611,12 @@ func (ps *KmsPluginSuite) setupListAliases(aliases []*kms.AliasListEntry, fakeEr
 	}
 }
 
-func (ps *KmsPluginSuite) setupDescribeKey(keySpec string, fakeError string) {
-	km := &kms.KeyMetadata{
+func (ps *KmsPluginSuite) setupDescribeKey(keySpec types.CustomerMasterKeySpec, fakeError string) {
+	km := &types.KeyMetadata{
 		KeyId:                 aws.String(kmsKeyID),
 		Description:           aws.String(defaultKeyPrefix + spireKeyID),
-		CustomerMasterKeySpec: aws.String(keySpec),
-		Enabled:               aws.Bool(true),
+		CustomerMasterKeySpec: keySpec,
+		Enabled:               true,
 		CreationDate:          aws.Time(time.Now()),
 	}
 
@@ -634,11 +635,11 @@ func (ps *KmsPluginSuite) setupGetPublicKey(fakeError string) {
 	}
 
 	pub := &kms.GetPublicKeyOutput{
-		CustomerMasterKeySpec: aws.String(kms.CustomerMasterKeySpecEccNistP256),
+		CustomerMasterKeySpec: types.CustomerMasterKeySpecEccNistP256,
 		KeyId:                 aws.String(kmsKeyID),
-		KeyUsage:              aws.String(signVerifyKeyUsage),
+		KeyUsage:              types.KeyUsageTypeSignVerify,
 		PublicKey:             []byte(data),
-		SigningAlgorithms:     []*string{aws.String(kms.SigningAlgorithmSpecRsassaPssSha256)},
+		SigningAlgorithms:     []types.SigningAlgorithmSpec{types.SigningAlgorithmSpecRsassaPssSha256},
 	}
 
 	ps.kmsClientFake.expectedGetPublicKeyInput = &kms.GetPublicKeyInput{KeyId: aws.String(kmsKeyID)}
@@ -649,10 +650,10 @@ func (ps *KmsPluginSuite) setupGetPublicKey(fakeError string) {
 	ps.kmsClientFake.getPublicKeyOutput = pub
 }
 
-func (ps *KmsPluginSuite) setupCreateKey(keySpec string, fakeError string) {
+func (ps *KmsPluginSuite) setupCreateKey(keySpec types.CustomerMasterKeySpec, fakeError string) {
 	desc := aws.String(defaultKeyPrefix + spireKeyID)
-	ku := aws.String(kms.KeyUsageTypeSignVerify)
-	ks := aws.String(keySpec)
+	ku := types.KeyUsageTypeSignVerify
+	ks := keySpec
 
 	ps.kmsClientFake.expectedCreateKeyInput = &kms.CreateKeyInput{
 		Description:           desc,
@@ -664,7 +665,7 @@ func (ps *KmsPluginSuite) setupCreateKey(keySpec string, fakeError string) {
 		ps.kmsClientFake.createKeyErr = errors.New(fakeError)
 	}
 
-	km := &kms.KeyMetadata{
+	km := &types.KeyMetadata{
 		KeyId:                 aws.String(kmsKeyID),
 		CreationDate:          aws.Time(time.Now()),
 		Description:           desc,
@@ -677,7 +678,7 @@ func (ps *KmsPluginSuite) setupCreateKey(keySpec string, fakeError string) {
 func (ps *KmsPluginSuite) setupScheduleKeyDeletion(fakeError string) {
 	ps.kmsClientFake.expectedScheduleKeyDeletionInput = &kms.ScheduleKeyDeletionInput{
 		KeyId:               aws.String(kmsKeyID),
-		PendingWindowInDays: aws.Int64(7),
+		PendingWindowInDays: aws.Int32(7),
 	}
 
 	if fakeError != "" {
@@ -694,8 +695,8 @@ func (ps *KmsPluginSuite) setupSignData(fakeError string) {
 	ps.kmsClientFake.expectedSignInput = &kms.SignInput{
 		KeyId:            aws.String(spireKeyAlias),
 		Message:          []byte("data"),
-		MessageType:      aws.String(kms.MessageTypeDigest),
-		SigningAlgorithm: aws.String(kms.SigningAlgorithmSpecRsassaPkcs1V15Sha256),
+		MessageType:      types.MessageTypeDigest,
+		SigningAlgorithm: types.SigningAlgorithmSpecRsassaPkcs1V15Sha256,
 	}
 
 	if fakeError != "" {

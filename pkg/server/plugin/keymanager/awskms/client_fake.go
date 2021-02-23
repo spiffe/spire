@@ -1,16 +1,11 @@
 package awskms
 
 import (
+	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	signVerifyKeyUsage string = "SIGN_VERIFY"
 )
 
 type kmsClientFake struct {
@@ -45,7 +40,7 @@ type kmsClientFake struct {
 	signErr           error
 }
 
-func (k *kmsClientFake) CreateKeyWithContext(ctx aws.Context, input *kms.CreateKeyInput, opts ...request.Option) (*kms.CreateKeyOutput, error) {
+func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput, opts ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
 	require.Equal(k.t, k.expectedCreateKeyInput, input)
 	if k.createKeyErr != nil {
 		return nil, k.createKeyErr
@@ -53,7 +48,7 @@ func (k *kmsClientFake) CreateKeyWithContext(ctx aws.Context, input *kms.CreateK
 	return k.createKeyOutput, nil
 }
 
-func (k *kmsClientFake) DescribeKeyWithContext(ctx aws.Context, input *kms.DescribeKeyInput, opts ...request.Option) (*kms.DescribeKeyOutput, error) {
+func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyInput, opts ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
 	require.Equal(k.t, k.expectedDescribeKeyInput, input)
 	if k.describeKeyErr != nil {
 		return nil, k.describeKeyErr
@@ -62,7 +57,7 @@ func (k *kmsClientFake) DescribeKeyWithContext(ctx aws.Context, input *kms.Descr
 	return k.describeKeyOutput, nil
 }
 
-func (k *kmsClientFake) GetPublicKeyWithContext(ctx aws.Context, input *kms.GetPublicKeyInput, opts ...request.Option) (*kms.GetPublicKeyOutput, error) {
+func (k *kmsClientFake) GetPublicKey(ctx context.Context, input *kms.GetPublicKeyInput, opts ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error) {
 	require.Equal(k.t, k.expectedGetPublicKeyInput, input)
 	if k.getPublicKeyErr != nil {
 		return nil, k.getPublicKeyErr
@@ -71,7 +66,7 @@ func (k *kmsClientFake) GetPublicKeyWithContext(ctx aws.Context, input *kms.GetP
 	return k.getPublicKeyOutput, nil
 }
 
-func (k *kmsClientFake) ListKeysWithContext(ctx aws.Context, input *kms.ListKeysInput, opts ...request.Option) (*kms.ListKeysOutput, error) {
+func (k *kmsClientFake) ListKeys(ctx context.Context, input *kms.ListKeysInput, opts ...func(*kms.Options)) (*kms.ListKeysOutput, error) {
 	require.Equal(k.t, k.expectedListKeysInput, input)
 	if k.listKeysErr != nil {
 		return nil, k.listKeysErr
@@ -80,7 +75,7 @@ func (k *kmsClientFake) ListKeysWithContext(ctx aws.Context, input *kms.ListKeys
 	return k.listKeysOutput, nil
 }
 
-func (k *kmsClientFake) ListAliasesWithContext(ctw aws.Context, input *kms.ListAliasesInput, opts ...request.Option) (*kms.ListAliasesOutput, error) {
+func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesInput, opts ...func(*kms.Options)) (*kms.ListAliasesOutput, error) {
 	require.Equal(k.t, k.expectedListAliasesInput, input)
 	if k.listAliasesErr != nil {
 		return nil, k.listAliasesErr
@@ -89,7 +84,7 @@ func (k *kmsClientFake) ListAliasesWithContext(ctw aws.Context, input *kms.ListA
 	return k.listAliasesOutput, nil
 }
 
-func (k *kmsClientFake) ScheduleKeyDeletionWithContext(ctx aws.Context, input *kms.ScheduleKeyDeletionInput, opts ...request.Option) (*kms.ScheduleKeyDeletionOutput, error) {
+func (k *kmsClientFake) ScheduleKeyDeletion(ctx context.Context, input *kms.ScheduleKeyDeletionInput, opts ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error) {
 	require.Equal(k.t, k.expectedScheduleKeyDeletionInput, input)
 	if k.scheduleKeyDeletionErr != nil {
 		return nil, k.scheduleKeyDeletionErr
@@ -98,7 +93,7 @@ func (k *kmsClientFake) ScheduleKeyDeletionWithContext(ctx aws.Context, input *k
 	return k.scheduleKeyDeletionOutput, nil
 }
 
-func (k *kmsClientFake) SignWithContext(ctx aws.Context, input *kms.SignInput, opts ...request.Option) (*kms.SignOutput, error) {
+func (k *kmsClientFake) Sign(ctx context.Context, input *kms.SignInput, opts ...func(*kms.Options)) (*kms.SignOutput, error) {
 	require.Equal(k.t, k.expectedSignInput, input)
 	if k.signErr != nil {
 		return nil, k.signErr
@@ -107,10 +102,10 @@ func (k *kmsClientFake) SignWithContext(ctx aws.Context, input *kms.SignInput, o
 	return k.signOutput, nil
 }
 
-func (k *kmsClientFake) CreateAliasWithContext(ctx aws.Context, input *kms.CreateAliasInput, opts ...request.Option) (*kms.CreateAliasOutput, error) {
+func (k *kmsClientFake) CreateAlias(ctx context.Context, input *kms.CreateAliasInput, opts ...func(*kms.Options)) (*kms.CreateAliasOutput, error) {
 	return nil, nil
 }
 
-func (k *kmsClientFake) UpdateAliasWithContext(ctw aws.Context, input *kms.UpdateAliasInput, opts ...request.Option) (*kms.UpdateAliasOutput, error) {
+func (k *kmsClientFake) UpdateAlias(ctw context.Context, input *kms.UpdateAliasInput, opts ...func(*kms.Options)) (*kms.UpdateAliasOutput, error) {
 	return nil, nil
 }

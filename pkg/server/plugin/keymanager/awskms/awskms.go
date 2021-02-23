@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -82,7 +83,7 @@ func newPlugin(newClient func(config *Config) (kmsClient, error)) *Plugin {
 	return p
 }
 
-//SetLogger sets a logger
+// SetLogger sets a logger
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
@@ -141,7 +142,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 
 	if !hasOldEntry {
 		//create alias
-		_, err = p.kmsClient.CreateAliasWithContext(ctx, &kms.CreateAliasInput{
+		_, err = p.kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
 			AliasName:   aws.String(newEntry.Alias),
 			TargetKeyId: &newEntry.KMSKeyID,
 		})
@@ -150,7 +151,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 		}
 	} else {
 		//update alias
-		_, err = p.kmsClient.UpdateAliasWithContext(ctx, &kms.UpdateAliasInput{
+		_, err = p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
 			AliasName:   aws.String(newEntry.Alias),
 			TargetKeyId: &newEntry.KMSKeyID,
 		})
@@ -162,9 +163,9 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 			//schedule delete
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
-			_, err = p.kmsClient.ScheduleKeyDeletionWithContext(ctx, &kms.ScheduleKeyDeletionInput{
+			_, err = p.kmsClient.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
 				KeyId:               &oldEntry.KMSKeyID,
-				PendingWindowInDays: aws.Int64(7),
+				PendingWindowInDays: aws.Int32(7),
 			})
 			if err != nil {
 				p.log.Error("It was not possible to schedule deletion for key", "error", err, keyIDTag, &oldEntry.KMSKeyID)
@@ -204,11 +205,11 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 		return nil, err
 	}
 
-	signResp, err := p.kmsClient.SignWithContext(ctx, &kms.SignInput{
+	signResp, err := p.kmsClient.Sign(ctx, &kms.SignInput{
 		KeyId:            &keyEntry.Alias,
 		Message:          req.Data,
-		MessageType:      aws.String(kms.MessageTypeDigest),
-		SigningAlgorithm: aws.String(signingAlgo),
+		MessageType:      types.MessageTypeDigest,
+		SigningAlgorithm: signingAlgo,
 	})
 	if err != nil {
 		return nil, kmsErr.New("failed to sign: %v", err)
@@ -295,16 +296,16 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 
 	createKeyInput := &kms.CreateKeyInput{
 		Description:           aws.String(description),
-		KeyUsage:              aws.String(kms.KeyUsageTypeSignVerify),
-		CustomerMasterKeySpec: aws.String(keySpec),
+		KeyUsage:              types.KeyUsageTypeSignVerify,
+		CustomerMasterKeySpec: keySpec,
 	}
 
-	key, err := p.kmsClient.CreateKeyWithContext(ctx, createKeyInput)
+	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
 	if err != nil {
 		return res, kmsErr.New("failed to create key: %v", err)
 	}
 
-	pub, err := p.kmsClient.GetPublicKeyWithContext(ctx, &kms.GetPublicKeyInput{KeyId: key.KeyMetadata.KeyId})
+	pub, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: key.KeyMetadata.KeyId})
 	if err != nil {
 		return res, kmsErr.New("failed to get public key: %v", err)
 	}
@@ -323,12 +324,12 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 }
 
 func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *string) (*keyEntry, error) {
-	describeResp, err := p.kmsClient.DescribeKeyWithContext(ctx, &kms.DescribeKeyInput{KeyId: alias})
+	describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias})
 	if err != nil {
 		return nil, kmsErr.New("failed to describe key: %v", err)
 	}
 
-	if !*describeResp.KeyMetadata.Enabled {
+	if !describeResp.KeyMetadata.Enabled {
 		return nil, nil
 	}
 
@@ -337,13 +338,13 @@ func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *str
 		return nil, nil
 	}
 
-	keyType, err := keyTypeFromKeySpec(*describeResp.KeyMetadata.CustomerMasterKeySpec)
+	keyType, err := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
 	if err != nil {
 		p.log.Debug("Skipped key", "reason", err)
 		return nil, nil
 	}
 
-	getPublicKeyResp, err := p.kmsClient.GetPublicKeyWithContext(ctx, &kms.GetPublicKeyInput{KeyId: alias})
+	getPublicKeyResp, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: alias})
 	if err != nil {
 		return nil, kmsErr.New("failed to get public key: %v", err)
 	}
@@ -360,14 +361,14 @@ func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *str
 }
 
 func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string, error) {
-	aliasesResp, err := p.kmsClient.ListAliasesWithContext(ctx, &kms.ListAliasesInput{
+	aliasesResp, err := p.kmsClient.ListAliases(ctx, &kms.ListAliasesInput{
 		Marker: marker,
 	})
 	if err != nil {
 		return nil, kmsErr.New("failed to fetch keys: %v", err)
 	}
 
-	p.log.Debug(fmt.Sprintf("%v keys were found", len(aliasesResp.Aliases)))
+	p.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
 
 	for _, alias := range aliasesResp.Aliases {
 		if alias.AliasName == nil || alias.TargetKeyId == nil {
@@ -418,14 +419,6 @@ func (p *Plugin) validateConfig(c string) (*Config, error) {
 		return nil, kmsErr.New("configuration is missing a region")
 	}
 
-	if config.AccessKeyID == "" {
-		config.AccessKeyID = p.hooks.getenv("AWS_ACCESS_KEY_ID")
-	}
-
-	if config.SecretAccessKey == "" {
-		config.SecretAccessKey = p.hooks.getenv("AWS_SECRET_ACCESS_KEY")
-	}
-
 	if config.KeyPrefix == "" {
 		config.KeyPrefix = defaultKeyPrefix
 	}
@@ -433,7 +426,7 @@ func (p *Plugin) validateConfig(c string) (*Config, error) {
 	return config, nil
 }
 
-func signingAlgorithmForKMS(keyType keymanager.KeyType, signerOpts interface{}) (string, error) {
+func signingAlgorithmForKMS(keyType keymanager.KeyType, signerOpts interface{}) (types.SigningAlgorithmSpec, error) {
 	var (
 		hashAlgo keymanager.HashAlgorithm
 		isPSS    bool
@@ -460,53 +453,53 @@ func signingAlgorithmForKMS(keyType keymanager.KeyType, signerOpts interface{}) 
 	case hashAlgo == keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", kmsErr.New("hash algorithm is required")
 	case keyType == keymanager.KeyType_EC_P256 && hashAlgo == keymanager.HashAlgorithm_SHA256:
-		return kms.SigningAlgorithmSpecEcdsaSha256, nil
+		return types.SigningAlgorithmSpecEcdsaSha256, nil
 	case keyType == keymanager.KeyType_EC_P384 && hashAlgo == keymanager.HashAlgorithm_SHA384:
-		return kms.SigningAlgorithmSpecEcdsaSha384, nil
+		return types.SigningAlgorithmSpecEcdsaSha384, nil
 	case isRSA && !isPSS && hashAlgo == keymanager.HashAlgorithm_SHA256:
-		return kms.SigningAlgorithmSpecRsassaPkcs1V15Sha256, nil
+		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha256, nil
 	case isRSA && !isPSS && hashAlgo == keymanager.HashAlgorithm_SHA384:
-		return kms.SigningAlgorithmSpecRsassaPkcs1V15Sha384, nil
+		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha384, nil
 	case isRSA && !isPSS && hashAlgo == keymanager.HashAlgorithm_SHA512:
-		return kms.SigningAlgorithmSpecRsassaPkcs1V15Sha512, nil
+		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha512, nil
 	case isRSA && isPSS && hashAlgo == keymanager.HashAlgorithm_SHA256:
-		return kms.SigningAlgorithmSpecRsassaPssSha256, nil
+		return types.SigningAlgorithmSpecRsassaPssSha256, nil
 	case isRSA && isPSS && hashAlgo == keymanager.HashAlgorithm_SHA384:
-		return kms.SigningAlgorithmSpecRsassaPssSha384, nil
+		return types.SigningAlgorithmSpecRsassaPssSha384, nil
 	case isRSA && isPSS && hashAlgo == keymanager.HashAlgorithm_SHA512:
-		return kms.SigningAlgorithmSpecRsassaPssSha512, nil
+		return types.SigningAlgorithmSpecRsassaPssSha512, nil
 	default:
 		return "", kmsErr.New("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
 	}
 }
 
-func keyTypeFromKeySpec(keySpec string) (keymanager.KeyType, error) {
+func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanager.KeyType, error) {
 	switch keySpec {
-	case kms.CustomerMasterKeySpecRsa2048:
+	case types.CustomerMasterKeySpecRsa2048:
 		return keymanager.KeyType_RSA_2048, nil
-	case kms.CustomerMasterKeySpecRsa4096:
+	case types.CustomerMasterKeySpecRsa4096:
 		return keymanager.KeyType_RSA_4096, nil
-	case kms.CustomerMasterKeySpecEccNistP256:
+	case types.CustomerMasterKeySpecEccNistP256:
 		return keymanager.KeyType_EC_P256, nil
-	case kms.CustomerMasterKeySpecEccNistP384:
+	case types.CustomerMasterKeySpecEccNistP384:
 		return keymanager.KeyType_EC_P384, nil
 	default:
 		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("unsupported key spec: %v", keySpec)
 	}
 }
 
-func keySpecFromKeyType(keyType keymanager.KeyType) (string, error) {
+func keySpecFromKeyType(keyType keymanager.KeyType) (types.CustomerMasterKeySpec, error) {
 	switch keyType {
 	case keymanager.KeyType_RSA_1024:
 		return "", kmsErr.New("unsupported key type: KeyType_RSA_1024")
 	case keymanager.KeyType_RSA_2048:
-		return kms.CustomerMasterKeySpecRsa2048, nil
+		return types.CustomerMasterKeySpecRsa2048, nil
 	case keymanager.KeyType_RSA_4096:
-		return kms.CustomerMasterKeySpecRsa4096, nil
+		return types.CustomerMasterKeySpecRsa4096, nil
 	case keymanager.KeyType_EC_P256:
-		return kms.CustomerMasterKeySpecEccNistP256, nil
+		return types.CustomerMasterKeySpecEccNistP256, nil
 	case keymanager.KeyType_EC_P384:
-		return kms.CustomerMasterKeySpecEccNistP384, nil
+		return types.CustomerMasterKeySpecEccNistP384, nil
 	default:
 		return "", kmsErr.New("unknown key type")
 	}
