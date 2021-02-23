@@ -87,6 +87,8 @@ type serverConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 
+	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
+
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -469,6 +471,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
 		}
+	}
+
+	// This is a terrible hack but is just a short-term band-aid.
+	if c.Server.AllowUnsafeIDs != nil {
+		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
+		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
 	}
 
 	return sc, nil

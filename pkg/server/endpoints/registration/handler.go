@@ -749,12 +749,16 @@ func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (string, error) {
 		return "", status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
 	}
 
-	spiffeID, err := idutil.NormalizeSpiffeID(spiffeID, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	normalized, err := idutil.NormalizeSpiffeID(spiffeID, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
 	if err != nil {
-		return "", status.Errorf(codes.InvalidArgument, err.Error())
+		return "", status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	return spiffeID, nil
+	if err := idutil.CheckIDStringNormalization(spiffeID); err != nil {
+		return "", status.Errorf(codes.InvalidArgument, "spiffe ID is malformed: %v", err)
+	}
+
+	return normalized, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
@@ -816,6 +820,7 @@ func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *c
 	return createResponse.Entry, false, nil
 }
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
+	original := entry
 	entry = cloneRegistrationEntry(entry)
 	if forUpdate && entry.EntryId == "" {
 		return nil, errors.New("missing registration entry id")
@@ -838,6 +843,14 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
 	if err != nil {
 		return nil, err
+	}
+
+	if err := idutil.CheckIDStringNormalization(original.ParentId); err != nil {
+		return nil, fmt.Errorf("parent ID is malformed: %v", err)
+	}
+
+	if err := idutil.CheckIDStringNormalization(original.SpiffeId); err != nil {
+		return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
 	}
 
 	// Validate Selectors
@@ -886,6 +899,9 @@ func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	if len(cert.URIs) == 0 {
 		return "", errors.New("no SPIFFE ID in certificate")
+	}
+	if err := idutil.CheckIDURLNormalization(cert.URIs[0]); err != nil {
+		return "", fmt.Errorf("SPIFFE ID is malformed: %v", err)
 	}
 	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
 	if err != nil {

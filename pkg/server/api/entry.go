@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -93,6 +94,9 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 			return nil, fmt.Errorf("invalid parent ID: %v", err)
 		}
 		parentIDString = parentID.String()
+		if err := idutil.CheckIDProtoNormalization(e.ParentId); err != nil {
+			return nil, fmt.Errorf("parent ID is malformed: %v", err)
+		}
 	}
 
 	var spiffeIDString string
@@ -102,6 +106,9 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 			return nil, fmt.Errorf("invalid spiffe ID: %v", err)
 		}
 		spiffeIDString = spiffeID.String()
+		if err := idutil.CheckIDProtoNormalization(e.SpiffeId); err != nil {
+			return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
+		}
 	}
 
 	var admin bool

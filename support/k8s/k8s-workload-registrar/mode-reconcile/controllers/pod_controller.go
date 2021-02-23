@@ -18,10 +18,10 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	spiretypes "github.com/spiffe/spire/proto/spire/types"
 
@@ -229,23 +229,23 @@ func (r *PodReconciler) makeSpiffeIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID
 	var spiffeID *spiretypes.SPIFFEID
 	switch r.Mode {
 	case PodReconcilerModeServiceAccount:
-		spiffeID = r.makeID(path.Join("/ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName))
+		spiffeID = r.makeID("ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName)
 	case PodReconcilerModeLabel:
 		if val, ok := pod.GetLabels()[r.Value]; ok {
-			spiffeID = r.makeID(path.Join("/", val))
+			spiffeID = r.makeID(val)
 		}
 	case PodReconcilerModeAnnotation:
 		if val, ok := pod.GetAnnotations()[r.Value]; ok {
-			spiffeID = r.makeID(path.Join("/", val))
+			spiffeID = r.makeID(val)
 		}
 	}
 	return spiffeID
 }
 
-func (r *PodReconciler) makeID(path string) *spiretypes.SPIFFEID {
+func (r *PodReconciler) makeID(segments ...string) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.TrustDomain,
-		Path:        path,
+		Path:        idutil.JoinPathSegments(segments...),
 	}
 }
 
@@ -256,7 +256,7 @@ func (r *PodReconciler) makeParentIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID
 	}
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.RootID.TrustDomain,
-		Path:        path.Join(r.RootID.Path, nodeName),
+		Path:        r.RootID.Path + idutil.JoinPathSegments(nodeName),
 	}
 }
 

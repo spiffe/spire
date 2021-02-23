@@ -171,6 +171,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		bundleManager.Run,
 		registrationManager.Run,
 		healthChecks.ListenAndServe,
+		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	)
 	if err == context.Canceled {
 		err = nil

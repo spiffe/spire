@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -85,6 +86,10 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 	if err := api.VerifyTrustDomainWorkloadID(s.td, id); err != nil {
 		log.Errorf("Invalid CSR: %v", err)
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
+	}
+
+	if err := idutil.CheckIDURLNormalization(csr.URIs[0]); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is malformed", err)
 	}
 
 	for _, dnsName := range csr.DNSNames {
@@ -244,6 +249,10 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	id, err := api.TrustDomainWorkloadIDFromProto(s.td, protoID)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
+	}
+
+	if err := idutil.CheckIDProtoNormalization(protoID); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "spiffe ID is malformed", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
