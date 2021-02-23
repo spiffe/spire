@@ -11,14 +11,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/proto/spire/agent/svidstore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/protobuf/proto"
 	"gotest.tools/assert"
 )
 
@@ -130,23 +128,11 @@ func TestPutX509SVID(t *testing.T) {
 					SecretId: aws.String("secret1"),
 				},
 				putSecretInput: &secretsmanager.PutSecretValueInput{
-					SecretId: aws.String("secret1-arn"),
+					SecretId:     aws.String("secret1-arn"),
+					SecretBinary: []byte(`{"spiffeID":"spiffe://example.org/lambda","key":"Ag==","svid":["AQ=="],"bundles":{"federated1":"BA==","spiffe://example.org":"Aw=="}}`),
 				},
 				// Create must not be called
 				createSecretErr: errors.New("unexpected error"),
-				svid: &workload.X509SVIDResponse{
-					Svids: []*workload.X509SVID{
-						{
-							SpiffeId:    "spiffe://example.org/lambda",
-							X509Svid:    []byte{1},
-							X509SvidKey: []byte{2},
-							Bundle:      []byte{3},
-						},
-					},
-					FederatedBundles: map[string][]byte{
-						"federated1": {4},
-					},
-				},
 			},
 		},
 		{
@@ -174,22 +160,10 @@ func TestPutX509SVID(t *testing.T) {
 					Tags: []*secretsmanager.Tag{
 						{Key: aws.String("spire-svid"), Value: aws.String("true")},
 					},
+					SecretBinary: []byte(`{"spiffeID":"spiffe://example.org/lambda","key":"Ag==","svid":["AQ=="],"bundles":{"federated1":"BA==","spiffe://example.org":"Aw=="}}`),
 				},
 				describeErr:  awserr.New(secretsmanager.ErrCodeResourceNotFoundException, "failed to describe", errors.New("secret not found")),
 				putSecretErr: errors.New("unexpected call to put secret"),
-				svid: &workload.X509SVIDResponse{
-					Svids: []*workload.X509SVID{
-						{
-							SpiffeId:    "spiffe://example.org/lambda",
-							X509Svid:    []byte{1},
-							X509SvidKey: []byte{2},
-							Bundle:      []byte{3},
-						},
-					},
-					FederatedBundles: map[string][]byte{
-						"federated1": {4},
-					},
-				},
 			},
 		},
 		{
@@ -214,7 +188,7 @@ func TestPutX509SVID(t *testing.T) {
 			smConfig: &smConfig{},
 		},
 		{
-			name: "failed to because no SVID provided",
+			name: "malformed SVID",
 			req: &svidstore.PutX509SVIDRequest{
 				Selectors: []*common.Selector{
 					{Type: "aws_secretsmanager", Value: "secretname:secret1"},
@@ -222,10 +196,13 @@ func TestPutX509SVID(t *testing.T) {
 				FederatedBundles: map[string][]byte{
 					"federated1": {4},
 				},
+				Svid: &svidstore.X509SVID{
+					SpiffeId: "malformed svid",
+				},
 			},
 			smConfig: &smConfig{},
 			errCode:  codes.InvalidArgument,
-			errMsg:   "failed to create SVID response: request does not contains a SVID",
+			errMsg:   "failed to parse request : failed to get trustdomain from SPIFFE ID: spiffeid: unable to parse: parse \"spiffe://malformed svid\": invalid character \" \" in host name",
 		},
 		{
 			name:      "no regions",
@@ -392,7 +369,6 @@ type smConfig struct {
 	drescribeInput    *secretsmanager.DescribeSecretInput
 	createSecretInput *secretsmanager.CreateSecretInput
 	putSecretInput    *secretsmanager.PutSecretValueInput
-	svid              *workload.X509SVIDResponse
 	noTag             bool
 
 	createSecretErr error
@@ -439,10 +415,6 @@ func (sm *fakeSecretsManagerClient) CreateSecret(input *secretsmanager.CreateSec
 		return nil, sm.c.createSecretErr
 	}
 
-	b, err := proto.Marshal(sm.c.svid)
-	require.NoError(sm.t, err)
-	sm.c.createSecretInput.SecretBinary = b
-
 	require.Equal(sm.t, sm.c.createSecretInput, input)
 	return &secretsmanager.CreateSecretOutput{ARN: input.Name}, nil
 }
@@ -452,10 +424,6 @@ func (sm *fakeSecretsManagerClient) PutSecretValue(input *secretsmanager.PutSecr
 		return nil, sm.c.putSecretErr
 	}
 
-	b, err := proto.Marshal(sm.c.svid)
-	require.NoError(sm.t, err)
-
-	sm.c.putSecretInput.SecretBinary = b
 	require.Equal(sm.t, sm.c.putSecretInput, input)
 
 	return &secretsmanager.PutSecretValueOutput{ARN: input.SecretId, VersionId: aws.String("1")}, nil

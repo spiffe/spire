@@ -3,12 +3,9 @@ package svidstore_test
 import (
 	"testing"
 
-	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestParseSelectors(t *testing.T) {
@@ -65,13 +62,13 @@ func TestEncodeSecret(t *testing.T) {
 		name   string
 		req    *svidstore.PutX509SVIDRequest
 		err    string
-		expect *workload.X509SVIDResponse
+		expect *svidstore.X509Response
 	}{
 		{
 			name: "success",
 			req: &svidstore.PutX509SVIDRequest{
 				Svid: &svidstore.X509SVID{
-					SpiffeId:   "someID",
+					SpiffeId:   "spiffe://example.org/foo",
 					CertChain:  []byte("foo"),
 					PrivateKey: []byte("bar"),
 					Bundle:     []byte("baz"),
@@ -86,50 +83,40 @@ func TestEncodeSecret(t *testing.T) {
 					"federated2": {2},
 				},
 			},
-			expect: &workload.X509SVIDResponse{
-				Svids: []*workload.X509SVID{
-					{
-						SpiffeId:    "someID",
-						X509Svid:    []byte("foo"),
-						X509SvidKey: []byte("bar"),
-						Bundle:      []byte("baz"),
-					},
-				},
-				FederatedBundles: map[string][]byte{
-					"federated1": {1},
-					"federated2": {2},
+			expect: &svidstore.X509Response{
+				SpiffeID: "spiffe://example.org/foo",
+				Svid:     [][]byte{[]byte("foo")},
+				Key:      []byte("bar"),
+				Bundles: map[string][]byte{
+					"spiffe://example.org": []byte("baz"),
+					"federated1":           {1},
+					"federated2":           {2},
 				},
 			},
 		},
 		{
-			name: "no svid provided",
-			err:  "request does not contains a SVID",
+			name: "malformed SpiffeID",
+			err:  "failed to get trustdomain from SPIFFE ID: spiffeid: unable to parse: parse \"spiffe://no an id\": invalid character \" \" in host name",
 			req: &svidstore.PutX509SVIDRequest{
-				Selectors: []*common.Selector{
-					{Type: "t", Value: "a:1"},
-					{Type: "t", Value: "b:2"},
-				},
-				FederatedBundles: map[string][]byte{
-					"federated1": {1},
-					"federated2": {2},
+				Svid: &svidstore.X509SVID{
+					SpiffeId:   "no an id",
+					CertChain:  []byte("foo"),
+					PrivateKey: []byte("bar"),
+					Bundle:     []byte("baz"),
+					ExpiresAt:  123456,
 				},
 			},
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := svidstore.EncodeSecret(tt.req)
+			resp, err := svidstore.X509ResponseFromProto(tt.req)
 			if tt.err != "" {
 				require.EqualError(t, err, tt.err)
 				return
 			}
 			require.NoError(t, err)
-
-			var m workload.X509SVIDResponse
-			err = proto.Unmarshal(b, &m)
-			require.NoError(t, err)
-
-			spiretest.RequireProtoEqual(t, tt.expect, &m)
+			require.Equal(t, tt.expect, resp)
 		})
 	}
 }

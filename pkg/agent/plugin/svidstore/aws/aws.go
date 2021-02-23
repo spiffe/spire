@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"sync"
 
@@ -153,9 +154,14 @@ func (p *SecretsManagerPlugin) putX509SVID(opt *secretOptions, region string, re
 	}
 
 	// Encode the secret from a 'workload.X509SVIDResponse'
-	secretBinary, err := svidstore.EncodeSecret(req)
+	svidResponse, err := svidstore.X509ResponseFromProto(req)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to create SVID response: %v", err)
+		return status.Errorf(codes.InvalidArgument, "failed to parse request : %v", err)
+	}
+
+	secretBinary, err := json.Marshal(svidResponse)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to parse payload: %v", err)
 	}
 
 	// Call DescribeSecret to retrieve the details of the secret

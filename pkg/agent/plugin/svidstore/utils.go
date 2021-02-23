@@ -1,14 +1,44 @@
 package svidstore
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 
-	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/agent/svidstore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"google.golang.org/protobuf/proto"
 )
+
+type X509Response struct {
+	SpiffeID string            `json:"spiffeID"`
+	Key      []byte            `json:"key"`
+	Svid     [][]byte          `json:"svid"`
+	Bundles  map[string][]byte `json:"bundles"`
+}
+
+func X509ResponseFromProto(req *svidstore.PutX509SVIDRequest) (*X509Response, error) {
+	td, err := spiffeid.TrustDomainFromString(req.Svid.SpiffeId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trustdomain from SPIFFE ID: %w", err)
+	}
+
+	bundles := make(map[string][]byte)
+	bundles[td.IDString()] = req.Svid.Bundle
+	for id, bundle := range req.FederatedBundles {
+		bundles[id] = bundle
+	}
+
+	resp := &X509Response{
+		SpiffeID: req.Svid.SpiffeId,
+		Key:      req.Svid.PrivateKey,
+		Svid: [][]byte{
+			req.Svid.CertChain,
+		},
+		Bundles: bundles,
+	}
+
+	return resp, nil
+}
 
 // ParseSelectors parses selectors for SVIDStore plugins
 func ParseSelectors(pluginName string, selectors []*common.Selector) map[string]string {
@@ -23,24 +53,4 @@ func ParseSelectors(pluginName string, selectors []*common.Selector) map[string]
 	}
 
 	return data
-}
-
-// EncodeSecret creates a secrets binary from a 'workload.X509SVIDResponse'
-func EncodeSecret(req *svidstore.PutX509SVIDRequest) ([]byte, error) {
-	if req.Svid == nil {
-		return nil, errors.New("request does not contains a SVID")
-	}
-
-	resp := &workload.X509SVIDResponse{
-		Svids: []*workload.X509SVID{
-			{
-				SpiffeId:    req.Svid.SpiffeId,
-				Bundle:      req.Svid.Bundle,
-				X509Svid:    req.Svid.CertChain,
-				X509SvidKey: req.Svid.PrivateKey,
-			},
-		},
-		FederatedBundles: req.FederatedBundles,
-	}
-	return proto.Marshal(resp)
 }
