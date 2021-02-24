@@ -6,27 +6,28 @@ import (
 	"io"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/zeebo/errs"
 )
 
-func Decode(trustDomainID string, r io.Reader) (*Bundle, error) {
+func Decode(trustDomain spiffeid.TrustDomain, r io.Reader) (*Bundle, error) {
 	doc := new(bundleDoc)
 	if err := json.NewDecoder(r).Decode(doc); err != nil {
 		return nil, fmt.Errorf("failed to decode bundle: %v", err)
 	}
-	return unmarshal(trustDomainID, doc)
+	return unmarshal(trustDomain, doc)
 }
 
-func Unmarshal(trustDomainID string, data []byte) (*Bundle, error) {
+func Unmarshal(trustDomain spiffeid.TrustDomain, data []byte) (*Bundle, error) {
 	doc := new(bundleDoc)
 	if err := json.Unmarshal(data, doc); err != nil {
 		return nil, errs.Wrap(err)
 	}
-	return unmarshal(trustDomainID, doc)
+	return unmarshal(trustDomain, doc)
 }
 
-func unmarshal(trustDomainID string, doc *bundleDoc) (*Bundle, error) {
-	bundle := New(trustDomainID)
+func unmarshal(trustDomain spiffeid.TrustDomain, doc *bundleDoc) (*Bundle, error) {
+	bundle := New(trustDomain)
 	bundle.SetRefreshHint(time.Second * time.Duration(doc.RefreshHint))
 
 	for i, key := range doc.Keys {

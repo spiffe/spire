@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	testTrustDomain = spiffeid.RequireTrustDomainFromString("spiffe://domain.test")
+	testTrustDomain = spiffeid.RequireTrustDomainFromString("domain.test")
 )
 
 func TestManager(t *testing.T) {

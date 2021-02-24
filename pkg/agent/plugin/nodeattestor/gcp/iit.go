@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
@@ -43,7 +44,7 @@ type IITAttestorPlugin struct {
 
 // IITAttestorConfig configures a IITAttestorPlugin.
 type IITAttestorConfig struct {
-	trustDomain       string
+	trustDomain       spiffeid.TrustDomain
 	IdentityTokenHost string `hcl:"identity_token_host"`
 	ServiceAccount    string `hcl:"service_account"`
 }
@@ -86,7 +87,12 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, newError("trust_domain is required")
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+
+	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+	config.trustDomain = td
 
 	if config.ServiceAccount == "" {
 		config.ServiceAccount = defaultServiceAccount
