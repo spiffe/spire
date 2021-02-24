@@ -47,7 +47,7 @@ func (ps *KmsPluginSuite) SetupTest() {
 	ps.kmsClientFake = &kmsClientFake{t: ps.T()}
 
 	// Setup plugin
-	plugin := newPlugin(func(c *Config) (kmsClient, error) {
+	plugin := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
 		return ps.kmsClientFake, nil
 	})
 

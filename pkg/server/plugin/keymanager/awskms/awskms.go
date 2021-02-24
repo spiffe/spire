@@ -3,11 +3,11 @@ package awskms
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
@@ -50,15 +50,16 @@ type keyEntry struct {
 // Plugin is the main representation of this keymanager plugin
 type Plugin struct {
 	keymanager.UnsafeKeyManagerServer
-	log       hclog.Logger
-	mu        sync.RWMutex
-	entries   map[string]keyEntry
-	kmsClient kmsClient
-	keyPrefix string
+	log            hclog.Logger
+	mu             sync.RWMutex
+	entries        map[string]keyEntry
+	kmsClient      kmsClient
+	keyPrefix      string
+	scheduleDelete chan string
+	clock          clock.Clock
 
 	hooks struct {
-		newClient func(config *Config) (kmsClient, error)
-		getenv    func(string) string
+		newClient func(ctx context.Context, config *Config) (kmsClient, error)
 	}
 }
 
@@ -75,11 +76,12 @@ func New() *Plugin {
 	return newPlugin(newKMSClient)
 }
 
-func newPlugin(newClient func(config *Config) (kmsClient, error)) *Plugin {
+func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, error)) *Plugin {
 	p := &Plugin{}
 	p.hooks.newClient = newClient
-	p.hooks.getenv = os.Getenv
 	p.entries = make(map[string]keyEntry)
+	p.scheduleDelete = make(chan string, 120)
+	p.clock = clock.New()
 	return p
 }
 
@@ -99,12 +101,12 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	defer p.mu.Unlock()
 
 	p.keyPrefix = config.KeyPrefix
-	p.kmsClient, err = p.hooks.newClient(config)
+	p.kmsClient, err = p.hooks.newClient(ctx, config)
 	if err != nil {
 		return nil, kmsErr.New("failed to create KMS client: %v", err)
 	}
 
-	p.log.Debug("Fetching keys from KMS")
+	p.log.Debug("Fetching key aliases from KMS")
 	var nextMarker *string
 	for {
 		nextMarker, err = p.fetchAliasesPage(ctx, nextMarker)
@@ -115,6 +117,8 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 			break
 		}
 	}
+
+	go p.scheduleDeleteTask(ctx)
 
 	return &plugin.ConfigureResponse{}, nil
 }
@@ -137,7 +141,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 		return nil, err
 	}
 
-	p.log.Debug("Created key", keyIDTag, &newEntry.KMSKeyID)
+	p.log.Debug("Key created", keyIDTag, newEntry.KMSKeyID)
 	oldEntry, hasOldEntry := p.entries[spireKeyID]
 
 	if !hasOldEntry {
@@ -149,6 +153,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 		if err != nil {
 			return nil, kmsErr.New("failed to create alias: %v", err)
 		}
+		p.log.Debug("Alias created", aliasTag, newEntry.Alias)
 	} else {
 		//update alias
 		_, err = p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
@@ -158,19 +163,9 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 		if err != nil {
 			return nil, kmsErr.New("failed to update alias: %v", err)
 		}
+		p.log.Debug("Alias updated", aliasTag, newEntry.Alias)
 
-		go func() {
-			//schedule delete
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-			defer cancel()
-			_, err = p.kmsClient.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
-				KeyId:               &oldEntry.KMSKeyID,
-				PendingWindowInDays: aws.Int32(7),
-			})
-			if err != nil {
-				p.log.Error("It was not possible to schedule deletion for key", "error", err, keyIDTag, &oldEntry.KMSKeyID)
-			}
-		}()
+		p.scheduleDelete <- oldEntry.KMSKeyID
 	}
 
 	err = p.setEntry(spireKeyID, newEntry)
@@ -316,19 +311,16 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	}, nil
 }
 
-func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *string) (*keyEntry, error) {
-	spireKeyID, ok := p.spireKeyIDFromAlias(*alias)
-	if !ok {
-		return nil, nil
-	}
-
-	describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias})
+func (p *Plugin) buildKeyEntry(ctx context.Context, aliasName *string, awsKeyID *string, spireKeyID string) (*keyEntry, error) {
+	describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aliasName})
 	if err != nil {
 		return nil, kmsErr.New("failed to describe key: %v", err)
 	}
 
 	if !describeResp.KeyMetadata.Enabled {
-		return nil, nil
+		// this means something external to the plugin, deleted or disabled the key without removing the alias
+		// returning an error provides the opportunity or reverting this in KMS
+		return nil, kmsErr.New("found disabled SPIRE key: %q, alias: %q", *awsKeyID, *aliasName)
 	}
 
 	keyType, err := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
@@ -337,14 +329,14 @@ func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *str
 		return nil, nil
 	}
 
-	getPublicKeyResp, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: alias})
+	getPublicKeyResp, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: aliasName})
 	if err != nil {
 		return nil, kmsErr.New("failed to get public key: %v", err)
 	}
 
 	return &keyEntry{
 		KMSKeyID: *awsKeyID,
-		Alias:    *alias,
+		Alias:    *aliasName,
 		PublicKey: &keymanager.PublicKey{
 			Id:       spireKeyID,
 			Type:     keyType,
@@ -353,6 +345,7 @@ func (p *Plugin) buildKeyEntry(ctx context.Context, alias *string, awsKeyID *str
 	}, err
 }
 
+// fetchAliasesPage gets all aliases from KMS, and builds an in memory representation, with the ones that belong to the current server
 func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string, error) {
 	aliasesResp, err := p.kmsClient.ListAliases(ctx, &kms.ListAliasesInput{
 		Marker: marker,
@@ -364,11 +357,22 @@ func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string,
 	p.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
 
 	for _, alias := range aliasesResp.Aliases {
-		if alias.AliasName == nil || alias.TargetKeyId == nil {
+		if alias.AliasName == nil {
 			continue
 		}
 
-		entry, err := p.buildKeyEntry(ctx, alias.AliasName, alias.TargetKeyId)
+		spireKeyID, ok := p.spireKeyIDFromAlias(*alias.AliasName)
+		if !ok {
+			continue
+		}
+
+		if alias.TargetKeyId == nil {
+			// this means something external to the plugin created the alias, without associating it to a key.
+			// it should never happen with CMKs.
+			return nil, kmsErr.New("found SPIRE alias without key: %q", *alias.AliasName)
+		}
+
+		entry, err := p.buildKeyEntry(ctx, alias.AliasName, alias.TargetKeyId, spireKeyID)
 		switch {
 		case err != nil:
 			return nil, kmsErr.New("failed to process KMS key: %v", err)
@@ -377,10 +381,37 @@ func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string,
 			if err != nil {
 				return nil, err
 			}
-			p.log.Debug("Loaded key", keyIDTag, *alias.TargetKeyId, aliasTag, *alias.AliasName)
+			p.log.Debug("Key loaded", keyIDTag, *alias.TargetKeyId, aliasTag, *alias.AliasName)
 		}
 	}
 	return aliasesResp.NextMarker, nil
+}
+
+func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
+	t := p.clock.Ticker(30 * time.Second)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Debug("Stopping schedule delete task", "reason", ctx.Err())
+			return
+		case <-t.C:
+			keyID, ok := <-p.scheduleDelete
+			if !ok {
+				continue
+			}
+			_, err := p.kmsClient.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
+				KeyId:               aws.String(keyID),
+				PendingWindowInDays: aws.Int32(7),
+			})
+			if err != nil {
+				p.log.Error("It was not possible to schedule deletion for key", "reason", err, keyIDTag, keyID)
+				p.scheduleDelete <- keyID
+			}
+			p.log.Debug("Key deleted", keyIDTag, keyID)
+		}
+	}
 }
 
 func (p *Plugin) spireKeyIDFromAlias(alias string) (string, bool) {

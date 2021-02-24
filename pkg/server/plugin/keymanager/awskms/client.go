@@ -19,8 +19,8 @@ type kmsClient interface {
 	Sign(context.Context, *kms.SignInput, ...func(*kms.Options)) (*kms.SignOutput, error)
 }
 
-func newKMSClient(c *Config) (kmsClient, error) {
-	cfg, err := config.LoadDefaultConfig(context.Background(),
+func newKMSClient(ctx context.Context, c *Config) (kmsClient, error) {
+	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(c.Region),
 	)
 	if err != nil {
