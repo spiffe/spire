@@ -90,7 +90,7 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 	}
 
 	svid, err := r.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  idutil.ServerID(r.c.TrustDomain.Host),
+		SpiffeID:  idutil.ServerID(r.c.TrustDomain),
 		PublicKey: key.Public(),
 	})
 	if err != nil {

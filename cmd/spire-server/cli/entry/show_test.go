@@ -26,9 +26,11 @@ func TestShowHelp(t *testing.T) {
   -parentID string
     	The Parent ID of the records to show
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID of the records to show
 `, test.stderr.String())

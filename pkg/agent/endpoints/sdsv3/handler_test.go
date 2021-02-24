@@ -14,6 +14,7 @@ import (
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -28,7 +29,7 @@ import (
 )
 
 var (
-	tdBundle = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{
+	tdBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("domain.test"), &x509.Certificate{
 		Raw: []byte("BUNDLE"),
 	})
 	tdValidationContext = &tls_v3.Secret{
@@ -57,7 +58,7 @@ var (
 		},
 	}
 
-	fedBundle = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{
+	fedBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("otherdomain.test"), &x509.Certificate{
 		Raw: []byte("FEDBUNDLE"),
 	})
 	fedValidationContext = &tls_v3.Secret{
@@ -287,9 +288,8 @@ func (s *HandlerSuite) TestStreamSecretsUnknownResource() {
 	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/WHATEVER"},
 	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp)
+	_, err = stream.Recv()
+	s.Require().Error(err)
 }
 
 func (s *HandlerSuite) TestStreamSecretsStreaming() {
@@ -479,14 +479,10 @@ func (s *HandlerSuite) TestFetchSecrets() {
 	s.requireSecrets(resp, workloadTLSCertificate1)
 
 	// Fetch non-existent resource
-	resp, err = s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{
+	_, err = s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/other"},
 	})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Empty(resp.VersionInfo)
-	s.Require().Empty(resp.Nonce)
-	s.requireSecrets(resp)
+	s.Require().Error(err)
 }
 
 func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
@@ -503,8 +499,8 @@ func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
 				},
 			},
 			Bundle: tdBundle,
-			FederatedBundles: map[string]*bundleutil.Bundle{
-				"spiffe://otherdomain.test": fedBundle,
+			FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				spiffeid.RequireTrustDomainFromString("otherdomain.test"): fedBundle,
 			},
 		}
 	}

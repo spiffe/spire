@@ -142,7 +142,7 @@ func (h *handler) startServerAPITestServer(t *testing.T) {
 func (h *handler) loadInitialBundle(t *testing.T) {
 	jwksBytes, err := ioutil.ReadFile("_test_data/keys/jwks.json")
 	require.NoError(t, err)
-	b, err := bundleutil.Unmarshal(trustDomain.IDString(), jwksBytes)
+	b, err := bundleutil.Unmarshal(trustDomain, jwksBytes)
 	require.NoError(t, err)
 
 	// Append X509 authorities
@@ -213,7 +213,7 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 
 	ca := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(h.cert[0], h.key),
-		trustDomain.String(),
+		trustDomain,
 		x509svid.UpstreamCAOptions{})
 
 	cert, err := ca.SignCSR(ctx, req.Csr, 0)

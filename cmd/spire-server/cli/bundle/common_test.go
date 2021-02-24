@@ -204,7 +204,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *bundl
 		stdin:    stdin,
 		stdout:   stdout,
 		stderr:   stderr,
-		args:     []string{"-registrationUDSPath", socketPath},
+		args:     []string{"-socketPath", socketPath},
 		server:   server,
 		client:   client,
 	}
@@ -236,12 +236,6 @@ func (s *bundleTest) afterTest(t *testing.T) {
 	t.Logf("STDOUT:\n%s", s.stdout.String())
 	t.Logf("STDIN:\n%s", s.stdin.String())
 	t.Logf("STDERR:\n%s", s.stderr.String())
-}
-
-func (s *bundleTest) assertBundleSet(t *testing.T, args ...string) {
-	rc := s.client.Run(args)
-	require.Equal(t, 0, rc)
-	require.Equal(t, "bundle set.\n", s.stdout.String())
 }
 
 type fakeBundleServer struct {

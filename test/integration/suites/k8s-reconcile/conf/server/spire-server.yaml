@@ -114,7 +114,6 @@ data:
       bind_port = "8081"
       trust_domain = "example.org"
       data_dir = "/run/spire/data"
-      registration_uds_path = "/run/spire/sockets/registration.sock"
       log_level = "DEBUG"
       default_svid_ttl = "1h"
       ca_ttl = "12h"
@@ -157,6 +156,14 @@ data:
       }
     }
 
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      live_path = "/live"
+      ready_path = "/ready"
+    }
+
 ---
 
 apiVersion: v1
@@ -169,8 +176,9 @@ data:
     mode = "reconcile"
     trust_domain = "example.org"
     cluster = "example-cluster"
-    server_socket_path = "/run/spire/sockets/registration.sock"
+    server_socket_path = "/tmp/spire-server/private/api.sock"
     leader_election = true
+    metrics_addr = "0.0.0.0:18080"
 
 ---
 
@@ -209,16 +217,18 @@ spec:
               mountPath: /run/spire/config
               readOnly: true
             - name: spire-server-socket
-              mountPath: /run/spire/sockets
+              mountPath: /tmp/spire-server/private
               readOnly: false
           livenessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-server", "healthcheck", "-registrationUDSPath", "/run/spire/sockets/registration.sock"]
+            httpGet:
+              path: /live
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-server", "healthcheck", "-registrationUDSPath", "/run/spire/sockets/registration.sock", "--shallow"]
+            httpGet:
+              path: /ready
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
         - name: k8s-workload-registrar
@@ -230,7 +240,7 @@ spec:
             name: registrar-port
           volumeMounts:
           - name: spire-server-socket
-            mountPath: /run/spire/sockets
+            mountPath: /tmp/spire-server/private
             readOnly: true
           - name: k8s-workload-registrar
             mountPath: /run/spire/k8s-workload-registrar/conf
@@ -279,5 +289,3 @@ spec:
   ports:
     - port: 443
       targetPort: registrar-port
-
-

@@ -6,13 +6,15 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -28,7 +30,7 @@ import (
 type Manager interface {
 	SubscribeToCacheChanges(cache.Selectors) cache.Subscriber
 	MatchingIdentities([]*common.Selector) []cache.Identity
-	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
 }
 
@@ -88,7 +90,14 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
 
 		var svid *client.JWTSVID
-		svid, err = h.c.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
+
+		id, err := spiffeid.FromString(spiffeID)
+		if err != nil {
+			log.WithError(err).Errorf("Invalid requested SPIFFE ID: %s", spiffeID)
+			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+		}
+
+		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)
 		if err != nil {
 			log.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
@@ -177,6 +186,12 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 
+	// The agent health check currently exercises the Workload API. Since this
+	// can happen with some frequency, it has a tendency to fill up logs with
+	// hard-to-filter details if we're not careful (e.g. issue #1537). Only log
+	// if it is not the agent itself.
+	quietLogging := rpccontext.CallerPID(ctx) == os.Getpid()
+
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Workload attestation failed")
@@ -189,7 +204,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if err := sendX509SVIDResponse(update, stream, log); err != nil {
+			if err := sendX509SVIDResponse(update, stream, log, quietLogging); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -198,9 +213,11 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger) (err error) {
+func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool) (err error) {
 	if len(update.Identities) == 0 {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		if !quietLogging {
+			log.WithField(telemetry.Registered, false).Error("No identity issued")
+		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -222,12 +239,14 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 	// log and emit telemetry on each SVID
 	// a response has already been sent so nothing is
 	// blocked on this logic
-	for i, svid := range resp.Svids {
-		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
-		log.WithFields(logrus.Fields{
-			telemetry.SPIFFEID: svid.SpiffeId,
-			telemetry.TTL:      ttl.Seconds(),
-		}).Debug("Fetched X.509 SVID")
+	if !quietLogging {
+		for i, svid := range resp.Svids {
+			ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
+			log.WithFields(logrus.Fields{
+				telemetry.SPIFFEID: svid.SpiffeId,
+				telemetry.TTL:      ttl.Seconds(),
+			}).Debug("Fetched X.509 SVID")
+		}
 	}
 
 	return nil
@@ -240,8 +259,8 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 
 	bundle := marshalBundle(update.Bundle.RootCAs())
 
-	for id, federatedBundle := range update.FederatedBundles {
-		resp.FederatedBundles[id] = marshalBundle(federatedBundle.RootCAs())
+	for td, federatedBundle := range update.FederatedBundles {
+		resp.FederatedBundles[td.IDString()] = marshalBundle(federatedBundle.RootCAs())
 	}
 
 	for _, identity := range update.Identities {

@@ -107,7 +107,7 @@ func (s *GooglePublicKeyRetrieverSuite) TestMalformedCertificatePEM() {
 
 func (s *GooglePublicKeyRetrieverSuite) TestSuccess() {
 	s.body = publicKeyPayload
-	s.expires = "Thu, 21 Jun 2018 01:53:33 GMT"
+	s.expires = "Thu, 21 Jun 2018 01:53:33 UTC"
 
 	key, err := s.retriever.retrieveKey(s.token)
 	s.Require().NotNil(key)

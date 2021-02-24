@@ -93,7 +93,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Agent.LogLevel, "INFO")
 	assert.Equal(t, c.Agent.ServerAddress, "127.0.0.1")
 	assert.Equal(t, c.Agent.ServerPort, 8081)
-	assert.Equal(t, c.Agent.SocketPath, "/tmp/agent.sock")
+	assert.Equal(t, c.Agent.SocketPath, "/tmp/spire-agent/public/api.sock")
 	assert.Equal(t, c.Agent.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.Agent.TrustDomain, "example.org")
 
@@ -137,7 +137,7 @@ func TestParseFlagsGood(t *testing.T) {
 		"-logLevel=INFO",
 		"-serverAddress=127.0.0.1",
 		"-serverPort=8081",
-		"-socketPath=/tmp/agent.sock",
+		"-socketPath=/tmp/spire-agent/public/api.sock",
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
 		"-trustBundleUrl=https://test.url",
 		"-trustDomain=example.org",
@@ -147,7 +147,7 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.LogLevel, "INFO")
 	assert.Equal(t, c.ServerAddress, "127.0.0.1")
 	assert.Equal(t, c.ServerPort, 8081)
-	assert.Equal(t, c.SocketPath, "/tmp/agent.sock")
+	assert.Equal(t, c.SocketPath, "/tmp/spire-agent/public/api.sock")
 	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.TrustBundleURL, "https://test.url")
 	assert.Equal(t, c.TrustDomain, "example.org")
@@ -190,30 +190,6 @@ func TestMergeInput(t *testing.T) {
 			},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.DataDir)
-			},
-		},
-		{
-			msg: "deprecated enable_sds should be configurable by file",
-			fileInput: func(c *Config) {
-				enableSDS := true
-				c.Agent.DeprecatedEnableSDS = &enableSDS
-			},
-			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
-				require.True(t, *c.Agent.DeprecatedEnableSDS)
-			},
-		},
-		{
-			msg:       "deprecated enable_sds should be configurable by CLI flag",
-			fileInput: func(c *Config) {},
-			cliInput: func(c *agentConfig) {
-				enableSDS := true
-				c.DeprecatedEnableSDS = &enableSDS
-			},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
-				require.True(t, *c.Agent.DeprecatedEnableSDS)
 			},
 		},
 		{
@@ -483,11 +459,11 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "socket_path should default to /tmp/agent.sock if not set",
+			msg:       "socket_path should default to /tmp/spire-agent/public/api.sock if not set",
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "/tmp/agent.sock", c.Agent.SocketPath)
+				require.Equal(t, "/tmp/spire-agent/public/api.sock", c.Agent.SocketPath)
 			},
 		},
 		{
@@ -658,7 +634,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.TrustDomain = "foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "spiffe://foo", c.TrustDomain.String())
+				require.Equal(t, "spiffe://foo", c.TrustDomain.IDString())
 			},
 		},
 		{
@@ -715,15 +691,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, "foo", c.DataDir)
-			},
-		},
-		{
-			msg: "enable_sds should not prevent agent configuration",
-			input: func(c *Config) {
-				enableSDS := true
-				c.Agent.DeprecatedEnableSDS = &enableSDS
-			},
-			test: func(t *testing.T, c *agent.Config) {
 			},
 		},
 		{

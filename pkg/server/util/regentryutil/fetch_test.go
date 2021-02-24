@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -100,7 +101,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		fiveEntry,
 	}
 
-	actual, err := FetchRegistrationEntriesWithCache(ctx, dataStore, cache, rootID)
+	actual, err := FetchRegistrationEntriesWithCache(ctx, dataStore, cache, spiffeid.RequireFromString(rootID))
 	assert.NoError(err)
 
 	assert.Equal(expected, actual)

@@ -21,12 +21,12 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -55,21 +55,20 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir             string    `hcl:"data_dir"`
-	AdminSocketPath     string    `hcl:"admin_socket_path"`
-	DeprecatedEnableSDS *bool     `hcl:"enable_sds"`
-	InsecureBootstrap   bool      `hcl:"insecure_bootstrap"`
-	JoinToken           string    `hcl:"join_token"`
-	LogFile             string    `hcl:"log_file"`
-	LogFormat           string    `hcl:"log_format"`
-	LogLevel            string    `hcl:"log_level"`
-	SDS                 sdsConfig `hcl:"sds"`
-	ServerAddress       string    `hcl:"server_address"`
-	ServerPort          int       `hcl:"server_port"`
-	SocketPath          string    `hcl:"socket_path"`
-	TrustBundlePath     string    `hcl:"trust_bundle_path"`
-	TrustBundleURL      string    `hcl:"trust_bundle_url"`
-	TrustDomain         string    `hcl:"trust_domain"`
+	DataDir           string    `hcl:"data_dir"`
+	AdminSocketPath   string    `hcl:"admin_socket_path"`
+	InsecureBootstrap bool      `hcl:"insecure_bootstrap"`
+	JoinToken         string    `hcl:"join_token"`
+	LogFile           string    `hcl:"log_file"`
+	LogFormat         string    `hcl:"log_format"`
+	LogLevel          string    `hcl:"log_level"`
+	SDS               sdsConfig `hcl:"sds"`
+	ServerAddress     string    `hcl:"server_address"`
+	ServerPort        int       `hcl:"server_port"`
+	SocketPath        string    `hcl:"socket_path"`
+	TrustBundlePath   string    `hcl:"trust_bundle_path"`
+	TrustBundleURL    string    `hcl:"trust_bundle_url"`
+	TrustDomain       string    `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -250,7 +249,7 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.StringVar(&c.SocketPath, "socketPath", "", "Location to bind the workload API socket")
+	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Agent API socket to")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 	flags.StringVar(&c.TrustBundleURL, "trustBundleUrl", "", "URL to download the SPIRE server CA bundle")
@@ -355,11 +354,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
 
-	td, err := idutil.ParseSpiffeID("spiffe://"+c.Agent.TrustDomain, idutil.AllowAnyTrustDomain())
+	td, err := spiffeid.TrustDomainFromString(c.Agent.TrustDomain)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Agent.TrustDomain, err)
 	}
-	ac.TrustDomain = *td
+	ac.TrustDomain = td
 
 	ac.BindAddress = &net.UnixAddr{
 		Name: c.Agent.SocketPath,
@@ -414,11 +413,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry
 	ac.HealthChecks = c.HealthChecks
-
-	// TODO: remove deprecated configurable in 0.12.0
-	if c.Agent.DeprecatedEnableSDS != nil {
-		ac.Log.Warn("SDS support is now always on. The enable_sds configurable is ignored and should be removed")
-	}
 
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, logger); err != nil {

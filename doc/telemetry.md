@@ -45,13 +45,6 @@ The following metrics are emitted:
 | Call Counter | `datastore`, `registration_entry`, `update` | | The Datastore is updating a registration entry. 
 | Counter | `manager`, `jwt_key`, `activate` | | The CA manager has successfully activated a JWT Key.
 | Gauge | `manager`, `x509_ca`, `rotate`, `ttl` | `trust_domain_id` | The CA manager is rotating the X.509 CA with a given TTL for a specific Trust Domain.
-| Call Counter | `node_api`, `attest` | | The Node API is performing a node attestation.
-| Call Counter | `node_api`, `authorize_call` | `method` | The Node API is authorizing a call for a given method.
-| Call Counter | `node_api`, `fetch_bundle`, `fetch` | | The Node API is fetching the current bundle.
-| Call Counter | `node_api`, `jwt_key`, `push` | | The Node API is pushing a JWT Key to an upstream server.
-| Call Counter | `node_api`, `jwt_svid`, `fetch` | | The Node API is fetching a JWT SVID.
-| Call Counter | `node_api`, `x509_ca_svid`, `fetch` | | The Node API is fetching an X.509 CA SVID.
-| Call Counter | `node_api`, `x509_svid`, `fetch` | | The Node API is fetching an X.509 SVID.
 | Call Counter | `registration_api`, `authorize_call` | `method` | The Registration API is authorizing a call for a given method.
 | Call Counter | `registration_api`, `bundle`, `fetch` | | The Registration API is fetching a bundle.
 | Call Counter | `registration_api`, `entry`, `create` | | The Registration API is creating an entry.
@@ -74,7 +67,8 @@ The following metrics are emitted:
 | Counter | `server_ca`, `sign`, `x509_ca_svid` | | The CA has successfully signed an X.509 CA SVID.
 | Counter | `server_ca`, `sign`, `x509_svid` | | The CA has successfully signed an X.509 SVID.
 | Call Counter | `svid`, `rotate` | | The Server's SVID is being rotated.
-| Gauge | `started` | `version` | | The version of the Server.
+| Gauge | `started` | `version` | The version of the Server.
+| Gauge | `uptime_in_ms` |  | The uptime of the Server in milliseconds.
 
 ## SPIRE Agent
 
@@ -99,5 +93,6 @@ The following metrics are emitted:
 | Call Counter | `workload_api`, `workload_attestation` | | The Workload API is performing a workload attestation.
 | Call Counter | `workload_api`, `workload_attestor` | `attestor` | The Workload API is invoking a given attestor.
 | Gauge | `started` | `version` | The version of the Agent.
+| Gauge | `uptime_in_ms` |  | The uptime of the Agent in milliseconds.
 
 Note: These are the keys and labels that SPIRE emits, but the format of the metric once ingested could vary depending on the metric collector. E.g. once in StatsD, the metric emitted when rotating an Agent SVID (`agent_svid`, `rotate`) can be found as `spire_agent_agent_svid_rotate_internal_host-agent-0`, where `host-agent-0` is the hostname and `spire-agent` is the service name.

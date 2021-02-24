@@ -1788,7 +1788,7 @@ func (s *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	ca := fakeserverca.New(t, td.String(), &fakeserverca.Options{})
+	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
 

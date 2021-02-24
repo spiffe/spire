@@ -235,6 +235,15 @@ message BySelectors {
     MatchBehavior match = 2;
 }
 
+message ByFederatesWith {
+    enum MatchBehavior {
+        MATCH_EXACT = 0;
+        MATCH_SUBSET = 1;
+    }
+    repeated string trust_domains = 1;
+    MatchBehavior match = 2;
+}
+
 message Pagination {
     string token = 1;
     int32 page_size = 2;
@@ -254,6 +263,7 @@ message ListRegistrationEntriesRequest {
     Pagination pagination = 4;
     // When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
     bool tolerate_stale = 5;
+    ByFederatesWith by_federates_with = 6;
 }
 
 message ListRegistrationEntriesResponse {

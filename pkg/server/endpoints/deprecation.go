@@ -1,7 +1,6 @@
 package endpoints
 
 import (
-	"strings"
 	"sync"
 	"time"
 
@@ -32,11 +31,7 @@ func wrapWithDeprecationLogging(log logrus.FieldLogger, unary grpc.UnaryServerIn
 
 func maybeLogDeprecation(log logrus.FieldLogger, fullMethod string) {
 	if shouldLogDeprecation(fullMethod) {
-		msg := "This API is deprecated and will be removed in a future release"
-		if strings.HasPrefix(fullMethod, "/spire.api.registration.Registration/") {
-			msg += " (see https://github.com/spiffe/spire/blob/master/doc/migrating_registration_api_clients.md)"
-		}
-		log.WithFields(logrus.Fields{"method": fullMethod}).Warn(msg)
+		log.WithField("method", fullMethod).Warn("This API is deprecated and will be removed in a future release (see https://github.com/spiffe/spire/blob/master/doc/migrating_registration_api_clients.md)")
 	}
 }
 

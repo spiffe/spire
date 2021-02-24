@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
@@ -9,9 +10,8 @@ import (
 	"path"
 	"runtime"
 	"sync"
-	"time"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	api_workload "github.com/spiffe/spire/api/workload"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
@@ -26,10 +26,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Agent struct {
@@ -66,11 +66,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	})
 
 	telemetry.EmitVersion(metrics)
+	uptime.ReportMetrics(ctx, metrics)
 
 	cat, err := catalog.Load(ctx, catalog.Config{
 		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: a.c.TrustDomain.Host,
+			TrustDomain: a.c.TrustDomain.String(),
 		},
 		PluginConfig: a.c.PluginConfigs,
 		HostServices: []common_catalog.HostServiceServer{
@@ -97,7 +98,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(cat, metrics, manager)
 
-	if err := healthChecks.AddCheck("agent", a, time.Minute); err != nil {
+	if err := healthChecks.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
@@ -105,14 +106,11 @@ func (a *Agent) Run(ctx context.Context) error {
 		manager.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
-		healthChecks.ListenAndServe,
+		util.SerialRun(a.waitForTestDial, healthChecks.ListenAndServe),
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints, err := a.newAdminEndpoints(manager)
-		if err != nil {
-			return fmt.Errorf("failed to create debug endpoints: %v", err)
-		}
+		adminEndpoints := a.newAdminEndpoints(manager)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
@@ -181,18 +179,16 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 
 func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
-		Catalog:               cat,
-		Metrics:               metrics,
-		JoinToken:             a.c.JoinToken,
-		TrustDomain:           a.c.TrustDomain,
-		TrustBundle:           a.c.TrustBundle,
-		InsecureBootstrap:     a.c.InsecureBootstrap,
-		BundleCachePath:       a.bundleCachePath(),
-		SVIDCachePath:         a.agentSVIDPath(),
-		Log:                   a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
-		ServerAddress:         a.c.ServerAddress,
-		CreateNewAgentClient:  agent.NewAgentClient,
-		CreateNewBundleClient: bundle.NewBundleClient,
+		Catalog:           cat,
+		Metrics:           metrics,
+		JoinToken:         a.c.JoinToken,
+		TrustDomain:       a.c.TrustDomain,
+		TrustBundle:       a.c.TrustBundle,
+		InsecureBootstrap: a.c.InsecureBootstrap,
+		BundleCachePath:   a.bundleCachePath(),
+		SVIDCachePath:     a.agentSVIDPath(),
+		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
+		ServerAddress:     a.c.ServerAddress,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -236,20 +232,16 @@ func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr
 	})
 }
 
-func (a *Agent) newAdminEndpoints(mgr manager.Manager) (admin_api.Server, error) {
-	td, err := spiffeid.TrustDomainFromURI(&a.c.TrustDomain)
-	if err != nil {
-		return nil, err
-	}
+func (a *Agent) newAdminEndpoints(mgr manager.Manager) admin_api.Server {
 	config := &admin_api.Config{
 		BindAddr:    a.c.AdminBindAddress,
 		Manager:     mgr,
 		Log:         a.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
-		TrustDomain: td,
+		TrustDomain: a.c.TrustDomain,
 		Uptime:      uptime.Uptime,
 	}
 
-	return admin_api.New(config), nil
+	return admin_api.New(config)
 }
 func (a *Agent) bundleCachePath() string {
 	return path.Join(a.c.DataDir, "bundle.der")
@@ -259,7 +251,33 @@ func (a *Agent) agentSVIDPath() string {
 	return path.Join(a.c.DataDir, "agent_svid.der")
 }
 
+// waitForTestDial calls health.WaitForTestDial to wait for a connection to the
+// SPIRE Agent API socket. This function always returns nil, even if
+// health.WaitForTestDial exited due to a timeout.
+func (a *Agent) waitForTestDial(ctx context.Context) error {
+	health.WaitForTestDial(ctx, a.c.BindAddress)
+	return nil
+}
+
 // Status is used as a top-level health check for the Agent.
 func (a *Agent) Status() (interface{}, error) {
-	return nil, nil
+	client := api_workload.NewX509Client(&api_workload.X509ClientConfig{
+		Addr:        a.c.BindAddress,
+		FailOnError: true,
+	})
+	defer client.Stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- client.Start()
+	}()
+
+	err := <-errCh
+	if status.Code(err) == codes.Unavailable {
+		return nil, errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+	}
+
+	return health.Details{
+		Message: "successfully created a workload api client to fetch x509 svid",
+	}, nil
 }

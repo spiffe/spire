@@ -18,6 +18,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
@@ -38,7 +39,8 @@ func TestServer(t *testing.T) {
 	// create a bundle for testing. we need a certificate in the bundle since
 	// the root lifetimes are used to heuristically determine the refresh hint.
 	// since the content doesn't really matter, we'll just add the server cert.
-	bundle := bundleutil.New("spiffe://domain.test")
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	bundle := bundleutil.New(trustDomain)
 	bundle.AppendRootCA(serverCert)
 
 	// even though this will be SPIFFE authentication in production, there is
@@ -154,7 +156,8 @@ func TestServer(t *testing.T) {
 func TestACMEAuth(t *testing.T) {
 	dir := spiretest.TempDir(t)
 
-	bundle := bundleutil.New("spiffe://domain.test")
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	bundle := bundleutil.New(trustDomain)
 	km := memory.New()
 
 	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{"domain.test"})
@@ -335,6 +338,6 @@ func createServerCertificate(t *testing.T) (*x509.Certificate, crypto.Signer) {
 		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
 		NotBefore:    now,
 		NotAfter:     now.Add(serverCertLifetime),
-		URIs:         []*url.URL{idutil.ServerURI("domain.test")},
+		URIs:         []*url.URL{idutil.ServerID(spiffeid.RequireTrustDomainFromString("domain.test")).URL()},
 	})
 }

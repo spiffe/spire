@@ -102,8 +102,8 @@ jobs:
     steps:
       - setup_remote_docker: {}
       - checkout
-      - run: make images
-      - run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
+      - run: make images scratch-images
+      - run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local | gzip > images.tar.gz
       - persist_to_workspace:
           root: ./
           paths:
@@ -113,7 +113,8 @@ jobs:
   integration-test:
     # Run in the machine executor since we have to execute a bunch of
     # docker containers to do the tests
-    machine: true
+    machine:
+      image: ubuntu-2004:202010-01
     parallelism: 4
     resource_class: medium
     environment:
@@ -130,9 +131,12 @@ jobs:
       - checkout
       - run:
           name: Execute integration test suites
-          working_directory: test/integration/
           command: |
-            circleci tests glob "suites/*" | circleci tests split | xargs ./test.sh
+            # CircleCI is silly and doesn't provide this incredibly helpful
+            # environment variable. Requests for it go back years. For shame.
+            CIRCLE_TARGET_BRANCH=$(.circleci/determine-target-branch.sh)
+            cd test/integration
+            circleci tests glob "suites/*" | circleci tests split | CICD_TARGET_BRANCH="${CIRCLE_TARGET_BRANCH}" xargs ./test.sh
 
   # Publish "unstable" docker images
   publish-unstable-images:

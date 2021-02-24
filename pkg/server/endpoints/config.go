@@ -17,12 +17,12 @@ import (
 	bundlev1 "github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	debugv1 "github.com/spiffe/spire/pkg/server/api/debug/v1"
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
+	healthv1 "github.com/spiffe/spire/pkg/server/api/health/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -49,9 +49,6 @@ type Config struct {
 	// Server CA for signing SVIDs
 	ServerCA ca.ServerCA
 
-	// Allow agentless spiffeIds when doing node attestation
-	AllowAgentlessNodeAttestors bool
-
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
@@ -69,33 +66,18 @@ type Config struct {
 	Clock clock.Clock
 }
 
-func (c *Config) makeOldAPIServers() (OldAPIServers, error) {
+func (c *Config) makeOldAPIServers() OldAPIServers {
 	registrationHandler := &registration.Handler{
 		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
 		Metrics:     c.Metrics,
 		Catalog:     c.Catalog,
-		TrustDomain: *c.TrustDomain.ID().URL(),
+		TrustDomain: c.TrustDomain,
 		ServerCA:    c.ServerCA,
-	}
-
-	nodeHandler, err := node.NewHandler(node.HandlerConfig{
-		Log:                         c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
-		Metrics:                     c.Metrics,
-		Catalog:                     c.Catalog,
-		TrustDomain:                 *c.TrustDomain.ID().URL(),
-		ServerCA:                    c.ServerCA,
-		Manager:                     c.Manager,
-		AllowAgentlessNodeAttestors: c.AllowAgentlessNodeAttestors,
-		RateLimitAttestation:        c.RateLimit.Attestation,
-	})
-	if err != nil {
-		return OldAPIServers{}, err
 	}
 
 	return OldAPIServers{
 		RegistrationServer: registrationHandler,
-		NodeServer:         nodeHandler,
-	}, nil
+	}
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() Server {
@@ -151,23 +133,27 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			DataStore:         ds,
 			UpstreamPublisher: upstreamPublisher,
 		}),
-		EntryServer: entryv1.New(entryv1.Config{
-			TrustDomain:  c.TrustDomain,
-			DataStore:    ds,
-			EntryFetcher: entryFetcher,
-		}),
-		SVIDServer: svidv1.New(svidv1.Config{
-			TrustDomain:  c.TrustDomain,
-			EntryFetcher: entryFetcher,
-			ServerCA:     c.ServerCA,
-			DataStore:    ds,
-		}),
 		DebugServer: debugv1.New(debugv1.Config{
 			TrustDomain:  c.TrustDomain,
 			Clock:        c.Clock,
 			DataStore:    ds,
 			SVIDObserver: c.SVIDObserver,
 			Uptime:       c.Uptime,
+		}),
+		EntryServer: entryv1.New(entryv1.Config{
+			TrustDomain:  c.TrustDomain,
+			DataStore:    ds,
+			EntryFetcher: entryFetcher,
+		}),
+		HealthServer: healthv1.New(healthv1.Config{
+			TrustDomain: c.TrustDomain,
+			DataStore:   ds,
+		}),
+		SVIDServer: svidv1.New(svidv1.Config{
+			TrustDomain:  c.TrustDomain,
+			EntryFetcher: entryFetcher,
+			ServerCA:     c.ServerCA,
+			DataStore:    ds,
 		}),
 	}
 }

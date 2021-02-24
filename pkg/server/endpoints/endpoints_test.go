@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	agentv1 "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
@@ -41,6 +40,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
@@ -55,9 +55,11 @@ var (
 )
 
 func TestNew(t *testing.T) {
+	tempdir := spiretest.TempDir(t)
+
 	ctx := context.Background()
-	tcpAddr := &net.TCPAddr{}
-	udsAddr := &net.UnixAddr{}
+	tcpAddr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+	udsAddr := &net.UnixAddr{Net: "unix", Name: filepath.Join(tempdir, "sockets")}
 
 	svidObserver := newSVIDObserver(nil)
 
@@ -70,11 +72,11 @@ func TestNew(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
-	serverCA := fakeserverca.New(t, testTD.String(), nil)
+	serverCA := fakeserverca.New(t, testTD, nil)
 	manager := ca.NewManager(ca.ManagerConfig{
 		CA:          serverCA,
 		Catalog:     cat,
-		TrustDomain: *testTD.ID().URL(),
+		TrustDomain: testTD,
 		Dir:         spiretest.TempDir(t),
 		Log:         log,
 		Metrics:     metrics,
@@ -101,12 +103,12 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
 	assert.NotNil(t, endpoints.OldAPIServers.RegistrationServer)
-	assert.NotNil(t, endpoints.OldAPIServers.NodeServer)
 	assert.NotNil(t, endpoints.APIServers.AgentServer)
 	assert.NotNil(t, endpoints.APIServers.BundleServer)
-	assert.NotNil(t, endpoints.APIServers.EntryServer)
-	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.APIServers.DebugServer)
+	assert.NotNil(t, endpoints.APIServers.EntryServer)
+	assert.NotNil(t, endpoints.APIServers.HealthServer)
+	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
@@ -130,11 +132,11 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
-	serverCA := fakeserverca.New(t, testTD.String(), nil)
+	serverCA := fakeserverca.New(t, testTD, nil)
 	manager := ca.NewManager(ca.ManagerConfig{
 		CA:          serverCA,
 		Catalog:     cat,
-		TrustDomain: *testTD.ID().URL(),
+		TrustDomain: testTD,
 		Dir:         spiretest.TempDir(t),
 		Log:         log,
 		Metrics:     metrics,
@@ -179,7 +181,6 @@ func TestListenAndServe(t *testing.T) {
 	metrics := fakemetrics.New()
 
 	registrationServer := newRegistrationServer()
-	nodeServer := newNodeServer()
 	bundleEndpointServer := newBundleEndpointServer()
 	clk := clock.NewMock(t)
 
@@ -198,14 +199,14 @@ func TestListenAndServe(t *testing.T) {
 		DataStore:    ds,
 		OldAPIServers: OldAPIServers{
 			RegistrationServer: registrationServer,
-			NodeServer:         nodeServer,
 		},
 		APIServers: APIServers{
 			AgentServer:  &agentv1.UnimplementedAgentServer{},
 			BundleServer: &bundlev1.UnimplementedBundleServer{},
-			EntryServer:  &entryv1.UnimplementedEntryServer{},
-			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
 			DebugServer:  &debugv1.UnimplementedDebugServer{},
+			EntryServer:  &entryv1.UnimplementedEntryServer{},
+			HealthServer: &grpc_health_v1.UnimplementedHealthServer{},
+			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
 		},
 		BundleEndpointServer:         bundleEndpointServer,
 		Log:                          log,
@@ -273,14 +274,14 @@ func TestListenAndServe(t *testing.T) {
 	t.Run("Registration", func(t *testing.T) {
 		testRegistrationAPI(ctx, t, registrationServer, udsConn, noauthConn, agentConn)
 	})
-	t.Run("Node", func(t *testing.T) {
-		testNodeAPI(ctx, t, nodeServer, udsConn, noauthConn, agentConn)
-	})
 	t.Run("Agent", func(t *testing.T) {
 		testAgentAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Debug", func(t *testing.T) {
 		testDebugAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+	})
+	t.Run("Health", func(t *testing.T) {
+		testHealthAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Bundle", func(t *testing.T) {
 		testBundleAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
@@ -376,36 +377,6 @@ func testRegistrationAPI(ctx context.Context, t *testing.T, s *registrationServe
 	})
 }
 
-func testNodeAPI(ctx context.Context, t *testing.T, s *nodeServer, udsConn, noauthConn, agentConn *grpc.ClientConn) {
-	call := func(t *testing.T, conn *grpc.ClientConn) *peer.Peer {
-		return doCall(t, s.callTracker, func() error {
-			client := node.NewNodeClient(conn)
-			_, err := client.FetchBundle(ctx, &node.FetchBundleRequest{})
-			return err
-		})
-	}
-	t.Run("UDS", func(t *testing.T) {
-		peer := call(t, udsConn)
-		require.Nil(t, peer, "unexpected peer; node API is not served over UDS")
-	})
-	t.Run("TLS", func(t *testing.T) {
-		peer := call(t, noauthConn)
-		require.NotNil(t, peer, "missing peer")
-		tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
-		require.True(t, ok, "peer does not have TLS auth info")
-		require.Empty(t, tlsInfo.State.PeerCertificates)
-		require.Empty(t, tlsInfo.State.VerifiedChains)
-	})
-	t.Run("mTLS", func(t *testing.T) {
-		peer := call(t, agentConn)
-		require.NotNil(t, peer, "missing peer")
-		tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
-		require.True(t, ok, "peer does not have TLS auth info")
-		require.NotEmpty(t, tlsInfo.State.PeerCertificates)
-		require.NotEmpty(t, tlsInfo.State.VerifiedChains)
-	})
-}
-
 func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentConn, adminConn, downstreamConn *grpc.ClientConn) {
 	t.Run("UDS", func(t *testing.T) {
 		testAuthorization(ctx, t, agentv1.NewAgentClient(udsConn), map[string]bool{
@@ -464,6 +435,43 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": false,
+		})
+	})
+}
+
+func testHealthAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentConn, adminConn, downstreamConn *grpc.ClientConn) {
+	t.Run("UDS", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(udsConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("NoAuth", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(noauthConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("Agent", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(agentConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("Admin", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(adminConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
+		})
+	})
+
+	t.Run("Downstream", func(t *testing.T) {
+		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(downstreamConn), map[string]bool{
+			"Check": true,
+			"Watch": true,
 		})
 	})
 }
@@ -691,29 +699,14 @@ func testAuthorization(ctx context.Context, t *testing.T, client interface{}, ex
 
 	for i := 0; i < ct.NumMethod(); i++ {
 		mv := cv.Method(i)
-		mt := mv.Type()
 		methodName := ct.Method(i).Name
 		t.Run(methodName, func(t *testing.T) {
-			var out []reflect.Value
-
-			if mv.Type().NumIn() == 2 {
-				// server-stream method
-				out = mv.Call([]reflect.Value{reflect.ValueOf(ctx)})
-				require.Len(t, out, 2)
-				// assert there is no failure
-				require.Nil(t, out[1].Interface())
-				// Now call the Recv() method on the stream
-				rv := out[0].MethodByName("Recv")
-				out = rv.Call([]reflect.Value{})
-			} else {
-				// unary method
-				out = mv.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.New(mt.In(1).Elem())})
-			}
-
-			require.Len(t, out, 2)
-			assert.Nil(t, out[0].Interface())
+			// Invoke the RPC and assert the results
+			out := callRPC(ctx, t, mv)
+			require.Len(t, out, 2, "expected two return values")
+			require.Nil(t, out[0].Interface(), "1st output should have been nil")
 			err, ok := out[1].Interface().(error)
-			require.True(t, ok)
+			require.True(t, ok, "2nd output should have been an error")
 
 			expectAuthResult, ok := expectedAuthResults[methodName]
 			require.True(t, ok, "%q does not have an expected result", methodName)
@@ -738,6 +731,37 @@ func testAuthorization(ctx context.Context, t *testing.T, client interface{}, ex
 	}
 }
 
+// callRPC invokes the RPC and returns the results. For unary RPCs, out will be
+// the result of the method on the interface. For streams, it will be the
+// result of the first call to Recv().
+func callRPC(ctx context.Context, t *testing.T, mv reflect.Value) []reflect.Value {
+	mt := mv.Type()
+
+	in := []reflect.Value{reflect.ValueOf(ctx)}
+
+	// If there is more than two input parameters, then we need to provide a
+	// request object when invoking.
+	if mt.NumIn() > 2 {
+		in = append(in, reflect.New(mt.In(1).Elem()))
+	}
+
+	out := mv.Call(in)
+	require.Len(t, out, 2, "expected two return values from the RPC invocation")
+	if mt.Out(0).Kind() == reflect.Interface {
+		// Response was a stream. We need to invoke Recv() to get at the
+		// real response.
+
+		// Check for error
+		require.Nil(t, out[1].Interface(), "should have succeeded getting the stream")
+
+		// Invoke Recv()
+		rv := out[0].MethodByName("Recv")
+		out = rv.Call([]reflect.Value{})
+	}
+
+	return out
+}
+
 type registrationServer struct {
 	registration.UnimplementedRegistrationServer
 	*callTracker
@@ -745,17 +769,6 @@ type registrationServer struct {
 
 func newRegistrationServer() *registrationServer {
 	return &registrationServer{
-		callTracker: &callTracker{},
-	}
-}
-
-type nodeServer struct {
-	node.UnimplementedNodeServer
-	*callTracker
-}
-
-func newNodeServer() *nodeServer {
-	return &nodeServer{
 		callTracker: &callTracker{},
 	}
 }

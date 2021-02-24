@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -50,6 +52,7 @@ func TestFetchX509SVID(t *testing.T) {
 		name       string
 		updates    []*cache.WorkloadUpdate
 		attestErr  error
+		asPID      int
 		expectCode codes.Code
 		expectMsg  string
 		expectResp *workloadPB.X509SVIDResponse
@@ -71,6 +74,13 @@ func TestFetchX509SVID(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name:       "no identity issued (healthcheck)",
+			updates:    []*cache.WorkloadUpdate{{}},
+			asPID:      os.Getpid(),
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
 		},
 		{
 			name:       "attest error",
@@ -96,8 +106,8 @@ func TestFetchX509SVID(t *testing.T) {
 					identityFromX509SVID(x509SVID1),
 				},
 				Bundle: utilBundleFromBundle(t, bundle),
-				FederatedBundles: map[string]*bundleutil.Bundle{
-					federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 				},
 			}},
 			expectCode: codes.OK,
@@ -152,6 +162,7 @@ func TestFetchX509SVID(t *testing.T) {
 				Updates:    tt.updates,
 				AttestErr:  tt.attestErr,
 				ExpectLogs: tt.expectLogs,
+				AsPID:      tt.asPID,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -384,8 +395,8 @@ func TestFetchJWTBundles(t *testing.T) {
 						identityFromX509SVID(x509SVID),
 					},
 					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[string]*bundleutil.Bundle{
-						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 					},
 				},
 			},
@@ -435,8 +446,8 @@ func TestValidateJWTSVID(t *testing.T) {
 
 	updatesWithFederatedBundle := []*cache.WorkloadUpdate{{
 		Bundle: utilBundleFromBundle(t, bundle),
-		FederatedBundles: map[string]*bundleutil.Bundle{
-			federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+		FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 		},
 	}}
 
@@ -585,6 +596,7 @@ type testParams struct {
 	AttestErr  error
 	ManagerErr error
 	ExpectLogs []spiretest.LogEntry
+	AsPID      int
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
@@ -602,9 +614,12 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		Attestor: &FakeAttestor{err: params.AttestErr},
 	})
 
-	unaryInterceptor, streamInterceptor := middleware.Interceptors(
+	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
 		middleware.WithLogger(log),
-	)
+		middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+			return rpccontext.WithCallerPID(ctx, params.AsPID), nil
+		}),
+	))
 
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(unaryInterceptor),
@@ -646,8 +661,8 @@ func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.I
 	return m.identities
 }
 
-func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
-	svid := m.ca.CreateJWTSVID(spiffeid.RequireFromString(spiffeID), audience)
+func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+	svid := m.ca.CreateJWTSVID(spiffeID, audience)
 	if m.err != nil {
 		return nil, m.err
 	}

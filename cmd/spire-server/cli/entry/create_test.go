@@ -18,7 +18,7 @@ func TestCreateHelp(t *testing.T) {
 
 	require.Equal(t, `Usage of entry create:
   -admin
-    	If set, the SPIFFE ID in this entry will be granted access to the Registration API
+    	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
   -data string
     	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
   -dns value
@@ -34,9 +34,11 @@ func TestCreateHelp(t *testing.T) {
   -parentID string
     	The SPIFFE ID of this record's parent
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID that this record represents
   -ttl int

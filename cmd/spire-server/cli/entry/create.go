@@ -77,7 +77,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 	f.BoolVar(&c.node, "node", false, "If set, this entry will be applied to matching nodes rather than workloads")
-	f.BoolVar(&c.admin, "admin", false, "If set, the SPIFFE ID in this entry will be granted access to the Registration API")
+	f.BoolVar(&c.admin, "admin", false, "If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs")
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")

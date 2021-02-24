@@ -10,12 +10,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
+	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
-	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
@@ -81,6 +81,8 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 		"/spire.api.server.agent.v1.Agent/AttestAgent":                  any,
 		"/spire.api.server.agent.v1.Agent/RenewAgent":                   agent,
 		"/spire.api.server.agent.v1.Agent/CreateJoinToken":              localOrAdmin,
+		"/grpc.health.v1.Health/Check":                                  local,
+		"/grpc.health.v1.Health/Watch":                                  local,
 	}
 }
 
@@ -100,7 +102,7 @@ func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 
 func AuthorizedEntryFetcher(ds datastore.DataStore) api.AuthorizedEntryFetcher {
 	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-		entries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID.String())
+		entries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +116,7 @@ func AuthorizedEntryFetcherWithCache(ds datastore.DataStore) (api.AuthorizedEntr
 		return nil, fmt.Errorf("could not create cache: %v", err)
 	}
 	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-		entries, err := regentryutil.FetchRegistrationEntriesWithCache(ctx, ds, cache, agentID.String())
+		entries, err := regentryutil.FetchRegistrationEntriesWithCache(ctx, ds, cache, agentID)
 		if err != nil {
 			return nil, err
 		}
@@ -193,11 +195,11 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 	noLimit := middleware.NoLimit()
 	attestLimit := middleware.DisabledLimit()
 	if config.Attestation {
-		attestLimit = middleware.PerIPLimit(node_pb.AttestLimit)
+		attestLimit = middleware.PerIPLimit(limits.AttestLimitPerIP)
 	}
-	csrLimit := middleware.PerIPLimit(node_pb.CSRLimit)
-	jsrLimit := middleware.PerIPLimit(node_pb.JSRLimit)
-	pushJWTKeyLimit := middleware.PerIPLimit(node_pb.PushJWTKeyLimit)
+	csrLimit := middleware.PerIPLimit(limits.CSRLimitPerIP)
+	jsrLimit := middleware.PerIPLimit(limits.JSRLimitPerIP)
+	pushJWTKeyLimit := middleware.PerIPLimit(limits.PushJWTKeyLimitPerIP)
 
 	return map[string]api.RateLimiter{
 		"/spire.api.server.svid.v1.SVID/MintX509SVID":                   noLimit,
@@ -228,6 +230,8 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.agent.v1.Agent/AttestAgent":                  attestLimit,
 		"/spire.api.server.agent.v1.Agent/RenewAgent":                   csrLimit,
 		"/spire.api.server.agent.v1.Agent/CreateJoinToken":              noLimit,
+		"/grpc.health.v1.Health/Check":                                  noLimit,
+		"/grpc.health.v1.Health/Watch":                                  noLimit,
 	}
 }
 
@@ -250,6 +254,5 @@ func streamInterceptorMux(oldInterceptor, newInterceptor grpc.StreamServerInterc
 }
 
 func isOldAPI(fullMethod string) bool {
-	return strings.HasPrefix(fullMethod, "/spire.api.node.") ||
-		strings.HasPrefix(fullMethod, "/spire.api.registration.")
+	return strings.HasPrefix(fullMethod, "/spire.api.registration.")
 }

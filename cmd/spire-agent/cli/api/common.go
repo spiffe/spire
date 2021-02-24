@@ -74,7 +74,7 @@ func adaptCommand(env *cli.Env, clientsMaker workloadClientMaker, cmd command) *
 
 	fs := flag.NewFlagSet(cmd.name(), flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
-	fs.StringVar(&a.socketPath, "socketPath", common.DefaultSocketPath, "Path to Workload API socket")
+	fs.StringVar(&a.socketPath, "socketPath", common.DefaultSocketPath, "Path to the SPIRE Agent API socket")
 	fs.Var(&a.timeout, "timeout", "Time to wait for a response")
 	a.cmd.appendFlags(fs)
 	a.flags = fs

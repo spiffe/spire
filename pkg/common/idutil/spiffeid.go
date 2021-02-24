@@ -90,10 +90,10 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 
 	// trust domain validation
 	if options.trustDomainRequired {
-		if options.trustDomain == "" {
+		if options.trustDomain.IsZero() {
 			return errors.New("trust domain to validate against cannot be empty")
 		}
-		if id.Host != options.trustDomain {
+		if id.Host != options.trustDomain.String() {
 			return fmt.Errorf("%q does not belong to trust domain %q", id, options.trustDomain)
 		}
 	}
@@ -172,7 +172,7 @@ type ValidationMode interface {
 }
 
 type validationOptions struct {
-	trustDomain         string
+	trustDomain         spiffeid.TrustDomain
 	trustDomainRequired bool
 	idType              idType
 }
@@ -192,7 +192,7 @@ func AllowAny() ValidationMode {
 
 // Allows any well-formed SPIFFE ID belonging to a specific trust domain,
 // excluding the trust domain ID itself.
-func AllowAnyInTrustDomain(trustDomain string) ValidationMode {
+func AllowAnyInTrustDomain(trustDomain spiffeid.TrustDomain) ValidationMode {
 	return validationMode{
 		options: validationOptions{
 			trustDomain:         trustDomain,
@@ -203,7 +203,7 @@ func AllowAnyInTrustDomain(trustDomain string) ValidationMode {
 }
 
 // Allows a well-formed SPIFFE ID for the specific trust domain.
-func AllowTrustDomain(trustDomain string) ValidationMode {
+func AllowTrustDomain(trustDomain spiffeid.TrustDomain) ValidationMode {
 	return validationMode{
 		options: validationOptions{
 			trustDomain:         trustDomain,
@@ -214,7 +214,7 @@ func AllowTrustDomain(trustDomain string) ValidationMode {
 }
 
 // Allows a well-formed SPIFFE ID for a workload belonging to a specific trust domain.
-func AllowTrustDomainWorkload(trustDomain string) ValidationMode {
+func AllowTrustDomainWorkload(trustDomain spiffeid.TrustDomain) ValidationMode {
 	return validationMode{
 		options: validationOptions{
 			trustDomain:         trustDomain,
@@ -224,7 +224,7 @@ func AllowTrustDomainWorkload(trustDomain string) ValidationMode {
 	}
 }
 
-func AllowTrustDomainServer(trustDomain string) ValidationMode {
+func AllowTrustDomainServer(trustDomain spiffeid.TrustDomain) ValidationMode {
 	return validationMode{
 		options: validationOptions{
 			trustDomain:         trustDomain,
@@ -234,7 +234,7 @@ func AllowTrustDomainServer(trustDomain string) ValidationMode {
 	}
 }
 
-func AllowTrustDomainAgent(trustDomain string) ValidationMode {
+func AllowTrustDomainAgent(trustDomain spiffeid.TrustDomain) ValidationMode {
 	return validationMode{
 		options: validationOptions{
 			trustDomain:         trustDomain,
@@ -337,32 +337,6 @@ func AgentURI(trustDomain, p string) *url.URL {
 }
 
 // ServerID creates a server SPIFFE ID string given a trustDomain.
-func ServerID(trustDomain string) string {
-	return ServerURI(trustDomain).String()
-}
-
-// ServerURI creates a server SPIFFE URI given a trustDomain.
-func ServerURI(trustDomain string) *url.URL {
-	return &url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   ServerIDPath,
-	}
-}
-
-// ValidateTrustDomainWorkload validates if the given SPIFFE ID
-// is a SPIFFE ID for a workload belonging to the specified
-// trust domain (e.g. spiffe://domain.test/workload)
-func ValidateTrustDomainWorkload(id spiffeid.ID, td spiffeid.TrustDomain) error {
-	if !id.MemberOf(td) {
-		return fmt.Errorf("%q does not belong to trust domain %q", id.String(), td.String())
-	}
-	if id.Path() == "" {
-		return fmt.Errorf("invalid workload SPIFFE ID %q: path is empty", id.String())
-	}
-	if IsReservedPath(id.Path()) {
-		return fmt.Errorf(`%q is not a valid workload SPIFFE ID: invalid path: "/spire/*" namespace is reserved`, id.String())
-	}
-
-	return nil
+func ServerID(trustDomain spiffeid.TrustDomain) spiffeid.ID {
+	return trustDomain.NewID(ServerIDPath)
 }

@@ -3,6 +3,7 @@ package attestor
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
@@ -68,7 +69,13 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 	}
 
 	telemetry_workload.AddDiscoveredSelectorsSample(wla.c.Metrics, float32(len(selectors)))
-	log.WithField(telemetry.Selectors, selectors).Debug("PID attested to have selectors")
+	// The agent health check currently exercises the Workload API. Since this
+	// can happen with some frequency, it has a tendency to fill up logs with
+	// hard-to-filter details if we're not careful (e.g. issue #1537). Only log
+	// if it is not the agent itself.
+	if int(pid) != os.Getpid() {
+		log.WithField(telemetry.Selectors, selectors).Debug("PID attested to have selectors")
+	}
 	return selectors
 }
 

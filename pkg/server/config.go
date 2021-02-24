@@ -3,10 +3,10 @@ package server
 import (
 	"crypto/x509/pkix"
 	"net"
-	"net/url"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -32,7 +32,7 @@ type Config struct {
 	DataDir string
 
 	// Trust domain
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 
 	Experimental ExperimentalConfig
 
@@ -83,8 +83,6 @@ type Config struct {
 }
 
 type ExperimentalConfig struct {
-	// Skip agent id validation in node attestation
-	AllowAgentlessNodeAttestors bool
 }
 
 type FederationConfig struct {
@@ -92,7 +90,7 @@ type FederationConfig struct {
 	BundleEndpoint *bundle.EndpointConfig
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
-	FederatesWith map[string]bundle_client.TrustDomainConfig
+	FederatesWith map[spiffeid.TrustDomain]bundle_client.TrustDomainConfig
 }
 
 func New(config Config) *Server {

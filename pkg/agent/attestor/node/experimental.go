@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -34,7 +35,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 		},
 	}
 
-	attestStream, err := a.c.CreateNewAgentClient(conn).AttestAgent(ctx)
+	attestStream, err := agent.NewAgentClient(conn).AttestAgent(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not create new agent client for attestation: %v", err)
 	}
@@ -96,7 +97,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 }
 
 func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*bundleutil.Bundle, error) {
-	updatedBundle, err := a.c.CreateNewBundleClient(conn).GetBundle(ctx, &bundlepb.GetBundleRequest{})
+	updatedBundle, err := bundle.NewBundleClient(conn).GetBundle(ctx, &bundlepb.GetBundleRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated bundle %v", err)
 	}

@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"net/url"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -39,7 +39,7 @@ type CA struct {
 	bundle  []*x509.Certificate
 }
 
-func New(t *testing.T, trustDomain string, options *Options) *CA {
+func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	if options == nil {
 		options = new(Options)
 	}
@@ -67,7 +67,7 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	serverCA := ca.NewCA(ca.Config{
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
-		TrustDomain: url.URL{Scheme: "spiffe", Host: trustDomain},
+		TrustDomain: trustDomain,
 		X509SVIDTTL: options.X509SVIDTTL,
 		JWTSVIDTTL:  options.JWTSVIDTTL,
 		Clock:       options.Clock,
