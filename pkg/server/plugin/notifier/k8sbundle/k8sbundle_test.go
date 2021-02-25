@@ -572,8 +572,8 @@ func (c *fakeKubeClient) addWatchEvent(obj runtime.Object) {
 }
 
 func (c *fakeKubeClient) getWatchLabel() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RWLock()
+	defer c.mu.RWUnlock()
 	return c.watchLabel
 }
 
