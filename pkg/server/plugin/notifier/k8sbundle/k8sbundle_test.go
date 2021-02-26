@@ -151,7 +151,7 @@ func (s *Suite) TestBundleLoadedConfigMapPatchFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update spire/spire-bundle: some error")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: spire/spire-bundle: some error")
 	s.Nil(resp)
 }
 
@@ -305,7 +305,7 @@ func (s *Suite) TestBundleUpdatedConfigMapPatchFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update spire/spire-bundle: some error")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: spire/spire-bundle: some error")
 	s.Nil(resp)
 }
 
@@ -572,8 +572,8 @@ func (c *fakeKubeClient) addWatchEvent(obj runtime.Object) {
 }
 
 func (c *fakeKubeClient) getWatchLabel() string {
-	c.mu.RWLock()
-	defer c.mu.RWUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.watchLabel
 }
 
