@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -189,6 +190,7 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 		return err
 	}
 
+	var updateErrs string
 	for _, client := range clients {
 		list, err := client.GetList(ctx, c)
 		if err != nil {
@@ -204,11 +206,14 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 				return err
 			}
 			if err := p.updateBundle(ctx, c, client, itemMeta.GetNamespace(), itemMeta.GetName()); err != nil {
-				return k8sErr.New("unable to update %s/%s: %v", itemMeta.GetNamespace(), itemMeta.GetName(), err)
+				updateErrs += fmt.Sprintf("%s: %v, ", namespacedName(itemMeta), err)
 			}
 		}
 	}
 
+	if len(updateErrs) > 0 {
+		return k8sErr.New("unable to update: %s", strings.TrimSuffix(updateErrs, ", "))
+	}
 	return nil
 }
 
@@ -447,4 +452,12 @@ func bundleData(bundle *common.Bundle) string {
 		})
 	}
 	return bundleData.String()
+}
+
+// namespacedName returns "namespace/name" for namespaced resources and "name" for non-namespaced resources
+func namespacedName(itemMeta metav1.Object) string {
+	if itemMeta.GetNamespace() != "" {
+		return fmt.Sprintf("%s/%s", itemMeta.GetNamespace(), itemMeta.GetName())
+	}
+	return itemMeta.GetName()
 }
