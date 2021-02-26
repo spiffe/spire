@@ -22,10 +22,10 @@ type Bundle struct {
 	jwtSigningKeys map[string]crypto.PublicKey
 }
 
-func New(trustDomainID string) *Bundle {
+func New(trustDomain spiffeid.TrustDomain) *Bundle {
 	return &Bundle{
 		b: &common.Bundle{
-			TrustDomainId: trustDomainID,
+			TrustDomainId: trustDomain.IDString(),
 		},
 		jwtSigningKeys: make(map[string]crypto.PublicKey),
 	}
@@ -55,12 +55,12 @@ func BundleFromProto(b *common.Bundle) (*Bundle, error) {
 	}, nil
 }
 
-func BundleFromRootCA(trustDomainID string, rootCA *x509.Certificate) *Bundle {
-	return bundleFromRootCAs(trustDomainID, rootCA)
+func BundleFromRootCA(trustDomain spiffeid.TrustDomain, rootCA *x509.Certificate) *Bundle {
+	return bundleFromRootCAs(trustDomain, rootCA)
 }
 
-func BundleFromRootCAs(trustDomainID string, rootCAs []*x509.Certificate) *Bundle {
-	return bundleFromRootCAs(trustDomainID, rootCAs...)
+func BundleFromRootCAs(trustDomain spiffeid.TrustDomain, rootCAs []*x509.Certificate) *Bundle {
+	return bundleFromRootCAs(trustDomain, rootCAs...)
 }
 
 func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
@@ -101,8 +101,8 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 	}, nil
 }
 
-func bundleFromRootCAs(trustDomainID string, rootCAs ...*x509.Certificate) *Bundle {
-	b := New(trustDomainID)
+func bundleFromRootCAs(trustDomain spiffeid.TrustDomain, rootCAs ...*x509.Certificate) *Bundle {
+	b := New(trustDomain)
 	for _, rootCA := range rootCAs {
 		b.AppendRootCA(rootCA)
 	}

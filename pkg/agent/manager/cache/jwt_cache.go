@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 )
 
@@ -21,7 +22,7 @@ func NewJWTSVIDCache() *JWTSVIDCache {
 	}
 }
 
-func (c *JWTSVIDCache) GetJWTSVID(spiffeID string, audience []string) (*client.JWTSVID, bool) {
+func (c *JWTSVIDCache) GetJWTSVID(spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, bool) {
 	key := jwtSVIDKey(spiffeID, audience)
 
 	c.mu.Lock()
@@ -30,7 +31,7 @@ func (c *JWTSVIDCache) GetJWTSVID(spiffeID string, audience []string) (*client.J
 	return svid, ok
 }
 
-func (c *JWTSVIDCache) SetJWTSVID(spiffeID string, audience []string, svid *client.JWTSVID) {
+func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid *client.JWTSVID) {
 	key := jwtSVIDKey(spiffeID, audience)
 
 	c.mu.Lock()
@@ -38,14 +39,14 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID string, audience []string, svid *clie
 	c.svids[key] = svid
 }
 
-func jwtSVIDKey(spiffeID string, audience []string) string {
+func jwtSVIDKey(spiffeID spiffeid.ID, audience []string) string {
 	h := sha256.New()
 
 	// duplicate and sort the audience slice
 	audience = append([]string(nil), audience...)
 	sort.Strings(audience)
 
-	_, _ = io.WriteString(h, spiffeID)
+	_, _ = io.WriteString(h, spiffeID.String())
 	for _, a := range audience {
 		_, _ = io.WriteString(h, a)
 	}
