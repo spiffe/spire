@@ -2,48 +2,103 @@ package awskms
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"strconv"
+	"sync"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 )
 
+type fakeKeyEntry struct {
+	KeyID      *string
+	AliasName  *string
+	PublicKey  []byte
+	privateKey crypto.PrivateKey
+	Enabled    bool
+	KeySpec    types.CustomerMasterKeySpec
+}
+
 type kmsClientFake struct {
-	t *testing.T
-
-	expectedCreateKeyInput *kms.CreateKeyInput
-	createKeyOutput        *kms.CreateKeyOutput
+	t                      *testing.T
+	aliases                map[string]fakeKeyEntry
+	keyEntries             map[string]fakeKeyEntry
+	mu                     sync.RWMutex
+	nextID                 int
 	createKeyErr           error
+	describeKeyErr         error
+	getPublicKeyErr        error
+	listAliasesErr         error
+	createAliasErr         error
+	updateAliasErr         error
+	scheduleKeyDeletionErr error
+	signErr                error
+}
 
-	expectedDescribeKeyInput *kms.DescribeKeyInput
-	describeKeyOutput        *kms.DescribeKeyOutput
-	describeKeyErr           error
-
-	expectedGetPublicKeyInput *kms.GetPublicKeyInput
-	getPublicKeyOutput        *kms.GetPublicKeyOutput
-	getPublicKeyErr           error
-
-	expectedListAliasesInput *kms.ListAliasesInput
-	listAliasesOutput        *kms.ListAliasesOutput
-	listAliasesErr           error
-
-	expectedListKeysInput *kms.ListKeysInput
-	listKeysOutput        *kms.ListKeysOutput
-	listKeysErr           error
-
-	expectedScheduleKeyDeletionInput *kms.ScheduleKeyDeletionInput
-	scheduleKeyDeletionOutput        *kms.ScheduleKeyDeletionOutput
-	scheduleKeyDeletionErr           error
-
-	expectedSignInput *kms.SignInput
-	signOutput        *kms.SignOutput
-	signErr           error
+func newKMSClientFake(t *testing.T) *kmsClientFake {
+	return &kmsClientFake{
+		t:          t,
+		aliases:    make(map[string]fakeKeyEntry),
+		keyEntries: make(map[string]fakeKeyEntry),
+	}
 }
 
 func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput, opts ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
 	if k.createKeyErr != nil {
 		return nil, k.createKeyErr
 	}
-	return k.createKeyOutput, nil
+
+	var privateKey crypto.PrivateKey
+	var publicKey crypto.PublicKey
+	var err error
+	switch input.CustomerMasterKeySpec {
+	case types.CustomerMasterKeySpecEccNistP256:
+		privateKey, publicKey, err = generateECKey(elliptic.P256())
+	case types.CustomerMasterKeySpecEccNistP384:
+		privateKey, publicKey, err = generateECKey(elliptic.P384())
+	case types.CustomerMasterKeySpecRsa2048:
+		privateKey, publicKey, err = generateRSAKey(2048)
+	case types.CustomerMasterKeySpecRsa4096:
+		privateKey, publicKey, err = generateRSAKey(4096)
+	default:
+		return nil, fmt.Errorf("unknown key type %q", input.CustomerMasterKeySpec)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	pkixData, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	keyID := strconv.Itoa(k.nextID)
+	k.nextID++
+
+	keyEntry := fakeKeyEntry{
+		KeyID:      &keyID,
+		Enabled:    true,
+		PublicKey:  pkixData,
+		privateKey: privateKey,
+		KeySpec:    input.CustomerMasterKeySpec,
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.keyEntries[keyID] = keyEntry
+
+	return &kms.CreateKeyOutput{
+		KeyMetadata: &types.KeyMetadata{KeyId: aws.String(keyID)},
+	}, nil
 }
 
 func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyInput, opts ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
@@ -51,7 +106,20 @@ func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyI
 		return nil, k.describeKeyErr
 	}
 
-	return k.describeKeyOutput, nil
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	keyEntry, err := k.getKeyEntry(*input.KeyId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &kms.DescribeKeyOutput{
+		KeyMetadata: &types.KeyMetadata{
+			KeyId:                 keyEntry.KeyID,
+			CustomerMasterKeySpec: keyEntry.KeySpec,
+			Enabled:               keyEntry.Enabled,
+		},
+	}, nil
 }
 
 func (k *kmsClientFake) GetPublicKey(ctx context.Context, input *kms.GetPublicKeyInput, opts ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error) {
@@ -59,15 +127,17 @@ func (k *kmsClientFake) GetPublicKey(ctx context.Context, input *kms.GetPublicKe
 		return nil, k.getPublicKeyErr
 	}
 
-	return k.getPublicKeyOutput, nil
-}
-
-func (k *kmsClientFake) ListKeys(ctx context.Context, input *kms.ListKeysInput, opts ...func(*kms.Options)) (*kms.ListKeysOutput, error) {
-	if k.listKeysErr != nil {
-		return nil, k.listKeysErr
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	keyEntry, err := k.getKeyEntry(*input.KeyId)
+	if err != nil {
+		return nil, err
 	}
 
-	return k.listKeysOutput, nil
+	return &kms.GetPublicKeyOutput{
+		KeyId:     keyEntry.KeyID,
+		PublicKey: keyEntry.PublicKey,
+	}, nil
 }
 
 func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesInput, opts ...func(*kms.Options)) (*kms.ListAliasesOutput, error) {
@@ -75,7 +145,23 @@ func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesI
 		return nil, k.listAliasesErr
 	}
 
-	return k.listAliasesOutput, nil
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	var aliasesResp []types.AliasListEntry
+	for _, keyEntry := range k.keyEntries {
+		aliasesResp = append(aliasesResp, types.AliasListEntry{
+			AliasName:   keyEntry.AliasName,
+			TargetKeyId: keyEntry.KeyID,
+		})
+	}
+	for _, keyEntry := range k.aliases {
+		aliasesResp = append(aliasesResp, types.AliasListEntry{
+			AliasName:   keyEntry.AliasName,
+			TargetKeyId: keyEntry.KeyID,
+		})
+	}
+
+	return &kms.ListAliasesOutput{Aliases: aliasesResp}, nil
 }
 
 func (k *kmsClientFake) ScheduleKeyDeletion(ctx context.Context, input *kms.ScheduleKeyDeletionInput, opts ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error) {
@@ -83,7 +169,7 @@ func (k *kmsClientFake) ScheduleKeyDeletion(ctx context.Context, input *kms.Sche
 		return nil, k.scheduleKeyDeletionErr
 	}
 
-	return k.scheduleKeyDeletionOutput, nil
+	return &kms.ScheduleKeyDeletionOutput{}, nil
 }
 
 func (k *kmsClientFake) Sign(ctx context.Context, input *kms.SignInput, opts ...func(*kms.Options)) (*kms.SignOutput, error) {
@@ -91,13 +177,139 @@ func (k *kmsClientFake) Sign(ctx context.Context, input *kms.SignInput, opts ...
 		return nil, k.signErr
 	}
 
-	return k.signOutput, nil
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	_, err := k.getKeyEntry(*input.KeyId)
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO: do actual signing
+	return &kms.SignOutput{Signature: input.Message}, nil
 }
 
 func (k *kmsClientFake) CreateAlias(ctx context.Context, input *kms.CreateAliasInput, opts ...func(*kms.Options)) (*kms.CreateAliasOutput, error) {
-	return nil, nil
+	if k.createAliasErr != nil {
+		return nil, k.createAliasErr
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	keyEntry, err := k.getKeyEntry(*input.TargetKeyId)
+	if err != nil {
+		return nil, err
+	}
+	k.aliases[*input.AliasName] = keyEntry
+
+	return &kms.CreateAliasOutput{}, nil
 }
 
 func (k *kmsClientFake) UpdateAlias(ctw context.Context, input *kms.UpdateAliasInput, opts ...func(*kms.Options)) (*kms.UpdateAliasOutput, error) {
-	return nil, nil
+	if k.updateAliasErr != nil {
+		return nil, k.updateAliasErr
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	//TODO: review logic
+	keyEntry, err := k.getKeyEntry(*input.TargetKeyId)
+	if err != nil {
+		return nil, err
+	}
+	k.aliases[*input.AliasName] = keyEntry
+
+	return &kms.UpdateAliasOutput{}, nil
+}
+
+func (k *kmsClientFake) setEntries(entries []fakeKeyEntry) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if entries == nil {
+		return
+	}
+	for _, e := range entries {
+		if e.KeyID != nil {
+			k.keyEntries[*e.KeyID] = e
+		}
+		if e.AliasName != nil {
+			k.aliases[*e.AliasName] = e
+		}
+	}
+}
+
+func (k *kmsClientFake) getKeyEntry(idOrAlias string) (fakeKeyEntry, error) {
+	keyEntry, ok := k.aliases[idOrAlias]
+	if ok {
+		return keyEntry, nil
+	}
+
+	keyEntry, ok = k.keyEntries[idOrAlias]
+	if ok {
+		return keyEntry, nil
+	}
+
+	return fakeKeyEntry{}, errors.New("no such key")
+}
+
+func (k *kmsClientFake) setCreateKeyErr(fakeError string) {
+	if fakeError != "" {
+		k.createKeyErr = errors.New(fakeError)
+	}
+}
+func (k *kmsClientFake) setDescribeKeyErr(fakeError string) {
+	if fakeError != "" {
+		k.describeKeyErr = errors.New(fakeError)
+	}
+}
+
+func (k *kmsClientFake) setgetPublicKeyErr(fakeError string) {
+	if fakeError != "" {
+		k.getPublicKeyErr = errors.New(fakeError)
+	}
+}
+
+func (k *kmsClientFake) setListAliasesErr(fakeError string) {
+	if fakeError != "" {
+		k.listAliasesErr = errors.New(fakeError)
+	}
+}
+
+func (k *kmsClientFake) setCreateAliasesErr(fakeError string) {
+	if fakeError != "" {
+		k.createAliasErr = errors.New(fakeError)
+	}
+}
+
+func (k *kmsClientFake) setUpdateAliasesErr(fakeError string) {
+	if fakeError != "" {
+		k.updateAliasErr = errors.New(fakeError)
+	}
+}
+
+// func (k *kmsClientFake) setScheduleKeyDeletionErr(fakeError string) {
+// 	if fakeError != "" {
+// 		k.scheduleKeyDeletionErr = errors.New(fakeError)
+// 	}
+// }
+
+func (k *kmsClientFake) setSignDataErr(fakeError string) {
+	if fakeError != "" {
+		k.signErr = errors.New(fakeError)
+	}
+}
+
+func generateRSAKey(bits int) (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, &privateKey.PublicKey, nil
+}
+
+func generateECKey(curve elliptic.Curve) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
+	privateKey, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, &privateKey.PublicKey, nil
 }

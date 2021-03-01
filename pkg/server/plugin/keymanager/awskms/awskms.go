@@ -2,6 +2,7 @@ package awskms
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -16,8 +17,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/zeebo/errs"
-	"google.golang.org/protobuf/proto"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -27,10 +29,6 @@ const (
 
 	keyIDTag = "key_id"
 	aliasTag = "alias"
-)
-
-var (
-	kmsErr = errs.Class(pluginName)
 )
 
 func BuiltIn() catalog.Plugin {
@@ -47,20 +45,22 @@ type keyEntry struct {
 	PublicKey *keymanager.PublicKey
 }
 
+type pluginHooks struct {
+	newClient func(ctx context.Context, config *Config) (kmsClient, error)
+}
+
 // Plugin is the main representation of this keymanager plugin
 type Plugin struct {
 	keymanager.UnsafeKeyManagerServer
-	log            hclog.Logger
-	mu             sync.RWMutex
-	entries        map[string]keyEntry
-	kmsClient      kmsClient
-	keyPrefix      string
-	scheduleDelete chan string
-	clock          clock.Clock
-
-	hooks struct {
-		newClient func(ctx context.Context, config *Config) (kmsClient, error)
-	}
+	log                  hclog.Logger
+	mu                   sync.RWMutex
+	entries              map[string]keyEntry
+	kmsClient            kmsClient
+	keyPrefix            string
+	scheduleDelete       chan string
+	cancelScheduleDelete context.CancelFunc
+	clock                clock.Clock
+	hooks                pluginHooks
 }
 
 // Config provides configuration context for the plugin
@@ -77,12 +77,14 @@ func New() *Plugin {
 }
 
 func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, error)) *Plugin {
-	p := &Plugin{}
-	p.hooks.newClient = newClient
-	p.entries = make(map[string]keyEntry)
-	p.scheduleDelete = make(chan string, 120)
-	p.clock = clock.New()
-	return p
+	return &Plugin{
+		clock:   clock.New(),
+		entries: make(map[string]keyEntry),
+		hooks: pluginHooks{
+			newClient: newClient,
+		},
+		scheduleDelete: make(chan string, 120),
+	}
 }
 
 // SetLogger sets a logger
@@ -92,7 +94,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure sets up the plugin
 func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	config, err := p.validateConfig(req.Configuration)
+	// cancels previous schedule delete task in case of re configure
+	if p.cancelScheduleDelete != nil {
+		p.cancelScheduleDelete()
+	}
+
+	config, err := validateConfig(req.Configuration)
 	if err != nil {
 		return nil, err
 	}
@@ -103,21 +110,16 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	p.keyPrefix = config.KeyPrefix
 	p.kmsClient, err = p.hooks.newClient(ctx, config)
 	if err != nil {
-		return nil, kmsErr.New("failed to create KMS client: %v", err)
+		return nil, newErrorf(codes.Internal, "failed to create KMS client: %v", err)
 	}
 
 	p.log.Debug("Fetching key aliases from KMS")
-	var nextMarker *string
-	for {
-		nextMarker, err = p.fetchAliasesPage(ctx, nextMarker)
-		if err != nil {
-			return nil, err
-		}
-		if nextMarker == nil {
-			break
-		}
+	err = p.buildCache(ctx)
+	if err != nil {
+		return nil, err
 	}
 
+	ctx, p.cancelScheduleDelete = context.WithCancel(context.Background())
 	go p.scheduleDeleteTask(ctx)
 
 	return &plugin.ConfigureResponse{}, nil
@@ -126,10 +128,10 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 // GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (*keymanager.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
-		return nil, kmsErr.New("key id is required")
+		return nil, newError(codes.InvalidArgument, "key id is required")
 	}
 	if req.KeyType == keymanager.KeyType_UNSPECIFIED_KEY_TYPE {
-		return nil, kmsErr.New("key type is required")
+		return nil, newError(codes.InvalidArgument, "key type is required")
 	}
 
 	p.mu.Lock()
@@ -151,7 +153,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 			TargetKeyId: &newEntry.KMSKeyID,
 		})
 		if err != nil {
-			return nil, kmsErr.New("failed to create alias: %v", err)
+			return nil, newErrorf(codes.Internal, "failed to create alias: %v", err)
 		}
 		p.log.Debug("Alias created", aliasTag, newEntry.Alias)
 	} else {
@@ -161,7 +163,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 			TargetKeyId: &newEntry.KMSKeyID,
 		})
 		if err != nil {
-			return nil, kmsErr.New("failed to update alias: %v", err)
+			return nil, newErrorf(codes.Internal, "failed to update alias: %v", err)
 		}
 		p.log.Debug("Alias updated", aliasTag, newEntry.Alias)
 
@@ -170,21 +172,21 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 
 	err = p.setEntry(spireKeyID, newEntry)
 	if err != nil {
-		return nil, err
+		return nil, newError(codes.Internal, err.Error())
 	}
 
 	return &keymanager.GenerateKeyResponse{
-		PublicKey: clonePublicKey(newEntry.PublicKey),
+		PublicKey: newEntry.PublicKey,
 	}, nil
 }
 
 // SignData creates a digital signature for the data to be signed
 func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) (*keymanager.SignDataResponse, error) {
 	if req.KeyId == "" {
-		return nil, kmsErr.New("key id is required")
+		return nil, newError(codes.InvalidArgument, "key id is required")
 	}
 	if req.SignerOpts == nil {
-		return nil, kmsErr.New("signer opts is required")
+		return nil, newError(codes.InvalidArgument, "signer opts is required")
 	}
 
 	p.mu.RLock()
@@ -192,12 +194,12 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 
 	keyEntry, hasKey := p.entries[req.KeyId]
 	if !hasKey {
-		return nil, kmsErr.New("no such key %q", req.KeyId)
+		return nil, newErrorf(codes.NotFound, "no such key %q", req.KeyId)
 	}
 
 	signingAlgo, err := signingAlgorithmForKMS(keyEntry.PublicKey.Type, req.SignerOpts)
 	if err != nil {
-		return nil, err
+		return nil, newError(codes.InvalidArgument, err.Error())
 	}
 
 	signResp, err := p.kmsClient.Sign(ctx, &kms.SignInput{
@@ -207,7 +209,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 		SigningAlgorithm: signingAlgo,
 	})
 	if err != nil {
-		return nil, kmsErr.New("failed to sign: %v", err)
+		return nil, newErrorf(codes.Internal, "failed to sign: %v", err)
 	}
 
 	return &keymanager.SignDataResponse{Signature: signResp.Signature}, nil
@@ -216,7 +218,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 // GetPublicKey returns the public key for a given key
 func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyRequest) (*keymanager.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
-		return nil, kmsErr.New("key id is required")
+		return nil, newError(codes.InvalidArgument, "key id is required")
 	}
 
 	p.mu.RLock()
@@ -224,11 +226,11 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyR
 
 	entry, ok := p.entries[req.KeyId]
 	if !ok {
-		return nil, kmsErr.New("no such key %q", req.KeyId)
+		return nil, newErrorf(codes.NotFound, "no such key %q", req.KeyId)
 	}
 
 	return &keymanager.GetPublicKeyResponse{
-		PublicKey: clonePublicKey(entry.PublicKey),
+		PublicKey: entry.PublicKey,
 	}, nil
 }
 
@@ -238,7 +240,7 @@ func (p *Plugin) GetPublicKeys(context.Context, *keymanager.GetPublicKeysRequest
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	for _, key := range p.entries {
-		keys = append(keys, clonePublicKey(key.PublicKey))
+		keys = append(keys, key.PublicKey)
 	}
 
 	return &keymanager.GetPublicKeysResponse{PublicKeys: keys}, nil
@@ -251,25 +253,25 @@ func (p *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*
 
 func (p *Plugin) setEntry(spireKeyID string, entry keyEntry) error {
 	if spireKeyID == "" {
-		return kmsErr.New("spire key id is required")
+		return errors.New("spire key id is required")
 	}
 	if entry.KMSKeyID == "" {
-		return kmsErr.New("kms key id missing for SPIRE key id %q", spireKeyID)
+		return fmt.Errorf("kms key id missing for SPIRE key id %q", spireKeyID)
 	}
 	if entry.Alias == "" {
-		return kmsErr.New("alias is required")
+		return errors.New("alias is required")
 	}
 	if entry.PublicKey == nil {
-		return kmsErr.New("public key is required")
+		return errors.New("public key is required")
 	}
 	if entry.PublicKey.Id == "" {
-		return kmsErr.New("public key id is required")
+		return errors.New("public key id is required")
 	}
 	if entry.PublicKey.Type == keymanager.KeyType_UNSPECIFIED_KEY_TYPE {
-		return kmsErr.New("public key type is required")
+		return errors.New("public key type is required")
 	}
 	if entry.PublicKey.PkixData == nil || len(entry.PublicKey.PkixData) == 0 {
-		return kmsErr.New("public key pkix data is required")
+		return errors.New("public key pkix data is required")
 	}
 
 	p.entries[spireKeyID] = entry
@@ -279,9 +281,9 @@ func (p *Plugin) setEntry(spireKeyID string, entry keyEntry) error {
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanager.KeyType) (keyEntry, error) {
 	res := keyEntry{}
 	description := p.descriptionFromSpireKeyID(spireKeyID)
-	keySpec, err := keySpecFromKeyType(keyType)
-	if err != nil {
-		return res, err
+	keySpec, ok := keySpecFromKeyType(keyType)
+	if !ok {
+		return res, newErrorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
 
 	createKeyInput := &kms.CreateKeyInput{
@@ -292,12 +294,12 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 
 	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
 	if err != nil {
-		return res, kmsErr.New("failed to create key: %v", err)
+		return res, newErrorf(codes.Internal, "failed to create key: %v", err)
 	}
 
 	pub, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: key.KeyMetadata.KeyId})
 	if err != nil {
-		return res, kmsErr.New("failed to get public key: %v", err)
+		return res, newErrorf(codes.Internal, "failed to get public key: %v", err)
 	}
 
 	return keyEntry{
@@ -311,32 +313,35 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	}, nil
 }
 
-func (p *Plugin) buildKeyEntry(ctx context.Context, aliasName *string, awsKeyID *string, spireKeyID string) (*keyEntry, error) {
-	describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aliasName})
+func (p *Plugin) fetchKeyEntry(ctx context.Context, aliasName string, spireKeyID string) (*keyEntry, error) {
+	describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: &aliasName})
 	if err != nil {
-		return nil, kmsErr.New("failed to describe key: %v", err)
+		return nil, newErrorf(codes.Internal, "failed to describe key: %v", err)
 	}
 
 	if !describeResp.KeyMetadata.Enabled {
 		// this means something external to the plugin, deleted or disabled the key without removing the alias
 		// returning an error provides the opportunity or reverting this in KMS
-		return nil, kmsErr.New("found disabled SPIRE key: %q, alias: %q", *awsKeyID, *aliasName)
+		return nil, newErrorf(codes.FailedPrecondition, "found disabled SPIRE key: %q, alias: %q", *describeResp.KeyMetadata.KeyId, aliasName)
 	}
 
-	keyType, err := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
-	if err != nil {
-		p.log.Debug("Skipped key", "reason", err)
-		return nil, nil
+	if describeResp.KeyMetadata.KeyId == nil {
+		return nil, newErrorf(codes.FailedPrecondition, "found SPIRE alias without key: %q", aliasName)
 	}
 
-	getPublicKeyResp, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: aliasName})
+	keyType, ok := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
+	if !ok {
+		return nil, newErrorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec)
+	}
+
+	getPublicKeyResp, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: &aliasName})
 	if err != nil {
-		return nil, kmsErr.New("failed to get public key: %v", err)
+		return nil, newErrorf(codes.Internal, "failed to get public key: %v", err)
 	}
 
 	return &keyEntry{
-		KMSKeyID: *awsKeyID,
-		Alias:    *aliasName,
+		KMSKeyID: *describeResp.KeyMetadata.KeyId,
+		Alias:    aliasName,
 		PublicKey: &keymanager.PublicKey{
 			Id:       spireKeyID,
 			Type:     keyType,
@@ -345,81 +350,122 @@ func (p *Plugin) buildKeyEntry(ctx context.Context, aliasName *string, awsKeyID 
 	}, err
 }
 
-// fetchAliasesPage gets all aliases from KMS, and builds an in memory representation, with the ones that belong to the current server
-func (p *Plugin) fetchAliasesPage(ctx context.Context, marker *string) (*string, error) {
-	aliasesResp, err := p.kmsClient.ListAliases(ctx, &kms.ListAliasesInput{
-		Marker: marker,
-	})
-	if err != nil {
-		return nil, kmsErr.New("failed to fetch keys: %v", err)
-	}
-
-	p.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
-
-	for _, alias := range aliasesResp.Aliases {
-		if alias.AliasName == nil {
-			continue
+// buildCache gets all aliases from KMS and builds an in memory representation with the ones that belong to the current server
+// for each key that belongs to the server we will trigger a gouroutine that gets the extra information
+func (p *Plugin) buildCache(ctx context.Context) error {
+	// list of key entries that will be added to the cache
+	var keyEntries []*keyEntry
+	keyEntriesMutex := &sync.Mutex{}
+	g, ctx := errgroup.WithContext(ctx)
+	paginator := kms.NewListAliasesPaginator(p.kmsClient, &kms.ListAliasesInput{})
+	for {
+		aliasesResp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return newErrorf(codes.Internal, "failed to build cache of KMS keys: failed to fetch keys: %v", err)
 		}
+		p.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
 
-		spireKeyID, ok := p.spireKeyIDFromAlias(*alias.AliasName)
-		if !ok {
-			continue
-		}
-
-		if alias.TargetKeyId == nil {
-			// this means something external to the plugin created the alias, without associating it to a key.
-			// it should never happen with CMKs.
-			return nil, kmsErr.New("found SPIRE alias without key: %q", *alias.AliasName)
-		}
-
-		entry, err := p.buildKeyEntry(ctx, alias.AliasName, alias.TargetKeyId, spireKeyID)
-		switch {
-		case err != nil:
-			return nil, kmsErr.New("failed to process KMS key: %v", err)
-		case entry != nil:
-			err := p.setEntry(entry.PublicKey.Id, *entry)
-			if err != nil {
-				return nil, err
+		for _, alias := range aliasesResp.Aliases {
+			spireKeyID, ok := p.spireKeyIDFromAlias(alias)
+			if !ok {
+				continue
 			}
-			p.log.Debug("Key loaded", keyIDTag, *alias.TargetKeyId, aliasTag, *alias.AliasName)
+			if alias.TargetKeyId == nil {
+				// this means something external to the plugin created the alias, without associating it to a key.
+				// it should never happen with CMKs.
+				return newErrorf(codes.FailedPrecondition, "failed to build cache of KMS keys: found SPIRE alias without key: %q", *alias.AliasName)
+			}
+
+			aliasName := *alias.AliasName
+			g.Go(func() error {
+				entry, err := p.fetchKeyEntry(ctx, aliasName, spireKeyID)
+				if err != nil {
+					return err
+				}
+				keyEntriesMutex.Lock()
+				keyEntries = append(keyEntries, entry)
+				keyEntriesMutex.Unlock()
+				return nil
+			})
+		}
+
+		if !paginator.HasMorePages() {
+			break
 		}
 	}
-	return aliasesResp.NextMarker, nil
+
+	if err := g.Wait(); err != nil {
+		statusErr := status.Convert(err)
+		return newErrorf(statusErr.Code(), "failed to build cache of KMS keys: %v", statusErr.Message())
+	}
+
+	//add results to cache
+	for _, e := range keyEntries {
+		err := p.setEntry(e.PublicKey.Id, *e)
+		if err != nil {
+			return newError(codes.Internal, err.Error())
+		}
+		p.log.Debug("Key loaded", keyIDTag, e.KMSKeyID, aliasTag, e.Alias)
+	}
+
+	return nil
 }
 
+// scheduleDeleteTask ia a long running task that deletes keys that were rotated
 func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
-	t := p.clock.Ticker(30 * time.Second)
-	defer t.Stop()
+	backoffMin := 1 * time.Second
+	backoffMax := 60 * time.Second
+	backoff := backoffMin
 
 	for {
 		select {
 		case <-ctx.Done():
 			p.log.Debug("Stopping schedule delete task", "reason", ctx.Err())
 			return
-		case <-t.C:
-			keyID, ok := <-p.scheduleDelete
-			if !ok {
-				continue
-			}
+		case keyID := <-p.scheduleDelete:
+			log := p.log.With(keyIDTag, keyID)
 			_, err := p.kmsClient.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
 				KeyId:               aws.String(keyID),
 				PendingWindowInDays: aws.Int32(7),
 			})
-			if err != nil {
-				p.log.Error("It was not possible to schedule deletion for key", "reason", err, keyIDTag, keyID)
-				p.scheduleDelete <- keyID
+
+			if err == nil {
+				log.Debug("Key deleted")
+				backoff = backoffMin
+				continue
 			}
-			p.log.Debug("Key deleted", keyIDTag, keyID)
+
+			var notFoundErr *types.NotFoundException
+			if errors.As(err, &notFoundErr) {
+				log.Error("No such key, dropping from delete schedule")
+				continue
+			}
+
+			var invalidArnErr *types.InvalidArnException
+			if errors.As(err, &invalidArnErr) {
+				log.Error("Invalid ARN, dropping from delete schedule")
+				continue
+			}
+
+			log.Error("It was not possible to schedule key for deletion", "reason", err)
+			p.scheduleDelete <- keyID
+			backoff = min(backoff*2, backoffMax)
+			time.Sleep(backoff)
 		}
 	}
 }
 
-func (p *Plugin) spireKeyIDFromAlias(alias string) (string, bool) {
-	prefix := aliasPrefix + p.keyPrefix
-	if !strings.HasPrefix(alias, prefix) {
+func (p *Plugin) spireKeyIDFromAlias(alias types.AliasListEntry) (string, bool) {
+	if alias.AliasName == nil {
+		p.log.Warn("Found alias without a name")
 		return "", false
 	}
-	return strings.TrimPrefix(alias, prefix), true
+
+	prefix := aliasPrefix + p.keyPrefix
+	if !strings.HasPrefix(*alias.AliasName, prefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(*alias.AliasName, prefix), true
 }
 
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
@@ -431,15 +477,15 @@ func (p *Plugin) descriptionFromSpireKeyID(spireKeyID string) string {
 }
 
 // validateConfig returns an error if any configuration provided does not meet acceptable criteria
-func (p *Plugin) validateConfig(c string) (*Config, error) {
+func validateConfig(c string) (*Config, error) {
 	config := new(Config)
 
 	if err := hcl.Decode(config, c); err != nil {
-		return nil, kmsErr.New("unable to decode configuration: %v", err)
+		return nil, newErrorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	if config.Region == "" {
-		return nil, kmsErr.New("configuration is missing a region")
+		return nil, newError(codes.InvalidArgument, "configuration is missing a region")
 	}
 
 	if config.KeyPrefix == "" {
@@ -461,20 +507,20 @@ func signingAlgorithmForKMS(keyType keymanager.KeyType, signerOpts interface{}) 
 		isPSS = false
 	case *keymanager.SignDataRequest_PssOptions:
 		if opts.PssOptions == nil {
-			return "", kmsErr.New("PSS options are required")
+			return "", errors.New("PSS options are required")
 		}
 		hashAlgo = opts.PssOptions.HashAlgorithm
 		isPSS = true
 		// opts.PssOptions.SaltLength is handled by KMS. The salt length matches the bits of the hashing algorithm.
 	default:
-		return "", kmsErr.New("unsupported signer opts type %T", opts)
+		return "", fmt.Errorf("unsupported signer opts type %T", opts)
 	}
 
 	isRSA := keyType == keymanager.KeyType_RSA_2048 || keyType == keymanager.KeyType_RSA_4096
 
 	switch {
 	case hashAlgo == keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
-		return "", kmsErr.New("hash algorithm is required")
+		return "", errors.New("hash algorithm is required")
 	case keyType == keymanager.KeyType_EC_P256 && hashAlgo == keymanager.HashAlgorithm_SHA256:
 		return types.SigningAlgorithmSpecEcdsaSha256, nil
 	case keyType == keymanager.KeyType_EC_P384 && hashAlgo == keymanager.HashAlgorithm_SHA384:
@@ -492,42 +538,51 @@ func signingAlgorithmForKMS(keyType keymanager.KeyType, signerOpts interface{}) 
 	case isRSA && isPSS && hashAlgo == keymanager.HashAlgorithm_SHA512:
 		return types.SigningAlgorithmSpecRsassaPssSha512, nil
 	default:
-		return "", kmsErr.New("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
+		return "", fmt.Errorf("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
 	}
 }
 
-func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanager.KeyType, error) {
+func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanager.KeyType, bool) {
 	switch keySpec {
 	case types.CustomerMasterKeySpecRsa2048:
-		return keymanager.KeyType_RSA_2048, nil
+		return keymanager.KeyType_RSA_2048, true
 	case types.CustomerMasterKeySpecRsa4096:
-		return keymanager.KeyType_RSA_4096, nil
+		return keymanager.KeyType_RSA_4096, true
 	case types.CustomerMasterKeySpecEccNistP256:
-		return keymanager.KeyType_EC_P256, nil
+		return keymanager.KeyType_EC_P256, true
 	case types.CustomerMasterKeySpecEccNistP384:
-		return keymanager.KeyType_EC_P384, nil
+		return keymanager.KeyType_EC_P384, true
 	default:
-		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("unsupported key spec: %v", keySpec)
+		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, false
 	}
 }
 
-func keySpecFromKeyType(keyType keymanager.KeyType) (types.CustomerMasterKeySpec, error) {
+func keySpecFromKeyType(keyType keymanager.KeyType) (types.CustomerMasterKeySpec, bool) {
 	switch keyType {
-	case keymanager.KeyType_RSA_1024:
-		return "", kmsErr.New("unsupported key type: KeyType_RSA_1024")
 	case keymanager.KeyType_RSA_2048:
-		return types.CustomerMasterKeySpecRsa2048, nil
+		return types.CustomerMasterKeySpecRsa2048, true
 	case keymanager.KeyType_RSA_4096:
-		return types.CustomerMasterKeySpecRsa4096, nil
+		return types.CustomerMasterKeySpecRsa4096, true
 	case keymanager.KeyType_EC_P256:
-		return types.CustomerMasterKeySpecEccNistP256, nil
+		return types.CustomerMasterKeySpecEccNistP256, true
 	case keymanager.KeyType_EC_P384:
-		return types.CustomerMasterKeySpecEccNistP384, nil
+		return types.CustomerMasterKeySpecEccNistP384, true
 	default:
-		return "", kmsErr.New("unknown key type")
+		return "", false
 	}
 }
 
-func clonePublicKey(publicKey *keymanager.PublicKey) *keymanager.PublicKey {
-	return proto.Clone(publicKey).(*keymanager.PublicKey)
+func newError(code codes.Code, msg string) error {
+	return status.Error(code, pluginName+": "+msg)
+}
+
+func newErrorf(code codes.Code, format string, args ...interface{}) error {
+	return status.Error(code, pluginName+": "+fmt.Sprintf(format, args...))
+}
+
+func min(x, y time.Duration) time.Duration {
+	if x < y {
+		return x
+	}
+	return y
 }
