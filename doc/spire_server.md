@@ -339,6 +339,7 @@ Displays attested nodes.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-count` | Return only the total number of agents | false |
 
 ### `spire-server agent show`
 

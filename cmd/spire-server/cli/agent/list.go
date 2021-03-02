@@ -16,7 +16,9 @@ import (
 	"golang.org/x/net/context"
 )
 
-type listCommand struct{}
+type listCommand struct {
+	count bool
+}
 
 // NewListCommand creates a new "list" subcommand for "agent" command.
 func NewListCommand() cli.Command {
@@ -51,12 +53,17 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	msg := fmt.Sprintf("Found %d attested ", len(listResponse.Agents))
 	msg = util.Pluralizer(msg, "agent", "agents", len(listResponse.Agents))
+	if c.count {
+		env.Printf(msg + "\n")
+		return nil
+	}
 	env.Printf(msg + ":\n\n")
 
 	return printAgents(env, listResponse.Agents...)
 }
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
+	fs.BoolVar(&c.count, "count", false, "Return only the total number of agents")
 }
 
 func printAgents(env *common_cli.Env, agents ...*types.Agent) error {

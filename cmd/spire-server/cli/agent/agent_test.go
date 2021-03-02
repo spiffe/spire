@@ -108,6 +108,8 @@ func TestListHelp(t *testing.T) {
 
 	test.client.Help()
 	require.Equal(t, `Usage of agent list:
+  -count
+    	Return only the total number of agents
   -registrationUDSPath string
     	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
@@ -134,6 +136,19 @@ func TestList(t *testing.T) {
 		{
 			name:               "no agents",
 			expectedReturnCode: 0,
+		},
+		{
+			name:               "count 0 agents",
+			args:               []string{"-count"},
+			expectedReturnCode: 0,
+			expectedStdout:     "No attested agents found",
+		},
+		{
+			name:               "count 1 agent",
+			args:               []string{"-count"},
+			expectedReturnCode: 0,
+			existentAgents:     testAgents,
+			expectedStdout:     "Found 1 attested agent",
 		},
 		{
 			name:               "server error",
