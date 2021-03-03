@@ -1072,6 +1072,52 @@ func TestListFederatedBundles(t *testing.T) {
 	}
 }
 
+func TestCountBundles(t *testing.T) {
+	tds := []spiffeid.TrustDomain{
+		serverTrustDomain,
+		spiffeid.RequireTrustDomainFromString("td1.org"),
+		spiffeid.RequireTrustDomainFromString("td2.org"),
+		spiffeid.RequireTrustDomainFromString("td3.org"),
+	}
+
+	for _, tt := range []struct {
+		name  string
+		count int32
+	}{
+		{
+			name:  "0 bundles",
+			count: 0,
+		},
+		{
+			name:  "1 bundle",
+			count: 1,
+		},
+		{
+			name:  "2 bundles",
+			count: 2,
+		},
+		{
+			name:  "3 bundles",
+			count: 3,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			for i := 0; i < int(tt.count); i++ {
+				createBundle(t, test, tds[i].IDString())
+			}
+
+			resp, err := test.client.CountBundles(context.Background(), &bundlepb.CountBundlesRequest{})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, tt.count, resp.Count)
+		})
+	}
+}
+
 func createBundle(t *testing.T, test *serviceTest, td string) *common.Bundle {
 	b := &common.Bundle{
 		TrustDomainId: td,

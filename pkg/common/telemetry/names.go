@@ -549,11 +549,20 @@ const (
 	// GetNodeSelectors functionality related to getting node selectors
 	GetNodeSelectors = "get_node_selectors"
 
+	// CountAgents functionality related to counting agents
+	CountAgents = "count_agents"
+
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
 
+	// CountEntries functionality related to counting all registration entries
+	CountEntries = "countt_entries"
+
 	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
 	ListAllEntriesWithPages = "list_all_entries_with_pages"
+
+	// CountBundles functionality related to counting bundles
+	CountBundles = "count_federated_bundles"
 
 	// ListFederatedBundles functionality related to listing federated bundles
 	ListFederatedBundles = "list_federated_bundles"

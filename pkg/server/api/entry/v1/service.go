@@ -19,28 +19,14 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// RegisterService registers the entry service on the gRPC server.
-func RegisterService(s *grpc.Server, service *Service) {
-	entry.RegisterEntryServer(s, service)
-}
-
-// Config is the service configuration
+// Config defines the service configuration.
 type Config struct {
 	TrustDomain  spiffeid.TrustDomain
 	EntryFetcher api.AuthorizedEntryFetcher
 	DataStore    datastore.DataStore
 }
 
-// New creates a new entry service
-func New(config Config) *Service {
-	return &Service{
-		td: config.TrustDomain,
-		ds: config.DataStore,
-		ef: config.EntryFetcher,
-	}
-}
-
-// Service implements the v1 entry service
+// Service defines the v1 entry service.
 type Service struct {
 	entry.UnsafeEntryServer
 
@@ -49,6 +35,32 @@ type Service struct {
 	ef api.AuthorizedEntryFetcher
 }
 
+// New creates a new v1 entry service.
+func New(config Config) *Service {
+	return &Service{
+		td: config.TrustDomain,
+		ds: config.DataStore,
+		ef: config.EntryFetcher,
+	}
+}
+
+// RegisterService registers the entry service on the gRPC server.
+func RegisterService(s *grpc.Server, service *Service) {
+	entry.RegisterEntryServer(s, service)
+}
+
+// CountEntries returns the total number of entries.
+func (s *Service) CountEntries(ctx context.Context, req *entry.CountEntriesRequest) (*entry.CountEntriesResponse, error) {
+	dsResp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	if err != nil {
+		log := rpccontext.Logger(ctx)
+		return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
+	}
+
+	return &entry.CountEntriesResponse{Count: dsResp.Entries}, nil
+}
+
+// ListEntries returns the optionally filtered and/or paginated list of entries.
 func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -138,6 +150,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entry.ListEntriesRequest
 	return resp, nil
 }
 
+// GetEntry returns the registration entry associated with the given SpiffeID
 func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*types.Entry, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -165,6 +178,7 @@ func (s *Service) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*ty
 	return entry, nil
 }
 
+// BatchCreateEntry adds one or more entries to the server.
 func (s *Service) BatchCreateEntry(ctx context.Context, req *entry.BatchCreateEntryRequest) (*entry.BatchCreateEntryResponse, error) {
 	var results []*entry.BatchCreateEntryResponse_Result
 	for _, eachEntry := range req.Entries {
@@ -228,6 +242,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	}
 }
 
+// BatchUpdateEntry updates one or more entries in the server.
 func (s *Service) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEntryRequest) (*entry.BatchUpdateEntryResponse, error) {
 	var results []*entry.BatchUpdateEntryResponse_Result
 
@@ -241,6 +256,7 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEn
 	}, nil
 }
 
+// BatchDeleteEntry removes one or more entries from the server.
 func (s *Service) BatchDeleteEntry(ctx context.Context, req *entry.BatchDeleteEntryRequest) (*entry.BatchDeleteEntryResponse, error) {
 	var results []*entry.BatchDeleteEntryResponse_Result
 	for _, id := range req.Ids {
@@ -286,6 +302,7 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entry.BatchDelete
 	}
 }
 
+// GetAuthorizedEntries returns the list of entries authorized for the caller ID in the context.
 func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entry.GetAuthorizedEntriesRequest) (*entry.GetAuthorizedEntriesResponse, error) {
 	log := rpccontext.Logger(ctx)
 
