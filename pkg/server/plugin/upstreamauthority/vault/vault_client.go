@@ -162,7 +162,6 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 		if sec == nil {
 			return nil, false, errors.New("lookup self response is nil")
 		}
-		client.SetToken(c.clientParams.Token)
 	case CERT:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.CertAuthMountPoint)
 		sec, err = client.Auth(path, map[string]interface{}{
@@ -306,6 +305,11 @@ func (c *Client) Auth(path string, body map[string]interface{}) (*vapi.Secret, e
 }
 
 func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
+	if token == "" {
+		return nil, errors.New("token is empty")
+	}
+	c.SetToken(token)
+
 	secret, err := c.vaultClient.Logical().Read("auth/token/lookup-self")
 	if err != nil {
 		return nil, fmt.Errorf("token lookup failed: %v", err)
