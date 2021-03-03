@@ -1,7 +1,6 @@
 package entry
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
@@ -44,22 +43,22 @@ func TestCount(t *testing.T) {
 		{
 			name:          "4 entries",
 			fakeCountResp: fakeResp4,
-			expOut:        fmt.Sprint("4 registration entries\n"),
+			expOut:        "4 registration entries\n",
 		},
 		{
 			name:          "2 entries",
 			fakeCountResp: fakeResp2,
-			expOut:        fmt.Sprint("2 registration entries\n"),
+			expOut:        "2 registration entries\n",
 		},
 		{
 			name:          "1 entry",
 			fakeCountResp: fakeResp1,
-			expOut:        fmt.Sprint("1 registration entry\n"),
+			expOut:        "1 registration entry\n",
 		},
 		{
 			name:          "0 entries",
 			fakeCountResp: fakeResp0,
-			expOut:        fmt.Sprint("0 registration entries\n"),
+			expOut:        "0 registration entries\n",
 		},
 		{
 			name:      "Server error",
