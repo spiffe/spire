@@ -4,7 +4,6 @@ option go_package = "github.com/spiffe/spire/proto/spire/agent/svidstore";
 
 import "spire/common/common.proto";
 import "spire/common/plugin/plugin.proto";
-import "spire/types/spiffeid.proto";
 
 service SVIDStore {
     // Puts an X509-SVID in a configured secrets store
@@ -33,7 +32,7 @@ message PutX509SVIDResponse {
 
 message X509SVID {
     // SPIFFE ID of the SVID.
-    spire.types.SPIFFEID  id = 1;
+    string spiffeID = 1;
 
     // Certificate and intermediates (ASN.1 DER encoded)
     repeated bytes cert_chain = 2;
