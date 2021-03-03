@@ -106,8 +106,7 @@ func (s *RotatorTestSuite) TestRun() {
 
 func (s *RotatorTestSuite) TestRunWithUpdates() {
 	// Cert that's valid for 1hr
-	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
-	s.Require().NoError(err)
+	temp := util.NewSVIDTemplate(s.mockClock, spiffeid.RequireFromString("spiffe://example.org/test"))
 	goodCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
 
@@ -155,8 +154,7 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 
 func (s *RotatorTestSuite) TestRotateSVID() {
 	// Cert that's valid for 1hr
-	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
-	s.Require().NoError(err)
+	temp := util.NewSVIDTemplate(s.mockClock, spiffeid.RequireFromString("spiffe://example.org/test"))
 	goodCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
 

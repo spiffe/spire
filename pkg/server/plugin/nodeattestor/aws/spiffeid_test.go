@@ -5,15 +5,19 @@ import (
 	"text/template"
 
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 )
 
-var templateWithTags = template.Must(template.New("agent-svid").Parse("{{ .Tags.a }}/{{ .Tags.b }}"))
+var (
+	templateWithTags = template.Must(template.New("agent-svid").Parse("{{ .Tags.a }}/{{ .Tags.b }}"))
+	trustDomain      = spiffeid.RequireTrustDomainFromString("example.org")
+)
 
 func TestMakeSpiffeID(t *testing.T) {
 	tests := []struct {
 		name              string
-		trustDomain       string
+		trustDomain       spiffeid.TrustDomain
 		agentPathTemplate *template.Template
 		doc               ec2metadata.EC2InstanceIdentityDocument
 		tags              instanceTags
@@ -21,7 +25,7 @@ func TestMakeSpiffeID(t *testing.T) {
 	}{
 		{
 			name:              "default",
-			trustDomain:       "example.org",
+			trustDomain:       trustDomain,
 			agentPathTemplate: defaultAgentPathTemplate,
 			doc: ec2metadata.EC2InstanceIdentityDocument{
 				Region:     "region",
@@ -32,7 +36,7 @@ func TestMakeSpiffeID(t *testing.T) {
 		},
 		{
 			name:              "instance tags",
-			trustDomain:       "example.org",
+			trustDomain:       trustDomain,
 			agentPathTemplate: templateWithTags,
 			tags: instanceTags{
 				"a": "c",

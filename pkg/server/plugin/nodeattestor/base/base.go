@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
@@ -27,6 +28,6 @@ func (p *Base) BrokerHostServices(broker catalog.HostServiceBroker) error {
 	return nil
 }
 
-func (p *Base) IsAttested(ctx context.Context, agentID string) (bool, error) {
+func (p *Base) IsAttested(ctx context.Context, agentID spiffeid.ID) (bool, error) {
 	return agentstore.IsAttested(ctx, p.store, agentID)
 }

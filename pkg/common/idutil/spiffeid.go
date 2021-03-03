@@ -3,7 +3,6 @@ package idutil
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"path"
 	"strings"
 
@@ -23,31 +22,14 @@ const (
 
 const (
 	ServerIDPath = "/spire/server"
+	AgentIDPath  = "/spire/agent"
 )
 
-// ValidateSpiffeID validates the SPIFFE ID according to the SPIFFE
-// specification. The validation mode controls the type of validation.
-func ValidateSpiffeID(spiffeID string, mode ValidationMode) error {
-	_, err := ParseSpiffeID(spiffeID, mode)
-	return err
-}
-
-// ValidateSpiffeIDURL validates the SPIFFE ID according to the SPIFFE
-// specification, namely:
-// - spiffe id is not empty
-// - spiffe id is a valid url
-// - scheme is 'spiffe'
-// - user info is not allowed
-// - host is not empty
-// - port is not allowed
-// - query values are not allowed
-// - fragment is not allowed
-// - path does not start with '/spire' since it is reserved for agent, server, etc.
-// In addition, the validation mode is used to control what kind of SPIFFE ID
-// is expected.
-// For more information:
-// [https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md]
-func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
+// ValidateSpiffeId  performs additional validations on the SPIFFE ID object:
+// - validates that the object is not empty
+// - validates that the path does not start with '/spire' since it is reserved for agent, server, etc.
+// - uses a validation mode to control what kind of SPIFFE ID that is expected.
+func ValidateSpiffeID(id spiffeid.ID, mode ValidationMode) error {
 	options := mode.validationOptions()
 
 	validationError := func(format string, args ...interface{}) error {
@@ -68,24 +50,8 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 			append([]interface{}{id.String(), kind}, args...)...)
 	}
 
-	if id == nil || *id == (url.URL{}) {
+	if id.IsZero() {
 		return validationError("SPIFFE ID is empty")
-	}
-
-	// General validation
-	switch {
-	case strings.ToLower(id.Scheme) != "spiffe":
-		return validationError("invalid scheme")
-	case id.User != nil:
-		return validationError("user info is not allowed")
-	case id.Host == "":
-		return validationError("trust domain is empty")
-	case id.Port() != "":
-		return validationError("port is not allowed")
-	case id.Fragment != "":
-		return validationError("fragment is not allowed")
-	case id.RawQuery != "":
-		return validationError("query is not allowed")
 	}
 
 	// trust domain validation
@@ -93,7 +59,7 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 		if options.trustDomain.IsZero() {
 			return errors.New("trust domain to validate against cannot be empty")
 		}
-		if id.Host != options.trustDomain.String() {
+		if id.TrustDomain().String() != options.trustDomain.String() {
 			return fmt.Errorf("%q does not belong to trust domain %q", id, options.trustDomain)
 		}
 	}
@@ -102,32 +68,32 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	switch options.idType {
 	case anyID:
 	case trustDomainID:
-		if id.Path != "" {
+		if id.Path() != "" {
 			return validationError("path is not empty")
 		}
 	case memberID:
-		if id.Path == "" {
+		if id.Path() == "" {
 			return validationError("path is empty")
 		}
 	case workloadID:
-		if id.Path == "" {
+		if id.Path() == "" {
 			return validationError("path is empty")
 		}
-		if IsReservedPath(id.Path) {
+		if IsReservedPath(id.Path()) {
 			return validationError(`invalid path: "/spire/*" namespace is reserved`)
 		}
 	case serverID:
-		if id.Path == "" {
+		if id.Path() == "" {
 			return validationError("path is empty")
 		}
-		if !isServerPath(id.Path) {
+		if !isServerPath(id.Path()) {
 			return validationError(`invalid path: expecting "/spire/server"`)
 		}
 	case agentID:
-		if id.Path == "" {
+		if id.Path() == "" {
 			return validationError("path is empty")
 		}
-		if !IsAgentPath(id.Path) {
+		if !IsAgentPath(id.Path()) {
 			return validationError(`invalid path: expecting "/spire/agent/*"`)
 		}
 	default:
@@ -154,17 +120,17 @@ func isServerPath(path string) bool {
 
 // ParseSpiffeID parses the SPIFFE ID and makes sure it is valid according to
 // the specified validation mode.
-func ParseSpiffeID(spiffeID string, mode ValidationMode) (*url.URL, error) {
-	u, err := url.Parse(spiffeID)
+func ParseSpiffeID(spiffeID string, mode ValidationMode) (spiffeid.ID, error) {
+	id, err := spiffeid.FromString(spiffeID)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse SPIFFE ID: %v", err)
+		return spiffeid.ID{}, fmt.Errorf("could not parse SPIFFE ID: %v", err)
 	}
 
-	if err := ValidateSpiffeIDURL(u, mode); err != nil {
-		return nil, err
+	if err := ValidateSpiffeID(id, mode); err != nil {
+		return spiffeid.ID{}, err
 	}
 
-	return normalizeSpiffeIDURL(u), nil
+	return id, nil
 }
 
 type ValidationMode interface {
@@ -278,62 +244,10 @@ func AllowAnyTrustDomainAgent() ValidationMode {
 	}
 }
 
-// NormalizeSpiffeID normalizes the SPIFFE ID so it can be directly compared
-// for equality.
-func NormalizeSpiffeID(id string, mode ValidationMode) (string, error) {
-	u, err := ParseSpiffeID(id, mode)
-	if err != nil {
-		return "", err
-	}
-	return u.String(), nil
-}
-
-// NormalizeSpiffeIDURL normalizes the SPIFFE ID URL so it can be directly
-// compared for equality.
-func NormalizeSpiffeIDURL(u *url.URL, mode ValidationMode) (*url.URL, error) {
-	if err := ValidateSpiffeIDURL(u, mode); err != nil {
-		return nil, err
-	}
-	return normalizeSpiffeIDURL(u), nil
-}
-
-func normalizeSpiffeIDURL(u *url.URL) *url.URL {
-	c := *u
-	c.Scheme = strings.ToLower(c.Scheme)
-	// SPIFFE ID's can't contain ports so don't bother handling that here.
-	c.Host = strings.ToLower(u.Hostname())
-	return &c
-}
-
-// TrustDomainID creates a trust domain SPIFFE ID given a trust domain name. If the passed
-// trust domain already is a trust domain ID, it is returned unchanged.
-func TrustDomainID(trustDomain string) string {
-	return TrustDomainURI(trustDomain).String()
-}
-
-// TrustDomainURI creates a trust domain SPIFFE URI given a trust domain name or trust domain ID.
-func TrustDomainURI(trustDomain string) *url.URL {
-	trustDomain = strings.TrimPrefix(trustDomain, "spiffe://")
-	return &url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-	}
-}
-
 // AgentID creates an agent SPIFFE ID given a trust domain and a path.
 // The /spire/agent prefix in the path is implied.
-func AgentID(trustDomain, p string) string {
-	return AgentURI(trustDomain, p).String()
-}
-
-// AgentURI creates an agent SPIFFE URI given a trust domain and a path.
-// The /spire/agent prefix in the path is implied.
-func AgentURI(trustDomain, p string) *url.URL {
-	return &url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   path.Join("spire", "agent", p),
-	}
+func AgentID(trustDomain spiffeid.TrustDomain, p string) spiffeid.ID {
+	return trustDomain.NewID(path.Join(AgentIDPath, p))
 }
 
 // ServerID creates a server SPIFFE ID string given a trustDomain.

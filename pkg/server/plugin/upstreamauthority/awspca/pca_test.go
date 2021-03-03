@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acmpca"
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -482,7 +483,7 @@ func (as *PCAPluginSuite) SVIDFixture() (*x509.Certificate, *bytes.Buffer) {
 }
 
 func (as *PCAPluginSuite) generateCSR() ([]byte, *bytes.Buffer) {
-	csr, _, err := util.NewCSRTemplate("spiffe://example.com/foo")
+	csr, _, err := util.NewCSRTemplate(spiffeid.RequireFromString("spiffe://example.com/foo"))
 	as.Require().NoError(err)
 	encodedCsr := new(bytes.Buffer)
 	err = pem.Encode(encodedCsr, &pem.Block{

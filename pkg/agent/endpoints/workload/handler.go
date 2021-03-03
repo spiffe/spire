@@ -176,7 +176,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	}
 
 	return &workload.ValidateJWTSVIDResponse{
-		SpiffeId: spiffeID,
+		SpiffeId: spiffeID.String(),
 		Claims:   s,
 	}, nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2"
@@ -13,7 +14,7 @@ import (
 )
 
 type KeyStore interface {
-	FindPublicKey(ctx context.Context, trustDomainID, kid string) (crypto.PublicKey, error)
+	FindPublicKey(ctx context.Context, trustDomain spiffeid.TrustDomain, kid string) (crypto.PublicKey, error)
 }
 
 type keyStore struct {
@@ -26,26 +27,26 @@ func NewKeyStore(trustDomainKeys map[string]map[string]crypto.PublicKey) KeyStor
 	}
 }
 
-func (t *keyStore) FindPublicKey(ctx context.Context, trustDomainID, keyID string) (crypto.PublicKey, error) {
-	publicKeys, ok := t.trustDomainKeys[trustDomainID]
+func (t *keyStore) FindPublicKey(ctx context.Context, trustDomain spiffeid.TrustDomain, keyID string) (crypto.PublicKey, error) {
+	publicKeys, ok := t.trustDomainKeys[trustDomain.IDString()]
 	if !ok {
-		return nil, fmt.Errorf("no keys found for trust domain %q", trustDomainID)
+		return nil, fmt.Errorf("no keys found for trust domain %q", trustDomain)
 	}
 	publicKey, ok := publicKeys[keyID]
 	if !ok {
-		return nil, fmt.Errorf("public key %q not found in trust domain %q", keyID, trustDomainID)
+		return nil, fmt.Errorf("public key %q not found in trust domain %q", keyID, trustDomain)
 	}
 	return publicKey, nil
 }
 
-func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (string, map[string]interface{}, error) {
+func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (spiffeid.ID, map[string]interface{}, error) {
 	tok, err := jwt.ParseSigned(token)
 	if err != nil {
-		return "", nil, errs.New("unable to parse JWT token")
+		return spiffeid.ID{}, nil, errs.New("unable to parse JWT token")
 	}
 
 	if len(tok.Headers) != 1 {
-		return "", nil, errs.New("expected a single token header; got %d", len(tok.Headers))
+		return spiffeid.ID{}, nil, errs.New("expected a single token header; got %d", len(tok.Headers))
 	}
 
 	// Make sure it has an algorithm supported by JWT-SVID
@@ -55,13 +56,13 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 		jose.ES256, jose.ES384, jose.ES512,
 		jose.PS256, jose.PS384, jose.PS512:
 	default:
-		return "", nil, errs.New("unsupported token signature algorithm %q", alg)
+		return spiffeid.ID{}, nil, errs.New("unsupported token signature algorithm %q", alg)
 	}
 
 	// Obtain the key ID from the header
 	keyID := tok.Headers[0].KeyID
 	if keyID == "" {
-		return "", nil, errs.New("token header missing key id")
+		return spiffeid.ID{}, nil, errs.New("token header missing key id")
 	}
 
 	// Parse out the unverified claims. We need to look up the key by the trust
@@ -69,28 +70,25 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	// when creating the generic map of claims that we return to the caller.
 	var claims jwt.Claims
 	if err := tok.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return "", nil, errs.Wrap(err)
+		return spiffeid.ID{}, nil, errs.Wrap(err)
 	}
 	if claims.Subject == "" {
-		return "", nil, errs.New("token missing subject claim")
+		return spiffeid.ID{}, nil, errs.New("token missing subject claim")
 	}
 	spiffeID, err := idutil.ParseSpiffeID(claims.Subject, idutil.AllowAnyTrustDomainWorkload())
 	if err != nil {
-		return "", nil, errs.New("token has in invalid subject claim: %v", err)
+		return spiffeid.ID{}, nil, errs.New("token has in invalid subject claim: %v", err)
 	}
 
-	// Construct the trust domain id from the SPIFFE ID and look up key by ID
-	trustDomainID := *spiffeID
-	trustDomainID.Path = ""
-	key, err := keyStore.FindPublicKey(ctx, trustDomainID.String(), keyID)
+	key, err := keyStore.FindPublicKey(ctx, spiffeID.TrustDomain(), keyID)
 	if err != nil {
-		return "", nil, err
+		return spiffeid.ID{}, nil, err
 	}
 
 	// Now obtain the generic claims map verified using the obtained key
 	claimsMap := make(map[string]interface{})
 	if err := tok.Claims(key, &claimsMap); err != nil {
-		return "", nil, errs.Wrap(err)
+		return spiffeid.ID{}, nil, errs.Wrap(err)
 	}
 
 	// Now that the signature over the claims has been verified, validate the
@@ -108,8 +106,8 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 		default:
 			err = errs.Wrap(err)
 		}
-		return "", nil, err
+		return spiffeid.ID{}, nil, err
 	}
 
-	return spiffeID.String(), claimsMap, nil
+	return spiffeID, claimsMap, nil
 }

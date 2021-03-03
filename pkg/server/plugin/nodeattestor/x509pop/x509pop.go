@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -134,13 +135,17 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 		return newError("challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := x509pop.MakeSpiffeID(c.trustDomain, c.pathTemplate, leaf)
+	trustDomain, err := spiffeid.TrustDomainFromString(c.trustDomain)
+	if err != nil {
+		return newError("failed to parse trust domain: %v", err)
+	}
+	spiffeid, err := x509pop.MakeSpiffeID(trustDomain, c.pathTemplate, leaf)
 	if err != nil {
 		return newError("failed to make spiffe id: %v", err)
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		AgentId:   spiffeid,
+		AgentId:   spiffeid.String(),
 		Selectors: buildSelectors(leaf, chains),
 	})
 }

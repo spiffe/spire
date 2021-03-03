@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 )
 
-const (
-	defaultTrustDomain = "example.org"
+var (
+	defaultTrustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
 
 type Config struct {
@@ -20,7 +21,7 @@ type Config struct {
 
 	// TrustDomain is the trust domain for SPIFFE IDs created by the attestor.
 	// Defaults to "example.org" if empty.
-	TrustDomain string
+	TrustDomain spiffeid.TrustDomain
 
 	// Data is a map from attestation data (as a string) to the associated id
 	// produced by the attestor. For example, a mapping from "DATA" ==> "FOO
@@ -52,7 +53,7 @@ type NodeAttestor struct {
 }
 
 func New(name string, config Config) *NodeAttestor {
-	if config.TrustDomain == "" {
+	if config.TrustDomain.IsZero() {
 		config.TrustDomain = defaultTrustDomain
 	}
 	return &NodeAttestor{

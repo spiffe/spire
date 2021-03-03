@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -15,13 +16,13 @@ func TestEnsureNotAttested(t *testing.T) {
 	assert := assert.New(t)
 	store := fakeAgentStore{}
 
-	err := EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/attested")
+	err := EnsureNotAttested(context.Background(), store, spiffeid.RequireFromString("spiffe://domain.test/spire/agent/test/attested"))
 	assert.EqualError(err, "agent has already attested")
 
-	err = EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/notattested")
+	err = EnsureNotAttested(context.Background(), store, spiffeid.RequireFromString("spiffe://domain.test/spire/agent/test/notattested"))
 	assert.NoError(err)
 
-	err = EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")
+	err = EnsureNotAttested(context.Background(), store, spiffeid.RequireFromString("spiffe://domain.test/spire/agent/test/bad"))
 	assert.EqualError(err, "unable to get agent info: ohno")
 }
 
@@ -29,15 +30,15 @@ func TestIsAttested(t *testing.T) {
 	assert := assert.New(t)
 	store := fakeAgentStore{}
 
-	attested, err := IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/attested")
+	attested, err := IsAttested(context.Background(), store, spiffeid.RequireFromString("spiffe://domain.test/spire/agent/test/attested"))
 	assert.NoError(err)
 	assert.True(attested)
 
-	attested, err = IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/notattested")
+	attested, err = IsAttested(context.Background(), store, spiffeid.RequireFromString("spiffe://domain.test/spire/agent/test/notattested"))
 	assert.NoError(err)
 	assert.False(attested)
 
-	attested, err = IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")
+	attested, err = IsAttested(context.Background(), store, spiffeid.RequireFromString("spiffe://domain.test/spire/agent/test/bad"))
 	assert.EqualError(err, "unable to get agent info: ohno")
 	assert.False(attested)
 }

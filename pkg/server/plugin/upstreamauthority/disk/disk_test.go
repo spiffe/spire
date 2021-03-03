@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -30,7 +31,8 @@ const (
 )
 
 var (
-	ctx = context.Background()
+	ctx           = context.Background()
+	validSpiffeID = spiffeid.RequireFromString("spiffe://localhost")
 )
 
 func TestDisk(t *testing.T) {
@@ -158,7 +160,6 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	})
 	require.NoError(err)
 
-	validSpiffeID := "spiffe://localhost"
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(err)
 
@@ -202,7 +203,6 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 	require := s.Require()
 
 	testCSR := func() {
-		validSpiffeID := "spiffe://localhost"
 		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 		require.NoError(err)
 
@@ -237,7 +237,6 @@ func (s *DiskSuite) TestMintX509CAUsesPreferredTTLIfSet() {
 }
 
 func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
-	validSpiffeID := "spiffe://localhost"
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
@@ -274,24 +273,21 @@ func testCSRResp(t *testing.T, resp *upstreamauthority.MintX509CAResponse, pubKe
 func (s *DiskSuite) TestSubmitInvalidCSR() {
 	require := s.Require()
 
-	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
-	for _, invalidSpiffeID := range invalidSpiffeIDs {
-		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
-		require.NoError(err)
+	invalidSpiffeID := spiffeid.RequireFromString("spiffe://not-trusted")
+	csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
+	require.NoError(err)
 
-		resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
-		require.Error(err)
-		require.Nil(resp)
-	}
+	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+	require.Error(err)
+	require.Nil(resp)
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err = s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(err)
 	require.Nil(resp)
 }
 
 func (s *DiskSuite) TestRace() {
-	validSpiffeID := "spiffe://localhost"
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 

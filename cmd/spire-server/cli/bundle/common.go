@@ -148,9 +148,9 @@ func jwtKeysFromProto(proto []*types.JWTKey) (map[string]crypto.PublicKey, error
 	return keys, nil
 }
 
-func bundleProtoFromX509Authorities(trustDomain string, rootCAs []*x509.Certificate) *types.Bundle {
+func bundleProtoFromX509Authorities(trustDomain spiffeid.TrustDomain, rootCAs []*x509.Certificate) *types.Bundle {
 	b := &types.Bundle{
-		TrustDomain: trustDomain,
+		TrustDomain: trustDomain.IDString(),
 	}
 	for _, rootCA := range rootCAs {
 		b.X509Authorities = append(b.X509Authorities, &types.X509Certificate{

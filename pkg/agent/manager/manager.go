@@ -192,7 +192,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 		return cachedSVID, nil
 	}
 
-	entryID := m.getEntryID(spiffeID.String())
+	entryID := m.getEntryID(spiffeID)
 	if entryID == "" {
 		return nil, errors.New("no entry found")
 	}
@@ -213,9 +213,9 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 	return newSVID, nil
 }
 
-func (m *manager) getEntryID(spiffeID string) string {
+func (m *manager) getEntryID(spiffeID spiffeid.ID) string {
 	for _, identity := range m.cache.Identities() {
-		if identity.Entry.SpiffeId == spiffeID {
+		if identity.Entry.SpiffeId == spiffeID.String() {
 			return identity.Entry.EntryId
 		}
 	}

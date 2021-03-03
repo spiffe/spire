@@ -28,8 +28,8 @@ type staticEntryCache struct {
 	entries map[spiffeid.ID][]*types.Entry
 }
 
-func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
-	return sef.entries[agentID]
+func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) ([]*types.Entry, error) {
+	return sef.entries[agentID], nil
 }
 
 func newStaticEntryCache(entries map[spiffeid.ID][]*types.Entry) *staticEntryCache {

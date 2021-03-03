@@ -135,11 +135,6 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:           "invalid trust domain ID",
-			expectedStderr: "Error: \"spiffe://otherdomain.test/spire/server\" is not a valid trust domain SPIFFE ID: path is not empty\n",
-			args:           []string{"-id", "spiffe://otherdomain.test/spire/server"},
-		},
-		{
-			name:           "invalid trust domain ID",
 			expectedStderr: "Error: unable to parse bundle data: no PEM blocks\n",
 			args:           []string{"-id", "spiffe://otherdomain.test"},
 		},
@@ -153,7 +148,7 @@ func TestSet(t *testing.T) {
 			name:           "invalid trustdomain",
 			stdin:          cert1PEM,
 			args:           []string{"-id", "otherdomain test"},
-			expectedStderr: "Error: \"otherdomain%20test\" is not a valid trust domain SPIFFE ID: invalid scheme\n",
+			expectedStderr: "Error: could not parse SPIFFE ID: spiffeid: invalid scheme\n",
 		},
 		{
 			name:           "invalid bundle (pem)",

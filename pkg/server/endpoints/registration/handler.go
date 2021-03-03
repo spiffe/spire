@@ -36,8 +36,8 @@ var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchStri
 
 const defaultListEntriesPageSize = 50
 
-//Handler service is used to register SPIFFE IDs, and the attestation logic that should
-//be performed on a workload before those IDs can be issued.
+// Handler service is used to register SPIFFE IDs, and the attestation logic that should
+// be performed on a workload before those IDs can be issued.
 type Handler struct {
 	registration.UnsafeRegistrationServer
 
@@ -48,8 +48,8 @@ type Handler struct {
 	ServerCA    ca.ServerCA
 }
 
-//CreateEntry creates an entry in the Registration table,
-//used to assign SPIFFE IDs to nodes and workloads.
+// CreateEntry creates an entry in the Registration table,
+// used to assign SPIFFE IDs to nodes and workloads.
 func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationEntry) (_ *registration.RegistrationEntryID, err error) {
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
@@ -102,7 +102,7 @@ func (h *Handler) CreateEntryIfNotExists(ctx context.Context, request *common.Re
 	return resp, nil
 }
 
-//DeleteEntry deletes an entry in the Registration table
+// DeleteEntry deletes an entry in the Registration table
 func (h *Handler) DeleteEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -122,7 +122,7 @@ func (h *Handler) DeleteEntry(ctx context.Context, request *registration.Registr
 	return resp.Entry, nil
 }
 
-//FetchEntry Retrieves a specific registered entry
+// FetchEntry Retrieves a specific registered entry
 func (h *Handler) FetchEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -144,7 +144,7 @@ func (h *Handler) FetchEntry(ctx context.Context, request *registration.Registra
 	return fetchResponse.Entry, nil
 }
 
-//FetchEntries retrieves all registered entries
+// FetchEntries retrieves all registered entries
 func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -162,7 +162,7 @@ func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *c
 	}, nil
 }
 
-//UpdateEntry updates a specific registered entry
+// UpdateEntry updates a specific registered entry
 func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateEntryRequest) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -198,18 +198,19 @@ func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateE
 	return resp.Entry, nil
 }
 
-//ListByParentID Returns all the Entries associated with the ParentID value
+// ListByParentID Returns all the Entries associated with the ParentID value
 func (h *Handler) ListByParentID(ctx context.Context, request *registration.ParentID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsByParentID)
 
-	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
+	spiffeID, err := spiffeid.FromString(request.Id)
 	if err != nil {
 		log.WithError(err).Error("Failed to normalize SPIFFE ID")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("%q is not a valid SPIFFE ID: %v", request.Id, err))
 	}
+	request.Id = spiffeID.String()
 
 	ds := h.getDataStore()
 	listResponse, err := ds.ListRegistrationEntries(ctx,
@@ -228,7 +229,7 @@ func (h *Handler) ListByParentID(ctx context.Context, request *registration.Pare
 	}, nil
 }
 
-//ListBySelector returns all the Entries associated with the Selector
+// ListBySelector returns all the Entries associated with the Selector
 func (h *Handler) ListBySelector(ctx context.Context, request *common.Selector) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -252,7 +253,7 @@ func (h *Handler) ListBySelector(ctx context.Context, request *common.Selector) 
 	}, nil
 }
 
-//ListBySelectors returns all the Entries associated with the Selectors
+// ListBySelectors returns all the Entries associated with the Selectors
 func (h *Handler) ListBySelectors(ctx context.Context, request *common.Selectors) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -276,18 +277,19 @@ func (h *Handler) ListBySelectors(ctx context.Context, request *common.Selectors
 	}, nil
 }
 
-//ListBySpiffeID returns all the Entries associated with the SPIFFE ID
+// ListBySpiffeID returns all the Entries associated with the SPIFFE ID
 func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.SpiffeID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.ListRegistrationsBySPIFFEID)
 
-	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
+	spiffeID, err := spiffeid.FromString(request.Id)
 	if err != nil {
 		log.WithError(err).Error("Failed to normalize SPIFFE ID")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("%q is not a valid SPIFFE ID: %v", request.Id, err))
 	}
+	request.Id = spiffeID.String()
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -306,7 +308,7 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 	}, nil
 }
 
-//ListAllEntriesWithPages retrieves all registered entries with pagination.
+// ListAllEntriesWithPages retrieves all registered entries with pagination.
 func (h *Handler) ListAllEntriesWithPages(ctx context.Context, request *registration.ListAllEntriesRequest) (_ *registration.ListAllEntriesResponse, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -353,11 +355,13 @@ func (h *Handler) CreateFederatedBundle(ctx context.Context, request *registrati
 		log.Error("Bundle field is required")
 		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
 	}
-	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
+
+	spiffeID, err := idutil.ParseSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	bundle.TrustDomainId = spiffeID.String()
 
 	if bundle.TrustDomainId == h.TrustDomain.IDString() {
 		log.Error("Federated bundle id cannot match server trust domain")
@@ -381,11 +385,12 @@ func (h *Handler) FetchFederatedBundle(ctx context.Context, request *registratio
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchFederatedBundle)
 
-	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
+	spiffeID, err := idutil.ParseSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	request.Id = spiffeID.String()
 
 	if request.Id == h.TrustDomain.IDString() {
 		log.Error("Federated bundle id cannot match server trust domain")
@@ -449,11 +454,13 @@ func (h *Handler) UpdateFederatedBundle(ctx context.Context, request *registrati
 		log.Error("Bundle field is required")
 		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
 	}
-	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
+
+	spiffeID, err := idutil.ParseSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	bundle.TrustDomainId = spiffeID.String()
 
 	if bundle.TrustDomainId == h.TrustDomain.IDString() {
 		log.Error("Federated bundle ID cannot match server trust domain")
@@ -477,11 +484,12 @@ func (h *Handler) DeleteFederatedBundle(ctx context.Context, request *registrati
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, telemetry.DeleteFederatedBundle)
 
-	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
+	spiffeID, err := idutil.ParseSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		log.WithError(err).Error("Failed to normalize SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	request.Id = spiffeID.String()
 
 	if request.Id == h.TrustDomain.IDString() {
 		log.Error("Federated bundle ID cannot match server trust domain")
@@ -834,16 +842,17 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 		}
 	}
 
-	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain))
+	parentID, err := idutil.ParseSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%q is not a valid trust domain member SPIFFE ID", entry.ParentId)
 	}
+	entry.ParentId = parentID.String()
 
-	// Validate Spiffe ID
-	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain))
+	spiffeID, err := idutil.ParseSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%q is not a valid workload SPIFFE ID", entry.SpiffeId)
 	}
+	entry.SpiffeId = spiffeID.String()
 
 	// Validate Selectors
 	for _, s := range entry.Selectors {
@@ -892,9 +901,9 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	if len(cert.URIs) == 0 {
 		return "", errors.New("no SPIFFE ID in certificate")
 	}
-	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
+	spiffeID, err := spiffeid.FromURI(cert.URIs[0])
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%q is not a valid SPIFFE ID: %v", cert.URIs[0], err)
 	}
 	return spiffeID.String(), nil
 }

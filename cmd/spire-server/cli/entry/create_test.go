@@ -149,12 +149,12 @@ func TestCreate(t *testing.T) {
 		{
 			name:   "Wrong SPIFFE ID",
 			args:   []string{"-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent", "-spiffeID", "invalid-id"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
+			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: spiffeid: invalid scheme\n",
 		},
 		{
 			name:   "Wrong parent SPIFFE ID",
 			args:   []string{"-selector", "unix:uid:1", "-parentID", "invalid-id", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
+			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: spiffeid: invalid scheme\n",
 		},
 		{
 			name:   "Wrong selectors",
@@ -174,7 +174,7 @@ func TestCreate(t *testing.T) {
 		{
 			name:   "Wrong federated trust domain",
 			args:   []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-federatesWith", "invalid-id"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
+			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: spiffeid: invalid scheme\n",
 		},
 		{
 			name: "Server error",

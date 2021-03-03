@@ -2,10 +2,10 @@ package gcp
 
 import (
 	"bytes"
-	"net/url"
 	"text/template"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
@@ -44,14 +44,14 @@ type agentPathTemplateData struct {
 // MakeSpiffeID makes an agent spiffe ID. The ID always has a host value equal to the given trust domain,
 // the path is created using the given agentPathTemplate which is given access to a fully populated
 // ComputeEngine object.
-func MakeSpiffeID(trustDomain string, agentPathTemplate *template.Template, computeEngine ComputeEngine) (*url.URL, error) {
+func MakeSpiffeID(trustDomain spiffeid.TrustDomain, agentPathTemplate *template.Template, computeEngine ComputeEngine) (spiffeid.ID, error) {
 	var agentPath bytes.Buffer
 	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
 		ComputeEngine: computeEngine,
 		PluginName:    PluginName,
 	}); err != nil {
-		return nil, err
+		return spiffeid.ID{}, err
 	}
 
-	return idutil.AgentURI(trustDomain, agentPath.String()), nil
+	return idutil.AgentID(trustDomain, agentPath.String()), nil
 }

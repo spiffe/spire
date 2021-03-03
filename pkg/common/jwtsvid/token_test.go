@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
@@ -14,8 +15,8 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-const (
-	fakeSpiffeID = "spiffe://example.org/blog"
+var (
+	fakeSpiffeID = spiffeid.RequireFromString("spiffe://example.org/blog")
 )
 
 var (
@@ -219,12 +220,8 @@ func (s *TokenSuite) TestSignWithNoExpiration() {
 
 func (s *TokenSuite) TestSignInvalidSpiffeID() {
 	// missing ID
-	_, err := s.signer.SignToken("", fakeAudience, time.Now(), ec256Key, "ec256Key")
+	_, err := s.signer.SignToken(spiffeid.ID{}, fakeAudience, time.Now(), ec256Key, "ec256Key")
 	s.RequireErrorContains(err, "is not a valid workload SPIFFE ID: SPIFFE ID is empty")
-
-	// not a spiffe ID
-	_, err = s.signer.SignToken("sparfe://example.org", fakeAudience, time.Now(), ec256Key, "ec256Key")
-	s.RequireErrorContains(err, "is not a valid workload SPIFFE ID: invalid scheme")
 }
 
 func (s *TokenSuite) TestSignNoAudience() {
@@ -284,14 +281,14 @@ func (s *TokenSuite) TestValidateSubjectNotForDomain() {
 	})
 
 	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, []string{"FOO"})
-	s.Require().EqualError(err, `no keys found for trust domain "spiffe://other.org"`)
+	s.Require().EqualError(err, `no keys found for trust domain "other.org"`)
 	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
 func (s *TokenSuite) TestValidateNoAudience() {
 	token := s.signToken(jose.ES256, jose.JSONWebKey{Key: ec256Key, KeyID: "ec256Key"}, jwt.Claims{
-		Subject: fakeSpiffeID,
+		Subject: fakeSpiffeID.String(),
 	})
 
 	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, []string{"FOO"})
@@ -328,7 +325,7 @@ func (s *TokenSuite) TestValidateKeyNotFound() {
 	s.Require().NotEmpty(token)
 
 	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
-	s.Require().EqualError(err, `public key "whatever" not found in trust domain "spiffe://example.org"`)
+	s.Require().EqualError(err, `public key "whatever" not found in trust domain "example.org"`)
 	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }

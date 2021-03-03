@@ -48,7 +48,7 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.cache.GetAuthorizedEntries(agentID), nil
+	return a.cache.GetAuthorizedEntries(agentID)
 }
 
 // RunRebuildCacheTask starts a ticker which rebuilds the in-memory entry cache.

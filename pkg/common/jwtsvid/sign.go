@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2"
@@ -35,7 +36,7 @@ func NewSigner(config SignerConfig) *Signer {
 	}
 }
 
-func (s *Signer) SignToken(spiffeID string, audience []string, expires time.Time, signer crypto.Signer, kid string) (string, error) {
+func (s *Signer) SignToken(spiffeID spiffeid.ID, audience []string, expires time.Time, signer crypto.Signer, kid string) (string, error) {
 	if err := idutil.ValidateSpiffeID(spiffeID, idutil.AllowAnyTrustDomainWorkload()); err != nil {
 		return "", err
 	}
@@ -53,7 +54,7 @@ func (s *Signer) SignToken(spiffeID string, audience []string, expires time.Time
 	}
 
 	claims := jwt.Claims{
-		Subject:  spiffeID,
+		Subject:  spiffeID.String(),
 		Issuer:   s.c.Issuer,
 		Expiry:   jwt.NewNumericDate(expires),
 		Audience: audience,

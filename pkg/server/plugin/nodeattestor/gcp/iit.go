@@ -11,6 +11,7 @@ import (
 	"github.com/zeebo/errs"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -62,7 +63,7 @@ type IITAttestorPlugin struct {
 // IITAttestorConfig is the config for IITAttestorPlugin.
 type IITAttestorConfig struct {
 	idPathTemplate      *template.Template
-	trustDomain         string
+	trustDomain         spiffeid.TrustDomain
 	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
 
@@ -111,7 +112,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return pluginErr.New("failed to create spiffe ID: %v", err)
 	}
 
-	attested, err := p.IsAttested(stream.Context(), id.String())
+	attested, err := p.IsAttested(stream.Context(), id)
 	switch {
 	case err != nil:
 		return pluginErr.Wrap(err)
@@ -157,10 +158,11 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return nil, pluginErr.New("global configuration is required")
 	}
 
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, pluginErr.New("trust_domain is required")
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, pluginErr.New("unable to parse trust domain: %v", err)
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = trustDomain
 
 	if len(config.ProjectIDWhitelist) == 0 {
 		return nil, pluginErr.New("projectid_whitelist is required")

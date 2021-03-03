@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
@@ -71,7 +72,11 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 
 // Configure configures the Plugin.
 func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	sshclient, err := sshpop.NewClient(req.GlobalConfig.GetTrustDomain(), req.Configuration)
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.GetTrustDomain())
+	if err != nil {
+		return nil, err
+	}
+	sshclient, err := sshpop.NewClient(trustDomain, req.Configuration)
 	if err != nil {
 		return nil, err
 	}

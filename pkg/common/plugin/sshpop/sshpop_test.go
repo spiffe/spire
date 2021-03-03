@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -20,7 +21,7 @@ var (
 func TestNewClient(t *testing.T) {
 	tests := []struct {
 		desc          string
-		trustDomain   string
+		trustDomain   spiffeid.TrustDomain
 		configString  string
 		expectErr     string
 		requireClient func(*testing.T, *Client)
@@ -31,31 +32,31 @@ func TestNewClient(t *testing.T) {
 		},
 		{
 			desc:         "bad config",
-			trustDomain:  "foo.test",
+			trustDomain:  trustDomain,
 			configString: "[[]",
 			expectErr:    "sshpop: failed to decode configuration",
 		},
 		{
 			desc:         "key file not exists",
-			trustDomain:  "foo.test",
+			trustDomain:  trustDomain,
 			configString: `host_key_path = "something-that-doesnt-exist"`,
 			expectErr:    "sshpop: failed to read host key file",
 		},
 		{
 			desc:         "cert file not exists",
-			trustDomain:  "foo.test",
+			trustDomain:  trustDomain,
 			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"`,
 			expectErr:    "sshpop: failed to read host cert file",
 		},
 		{
 			desc:        "success",
-			trustDomain: "foo.test",
+			trustDomain: trustDomain,
 			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"
 						   host_cert_path = "./testdata/dummy_agent_ssh_key-cert.pub"
 						   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`,
 			requireClient: func(t *testing.T, c *Client) {
 				require.NotNil(t, c)
-				require.Equal(t, "foo.test", c.trustDomain)
+				require.Equal(t, trustDomain, c.trustDomain)
 				require.Equal(t, c.signer.PublicKey(), c.cert.Key)
 				require.Equal(t, "foo-host", c.cert.KeyId)
 			},
@@ -78,9 +79,10 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestNewServer(t *testing.T) {
+	trustDomain := spiffeid.RequireTrustDomainFromString("foo.test")
 	tests := []struct {
 		desc          string
-		trustDomain   string
+		trustDomain   spiffeid.TrustDomain
 		configString  string
 		expectErr     string
 		requireServer func(*testing.T, *Server)
@@ -91,25 +93,25 @@ func TestNewServer(t *testing.T) {
 		},
 		{
 			desc:         "bad config",
-			trustDomain:  "foo.test",
+			trustDomain:  trustDomain,
 			configString: "[[]",
 			expectErr:    "sshpop: failed to decode configuration",
 		},
 		{
 			desc:        "no cert authority",
-			trustDomain: "foo.test",
+			trustDomain: trustDomain,
 			expectErr:   `sshpop: missing required config value for "cert_authorities"`,
 		},
 		{
 			desc:         "no cert authorities",
 			configString: `cert_authorities = []`,
-			trustDomain:  "foo.test",
+			trustDomain:  trustDomain,
 			expectErr:    `sshpop: failed to create cert checker: must provide at least one cert authority`,
 		},
 		{
 			desc:         "bad cert authorities",
 			configString: `cert_authorities = ["bad authority"]`,
-			trustDomain:  "foo.test",
+			trustDomain:  trustDomain,
 			expectErr:    `sshpop: failed to create cert checker: failed to parse public key`,
 		},
 		{
@@ -117,10 +119,10 @@ func TestNewServer(t *testing.T) {
 			configString: fmt.Sprintf(`cert_authorities = [%q]
 									   canonical_domain = "local"
 									   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
-			trustDomain: "foo.test",
+			trustDomain: trustDomain,
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
-				require.Equal(t, "foo.test", s.trustDomain)
+				require.Equal(t, trustDomain, s.trustDomain)
 				require.Equal(t, "local", s.canonicalDomain)
 				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(testCertAuthority))
@@ -133,10 +135,10 @@ func TestNewServer(t *testing.T) {
 			configString: fmt.Sprintf(`cert_authorities = [%q]
 									   cert_authorities_path = "./testdata/many_ssh_cert_authorities.pub"
 									   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
-			trustDomain: "foo.test",
+			trustDomain: trustDomain,
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
-				require.Equal(t, "foo.test", s.trustDomain)
+				require.Equal(t, trustDomain, s.trustDomain)
 				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey := requireParsePubkey(t, testCertAuthority)
 				pubkey2 := requireParsePubkey(t, testCertAuthority2)

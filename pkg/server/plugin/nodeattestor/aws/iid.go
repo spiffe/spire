@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -109,7 +110,7 @@ type IIDAttestorConfig struct {
 	LocalValidAcctIDs  []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate  string   `hcl:"agent_path_template"`
 	pathTemplate       *template.Template
-	trustDomain        string
+	trustDomain        spiffeid.TrustDomain
 	awsCaCertPublicKey *rsa.PublicKey
 }
 
@@ -203,7 +204,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return iidError.New("failed to create spiffe ID: %w", err)
 	}
 
-	attested, err := p.IsAttested(stream.Context(), agentID.String())
+	attested, err := p.IsAttested(stream.Context(), agentID)
 	switch {
 	case err != nil:
 		return err
@@ -261,10 +262,12 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig == nil {
 		return resp, iidError.New("global configuration is required")
 	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return resp, iidError.New("trust_domain is required")
+
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return resp, iidError.New("failed to parse trust domain: %v", err)
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = trustDomain
 
 	config.pathTemplate = defaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {

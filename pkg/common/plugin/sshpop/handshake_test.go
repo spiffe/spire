@@ -10,11 +10,15 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
-var randReader = rand.New(rand.NewSource(1234))
+var (
+	randReader  = rand.New(rand.NewSource(1234))
+	trustDomain = spiffeid.RequireTrustDomainFromString("foo.local")
+)
 
 type testParams struct {
 	Signer      ssh.Signer
@@ -64,12 +68,12 @@ func TestHandshake(t *testing.T) {
 	c := &Client{
 		cert:        tt.Certificate,
 		signer:      tt.Signer,
-		trustDomain: "foo.local",
+		trustDomain: trustDomain,
 	}
 	s := &Server{
 		certChecker:       tt.CertChecker,
 		agentPathTemplate: DefaultAgentPathTemplate,
-		trustDomain:       "foo.local",
+		trustDomain:       trustDomain,
 	}
 
 	client := c.NewHandshake()
@@ -92,7 +96,7 @@ func TestHandshake(t *testing.T) {
 
 	spiffeid, err := server.AgentID()
 	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("spiffe://foo.local/spire/agent/sshpop/%s", tt.Fingerprint), spiffeid)
+	require.Equal(t, fmt.Sprintf("spiffe://foo.local/spire/agent/sshpop/%s", tt.Fingerprint), spiffeid.String())
 }
 
 func TestServerSpiffeID(t *testing.T) {
@@ -102,19 +106,19 @@ func TestServerSpiffeID(t *testing.T) {
 
 	s := &ServerHandshake{
 		s: &Server{
-			trustDomain:       "foo.local",
+			trustDomain:       trustDomain,
 			agentPathTemplate: agentPathTemplate,
 		},
 		cert: tt.Certificate,
 	}
 	spiffeid, err := s.AgentID()
 	require.NoError(t, err)
-	require.Equal(t, "spiffe://foo.local/spire/agent/static/ec2abcdef-uswest1", spiffeid)
+	require.Equal(t, "spiffe://foo.local/spire/agent/static/ec2abcdef-uswest1", spiffeid.String())
 }
 
 func newTestHandshake(t *testing.T) (*ClientHandshake, *ServerHandshake) {
 	tt := newTest(t, principal("ec2abcdef-uswest1.test.internal"))
-	trustDomain := "foo.local"
+	trustDomain := trustDomain
 	c := &Client{
 		signer:      tt.Signer,
 		cert:        tt.Certificate,

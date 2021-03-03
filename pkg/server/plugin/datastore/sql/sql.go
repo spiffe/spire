@@ -17,6 +17,7 @@ import (
 	"github.com/jinzhu/gorm"
 
 	_ "github.com/jinzhu/gorm/dialects/sqlite" // gorm sqlite dialect init registration
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -822,13 +823,13 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 }
 
 func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
-	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+	trustDomain, err := spiffeid.TrustDomainFromString(req.TrustDomainId)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
 	model := new(Bundle)
-	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
+	if err := tx.Find(model, "trust_domain = ?", trustDomain.IDString()).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -877,13 +878,13 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
-	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+	trustDomainID, err := idutil.ParseSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
 	model := new(Bundle)
-	err = tx.Find(model, "trust_domain = ?", trustDomainID).Error
+	err = tx.Find(model, "trust_domain = ?", trustDomainID.String()).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
 		return &datastore.FetchBundleResponse{}, nil
@@ -3212,7 +3213,8 @@ func bundleToModel(pb *common.Bundle) (*Bundle, error) {
 	if pb == nil {
 		return nil, sqlError.New("missing bundle in request")
 	}
-	id, err := idutil.NormalizeSpiffeID(pb.TrustDomainId, idutil.AllowAnyTrustDomain())
+	trustDomain, err := spiffeid.TrustDomainFromString(pb.TrustDomainId)
+
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -3223,7 +3225,7 @@ func bundleToModel(pb *common.Bundle) (*Bundle, error) {
 	}
 
 	return &Bundle{
-		TrustDomain: id,
+		TrustDomain: trustDomain.IDString(),
 		Data:        data,
 	}, nil
 }

@@ -330,7 +330,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 	// Create sever's CA
 	serverCert, serverKey := ca.CreateX509Certificate(testca.WithURIs(trustDomain.NewID("/spire/server").URL()))
 
-	csr, pubKey, err := util.NewCSRTemplate(trustDomain.IDString())
+	csr, pubKey, err := util.NewCSRTemplate(trustDomain.ID())
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -365,18 +365,9 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			expectedErr:      `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp :0`,
 		},
 		{
-			name: "invalid scheme",
-			getCSR: func() ([]byte, crypto.PublicKey) {
-				csr, pubKey, err := util.NewCSRTemplate("invalid://localhost")
-				require.NoError(t, err)
-				return csr, pubKey
-			},
-			expectedErr: `rpc error: code = Unknown desc = unable to sign CSR: "invalid://localhost" is not a valid trust domain SPIFFE ID: invalid scheme`,
-		},
-		{
 			name: "wrong trust domain",
 			getCSR: func() ([]byte, crypto.PublicKey) {
-				csr, pubKey, err := util.NewCSRTemplate("spiffe://not-trusted")
+				csr, pubKey, err := util.NewCSRTemplate(spiffeid.RequireFromString("spiffe://not-trusted"))
 				require.NoError(t, err)
 				return csr, pubKey
 			},

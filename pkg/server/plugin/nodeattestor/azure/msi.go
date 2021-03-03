@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
@@ -49,7 +50,7 @@ type TenantConfig struct {
 }
 
 type MSIAttestorConfig struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 	Tenants     map[string]*TenantConfig `hcl:"tenants"`
 }
 
@@ -162,7 +163,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		AgentId: agentID,
+		AgentId: agentID.String(),
 	})
 }
 
@@ -174,10 +175,12 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig == nil {
 		return nil, msiError.New("global configuration is required")
 	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, msiError.New("global configuration missing trust domain")
+
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, msiError.New("unable to parse trust domain: %v", err)
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = trustDomain
 
 	if len(config.Tenants) == 0 {
 		return nil, msiError.New("configuration must have at least one tenant")
