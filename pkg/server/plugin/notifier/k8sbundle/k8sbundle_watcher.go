@@ -2,91 +2,58 @@ package k8sbundle
 
 import (
 	"context"
-	"errors"
 	"reflect"
-	"sync"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
 type bundleWatcher struct {
-	p      *Plugin
-	cancel func()
-	mu     sync.RWMutex
+	p       *Plugin
+	clients []kubeClient
+	config  *pluginConfig
 
 	hooks struct {
-		watcherEvents func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error
+		watch func(ctx context.Context) error
 	}
 }
 
-func newBundleWatcher(p *Plugin) *bundleWatcher {
-	watcher := &bundleWatcher{p: p}
-	watcher.hooks.watcherEvents = watcher.watcherEvents
-	return watcher
+// newBundleWatcher creates a new watcher for newly created objects
+func newBundleWatcher(p *Plugin, config *pluginConfig) (*bundleWatcher, error) {
+	clients, err := p.hooks.newKubeClient(config)
+	if err != nil {
+		return nil, err
+	}
+
+	watcher := &bundleWatcher{
+		p:       p,
+		clients: clients,
+		config:  config,
+	}
+	watcher.hooks.watch = watcher.watch
+
+	return watcher, nil
 }
 
-// startOrUpdateWatcher starts the webhook watcher or sends a signal to update configuration
-func (b *bundleWatcher) Start() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+// Watch calls the hook to watch for new objects
+func (b *bundleWatcher) Watch(ctx context.Context) error {
+	return b.hooks.watch(ctx)
+}
 
-	// make sure the client hasn't already been started
-	b.mu.Lock()
-	if b.cancel != nil {
-		b.mu.Unlock()
-		return errors.New("already started")
-	}
-	b.cancel = cancel
-	b.mu.Unlock()
-
-	// allow for another start after this function returns
-	defer func() {
-		b.mu.Lock()
-		b.cancel = nil
-		b.mu.Unlock()
-	}()
-
-	config, err := b.p.getConfig()
-	if err != nil {
-		return err
-	}
-	clients, err := b.p.hooks.newKubeClient(config)
-	if err != nil {
-		return err
-	}
-	watchers, validWatcherPresent, err := newWatchers(ctx, config, clients)
+// watch watches for new objects that are created with the proper selector and updates the CA Bundle
+func (b *bundleWatcher) watch(ctx context.Context) error {
+	watchers, validWatcherPresent, err := newWatchers(ctx, b.config, b.clients)
 	if err != nil {
 		return err
 	}
 	if !validWatcherPresent {
 		return nil
 	}
-
-	err = b.hooks.watcherEvents(ctx, config, clients, watchers)
-	switch err {
-	case nil, context.Canceled:
-		return nil
-	default:
-		return err
-	}
-}
-
-func (b *bundleWatcher) Stop() {
-	b.mu.Lock()
-	if b.cancel != nil {
-		b.cancel()
-	}
-	b.mu.Unlock()
-}
-
-// watcherFunc watches for new objects that are created with the proper selector and updates the CA Bundle
-func (b *bundleWatcher) watcherEvents(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) (err error) {
 	selectCase := newSelectCase(ctx, watchers)
 	for {
 		chosen, recv, _ := reflect.Select(selectCase)
-		if chosen < len(clients) {
-			if err = b.watcherEvent(ctx, c, clients[chosen], recv.Interface().(watch.Event)); err != nil {
+		if chosen < len(b.clients) {
+			if err = b.watchEvent(ctx, b.config, b.clients[chosen], recv.Interface().(watch.Event)); err != nil {
 				return k8sErr.New("handling watch event: %v", err)
 			}
 		} else {
@@ -95,16 +62,16 @@ func (b *bundleWatcher) watcherEvents(ctx context.Context, c *pluginConfig, clie
 	}
 }
 
-// watchEvent triggers the read-modify-write for a newly created webhook
-func (b *bundleWatcher) watcherEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
+// watchEvent triggers the read-modify-write for a newly created object
+func (b *bundleWatcher) watchEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
 	if event.Type == watch.Added {
-		webhookMeta, err := meta.Accessor(event.Object)
+		objectMeta, err := meta.Accessor(event.Object)
 		if err != nil {
 			return err
 		}
 
-		b.p.log.Debug("Setting bundle for new object", "name", webhookMeta.GetName())
-		if err = b.p.updateBundle(ctx, c, client, webhookMeta.GetNamespace(), webhookMeta.GetName()); err != nil {
+		b.p.log.Debug("Setting bundle for new object", "name", objectMeta.GetName())
+		if err = b.p.updateBundle(ctx, c, client, objectMeta.GetNamespace(), objectMeta.GetName()); err != nil {
 			return err
 		}
 	}

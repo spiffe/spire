@@ -66,7 +66,7 @@ type Plugin struct {
 	log              hclog.Logger
 	config           *pluginConfig
 	identityProvider hostservices.IdentityProvider
-	watcher          *bundleWatcher
+	cancelWatcher    func()
 
 	hooks struct {
 		newKubeClient func(c *pluginConfig) ([]kubeClient, error)
@@ -144,24 +144,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 		config.ConfigMapKey = defaultConfigMapKey
 	}
 
-	p.setConfig(config)
-
-	// Start watcher to set CA Bundle in objects created after server has started
-	watcher := newBundleWatcher(p)
-	go func() {
-		err := watcher.Start()
-		if err != nil {
-			p.log.Error("running watcher: %v", err)
-		}
-	}()
-	p.mu.Lock()
-	if p.watcher != nil {
-		p.watcher.Stop()
-	}
-	p.watcher = watcher
-	p.mu.Unlock()
-
-	return &spi.ConfigureResponse{}, nil
+	return &spi.ConfigureResponse{}, p.setConfig(config)
 }
 
 func (p *Plugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
@@ -177,10 +160,36 @@ func (p *Plugin) getConfig() (*pluginConfig, error) {
 	return p.config, nil
 }
 
-func (p *Plugin) setConfig(config *pluginConfig) {
+func (p *Plugin) setConfig(config *pluginConfig) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
+
+	// Start watcher to set CA Bundle in objects created after server has started
+	if p.cancelWatcher != nil {
+		p.cancelWatcher()
+	}
+	if config.Label != "" {
+		watcher, err := newBundleWatcher(p, config)
+		if err != nil {
+			return err
+		}
+		var wg sync.WaitGroup
+		ctx, cancel := context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := watcher.Watch(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				p.log.Error("Unable to watch: %v", err)
+			}
+		}()
+		p.cancelWatcher = func() {
+			cancel()
+			wg.Wait()
+		}
+	}
+
+	return nil
 }
 
 // updateBundles iterates through all the objects that need an updated CA bundle
