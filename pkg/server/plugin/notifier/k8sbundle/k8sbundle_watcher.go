@@ -42,13 +42,11 @@ func (b *bundleWatcher) Watch(ctx context.Context) error {
 
 // watch watches for new objects that are created with the proper selector and updates the CA Bundle
 func (b *bundleWatcher) watch(ctx context.Context) error {
-	watchers, validWatcherPresent, err := newWatchers(ctx, b.config, b.clients)
+	watchers, err := newWatchers(ctx, b.config, b.clients)
 	if err != nil {
 		return err
 	}
-	if !validWatcherPresent {
-		return nil
-	}
+
 	selectCase := newSelectCase(ctx, watchers)
 	for {
 		chosen, recv, _ := reflect.Select(selectCase)
@@ -99,18 +97,14 @@ func newSelectCase(ctx context.Context, watchers []watch.Interface) []reflect.Se
 	return selectCase
 }
 
-func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]watch.Interface, bool, error) {
+func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]watch.Interface, error) {
 	watchers := []watch.Interface{}
-	validWatcherPresent := false
 	for _, client := range clients {
 		watcher, err := client.Watch(ctx, c.Label)
 		if err != nil {
-			return nil, false, err
-		}
-		if watcher != nil {
-			validWatcherPresent = true
+			return nil, err
 		}
 		watchers = append(watchers, watcher)
 	}
-	return watchers, validWatcherPresent, nil
+	return watchers, nil
 }
