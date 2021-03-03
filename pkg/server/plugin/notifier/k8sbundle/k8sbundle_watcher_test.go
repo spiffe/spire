@@ -7,11 +7,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 )
 
 const (
-	testTimeout = time.Minute
+	testTimeout = time.Second * 2
 )
 
 func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
@@ -19,9 +18,7 @@ func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
 
 	s.configure("")
 
-	watcher := newBundleWatcher(s.raw)
-	err := watcher.Start()
-
+	_, err := newBundleWatcher(s.raw, s.raw.config)
 	s.Require().Equal(err.Error(), "kube client not configured")
 }
 
@@ -30,14 +27,17 @@ func (s *Suite) TestBundleWatchersStartsAndStops() {
 
 	errCh := make(chan error)
 	watcherStarted := make(chan struct{})
-	watcher := newBundleWatcher(s.raw)
-	watcher.hooks.watcherEvents = func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error {
+	watcher, err := newBundleWatcher(s.raw, s.raw.config)
+	s.Require().NoError(err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	watcher.hooks.watch = func(ctx context.Context) error {
 		watcherStarted <- struct{}{}
 		<-ctx.Done()
 		return ctx.Err()
 	}
 	go func() {
-		errCh <- watcher.Start()
+		errCh <- watcher.Watch(ctx)
 	}()
 
 	timer := time.NewTimer(testTimeout)
@@ -47,61 +47,21 @@ func (s *Suite) TestBundleWatchersStartsAndStops() {
 	case <-watcherStarted:
 	case err := <-errCh:
 		if err != nil {
-			s.Require().FailNow(fmt.Sprintf("watcher.Start() unexpected exit: %v", err))
+			s.Require().FailNow(fmt.Sprintf("watcher.Watch() unexpected exit: %v", err))
 		} else {
-			s.Require().FailNow("watcher.Start() unexpected exit")
+			s.Require().FailNow("watcher.Watch() unexpected exit")
 		}
 	case <-timer.C:
 		s.Require().FailNow("timed out waiting for watcher to start")
 	}
 
-	watcher.Stop()
+	cancel()
 
 	select {
 	case err := <-errCh:
-		s.Require().NoError(err)
+		s.Require().Equal(err.Error(), "context canceled")
 	case <-timer.C:
-		s.Require().FailNow("timed out waiting for watcher.Start() to return")
-	}
-}
-
-func (s *Suite) TestBundleWatcherStartFailsIfAlreadyStarted() {
-	s.configure("")
-
-	watcher := newBundleWatcher(s.raw)
-	watcher.hooks.watcherEvents = func(ctx context.Context, c *pluginConfig, clients []kubeClient, watchers []watch.Interface) error {
-		<-ctx.Done()
-		return ctx.Err()
-	}
-	defer watcher.Stop()
-
-	errs := make(chan error, 2)
-	go func() {
-		errs <- watcher.Start()
-	}()
-	go func() {
-		errs <- watcher.Start()
-	}()
-
-	timer := time.NewTimer(testTimeout)
-	defer timer.Stop()
-
-	// First call should fail because the client has already started
-	select {
-	case err := <-errs:
-		s.Require().EqualError(err, "already started")
-	case <-timer.C:
-		s.Require().FailNow("timed out waiting for watcher.Start() to return")
-	}
-
-	watcher.Stop()
-
-	// Second call should return normally
-	select {
-	case err := <-errs:
-		s.Require().NoError(err)
-	case <-timer.C:
-		s.Require().FailNow("timed out waiting for watcher.Start() to return")
+		s.Require().FailNow("timed out waiting for watcher.Watch() to return")
 	}
 }
 
