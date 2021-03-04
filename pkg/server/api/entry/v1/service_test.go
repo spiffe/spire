@@ -46,8 +46,7 @@ func TestListEntries(t *testing.T) {
 	protoChildID := api.ProtoFromID(childID)
 	protoSecondChildID := api.ProtoFromID(secondChildID)
 	badID := &types.SPIFFEID{
-		TrustDomain: "http://example.org",
-		Path:        "/bad",
+		Path: "/bad",
 	}
 
 	childRegEntry := &common.RegistrationEntry{
@@ -370,7 +369,7 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad parent ID filter",
-			err:    "malformed parent ID filter: spiffeid: invalid scheme",
+			err:    "malformed parent ID filter: trust domain is empty",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed parent ID filter",
 			request: &entrypb.ListEntriesRequest{
@@ -381,7 +380,7 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad SPIFFE ID filter",
-			err:    "malformed SPIFFE ID filter: spiffeid: invalid scheme",
+			err:    "malformed SPIFFE ID filter: trust domain is empty",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed SPIFFE ID filter",
 			request: &entrypb.ListEntriesRequest{
@@ -430,7 +429,7 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name:   "bad federates with filter (bad trust domain)",
-			err:    "malformed federates with filter: spiffeid: invalid scheme",
+			err:    "malformed federates with filter: spiffeid: trust domain is empty",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed federates with filter",
 			request: &entrypb.ListEntriesRequest{
@@ -905,7 +904,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty",
+						Message: "failed to convert entry: invalid parent ID: trust domain is empty",
 					},
 				},
 			},
@@ -914,7 +913,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "invalid parent ID: spiffeid: trust domain is empty",
+						logrus.ErrorKey: "invalid parent ID: trust domain is empty",
 					},
 				},
 			},
@@ -1507,8 +1506,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			updateEntries: []*types.Entry{
 				{
-					// Trust domain will be normalized to lower case
-					ParentId: &types.SPIFFEID{TrustDomain: "EXAMPLE.org", Path: "/parentUpdated"},
+					ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"},
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
@@ -1537,8 +1535,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			updateEntries: []*types.Entry{
 				{
-					// Trust domain will be normalized to lower case
-					SpiffeId: &types.SPIFFEID{TrustDomain: "EXAMPLE.org", Path: "/workloadUpdated"},
+					SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"},
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
@@ -1849,7 +1846,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid spiffe ID: spiffeid: trust domain is empty"},
+						Message: "failed to convert entry: invalid spiffe ID: trust domain is empty"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1859,7 +1856,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							logrus.ErrorKey:          "invalid spiffe ID: spiffeid: trust domain is empty",
+							logrus.ErrorKey:          "invalid spiffe ID: trust domain is empty",
 						},
 					},
 				}
@@ -1879,7 +1876,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty"},
+						Message: "failed to convert entry: invalid parent ID: trust domain is empty"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1889,7 +1886,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							logrus.ErrorKey:          "invalid parent ID: spiffeid: trust domain is empty",
+							logrus.ErrorKey:          "invalid parent ID: trust domain is empty",
 						},
 					},
 				}
@@ -1909,7 +1906,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: spiffeid: trust domain is empty"},
+						Message: "failed to convert entry: invalid parent ID: trust domain is empty"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1918,7 +1915,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Level:   logrus.ErrorLevel,
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
-							"error":                  "invalid parent ID: spiffeid: trust domain is empty",
+							"error":                  "invalid parent ID: trust domain is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 						},
 					},
@@ -1939,7 +1936,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid spiffe ID: spiffeid: trust domain is empty"},
+						Message: "failed to convert entry: invalid spiffe ID: trust domain is empty"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -1948,7 +1945,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Level:   logrus.ErrorLevel,
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
-							"error":                  "invalid spiffe ID: spiffeid: trust domain is empty",
+							"error":                  "invalid spiffe ID: trust domain is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 						},
 					},
