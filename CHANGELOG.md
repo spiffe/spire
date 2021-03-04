@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.2] - 2021-03-04
+
+### Security
+- Fixed CVE-2021-27098
+- Fixed file descriptor leak in peertracker
+
 ## [0.10.1] - 2020-06-23
 
 ### What's New
@@ -33,6 +39,10 @@
 - Introduced a new RPC `FetchBundle` in the Node API for fetching an up-to-date bundle (#1458)
 - AWS PCA UpstreamAuthority plugin endpoint is now configurable (#1498)
 - The UpstreamCA plugin type is now marked as deprecated in favor of the UpstreamAuthority plugin type (#1406)
+
+## [0.9.4] - 2021-03-04
+- Fixed CVE-2021-27098
+- Fixed file descriptor leak in peertracker
 
 ## [0.9.3] - 2020-03-05
 - Significantly reduced the server's database load (#1350, #1355, #1397)
@@ -78,6 +88,10 @@
 - Docker Workload Attestor supports a wider variety of cgroup drivers (#1188)
 - Docker Workload Attestor supports selection based on container environment variables (#1205)
 - Fixed an issue in which Kubernetes workload attestation occasionally fails to identify the caller (#1216)
+
+## [0.8.5] - 2021-03-04
+- Fixed CVE-2021-27098
+- Fixed file descriptor leak in peertracker
 
 ## [0.8.4] - 2019-10-28
 - Fixed spurious agent synchronization failures during agent SVID rotation (#1084)
