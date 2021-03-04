@@ -442,13 +442,13 @@ func TestBanAgent(t *testing.T) {
 				Path:        agentPath,
 				TrustDomain: "ex ample.org",
 			},
-			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`),
+			expectedErr: status.Error(codes.InvalidArgument, `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`),
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
+						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
 					},
 				},
 			},
@@ -633,12 +633,12 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "spiffeid: trust domain is empty",
+						logrus.ErrorKey: "trust domain is empty",
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid agent ID: spiffeid: trust domain is empty",
+			err:  "invalid agent ID: trust domain is empty",
 			req: &agentpb.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "",

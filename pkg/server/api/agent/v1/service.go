@@ -14,6 +14,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -252,11 +253,16 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	}
 
 	agentID := attestResp.AgentId
+	log = log.WithField(telemetry.AgentID, agentID)
+
+	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
+		return api.MakeErr(log, codes.Internal, "agent ID is malformed", err)
+	}
+
 	agentSpiffeID, err := spiffeid.FromString(agentID)
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "invalid agent id", err)
 	}
-	log = log.WithField(telemetry.AgentID, agentID)
 
 	// fetch the agent/node to check if it was already attested or banned
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
@@ -392,6 +398,9 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinToke
 		agentID, err = api.TrustDomainWorkloadIDFromProto(s.td, req.AgentId)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
+		}
+		if err := idutil.CheckIDProtoNormalization(req.AgentId); err != nil {
+			return nil, api.MakeErr(log, codes.InvalidArgument, "agent ID is malformed", err)
 		}
 		log.WithField(telemetry.SPIFFEID, agentID.String())
 	}

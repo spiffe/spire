@@ -158,7 +158,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber: agentSVID.SerialNumber.String(),
 			},
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    `agent "spiffe://domain.test/agent" SVID is expired`,
+			expectedMsg:    `agent "spiffe://domain.test/spire/agent/foo" SVID is expired`,
 			expectedReason: types.PermissionDeniedDetails_AGENT_EXPIRED,
 			expectedLogs: []spiretest.LogEntry{
 				{
@@ -173,7 +173,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		{
 			name:           "no attested node",
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    `agent "spiffe://domain.test/agent" is not attested`,
+			expectedMsg:    `agent "spiffe://domain.test/spire/agent/foo" is not attested`,
 			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ATTESTED,
 			expectedLogs: []spiretest.LogEntry{
 				{
@@ -191,7 +191,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				SpiffeId: agentID.String(),
 			},
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    `agent "spiffe://domain.test/agent" is banned`,
+			expectedMsg:    `agent "spiffe://domain.test/spire/agent/foo" is banned`,
 			expectedReason: types.PermissionDeniedDetails_AGENT_BANNED,
 			expectedLogs: []spiretest.LogEntry{
 				{
@@ -210,7 +210,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber: "NEW",
 			},
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/agent" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber.String()),
+			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/spire/agent/foo" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber.String()),
 			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
 			expectedLogs: []spiretest.LogEntry{
 				{
