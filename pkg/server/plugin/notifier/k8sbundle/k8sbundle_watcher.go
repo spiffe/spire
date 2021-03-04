@@ -42,7 +42,7 @@ func (b *bundleWatcher) Watch(ctx context.Context) error {
 
 // watch watches for new objects that are created with the proper selector and updates the CA Bundle
 func (b *bundleWatcher) watch(ctx context.Context) error {
-	watchers, err := newWatchers(ctx, b.config, b.clients)
+	watchers, err := b.newWatchers(ctx)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (b *bundleWatcher) watch(ctx context.Context) error {
 	for {
 		chosen, recv, _ := reflect.Select(selectCase)
 		if chosen < len(b.clients) {
-			if err = b.watchEvent(ctx, b.config, b.clients[chosen], recv.Interface().(watch.Event)); err != nil {
+			if err = b.watchEvent(ctx, b.clients[chosen], recv.Interface().(watch.Event)); err != nil {
 				return k8sErr.New("handling watch event: %v", err)
 			}
 		} else {
@@ -61,7 +61,7 @@ func (b *bundleWatcher) watch(ctx context.Context) error {
 }
 
 // watchEvent triggers the read-modify-write for a newly created object
-func (b *bundleWatcher) watchEvent(ctx context.Context, c *pluginConfig, client kubeClient, event watch.Event) (err error) {
+func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event watch.Event) (err error) {
 	if event.Type == watch.Added {
 		objectMeta, err := meta.Accessor(event.Object)
 		if err != nil {
@@ -69,11 +69,24 @@ func (b *bundleWatcher) watchEvent(ctx context.Context, c *pluginConfig, client 
 		}
 
 		b.p.log.Debug("Setting bundle for new object", "name", objectMeta.GetName())
-		if err = b.p.updateBundle(ctx, c, client, objectMeta.GetNamespace(), objectMeta.GetName()); err != nil {
+		if err = b.p.updateBundle(ctx, b.config, client, objectMeta.GetNamespace(), objectMeta.GetName()); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// newWatchers creates a watcher array for all of the clients
+func (b *bundleWatcher) newWatchers(ctx context.Context) ([]watch.Interface, error) {
+	watchers := []watch.Interface{}
+	for _, client := range b.clients {
+		watcher, err := client.Watch(ctx, b.config.Label)
+		if err != nil {
+			return nil, err
+		}
+		watchers = append(watchers, watcher)
+	}
+	return watchers, nil
 }
 
 func newSelectCase(ctx context.Context, watchers []watch.Interface) []reflect.SelectCase {
@@ -95,16 +108,4 @@ func newSelectCase(ctx context.Context, watchers []watch.Interface) []reflect.Se
 		Chan: reflect.ValueOf(ctx.Done()),
 	})
 	return selectCase
-}
-
-func newWatchers(ctx context.Context, c *pluginConfig, clients []kubeClient) ([]watch.Interface, error) {
-	watchers := []watch.Interface{}
-	for _, client := range clients {
-		watcher, err := client.Watch(ctx, c.Label)
-		if err != nil {
-			return nil, err
-		}
-		watchers = append(watchers, watcher)
-	}
-	return watchers, nil
 }
