@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.5] - 2021-03-04
+- Fixed CVE-2021-27098
+- Fixed file descriptor leak in peertracker
+
 ## [0.8.4] - 2019-10-28
 - Fixed spurious agent synchronization failures during agent SVID rotation (#1084)
 - Added support for [Kind](https://kind.sigs.k8s.io) to the Kubernetes Workload Attestor (#1133)
