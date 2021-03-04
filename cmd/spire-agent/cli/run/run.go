@@ -43,8 +43,6 @@ const (
 	defaultLogLevel          = "INFO"
 	defaultDefaultSVIDName   = "default"
 	defaultDefaultBundleName = "ROOTCA"
-
-	maxTrustDomainLength = 255
 )
 
 // Config contains all available configurables, arranged by section
@@ -370,9 +368,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.Log = logger
 
 	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility
-	if len(c.Agent.TrustDomain) > maxTrustDomainLength {
+	if len(c.Agent.TrustDomain) > common_cli.MaxTrustDomainLength {
 		logger.Warnf("Configured trust domain should be less than %v characters to be SPIFFE compliant",
-			maxTrustDomainLength)
+			common_cli.MaxTrustDomainLength)
 	}
 
 	td, err := spiffeid.TrustDomainFromString(c.Agent.TrustDomain)
