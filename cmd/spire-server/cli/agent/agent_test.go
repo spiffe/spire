@@ -20,7 +20,17 @@ import (
 )
 
 var (
-	testAgents = []*types.Agent{{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent1"}}}
+	testAgents              = []*types.Agent{{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent1"}}}
+	testAgentsWithSelectors = []*types.Agent{
+		{
+			Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent2"},
+			Selectors: []*types.Selector{
+				{Type: "k8s_psat", Value: "agent_ns:spire"},
+				{Type: "k8s_psat", Value: "agent_sa:spire-agent"},
+				{Type: "k8s_psat", Value: "cluster:demo-cluster"},
+			},
+		},
+	}
 )
 
 type agentTest struct {
@@ -204,6 +214,13 @@ func TestShow(t *testing.T) {
 			args:               []string{"-registrationUDSPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
 			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+		},
+		{
+			name:               "show selectors",
+			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent2"},
+			existentAgents:     testAgentsWithSelectors,
+			expectedReturnCode: 0,
+			expectedStdout:     "Selectors     : k8s_psat:agent_ns:spire\nSelectors     : k8s_psat:agent_sa:spire-agent\nSelectors     : k8s_psat:cluster:demo-cluster",
 		},
 	} {
 		tt := tt
