@@ -18,9 +18,9 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"path"
 	"strings"
 
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	spiretypes "github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/protobuf/proto"
@@ -58,7 +58,7 @@ func (r *NodeReconciler) shouldProcess(_ ctrl.Request) bool {
 func (r *NodeReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.RootID.TrustDomain,
-		Path:        path.Join(r.RootID.Path, obj.GetName()),
+		Path:        r.RootID.Path + idutil.JoinPathSegments(obj.GetName()),
 	}
 }
 

@@ -316,7 +316,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.ID{},
-			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is empty",
 			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
@@ -442,7 +442,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			entry:    invalidEntry,
-			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is empty",
 			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{

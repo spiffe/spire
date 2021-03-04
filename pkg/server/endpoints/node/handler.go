@@ -173,6 +173,11 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	agentID := attestResponse.AgentId
 	log = log.WithField(telemetry.SPIFFEID, agentID)
 
+	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
+		log.WithError(err).Error("Agent ID is malformed")
+		return status.Errorf(codes.Internal, "agent ID is malformed: %v", err)
+	}
+
 	isBanned, err := h.isBanned(ctx, agentID)
 	switch {
 	case err != nil:
@@ -357,6 +362,11 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	if err != nil {
 		log.WithError(err).Error("Failed to parse X.509 CA certificate signing request")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if err := idutil.CheckIDStringNormalization(csr.SpiffeID); err != nil {
+		log.WithError(err).Error("CSR SPIFFE ID is malformed")
+		return nil, status.Errorf(codes.InvalidArgument, "CSR SPIFFE ID is malformed: %v", err)
 	}
 
 	signLog.Debug("Signing downstream CA SVID")
@@ -1170,14 +1180,22 @@ func tryGetSpiffeIDFromCert(cert *x509.Certificate) string {
 }
 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
-	if len(cert.URIs) == 0 {
-		return "", errors.New("no URI SANs in certificate")
-	}
-	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
+	uri, err := getURISANFromCert(cert)
 	if err != nil {
 		return "", err
 	}
-	return spiffeID.String(), nil
+	return uri.String(), nil
+}
+
+func getURISANFromCert(cert *x509.Certificate) (*url.URL, error) {
+	if len(cert.URIs) == 0 {
+		return nil, errors.New("no URI SANs in certificate")
+	}
+	uri := cert.URIs[0]
+	if err := idutil.CheckIDURLNormalization(uri); err != nil {
+		return nil, fmt.Errorf("URI SAN %q is malformed: %v", uri, err)
+	}
+	return idutil.NormalizeSpiffeIDURL(uri, idutil.AllowAny())
 }
 
 func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {

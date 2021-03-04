@@ -33,7 +33,7 @@ func TestIDFromProto(t *testing.T) {
 		{
 			name:        "missing trust domain",
 			spiffeID:    &types.SPIFFEID{Path: "/workload"},
-			expectedErr: "spiffeid: trust domain is empty",
+			expectedErr: "trust domain is empty",
 		},
 		{
 			name:        "wrong trust domain",

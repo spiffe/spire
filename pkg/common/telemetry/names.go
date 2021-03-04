@@ -403,6 +403,9 @@ const (
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
 
+	// Ignored tags something as ignored
+	Ignored = "ignored"
+
 	// JoinToken functionality related to a join token; should be used
 	// with other tags to add clarity
 	JoinToken = "join_token"
