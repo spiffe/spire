@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCalculateRefreshHint(t *testing.T) {
-	emptyBundle := New("domain.test")
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	emptyBundle := New(trustDomain)
 
 	emptyBundleWithRefreshHint, err := BundleFromProto(&common.Bundle{
 		TrustDomainId: "domain.test",
@@ -19,7 +21,7 @@ func TestCalculateRefreshHint(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	bundleWithCerts := New("domain.test")
+	bundleWithCerts := New(trustDomain)
 	bundleWithCerts.AppendRootCA(&x509.Certificate{
 		NotBefore: now,
 		NotAfter:  now.Add(time.Hour * 2),

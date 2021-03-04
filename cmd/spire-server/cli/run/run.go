@@ -71,6 +71,7 @@ type serverConfig struct {
 	Experimental   experimentalConfig `hcl:"experimental"`
 	Federation     *federationConfig  `hcl:"federation"`
 	JWTIssuer      string             `hcl:"jwt_issuer"`
+	JWTKeyType     string             `hcl:"jwt_key_type"`
 	LogFile        string             `hcl:"log_file"`
 	LogLevel       string             `hcl:"log_level"`
 	LogFormat      string             `hcl:"log_format"`
@@ -451,9 +452,18 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.CAKeyType != "" {
-		sc.CAKeyType, err = caKeyTypeFromString(c.Server.CAKeyType)
+		keyType, err := keyTypeFromString(c.Server.CAKeyType)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing ca_key_type: %v", err)
+		}
+		sc.CAKeyType = keyType
+		sc.JWTKeyType = keyType
+	}
+
+	if c.Server.JWTKeyType != "" {
+		sc.JWTKeyType, err = keyTypeFromString(c.Server.JWTKeyType)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing jwt_key_type: %v", err)
 		}
 	}
 
@@ -647,7 +657,7 @@ func defaultConfig() *Config {
 	}
 }
 
-func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
+func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	switch strings.ToLower(s) {
 	case "rsa-2048":
 		return keymanager.KeyType_RSA_2048, nil
@@ -658,7 +668,7 @@ func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
 	case "ec-p384":
 		return keymanager.KeyType_EC_P384, nil
 	default:
-		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("CA key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
 
