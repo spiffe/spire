@@ -46,6 +46,8 @@ type keyEntry struct {
 
 type pluginHooks struct {
 	newClient func(ctx context.Context, config *Config) (kmsClient, error)
+	// just for testing scheduleDeleteTask
+	deleteSignal chan struct{}
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -427,6 +429,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			p.log.Debug("Stopping schedule delete task", "reason", ctx.Err())
+			p.notifyDelete()
 			return
 		case keyID := <-p.scheduleDelete:
 			log := p.log.With(keyIDTag, keyID)
@@ -438,23 +441,27 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 			if err == nil {
 				log.Debug("Key deleted")
 				backoff = backoffMin
+				p.notifyDelete()
 				continue
 			}
 
 			var notFoundErr *types.NotFoundException
 			if errors.As(err, &notFoundErr) {
 				log.Error("No such key, dropping from delete schedule")
+				p.notifyDelete()
 				continue
 			}
 
 			var invalidArnErr *types.InvalidArnException
 			if errors.As(err, &invalidArnErr) {
 				log.Error("Invalid ARN, dropping from delete schedule")
+				p.notifyDelete()
 				continue
 			}
 
 			log.Error("It was not possible to schedule key for deletion", "reason", err)
 			p.scheduleDelete <- keyID
+			p.notifyDelete()
 			backoff = min(backoff*2, backoffMax)
 			time.Sleep(backoff)
 		}
@@ -480,6 +487,12 @@ func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
 
 func (p *Plugin) descriptionFromSpireKeyID(spireKeyID string) string {
 	return p.keyPrefix + spireKeyID
+}
+
+func (p *Plugin) notifyDelete() {
+	if p.hooks.deleteSignal != nil {
+		p.hooks.deleteSignal <- struct{}{}
+	}
 }
 
 // validateConfig returns an error if any configuration provided does not meet acceptable criteria

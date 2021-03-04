@@ -262,6 +262,8 @@ func TestGenerateKey(t *testing.T) {
 		name                   string
 		err                    string
 		code                   codes.Code
+		logs                   []spiretest.LogEntry
+		waitForDelete          bool
 		fakeEntries            []fakeKeyEntry
 		request                *keymanager.GenerateKeyRequest
 		createKeyErr           string
@@ -292,21 +294,15 @@ func TestGenerateKey(t *testing.T) {
 					PublicKey: []byte("foo"),
 				},
 			},
-		},
-		{
-			name: "schedule delete not found error",
-			request: &keymanager.GenerateKeyRequest{
-				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
-			},
-			scheduleKeyDeletionErr: &types.NotFoundException{Message: aws.String("not found")},
-			fakeEntries: []fakeKeyEntry{
+			waitForDelete: true,
+			logs: []spiretest.LogEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
-					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
-					Enabled:   true,
-					PublicKey: []byte("foo"),
+					Level:   logrus.DebugLevel,
+					Message: "Key deleted",
+					Data: logrus.Fields{
+						"key_id":         "abcd-fghi",
+						"subsystem_name": "built-in_plugin.awskms",
+					},
 				},
 			},
 		},
@@ -408,6 +404,62 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
+			name: "schedule delete not found error",
+			request: &keymanager.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanager.KeyType_EC_P256,
+			},
+			scheduleKeyDeletionErr: &types.NotFoundException{Message: aws.String("not found")},
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(kmsAlias),
+					KeyID:     aws.String(kmsKeyID),
+					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("foo"),
+				},
+			},
+			waitForDelete: true,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No such key, dropping from delete schedule",
+					Data: logrus.Fields{
+						"key_id":         "abcd-fghi",
+						"subsystem_name": "built-in_plugin.awskms",
+					},
+				},
+			},
+		},
+		{
+			name: "invalid arn error",
+			request: &keymanager.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanager.KeyType_EC_P256,
+			},
+			scheduleKeyDeletionErr: &types.InvalidArnException{Message: aws.String("invalid arn")},
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(kmsAlias),
+					KeyID:     aws.String(kmsKeyID),
+					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("foo"),
+				},
+			},
+			waitForDelete: true,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid ARN, dropping from delete schedule",
+					Data: logrus.Fields{
+						"key_id":         "abcd-fghi",
+						"subsystem_name": "built-in_plugin.awskms",
+					},
+				},
+			},
+		},
+		{
 			name:                   "schedule key deletion error",
 			scheduleKeyDeletionErr: errors.New("schedule key deletion error"),
 			request: &keymanager.GenerateKeyRequest{
@@ -423,6 +475,18 @@ func TestGenerateKey(t *testing.T) {
 					PublicKey: []byte("foo"),
 				},
 			},
+			waitForDelete: true,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "It was not possible to schedule key for deletion",
+					Data: logrus.Fields{
+						"key_id":         "abcd-fghi",
+						"reason":         "schedule key deletion error",
+						"subsystem_name": "built-in_plugin.awskms",
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
@@ -434,6 +498,7 @@ func TestGenerateKey(t *testing.T) {
 			ts.fakeClient.setCreateAliasesErr(tt.createAliasErr)
 			ts.fakeClient.setUpdateAliasesErr(tt.updateAliasErr)
 			ts.fakeClient.setScheduleKeyDeletionErr(tt.scheduleKeyDeletionErr)
+			ts.plugin.hooks.deleteSignal = make(chan struct{}, 2)
 
 			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults())
 			require.NoError(t, err)
@@ -449,6 +514,11 @@ func TestGenerateKey(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+
+			if tt.waitForDelete {
+				<-ts.plugin.hooks.deleteSignal
+				spiretest.AssertLogs(t, []*logrus.Entry{ts.logHook.LastEntry()}, tt.logs)
+			}
 		})
 	}
 }
