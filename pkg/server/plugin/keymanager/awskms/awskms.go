@@ -350,18 +350,16 @@ func (p *Plugin) fetchKeyEntry(ctx context.Context, aliasName string, spireKeyID
 	}, err
 }
 
-// buildCache gets all aliases from KMS and builds an in memory representation with the ones that belong to the current server
-// for each key that belongs to the server we will trigger a gouroutine that gets the extra information
-func (p *Plugin) buildCache(ctx context.Context) error {
-	// list of key entries that will be added to the cache
+func (p *Plugin) fetchAliasesPages(ctx context.Context) ([]*keyEntry, error) {
 	var keyEntries []*keyEntry
 	keyEntriesMutex := &sync.Mutex{}
-	g, ctx := errgroup.WithContext(ctx)
 	paginator := kms.NewListAliasesPaginator(p.kmsClient, &kms.ListAliasesInput{})
+	g, ctx := errgroup.WithContext(ctx)
+
 	for {
 		aliasesResp, err := paginator.NextPage(ctx)
 		if err != nil {
-			return newErrorf(codes.Internal, "failed to build cache of KMS keys: failed to fetch keys: %v", err)
+			return nil, newErrorf(codes.Internal, "failed to build cache of KMS keys: failed to fetch keys: %v", err)
 		}
 		p.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
 
@@ -373,7 +371,7 @@ func (p *Plugin) buildCache(ctx context.Context) error {
 			if alias.TargetKeyId == nil {
 				// this means something external to the plugin created the alias, without associating it to a key.
 				// it should never happen with CMKs.
-				return newErrorf(codes.FailedPrecondition, "failed to build cache of KMS keys: found SPIRE alias without key: %q", *alias.AliasName)
+				return nil, newErrorf(codes.FailedPrecondition, "failed to build cache of KMS keys: found SPIRE alias without key: %q", *alias.AliasName)
 			}
 
 			aliasName := *alias.AliasName
@@ -396,7 +394,18 @@ func (p *Plugin) buildCache(ctx context.Context) error {
 
 	if err := g.Wait(); err != nil {
 		statusErr := status.Convert(err)
-		return newErrorf(statusErr.Code(), "failed to build cache of KMS keys: %v", statusErr.Message())
+		return nil, newErrorf(statusErr.Code(), "failed to build cache of KMS keys: %v", statusErr.Message())
+	}
+
+	return keyEntries, nil
+}
+
+// buildCache gets all aliases from KMS and builds an in memory representation with the ones that belong to the current server
+// for each key that belongs to the server we will trigger a gouroutine that gets the extra information
+func (p *Plugin) buildCache(ctx context.Context) error {
+	keyEntries, err := p.fetchAliasesPages(ctx)
+	if err != nil {
+		return err
 	}
 
 	//add results to cache
