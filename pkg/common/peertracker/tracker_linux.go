@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
 	"sync"
 	"syscall"
@@ -51,6 +50,7 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 
 	starttime, err := getStarttime(info.PID)
 	if err != nil {
+		syscall.Close(procfd)
 		return nil, err
 	}
 
@@ -149,14 +149,9 @@ func parseTaskStat(stat string) ([]string, error) {
 }
 
 func getStarttime(pid int32) (string, error) {
-	statfd, err := os.Open(fmt.Sprintf("/proc/%v/stat", pid))
+	statBytes, err := ioutil.ReadFile(fmt.Sprintf("/proc/%v/stat", pid))
 	if err != nil {
 		return "", fmt.Errorf("could not open caller stats: %v", err)
-	}
-
-	statBytes, err := ioutil.ReadAll(statfd)
-	if err != nil {
-		return "", fmt.Errorf("could not read caller stats: %v", err)
 	}
 
 	statFields, err := parseTaskStat(string(statBytes))
