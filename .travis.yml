@@ -94,7 +94,8 @@ jobs:
         - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
       script:
         - make images
-        - make integration
+        # Disabling integration tests on old release
+        # - make integration
         - .travis/publish-images.sh
 
     - stage: nightly integration tests
