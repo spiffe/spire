@@ -2,12 +2,15 @@ package awskms
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
-	"github.com/hashicorp/go-hclog"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
@@ -28,6 +31,31 @@ const (
 var (
 	ctx = context.Background()
 )
+
+type pluginTest struct {
+	plugin     *Plugin
+	fakeClient *kmsClientFake
+	logHook    *test.Hook
+}
+
+func setupTest(t *testing.T) *pluginTest {
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	fakeClient := newKMSClientFake(t)
+	kmsPlugin := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
+		return fakeClient, nil
+	})
+	kmsCatalog := catalog.MakePlugin(pluginName, keymanager.PluginServer(kmsPlugin))
+	var km keymanager.KeyManager
+	spiretest.LoadPlugin(t, kmsCatalog, &km, spiretest.Logger(log))
+
+	return &pluginTest{
+		plugin:     kmsPlugin,
+		fakeClient: fakeClient,
+		logHook:    logHook,
+	}
+}
 
 func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
@@ -210,19 +238,14 @@ func TestConfigure(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			fakeClient := newKMSClientFake(t)
-			fakeClient.setEntries(tt.fakeEntries)
-			fakeClient.setListAliasesErr(tt.listAliasesErr)
-			fakeClient.setDescribeKeyErr(tt.describeKeyErr)
-			fakeClient.setgetPublicKeyErr(tt.getPublicKeyErr)
-
-			p := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
-				return fakeClient, nil
-			})
-			p.SetLogger(hclog.NewNullLogger())
+			ts := setupTest(t)
+			ts.fakeClient.setEntries(tt.fakeEntries)
+			ts.fakeClient.setListAliasesErr(tt.listAliasesErr)
+			ts.fakeClient.setDescribeKeyErr(tt.describeKeyErr)
+			ts.fakeClient.setgetPublicKeyErr(tt.getPublicKeyErr)
 
 			// exercise
-			_, err := p.Configure(ctx, tt.configureRequest)
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
 
 			if tt.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
@@ -243,7 +266,7 @@ func TestGenerateKey(t *testing.T) {
 		request                *keymanager.GenerateKeyRequest
 		createKeyErr           string
 		getPublicKeyErr        string
-		scheduleKeyDeletionErr string
+		scheduleKeyDeletionErr error
 		createAliasErr         string
 		updateAliasErr         string
 	}{
@@ -260,6 +283,23 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID,
 				KeyType: keymanager.KeyType_EC_P256,
 			},
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(kmsAlias),
+					KeyID:     aws.String(kmsKeyID),
+					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("foo"),
+				},
+			},
+		},
+		{
+			name: "schedule delete not found error",
+			request: &keymanager.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanager.KeyType_EC_P256,
+			},
+			scheduleKeyDeletionErr: &types.NotFoundException{Message: aws.String("not found")},
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String(kmsAlias),
@@ -369,7 +409,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:                   "schedule key deletion error",
-			scheduleKeyDeletionErr: "schedule key deletion error",
+			scheduleKeyDeletionErr: errors.New("schedule key deletion error"),
 			request: &keymanager.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanager.KeyType_EC_P256,
@@ -388,24 +428,20 @@ func TestGenerateKey(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			fakeClient := newKMSClientFake(t)
-			fakeClient.setEntries(tt.fakeEntries)
-			fakeClient.setCreateKeyErr(tt.createKeyErr)
-			fakeClient.setCreateAliasesErr(tt.createAliasErr)
-			fakeClient.setUpdateAliasesErr(tt.updateAliasErr)
+			ts := setupTest(t)
+			ts.fakeClient.setEntries(tt.fakeEntries)
+			ts.fakeClient.setCreateKeyErr(tt.createKeyErr)
+			ts.fakeClient.setCreateAliasesErr(tt.createAliasErr)
+			ts.fakeClient.setUpdateAliasesErr(tt.updateAliasErr)
+			ts.fakeClient.setScheduleKeyDeletionErr(tt.scheduleKeyDeletionErr)
 
-			p := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
-				return fakeClient, nil
-			})
-			p.SetLogger(hclog.NewNullLogger())
-
-			_, err := p.Configure(ctx, configureRequestWithDefaults())
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults())
 			require.NoError(t, err)
 
-			fakeClient.setgetPublicKeyErr(tt.getPublicKeyErr)
+			ts.fakeClient.setgetPublicKeyErr(tt.getPublicKeyErr)
 
 			// exercise
-			resp, err := p.GenerateKey(ctx, tt.request)
+			resp, err := ts.plugin.GenerateKey(ctx, tt.request)
 			if tt.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
 				return
@@ -680,23 +716,17 @@ func TestSignData(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			fakeClient := newKMSClientFake(t)
-			fakeClient.setSignDataErr(tt.signDataError)
-
-			p := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
-				return fakeClient, nil
-			})
-			p.SetLogger(hclog.NewNullLogger())
-			_, err := p.Configure(ctx, configureRequestWithDefaults())
+			ts := setupTest(t)
+			ts.fakeClient.setSignDataErr(tt.signDataError)
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults())
 			require.NoError(t, err)
-
 			if tt.generateKeyRequest != nil {
-				_, err := p.GenerateKey(ctx, tt.generateKeyRequest)
+				_, err := ts.plugin.GenerateKey(ctx, tt.generateKeyRequest)
 				require.NoError(t, err)
 			}
 
 			// exercise
-			resp, err := p.SignData(ctx, tt.request)
+			resp, err := ts.plugin.SignData(ctx, tt.request)
 			if tt.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
 				return
@@ -746,18 +776,14 @@ func TestGetPublicKey(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			fakeClient := newKMSClientFake(t)
-			fakeClient.setEntries(tt.fakeEntries)
+			ts := setupTest(t)
+			ts.fakeClient.setEntries(tt.fakeEntries)
 
-			p := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
-				return fakeClient, nil
-			})
-			p.SetLogger(hclog.NewNullLogger())
-			_, err := p.Configure(ctx, configureRequestWithDefaults())
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults())
 			require.NoError(t, err)
 
 			// exercise
-			resp, err := p.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
+			resp, err := ts.plugin.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
 				KeyId: tt.keyID,
 			})
 			if tt.err != "" {
@@ -796,18 +822,13 @@ func TestGetPublicKeys(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			fakeClient := newKMSClientFake(t)
-			fakeClient.setEntries(tt.fakeEntries)
-
-			p := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
-				return fakeClient, nil
-			})
-			p.SetLogger(hclog.NewNullLogger())
-			_, err := p.Configure(ctx, configureRequestWithDefaults())
+			ts := setupTest(t)
+			ts.fakeClient.setEntries(tt.fakeEntries)
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults())
 			require.NoError(t, err)
 
 			// exercise
-			resp, err := p.GetPublicKeys(ctx, &keymanager.GetPublicKeysRequest{})
+			resp, err := ts.plugin.GetPublicKeys(ctx, &keymanager.GetPublicKeysRequest{})
 
 			if tt.err != "" {
 				require.Error(t, err)
@@ -841,13 +862,11 @@ func TestGetPluginInfo(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			fakeClient := newKMSClientFake(t)
-			p := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
-				return fakeClient, nil
-			})
-			p.SetLogger(hclog.NewNullLogger())
+			//setup
+			ts := setupTest(t)
 
-			resp, err := p.GetPluginInfo(ctx, &plugin.GetPluginInfoRequest{})
+			//exercise
+			resp, err := ts.plugin.GetPluginInfo(ctx, &plugin.GetPluginInfoRequest{})
 
 			require.NotNil(t, resp)
 			require.NoError(t, err)

@@ -286,11 +286,11 @@ func (k *kmsClientFake) setUpdateAliasesErr(fakeError string) {
 	}
 }
 
-// func (k *kmsClientFake) setScheduleKeyDeletionErr(fakeError string) {
-// 	if fakeError != "" {
-// 		k.scheduleKeyDeletionErr = errors.New(fakeError)
-// 	}
-// }
+func (k *kmsClientFake) setScheduleKeyDeletionErr(fakeError error) {
+	if fakeError != nil {
+		k.scheduleKeyDeletionErr = fakeError
+	}
+}
 
 func (k *kmsClientFake) setSignDataErr(fakeError string) {
 	if fakeError != "" {

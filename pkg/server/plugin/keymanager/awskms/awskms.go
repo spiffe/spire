@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
@@ -59,7 +58,6 @@ type Plugin struct {
 	keyPrefix            string
 	scheduleDelete       chan string
 	cancelScheduleDelete context.CancelFunc
-	clock                clock.Clock
 	hooks                pluginHooks
 }
 
@@ -78,7 +76,6 @@ func New() *Plugin {
 
 func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, error)) *Plugin {
 	return &Plugin{
-		clock:   clock.New(),
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
 			newClient: newClient,
