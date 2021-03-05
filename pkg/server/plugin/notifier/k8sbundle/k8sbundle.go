@@ -144,7 +144,11 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 		config.ConfigMapKey = defaultConfigMapKey
 	}
 
-	return &spi.ConfigureResponse{}, p.setConfig(config)
+	if err = p.setConfig(config); err != nil {
+		return nil, k8sErr.New("unable to set configuration: %v", err)
+	}
+
+	return &spi.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
