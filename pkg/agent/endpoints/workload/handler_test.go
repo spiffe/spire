@@ -579,8 +579,8 @@ func TestFetchJWTBundles(t *testing.T) {
 				{
 					Identities: []cache.Identity{},
 					Bundle:     utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[string]*bundleutil.Bundle{
-						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 					},
 				},
 			},
