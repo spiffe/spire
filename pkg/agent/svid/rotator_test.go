@@ -101,7 +101,13 @@ func (s *RotatorTestSuite) TestRun() {
 	s.Assert().Equal(key, state.Key)
 
 	cancel()
-	s.Require().Equal(context.Canceled, t.Wait())
+	err = t.Wait()
+
+	// The error returned by the tomb is non-deterministic so we verify it is either one of the
+	// expected cases. When the Run context is cancelled, either all the runnable tasks terminate returning
+	// a nil error _or_ the Run loop itself returns and returns the context Err(), which in this case is
+	// context.Canceled.
+	s.Require().True(errors.Is(err, context.Canceled) || err == nil)
 }
 
 func (s *RotatorTestSuite) TestRunWithUpdates() {
