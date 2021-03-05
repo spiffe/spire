@@ -251,6 +251,9 @@ endif
 # Determine go flags
 ############################################################################
 
+# Flags passed to all invocations of go test
+go_test_flags := -timeout=60s
+
 go_flags :=
 ifneq ($(GOPARALLEL),)
 	# circleci executors don't have enough memory to run compilation with
@@ -345,16 +348,16 @@ $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oi
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) ./...
 endif
 
 race-test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -race -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) -race ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
 endif
 
 integration:
