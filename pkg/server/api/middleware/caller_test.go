@@ -162,7 +162,7 @@ func TestCallerContextFromContext(t *testing.T) {
 			name:       "mtls peer with malformed URI SAN",
 			peer:       mtlsPeerMalformedURISAN,
 			expectCode: codes.Unauthenticated,
-			expectMsg:  "client certificate has a malformed URI SAN: spiffeid: invalid scheme",
+			expectMsg:  "client certificate has a malformed URI SAN: scheme must be 'spiffe'",
 		},
 	} {
 		tt := tt

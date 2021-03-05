@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"path"
 
 	corev1 "k8s.io/api/core/v1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -17,6 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/spiffe/spire/pkg/common/idutil"
 	spiretypes "github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-reconcile/controllers"
 	"github.com/zeebo/errs"
@@ -161,13 +161,13 @@ func (slw SpiffeLogWrapper) Errorf(format string, args ...interface{}) {
 func ServerID(trustDomain string) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
-		Path:        path.Join("/", "spire", "server"),
+		Path:        idutil.JoinPathSegments("spire", "server"),
 	}
 }
 
 func nodeID(trustDomain string, controllerName string, cluster string) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
 		TrustDomain: trustDomain,
-		Path:        path.Join("/", controllerName, cluster, "node"),
+		Path:        idutil.JoinPathSegments(controllerName, cluster, "node"),
 	}
 }

@@ -66,6 +66,8 @@ type Config struct {
 
 	// Telemetry provides the configuration for metrics exporting
 	Telemetry telemetry.FileConfig
+
+	AllowUnauthenticatedVerifiers bool
 }
 
 func New(c *Config) *Agent {
