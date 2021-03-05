@@ -754,39 +754,43 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "rsa-2048 ca_key_type is correctly parsed",
+			msg: "rsa-2048 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "rsa-4096 ca_key_type is correctly parsed",
+			msg: "rsa-4096 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_RSA_4096, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_4096, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "ec-p256 ca_key_type is correctly parsed",
+			msg: "ec-p256 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_EC_P256, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "ec-p384 ca_key_type is correctly parsed",
+			msg: "ec-p384 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_EC_P384, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P384, c.JWTKeyType)
 			},
 		},
 		{
@@ -797,6 +801,67 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "rsa-2048 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "rsa-4096 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-4096"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_4096, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p256 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p384 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p384"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P384, c.JWTKeyType)
+			},
+		},
+		{
+			msg:         "unsupported jwt_key_type is rejected",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-1024"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "override jwt_key_type from the default ca_key_type",
+			input: func(c *Config) {
+				c.Server.CAKeyType = "rsa-2048"
+				c.Server.JWTKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
 			},
 		},
 		{

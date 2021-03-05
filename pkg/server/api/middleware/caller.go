@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -57,7 +58,13 @@ func tcpCallerContextFromPeer(ctx context.Context, p *peer.Peer) (context.Contex
 		return nil, status.Error(codes.Unauthenticated, "client certificate has more than one URI SAN")
 	}
 
-	id, err := spiffeid.FromURI(uris[0])
+	uri := uris[0]
+
+	if err := idutil.CheckIDURLNormalization(uri); err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "client certificate has a malformed URI SAN: %v", err)
+	}
+
+	id, err := spiffeid.FromURI(uri)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "client certificate has a malformed URI SAN: %v", err)
 	}

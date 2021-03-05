@@ -1401,7 +1401,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		},
 		{
 			Peer: makeTLSPeer("whatever://example.org"),
-			Err:  "not a valid SPIFFE ID",
+			Err:  "SPIFFE ID is malformed: scheme must be 'spiffe'",
 		},
 		{
 			Peer: makeTLSPeer("spiffe://example.org/not-admin"),
