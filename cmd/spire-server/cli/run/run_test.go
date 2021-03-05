@@ -522,7 +522,7 @@ func TestNewServerConfig(t *testing.T) {
 		msg         string
 		expectError bool
 		input       func(*Config)
-		logOptions  []log.Option
+		logOptions  func(t *testing.T) []log.Option
 		test        func(*testing.T, *server.Config)
 	}{
 		{
@@ -953,20 +953,22 @@ func TestNewServerConfig(t *testing.T) {
 			input: func(c *Config) {
 				c.Server.TrustDomain = strings.Repeat("a", 256)
 			},
-			logOptions: []log.Option{
-				func(logger *log.Logger) error {
-					logger.SetOutput(ioutil.Discard)
-					hook := test.NewLocal(logger.Logger)
-					t.Cleanup(func() {
-						require.Len(t, hook.AllEntries(), 1)
-						entry := hook.LastEntry()
-						assert.Equal(t, logrus.WarnLevel, entry.Level)
-						assert.Equal(t,
-							"Configured trust domain should be less than 255 characters to be SPIFFE compliant",
-							entry.Message)
-					})
-					return nil
-				},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(ioutil.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							require.Len(t, hook.AllEntries(), 1)
+							entry := hook.LastEntry()
+							assert.Equal(t, logrus.WarnLevel, entry.Level)
+							assert.Equal(t,
+								"Configured trust domain should be less than 255 characters to be SPIFFE compliant",
+								entry.Message)
+						})
+						return nil
+					},
+				}
 			},
 			test: func(t *testing.T, c *server.Config) {
 				assert.NotNil(t, c)
@@ -982,7 +984,12 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := NewServerConfig(input, testCase.logOptions, false)
+			var logOpts []log.Option
+			if testCase.logOptions != nil {
+				logOpts = testCase.logOptions(t)
+			}
+
+			sc, err := NewServerConfig(input, logOpts, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {

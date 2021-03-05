@@ -368,7 +368,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility
 	if len(c.Server.TrustDomain) > common_cli.MaxTrustDomainLength {
-		logger.Warnf("Configured trust domain should be less than %v characters to be SPIFFE compliant",
+		logger.Warnf("Configured trust domain should be less than %d characters to be SPIFFE compliant",
 			common_cli.MaxTrustDomainLength)
 	}
 
