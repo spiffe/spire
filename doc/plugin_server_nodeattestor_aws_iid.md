@@ -14,6 +14,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `access_key_id`     | AWS access key id     | Value of `AWS_ACCESS_KEY_ID` environment variable |
 | `secret_access_key` | AWS secret access key | Value of `AWS_SECRET_ACCESS_KEY` environment variable |
 | `skip_block_device` | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation. | false |
+| `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false |
 
 A sample configuration:
 
