@@ -6,9 +6,9 @@ Versions of the project that are currently being supported with security updates
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.12.x   | :white_check_mark: |
 | 0.11.x   | :white_check_mark: |
-| 0.10.x   | :white_check_mark: |
-| <=0.9.x   | :x: |
+| <=0.10.x   | :x: |
 
 
 ## Reporting a Vulnerability
