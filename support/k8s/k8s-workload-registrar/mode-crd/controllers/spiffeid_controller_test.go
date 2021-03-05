@@ -17,7 +17,6 @@ package controllers
 
 import (
 	"fmt"
-	"path"
 	"testing"
 
 	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
@@ -119,5 +118,5 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 }
 
 func stringFromID(id *spireTypes.SPIFFEID) string {
-	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, path.Clean("/"+id.Path))
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }
