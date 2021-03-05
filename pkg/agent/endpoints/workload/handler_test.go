@@ -106,8 +106,8 @@ func TestFetchX509SVID(t *testing.T) {
 					identityFromX509SVID(x509SVID1),
 				},
 				Bundle: utilBundleFromBundle(t, bundle),
-				FederatedBundles: map[string]*bundleutil.Bundle{
-					federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 				},
 			}},
 			expectCode: codes.OK,
@@ -177,7 +177,7 @@ func TestFetchX509SVID(t *testing.T) {
 	}
 }
 
-func TestFetchX509Bundle(t *testing.T) {
+func TestFetchX509Bundles(t *testing.T) {
 	ca := testca.New(t, td)
 	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
 
@@ -232,6 +232,29 @@ func TestFetchX509Bundle(t *testing.T) {
 			},
 		},
 		{
+			testName: "cache update unexpectedly missing bundle",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID),
+					},
+				},
+			},
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not serialize response: bundle not available",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not serialize X509 bundle response",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchX509Bundles",
+						logrus.ErrorKey: "bundle not available",
+					},
+				},
+			},
+		},
+		{
 			testName: "success",
 			updates: []*cache.WorkloadUpdate{
 				{
@@ -239,8 +262,8 @@ func TestFetchX509Bundle(t *testing.T) {
 						identityFromX509SVID(x509SVID),
 					},
 					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[string]*bundleutil.Bundle{
-						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 					},
 				},
 			},
@@ -259,8 +282,8 @@ func TestFetchX509Bundle(t *testing.T) {
 				{
 					Identities: []cache.Identity{},
 					Bundle:     utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[string]*bundleutil.Bundle{
-						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 					},
 				},
 			},
@@ -506,6 +529,29 @@ func TestFetchJWTBundles(t *testing.T) {
 			},
 		},
 		{
+			name: "cache update unexpectedly missing bundle",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID),
+					},
+				},
+			},
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not serialize response: bundle not available",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not serialize JWT bundle response",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTBundles",
+						logrus.ErrorKey: "bundle not available",
+					},
+				},
+			},
+		},
+		{
 			name: "success",
 			updates: []*cache.WorkloadUpdate{
 				{
@@ -513,8 +559,8 @@ func TestFetchJWTBundles(t *testing.T) {
 						identityFromX509SVID(x509SVID),
 					},
 					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[string]*bundleutil.Bundle{
-						federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 					},
 				},
 			},
@@ -584,8 +630,8 @@ func TestValidateJWTSVID(t *testing.T) {
 
 	updatesWithFederatedBundle := []*cache.WorkloadUpdate{{
 		Bundle: utilBundleFromBundle(t, bundle),
-		FederatedBundles: map[string]*bundleutil.Bundle{
-			federatedBundle.TrustDomain().IDString(): utilBundleFromBundle(t, federatedBundle),
+		FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
 		},
 	}}
 
@@ -801,8 +847,8 @@ func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.I
 	return m.identities
 }
 
-func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
-	svid := m.ca.CreateJWTSVID(spiffeid.RequireFromString(spiffeID), audience)
+func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+	svid := m.ca.CreateJWTSVID(spiffeID, audience)
 	if m.err != nil {
 		return nil, m.err
 	}

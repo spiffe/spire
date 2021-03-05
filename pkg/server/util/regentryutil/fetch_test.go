@@ -49,6 +49,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	threeID := "spiffe://example.org/3"
 	fourID := "spiffe://example.org/4"
 	fiveID := "spiffe://example.org/5"
+	someParentID := "spiffe://example.org/parent"
 
 	a1 := &common.Selector{Type: "a", Value: "1"}
 	b2 := &common.Selector{Type: "b", Value: "2"}
@@ -81,6 +82,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	})
 
 	fourEntry := createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  someParentID,
 		SpiffeId:  fourID,
 		Selectors: []*common.Selector{a1, b2},
 	})

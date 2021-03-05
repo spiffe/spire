@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
@@ -74,7 +74,7 @@ func (s *SpiffeID) ValidateCreate() error {
 	}
 
 	for _, entry := range resp.Entries {
-		entrySPIFFEID, err := spiffeid.New(entry.SpiffeId.TrustDomain, entry.SpiffeId.Path)
+		entrySPIFFEID, err := idutil.IDFromProto(entry.SpiffeId)
 		if err != nil {
 			return fmt.Errorf("entry SPIFFE ID is malformed: %v", err)
 		}
