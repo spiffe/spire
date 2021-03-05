@@ -177,6 +177,146 @@ func TestFetchX509SVID(t *testing.T) {
 	}
 }
 
+func TestFetchX509Bundles(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
+
+	bundle := ca.Bundle()
+	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
+
+	federatedBundle := testca.New(t, td2).Bundle()
+	federatedBundleX509 := x509util.DERFromCertificates(federatedBundle.X509Authorities())
+
+	for _, tt := range []struct {
+		testName                      string
+		updates                       []*cache.WorkloadUpdate
+		attestErr                     error
+		expectCode                    codes.Code
+		expectMsg                     string
+		expectResp                    *workloadPB.X509BundlesResponse
+		expectLogs                    []spiretest.LogEntry
+		allowUnauthenticatedVerifiers bool
+	}{
+		{
+			testName:   "no identity issued",
+			updates:    []*cache.WorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchX509Bundles",
+					},
+				},
+			},
+		},
+		{
+			testName:   "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unknown,
+			expectMsg:  "ohno",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchX509Bundles",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			testName: "cache update unexpectedly missing bundle",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID),
+					},
+				},
+			},
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not serialize response: bundle not available",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not serialize X509 bundle response",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchX509Bundles",
+						logrus.ErrorKey: "bundle not available",
+					},
+				},
+			},
+		},
+		{
+			testName: "success",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID),
+					},
+					Bundle: utilBundleFromBundle(t, bundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.X509BundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString():          bundleX509,
+					federatedBundle.TrustDomain().IDString(): federatedBundleX509,
+				},
+			},
+		},
+		{
+			testName:                      "when allowed to fetch without identity",
+			allowUnauthenticatedVerifiers: true,
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{},
+					Bundle:     utilBundleFromBundle(t, bundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.X509BundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString(): bundleX509,
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.testName, func(t *testing.T) {
+			params := testParams{
+				CA:                            ca,
+				Updates:                       tt.updates,
+				AttestErr:                     tt.attestErr,
+				ExpectLogs:                    tt.expectLogs,
+				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
 func TestFetchJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 
@@ -345,13 +485,14 @@ func TestFetchJWTBundles(t *testing.T) {
 	federatedBundleJWKS = indent(federatedBundleJWKS)
 
 	for _, tt := range []struct {
-		name       string
-		updates    []*cache.WorkloadUpdate
-		attestErr  error
-		expectCode codes.Code
-		expectMsg  string
-		expectResp *workloadPB.JWTBundlesResponse
-		expectLogs []spiretest.LogEntry
+		name                          string
+		updates                       []*cache.WorkloadUpdate
+		attestErr                     error
+		expectCode                    codes.Code
+		expectMsg                     string
+		expectResp                    *workloadPB.JWTBundlesResponse
+		expectLogs                    []spiretest.LogEntry
+		allowUnauthenticatedVerifiers bool
 	}{
 		{
 			name:       "no identity issued",
@@ -388,6 +529,29 @@ func TestFetchJWTBundles(t *testing.T) {
 			},
 		},
 		{
+			name: "cache update unexpectedly missing bundle",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID),
+					},
+				},
+			},
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not serialize response: bundle not available",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not serialize JWT bundle response",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTBundles",
+						logrus.ErrorKey: "bundle not available",
+					},
+				},
+			},
+		},
+		{
 			name: "success",
 			updates: []*cache.WorkloadUpdate{
 				{
@@ -408,14 +572,34 @@ func TestFetchJWTBundles(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                          "when allowed to fetch without identity",
+			allowUnauthenticatedVerifiers: true,
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{},
+					Bundle:     utilBundleFromBundle(t, bundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString(): bundleJWKS,
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				CA:         ca,
-				Updates:    tt.updates,
-				AttestErr:  tt.attestErr,
-				ExpectLogs: tt.expectLogs,
+				CA:                            ca,
+				Updates:                       tt.updates,
+				AttestErr:                     tt.attestErr,
+				ExpectLogs:                    tt.expectLogs,
+				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -590,13 +774,14 @@ func TestValidateJWTSVID(t *testing.T) {
 }
 
 type testParams struct {
-	CA         *testca.CA
-	Identities []cache.Identity
-	Updates    []*cache.WorkloadUpdate
-	AttestErr  error
-	ManagerErr error
-	ExpectLogs []spiretest.LogEntry
-	AsPID      int
+	CA                            *testca.CA
+	Identities                    []cache.Identity
+	Updates                       []*cache.WorkloadUpdate
+	AttestErr                     error
+	ManagerErr                    error
+	ExpectLogs                    []spiretest.LogEntry
+	AsPID                         int
+	AllowUnauthenticatedVerifiers bool
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
@@ -610,8 +795,9 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	}
 
 	handler := workload.New(workload.Config{
-		Manager:  manager,
-		Attestor: &FakeAttestor{err: params.AttestErr},
+		Manager:                       manager,
+		Attestor:                      &FakeAttestor{err: params.AttestErr},
+		AllowUnauthenticatedVerifiers: params.AllowUnauthenticatedVerifiers,
 	})
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(

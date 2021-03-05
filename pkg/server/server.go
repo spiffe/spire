@@ -173,6 +173,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		bundleManager.Run,
 		registrationManager.Run,
 		util.SerialRun(s.waitForTestDial, healthChecks.ListenAndServe),
+		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	)
 	if err == context.Canceled {
 		err = nil
@@ -273,7 +274,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CASubject:     s.config.CASubject,
 		Dir:           s.config.DataDir,
 		X509CAKeyType: s.config.CAKeyType,
-		JWTKeyType:    s.config.CAKeyType,
+		JWTKeyType:    s.config.JWTKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
