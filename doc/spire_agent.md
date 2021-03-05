@@ -138,7 +138,7 @@ the following flags are available:
 | `-socketPath` | Location to bind the workload API socket | |
 | `-trustBundle` | Path to the SPIRE server CA bundle | |
 | `-trustBundleUrl` | URL to download the SPIRE server CA bundle | |
-| `-trustDomain` | The trust domain that this agent belongs to (should be less than 255 characters) | |
+| `-trustDomain` | The trust domain that this agent belongs to (should be no more than 255 characters) | |
 
 ### `spire-agent api fetch`
 
