@@ -485,13 +485,14 @@ func TestFetchJWTBundles(t *testing.T) {
 	federatedBundleJWKS = indent(federatedBundleJWKS)
 
 	for _, tt := range []struct {
-		name       string
-		updates    []*cache.WorkloadUpdate
-		attestErr  error
-		expectCode codes.Code
-		expectMsg  string
-		expectResp *workloadPB.JWTBundlesResponse
-		expectLogs []spiretest.LogEntry
+		name                          string
+		updates                       []*cache.WorkloadUpdate
+		attestErr                     error
+		expectCode                    codes.Code
+		expectMsg                     string
+		expectResp                    *workloadPB.JWTBundlesResponse
+		expectLogs                    []spiretest.LogEntry
+		allowUnauthenticatedVerifiers bool
 	}{
 		{
 			name:       "no identity issued",
@@ -571,14 +572,34 @@ func TestFetchJWTBundles(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                          "when allowed to fetch without identity",
+			allowUnauthenticatedVerifiers: true,
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{},
+					Bundle:     utilBundleFromBundle(t, bundle),
+					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString(): bundleJWKS,
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				CA:         ca,
-				Updates:    tt.updates,
-				AttestErr:  tt.attestErr,
-				ExpectLogs: tt.expectLogs,
+				CA:                            ca,
+				Updates:                       tt.updates,
+				AttestErr:                     tt.attestErr,
+				ExpectLogs:                    tt.expectLogs,
+				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {

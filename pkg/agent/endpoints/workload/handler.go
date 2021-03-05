@@ -133,7 +133,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if err := sendJWTBundlesResponse(update, stream, log); err != nil {
+			if err := sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -353,8 +353,8 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger) (err error) {
-	if len(update.Identities) == 0 {
+func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool) (err error) {
+	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -387,12 +387,14 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	}
 	bundles[update.Bundle.TrustDomainID()] = jwksBytes
 
-	for _, federatedBundle := range update.FederatedBundles {
-		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
-		if err != nil {
-			return nil, err
+	if update.HasIdentity() {
+		for _, federatedBundle := range update.FederatedBundles {
+			jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+			if err != nil {
+				return nil, err
+			}
+			bundles[federatedBundle.TrustDomainID()] = jwksBytes
 		}
-		bundles[federatedBundle.TrustDomainID()] = jwksBytes
 	}
 
 	return &workload.JWTBundlesResponse{
