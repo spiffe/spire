@@ -55,7 +55,7 @@ type pluginConfig struct {
 	Namespace          string `hcl:"namespace"`
 	ConfigMap          string `hcl:"config_map"`
 	ConfigMapKey       string `hcl:"config_map_key"`
-	Label              string `hcl:"label"`
+	WebhookLabel       string `hcl:"webhook_label"`
 	KubeConfigFilePath string `hcl:"kube_config_file_path"`
 }
 
@@ -169,7 +169,7 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 	if p.cancelWatcher != nil {
 		p.cancelWatcher()
 	}
-	if config.Label != "" {
+	if config.WebhookLabel != "" {
 		watcher, err := newBundleWatcher(p, config)
 		if err != nil {
 			return err
@@ -268,7 +268,7 @@ func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
 	}
 
 	clients := []kubeClient{configMapClient{Clientset: clientset}}
-	if c.Label != "" {
+	if c.WebhookLabel != "" {
 		clients = append(clients,
 			mutatingWebhookClient{Clientset: clientset},
 			validatingWebhookClient{Clientset: clientset},
@@ -304,7 +304,7 @@ type kubeClient interface {
 	GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error)
 	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, namespace, name string, patchBytes []byte) error
-	Watch(ctx context.Context, label string) (watch.Interface, error)
+	Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error)
 }
 
 // configMapClient encapsulates the Kubenetes API for updating the CA Bundle in a config map
@@ -347,7 +347,7 @@ func (c configMapClient) Patch(ctx context.Context, namespace, name string, patc
 	return err
 }
 
-func (c configMapClient) Watch(ctx context.Context, label string) (watch.Interface, error) {
+func (c configMapClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
 	return nil, nil
 }
 
@@ -362,7 +362,7 @@ func (c mutatingWebhookClient) Get(ctx context.Context, namespace, mutatingWebho
 
 func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.Label),
+		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
 	})
 }
 
@@ -395,9 +395,9 @@ func (c mutatingWebhookClient) Patch(ctx context.Context, namespace, name string
 	return err
 }
 
-func (c mutatingWebhookClient) Watch(ctx context.Context, label string) (watch.Interface, error) {
+func (c mutatingWebhookClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
 	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", label),
+		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
 	})
 }
 
@@ -412,7 +412,7 @@ func (c validatingWebhookClient) Get(ctx context.Context, namespace, validatingW
 
 func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.Label),
+		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
 	})
 }
 
@@ -445,9 +445,9 @@ func (c validatingWebhookClient) Patch(ctx context.Context, namespace, name stri
 	return err
 }
 
-func (c validatingWebhookClient) Watch(ctx context.Context, label string) (watch.Interface, error) {
+func (c validatingWebhookClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", label),
+		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
 	})
 }
 

@@ -532,10 +532,10 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 	return nil
 }
 
-func (c *fakeKubeClient) Watch(ctx context.Context, label string) (watch.Interface, error) {
+func (c *fakeKubeClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.watchLabel = label
+	c.watchLabel = config.WebhookLabel
 	return c.fakeWatch, nil
 }
 
