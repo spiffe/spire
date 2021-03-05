@@ -434,7 +434,7 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 
 func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
 	s.raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
-		s.Equal(expectedConfigPath, s.raw.config.KubeConfigFilePath)
+		s.Equal(expectedConfigPath, c.KubeConfigFilePath)
 		if client == nil {
 			return nil, errors.New("kube client not configured")
 		}

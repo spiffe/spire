@@ -167,12 +167,9 @@ func (p *Plugin) getConfig() (*pluginConfig, error) {
 func (p *Plugin) setConfig(config *pluginConfig) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.config = config
 
 	// Start watcher to set CA Bundle in objects created after server has started
-	if p.cancelWatcher != nil {
-		p.cancelWatcher()
-	}
+	var cancelWatcher func()
 	if config.WebhookLabel != "" {
 		watcher, err := newBundleWatcher(p, config)
 		if err != nil {
@@ -187,12 +184,19 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 				p.log.Error("Unable to watch: %v", err)
 			}
 		}()
-		p.cancelWatcher = func() {
+		cancelWatcher = func() {
 			cancel()
 			wg.Wait()
 		}
 	}
+	if p.cancelWatcher != nil {
+		p.cancelWatcher()
+	}
+	if config.WebhookLabel != "" {
+		p.cancelWatcher = cancelWatcher
+	}
 
+	p.config = config
 	return nil
 }
 
