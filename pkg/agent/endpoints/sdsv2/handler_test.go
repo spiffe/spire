@@ -14,6 +14,7 @@ import (
 	core_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -28,7 +29,7 @@ import (
 )
 
 var (
-	tdBundle = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{
+	tdBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("domain.test"), &x509.Certificate{
 		Raw: []byte("BUNDLE"),
 	})
 	tdValidationContext = &auth_v2.Secret{
@@ -57,7 +58,7 @@ var (
 		},
 	}
 
-	fedBundle = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{
+	fedBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("otherdomain.test"), &x509.Certificate{
 		Raw: []byte("FEDBUNDLE"),
 	})
 	fedValidationContext = &auth_v2.Secret{
@@ -498,8 +499,8 @@ func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
 				},
 			},
 			Bundle: tdBundle,
-			FederatedBundles: map[string]*bundleutil.Bundle{
-				"spiffe://otherdomain.test": fedBundle,
+			FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				spiffeid.RequireTrustDomainFromString("otherdomain.test"): fedBundle,
 			},
 		}
 	}
