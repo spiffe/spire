@@ -209,7 +209,7 @@ Most of the configuration file above options have identical command-line counter
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
 | `-serverPort` | Port number of the SPIRE server | |
 | `-socketPath` | Path to bind the SPIRE Server API socket to | |
-| `-trustDomain` | The trust domain that this server belongs to (should be less than 255 characters) | |
+| `-trustDomain` | The trust domain that this server belongs to (should be no more than 255 characters) | |
 
 ### `spire-server token generate`
 
