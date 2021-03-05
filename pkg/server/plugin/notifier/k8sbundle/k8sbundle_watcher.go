@@ -80,7 +80,7 @@ func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event
 func (b *bundleWatcher) newWatchers(ctx context.Context) ([]watch.Interface, error) {
 	watchers := []watch.Interface{}
 	for _, client := range b.clients {
-		watcher, err := client.Watch(ctx, b.config.Label)
+		watcher, err := client.Watch(ctx, b.config)
 		if err != nil {
 			return nil, err
 		}

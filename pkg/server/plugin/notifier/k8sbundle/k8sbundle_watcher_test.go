@@ -69,7 +69,7 @@ func (s *Suite) TestBundleWatcherUpdateConfig() {
 	s.withKubeClient(s.k, "/some/file/path")
 
 	s.configure(`
-label = "LABEL"
+webhook_label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
 	s.Require().Eventually(func() bool {
@@ -77,7 +77,7 @@ kube_config_file_path = "/some/file/path"
 	}, testTimeout, time.Second)
 
 	s.configure(`
-label = "LABEL2"
+webhook_label = "LABEL2"
 kube_config_file_path = "/some/file/path"
 `)
 	s.Require().Eventually(func() bool {
@@ -88,7 +88,7 @@ kube_config_file_path = "/some/file/path"
 func (s *Suite) TestBundleWatcherAddEvent() {
 	s.withKubeClient(s.k, "/some/file/path")
 	s.configure(`
-label = "LABEL"
+webhook_label = "LABEL"
 kube_config_file_path = "/some/file/path"
 `)
 
