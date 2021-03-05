@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -74,7 +75,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	identities := h.c.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
-		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
 	log = log.WithField(telemetry.Registered, true)
@@ -244,11 +245,16 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool) error {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
-		return status.Errorf(codes.PermissionDenied, "no identity issued")
+		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
-	err := stream.Send(composeX509BundlesResponse(update))
+	resp, err := composeX509BundlesResponse(update)
 	if err != nil {
+		log.WithError(err).Error("Could not serialize X509 bundle response")
+		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+	}
+
+	if err := stream.Send(resp); err != nil {
 		log.WithError(err).Error("Failed to send X509 bundle response")
 		return err
 	}
@@ -256,12 +262,15 @@ func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiff
 	return nil
 }
 
-func composeX509BundlesResponse(update *cache.WorkloadUpdate) *workload.X509BundlesResponse {
-	bundles := make(map[string][]byte)
-	if update.Bundle != nil {
-		bundles[update.Bundle.TrustDomainID()] = marshalBundle(update.Bundle.RootCAs())
+func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509BundlesResponse, error) {
+	if update.Bundle == nil {
+		// This should be purely defensive since the cache should always supply
+		// a bundle.
+		return nil, errors.New("bundle not available")
 	}
 
+	bundles := make(map[string][]byte)
+	bundles[update.Bundle.TrustDomainID()] = marshalBundle(update.Bundle.RootCAs())
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
 			bundles[federatedBundle.TrustDomainID()] = marshalBundle(federatedBundle.RootCAs())
@@ -270,7 +279,7 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) *workload.X509Bund
 
 	return &workload.X509BundlesResponse{
 		Bundles: bundles,
-	}
+	}, nil
 }
 
 func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool) (err error) {
@@ -347,7 +356,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger) (err error) {
 	if len(update.Identities) == 0 {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
-		return status.Errorf(codes.PermissionDenied, "no identity issued")
+		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
 	resp, err := composeJWTBundlesResponse(update)
@@ -365,14 +374,18 @@ func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiffe
 }
 
 func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
-	bundles := make(map[string][]byte)
-	if update.Bundle != nil {
-		jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
-		if err != nil {
-			return nil, err
-		}
-		bundles[update.Bundle.TrustDomainID()] = jwksBytes
+	if update.Bundle == nil {
+		// This should be purely defensive since the cache should always supply
+		// a bundle.
+		return nil, errors.New("bundle not available")
 	}
+
+	bundles := make(map[string][]byte)
+	jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+	if err != nil {
+		return nil, err
+	}
+	bundles[update.Bundle.TrustDomainID()] = jwksBytes
 
 	for _, federatedBundle := range update.FederatedBundles {
 		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
