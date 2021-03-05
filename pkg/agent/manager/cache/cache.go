@@ -31,6 +31,10 @@ type WorkloadUpdate struct {
 	FederatedBundles map[spiffeid.TrustDomain]*bundleutil.Bundle
 }
 
+func (u *WorkloadUpdate) HasIdentity() bool {
+	return len(u.Identities) > 0
+}
+
 // Update holds information for an entries update to the cache.
 type UpdateEntries struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
