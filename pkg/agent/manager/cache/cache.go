@@ -442,13 +442,22 @@ func (c *Cache) storeSVID(record *cacheRecord) error {
 		Entry:            record.entry,
 		SVID:             record.svid.Chain,
 		PrivateKey:       record.svid.PrivateKey,
-		Bundle:           c.bundles[c.trustDomainID],
-		FederatedBundles: make(map[string]*bundleutil.Bundle),
+		Bundle:           c.bundles[c.trustDomain],
+		FederatedBundles: make(map[spiffeid.TrustDomain]*bundleutil.Bundle),
 	}
 
 	for _, federatesWith := range record.entry.FederatesWith {
-		if federatedBundle := c.bundles[federatesWith]; federatedBundle != nil {
-			update.FederatedBundles[federatesWith] = federatedBundle
+		td, err := spiffeid.TrustDomainFromString(federatesWith)
+		if err != nil {
+			c.log.WithFields(logrus.Fields{
+				telemetry.TrustDomainID: federatesWith,
+				logrus.ErrorKey:         err,
+			}).Warn("Invalid federated trust domain")
+			continue
+		}
+
+		if federatedBundle := c.bundles[td]; federatedBundle != nil {
+			update.FederatedBundles[td] = federatedBundle
 		} else {
 			c.log.WithFields(logrus.Fields{
 				telemetry.Entry:           record.entry.EntryId,

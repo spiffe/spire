@@ -386,7 +386,7 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 
 func newTestCache() *Cache {
 	log, _ := test.NewNullLogger()
-	return New(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{})
+	return New(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{}, nil)
 }
 
 func TestStoreSVIDs(t *testing.T) {
@@ -397,7 +397,7 @@ func TestStoreSVIDs(t *testing.T) {
 	}
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
-	cache := New(log, "spiffe://domain.test", bundleV1, telemetry.Blackhole{}, pipes)
+	cache := New(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{}, pipes)
 
 	bundles := makeBundles(bundleV1, otherBundleV1)
 
@@ -514,18 +514,19 @@ func TestStoreSVIDs(t *testing.T) {
 				X509SVIDs: x509SVIDs,
 			})
 
-			federatedBundles := make(map[string]*bundleutil.Bundle)
+			federatedBundles := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
 			for _, id := range tt.federatedWith {
-				b, ok := bundles[id]
+				td := spiffeid.RequireTrustDomainFromString(id)
+				b, ok := bundles[td]
 				if ok {
-					federatedBundles[id] = b
+					federatedBundles[td] = b
 				}
 			}
 
 			expected := &pipe.SVIDUpdate{
 				Entry:            foo,
 				SVID:             svid.Chain,
-				Bundle:           bundles[bundleV1.TrustDomainID()],
+				Bundle:           bundles[spiffeid.RequireTrustDomainFromString(bundleV1.TrustDomainID())],
 				FederatedBundles: federatedBundles,
 			}
 			if tt.expectFail {

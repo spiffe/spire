@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/pipe"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -39,8 +40,10 @@ func TestRun(t *testing.T) {
 	bundles, err := util.LoadBundleFixture()
 	require.NoError(t, err)
 
-	svidBundle := bundleutil.BundleFromRootCA("spiffe://domain.test", bundles[0])
-	federatedBundle := bundleutil.BundleFromRootCA("spiffe://otherdomain.test", bundles[0])
+	domainTD := spiffeid.RequireTrustDomainFromString("spiffe://domain.test")
+	svidBundle := bundleutil.BundleFromRootCA(domainTD, bundles[0])
+	otherDomainTD := spiffeid.RequireTrustDomainFromString("spiffe://otherdomain.test")
+	federatedBundle := bundleutil.BundleFromRootCA(otherDomainTD, bundles[0])
 
 	for _, tt := range []struct {
 		name string
@@ -63,17 +66,17 @@ func TestRun(t *testing.T) {
 				SVID:       []*x509.Certificate{cert},
 				PrivateKey: key,
 				Bundle:     svidBundle,
-				FederatedBundles: map[string]*bundleutil.Bundle{
-					"spiffe://otherdomain.test": federatedBundle,
+				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					otherDomainTD: federatedBundle,
 				},
 			},
 			req: &svidstore.PutX509SVIDRequest{
 				Svid: &svidstore.X509SVID{
 					ExpiresAt:  1234,
-					SpiffeId:   "spiffe://domain.test/foo",
-					CertChain:  cert.Raw,
+					SpiffeID:   "spiffe://domain.test/foo",
+					CertChain:  [][]byte{cert.Raw},
 					PrivateKey: keyData,
-					Bundle:     bundles[0].Raw,
+					Bundle:     [][]byte{bundles[0].Raw},
 				},
 				Selectors: []*common.Selector{{Type: "a", Value: "1"}},
 				FederatedBundles: map[string][]byte{
@@ -103,8 +106,8 @@ func TestRun(t *testing.T) {
 				SVID:       []*x509.Certificate{cert},
 				PrivateKey: key,
 				Bundle:     svidBundle,
-				FederatedBundles: map[string]*bundleutil.Bundle{
-					"spiffe://otherdomain.test": federatedBundle,
+				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					otherDomainTD: federatedBundle,
 				},
 			},
 			storeErr: errors.New("some error"),
@@ -131,8 +134,8 @@ func TestRun(t *testing.T) {
 				},
 				SVID:   []*x509.Certificate{cert},
 				Bundle: svidBundle,
-				FederatedBundles: map[string]*bundleutil.Bundle{
-					"spiffe://otherdomain.test": federatedBundle,
+				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					otherDomainTD: federatedBundle,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{

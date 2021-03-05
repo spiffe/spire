@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/manager/pipe"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_store "github.com/spiffe/spire/pkg/common/telemetry/agent/store"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -43,9 +42,7 @@ type service struct {
 }
 
 func (p *service) Run(ctx context.Context) error {
-	err := util.RunTasks(ctx,
-		p.run,
-	)
+	err := util.RunTasks(ctx, p.run)
 
 	switch {
 	case err == nil || err == context.Canceled:
@@ -103,7 +100,7 @@ func (p *service) triggerStoredHook() {
 func parseUpdate(update *pipe.SVIDUpdate) (*svidstore.PutX509SVIDRequest, error) {
 	federatedBundles := make(map[string][]byte)
 	for id, fBundle := range update.FederatedBundles {
-		federatedBundles[id] = marshalBundle(fBundle)
+		federatedBundles[id.IDString()] = x509util.DERFromCertificates(fBundle.RootCAs())
 	}
 
 	keyData, err := x509.MarshalPKCS8PrivateKey(update.PrivateKey)
@@ -114,21 +111,12 @@ func parseUpdate(update *pipe.SVIDUpdate) (*svidstore.PutX509SVIDRequest, error)
 	return &svidstore.PutX509SVIDRequest{
 		Selectors: update.Entry.Selectors,
 		Svid: &svidstore.X509SVID{
-			SpiffeId:   update.Entry.SpiffeId,
-			Bundle:     marshalBundle(update.Bundle),
-			CertChain:  x509util.DERFromCertificates(update.SVID),
+			SpiffeID:   update.Entry.SpiffeId,
+			Bundle:     x509util.RawCertsFromCertificates(update.Bundle.RootCAs()),
+			CertChain:  x509util.RawCertsFromCertificates(update.SVID),
 			PrivateKey: keyData,
 			ExpiresAt:  update.Entry.EntryExpiry,
 		},
 		FederatedBundles: federatedBundles,
 	}, nil
-}
-
-func marshalBundle(b *bundleutil.Bundle) []byte {
-	var bundle []byte
-	for _, b := range b.RootCAs() {
-		bundle = append(bundle, b.Raw...)
-	}
-
-	return bundle
 }

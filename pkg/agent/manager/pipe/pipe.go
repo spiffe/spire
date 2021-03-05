@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"sync"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -16,7 +17,7 @@ type SVIDUpdate struct {
 	PrivateKey crypto.Signer
 
 	Bundle           *bundleutil.Bundle
-	FederatedBundles map[string]*bundleutil.Bundle
+	FederatedBundles map[spiffeid.TrustDomain]*bundleutil.Bundle
 }
 
 type In interface {
