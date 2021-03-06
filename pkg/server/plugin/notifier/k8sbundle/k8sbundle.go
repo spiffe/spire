@@ -211,11 +211,13 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 	for _, client := range clients {
 		list, err := client.GetList(ctx, c)
 		if err != nil {
-			return k8sErr.New("unable to get list: %v", err)
+			updateErrs += fmt.Sprintf("unable to get list: %v, ", err)
+			continue
 		}
 		listItems, err := meta.ExtractList(list)
 		if err != nil {
-			return k8sErr.New("unable to extract list items: %v", err)
+			updateErrs += fmt.Sprintf("unable to extract list items: %v, ", err)
+			continue
 		}
 		for _, item := range listItems {
 			itemMeta, err := meta.Accessor(item)

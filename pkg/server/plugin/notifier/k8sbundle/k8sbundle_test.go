@@ -128,7 +128,7 @@ func (s *Suite) TestBundleLoadedConfigMapGetFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to get list: not found")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: unable to get list: not found")
 	s.Nil(resp)
 }
 
@@ -282,7 +282,7 @@ func (s *Suite) TestBundleUpdatedConfigMapGetFailure() {
 			},
 		},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to get list: not found")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: unable to get list: not found")
 	s.Nil(resp)
 }
 
