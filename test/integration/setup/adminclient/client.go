@@ -84,7 +84,7 @@ func main() {
 	testRPC("BatchCreateFederatedBundle", batchCreateFederatedBundle)
 	testRPC("BatchUpdateFederatedBundle", batchUpdateFederatedBundle)
 	testRPC("BatchSetFederatedBundle", batchSetFederatedBundle)
-	testRPC("CountFederatedBundles", countFederatedBundles)
+	testRPC("CountBundles", countBundles)
 	testRPC("ListFederatedBundles", listFederatedBundles)
 	testRPC("GetFederatedBundle", getFederatedBundle)
 	testRPC("BatchDeleteFederatedBundle", batchDeleteFederatedBundle)
@@ -371,7 +371,7 @@ func batchSetFederatedBundle(ctx context.Context, c *itclient.Client) error {
 	return nil
 }
 
-func countFederatedBundles(ctx context.Context, c *itclient.Client) error {
+func countBundles(ctx context.Context, c *itclient.Client) error {
 	resp, err := c.BundleClient().CountBundles(ctx, &bundle.CountBundlesRequest{})
 	switch {
 	case c.ExpectErrors:

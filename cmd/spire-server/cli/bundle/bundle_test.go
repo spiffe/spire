@@ -417,7 +417,7 @@ func TestCount(t *testing.T) {
 			name:           "all bundles server fails",
 			count:          2,
 			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
-			serverErr:      status.New(codes.Internal, "some error").Err(),
+			serverErr:      status.Error(codes.Internal, "some error"),
 		},
 		{
 			name:           "one bundle",
@@ -428,7 +428,7 @@ func TestCount(t *testing.T) {
 			name:           "one bundle server fails",
 			count:          1,
 			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
-			serverErr:      status.New(codes.Internal, "some error").Err(),
+			serverErr:      status.Error(codes.Internal, "some error"),
 		},
 		{
 			name:           "no bundles",

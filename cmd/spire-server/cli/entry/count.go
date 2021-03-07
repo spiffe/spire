@@ -45,7 +45,7 @@ func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClien
 	count := int(countResponse.Count)
 	msg := fmt.Sprintf("%d registration ", count)
 	msg = util.Pluralizer(msg, "entry", "entries", count)
-	env.Printf(msg + "\n")
+	env.Println(msg)
 
 	return nil
 }

@@ -127,6 +127,7 @@ func TestCountAgents(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		count      int32
+		resp       *agentpb.CountAgentsResponse
 		code       codes.Code
 		dsError    error
 		err        string
@@ -135,30 +136,34 @@ func TestCountAgents(t *testing.T) {
 		{
 			name:  "0 nodes",
 			count: 0,
+			resp:  &agentpb.CountAgentsResponse{Count: 0},
 		},
 		{
 			name:  "1 node",
 			count: 1,
+			resp:  &agentpb.CountAgentsResponse{Count: 1},
 		},
 		{
 			name:  "2 nodes",
 			count: 2,
+			resp:  &agentpb.CountAgentsResponse{Count: 2},
 		},
 		{
 			name:  "3 nodes",
 			count: 3,
+			resp:  &agentpb.CountAgentsResponse{Count: 3},
 		},
 		{
 			name:    "ds error",
 			code:    codes.Internal,
-			dsError: errors.New("some error"),
+			dsError: status.Error(codes.Internal, "some error"),
 			err:     "failed to count agents: some error",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to count agents",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "some error",
+						logrus.ErrorKey: "rpc error: code = Internal desc = some error",
 					},
 				},
 			},
@@ -199,7 +204,7 @@ func TestCountAgents(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			require.Equal(t, resp.Count, tt.count)
+			spiretest.AssertProtoEqual(t, tt.resp, resp)
 		})
 	}
 }

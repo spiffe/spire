@@ -556,7 +556,7 @@ const (
 	ListAgents = "list_agents"
 
 	// CountEntries functionality related to counting all registration entries
-	CountEntries = "countt_entries"
+	CountEntries = "count_entries"
 
 	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
 	ListAllEntriesWithPages = "list_all_entries_with_pages"

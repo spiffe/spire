@@ -39,35 +39,48 @@ var (
 
 func TestCountEntries(t *testing.T) {
 	for _, tt := range []struct {
-		name    string
-		count   int32
-		code    codes.Code
-		err     string
-		logMsg  string
-		dsError error
+		name       string
+		count      int32
+		resp       *entrypb.CountEntriesResponse
+		code       codes.Code
+		dsError    error
+		err        string
+		expectLogs []spiretest.LogEntry
 	}{
 		{
 			name:  "0 entries",
 			count: 0,
+			resp:  &entrypb.CountEntriesResponse{Count: 0},
 		},
 		{
 			name:  "1 entries",
 			count: 1,
+			resp:  &entrypb.CountEntriesResponse{Count: 1},
 		},
 		{
 			name:  "2 entries",
 			count: 2,
+			resp:  &entrypb.CountEntriesResponse{Count: 2},
 		},
 		{
 			name:  "3 entries",
 			count: 3,
+			resp:  &entrypb.CountEntriesResponse{Count: 3},
 		},
 		{
 			name:    "ds error",
 			err:     "failed to count entries: ds error",
 			code:    codes.Internal,
-			logMsg:  "Failed to count entries",
-			dsError: errors.New("ds error"),
+			dsError: status.Error(codes.Internal, "ds error"),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to count entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = ds error",
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
@@ -77,7 +90,7 @@ func TestCountEntries(t *testing.T) {
 			defer test.Cleanup()
 
 			for i := 0; i < int(tt.count); i++ {
-				entry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+				_, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 					Entry: &common.RegistrationEntry{
 						ParentId: td.NewID(fmt.Sprintf("parent%d", i)).String(),
 						SpiffeId: td.NewID(fmt.Sprintf("child%d", i)).String(),
@@ -88,12 +101,21 @@ func TestCountEntries(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				require.NotNil(t, entry)
 			}
 
+			ds.SetNextError(tt.dsError)
 			resp, err := test.client.CountEntries(context.Background(), &entrypb.CountEntriesRequest{})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+			spiretest.AssertProtoEqual(t, tt.resp, resp)
 			require.Equal(t, tt.count, resp.Count)
 		})
 	}

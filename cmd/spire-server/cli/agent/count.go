@@ -45,7 +45,7 @@ func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClien
 	count := int(countResponse.Count)
 	msg := fmt.Sprintf("%d attested ", count)
 	msg = util.Pluralizer(msg, "agent", "agents", count)
-	env.Printf(msg + "\n")
+	env.Println(msg)
 
 	return nil
 }
