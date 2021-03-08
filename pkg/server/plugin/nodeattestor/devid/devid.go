@@ -14,12 +14,14 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/plugin/devid"
+	common_devid "github.com/spiffe/spire/pkg/common/plugin/devid"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	spc "github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -27,12 +29,12 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(devid.PluginName,
+	return catalog.MakePlugin(common_devid.PluginName,
 		nodeattestor.PluginServer(p),
 	)
 }
 
-type internalConfig struct {
+type config struct {
 	trustDomain string
 
 	devIDRoots          *x509.CertPool
@@ -40,7 +42,7 @@ type internalConfig struct {
 	checkDevIDResidency bool
 }
 
-type ExternalConfig struct {
+type Config struct {
 	DevIDBundlePath       string `hcl:"devid_bundle_path"`
 	EndorsementBundlePath string `hcl:"endorsement_bundle_path"`
 	CheckDevIDResidency   bool   `hcl:"check_devid_residency"`
@@ -50,7 +52,7 @@ type Plugin struct {
 	nodeattestor.UnsafeNodeAttestorServer
 
 	m sync.Mutex
-	c *internalConfig
+	c *config
 }
 
 func New() *Plugin {
@@ -66,102 +68,102 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 
 	conf := p.getConfiguration()
 	if conf == nil {
-		return devid.Error("not configured")
+		return common_devid.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	if dataType := req.AttestationData.Type; dataType != devid.PluginName {
-		return devid.Error("unexpected attestation data type %q", dataType)
+	if dataType := req.AttestationData.Type; dataType != common_devid.PluginName {
+		return common_devid.Error(codes.InvalidArgument, "unexpected attestation data type %q", dataType)
 	}
 
 	// Unmarshall received attestation data
-	attData := new(devid.AttestationRequest)
+	attData := new(common_devid.AttestationRequest)
 	err = json.Unmarshal(req.AttestationData.Data, attData)
 	if err != nil {
-		return devid.Error("unable to unmarshall attestation data: %w", err)
+		return common_devid.Error(codes.InvalidArgument, "unable to unmarshall attestation data: %w", err)
 	}
 
 	// Decode attestation data
 	if len(attData.DevIDCert) == 0 {
-		return devid.Error("no DevID certificate to attest")
+		return common_devid.Error(codes.InvalidArgument, "no DevID certificate to attest")
 	}
 
 	devIDCert, err := x509.ParseCertificate(attData.DevIDCert)
 	if err != nil {
-		return devid.Error("unable to parse DevID certificate: %w", err)
+		return common_devid.Error(codes.InvalidArgument, "unable to parse DevID certificate: %w", err)
 	}
 
 	// Verify DevID certificate chain of trust
 	err = verifyDevIDSignature(devIDCert, conf.devIDRoots)
 	if err != nil {
-		return devid.Error("unable to verify DevID signature: %w", err)
+		return common_devid.Error(codes.Unauthenticated, "unable to verify DevID signature: %w", err)
 	}
 
 	// Issue a DevID challenge (to prove the possession of the DevID private key).
 	devIDChallenge, err := newDevIDChallenge()
 	if err != nil {
-		return devid.Error("unable to generate challenge: %w", err)
+		return common_devid.Error(codes.Internal, "unable to generate challenge: %w", err)
 	}
 
 	// Verify DevID residency (if configured)
 	var nonce []byte
-	var credActivationChallenge *devid.CredActivation
+	var credActivationChallenge *common_devid.CredActivation
 	if conf.checkDevIDResidency {
 		credActivationChallenge, nonce, err = verifyDevIDResidency(attData, conf.ekRoots)
 		if err != nil {
-			return devid.Error("unable to verify DevID residency: %w", err)
+			return err
 		}
 	}
 
 	// Marshal challenges
-	challenge, err := json.Marshal(devid.ChallengeRequest{
+	challenge, err := json.Marshal(common_devid.ChallengeRequest{
 		DevID:          devIDChallenge,
 		CredActivation: credActivationChallenge,
 	})
 	if err != nil {
-		return devid.Error("unable to marshal challenge data: %w", err)
+		return common_devid.Error(codes.Internal, "unable to marshal challenges data: %w", err)
 	}
 
 	// Send challenges to the agent
 	err = stream.Send(&nodeattestor.AttestResponse{Challenge: challenge})
 	if err != nil {
-		return err
+		return common_devid.Error(status.Code(err), "unable to send challenges: %w", err)
 	}
 
 	// Receive challenges response
 	responseReq, err := stream.Recv()
 	if err != nil {
-		return err
+		return common_devid.Error(status.Code(err), "unable to receive challenges response: %w", err)
 	}
 
 	// Unmarshal challenges response
-	challengeResponse := &devid.ChallengeResponse{}
+	challengeResponse := &common_devid.ChallengeResponse{}
 	if err = json.Unmarshal(responseReq.Response, challengeResponse); err != nil {
-		return devid.Error("unable to unmarshall challenges response: %w", err)
+		return common_devid.Error(codes.InvalidArgument, "unable to unmarshall challenges response: %w", err)
 	}
 
 	// Verify DevID challenge
 	err = verifyDevIDChallenge(devIDCert, devIDChallenge, challengeResponse.DevID)
 	if err != nil {
-		return devid.Error("devID challenge verification failed: %w", err)
+		return common_devid.Error(codes.Unauthenticated, "devID challenge verification failed: %w", err)
 	}
 
 	// Verify credential activation challenge (if configured)
 	if conf.checkDevIDResidency {
 		err = verifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
 		if err != nil {
-			return devid.Error("credential activation failed: %w", err)
+			return common_devid.Error(codes.Unauthenticated, "credential activation failed: %w", err)
 		}
 	}
 
 	// Create SPIFFE ID and selectors
-	certSelectors := FromCertificate(devid.PluginName, "certificate", devIDCert)
+	certSelectors := FromCertificate(common_devid.PluginName, "certificate", devIDCert)
 	fingerprint := x509pop.Fingerprint(devIDCert)
 	certSelectors = append(certSelectors, &spc.Selector{
-		Type:  devid.PluginName,
+		Type:  common_devid.PluginName,
 		Value: fmt.Sprintf("fingerprint:%s", fingerprint),
 	})
 
-	spiffeID := idutil.AgentID(conf.trustDomain, fmt.Sprintf("%s/%s", devid.PluginName, fingerprint))
+	spiffeID := idutil.AgentID(conf.trustDomain, fmt.Sprintf("%s/%s", common_devid.PluginName, fingerprint))
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		AgentId:   spiffeID,
@@ -170,42 +172,42 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	err := devid.ValidateGlobalConfig(req.GlobalConfig)
+	err := common_devid.ValidateGlobalConfig(req.GlobalConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	extConf, err := decodePluginConfig(req.Configuration)
 	if err != nil {
-		return nil, devid.Error("unable to decode configuration: %w", err)
+		return nil, common_devid.Error(codes.InvalidArgument, "unable to decode configuration: %w", err)
 	}
 
 	err = validatePluginConfig(extConf)
 	if err != nil {
-		return nil, fmt.Errorf("missing configurable: %w", err)
+		return nil, common_devid.Error(codes.InvalidArgument, "missing configurable: %w", err)
 	}
 
 	// Create initial internal configuration
-	inConf := &internalConfig{
+	intConf := &config{
 		trustDomain:         req.GlobalConfig.TrustDomain,
 		checkDevIDResidency: extConf.CheckDevIDResidency,
 	}
 
 	// Load DevID bundle
-	inConf.devIDRoots, err = util.LoadCertPool(extConf.DevIDBundlePath)
+	intConf.devIDRoots, err = util.LoadCertPool(extConf.DevIDBundlePath)
 	if err != nil {
-		return nil, devid.Error("unable to load DevID trust bundle: %w", err)
+		return nil, common_devid.Error(codes.Internal, "unable to load DevID trust bundle: %w", err)
 	}
 
 	// Load endorsement bundle if configured
 	if extConf.CheckDevIDResidency {
-		inConf.ekRoots, err = util.LoadCertPool(extConf.EndorsementBundlePath)
+		intConf.ekRoots, err = util.LoadCertPool(extConf.EndorsementBundlePath)
 		if err != nil {
-			return nil, devid.Error("unable to load endorsement trust bundle: %w", err)
+			return nil, common_devid.Error(codes.Internal, "unable to load endorsement trust bundle: %w", err)
 		}
 	}
 
-	p.setConfiguration(inConf)
+	p.setConfiguration(intConf)
 
 	return &spi.ConfigureResponse{}, nil
 }
@@ -214,20 +216,20 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *Plugin) getConfiguration() *internalConfig {
+func (p *Plugin) getConfiguration() *config {
 	p.m.Lock()
 	defer p.m.Unlock()
 	return p.c
 }
 
-func (p *Plugin) setConfiguration(c *internalConfig) {
+func (p *Plugin) setConfiguration(c *config) {
 	p.m.Lock()
 	defer p.m.Unlock()
 	p.c = c
 }
 
-func decodePluginConfig(hclConf string) (*ExternalConfig, error) {
-	extConfig := new(ExternalConfig)
+func decodePluginConfig(hclConf string) (*Config, error) {
+	extConfig := new(Config)
 	if err := hcl.Decode(extConfig, hclConf); err != nil {
 		return nil, err
 	}
@@ -235,15 +237,15 @@ func decodePluginConfig(hclConf string) (*ExternalConfig, error) {
 	return extConfig, nil
 }
 
-func validatePluginConfig(extConf *ExternalConfig) error {
+func validatePluginConfig(extConf *Config) error {
 	// DevID bundle path is always required
 	if extConf.DevIDBundlePath == "" {
-		return devid.Error("devid_bundle_path is required")
+		return errors.New("devid_bundle_path is required")
 	}
 
 	// Endorsement bundle path is required if check_devid_residency is set
 	if extConf.CheckDevIDResidency && extConf.EndorsementBundlePath == "" {
-		return devid.Error("endorsement_bundle_path is required if check_devid_residency is enabled")
+		return errors.New("endorsement_bundle_path is required if check_devid_residency is enabled")
 	}
 
 	return nil
@@ -266,7 +268,7 @@ func verifyDevIDSignature(cert *x509.Certificate, roots *x509.CertPool) error {
 //  1. Verify that DevID is in the same TPM than AK
 //  2. Verify that AK is in the same TPM than EK (credential activation)
 //  3. Verify EK chain of trust using the provided manufacturer roots.
-func verifyDevIDResidency(attData *devid.AttestationRequest, ekRoots *x509.CertPool) (*devid.CredActivation, []byte, error) {
+func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x509.CertPool) (*common_devid.CredActivation, []byte, error) {
 	// Check that request contains all the information required to validate DevID residency
 	err := isDevIDResidencyInfoComplete(attData)
 	if err != nil {
@@ -276,46 +278,46 @@ func verifyDevIDResidency(attData *devid.AttestationRequest, ekRoots *x509.CertP
 	// Decode attestation data
 	ekCert, err := x509.ParseCertificate(attData.EKCert)
 	if err != nil {
-		return nil, nil, devid.Error("cannot parse endorsement certificate: %w", err)
+		return nil, nil, common_devid.Error(codes.InvalidArgument, "cannot parse endorsement certificate: %w", err)
 	}
 
 	devIDPub, err := tpm2.DecodePublic(attData.DevIDPub)
 	if err != nil {
-		return nil, nil, devid.Error("cannot decode public DevID: %v", err)
+		return nil, nil, common_devid.Error(codes.InvalidArgument, "cannot decode public DevID: %v", err)
 	}
 
 	akPub, err := tpm2.DecodePublic(attData.AKPub)
 	if err != nil {
-		return nil, nil, devid.Error("cannot to decode attestation key")
+		return nil, nil, common_devid.Error(codes.InvalidArgument, "cannot to decode attestation key")
 	}
 
 	ekPub, err := tpm2.DecodePublic(attData.EKPub)
 	if err != nil {
-		return nil, nil, devid.Error("cannot decode endorsement key")
+		return nil, nil, common_devid.Error(codes.InvalidArgument, "cannot decode endorsement key")
 	}
 
 	// 1. Verify DevID resides in the same TPM than AK
 	err = verifyDevIDCertification(&akPub, &devIDPub, attData.CertifiedDevID, attData.CertificationSignature)
 	if err != nil {
-		return nil, nil, devid.Error("cannot to verify that DevID is in the same TPM than AK: %v", err)
+		return nil, nil, common_devid.Error(codes.Unauthenticated, "cannot to verify that DevID is in the same TPM than AK: %v", err)
 	}
 
 	// 2. Issue a credential activation challenge (to verify AK is in the same TPM than EK)
 	challenge, nonce, err := newCredActivationChallenge(akPub, ekPub)
 	if err != nil {
-		return nil, nil, devid.Error("cannot generate credential activation challenge")
+		return nil, nil, common_devid.Error(codes.Internal, "cannot generate credential activation challenge")
 	}
 
 	// 3. Verify EK chain of trust using the provided manufacturer roots.
 	err = verifyEKSignature(ekCert, ekRoots)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, common_devid.Error(codes.Unauthenticated, "cannot verify EK signature: %w", err)
 	}
 
 	return challenge, nonce, nil
 }
 
-func isDevIDResidencyInfoComplete(attReq *devid.AttestationRequest) error {
+func isDevIDResidencyInfoComplete(attReq *common_devid.AttestationRequest) error {
 	if len(attReq.AKPub) == 0 {
 		return fmt.Errorf("missing attestation public key")
 	}

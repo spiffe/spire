@@ -1,9 +1,9 @@
 package devid
 
 import (
-	"fmt"
-
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const PluginName = "devid"
@@ -36,17 +36,17 @@ type ChallengeResponse struct {
 	CredActivation []byte
 }
 
-func Error(format string, args ...interface{}) error {
-	return fmt.Errorf("devid: "+format, args...)
+func Error(code codes.Code, format string, args ...interface{}) error {
+	return status.Errorf(code, "devid: "+format, args...)
 }
 
 func ValidateGlobalConfig(c *plugin.ConfigureRequest_GlobalConfig) error {
 	if c == nil {
-		return Error("global configuration is required")
+		return Error(codes.InvalidArgument, "global configuration is required")
 	}
 
 	if c.TrustDomain == "" {
-		return Error("trust_domain is required")
+		return Error(codes.InvalidArgument, "trust_domain is required")
 	}
 	return nil
 }

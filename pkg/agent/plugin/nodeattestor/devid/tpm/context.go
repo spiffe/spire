@@ -11,7 +11,8 @@ import (
 )
 
 // EKRSACertificateHandle is the default handle for RSA endorsement key according
-// to TCG specification.
+// to the TCG TPM v2.0 Provisioning Guidance, section 7.8
+// https://trustedcomputinggroup.org/resource/tcg-tpm-v2-0-provisioning-guidance/
 const ekRSACertificateHandle = tpmutil.Handle(0x01c00002)
 
 // Context represent a TPM context and exposes functions to operate the TPM.
@@ -33,7 +34,7 @@ type Context struct {
 // Open opens a new connection to a TPM. Path could be the path to a device
 // or to an unix domain socket. The returned TPM context must be closed when it
 // is no longer used.
-func Open(path string) (*Context, error) {
+func Open(path string, log hclog.Logger) (*Context, error) {
 	rwc, err := tpm2.OpenTPM(path)
 	if err != nil {
 		return nil, err
@@ -41,6 +42,7 @@ func Open(path string) (*Context, error) {
 
 	return &Context{
 		rwc: rwc,
+		log: log,
 	}, nil
 }
 
@@ -66,11 +68,6 @@ func (c *Context) Close() {
 			c.log.Warn(fmt.Sprintf("Failed to close TPM: %v", err))
 		}
 	}
-}
-
-// SetLogger sets the TPM context logger
-func (c *Context) SetLogger(logger hclog.Logger) {
-	c.log = logger
 }
 
 // SolveDevIDChallenge request the TPM to sign the provided nonce using the loaded
