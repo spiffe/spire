@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -49,6 +51,8 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 			return false
 		}
 
+		resp.Entries = it.filterEntries(resp.Entries)
+
 		it.next = 0
 		it.entries, err = api.RegistrationEntriesToProto(resp.Entries)
 		if err != nil {
@@ -61,6 +65,23 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 	}
 	it.next++
 	return true
+}
+
+func (it *entryIteratorDS) filterEntries(in []*common.RegistrationEntry) []*common.RegistrationEntry {
+	out := make([]*common.RegistrationEntry, 0, len(in))
+	for _, entry := range in {
+		// Filter out entries with invalid SPIFFE IDs. Operators are notified
+		// that they are ignored on server startup (see
+		// pkg/server/scanentries.go)
+		if err := idutil.CheckIDStringNormalization(entry.SpiffeId); err != nil {
+			continue
+		}
+		if err := idutil.CheckIDStringNormalization(entry.ParentId); err != nil {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 func (it *entryIteratorDS) Entry() *types.Entry {

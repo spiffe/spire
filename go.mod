@@ -54,7 +54,7 @@ require (
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.4
+	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5
 	github.com/spiffe/spire/proto/spire v0.10.1
 	github.com/stretchr/testify v1.5.1
 	github.com/uber-go/tally v3.3.12+incompatible

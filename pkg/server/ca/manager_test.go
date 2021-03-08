@@ -606,6 +606,13 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 			checkJWTKey:   expectEC384,
 		},
 		{
+			name:          "self-signed JWT with RSA 2048 and X509 with EC P384",
+			x509CAKeyType: keymanager.KeyType_EC_P384,
+			jwtKeyType:    keymanager.KeyType_RSA_2048,
+			checkX509CA:   expectEC384,
+			checkJWTKey:   expectRSA2048,
+		},
+		{
 			name:              "upstream-signed with defaults",
 			upstreamAuthority: upstreamAuthority,
 			checkX509CA:       expectEC256,

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path"
 	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -332,7 +331,7 @@ func AgentURI(trustDomain, p string) *url.URL {
 	return &url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
-		Path:   path.Join("spire", "agent", p),
+		Path:   "/spire/agent" + ensureLeadingSlash(p),
 	}
 }
 
