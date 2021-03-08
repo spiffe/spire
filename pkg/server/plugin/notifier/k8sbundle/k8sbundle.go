@@ -171,12 +171,13 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 	// Start watcher to set CA Bundle in objects created after server has started
 	var cancelWatcher func()
 	if config.WebhookLabel != "" {
-		watcher, err := newBundleWatcher(p, config)
+		ctx, cancel := context.WithCancel(context.Background())
+		watcher, err := newBundleWatcher(ctx, p, config)
 		if err != nil {
+			cancel()
 			return err
 		}
 		var wg sync.WaitGroup
-		ctx, cancel := context.WithCancel(context.Background())
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
