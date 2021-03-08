@@ -93,12 +93,24 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure sets up the plugin
 func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	// cancels previous schedule delete task in case of re configure
-	if p.cancelScheduleDelete != nil {
-		p.cancelScheduleDelete()
+	config, err := parseAndValidateConfig(req.Configuration)
+	if err != nil {
+		return nil, err
 	}
 
-	config, err := validateConfig(req.Configuration)
+	kp := config.KeyPrefix
+	kc, err := p.hooks.newClient(ctx, config)
+	if err != nil {
+		return nil, newErrorf(codes.Internal, "failed to create KMS client: %v", err)
+	}
+
+	fetcher := &keyFetcher{
+		log:       p.log,
+		kmsClient: kc,
+		keyPrefix: kp,
+	}
+	p.log.Debug("Fetching key aliases from KMS")
+	keyEntries, err := fetcher.fetchKeyEntries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -106,18 +118,16 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.keyPrefix = config.KeyPrefix
-	p.kmsClient, err = p.hooks.newClient(ctx, config)
-	if err != nil {
-		return nil, newErrorf(codes.Internal, "failed to create KMS client: %v", err)
+	p.setCache(keyEntries)
+	p.keyPrefix = kp
+	p.kmsClient = kc
+
+	// cancels previous schedule delete task in case of re configure
+	if p.cancelScheduleDelete != nil {
+		p.cancelScheduleDelete()
 	}
 
-	p.log.Debug("Fetching key aliases from KMS")
-	err = p.buildCache(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+	// schedule a new delete task
 	ctx, p.cancelScheduleDelete = context.WithCancel(context.Background())
 	go p.scheduleDeleteTask(ctx)
 
@@ -137,45 +147,20 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 	defer p.mu.Unlock()
 
 	spireKeyID := req.KeyId
-	newEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
+	newKeyEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
 	if err != nil {
 		return nil, err
 	}
 
-	p.log.Debug("Key created", keyIDTag, newEntry.KMSKeyID)
-	oldEntry, hasOldEntry := p.entries[spireKeyID]
-
-	if !hasOldEntry {
-		//create alias
-		_, err = p.kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
-			AliasName:   aws.String(newEntry.Alias),
-			TargetKeyId: &newEntry.KMSKeyID,
-		})
-		if err != nil {
-			return nil, newErrorf(codes.Internal, "failed to create alias: %v", err)
-		}
-		p.log.Debug("Alias created", aliasTag, newEntry.Alias)
-	} else {
-		//update alias
-		_, err = p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
-			AliasName:   aws.String(newEntry.Alias),
-			TargetKeyId: &newEntry.KMSKeyID,
-		})
-		if err != nil {
-			return nil, newErrorf(codes.Internal, "failed to update alias: %v", err)
-		}
-		p.log.Debug("Alias updated", aliasTag, newEntry.Alias)
-
-		p.scheduleDelete <- oldEntry.KMSKeyID
-	}
-
-	err = p.setEntry(spireKeyID, newEntry)
+	err = p.assignAlias(ctx, newKeyEntry)
 	if err != nil {
-		return nil, newError(codes.Internal, err.Error())
+		return nil, err
 	}
+
+	p.entries[spireKeyID] = *newKeyEntry
 
 	return &keymanager.GenerateKeyResponse{
-		PublicKey: newEntry.PublicKey,
+		PublicKey: newKeyEntry.PublicKey,
 	}, nil
 }
 
@@ -250,39 +235,11 @@ func (p *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func (p *Plugin) setEntry(spireKeyID string, entry keyEntry) error {
-	if spireKeyID == "" {
-		return errors.New("spire key id is required")
-	}
-	if entry.KMSKeyID == "" {
-		return fmt.Errorf("kms key id missing for SPIRE key id %q", spireKeyID)
-	}
-	if entry.Alias == "" {
-		return errors.New("alias is required")
-	}
-	if entry.PublicKey == nil {
-		return errors.New("public key is required")
-	}
-	if entry.PublicKey.Id == "" {
-		return errors.New("public key id is required")
-	}
-	if entry.PublicKey.Type == keymanager.KeyType_UNSPECIFIED_KEY_TYPE {
-		return errors.New("public key type is required")
-	}
-	if entry.PublicKey.PkixData == nil || len(entry.PublicKey.PkixData) == 0 {
-		return errors.New("public key pkix data is required")
-	}
-
-	p.entries[spireKeyID] = entry
-	return nil
-}
-
-func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanager.KeyType) (keyEntry, error) {
-	res := keyEntry{}
+func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanager.KeyType) (*keyEntry, error) {
 	description := p.descriptionFromSpireKeyID(spireKeyID)
 	keySpec, ok := keySpecFromKeyType(keyType)
 	if !ok {
-		return res, newErrorf(codes.Internal, "unsupported key type: %v", keyType)
+		return nil, newErrorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
 
 	createKeyInput := &kms.CreateKeyInput{
@@ -293,15 +250,19 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 
 	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
 	if err != nil {
-		return res, newErrorf(codes.Internal, "failed to create key: %v", err)
+		return nil, newErrorf(codes.Internal, "failed to create key: %v", err)
 	}
+	p.log.Debug("Key created", keyIDTag, key.KeyMetadata.KeyId)
 
 	pub, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: key.KeyMetadata.KeyId})
 	if err != nil {
-		return res, newErrorf(codes.Internal, "failed to get public key: %v", err)
+		return nil, newErrorf(codes.Internal, "failed to get public key: %v", err)
+	}
+	if pub == nil || pub.KeyId == nil || pub.PublicKey == nil || len(pub.PublicKey) == 0 {
+		return nil, newError(codes.Internal, "malformed public key")
 	}
 
-	return keyEntry{
+	return &keyEntry{
 		KMSKeyID: *pub.KeyId,
 		Alias:    p.aliasFromSpireKeyID(spireKeyID),
 		PublicKey: &keymanager.PublicKey{
@@ -312,111 +273,49 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	}, nil
 }
 
-func (p *Plugin) fetchKeyEntry(ctx context.Context, aliasName string, spireKeyID string) (*keyEntry, error) {
-	describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: &aliasName})
-	if err != nil {
-		return nil, newErrorf(codes.Internal, "failed to describe key: %v", err)
-	}
+func (p *Plugin) assignAlias(ctx context.Context, entry *keyEntry) error {
+	oldEntry, hasOldEntry := p.entries[entry.PublicKey.Id]
 
-	if !describeResp.KeyMetadata.Enabled {
-		// this means something external to the plugin, deleted or disabled the key without removing the alias
-		// returning an error provides the opportunity or reverting this in KMS
-		return nil, newErrorf(codes.FailedPrecondition, "found disabled SPIRE key: %q, alias: %q", *describeResp.KeyMetadata.KeyId, aliasName)
-	}
-
-	if describeResp.KeyMetadata.KeyId == nil {
-		return nil, newErrorf(codes.FailedPrecondition, "found SPIRE alias without key: %q", aliasName)
-	}
-
-	keyType, ok := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
-	if !ok {
-		return nil, newErrorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec)
-	}
-
-	getPublicKeyResp, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: &aliasName})
-	if err != nil {
-		return nil, newErrorf(codes.Internal, "failed to get public key: %v", err)
-	}
-
-	return &keyEntry{
-		KMSKeyID: *describeResp.KeyMetadata.KeyId,
-		Alias:    aliasName,
-		PublicKey: &keymanager.PublicKey{
-			Id:       spireKeyID,
-			Type:     keyType,
-			PkixData: getPublicKeyResp.PublicKey,
-		},
-	}, err
-}
-
-func (p *Plugin) fetchAliasesPages(ctx context.Context) ([]*keyEntry, error) {
-	var keyEntries []*keyEntry
-	keyEntriesMutex := &sync.Mutex{}
-	paginator := kms.NewListAliasesPaginator(p.kmsClient, &kms.ListAliasesInput{})
-	g, ctx := errgroup.WithContext(ctx)
-
-	for {
-		aliasesResp, err := paginator.NextPage(ctx)
+	if !hasOldEntry {
+		// create alias
+		_, err := p.kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
+			AliasName:   aws.String(entry.Alias),
+			TargetKeyId: &entry.KMSKeyID,
+		})
 		if err != nil {
-			return nil, newErrorf(codes.Internal, "failed to build cache of KMS keys: failed to fetch keys: %v", err)
+			return newErrorf(codes.Internal, "failed to create alias: %v", err)
 		}
-		p.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
-
-		for _, alias := range aliasesResp.Aliases {
-			spireKeyID, ok := p.spireKeyIDFromAlias(alias)
-			if !ok {
-				continue
-			}
-			if alias.TargetKeyId == nil {
-				// this means something external to the plugin created the alias, without associating it to a key.
-				// it should never happen with CMKs.
-				return nil, newErrorf(codes.FailedPrecondition, "failed to build cache of KMS keys: found SPIRE alias without key: %q", *alias.AliasName)
-			}
-
-			aliasName := *alias.AliasName
-			g.Go(func() error {
-				entry, err := p.fetchKeyEntry(ctx, aliasName, spireKeyID)
-				if err != nil {
-					return err
-				}
-				keyEntriesMutex.Lock()
-				keyEntries = append(keyEntries, entry)
-				keyEntriesMutex.Unlock()
-				return nil
-			})
+		p.log.Debug("Alias created", aliasTag, entry.Alias)
+	} else {
+		// update alias
+		_, err := p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
+			AliasName:   aws.String(entry.Alias),
+			TargetKeyId: &entry.KMSKeyID,
+		})
+		if err != nil {
+			return newErrorf(codes.Internal, "failed to update alias: %v", err)
 		}
+		p.log.Debug("Alias updated", aliasTag, entry.Alias)
 
-		if !paginator.HasMorePages() {
-			break
+		select {
+		case p.scheduleDelete <- oldEntry.KMSKeyID:
+			p.log.Debug("Key enqueued for deletion", keyIDTag, oldEntry.KMSKeyID)
+		default:
+			p.log.Debug("Failed to enqueue key for deletion", keyIDTag, oldEntry.KMSKeyID)
 		}
 	}
-
-	if err := g.Wait(); err != nil {
-		statusErr := status.Convert(err)
-		return nil, newErrorf(statusErr.Code(), "failed to build cache of KMS keys: %v", statusErr.Message())
-	}
-
-	return keyEntries, nil
+	return nil
 }
 
-// buildCache gets all aliases from KMS and builds an in memory representation with the ones that belong to the current server
-// for each key that belongs to the server we will trigger a gouroutine that gets the extra information
-func (p *Plugin) buildCache(ctx context.Context) error {
-	keyEntries, err := p.fetchAliasesPages(ctx)
-	if err != nil {
-		return err
-	}
+func (p *Plugin) setCache(keyEntries []*keyEntry) {
+	// clean previous cache
+	p.entries = make(map[string]keyEntry)
 
-	//add results to cache
+	// add results to cache
 	for _, e := range keyEntries {
-		err := p.setEntry(e.PublicKey.Id, *e)
-		if err != nil {
-			return newError(codes.Internal, err.Error())
-		}
+		p.entries[e.PublicKey.Id] = *e
 		p.log.Debug("Key loaded", keyIDTag, e.KMSKeyID, aliasTag, e.Alias)
 	}
-
-	return nil
 }
 
 // scheduleDeleteTask ia a long running task that deletes keys that were rotated
@@ -460,25 +359,17 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 			}
 
 			log.Error("It was not possible to schedule key for deletion", "reason", err)
-			p.scheduleDelete <- keyID
+			select {
+			case p.scheduleDelete <- keyID:
+				log.Debug("Key re-enqueued for deletion")
+			default:
+				log.Error("Failed to re-enqueue key for deletion")
+			}
 			p.notifyDelete()
 			backoff = min(backoff*2, backoffMax)
 			time.Sleep(backoff)
 		}
 	}
-}
-
-func (p *Plugin) spireKeyIDFromAlias(alias types.AliasListEntry) (string, bool) {
-	if alias.AliasName == nil {
-		p.log.Warn("Found alias without a name")
-		return "", false
-	}
-
-	prefix := aliasPrefix + p.keyPrefix
-	if !strings.HasPrefix(*alias.AliasName, prefix) {
-		return "", false
-	}
-	return strings.TrimPrefix(*alias.AliasName, prefix), true
 }
 
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
@@ -495,8 +386,120 @@ func (p *Plugin) notifyDelete() {
 	}
 }
 
-// validateConfig returns an error if any configuration provided does not meet acceptable criteria
-func validateConfig(c string) (*Config, error) {
+type keyFetcher struct {
+	log       hclog.Logger
+	kmsClient kmsClient
+	keyPrefix string
+}
+
+func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) {
+	var keyEntries []*keyEntry
+	var keyEntriesMutex sync.Mutex
+	paginator := kms.NewListAliasesPaginator(kf.kmsClient, &kms.ListAliasesInput{})
+	g, ctx := errgroup.WithContext(ctx)
+
+	for {
+		aliasesResp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, newErrorf(codes.Internal, "failed to fetch aliases: failed to fetch keys: %v", err)
+		}
+		kf.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
+
+		for _, alias := range aliasesResp.Aliases {
+			spireKeyID, ok := kf.spireKeyIDFromAlias(alias)
+			// ignore aliases/keys not belonging to this server
+			if !ok {
+				continue
+			}
+			if alias.TargetKeyId == nil {
+				// this means something external to the plugin created the alias, without associating it to a key.
+				// it should never happen with CMKs.
+				return nil, newErrorf(codes.FailedPrecondition, "failed to fetch aliases: found SPIRE alias without key: %q", *alias.AliasName)
+			}
+
+			aliasName := *alias.AliasName
+			// trigger a goroutine to get the details of the key
+			g.Go(func() error {
+				entry, err := kf.fetchKeyEntryDetails(ctx, aliasName, spireKeyID)
+				if err != nil {
+					return err
+				}
+
+				keyEntriesMutex.Lock()
+				keyEntries = append(keyEntries, entry)
+				keyEntriesMutex.Unlock()
+				return nil
+			})
+		}
+
+		if !paginator.HasMorePages() {
+			break
+		}
+	}
+
+	// wait for all the detail gathering routines to finish
+	if err := g.Wait(); err != nil {
+		statusErr := status.Convert(err)
+		return nil, newErrorf(statusErr.Code(), "failed to fetch aliases: %v", statusErr.Message())
+	}
+
+	return keyEntries, nil
+}
+
+func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, aliasName string, spireKeyID string) (*keyEntry, error) {
+	describeResp, err := kf.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: &aliasName})
+	switch {
+	case err != nil:
+		return nil, newErrorf(codes.Internal, "failed to describe key: %v", err)
+	case describeResp == nil || describeResp.KeyMetadata == nil:
+		return nil, newError(codes.Internal, "malformed describe key response")
+	case !describeResp.KeyMetadata.Enabled:
+		// this means something external to the plugin, deleted or disabled the key without removing the alias
+		// returning an error provides the opportunity or reverting this in KMS
+		return nil, newErrorf(codes.FailedPrecondition, "found disabled SPIRE key: %q, alias: %q", *describeResp.KeyMetadata.KeyId, aliasName)
+	case describeResp.KeyMetadata.KeyId == nil:
+		return nil, newErrorf(codes.FailedPrecondition, "found SPIRE alias without key: %q", aliasName)
+	}
+
+	keyType, ok := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
+	if !ok {
+		return nil, newErrorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec)
+	}
+
+	publicKeyResp, err := kf.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: &aliasName})
+	switch {
+	case err != nil:
+		return nil, newErrorf(codes.Internal, "failed to get public key: %v", err)
+	case publicKeyResp == nil || publicKeyResp.PublicKey == nil || len(publicKeyResp.PublicKey) == 0:
+		return nil, newError(codes.Internal, "malformed get public key response")
+	}
+
+	return &keyEntry{
+		KMSKeyID: *describeResp.KeyMetadata.KeyId,
+		Alias:    aliasName,
+		PublicKey: &keymanager.PublicKey{
+			Id:       spireKeyID,
+			Type:     keyType,
+			PkixData: publicKeyResp.PublicKey,
+		},
+	}, nil
+}
+
+func (kf *keyFetcher) spireKeyIDFromAlias(alias types.AliasListEntry) (string, bool) {
+	if alias.AliasName == nil {
+		kf.log.Warn("Found alias without a name")
+		return "", false
+	}
+
+	prefix := aliasPrefix + kf.keyPrefix
+	if !strings.HasPrefix(*alias.AliasName, prefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(*alias.AliasName, prefix), true
+}
+
+// parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
+func parseAndValidateConfig(c string) (*Config, error) {
 	config := new(Config)
 
 	if err := hcl.Decode(config, c); err != nil {

@@ -3,10 +3,6 @@ package awskms
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -17,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/spiffe/spire/test/testkey"
 )
 
 type fakeKeyEntry struct {
@@ -59,21 +56,26 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 
 	var privateKey crypto.PrivateKey
 	var publicKey crypto.PublicKey
-	var err error
+
 	switch input.CustomerMasterKeySpec {
 	case types.CustomerMasterKeySpecEccNistP256:
-		privateKey, publicKey, err = generateECKey(elliptic.P256())
+		key := testkey.NewEC256(k.t)
+		privateKey = key
+		publicKey = &key.PublicKey
 	case types.CustomerMasterKeySpecEccNistP384:
-		privateKey, publicKey, err = generateECKey(elliptic.P384())
+		key := testkey.NewEC384(k.t)
+		privateKey = key
+		publicKey = &key.PublicKey
 	case types.CustomerMasterKeySpecRsa2048:
-		privateKey, publicKey, err = generateRSAKey(2048)
+		key := testkey.NewRSA2048(k.t)
+		privateKey = key
+		publicKey = &key.PublicKey
 	case types.CustomerMasterKeySpecRsa4096:
-		privateKey, publicKey, err = generateRSAKey(4096)
+		key := testkey.NewRSA4096(k.t)
+		privateKey = key
+		publicKey = &key.PublicKey
 	default:
 		return nil, fmt.Errorf("unknown key type %q", input.CustomerMasterKeySpec)
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	pkixData, err := x509.MarshalPKIXPublicKey(publicKey)
@@ -296,20 +298,4 @@ func (k *kmsClientFake) setSignDataErr(fakeError string) {
 	if fakeError != "" {
 		k.signErr = errors.New(fakeError)
 	}
-}
-
-func generateRSAKey(bits int) (*rsa.PrivateKey, *rsa.PublicKey, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
-	if err != nil {
-		return nil, nil, err
-	}
-	return privateKey, &privateKey.PublicKey, nil
-}
-
-func generateECKey(curve elliptic.Curve) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
-	privateKey, err := ecdsa.GenerateKey(curve, rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-	return privateKey, &privateKey.PublicKey, nil
 }

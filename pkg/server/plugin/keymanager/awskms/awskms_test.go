@@ -183,7 +183,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "get public key error",
-			err:              "awskms: failed to build cache of KMS keys: awskms: failed to get public key: get public key error",
+			err:              "awskms: failed to fetch aliases: awskms: failed to get public key: get public key error",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -199,7 +199,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "alias without a key",
-			err:              "awskms: failed to build cache of KMS keys: found SPIRE alias without key: \"alias/SPIRE_SERVER_KEY/no_key\"",
+			err:              "awskms: failed to fetch aliases: found SPIRE alias without key: \"alias/SPIRE_SERVER_KEY/no_key\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -221,7 +221,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "disabled key",
-			err:              "awskms: failed to build cache of KMS keys: awskms: found disabled SPIRE key: \"abcd-fghi\", alias: \"alias/SPIRE_SERVER_KEY/spireKeyID\"",
+			err:              "awskms: failed to fetch aliases: awskms: found disabled SPIRE key: \"abcd-fghi\", alias: \"alias/SPIRE_SERVER_KEY/spireKeyID\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -486,6 +486,14 @@ func TestGenerateKey(t *testing.T) {
 						"subsystem_name": "built-in_plugin.awskms",
 					},
 				},
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Key re-enqueued for deletion",
+					Data: logrus.Fields{
+						"key_id":         "abcd-fghi",
+						"subsystem_name": "built-in_plugin.awskms",
+					},
+				},
 			},
 		},
 	} {
@@ -517,7 +525,7 @@ func TestGenerateKey(t *testing.T) {
 
 			if tt.waitForDelete {
 				<-ts.plugin.hooks.deleteSignal
-				spiretest.AssertLogs(t, []*logrus.Entry{ts.logHook.LastEntry()}, tt.logs)
+				spiretest.AssertLastLogs(t, ts.logHook.AllEntries(), tt.logs)
 			}
 		})
 	}
