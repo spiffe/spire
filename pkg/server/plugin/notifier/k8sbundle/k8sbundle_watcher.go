@@ -9,9 +9,10 @@ import (
 )
 
 type bundleWatcher struct {
-	p       *Plugin
-	clients []kubeClient
-	config  *pluginConfig
+	p        *Plugin
+	clients  []kubeClient
+	watchers []watch.Interface
+	config   *pluginConfig
 
 	hooks struct {
 		watch func(ctx context.Context) error
@@ -19,19 +20,23 @@ type bundleWatcher struct {
 }
 
 // newBundleWatcher creates a new watcher for newly created objects
-func newBundleWatcher(p *Plugin, config *pluginConfig) (*bundleWatcher, error) {
+func newBundleWatcher(ctx context.Context, p *Plugin, config *pluginConfig) (*bundleWatcher, error) {
 	clients, err := p.hooks.newKubeClient(config)
+	if err != nil {
+		return nil, err
+	}
+	watchers, clients, err := newWatchers(ctx, clients, config)
 	if err != nil {
 		return nil, err
 	}
 
 	watcher := &bundleWatcher{
-		p:       p,
-		clients: clients,
-		config:  config,
+		p:        p,
+		clients:  clients,
+		config:   config,
+		watchers: watchers,
 	}
 	watcher.hooks.watch = watcher.watch
-
 	return watcher, nil
 }
 
@@ -42,19 +47,15 @@ func (b *bundleWatcher) Watch(ctx context.Context) error {
 
 // watch watches for new objects that are created with the proper selector and updates the CA Bundle
 func (b *bundleWatcher) watch(ctx context.Context) error {
-	watchers, err := b.newWatchers(ctx)
-	if err != nil {
-		return err
-	}
-
-	selectCase := newSelectCase(ctx, watchers)
+	selectCase := newSelectCase(ctx, b.watchers)
 	for {
 		chosen, recv, _ := reflect.Select(selectCase)
 		if chosen < len(b.clients) {
-			if err = b.watchEvent(ctx, b.clients[chosen], recv.Interface().(watch.Event)); err != nil {
+			if err := b.watchEvent(ctx, b.clients[chosen], recv.Interface().(watch.Event)); err != nil {
 				return k8sErr.New("handling watch event: %v", err)
 			}
 		} else {
+			// The context is the last element in the array
 			return ctx.Err()
 		}
 	}
@@ -77,32 +78,32 @@ func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event
 }
 
 // newWatchers creates a watcher array for all of the clients
-func (b *bundleWatcher) newWatchers(ctx context.Context) ([]watch.Interface, error) {
+func newWatchers(ctx context.Context, clients []kubeClient, config *pluginConfig) ([]watch.Interface, []kubeClient, error) {
 	watchers := []watch.Interface{}
-	for _, client := range b.clients {
-		watcher, err := client.Watch(ctx, b.config)
+	validClients := []kubeClient{}
+	for _, client := range clients {
+		watcher, err := client.Watch(ctx, config)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		watchers = append(watchers, watcher)
+		if watcher != nil {
+			watchers = append(watchers, watcher)
+			validClients = append(validClients, client)
+		}
 	}
-	return watchers, nil
+	return watchers, validClients, nil
 }
 
+// newSelectCase creates the SelectCase array used by reflect.Select
 func newSelectCase(ctx context.Context, watchers []watch.Interface) []reflect.SelectCase {
 	selectCase := []reflect.SelectCase{}
 	for _, watcher := range watchers {
-		if watcher != nil {
-			selectCase = append(selectCase, reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(watcher.ResultChan()),
-			})
-		} else {
-			selectCase = append(selectCase, reflect.SelectCase{
-				Dir: reflect.SelectRecv,
-			})
-		}
+		selectCase = append(selectCase, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(watcher.ResultChan()),
+		})
 	}
+	// Add the context as the last element in the array
 	selectCase = append(selectCase, reflect.SelectCase{
 		Dir:  reflect.SelectRecv,
 		Chan: reflect.ValueOf(ctx.Done()),

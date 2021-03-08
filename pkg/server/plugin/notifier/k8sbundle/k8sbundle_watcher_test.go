@@ -18,19 +18,19 @@ func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
 
 	s.configure("")
 
-	_, err := newBundleWatcher(s.raw, s.raw.config)
+	_, err := newBundleWatcher(context.TODO(), s.raw, s.raw.config)
 	s.Require().Equal(err.Error(), "kube client not configured")
 }
 
 func (s *Suite) TestBundleWatchersStartsAndStops() {
 	s.configure("")
 
+	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error)
 	watcherStarted := make(chan struct{})
-	watcher, err := newBundleWatcher(s.raw, s.raw.config)
+	watcher, err := newBundleWatcher(ctx, s.raw, s.raw.config)
 	s.Require().NoError(err)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	watcher.hooks.watch = func(ctx context.Context) error {
 		watcherStarted <- struct{}{}
 		<-ctx.Done()
