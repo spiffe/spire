@@ -201,6 +201,8 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 }
 
 // updateBundles iterates through all the objects that need an updated CA bundle
+// If an error is an encountered updating the bundle for an object, we record the
+// error and continue on to the next object
 func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error) {
 	clients, err := p.hooks.newKubeClient(c)
 	if err != nil {
@@ -222,7 +224,8 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 		for _, item := range listItems {
 			itemMeta, err := meta.Accessor(item)
 			if err != nil {
-				return err
+				updateErrs += fmt.Sprintf("unable to extract metadata for item: %v, ", err)
+				continue
 			}
 			if err := p.updateBundle(ctx, c, client, itemMeta.GetNamespace(), itemMeta.GetName()); err != nil {
 				updateErrs += fmt.Sprintf("%s: %v, ", namespacedName(itemMeta), err)
