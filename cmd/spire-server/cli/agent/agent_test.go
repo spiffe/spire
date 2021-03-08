@@ -220,7 +220,7 @@ func TestShow(t *testing.T) {
 			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent2"},
 			existentAgents:     testAgentsWithSelectors,
 			expectedReturnCode: 0,
-			expectedStdout:     "Selectors     : k8s_psat:agent_ns:spire\nSelectors     : k8s_psat:agent_sa:spire-agent\nSelectors     : k8s_psat:cluster:demo-cluster",
+			expectedStdout:     "Selectors         : k8s_psat:agent_ns:spire\nSelectors         : k8s_psat:agent_sa:spire-agent\nSelectors         : k8s_psat:cluster:demo-cluster",
 		},
 	} {
 		tt := tt

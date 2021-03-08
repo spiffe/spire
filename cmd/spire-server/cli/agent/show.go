@@ -62,10 +62,8 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		return err
 	}
 
-	if agent.Selectors != nil {
-		for _, s := range agent.Selectors {
-			env.Printf("Selectors     : %s:%s\n", s.Type, s.Value)
-		}
+	for _, s := range agent.Selectors {
+		env.Printf("Selectors         : %s:%s\n", s.Type, s.Value)
 	}
 	return nil
 }
