@@ -482,6 +482,19 @@ func TestStoreSVIDs(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:          "Invalid federated trust domain",
+			selectors:     []*common.Selector{{Type: plugName, Value: "a:1"}},
+			federatedWith: []string{"speffe://bar.domain"},
+			expectLog: spiretest.LogEntry{
+				Level:   logrus.WarnLevel,
+				Message: "Invalid federated trust domain",
+				Data: logrus.Fields{
+					logrus.ErrorKey:         "spiffeid: invalid scheme",
+					telemetry.TrustDomainID: "speffe://bar.domain",
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -497,7 +510,6 @@ func TestStoreSVIDs(t *testing.T) {
 				Bundles:             bundles,
 				RegistrationEntries: makeRegistrationEntries(foo),
 			}, nil)
-			// We dont want logs from entry creation
 
 			x509SVIDs := makeX509SVIDs(foo)
 			svid := x509SVIDs[foo.EntryId]
@@ -514,27 +526,32 @@ func TestStoreSVIDs(t *testing.T) {
 				X509SVIDs: x509SVIDs,
 			})
 
+			// Verify logs
+			spiretest.AssertLogs(t, []*logrus.Entry{logHook.LastEntry()}, []spiretest.LogEntry{tt.expectLog})
+
+			if tt.expectFail {
+				assert.Nil(t, pipeIn.update)
+				return
+			}
+
 			federatedBundles := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
 			for _, id := range tt.federatedWith {
-				td := spiffeid.RequireTrustDomainFromString(id)
-				b, ok := bundles[td]
-				if ok {
+				// No verifying TD, intentionally,
+				// to verify scenary where malformed TD is provided
+				td, _ := spiffeid.TrustDomainFromString(id)
+
+				if b, ok := bundles[td]; ok {
 					federatedBundles[td] = b
 				}
 			}
-
 			expected := &pipe.SVIDUpdate{
 				Entry:            foo,
 				SVID:             svid.Chain,
 				Bundle:           bundles[spiffeid.RequireTrustDomainFromString(bundleV1.TrustDomainID())],
 				FederatedBundles: federatedBundles,
 			}
-			if tt.expectFail {
-				assert.Nil(t, pipeIn.update)
-			} else {
-				assert.Equal(t, expected, pipeIn.update)
-			}
-			spiretest.AssertLogs(t, []*logrus.Entry{logHook.LastEntry()}, []spiretest.LogEntry{tt.expectLog})
+
+			assert.Equal(t, expected, pipeIn.update)
 		})
 	}
 }
@@ -546,7 +563,6 @@ type fakePipeIn struct {
 }
 
 func (p *fakePipeIn) Push(update *pipe.SVIDUpdate) {
-	fmt.Printf("updating: %v", update)
 	p.update = update
 }
 
