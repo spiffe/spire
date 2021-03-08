@@ -959,12 +959,14 @@ func TestNewServerConfig(t *testing.T) {
 						logger.SetOutput(ioutil.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
-							require.Len(t, hook.AllEntries(), 1)
-							entry := hook.LastEntry()
-							assert.Equal(t, logrus.WarnLevel, entry.Level)
-							assert.Equal(t,
-								"Configured trust domain should be less than 255 characters to be SPIFFE compliant",
-								entry.Message)
+							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+									Level: logrus.WarnLevel,
+									Message: "Configured trust domain name should be less than 255 characters to be " +
+										"SPIFFE compliant; a longer trust domain name may impact interoperability",
+								},
+							})
 						})
 						return nil
 					},

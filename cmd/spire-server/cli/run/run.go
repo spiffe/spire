@@ -366,17 +366,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 
-	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility
-	if len(c.Server.TrustDomain) > common_cli.MaxTrustDomainLength {
-		logger.Warnf("Configured trust domain should be less than %d characters to be SPIFFE compliant",
-			common_cli.MaxTrustDomainLength)
-	}
-
-	trustDomain, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
+	td, err := common_cli.ParseTrustDomain(c.Server.TrustDomain, logger)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Server.TrustDomain, err)
+		return nil, err
 	}
-	sc.TrustDomain = trustDomain
+	sc.TrustDomain = td
 
 	if c.Server.RateLimit.Attestation == nil {
 		c.Server.RateLimit.Attestation = &defaultRateLimitAttestation

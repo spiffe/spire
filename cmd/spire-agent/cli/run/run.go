@@ -21,7 +21,6 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -367,15 +366,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.Log = logger
 
-	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility
-	if len(c.Agent.TrustDomain) > common_cli.MaxTrustDomainLength {
-		logger.Warnf("Configured trust domain should be less than %d characters to be SPIFFE compliant",
-			common_cli.MaxTrustDomainLength)
-	}
-
-	td, err := spiffeid.TrustDomainFromString(c.Agent.TrustDomain)
+	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Agent.TrustDomain, err)
+		return nil, err
 	}
 	ac.TrustDomain = td
 
