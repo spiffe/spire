@@ -453,14 +453,11 @@ type fakeKubeClient struct {
 	mu         sync.RWMutex
 	configMaps map[string]*corev1.ConfigMap
 	patchErr   error
-	fakeWatch  *watch.FakeWatcher
-	watchLabel string
 }
 
 func newFakeKubeClient(configMaps ...*corev1.ConfigMap) *fakeKubeClient {
 	c := &fakeKubeClient{
 		configMaps: make(map[string]*corev1.ConfigMap),
-		fakeWatch:  watch.NewFake(),
 	}
 	for _, configMap := range configMaps {
 		c.setConfigMap(configMap)
@@ -533,10 +530,7 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 }
 
 func (c *fakeKubeClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.watchLabel = config.WebhookLabel
-	return c.fakeWatch, nil
+	return nil, nil
 }
 
 func (c *fakeKubeClient) getConfigMap(namespace, configMap string) *corev1.ConfigMap {
@@ -565,16 +559,6 @@ func (c *fakeKubeClient) setPatchErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.patchErr = err
-}
-
-func (c *fakeKubeClient) addWatchEvent(obj runtime.Object) {
-	c.fakeWatch.Add(obj)
-}
-
-func (c *fakeKubeClient) getWatchLabel() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.watchLabel
 }
 
 func configMapKey(namespace, configMap string) string {
