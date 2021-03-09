@@ -21,7 +21,6 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -356,9 +355,20 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
 
-	td, err := spiffeid.TrustDomainFromString(c.Agent.TrustDomain)
+	logOptions = append(logOptions,
+		log.WithLevel(c.Agent.LogLevel),
+		log.WithFormat(c.Agent.LogFormat),
+		log.WithOutputFile(c.Agent.LogFile))
+
+	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Agent.TrustDomain, err)
+		return nil, fmt.Errorf("could not start logger: %s", err)
+	}
+	ac.Log = logger
+
+	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
+	if err != nil {
+		return nil, err
 	}
 	ac.TrustDomain = td
 
@@ -390,17 +400,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.DataDir = c.Agent.DataDir
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
-
-	logOptions = append(logOptions,
-		log.WithLevel(c.Agent.LogLevel),
-		log.WithFormat(c.Agent.LogFormat),
-		log.WithOutputFile(c.Agent.LogFile))
-
-	logger, err := log.NewLogger(logOptions...)
-	if err != nil {
-		return nil, fmt.Errorf("could not start logger: %s", err)
-	}
-	ac.Log = logger
 
 	err = setupTrustBundle(ac, c)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -521,6 +522,7 @@ func TestNewServerConfig(t *testing.T) {
 		msg         string
 		expectError bool
 		input       func(*Config)
+		logOptions  func(t *testing.T) []log.Option
 		test        func(*testing.T, *server.Config)
 	}{
 		{
@@ -946,6 +948,34 @@ func TestNewServerConfig(t *testing.T) {
 				require.True(t, c.RateLimit.Attestation)
 			},
 		},
+		{
+			msg: "warn_on_long_trust_domain",
+			input: func(c *Config) {
+				c.Server.TrustDomain = strings.Repeat("a", 256)
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(ioutil.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+									Level: logrus.WarnLevel,
+									Message: "Configured trust domain name should be less than 255 characters to be " +
+										"SPIFFE compliant; a longer trust domain name may impact interoperability",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				assert.NotNil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -956,7 +986,12 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := NewServerConfig(input, []log.Option{}, false)
+			var logOpts []log.Option
+			if testCase.logOptions != nil {
+				logOpts = testCase.logOptions(t)
+			}
+
+			sc, err := NewServerConfig(input, logOpts, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
