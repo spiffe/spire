@@ -76,6 +76,8 @@ This may be useful for templating configuration files, for example across differ
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `attestation`               | Whether or not to rate limit node attestation. If true, node attestation is rate limited to one attempt per second per IP address. | true |
+| `jwt_signing`               | Whether or not to rate limit JWT signing. If true, JWT signing is rate limited to 500 requests per second per IP address. | true |
+| `x509_signing`              | Whether or not to rate limit X509 signing. If true, X509 signing is rate limited to 500 requests per second per IP address. | true |
 
 ## Plugin configuration
 

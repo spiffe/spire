@@ -949,6 +949,63 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "jwt signing rate limit is on by default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.JWTSigning)
+			},
+		},
+		{
+			msg: "jwt signing rate limit can be explicitly disabled",
+			input: func(c *Config) {
+				value := false
+				c.Server.RateLimit.JWTSigning = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.RateLimit.JWTSigning)
+			},
+		},
+		{
+			msg: "jwt signing rate limit can be explicitly enabled",
+			input: func(c *Config) {
+				value := true
+				c.Server.RateLimit.JWTSigning = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.JWTSigning)
+			},
+		},
+		{
+			msg: "x509 signing rate limit is on by default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.X509Signing)
+			},
+		},
+		{
+			msg: "x509 signing rate limit can be explicitly disabled",
+			input: func(c *Config) {
+				value := false
+				c.Server.RateLimit.X509Signing = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.RateLimit.X509Signing)
+			},
+		},
+		{
+			msg: "x509 signing rate limit can be explicitly enabled",
+			input: func(c *Config) {
+				value := true
+				c.Server.RateLimit.X509Signing = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.X509Signing)
+			},
+		},
+
+		{
 			msg: "warn_on_long_trust_domain",
 			input: func(c *Config) {
 				c.Server.TrustDomain = strings.Repeat("a", 256)
