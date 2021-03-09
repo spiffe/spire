@@ -22,12 +22,10 @@ import (
 )
 
 const (
-	pluginName       = "awskms"
-	aliasPrefix      = "alias/"
-	defaultKeyPrefix = "SPIRE_SERVER_KEY/"
-
-	keyIDTag = "key_id"
-	aliasTag = "alias"
+	pluginName  = "aws_kms"
+	aliasPrefix = "alias/"
+	keyIDTag    = "key_id"
+	aliasTag    = "alias"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -395,7 +393,7 @@ type keyFetcher struct {
 func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) {
 	var keyEntries []*keyEntry
 	var keyEntriesMutex sync.Mutex
-	paginator := kms.NewListAliasesPaginator(kf.kmsClient, &kms.ListAliasesInput{})
+	paginator := kms.NewListAliasesPaginator(kf.kmsClient, &kms.ListAliasesInput{Limit: aws.Int32(100)})
 	g, ctx := errgroup.WithContext(ctx)
 
 	for {
@@ -511,7 +509,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	}
 
 	if config.KeyPrefix == "" {
-		config.KeyPrefix = defaultKeyPrefix
+		return nil, newError(codes.InvalidArgument, "configuration is missing key prefix")
 	}
 
 	return config, nil

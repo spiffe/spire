@@ -23,6 +23,7 @@ const (
 	validAccessKeyID     = "AKIAIOSFODNN7EXAMPLE"
 	validSecretAccessKey = "secret"
 	validRegion          = "us-west-2"
+	validKeyPrefix       = "SPIRE_SERVER_KEY/"
 	kmsKeyID             = "abcd-fghi"
 	kmsAlias             = "alias/SPIRE_SERVER_KEY/spireKeyID"
 	spireKeyID           = "spireKeyID"
@@ -118,14 +119,16 @@ func TestConfigure(t *testing.T) {
 			name: "missing access key id",
 			configureRequest: configureRequestWith(`{
 				 		"secret_access_key":"secret_access_key",
-				 		"region":"region"
+				 		"region":"region",
+						"key_prefix":"prefix"
 					 }`),
 		},
 		{
 			name: "missing secret access key",
 			configureRequest: configureRequestWith(`{
 				 		"access_key_id":"access_key",
-				 		"region":"region"
+				 		"region":"region",
+						"key_prefix":"prefix"
 					 }`),
 		},
 		{
@@ -133,14 +136,25 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWith(`{
 				 		"access_key_id":"access_key",
 				 		"secret_access_key":"secret_access_key",
+						"key_prefix":"prefix"
 				 	}`),
-			err:  "awskms: configuration is missing a region",
+			err:  "aws_kms: configuration is missing a region",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "missing key prefix",
+			configureRequest: configureRequestWith(`{
+				 		"access_key_id":"access_key",
+				 		"secret_access_key":"secret_access_key",
+						"region":"region",
+				 	}`),
+			err:  "aws_kms: configuration is missing key prefix",
 			code: codes.InvalidArgument,
 		},
 		{
 			name:             "decode error",
 			configureRequest: configureRequestWith("{ malformed json }"),
-			err:              "awskms: unable to decode configuration: 1:11: illegal char",
+			err:              "aws_kms: unable to decode configuration: 1:11: illegal char",
 			code:             codes.InvalidArgument,
 		},
 		{
@@ -152,7 +166,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "describe key error",
-			err:              "awskms: failed to describe key: describe key error",
+			err:              "aws_kms: failed to describe key: describe key error",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -168,7 +182,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "unsupported key error",
-			err:              "awskms: unsupported key spec: unsupported key spec",
+			err:              "aws_kms: unsupported key spec: unsupported key spec",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -183,7 +197,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "get public key error",
-			err:              "awskms: failed to fetch aliases: awskms: failed to get public key: get public key error",
+			err:              "aws_kms: failed to fetch aliases: aws_kms: failed to get public key: get public key error",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -199,7 +213,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "alias without a key",
-			err:              "awskms: failed to fetch aliases: found SPIRE alias without key: \"alias/SPIRE_SERVER_KEY/no_key\"",
+			err:              "aws_kms: failed to fetch aliases: found SPIRE alias without key: \"alias/SPIRE_SERVER_KEY/no_key\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -221,7 +235,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "disabled key",
-			err:              "awskms: failed to fetch aliases: awskms: found disabled SPIRE key: \"abcd-fghi\", alias: \"alias/SPIRE_SERVER_KEY/spireKeyID\"",
+			err:              "aws_kms: failed to fetch aliases: aws_kms: found disabled SPIRE key: \"abcd-fghi\", alias: \"alias/SPIRE_SERVER_KEY/spireKeyID\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -301,7 +315,7 @@ func TestGenerateKey(t *testing.T) {
 					Message: "Key deleted",
 					Data: logrus.Fields{
 						"key_id":         "abcd-fghi",
-						"subsystem_name": "built-in_plugin.awskms",
+						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
 			},
@@ -315,7 +329,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "failure unsupported key spec",
-			err:  "awskms: unsupported key type: RSA_1024",
+			err:  "aws_kms: unsupported key type: RSA_1024",
 			code: codes.Internal,
 			request: &keymanager.GenerateKeyRequest{
 				KeyId:   spireKeyID,
@@ -342,7 +356,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   "",
 				KeyType: keymanager.KeyType_EC_P256,
 			},
-			err:  "awskms: key id is required",
+			err:  "aws_kms: key id is required",
 			code: codes.InvalidArgument,
 		},
 		{
@@ -351,12 +365,12 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID,
 				KeyType: keymanager.KeyType_UNSPECIFIED_KEY_TYPE,
 			},
-			err:  "awskms: key type is required",
+			err:  "aws_kms: key type is required",
 			code: codes.InvalidArgument,
 		},
 		{
 			name:         "create key error",
-			err:          "awskms: failed to create key: something went wrong",
+			err:          "aws_kms: failed to create key: something went wrong",
 			code:         codes.Internal,
 			createKeyErr: "something went wrong",
 			request: &keymanager.GenerateKeyRequest{
@@ -366,7 +380,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:           "create alias error",
-			err:            "awskms: failed to create alias: something went wrong",
+			err:            "aws_kms: failed to create alias: something went wrong",
 			code:           codes.Internal,
 			createAliasErr: "something went wrong",
 			request: &keymanager.GenerateKeyRequest{
@@ -376,7 +390,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:           "update alias error",
-			err:            "awskms: failed to update alias: something went wrong",
+			err:            "aws_kms: failed to update alias: something went wrong",
 			code:           codes.Internal,
 			updateAliasErr: "something went wrong",
 			request: &keymanager.GenerateKeyRequest{
@@ -395,7 +409,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:            "get public key error",
-			err:             "awskms: failed to get public key: public key error",
+			err:             "aws_kms: failed to get public key: public key error",
 			code:            codes.Internal,
 			getPublicKeyErr: "public key error",
 			request: &keymanager.GenerateKeyRequest{
@@ -426,7 +440,7 @@ func TestGenerateKey(t *testing.T) {
 					Message: "No such key, dropping from delete schedule",
 					Data: logrus.Fields{
 						"key_id":         "abcd-fghi",
-						"subsystem_name": "built-in_plugin.awskms",
+						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
 			},
@@ -454,7 +468,7 @@ func TestGenerateKey(t *testing.T) {
 					Message: "Invalid ARN, dropping from delete schedule",
 					Data: logrus.Fields{
 						"key_id":         "abcd-fghi",
-						"subsystem_name": "built-in_plugin.awskms",
+						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
 			},
@@ -483,7 +497,7 @@ func TestGenerateKey(t *testing.T) {
 					Data: logrus.Fields{
 						"key_id":         "abcd-fghi",
 						"reason":         "schedule key deletion error",
-						"subsystem_name": "built-in_plugin.awskms",
+						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
 				{
@@ -491,7 +505,7 @@ func TestGenerateKey(t *testing.T) {
 					Message: "Key re-enqueued for deletion",
 					Data: logrus.Fields{
 						"key_id":         "abcd-fghi",
-						"subsystem_name": "built-in_plugin.awskms",
+						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
 			},
@@ -701,7 +715,7 @@ func TestSignData(t *testing.T) {
 					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
 				},
 			},
-			err:  "awskms: key id is required",
+			err:  "aws_kms: key id is required",
 			code: codes.InvalidArgument,
 		},
 		{
@@ -710,7 +724,7 @@ func TestSignData(t *testing.T) {
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
 			},
-			err:  "awskms: signer opts is required",
+			err:  "aws_kms: signer opts is required",
 			code: codes.InvalidArgument,
 		},
 		{
@@ -722,7 +736,7 @@ func TestSignData(t *testing.T) {
 					HashAlgorithm: keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM,
 				},
 			},
-			err:  "awskms: hash algorithm is required",
+			err:  "aws_kms: hash algorithm is required",
 			code: codes.InvalidArgument,
 			generateKeyRequest: &keymanager.GenerateKeyRequest{
 				KeyId:   spireKeyID,
@@ -738,7 +752,7 @@ func TestSignData(t *testing.T) {
 					HashAlgorithm: keymanager.HashAlgorithm_SHA512,
 				},
 			},
-			err:  "awskms: unsupported combination of keytype: EC_P256 and hashing algorithm: SHA512",
+			err:  "aws_kms: unsupported combination of keytype: EC_P256 and hashing algorithm: SHA512",
 			code: codes.InvalidArgument,
 			generateKeyRequest: &keymanager.GenerateKeyRequest{
 				KeyId:   spireKeyID,
@@ -754,7 +768,7 @@ func TestSignData(t *testing.T) {
 					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
 				},
 			},
-			err:  "awskms: no such key \"does_not_exists\"",
+			err:  "aws_kms: no such key \"does_not_exists\"",
 			code: codes.NotFound,
 		},
 		{
@@ -766,7 +780,7 @@ func TestSignData(t *testing.T) {
 					PssOptions: nil,
 				},
 			},
-			err:  "awskms: PSS options are required",
+			err:  "aws_kms: PSS options are required",
 			code: codes.InvalidArgument,
 			generateKeyRequest: &keymanager.GenerateKeyRequest{
 				KeyId:   spireKeyID,
@@ -775,7 +789,7 @@ func TestSignData(t *testing.T) {
 		},
 		{
 			name:          "sign error",
-			err:           "awskms: failed to sign: sign error",
+			err:           "aws_kms: failed to sign: sign error",
 			code:          codes.Internal,
 			signDataError: "sign error",
 			request: &keymanager.SignDataRequest{
@@ -841,13 +855,13 @@ func TestGetPublicKey(t *testing.T) {
 		},
 		{
 			name:  "non existing key",
-			err:   "awskms: no such key \"spireKeyID\"",
+			err:   "aws_kms: no such key \"spireKeyID\"",
 			code:  codes.NotFound,
 			keyID: spireKeyID,
 		},
 		{
 			name: "missing key id",
-			err:  "awskms: key id is required",
+			err:  "aws_kms: key id is required",
 			code: codes.InvalidArgument,
 		},
 	} {
@@ -960,17 +974,19 @@ func configureRequestWith(config string) *plugin.ConfigureRequest {
 
 func configureRequestWithDefaults() *plugin.ConfigureRequest {
 	return &plugin.ConfigureRequest{
-		Configuration: serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion),
+		Configuration: serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, validKeyPrefix),
 	}
 }
 
-func serializedConfiguration(accessKeyID, secretAccessKey, region string) string {
+func serializedConfiguration(accessKeyID, secretAccessKey, region string, keyPrefix string) string {
 	return fmt.Sprintf(`{
 		"access_key_id": "%s",
 		"secret_access_key": "%s",
-		"region":"%s"
+		"region":"%s",
+		"key_prefix":"%s"
 		}`,
 		accessKeyID,
 		secretAccessKey,
-		region)
+		region,
+		keyPrefix)
 }

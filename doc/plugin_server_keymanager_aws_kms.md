@@ -1,6 +1,6 @@
-# Server plugin: KeyManager "awskms"
+# Server plugin: KeyManager "aws_kms"
 
-The `awskms` key manager plugin leverages the AWS Key Management Service (KMS) to create, maintain and rotate key pairs (as [Customer master keys](https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#master_keys), or CMKs), and sign SVIDs as needed, with the private key never leaving KMS.
+The `aws_kms` key manager plugin leverages the AWS Key Management Service (KMS) to create, maintain and rotate key pairs (as [Customer master keys](https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#master_keys), or CMKs), and sign SVIDs as needed, with the private key never leaving KMS.
 
 ## Configuration
 
@@ -11,9 +11,9 @@ The plugin accepts the following configuration options:
 | access_key_id     | string | see [AWS KMS Access](#aws-kms-access) | The Access Key Id used to authenticate to KMS        | Value of AWS_ACCESS_KEY_ID environment variable      |
 | secret_access_key | string | see [AWS KMS Access](#aws-kms-access) | The Secret Access Key used to authenticate to KMS    | Value of AWS_SECRET_ACCESS_KEY environment variable  |
 | region            | string | yes                                   | The region where the keys will be stored             |                                                      |
-| key_prefix        | string | [1] see below                         | A unique prefix per server                           | SPIRE_SERVER_KEY/                                    |   
+| key_prefix        | string | yes, see below [1]                    | A unique prefix per server                           |                                                      |   
 
-[1] `key_prefix` is **optional** when running a single server. When running more than one server on the same region, the prefix **must be set and must be different** on each one. This is a common scenario when running in HA mode. A valid key prefix can be any arbitrary string that uniquely identifies a server instance, like `SERVER_A/` or `prod-server-1/`. It defaults to `SPIRE_SERVER_KEY/` if not specified.
+[1] When running more than one server on the same region, `key_prefix` **must be different** on each one. This is a common scenario when running in HA mode. A valid key prefix can be any arbitrary string that uniquely identifies a server instance, like `SERVER_A/` or `prod-server-1/`. It defaults to `SPIRE_SERVER_KEY/` if not specified.
 
 ### AWS KMS Access
 
@@ -33,12 +33,10 @@ The IAM role must have an attached policy with the following permissions:
 ## Sample plugin configuration
 
 ```
-KeyManager "awskms" {
-    plugin_data {
-        access_key_id = "ACCESS_KEY_ID"
-        secret_access_key = "SECRET_ACCESS_KEY"
+KeyManager "aws_kms" {
+    plugin_data {        
         region = "us-east-2"
-        key_prefix = "SPIRE_SERVER_KEY_A"
+        key_prefix = "SPIRE_SERVER_A/"
     }
 }
 ```
