@@ -636,8 +636,8 @@ func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) map[s
 	// docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb
 	// as well as
 	// docker.io/envoyproxy/envoy-alpine:v1.16.0, which does not,
-	// while also maintaining backwards compatibility and allowing for dynamic attestation
-	// when the SHA is not yet known (e.g. before the image pull is initiated)
+	// while also maintaining backwards compatibility and allowing for dynamic workload registration (k8s operator)
+	// when the SHA is not yet known (e.g. before the image pull is initiated at workload creation time)
 	// More info here: https://github.com/spiffe/spire/issues/2026
 	for _, status := range containerStatusArray {
 		podImages[status.ImageID] = true
