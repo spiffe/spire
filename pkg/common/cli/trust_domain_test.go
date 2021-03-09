@@ -47,5 +47,4 @@ func TestParseTrustDomain(t *testing.T) {
 			spiretest.AssertLogs(t, hook.AllEntries(), testCase.expectedLogEntries)
 		})
 	}
-
 }
