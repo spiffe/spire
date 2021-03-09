@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -521,6 +522,7 @@ func TestNewServerConfig(t *testing.T) {
 		msg         string
 		expectError bool
 		input       func(*Config)
+		logOptions  func(t *testing.T) []log.Option
 		test        func(*testing.T, *server.Config)
 	}{
 		{
@@ -754,39 +756,43 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "rsa-2048 ca_key_type is correctly parsed",
+			msg: "rsa-2048 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "rsa-4096 ca_key_type is correctly parsed",
+			msg: "rsa-4096 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_RSA_4096, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_4096, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "ec-p256 ca_key_type is correctly parsed",
+			msg: "ec-p256 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_EC_P256, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "ec-p384 ca_key_type is correctly parsed",
+			msg: "ec-p384 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, keymanager.KeyType_EC_P384, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P384, c.JWTKeyType)
 			},
 		},
 		{
@@ -797,6 +803,67 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "rsa-2048 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "rsa-4096 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-4096"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_RSA_4096, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p256 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p384 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p384"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P384, c.JWTKeyType)
+			},
+		},
+		{
+			msg:         "unsupported jwt_key_type is rejected",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-1024"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "override jwt_key_type from the default ca_key_type",
+			input: func(c *Config) {
+				c.Server.CAKeyType = "rsa-2048"
+				c.Server.JWTKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
+				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
 			},
 		},
 		{
@@ -881,6 +948,34 @@ func TestNewServerConfig(t *testing.T) {
 				require.True(t, c.RateLimit.Attestation)
 			},
 		},
+		{
+			msg: "warn_on_long_trust_domain",
+			input: func(c *Config) {
+				c.Server.TrustDomain = strings.Repeat("a", 256)
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(ioutil.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+									Level: logrus.WarnLevel,
+									Message: "Configured trust domain name should be less than 255 characters to be " +
+										"SPIFFE compliant; a longer trust domain name may impact interoperability",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				assert.NotNil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -891,7 +986,12 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := NewServerConfig(input, []log.Option{}, false)
+			var logOpts []log.Option
+			if testCase.logOptions != nil {
+				logOpts = testCase.logOptions(t)
+			}
+
+			sc, err := NewServerConfig(input, logOpts, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {

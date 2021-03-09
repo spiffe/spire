@@ -759,6 +759,10 @@ func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (spiffeid.ID, err
 		return spiffeid.ID{}, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
+	if err := idutil.CheckIDStringNormalization(spiffeID); err != nil {
+		return spiffeid.ID{}, status.Errorf(codes.InvalidArgument, "spiffe ID is malformed: %v", err)
+	}
+
 	return id, nil
 }
 
@@ -821,6 +825,7 @@ func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *c
 	return createResponse.Entry, false, nil
 }
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
+	original := entry
 	entry = cloneRegistrationEntry(entry)
 	if forUpdate && entry.EntryId == "" {
 		return nil, errors.New("missing registration entry id")
@@ -843,6 +848,14 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain))
 	if err != nil {
 		return nil, err
+	}
+
+	if err := idutil.CheckIDStringNormalization(original.ParentId); err != nil {
+		return nil, fmt.Errorf("parent ID is malformed: %v", err)
+	}
+
+	if err := idutil.CheckIDStringNormalization(original.SpiffeId); err != nil {
+		return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
 	}
 
 	// Validate Selectors
@@ -891,6 +904,9 @@ func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	if len(cert.URIs) == 0 {
 		return "", errors.New("no SPIFFE ID in certificate")
+	}
+	if err := idutil.CheckIDURLNormalization(cert.URIs[0]); err != nil {
+		return "", fmt.Errorf("SPIFFE ID is malformed: %v", err)
 	}
 	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
 	if err != nil {
