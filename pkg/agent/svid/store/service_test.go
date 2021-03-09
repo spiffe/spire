@@ -21,11 +21,11 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	test := setupServiceTest()
-	defer test.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
+
+	test := setupServiceTest(ctx)
+	defer test.Close()
 
 	go func() {
 		_ = test.service.Run(ctx)
@@ -171,11 +171,11 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func setupServiceTest() *serviceTest {
+func setupServiceTest(ctx context.Context) *serviceTest {
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 
-	in, out := pipe.BufferedPipe(2)
+	in, out := pipe.BufferedPipe(ctx, 2)
 	fakeStore := &fakeSVIDStore{}
 
 	config := &Config{

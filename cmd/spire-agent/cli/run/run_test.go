@@ -861,24 +861,6 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, c)
 			},
 		},
-		{
-			msg: "pipe_size have a default value",
-			input: func(c *Config) {
-				c.Agent.PipeSize = 0
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, 5000, c.PipeSize)
-			},
-		},
-		{
-			msg: "pipe_size is configured",
-			input: func(c *Config) {
-				c.Agent.PipeSize = 1
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, 1, c.PipeSize)
-			},
-		},
 	}
 
 	for _, testCase := range cases {

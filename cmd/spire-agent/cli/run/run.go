@@ -43,9 +43,6 @@ const (
 	defaultLogLevel          = "INFO"
 	defaultDefaultSVIDName   = "default"
 	defaultDefaultBundleName = "ROOTCA"
-
-	// Default SVID store pipe size
-	defaultPipeSize = 5000
 )
 
 // Config contains all available configurables, arranged by section
@@ -65,7 +62,6 @@ type agentConfig struct {
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
 	LogLevel                      string    `hcl:"log_level"`
-	PipeSize                      int       `hcl:"pipe_size"`
 	SDS                           sdsConfig `hcl:"sds"`
 	ServerAddress                 string    `hcl:"server_address"`
 	ServerPort                    int       `hcl:"server_port"`
@@ -394,12 +390,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.DataDir = c.Agent.DataDir
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
-
-	// Set Pipe size if not declared use default
-	ac.PipeSize = defaultPipeSize
-	if c.Agent.PipeSize > 0 {
-		ac.PipeSize = c.Agent.PipeSize
-	}
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),

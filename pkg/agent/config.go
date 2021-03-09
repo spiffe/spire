@@ -52,9 +52,6 @@ type Config struct {
 	// Join token to use for attestation, if needed
 	JoinToken string
 
-	// SVID store pipe size
-	PipeSize int
-
 	// If true enables profiling.
 	ProfilingEnabled bool
 
