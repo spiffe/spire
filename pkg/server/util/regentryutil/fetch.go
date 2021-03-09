@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -109,7 +110,7 @@ func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID st
 		return nil, err
 	}
 
-	return resp.Entries, nil
+	return f.filterEntries(resp.Entries), nil
 }
 
 // mappedEntries returns all registration entries for which the given ID has
@@ -146,7 +147,24 @@ func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID s
 		return nil, err
 	}
 
-	return listResp.Entries, nil
+	return f.filterEntries(listResp.Entries), nil
+}
+
+func (f *registrationEntryFetcher) filterEntries(in []*common.RegistrationEntry) []*common.RegistrationEntry {
+	out := make([]*common.RegistrationEntry, 0, len(in))
+	for _, entry := range in {
+		// Filter out entries with invalid SPIFFE IDs. Operators are notified
+		// that they are ignored on server startup (see
+		// pkg/server/scanentries.go)
+		if err := idutil.CheckIDStringNormalization(entry.SpiffeId); err != nil {
+			continue
+		}
+		if err := idutil.CheckIDStringNormalization(entry.ParentId); err != nil {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 type nullCache struct {

@@ -281,6 +281,10 @@ func (m *mockHandler) resp(name string) *workload.X509SVIDResponse {
 	}
 }
 
+func (m *mockHandler) FetchX509Bundles(*workload.X509BundlesRequest, workload.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
+	return errors.New("unimplemented")
+}
+
 func (m *mockHandler) FetchJWTSVID(context.Context, *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
 	return nil, errors.New("unimplemented")
 }

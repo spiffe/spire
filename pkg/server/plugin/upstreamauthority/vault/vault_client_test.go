@@ -163,29 +163,43 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
 	vcs.fakeVaultServer.LookupSelfResponseCode = 200
 	for _, c := range []struct {
 		name      string
+		token     string
 		response  []byte
 		reusable  bool
 		namespace string
+		err       string
 	}{
 		{
 			name:     "Token Authentication success / Token never expire",
+			token:    "test-token",
 			response: []byte(testLookupSelfResponseNeverExpire),
 			reusable: true,
 		},
 		{
 			name:     "Token Authentication success / Token is renewable",
+			token:    "test-token",
 			response: []byte(testLookupSelfResponse),
 			reusable: true,
 		},
 		{
 			name:     "Token Authentication success / Token is not renewable",
+			token:    "test-token",
 			response: []byte(testLookupSelfResponseNotRenewable),
 		},
 		{
 			name:      "Token Authentication success / Token is renewable / Namespace is given",
+			token:     "test-token",
 			response:  []byte(testCertAuthResponse),
 			reusable:  true,
 			namespace: "test-ns",
+		},
+		{
+			name:      "Token Authentication error / Token is empty",
+			token:     "",
+			response:  []byte(testCertAuthResponse),
+			reusable:  true,
+			namespace: "test-ns",
+			err:       "token is empty",
 		},
 	} {
 		c := c
@@ -202,18 +216,21 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
 				VaultAddr:  fmt.Sprintf("https://%v/", addr),
 				Namespace:  c.namespace,
 				CACertPath: testRootCert,
-				Token:      "test-token",
+				Token:      c.token,
 			}
 			cc, err := NewClientConfig(cp, hclog.Default())
 			vcs.Require().NoError(err)
 
 			client, reusable, err := cc.NewAuthenticatedClient(TOKEN)
-			vcs.Require().NoError(err)
-			vcs.Require().Equal(c.reusable, reusable)
-
-			if cp.Namespace != "" {
-				headers := client.vaultClient.Headers()
-				vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			if c.err != "" {
+				vcs.Require().Equal(err.Error(), c.err)
+			} else {
+				vcs.Require().NoError(err)
+				vcs.Require().Equal(c.reusable, reusable)
+				if cp.Namespace != "" {
+					headers := client.vaultClient.Headers()
+					vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+				}
 			}
 		})
 	}

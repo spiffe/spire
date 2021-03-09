@@ -157,6 +157,7 @@ serviceprotos := \
 	proto/private/test/catalogtest/test.proto \
 	proto/spire/agent/keymanager/keymanager.proto \
 	proto/spire/agent/nodeattestor/nodeattestor.proto \
+	proto/spire/agent/svidstore/svidstore.proto \
 	proto/spire/agent/workloadattestor/workloadattestor.proto \
 	proto/spire/api/registration/registration.proto \
 	proto/spire/common/hostservices/metricsservice.proto \
@@ -195,6 +196,7 @@ plugingen_plugins = \
 	proto/spire/agent/nodeattestor/nodeattestor.proto,pkg/agent/plugin/nodeattestor,NodeAttestor \
 	proto/spire/agent/workloadattestor/workloadattestor.proto,pkg/agent/plugin/workloadattestor,WorkloadAttestor \
 	proto/spire/agent/keymanager/keymanager.proto,pkg/agent/plugin/keymanager,KeyManager \
+	proto/spire/agent/svidstore/svidstore.proto,pkg/agent/plugin/svidstore,SVIDStore \
 	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,Plugin,shared \
 
 plugingen_services = \
@@ -248,6 +250,9 @@ endif
 ############################################################################
 # Determine go flags
 ############################################################################
+
+# Flags passed to all invocations of go test
+go_test_flags := -timeout=60s
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
@@ -343,16 +348,16 @@ $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oi
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) ./...
 endif
 
 race-test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -race -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) -race ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
 endif
 
 integration:

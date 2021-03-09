@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"path"
 	"sort"
 	"sync"
 	"testing"
@@ -581,5 +580,5 @@ func stringFromID(id *types.SPIFFEID) string {
 	if id == nil {
 		return ""
 	}
-	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, path.Clean("/"+id.Path))
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }

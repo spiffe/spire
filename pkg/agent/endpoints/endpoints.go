@@ -60,8 +60,9 @@ func New(c Config) *Endpoints {
 	}
 
 	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{
-		Manager:  c.Manager,
-		Attestor: attestor,
+		Manager:                       c.Manager,
+		Attestor:                      attestor,
+		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
 	})
 
 	sdsv2Server := c.newSDSv2Server(sdsv2.Config{
