@@ -1,6 +1,6 @@
 # Agent plugin: WorkloadAttestor "k8s"
 
-The `k8s` plugin generates kubernetes-based selectors for workloads calling the agent.
+The `k8s` plugin generates Kubernetes-based selectors for workloads calling the agent.
 It does so by retrieving the workload's pod ID from its cgroup membership, then querying
 the kubelet for information about the pod.
 
@@ -19,16 +19,17 @@ the kubelet is contacted over 127.0.0.1 (requires host networking to be
 enabled). In the latter case, the hostname is used to perform certificate
 server name validation against the kubelet certificate.
 
-**Note** kubelet authentication via bearer token requires that the kubelet be
-started with the `--authentication-token-webhook` flag. See [Kubelet authentication/authorization](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-authentication-authorization/)
-for details.
+> **Note** kubelet authentication via bearer token requires that the kubelet be
+> started with the `--authentication-token-webhook` flag. 
+> See [Kubelet authentication/authorization](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-authentication-authorization/)
+> for details.
 
-**Note** The kubelet uses the TokenReview API to validate bearer tokens. This
-requires reachability to the Kubernetes API server. Therefore API server downtime can
-interrupt workload attestation. The `--authentication-token-webhook-cache-ttl` kubelet flag
-controls how long the kubelet caches TokenReview responses and may help to
-mitigate this issue. A large cache ttl value is not recommended however, as
-that can impact permission revocation.
+> **Note** The kubelet uses the TokenReview API to validate bearer tokens. 
+> This requires reachability to the Kubernetes API server. Therefore API server downtime can
+> interrupt workload attestation. The `--authentication-token-webhook-cache-ttl` kubelet flag
+> controls how long the kubelet caches TokenReview responses and may help to
+> mitigate this issue. A large cache ttl value is not recommended however, as
+> that can impact permission revocation.
 
 | Configuration | Description |
 | ------------- | ----------- |
@@ -46,18 +47,22 @@ that can impact permission revocation.
 | -------- | ----- |
 | k8s:ns                   | The workload's namespace |
 | k8s:sa                   | The workload's service account |
-| k8s:container-image      | The image of the workload's container |
+| k8s:container-image      | The Image OR ImageID of the container in the workload's pod which is requesting an SVID, [as reported by K8S](https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus). Selector value may be an image tag, such as: `docker.io/envoyproxy/envoy-alpine:v1.16.0`, or a resolved SHA256 image digest, such as `docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb` |
 | k8s:container-name       | The name of the workload's container |
 | k8s:node-name            | The name of the workload's node |
-| k8s:pod-label            | A label given to the the workload's pod |
+| k8s:pod-label            | A label given to the workload's pod |
 | k8s:pod-owner            | The name of the workload's pod owner |
 | k8s:pod-owner-uid        | The UID of the workload's pod owner |
 | k8s:pod-uid              | The UID of the workload's pod |
 | k8s:pod-name             | The name of the workload's pod |
-| k8s:pod-image            | An image of a container in workload's pod |
+| k8s:pod-image            | An Image OR ImageID of any container in the workload's pod, [as reported by K8S](https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus). Selector value may be an image tag, such as: `docker.io/envoyproxy/envoy-alpine:v1.16.0`, or a resolved SHA256 image digest, such as `docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb`|
 | k8s:pod-image-count      | The number of container images in workload's pod |
-| k8s:pod-init-image       | An image of an init container in workload's pod |
+| k8s:pod-init-image       | An Image OR ImageID of any init container in the workload's pod, [as reported by K8S](https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus). Selector value may be an image tag, such as: `docker.io/envoyproxy/envoy-alpine:v1.16.0`, or a resolved SHA256 image digest, such as `docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb`|
 | k8s:pod-init-image-count | The number of init container images in workload's pod |
+
+> **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of 
+> the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod, 
+> respectively.
 
 ## Examples
 

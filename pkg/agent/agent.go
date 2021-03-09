@@ -224,11 +224,12 @@ func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr
 			Log:     a.c.Log.WithField(telemetry.SubsystemName, telemetry.WorkloadAttestor),
 			Metrics: metrics,
 		}),
-		Manager:           mgr,
-		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
-		Metrics:           metrics,
-		DefaultSVIDName:   a.c.DefaultSVIDName,
-		DefaultBundleName: a.c.DefaultBundleName,
+		Manager:                       mgr,
+		Log:                           a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Metrics:                       metrics,
+		DefaultSVIDName:               a.c.DefaultSVIDName,
+		DefaultBundleName:             a.c.DefaultBundleName,
+		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 	})
 }
 

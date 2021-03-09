@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/hcl/hcl/printer"
@@ -96,6 +97,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Agent.SocketPath, "/tmp/spire-agent/public/api.sock")
 	assert.Equal(t, c.Agent.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.Agent.TrustDomain, "example.org")
+	assert.Equal(t, c.Agent.AllowUnauthenticatedVerifiers, true)
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -141,6 +143,7 @@ func TestParseFlagsGood(t *testing.T) {
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
 		"-trustBundleUrl=https://test.url",
 		"-trustDomain=example.org",
+		"-allowUnauthenticatedVerifiers",
 	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.DataDir, ".")
@@ -151,6 +154,7 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.TrustBundleURL, "https://test.url")
 	assert.Equal(t, c.TrustDomain, "example.org")
+	assert.Equal(t, c.AllowUnauthenticatedVerifiers, true)
 }
 
 func TestMergeInput(t *testing.T) {
@@ -616,6 +620,7 @@ func TestNewAgentConfig(t *testing.T) {
 		msg         string
 		expectError bool
 		input       func(*Config)
+		logOptions  func(t *testing.T) []log.Option
 		test        func(*testing.T, *agent.Config)
 	}{
 		{
@@ -858,6 +863,34 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, c)
 			},
 		},
+		{
+			msg: "warn_on_long_trust_domain",
+			input: func(c *Config) {
+				c.Agent.TrustDomain = strings.Repeat("a", 256)
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(ioutil.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+									Level: logrus.WarnLevel,
+									Message: "Configured trust domain name should be less than 255 characters to be " +
+										"SPIFFE compliant; a longer trust domain name may impact interoperability",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				assert.NotNil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -868,7 +901,12 @@ func TestNewAgentConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			ac, err := NewAgentConfig(input, []log.Option{}, false)
+			var logOpts []log.Option
+			if testCase.logOptions != nil {
+				logOpts = testCase.logOptions(t)
+			}
+
+			ac, err := NewAgentConfig(input, logOpts, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
