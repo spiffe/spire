@@ -72,13 +72,16 @@ func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event
 		}
 
 		err = b.p.updateBundle(ctx, b.config, client, objectMeta.GetNamespace(), objectMeta.GetName())
-		if err != nil && status.Code(err) != codes.FailedPrecondition {
+		switch {
+		case err == nil:
+			b.p.log.Debug("Set bundle for object", "name", objectMeta.GetName(), "event", event.Type)
+		case status.Code(err) == codes.FailedPrecondition:
 			// Ignore FailPrecondition errors for when SPIRE is booting and we receive an event prior to
 			// IdentityProvider being initialized. In this case the BundleLoaded event will come
 			// to populate the caBundle, so its safe to ignore this error.
-			return err
+		default:
+		    return err
 		}
-		b.p.log.Debug("Set bundle for object", "name", objectMeta.GetName(), "event", event.Type)
 	}
 	return nil
 }
