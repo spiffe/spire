@@ -18,6 +18,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -229,7 +231,8 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 				updateErrs += fmt.Sprintf("unable to extract metadata for item: %v, ", err)
 				continue
 			}
-			if err := p.updateBundle(ctx, c, client, itemMeta.GetNamespace(), itemMeta.GetName()); err != nil {
+			err = p.updateBundle(ctx, c, client, itemMeta.GetNamespace(), itemMeta.GetName())
+			if err != nil && status.Code(err) != codes.AlreadyExists {
 				updateErrs += fmt.Sprintf("%s: %v, ", namespacedName(itemMeta), err)
 			}
 		}
@@ -345,7 +348,7 @@ func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (run
 func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		return nil, k8sErr.New("wrong type, expecting config map")
+		return nil, k8sErr.New("wrong type, expecting ConfigMap")
 	}
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -384,7 +387,19 @@ func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig
 func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
-		return nil, k8sErr.New("wrong type, expecting mutating webhook")
+		return nil, k8sErr.New("wrong type, expecting MutatingWebhookConfiguration")
+	}
+
+	// Check if MutatingWebhookConfiguration needs an update
+	needsUpdate := false
+	for _, webhook := range mutatingWebhook.Webhooks {
+		if !bytes.Equal(webhook.ClientConfig.CABundle, []byte(bundleData(resp.Bundle))) {
+			needsUpdate = true
+			break
+		}
+	}
+	if !needsUpdate {
+		return nil, status.Errorf(codes.AlreadyExists, "MutatingWebhookConfiguration %s is already up to date", mutatingWebhook.Name)
 	}
 
 	patch := &admissionv1.MutatingWebhookConfiguration{
@@ -434,7 +449,19 @@ func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConf
 func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
-		return nil, k8sErr.New("wrong type, expecting validating webhook")
+		return nil, k8sErr.New("wrong type, expecting ValidatingWebhookConfiguration")
+	}
+
+	// Check if ValidatingWebhookConfiguration needs an update
+	needsUpdate := false
+	for _, webhook := range validatingWebhook.Webhooks {
+		if !bytes.Equal(webhook.ClientConfig.CABundle, []byte(bundleData(resp.Bundle))) {
+			needsUpdate = true
+			break
+		}
+	}
+	if !needsUpdate {
+		return nil, status.Errorf(codes.AlreadyExists, "ValidatingWebhookConfiguration %s is already up to date", validatingWebhook.Name)
 	}
 
 	patch := &admissionv1.ValidatingWebhookConfiguration{

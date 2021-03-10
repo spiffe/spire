@@ -65,7 +65,7 @@ func (b *bundleWatcher) watch(ctx context.Context) error {
 
 // watchEvent triggers the read-modify-write for a newly created object
 func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event watch.Event) error {
-	if event.Type == watch.Added {
+	if event.Type == watch.Added || event.Type == watch.Modified {
 		objectMeta, err := meta.Accessor(event.Object)
 		if err != nil {
 			return err
@@ -79,8 +79,11 @@ func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event
 			// Ignore FailPrecondition errors for when SPIRE is booting and we receive an event prior to
 			// IdentityProvider being initialized. In this case the BundleLoaded event will come
 			// to populate the caBundle, so its safe to ignore this error.
+		case status.Code(err) == codes.AlreadyExists:
+			// Updating the bundle from an ADD event triggers a subsequent MODIFIED event. updateBundle will
+			// return AlreadyExists since nothing needs to be updated.
 		default:
-		    return err
+			return err
 		}
 	}
 	return nil
