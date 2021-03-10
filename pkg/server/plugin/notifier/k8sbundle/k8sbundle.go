@@ -182,7 +182,7 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 		go func() {
 			defer wg.Done()
 			if err := watcher.Watch(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				p.log.Error("Unable to watch: %v", err)
+				p.log.Error("Unable to watch", "error", err)
 			}
 		}()
 		cancelWatcher = func() {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/watch"
 )
@@ -52,7 +54,7 @@ func (b *bundleWatcher) watch(ctx context.Context) error {
 		chosen, recv, _ := reflect.Select(selectCase)
 		if chosen < len(b.clients) {
 			if err := b.watchEvent(ctx, b.clients[chosen], recv.Interface().(watch.Event)); err != nil {
-				return k8sErr.New("handling watch event: %v", err)
+				b.p.log.Error("Handling watch event", "error", err)
 			}
 		} else {
 			// The context is the last element in the array
@@ -62,17 +64,21 @@ func (b *bundleWatcher) watch(ctx context.Context) error {
 }
 
 // watchEvent triggers the read-modify-write for a newly created object
-func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event watch.Event) (err error) {
+func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event watch.Event) error {
 	if event.Type == watch.Added {
 		objectMeta, err := meta.Accessor(event.Object)
 		if err != nil {
 			return err
 		}
 
-		b.p.log.Debug("Setting bundle for new object", "name", objectMeta.GetName())
-		if err = b.p.updateBundle(ctx, b.config, client, objectMeta.GetNamespace(), objectMeta.GetName()); err != nil {
+		err = b.p.updateBundle(ctx, b.config, client, objectMeta.GetNamespace(), objectMeta.GetName())
+		if err != nil && status.Code(err) != codes.FailedPrecondition {
+			// Ignore FailPrecondition errors for when SPIRE is booting and we receive an event prior to
+			// IdentityProvider being initialized. In this case the BundleLoaded event will come
+			// to populate the caBundle, so its safe to ignore this error.
 			return err
 		}
+		b.p.log.Debug("Set bundle for object", "name", objectMeta.GetName(), "event", event.Type)
 	}
 	return nil
 }
