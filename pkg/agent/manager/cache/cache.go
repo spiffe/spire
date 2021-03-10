@@ -726,7 +726,7 @@ func makeIdentity(record *cacheRecord) Identity {
 // are sorted by path complexity, and alphabetically within path segments.
 //
 // Default order is fewest path segments first in the spirit of more generic
-// identities as default and more complex identies left to workload decision.
+// identities as default and more complex identities left to workload decision.
 func sortIdentities(identities []Identity) {
 	sort.Sort(byIdentity(identities))
 }
