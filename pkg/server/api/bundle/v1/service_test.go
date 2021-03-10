@@ -1072,6 +1072,86 @@ func TestListFederatedBundles(t *testing.T) {
 	}
 }
 
+func TestCountBundles(t *testing.T) {
+	tds := []spiffeid.TrustDomain{
+		serverTrustDomain,
+		spiffeid.RequireTrustDomainFromString("td1.org"),
+		spiffeid.RequireTrustDomainFromString("td2.org"),
+		spiffeid.RequireTrustDomainFromString("td3.org"),
+	}
+
+	for _, tt := range []struct {
+		name       string
+		count      int32
+		resp       *bundlepb.CountBundlesResponse
+		code       codes.Code
+		dsError    error
+		err        string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:  "0 bundles",
+			count: 0,
+			resp:  &bundlepb.CountBundlesResponse{Count: 0},
+		},
+		{
+			name:  "1 bundle",
+			count: 1,
+			resp:  &bundlepb.CountBundlesResponse{Count: 1},
+		},
+		{
+			name:  "2 bundles",
+			count: 2,
+			resp:  &bundlepb.CountBundlesResponse{Count: 2},
+		},
+		{
+			name:  "3 bundles",
+			count: 3,
+			resp:  &bundlepb.CountBundlesResponse{Count: 3},
+		},
+		{
+			name:    "ds error",
+			err:     "failed to count bundles: ds error",
+			code:    codes.Internal,
+			dsError: status.Error(codes.Internal, "ds error"),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to count bundles",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = ds error",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			for i := 0; i < int(tt.count); i++ {
+				createBundle(t, test, tds[i].IDString())
+			}
+
+			test.ds.SetNextError(tt.dsError)
+			resp, err := test.client.CountBundles(context.Background(), &bundlepb.CountBundlesRequest{})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, tt.count, resp.Count)
+			spiretest.AssertProtoEqual(t, tt.resp, resp)
+		})
+	}
+}
+
 func createBundle(t *testing.T, test *serviceTest, td string) *common.Bundle {
 	b := &common.Bundle{
 		TrustDomainId: td,

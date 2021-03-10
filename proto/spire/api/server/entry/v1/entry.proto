@@ -10,6 +10,11 @@ import "spire/types/status.proto";
 
 // Manages registration entries stored by the SPIRE Server.
 service Entry {
+    // Count entries.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc CountEntries(CountEntriesRequest) returns (CountEntriesResponse);
+
     // Lists entries.
     //
     // The caller must be local or present an admin X509-SVID.
@@ -40,6 +45,13 @@ service Entry {
     // The caller must present an active agent X509-SVID. See the Agent
     // AttestAgent/RenewAgent RPCs.
     rpc GetAuthorizedEntries(GetAuthorizedEntriesRequest) returns (GetAuthorizedEntriesResponse);
+}
+
+message CountEntriesRequest {
+}
+
+message CountEntriesResponse {
+    int32 count = 1;
 }
 
 message ListEntriesRequest {

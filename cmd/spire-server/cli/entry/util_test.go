@@ -143,10 +143,18 @@ type fakeEntryServer struct {
 	expBatchUpdateEntryReq *entry.BatchUpdateEntryRequest
 
 	getEntryResp         *types.Entry
+	countEntriesResp     *entry.CountEntriesResponse
 	listEntriesResp      *entry.ListEntriesResponse
 	batchDeleteEntryResp *entry.BatchDeleteEntryResponse
 	batchCreateEntryResp *entry.BatchCreateEntryResponse
 	batchUpdateEntryResp *entry.BatchUpdateEntryResponse
+}
+
+func (f fakeEntryServer) CountEntries(ctx context.Context, req *entry.CountEntriesRequest) (*entry.CountEntriesResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.countEntriesResp, nil
 }
 
 func (f fakeEntryServer) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {

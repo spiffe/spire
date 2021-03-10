@@ -261,6 +261,14 @@ Updates registration entries.
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
+### `spire-server entry count`
+
+Displays the total number of registration entries.
+
+| Command       | Action                                             | Default        |
+|:--------------|:---------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
 ### `spire-server entry delete`
 
 Deletes a specified registration entry.
@@ -283,6 +291,14 @@ Displays configured registration entries.
 | `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
+
+### `spire-server bundle count`
+
+Displays the total number of bundles.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server bundle show`
 
@@ -322,6 +338,14 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
+### `spire-server agent count`
+
+Displays the total number of attested nodes.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server agent evict`

@@ -37,6 +37,90 @@ var (
 	agentID           = spiffeid.RequireFromString("spiffe://example.org/agent")
 )
 
+func TestCountEntries(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		count      int32
+		resp       *entrypb.CountEntriesResponse
+		code       codes.Code
+		dsError    error
+		err        string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:  "0 entries",
+			count: 0,
+			resp:  &entrypb.CountEntriesResponse{Count: 0},
+		},
+		{
+			name:  "1 entries",
+			count: 1,
+			resp:  &entrypb.CountEntriesResponse{Count: 1},
+		},
+		{
+			name:  "2 entries",
+			count: 2,
+			resp:  &entrypb.CountEntriesResponse{Count: 2},
+		},
+		{
+			name:  "3 entries",
+			count: 3,
+			resp:  &entrypb.CountEntriesResponse{Count: 3},
+		},
+		{
+			name:    "ds error",
+			err:     "failed to count entries: ds error",
+			code:    codes.Internal,
+			dsError: status.Error(codes.Internal, "ds error"),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to count entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = ds error",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ds := fakedatastore.New(t)
+			test := setupServiceTest(t, ds)
+			defer test.Cleanup()
+
+			for i := 0; i < int(tt.count); i++ {
+				_, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+					Entry: &common.RegistrationEntry{
+						ParentId: td.NewID(fmt.Sprintf("parent%d", i)).String(),
+						SpiffeId: td.NewID(fmt.Sprintf("child%d", i)).String(),
+						Selectors: []*common.Selector{
+							{Type: "unix", Value: "uid:1000"},
+							{Type: "unix", Value: "gid:1000"},
+						},
+					},
+				})
+				require.NoError(t, err)
+			}
+
+			ds.SetNextError(tt.dsError)
+			resp, err := test.client.CountEntries(context.Background(), &entrypb.CountEntriesRequest{})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			spiretest.AssertProtoEqual(t, tt.resp, resp)
+			require.Equal(t, tt.count, resp.Count)
+		})
+	}
+}
+
 func TestListEntries(t *testing.T) {
 	parentID := td.NewID("parent")
 	childID := td.NewID("child")
