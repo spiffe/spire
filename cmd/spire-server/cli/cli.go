@@ -17,15 +17,20 @@ import (
 	"github.com/spiffe/spire/pkg/common/version"
 )
 
+// CLI defines the server CLI configuration.
 type CLI struct {
 	LogOptions         []log.Option
 	AllowUnknownConfig bool
 }
 
+// Run configures the server CLI commands and subcommands.
 func (cc *CLI) Run(args []string) int {
 	c := cli.NewCLI("spire-server", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
+		"agent count": func() (cli.Command, error) {
+			return agent.NewCountCommand(), nil
+		},
 		"agent evict": func() (cli.Command, error) {
 			return agent.NewEvictCommand(), nil
 		},
@@ -34,6 +39,9 @@ func (cc *CLI) Run(args []string) int {
 		},
 		"agent show": func() (cli.Command, error) {
 			return agent.NewShowCommand(), nil
+		},
+		"bundle count": func() (cli.Command, error) {
+			return bundle.NewCountCommand(), nil
 		},
 		"bundle show": func() (cli.Command, error) {
 			return bundle.NewShowCommand(), nil
@@ -46,6 +54,9 @@ func (cc *CLI) Run(args []string) int {
 		},
 		"bundle delete": func() (cli.Command, error) {
 			return bundle.NewDeleteCommand(), nil
+		},
+		"entry count": func() (cli.Command, error) {
+			return entry.NewCountCommand(), nil
 		},
 		"entry create": func() (cli.Command, error) {
 			return entry.NewCreateCommand(), nil

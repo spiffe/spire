@@ -4,6 +4,9 @@
 docker-compose exec -T spire-server \
     apk add --update openssl && rm -rf /var/cache/apk/*
 
+# Verify 'bundle count' correctly indicates a single bundle (the server bundle)
+docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 1 || fail-now "failed to count 1 bundle"
+
 # Verify 'bundle show'
 docker-compose exec -T spire-server \
      /opt/spire/bin/spire-server bundle show | openssl x509 -text -noout | grep URI:spiffe://domain.test || fail-now "failed to show bundle (pem)"
@@ -39,6 +42,9 @@ docker-compose exec -T spire-server \
 /opt/spire/bin/spire-server bundle list -id spiffe://federated2.td -format spiffe |
     grep 'fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4'" || fail-now "federated bundle not found"
 
+# Verify 'bundle count' correctly indicates two bundles
+docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 3 || fail-now "failed to count 3 bundles"
+
 # Verify federated bundle can be updated (pem)
 docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle set -id spiffe://federated2.td -path /opt/spire/conf/fixture/ca2.spiffe -format spiffe || fail-now "failed to set bundle with path (spiffe)"
@@ -60,3 +66,6 @@ docker-compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list | 
     grep -E 'federated.td|federated2.td' -c | grep 1" || fail-now "Unexpected amout of federated bundles"
+
+# Verify 'bundle count' correctly indicates two bundles (server bundle and one federated bundle)
+docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 2 || fail-now "failed to count 2 bundles"

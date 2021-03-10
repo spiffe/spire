@@ -5,9 +5,9 @@ docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
 
 # Set conf files for each agent
-cp -R conf/agent conf/agent-1
-cp -R conf/agent conf/agent-2
-cp -R conf/agent conf/agent-3
+cp -R conf/agent/ conf/agent-1
+cp -R conf/agent/ conf/agent-2
+cp -R conf/agent/ conf/agent-3
 
 # Set a different join token for each agent
 # Agent 1

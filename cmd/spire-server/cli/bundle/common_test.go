@@ -269,6 +269,15 @@ func (f *fakeBundleServer) BatchSetFederatedBundle(ctx context.Context, req *bun
 	return f.setResponse, nil
 }
 
+func (f *fakeBundleServer) CountBundles(context.Context, *bundle.CountBundlesRequest) (*bundle.CountBundlesResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &bundle.CountBundlesResponse{
+		Count: int32(len(f.bundles)),
+	}, nil
+}
+
 func (f *fakeBundleServer) ListFederatedBundles(context.Context, *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
 	if f.err != nil {
 		return nil, f.err

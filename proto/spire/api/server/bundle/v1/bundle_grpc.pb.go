@@ -18,6 +18,10 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BundleClient interface {
+	// Count bundles.
+	//
+	// The caller must be local or present an admin X509-SVID.
+	CountBundles(ctx context.Context, in *CountBundlesRequest, opts ...grpc.CallOption) (*CountBundlesResponse, error)
 	// Gets the bundle for the trust domain of the server.
 	//
 	// The RPC does not require authentication.
@@ -70,6 +74,15 @@ type bundleClient struct {
 
 func NewBundleClient(cc grpc.ClientConnInterface) BundleClient {
 	return &bundleClient{cc}
+}
+
+func (c *bundleClient) CountBundles(ctx context.Context, in *CountBundlesRequest, opts ...grpc.CallOption) (*CountBundlesResponse, error) {
+	out := new(CountBundlesResponse)
+	err := c.cc.Invoke(ctx, "/spire.api.server.bundle.v1.Bundle/CountBundles", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *bundleClient) GetBundle(ctx context.Context, in *GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
@@ -157,6 +170,10 @@ func (c *bundleClient) BatchDeleteFederatedBundle(ctx context.Context, in *Batch
 // All implementations must embed UnimplementedBundleServer
 // for forward compatibility
 type BundleServer interface {
+	// Count bundles.
+	//
+	// The caller must be local or present an admin X509-SVID.
+	CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error)
 	// Gets the bundle for the trust domain of the server.
 	//
 	// The RPC does not require authentication.
@@ -208,6 +225,9 @@ type BundleServer interface {
 type UnimplementedBundleServer struct {
 }
 
+func (UnimplementedBundleServer) CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CountBundles not implemented")
+}
 func (UnimplementedBundleServer) GetBundle(context.Context, *GetBundleRequest) (*types.Bundle, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBundle not implemented")
 }
@@ -246,6 +266,24 @@ type UnsafeBundleServer interface {
 
 func RegisterBundleServer(s grpc.ServiceRegistrar, srv BundleServer) {
 	s.RegisterService(&_Bundle_serviceDesc, srv)
+}
+
+func _Bundle_CountBundles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CountBundlesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BundleServer).CountBundles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.api.server.bundle.v1.Bundle/CountBundles",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BundleServer).CountBundles(ctx, req.(*CountBundlesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Bundle_GetBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -414,6 +452,10 @@ var _Bundle_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "spire.api.server.bundle.v1.Bundle",
 	HandlerType: (*BundleServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CountBundles",
+			Handler:    _Bundle_CountBundles_Handler,
+		},
 		{
 			MethodName: "GetBundle",
 			Handler:    _Bundle_GetBundle_Handler,
