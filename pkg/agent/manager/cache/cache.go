@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -598,9 +599,8 @@ func (c *Cache) matchingIdentities(set selectorSet) []Identity {
 		return nil
 	}
 
-	// Return identities in ascending "entry id" order to maintain a consistent
-	// ordering.
-	// TODO: figure out how to determine the "default" identity
+	// As a stopgap for administratively selected default entries, identities
+	// are sorted by path complexity, and alphabetically within path segments.
 	out := make([]Identity, 0, len(records))
 	for record := range records {
 		out = append(out, makeIdentity(record))
@@ -712,16 +712,57 @@ func newSelectorIndex() *selectorIndex {
 	}
 }
 
-func sortIdentities(identities []Identity) {
-	sort.Slice(identities, func(a, b int) bool {
-		return identities[a].Entry.EntryId < identities[b].Entry.EntryId
-	})
-}
-
 func makeIdentity(record *cacheRecord) Identity {
 	return Identity{
 		Entry:      record.entry,
 		SVID:       record.svid.Chain,
 		PrivateKey: record.svid.PrivateKey,
 	}
+}
+
+// sortIdentities returns a slice of identities sorted by SpiffeID.
+//
+// As a stopgap for administratively selected default entries, identities
+// are sorted by path complexity, and alphabetically within path segments.
+//
+// Default order is fewest path segments first in the spirit of more generic
+// identities as default and more complex identies left to workload decision.
+func sortIdentities(identities []Identity) {
+	sort.Sort(byIdentity(identities))
+}
+
+type byIdentity []Identity
+
+func (a byIdentity) Len() int {
+	return len(a)
+}
+
+func (a byIdentity) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a byIdentity) Less(i, j int) bool {
+	iSpiffeID, _ := spiffeid.FromString(a[i].Entry.SpiffeId)
+	iPathSegments := strings.Split(iSpiffeID.Path(), "/")
+
+	jSpiffeID, _ := spiffeid.FromString(a[j].Entry.SpiffeId)
+	jPathSegments := strings.Split(jSpiffeID.Path(), "/")
+
+	// Fewer path segments listed earlier
+	if len(iPathSegments) < len(jPathSegments) {
+		return true
+	} else if len(iPathSegments) > len(jPathSegments) {
+		return false
+	}
+
+	// Same number of path segments - sort alphabetically by segment
+	for x := range iPathSegments {
+		if iPathSegments[x] < jPathSegments[x] {
+			return true
+		} else if iPathSegments[x] > jPathSegments[x] {
+			return false
+		}
+	}
+
+	return false
 }
