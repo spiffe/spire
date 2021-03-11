@@ -83,6 +83,9 @@ type APIServers struct {
 type RateLimitConfig struct {
 	// Attestation, if true, rate limits attestation
 	Attestation bool
+
+	// Signing, if true, rate limits JWT and X509 signing requests
+	Signing bool
 }
 
 // New creates new endpoints struct
