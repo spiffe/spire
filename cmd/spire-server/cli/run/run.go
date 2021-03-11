@@ -144,8 +144,7 @@ type federatesWithBundleEndpointConfig struct {
 
 type rateLimitConfig struct {
 	Attestation *bool    `hcl:"attestation"`
-	JWTSigning  *bool    `hcl:"jwt_signing"`
-	X509Signing *bool    `hcl:"x509_signing"`
+	Signing     *bool    `hcl:"signing"`
 	UnusedKeys  []string `hcl:",unusedKeys"`
 }
 
@@ -379,15 +378,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.RateLimit.Attestation = *c.Server.RateLimit.Attestation
 
-	if c.Server.RateLimit.JWTSigning == nil {
-		c.Server.RateLimit.JWTSigning = &defaultRateLimit
+	if c.Server.RateLimit.Signing == nil {
+		c.Server.RateLimit.Signing = &defaultRateLimit
 	}
-	sc.RateLimit.JWTSigning = *c.Server.RateLimit.JWTSigning
-
-	if c.Server.RateLimit.X509Signing == nil {
-		c.Server.RateLimit.X509Signing = &defaultRateLimit
-	}
-	sc.RateLimit.X509Signing = *c.Server.RateLimit.X509Signing
+	sc.RateLimit.Signing = *c.Server.RateLimit.Signing
 
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil {

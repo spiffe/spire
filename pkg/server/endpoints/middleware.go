@@ -199,13 +199,13 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 	}
 
 	csrLimit := middleware.DisabledLimit()
-	if config.X509Signing {
-		csrLimit = middleware.PerIPLimit(limits.CSRLimitPerIP)
+	if config.Signing {
+		csrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
 	}
 
 	jsrLimit := middleware.DisabledLimit()
-	if config.JWTSigning {
-		jsrLimit = middleware.PerIPLimit(limits.JSRLimitPerIP)
+	if config.Signing {
+		jsrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
 	}
 
 	pushJWTKeyLimit := middleware.PerIPLimit(limits.PushJWTKeyLimitPerIP)

@@ -53,8 +53,7 @@ var (
 	downstreamID = testTD.NewID("/downstream")
 	rateLimit    = RateLimitConfig{
 		Attestation: true,
-		JWTSigning:  true,
-		X509Signing: true,
+		Signing:     true,
 	}
 )
 

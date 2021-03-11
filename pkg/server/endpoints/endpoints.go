@@ -84,11 +84,8 @@ type RateLimitConfig struct {
 	// Attestation, if true, rate limits attestation
 	Attestation bool
 
-	// X509Signing, if true, rate limits X509 signing request
-	X509Signing bool
-
-	// JWTSigning, if true, rate limits JWT signing requests
-	JWTSigning bool
+	// Signing, if true, rate limits JWT and X509 signing requests
+	Signing bool
 }
 
 // New creates new endpoints struct
