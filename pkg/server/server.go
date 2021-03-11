@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
@@ -9,10 +10,9 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"google.golang.org/grpc"
 )
 
@@ -85,6 +86,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	})
 
 	telemetry.EmitVersion(metrics)
+	uptime.ReportMetrics(ctx, metrics)
 
 	// Create the identity provider host service. It will not be functional
 	// until the call to SetDeps() below. There is some tricky initialization
@@ -92,7 +94,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// to do its job. RPC's from plugins to the identity provider before
 	// SetDeps() has been called will fail with a PreCondition status.
 	identityProvider := identityprovider.New(identityprovider.Config{
-		TrustDomainID: s.config.TrustDomain.String(),
+		TrustDomainID: s.config.TrustDomain.IDString(),
 	})
 
 	// Create the agent store host service. It will not be functional
@@ -159,7 +161,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	registrationManager := s.newRegistrationManager(cat, metrics)
 
-	if err := healthChecks.AddCheck("server", s, time.Minute); err != nil {
+	if err := healthChecks.AddCheck("server", s); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
@@ -170,7 +172,8 @@ func (s *Server) run(ctx context.Context) (err error) {
 		metrics.ListenAndServe,
 		bundleManager.Run,
 		registrationManager.Run,
-		healthChecks.ListenAndServe,
+		util.SerialRun(s.waitForTestDial, healthChecks.ListenAndServe),
+		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	)
 	if err == context.Canceled {
 		err = nil
@@ -239,7 +242,7 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: s.config.TrustDomain.Host,
+			TrustDomain: s.config.TrustDomain.String(),
 		},
 		PluginConfig:     s.config.PluginConfigs,
 		Metrics:          metrics,
@@ -271,7 +274,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CASubject:     s.config.CASubject,
 		Dir:           s.config.DataDir,
 		X509CAKeyType: s.config.CAKeyType,
-		JWTKeyType:    s.config.CAKeyType,
+		JWTKeyType:    s.config.JWTKeyType,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -303,19 +306,18 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 
 func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
-		TCPAddr:                     s.config.BindAddress,
-		UDSAddr:                     s.config.BindUDSAddress,
-		SVIDObserver:                svidObserver,
-		TrustDomain:                 spiffeid.RequireTrustDomainFromURI(&s.config.TrustDomain),
-		Catalog:                     catalog,
-		ServerCA:                    serverCA,
-		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
-		Metrics:                     metrics,
-		Manager:                     caManager,
-		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
-		RateLimit:                   s.config.RateLimit,
-		Uptime:                      uptime.Uptime,
-		Clock:                       clock.New(),
+		TCPAddr:      s.config.BindAddress,
+		UDSAddr:      s.config.BindUDSAddress,
+		SVIDObserver: svidObserver,
+		TrustDomain:  s.config.TrustDomain,
+		Catalog:      catalog,
+		ServerCA:     serverCA,
+		Log:          s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Metrics:      metrics,
+		Manager:      caManager,
+		RateLimit:    s.config.RateLimit,
+		Uptime:       uptime.Uptime,
+		Clock:        clock.New(),
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
@@ -334,7 +336,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 }
 
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
-	trustDomain := s.config.TrustDomain.Host
+	trustDomain := s.config.TrustDomain.String()
 
 	// Get only first page with a single element
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
@@ -383,7 +385,33 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 	return nil
 }
 
+// waitForTestDial calls health.WaitForTestDial to wait for a connection to the
+// SPIRE Server API socket. This function always returns nil, even if
+// health.WaitForTestDial exited due to a timeout.
+func (s *Server) waitForTestDial(ctx context.Context) error {
+	health.WaitForTestDial(ctx, s.config.BindUDSAddress)
+	return nil
+}
+
 // Status is used as a top-level health check for the Server.
 func (s *Server) Status() (interface{}, error) {
-	return nil, nil
+	client, err := server_util.NewServerClient(s.config.BindUDSAddress.Name)
+	if err != nil {
+		return nil, errors.New("cannot create registration client")
+	}
+	defer client.Release()
+
+	bundleClient := client.NewBundleClient()
+
+	// Currently using the ability to fetch a bundle as the health check. This
+	// **could** be problematic if the Upstream CA signing process is lengthy.
+	// As currently coded however, the API isn't served until after
+	// the server CA has been signed by upstream.
+	if _, err := bundleClient.GetBundle(context.Background(), &bundle.GetBundleRequest{}); err != nil {
+		return nil, errors.New("unable to fetch bundle")
+	}
+
+	return health.Details{
+		Message: "successfully fetched bundle",
+	}, nil
 }

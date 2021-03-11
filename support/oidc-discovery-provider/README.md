@@ -90,7 +90,7 @@ acme {
     tos_accepted = true
 }
 server_api {
-    address = "unix:///run/spire/sockets/registration.sock"
+    address = "unix:///tmp/spire-server/private/api.sock"
 }
 ```
 
@@ -104,7 +104,7 @@ acme {
     tos_accepted = true
 }
 workload_api {
-    socket_path = "/run/spire/sockets/agent.sock"
+    socket_path = "/tmp/spire-agent/public/api.sock"
     trust_domain = "domain.test"
 }
 ```
@@ -122,7 +122,7 @@ domain = "mypublicdomain.test"
 listen_socket_path = "/run/oidc-discovery-provider/server.sock"
 
 workload_api {
-    socket_path = "/run/spire/sockets/agent.sock"
+    socket_path = "/tmp/spire-agent/private/api.sock"
     trust_domain = "domain.test"
 }
 ```

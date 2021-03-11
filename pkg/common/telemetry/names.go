@@ -245,6 +245,9 @@ const (
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
+	// Reason is the reason for something
+	Reason = "reason"
+
 	// RegistrationID tags some registration entry ID
 	RegistrationID = "entry_id"
 
@@ -403,6 +406,9 @@ const (
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
 
+	// Ignored tags something as ignored
+	Ignored = "ignored"
+
 	// JoinToken functionality related to a join token; should be used
 	// with other tags to add clarity
 	JoinToken = "join_token"
@@ -546,11 +552,20 @@ const (
 	// GetNodeSelectors functionality related to getting node selectors
 	GetNodeSelectors = "get_node_selectors"
 
+	// CountAgents functionality related to counting agents
+	CountAgents = "count_agents"
+
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
 
+	// CountEntries functionality related to counting all registration entries
+	CountEntries = "count_entries"
+
 	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
 	ListAllEntriesWithPages = "list_all_entries_with_pages"
+
+	// CountBundles functionality related to counting bundles
+	CountBundles = "count_federated_bundles"
 
 	// ListFederatedBundles functionality related to listing federated bundles
 	ListFederatedBundles = "list_federated_bundles"
@@ -572,9 +587,6 @@ const (
 
 	// MintX509SVID functionality related to minting an X.509 SVID
 	MintX509SVID = "mint_x509_svid"
-
-	// NodeAPI functionality related to attested/attesting nodes (agents)
-	NodeAPI = "node_api"
 
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"

@@ -2,9 +2,10 @@ package controllers
 
 import (
 	"context"
-	"path"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 
@@ -47,7 +48,7 @@ func (s *NodeControllerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 
 	s.ds = fakedatastore.New(s.T())
-	s.entryClient = fakeentryclient.New(s.T(), nodeControllerTestTrustDomain, s.ds, nil)
+	s.entryClient = fakeentryclient.New(s.T(), spiffeid.RequireTrustDomainFromString(nodeControllerTestTrustDomain), s.ds, nil)
 
 	s.ctrl = mockCtrl
 
@@ -64,7 +65,7 @@ func (s *NodeControllerTestSuite) TearDownTest() {
 func (s *NodeControllerTestSuite) makeNodeID(node string) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
 		TrustDomain: nodeControllerTestTrustDomain,
-		Path:        path.Join("foo", "node", node),
+		Path:        idutil.JoinPathSegments("foo", "node", node),
 	}
 }
 

@@ -18,6 +18,10 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type EntryClient interface {
+	// Count entries.
+	//
+	// The caller must be local or present an admin X509-SVID.
+	CountEntries(ctx context.Context, in *CountEntriesRequest, opts ...grpc.CallOption) (*CountEntriesResponse, error)
 	// Lists entries.
 	//
 	// The caller must be local or present an admin X509-SVID.
@@ -51,6 +55,15 @@ type entryClient struct {
 
 func NewEntryClient(cc grpc.ClientConnInterface) EntryClient {
 	return &entryClient{cc}
+}
+
+func (c *entryClient) CountEntries(ctx context.Context, in *CountEntriesRequest, opts ...grpc.CallOption) (*CountEntriesResponse, error) {
+	out := new(CountEntriesResponse)
+	err := c.cc.Invoke(ctx, "/spire.api.server.entry.v1.Entry/CountEntries", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *entryClient) ListEntries(ctx context.Context, in *ListEntriesRequest, opts ...grpc.CallOption) (*ListEntriesResponse, error) {
@@ -111,6 +124,10 @@ func (c *entryClient) GetAuthorizedEntries(ctx context.Context, in *GetAuthorize
 // All implementations must embed UnimplementedEntryServer
 // for forward compatibility
 type EntryServer interface {
+	// Count entries.
+	//
+	// The caller must be local or present an admin X509-SVID.
+	CountEntries(context.Context, *CountEntriesRequest) (*CountEntriesResponse, error)
 	// Lists entries.
 	//
 	// The caller must be local or present an admin X509-SVID.
@@ -143,6 +160,9 @@ type EntryServer interface {
 type UnimplementedEntryServer struct {
 }
 
+func (UnimplementedEntryServer) CountEntries(context.Context, *CountEntriesRequest) (*CountEntriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CountEntries not implemented")
+}
 func (UnimplementedEntryServer) ListEntries(context.Context, *ListEntriesRequest) (*ListEntriesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEntries not implemented")
 }
@@ -172,6 +192,24 @@ type UnsafeEntryServer interface {
 
 func RegisterEntryServer(s grpc.ServiceRegistrar, srv EntryServer) {
 	s.RegisterService(&_Entry_serviceDesc, srv)
+}
+
+func _Entry_CountEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CountEntriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EntryServer).CountEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.api.server.entry.v1.Entry/CountEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EntryServer).CountEntries(ctx, req.(*CountEntriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Entry_ListEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -286,6 +324,10 @@ var _Entry_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "spire.api.server.entry.v1.Entry",
 	HandlerType: (*EntryServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CountEntries",
+			Handler:    _Entry_CountEntries_Handler,
+		},
 		{
 			MethodName: "ListEntries",
 			Handler:    _Entry_ListEntries_Handler,

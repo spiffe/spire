@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -207,7 +206,7 @@ func (c *Controller) nodeID() *types.SPIFFEID {
 func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) *types.SPIFFEID {
 	return &types.SPIFFEID{
 		TrustDomain: c.c.TrustDomain,
-		Path:        path.Clean("/" + fmt.Sprintf(pathFmt, pathArgs...)),
+		Path:        idutil.FormatPath(pathFmt, pathArgs...),
 	}
 }
 

@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -10,9 +11,17 @@ import (
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"google.golang.org/grpc"
 )
 
-// health.Checker is responsible for running health checks and serving the healthcheck HTTP paths
+const (
+	// testDialTimeout is the duration to wait for a test dial
+	testDialTimeout = 30 * time.Second
+
+	readyCheckInterval = time.Minute
+)
+
+// Checker is responsible for running health checks and serving the healthcheck HTTP paths
 type Checker struct {
 	config Config
 
@@ -46,20 +55,46 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 		}
 	}
 
-	hc.StatusListener = &statusListener{}
-	hc.Logger = &logadapter{FieldLogger: log.WithField(telemetry.SubsystemName, "health")}
+	l := log.WithField(telemetry.SubsystemName, "health")
+	hc.StatusListener = &statusListener{log: l}
+	hc.Logger = &logadapter{FieldLogger: l}
 
 	return &Checker{config: config, server: server, hc: hc, log: log}
 }
 
-func (c *Checker) AddCheck(name string, checker health.ICheckable, interval time.Duration) error {
+// WaitForTestDial tries to create a client connection to the given target
+// with a blocking dial and a timeout specified in testDialTimeout.
+// Nothing is done with the connection, which is just closed in case it
+// is created.
+func WaitForTestDial(ctx context.Context, addr *net.UnixAddr) {
+	ctx, cancel := context.WithTimeout(ctx, testDialTimeout)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx,
+		addr.String(),
+		grpc.WithInsecure(),
+		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
+			return net.DialUnix("unix", nil, &net.UnixAddr{
+				Net:  "unix",
+				Name: name,
+			})
+		}),
+		grpc.WithBlock())
+	if err != nil {
+		return
+	}
+
+	conn.Close()
+}
+
+func (c *Checker) AddCheck(name string, checker health.ICheckable) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	return c.hc.AddCheck(&health.Config{
 		Name:     name,
 		Checker:  checker,
-		Interval: interval,
+		Interval: readyCheckInterval,
 		Fatal:    true,
 	})
 }

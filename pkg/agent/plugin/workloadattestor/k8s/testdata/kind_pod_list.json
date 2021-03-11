@@ -32,9 +32,7 @@
                   {
                       "args": [
                           "api",
-                          "watch",
-                          "-socketPath",
-                          "/run/spire/sockets/agent.sock"
+                          "watch"
                       ],
                       "command": [
                           "/opt/spire/bin/spire-agent"
@@ -47,7 +45,7 @@
                       "terminationMessagePolicy": "File",
                       "volumeMounts": [
                           {
-                              "mountPath": "/run/spire/sockets",
+                              "mountPath": "/tmp/spire-agent/public",
                               "name": "spire-agent-socket",
                               "readOnly": true
                           },
@@ -86,7 +84,7 @@
               "volumes": [
                   {
                       "hostPath": {
-                          "path": "/run/spire/sockets",
+                          "path": "/run/spire-agent/public",
                           "type": "Directory"
                       },
                       "name": "spire-agent-socket"

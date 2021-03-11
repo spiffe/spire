@@ -1,0 +1,171 @@
+#!/bin/bash
+
+build-mashup-image() {
+    ENVOY_VERSION=$1
+    ENVOY_IMAGE_TAG="${ENVOY_VERSION}-latest"
+
+    cat > Dockerfile <<EOF
+FROM spire-agent:latest-local as spire-agent
+
+FROM envoyproxy/envoy-alpine:${ENVOY_IMAGE_TAG} AS envoy-agent-mashup
+COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
+RUN apk --no-cache add dumb-init
+RUN apk --no-cache add supervisor
+COPY conf/supervisord.conf /etc/
+ENTRYPOINT ["/usr/bin/dumb-init", "supervisord", "--nodaemon", "--configuration", "/etc/supervisord.conf"]
+CMD []
+EOF
+
+    docker build --target envoy-agent-mashup -t envoy-agent-mashup .
+}
+
+setup-tests() {
+    # Bring up the server
+    docker-up spire-server
+
+    # Bootstrap the agent
+    log-debug "bootstrapping downstream agent..."
+    docker-compose exec -T spire-server \
+        /opt/spire/bin/spire-server bundle show > conf/downstream-agent/bootstrap.crt
+
+    log-debug "bootstrapping upstream agent..."
+    docker-compose exec -T spire-server \
+        /opt/spire/bin/spire-server bundle show > conf/upstream-agent/bootstrap.crt
+
+    # Register the workload
+    log-debug "creating registration entry for upstream workload..."
+    docker-compose exec -T spire-server \
+        /opt/spire/bin/spire-server entry create \
+        -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/upstream-agent/agent.crt.pem)" \
+        -spiffeID "spiffe://domain.test/upstream-workload" \
+        -selector "unix:uid:0" \
+        -ttl 0
+
+    log-debug "creating registration entry for downstream workload..."
+    docker-compose exec -T spire-server \
+        /opt/spire/bin/spire-server entry create \
+        -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/downstream-agent/agent.crt.pem)" \
+        -spiffeID "spiffe://domain.test/downstream-workload" \
+        -selector "unix:uid:0" \
+        -ttl 0
+}
+
+test-envoy() {
+    # Ensure connectivity for both TLS and mTLS
+
+    MAXCHECKSPERPORT=15
+    CHECKINTERVAL=1
+
+    TRY() { docker-compose exec -T downstream-socat-mtls /bin/sh -c 'echo HELLO_MTLS | socat -u STDIN TCP:localhost:8001'; }
+    VERIFY() { docker-compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_MTLS; }
+
+    MTLS_OK=
+    for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
+        log-debug "Checking MTLS proxy ($i of $MAXCHECKSPERPORT max)..."
+        if TRY && VERIFY ; then
+            MTLS_OK=1
+            log-info "MTLS proxy OK"
+            break
+        fi
+        sleep "${CHECKINTERVAL}"
+    done
+
+    TRY() { docker-compose exec -T downstream-socat-tls /bin/sh -c 'echo HELLO_TLS | socat -u STDIN TCP:localhost:8002'; }
+    VERIFY() { docker-compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_TLS; }
+
+    TLS_OK=
+    for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
+        log-debug "Checking TLS proxy ($i of $MAXCHECKSPERPORT max)..."
+        if TRY && VERIFY ; then
+            TLS_OK=1
+            log-info "TLS proxy OK"
+            break
+        fi
+        sleep "${CHECKINTERVAL}"
+    done
+
+    if [ -z "${MTLS_OK}" ]; then
+        fail-now "MTLS Proxying failed"
+    fi
+
+    if [ -z "${TLS_OK}" ]; then
+        fail-now "TLS Proxying failed"
+    fi
+}
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/upstream-agent conf/downstream-agent
+
+# Test at most the last five minor releases.
+MAX_ENVOY_RELEASES_TO_TEST=5
+
+# Don't test earlier than v1.13, when was the first release to include the v3
+# API.
+EARLIEST_ENVOY_RELEASE_TO_TEST=v1.13
+
+# Get the version list by downloading the JSON release listing, grabbing all of
+# the tag names, cutting out the quoted version, and sorting by reverse version
+# order. jq would make this much nicer, but we don't want to rely on it being
+# in the environment or downloading it just for this use case. Also, "sort -V"
+# is a thing, but unfortunately isn't available everyhere.
+#
+# The rest of the command strips off the point release to produce a sorted,
+# unique list of minor versions. We take the most recent MAX_ENVOY_RELEASES_TO_TEST
+# number of versions to test.
+ALL_ENVOY_RELEASES="$(curl -Ls https://api.github.com/repos/envoyproxy/envoy/releases?per_page=100 \
+    | grep tag_name \
+    | cut -d\" -f4-4 \
+    | cut -d. -f-2 \
+    | sort -u -t. -k 1,1nr -k 2,2nr \
+    | head -n"${MAX_ENVOY_RELEASES_TO_TEST}"
+    )"
+
+# Now scan the releases and ensure the ones we test are available on Docker
+# Hub.  Normally they should all be available, but there has been latency from
+# the Envoy team publishing the docker image, so this prevents us from trying
+# to test an unpublished release image. This loop also stops if we try and test
+# earlier than v1.13, which is the first release to adopt the v3 API (v2 is
+# deprecated).
+for release in ${ALL_ENVOY_RELEASES}; do
+    if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy-alpine/tags/${release}-latest" > /dev/null 2>/dev/null; then
+        continue
+    fi
+
+    ENVOY_RELEASES_TO_TEST+=( "${release}" )
+
+    if [ "${release}" = "${EARLIEST_ENVOY_RELEASE_TO_TEST}" ]; then
+        break
+    fi
+done
+
+if [ "${#ENVOY_RELEASES_TO_TEST[@]}" -eq 0 ]; then
+    fail-now "Could not identify an appropriate Envoy image to test against"
+fi
+
+log-info "Releases to test: ${ENVOY_RELEASES_TO_TEST[@]}"
+
+# Do some preliminary setup
+setup-tests
+
+# Execute the tests for each release under test. The spire-server should remain
+# up across these tests to minimize teardown/setup costs that are tangential
+# to the support (since we're only testing the SDS integration).
+for release in "${ENVOY_RELEASES_TO_TEST[@]}"; do
+    log-info "Building Envoy ${release}..."
+    build-mashup-image "${release}"
+
+    log-info "Testing Envoy ${release}..."
+
+    docker-up
+
+    test-envoy
+
+    # stop and clear everything but the server container
+    docker-compose stop \
+        upstream-proxy \
+        downstream-proxy \
+        upstream-socat \
+        downstream-socat-mtls \
+        downstream-socat-tls
+
+    docker-compose rm -f
+done

@@ -3,12 +3,18 @@ package spire.api.server.entry.v1;
 option go_package = "github.com/spiffe/spire/proto/spire/api/server/entry/v1;entry";
 
 import "spire/types/entry.proto";
+import "spire/types/federateswith.proto";
 import "spire/types/selector.proto";
 import "spire/types/spiffeid.proto";
 import "spire/types/status.proto";
 
 // Manages registration entries stored by the SPIRE Server.
 service Entry {
+    // Count entries.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc CountEntries(CountEntriesRequest) returns (CountEntriesResponse);
+
     // Lists entries.
     //
     // The caller must be local or present an admin X509-SVID.
@@ -41,11 +47,19 @@ service Entry {
     rpc GetAuthorizedEntries(GetAuthorizedEntriesRequest) returns (GetAuthorizedEntriesResponse);
 }
 
+message CountEntriesRequest {
+}
+
+message CountEntriesResponse {
+    int32 count = 1;
+}
+
 message ListEntriesRequest {
     message Filter {
         spire.types.SPIFFEID by_spiffe_id = 1;
         spire.types.SPIFFEID by_parent_id = 2;
         spire.types.SelectorMatch by_selectors = 3;
+        spire.types.FederatesWithMatch by_federates_with = 4; 
     }
 
     // Filters the entries returned in the response.

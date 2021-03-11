@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
-	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
@@ -23,15 +23,17 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics) middleware.Mi
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
 		withPerServiceConnectionMetrics(metrics),
-		middleware.Preprocess(addWatcherPIDToLogger),
+		middleware.Preprocess(addWatcherPID),
 		middleware.Preprocess(verifySecurityHeader),
 	)
 }
 
-func addWatcherPIDToLogger(ctx context.Context, fullMethod string) (context.Context, error) {
+func addWatcherPID(ctx context.Context, fullMethod string) (context.Context, error) {
 	watcher, ok := peertracker.WatcherFromContext(ctx)
 	if ok {
-		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithField(telemetry.PID, watcher.PID()))
+		pid := int(watcher.PID())
+		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithField(telemetry.PID, pid))
+		ctx = rpccontext.WithCallerPID(ctx, pid)
 	}
 	return ctx, nil
 }

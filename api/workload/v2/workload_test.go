@@ -127,7 +127,7 @@ func TestStartStop(t *testing.T) {
 func TestGetAgentAddress(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		os.Unsetenv(EnvVarAgentAddress)
-		require.Equal(t, "unix:///tmp/agent.sock", GetAgentAddress())
+		require.Equal(t, "unix:///tmp/spire-agent/public/api.sock", GetAgentAddress())
 	})
 	t.Run("env", func(t *testing.T) {
 		os.Setenv(EnvVarAgentAddress, "/foo")
@@ -279,6 +279,10 @@ func (m *mockHandler) resp(name string) *workload.X509SVIDResponse {
 	return &workload.X509SVIDResponse{
 		Svids: []*workload.X509SVID{svidMsg},
 	}
+}
+
+func (m *mockHandler) FetchX509Bundles(*workload.X509BundlesRequest, workload.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
+	return errors.New("unimplemented")
 }
 
 func (m *mockHandler) FetchJWTSVID(context.Context, *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {

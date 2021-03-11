@@ -32,34 +32,6 @@ type testEntries struct {
 	workloadEntries  []*types.Entry
 }
 
-func TestAuthorizedEntryFetcher(t *testing.T) {
-	ds := fakedatastore.New(t)
-	e := createAuthorizedEntryTestData(t, ds)
-	expectedNodeAliasEntries := e.nodeAliasEntries
-	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
-	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
-	fetcher := AuthorizedEntryFetcher(ds)
-	fetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
-	require.NoError(t, err)
-
-	for _, f := range []api.AuthorizedEntryFetcher{fetcher, fetcherWithCache} {
-		f := f
-		t.Run("success", func(t *testing.T) {
-			ds.SetNextError(nil)
-			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-			assert.NoError(t, err)
-			assert.ElementsMatch(t, expectedEntries, entries)
-		})
-
-		t.Run("failure", func(t *testing.T) {
-			ds.SetNextError(errors.New("ohno"))
-			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-			assert.EqualError(t, err, "ohno")
-			assert.Nil(t, entries)
-		})
-	}
-}
-
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
@@ -134,7 +106,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber: agentSVID.SerialNumber.String(),
 			},
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    `agent "spiffe://domain.test/agent" SVID is expired`,
+			expectedMsg:    `agent "spiffe://domain.test/spire/agent/foo" SVID is expired`,
 			expectedReason: types.PermissionDeniedDetails_AGENT_EXPIRED,
 			expectedLogs: []spiretest.LogEntry{
 				{
@@ -149,7 +121,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		{
 			name:           "no attested node",
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    `agent "spiffe://domain.test/agent" is not attested`,
+			expectedMsg:    `agent "spiffe://domain.test/spire/agent/foo" is not attested`,
 			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ATTESTED,
 			expectedLogs: []spiretest.LogEntry{
 				{
@@ -167,7 +139,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				SpiffeId: agentID.String(),
 			},
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    `agent "spiffe://domain.test/agent" is banned`,
+			expectedMsg:    `agent "spiffe://domain.test/spire/agent/foo" is banned`,
 			expectedReason: types.PermissionDeniedDetails_AGENT_BANNED,
 			expectedLogs: []spiretest.LogEntry{
 				{
@@ -186,7 +158,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber: "NEW",
 			},
 			expectedCode:   codes.PermissionDenied,
-			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/agent" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber.String()),
+			expectedMsg:    fmt.Sprintf(`agent "spiffe://domain.test/spire/agent/foo" expected to have serial number "NEW"; has %q`, agentSVID.SerialNumber.String()),
 			expectedReason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
 			expectedLogs: []spiretest.LogEntry{
 				{

@@ -46,7 +46,7 @@ message Pagination {
     int32 page_size = 2;
 }
 
-//
+// It is used to request a list of all registration entries
 message ListAllEntriesRequest {
     Pagination pagination = 1;
 }

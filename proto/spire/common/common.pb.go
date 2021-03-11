@@ -357,7 +357,7 @@ type RegistrationEntry struct {
 	//* Entry ID
 	EntryId string `protobuf:"bytes,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
 	//* Whether or not the workload is an admin workload. Admin workloads
-	//can use their SVID's to authenticate with the Registration API, for
+	//can use their SVID's to authenticate with the Server APIs, for
 	//example.
 	Admin bool `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
 	//* To enable signing CA CSR in upstream spire server

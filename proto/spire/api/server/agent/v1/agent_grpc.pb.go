@@ -19,6 +19,10 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AgentClient interface {
+	// Count agents.
+	//
+	// The caller must be local or present an admin X509-SVID.
+	CountAgents(ctx context.Context, in *CountAgentsRequest, opts ...grpc.CallOption) (*CountAgentsResponse, error)
 	// Lists agents.
 	//
 	// The caller must be local or present an admin X509-SVID.
@@ -62,6 +66,15 @@ type agentClient struct {
 
 func NewAgentClient(cc grpc.ClientConnInterface) AgentClient {
 	return &agentClient{cc}
+}
+
+func (c *agentClient) CountAgents(ctx context.Context, in *CountAgentsRequest, opts ...grpc.CallOption) (*CountAgentsResponse, error) {
+	out := new(CountAgentsResponse)
+	err := c.cc.Invoke(ctx, "/spire.api.server.agent.v1.Agent/CountAgents", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *agentClient) ListAgents(ctx context.Context, in *ListAgentsRequest, opts ...grpc.CallOption) (*ListAgentsResponse, error) {
@@ -153,6 +166,10 @@ func (c *agentClient) CreateJoinToken(ctx context.Context, in *CreateJoinTokenRe
 // All implementations must embed UnimplementedAgentServer
 // for forward compatibility
 type AgentServer interface {
+	// Count agents.
+	//
+	// The caller must be local or present an admin X509-SVID.
+	CountAgents(context.Context, *CountAgentsRequest) (*CountAgentsResponse, error)
 	// Lists agents.
 	//
 	// The caller must be local or present an admin X509-SVID.
@@ -195,6 +212,9 @@ type AgentServer interface {
 type UnimplementedAgentServer struct {
 }
 
+func (UnimplementedAgentServer) CountAgents(context.Context, *CountAgentsRequest) (*CountAgentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CountAgents not implemented")
+}
 func (UnimplementedAgentServer) ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAgents not implemented")
 }
@@ -227,6 +247,24 @@ type UnsafeAgentServer interface {
 
 func RegisterAgentServer(s grpc.ServiceRegistrar, srv AgentServer) {
 	s.RegisterService(&_Agent_serviceDesc, srv)
+}
+
+func _Agent_CountAgents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CountAgentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServer).CountAgents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.api.server.agent.v1.Agent/CountAgents",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).CountAgents(ctx, req.(*CountAgentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Agent_ListAgents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -367,6 +405,10 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "spire.api.server.agent.v1.Agent",
 	HandlerType: (*AgentServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CountAgents",
+			Handler:    _Agent_CountAgents_Handler,
+		},
 		{
 			MethodName: "ListAgents",
 			Handler:    _Agent_ListAgents_Handler,

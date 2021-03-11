@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -87,6 +88,10 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
+	if err := idutil.CheckIDURLNormalization(csr.URIs[0]); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is malformed", err)
+	}
+
 	for _, dnsName := range csr.DNSNames {
 		if err := x509util.ValidateDNS(dnsName); err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is not valid", err)
@@ -94,7 +99,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 	}
 
 	x509SVID, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  id.String(),
+		SpiffeID:  id,
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(req.Ttl) * time.Second,
 		DNSList:   csr.DNSNames,
@@ -217,7 +222,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 	log = log.WithField(telemetry.SPIFFEID, spiffeID.String())
 
 	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  spiffeID.String(),
+		SpiffeID:  spiffeID,
 		PublicKey: csr.PublicKey,
 		DNSList:   entry.DnsNames,
 		TTL:       time.Duration(entry.Ttl) * time.Second,
@@ -246,6 +251,10 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
 
+	if err := idutil.CheckIDProtoNormalization(protoID); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "spiffe ID is malformed", err)
+	}
+
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
 	if len(audience) == 0 {
@@ -253,7 +262,7 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	}
 
 	token, err := s.ca.SignJWTSVID(ctx, ca.JWTSVIDParams{
-		SpiffeID: id.String(),
+		SpiffeID: id,
 		TTL:      time.Duration(ttl) * time.Second,
 		Audience: audience,
 	})
@@ -322,7 +331,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 	}
 
 	x509CASvid, err := s.ca.SignX509CASVID(ctx, ca.X509CASVIDParams{
-		SpiffeID:  s.td.IDString(),
+		SpiffeID:  s.td.ID(),
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})

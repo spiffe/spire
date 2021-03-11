@@ -8,7 +8,6 @@ import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
 	client "github.com/spiffe/spire/pkg/agent/client"
-	node "github.com/spiffe/spire/proto/spire/api/node"
 	reflect "reflect"
 )
 
@@ -51,7 +50,7 @@ func (mr *MockClientMockRecorder) FetchUpdates(arg0 interface{}) *gomock.Call {
 }
 
 // NewJWTSVID mocks base method
-func (m *MockClient) NewJWTSVID(arg0 context.Context, arg1 *node.JSR, arg2 string) (*client.JWTSVID, error) {
+func (m *MockClient) NewJWTSVID(arg0 context.Context, arg1 string, arg2 []string) (*client.JWTSVID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewJWTSVID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*client.JWTSVID)
@@ -66,10 +65,10 @@ func (mr *MockClientMockRecorder) NewJWTSVID(arg0, arg1, arg2 interface{}) *gomo
 }
 
 // NewX509SVIDs mocks base method
-func (m *MockClient) NewX509SVIDs(arg0 context.Context, arg1 map[string][]byte) (map[string]*node.X509SVID, error) {
+func (m *MockClient) NewX509SVIDs(arg0 context.Context, arg1 map[string][]byte) (map[string]*client.X509SVID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewX509SVIDs", arg0, arg1)
-	ret0, _ := ret[0].(map[string]*node.X509SVID)
+	ret0, _ := ret[0].(map[string]*client.X509SVID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -93,10 +92,10 @@ func (mr *MockClientMockRecorder) Release() *gomock.Call {
 }
 
 // RenewSVID mocks base method
-func (m *MockClient) RenewSVID(arg0 context.Context, arg1 []byte) (*node.X509SVID, error) {
+func (m *MockClient) RenewSVID(arg0 context.Context, arg1 []byte) (*client.X509SVID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RenewSVID", arg0, arg1)
-	ret0, _ := ret[0].(*node.X509SVID)
+	ret0, _ := ret[0].(*client.X509SVID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

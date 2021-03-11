@@ -32,6 +32,8 @@ help:
 	@echo "  $(cyan)test$(reset)                                  - run unit tests"
 	@echo "  $(cyan)race-test$(reset)                             - run unit tests with race detection"
 	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
+	@echo "                                          support 'SUITES' variable for executing specific tests"
+	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
 	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
@@ -143,6 +145,7 @@ protos := \
 	proto/spire/types/attestation.proto \
 	proto/spire/types/bundle.proto \
 	proto/spire/types/entry.proto \
+	proto/spire/types/federateswith.proto \
 	proto/spire/types/jointoken.proto \
 	proto/spire/types/jwtsvid.proto \
 	proto/spire/types/selector.proto \
@@ -154,8 +157,8 @@ serviceprotos := \
 	proto/private/test/catalogtest/test.proto \
 	proto/spire/agent/keymanager/keymanager.proto \
 	proto/spire/agent/nodeattestor/nodeattestor.proto \
+	proto/spire/agent/svidstore/svidstore.proto \
 	proto/spire/agent/workloadattestor/workloadattestor.proto \
-	proto/spire/api/node/node.proto \
 	proto/spire/api/registration/registration.proto \
 	proto/spire/common/hostservices/metricsservice.proto \
 	proto/spire/common/plugin/plugin.proto \
@@ -193,6 +196,7 @@ plugingen_plugins = \
 	proto/spire/agent/nodeattestor/nodeattestor.proto,pkg/agent/plugin/nodeattestor,NodeAttestor \
 	proto/spire/agent/workloadattestor/workloadattestor.proto,pkg/agent/plugin/workloadattestor,WorkloadAttestor \
 	proto/spire/agent/keymanager/keymanager.proto,pkg/agent/plugin/keymanager,KeyManager \
+	proto/spire/agent/svidstore/svidstore.proto,pkg/agent/plugin/svidstore,SVIDStore \
 	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,Plugin,shared \
 
 plugingen_services = \
@@ -246,6 +250,9 @@ endif
 ############################################################################
 # Determine go flags
 ############################################################################
+
+# Flags passed to all invocations of go test
+go_test_flags := -timeout=60s
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
@@ -341,20 +348,20 @@ $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oi
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) ./...
 endif
 
 race-test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -race -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) -race ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
 endif
 
 integration:
-	$(E)./test/integration/test.sh
+	$(E)./test/integration/test.sh $(SUITES)
 
 #############################################################################
 # Build Artifact

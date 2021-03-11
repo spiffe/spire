@@ -51,7 +51,6 @@ data:
       log_level = "DEBUG"
       server_address = "spire-server"
       server_port = "8081"
-      socket_path = "/run/spire/sockets/agent.sock"
       trust_bundle_path = "/run/spire/bundle/bundle.crt"
       trust_domain = "example.org"
     }
@@ -76,6 +75,14 @@ data:
           skip_kubelet_verification = true
         }
       }
+    }
+
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      live_path = "/live"
+      ready_path = "/ready"
     }
 
 ---
@@ -124,18 +131,20 @@ spec:
               mountPath: /run/spire/bundle
               readOnly: true
             - name: spire-agent-socket
-              mountPath: /run/spire/sockets
+              mountPath: /tmp/spire-agent/public
               readOnly: false
             - name: spire-token
               mountPath: /var/run/secrets/tokens
           livenessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
+            httpGet:
+              path: /live
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock", "--shallow"]
+            httpGet:
+              path: /ready
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
@@ -151,8 +160,8 @@ spec:
             type: DirectoryOrCreate
         - name: spire-token
           projected:
-           sources:
-           - serviceAccountToken:
-              path: spire-agent
-              expirationSeconds: 7200
-              audience: spire-server
+            sources:
+            - serviceAccountToken:
+                path: spire-agent
+                expirationSeconds: 7200
+                audience: spire-server

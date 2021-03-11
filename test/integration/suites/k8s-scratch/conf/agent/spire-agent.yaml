@@ -51,7 +51,6 @@ data:
       log_level = "DEBUG"
       server_address = "spire-server"
       server_port = "8081"
-      socket_path = "/run/spire/sockets/agent.sock"
       trust_bundle_path = "/run/spire/bundle/bundle.crt"
       trust_domain = "example.org"
     }
@@ -125,18 +124,18 @@ spec:
               mountPath: /run/spire/bundle
               readOnly: true
             - name: spire-agent-socket
-              mountPath: /run/spire/sockets
+              mountPath: /tmp/spire-agent/public
               readOnly: false
             - name: spire-token
               mountPath: /var/run/secrets/tokens
           livenessProbe:
             exec:
-              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
+              command: ["/opt/spire/bin/spire-agent", "healthcheck"]
             initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
             exec:
-              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock", "--shallow"]
+              command: ["/opt/spire/bin/spire-agent", "healthcheck", "--shallow"]
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:

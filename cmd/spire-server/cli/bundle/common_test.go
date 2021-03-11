@@ -204,7 +204,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *bundl
 		stdin:    stdin,
 		stdout:   stdout,
 		stderr:   stderr,
-		args:     []string{"-registrationUDSPath", socketPath},
+		args:     []string{"-socketPath", socketPath},
 		server:   server,
 		client:   client,
 	}
@@ -238,12 +238,6 @@ func (s *bundleTest) afterTest(t *testing.T) {
 	t.Logf("STDERR:\n%s", s.stderr.String())
 }
 
-func (s *bundleTest) assertBundleSet(t *testing.T, args ...string) {
-	rc := s.client.Run(args)
-	require.Equal(t, 0, rc)
-	require.Equal(t, "bundle set.\n", s.stdout.String())
-}
-
 type fakeBundleServer struct {
 	bundle.BundleServer
 
@@ -273,6 +267,15 @@ func (f *fakeBundleServer) BatchSetFederatedBundle(ctx context.Context, req *bun
 	spiretest.AssertProtoEqual(f.t, f.expectedSetBundle, req.Bundle[0])
 
 	return f.setResponse, nil
+}
+
+func (f *fakeBundleServer) CountBundles(context.Context, *bundle.CountBundlesRequest) (*bundle.CountBundlesResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &bundle.CountBundlesResponse{
+		Count: int32(len(f.bundles)),
+	}, nil
 }
 
 func (f *fakeBundleServer) ListFederatedBundles(context.Context, *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {

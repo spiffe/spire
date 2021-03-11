@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -39,14 +39,13 @@ import (
 )
 
 const (
-	testTrustDomain = "domain.test"
-	testCATTL       = time.Hour
-	activateAfter   = testCATTL - (testCATTL / 6)
-	prepareAfter    = testCATTL - (testCATTL / 2)
+	testCATTL     = time.Hour
+	activateAfter = testCATTL - (testCATTL / 6)
+	prepareAfter  = testCATTL - (testCATTL / 2)
 )
 
 var (
-	testTrustDomainURL = url.URL{Scheme: "spiffe", Host: testTrustDomain}
+	testTrustDomain = spiffeid.RequireTrustDomainFromString("domain.test")
 )
 
 func TestManager(t *testing.T) {
@@ -607,6 +606,13 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 			checkJWTKey:   expectEC384,
 		},
 		{
+			name:          "self-signed JWT with RSA 2048 and X509 with EC P384",
+			x509CAKeyType: keymanager.KeyType_EC_P384,
+			jwtKeyType:    keymanager.KeyType_RSA_2048,
+			checkX509CA:   expectEC384,
+			checkJWTKey:   expectRSA2048,
+		},
+		{
 			name:              "upstream-signed with defaults",
 			upstreamAuthority: upstreamAuthority,
 			checkX509CA:       expectEC256,
@@ -695,7 +701,7 @@ func (s *ManagerSuite) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType ke
 	return ManagerConfig{
 		CA:          s.ca,
 		Catalog:     s.cat,
-		TrustDomain: testTrustDomainURL,
+		TrustDomain: testTrustDomain,
 		CASubject: pkix.Name{
 			CommonName: "SPIRE",
 		},
@@ -801,7 +807,7 @@ func (s *ManagerSuite) requireBundleJWTKeys(jwtKeys ...*JWTKey) {
 func (s *ManagerSuite) createBundle() *common.Bundle {
 	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: &common.Bundle{
-			TrustDomainId: testTrustDomainURL.String(),
+			TrustDomainId: testTrustDomain.IDString(),
 		},
 	})
 	s.Require().NoError(err)
@@ -809,15 +815,15 @@ func (s *ManagerSuite) createBundle() *common.Bundle {
 }
 
 func (s *ManagerSuite) fetchBundle() *common.Bundle {
-	return s.fetchBundleForTrustDomain(testTrustDomainURL.String())
+	return s.fetchBundleForTrustDomain(testTrustDomain)
 }
 
-func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomainID string) *common.Bundle {
+func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomain spiffeid.TrustDomain) *common.Bundle {
 	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainID,
+		TrustDomainId: trustDomain.IDString(),
 	})
 	s.Require().NoError(err)
-	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomainID)
+	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomain.IDString())
 	return resp.Bundle
 }
 

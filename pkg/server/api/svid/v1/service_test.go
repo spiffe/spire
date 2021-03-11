@@ -316,7 +316,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.ID{},
-			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is empty",
 			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
@@ -442,7 +442,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			entry:    invalidEntry,
-			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is empty",
 			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
@@ -1096,7 +1096,7 @@ func (c *serviceTest) Cleanup() {
 
 func setupServiceTest(t *testing.T) *serviceTest {
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
-	ca := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
+	ca := fakeserverca.New(t, trustDomain, &fakeserverca.Options{})
 	ef := &entryFetcher{}
 	downstream := &entryFetcher{}
 	ds := fakedatastore.New(t)

@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
@@ -33,6 +31,11 @@ var (
 
 const rpcTimeout = 30 * time.Second
 
+type X509SVID struct {
+	CertChain []byte
+	ExpiresAt int64
+}
+
 type JWTSVID struct {
 	Token     string
 	IssuedAt  time.Time
@@ -41,9 +44,9 @@ type JWTSVID struct {
 
 type Client interface {
 	FetchUpdates(ctx context.Context) (*Update, error)
-	RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, error)
-	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*node.X509SVID, error)
-	NewJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) (*JWTSVID, error)
+	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
+	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
+	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -53,7 +56,7 @@ type Client interface {
 type Config struct {
 	Addr        string
 	Log         logrus.FieldLogger
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
 	// to connect via mTLS to Addr.
 	KeysAndBundle func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
@@ -151,7 +154,7 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 	}, nil
 }
 
-func (c *client) RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, error) {
+func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
@@ -176,20 +179,20 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, err
 	for _, cert := range resp.Svid.CertChain {
 		certChain = append(certChain, cert...)
 	}
-	return &node.X509SVID{
+	return &X509SVID{
 		CertChain: certChain,
 		ExpiresAt: resp.Svid.ExpiresAt,
 	}, nil
 }
 
-func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*node.X509SVID, error) {
+func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	svids := make(map[string]*node.X509SVID)
+	svids := make(map[string]*X509SVID)
 	var params []*svidpb.NewX509SVIDParams
 	for entryID, csr := range csrs {
 		params = append(params, &svidpb.NewX509SVIDParams{
@@ -214,7 +217,7 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 			certChain = append(certChain, cert...)
 		}
 
-		svids[entryID] = &node.X509SVID{
+		svids[entryID] = &X509SVID{
 			CertChain: certChain,
 			ExpiresAt: s.ExpiresAt,
 		}
@@ -223,7 +226,7 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	return svids, nil
 }
 
-func (c *client) NewJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) (*JWTSVID, error) {
+func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
@@ -237,7 +240,7 @@ func (c *client) NewJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) 
 	defer connection.Release()
 
 	resp, err := svidClient.NewJWTSVID(ctx, &svidpb.NewJWTSVIDRequest{
-		Audience: jsr.Audience,
+		Audience: audience,
 		EntryId:  entryID,
 	})
 	if err != nil {
@@ -282,7 +285,7 @@ func (c *client) release(conn *nodeConn) {
 func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 	return DialServer(ctx, DialServerConfig{
 		Address:     c.c.Addr,
-		TrustDomain: c.c.TrustDomain.Host,
+		TrustDomain: c.c.TrustDomain,
 		GetBundle: func() []*x509.Certificate {
 			_, _, bundle := c.c.KeysAndBundle()
 			return bundle

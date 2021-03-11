@@ -7,10 +7,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -22,8 +22,6 @@ import (
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
@@ -46,38 +44,23 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog               catalog.Catalog
-	Metrics               telemetry.Metrics
-	JoinToken             string
-	TrustDomain           url.URL
-	TrustBundle           []*x509.Certificate
-	InsecureBootstrap     bool
-	BundleCachePath       string
-	SVIDCachePath         string
-	Log                   logrus.FieldLogger
-	ServerAddress         string
-	CreateNewAgentClient  func(grpc.ClientConnInterface) agent.AgentClient
-	CreateNewBundleClient func(grpc.ClientConnInterface) bundle.BundleClient
+	Catalog           catalog.Catalog
+	Metrics           telemetry.Metrics
+	JoinToken         string
+	TrustDomain       spiffeid.TrustDomain
+	TrustBundle       []*x509.Certificate
+	InsecureBootstrap bool
+	BundleCachePath   string
+	SVIDCachePath     string
+	Log               logrus.FieldLogger
+	ServerAddress     string
 }
 
 type attestor struct {
 	c *Config
-
-	// Used for testing purposes.
-
 }
 
 func New(config *Config) Attestor {
-	// Defaults for CreateNewAgentClient and CreateNewBundleClient functions
-	if config != nil {
-		if config.CreateNewAgentClient == nil {
-			config.CreateNewAgentClient = agent.NewAgentClient
-		}
-		if config.CreateNewBundleClient == nil {
-			config.CreateNewBundleClient = bundle.NewBundleClient
-		}
-	}
-
 	return &attestor{c: config}
 }
 
@@ -193,7 +176,7 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), nil
+	return bundleutil.BundleFromRootCAs(a.c.TrustDomain, bundle), nil
 }
 
 func (a *attestor) fetchAttestationData(fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient, challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
@@ -294,7 +277,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	if bundle != nil {
 		return client.DialServer(ctx, client.DialServerConfig{
 			Address:     a.c.ServerAddress,
-			TrustDomain: a.c.TrustDomain.Host,
+			TrustDomain: a.c.TrustDomain,
 			GetBundle:   bundle.RootCAs,
 		})
 	}
@@ -318,12 +301,13 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 				// creeping into the TLS stack.
 				return errs.New("server chain is unexpectedly empty")
 			}
-			expectedServerID := idutil.ServerID(a.c.TrustDomain.Host)
+
+			expectedServerID := idutil.ServerID(a.c.TrustDomain)
 			serverCert, err := x509.ParseCertificate(rawCerts[0])
 			if err != nil {
 				return err
 			}
-			if len(serverCert.URIs) != 1 || serverCert.URIs[0].String() != expectedServerID {
+			if len(serverCert.URIs) != 1 || serverCert.URIs[0].String() != expectedServerID.String() {
 				return errs.New("expected server SPIFFE ID %q; got %q", expectedServerID, serverCert.URIs)
 			}
 			return nil

@@ -22,6 +22,10 @@ func WithMetrics(km keymanager.KeyManager, metrics telemetry.Metrics) keymanager
 func (w serverKeyManagerWrapper) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (_ *keymanager.GenerateKeyResponse, err error) {
 	callCounter := StartGenerateKeyCall(w.m)
 	defer callCounter.Done(&err)
+
+	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
+	defer cancel()
+
 	return w.k.GenerateKey(ctx, req)
 }
 
