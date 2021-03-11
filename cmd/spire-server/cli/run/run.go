@@ -49,7 +49,7 @@ var (
 		Organization: []string{"SPIFFE"},
 	}
 
-	defaultRateLimitAttestation = true
+	defaultRateLimit = true
 )
 
 // Config contains all available configurables, arranged by section
@@ -144,6 +144,7 @@ type federatesWithBundleEndpointConfig struct {
 
 type rateLimitConfig struct {
 	Attestation *bool    `hcl:"attestation"`
+	Signing     *bool    `hcl:"signing"`
 	UnusedKeys  []string `hcl:",unusedKeys"`
 }
 
@@ -373,9 +374,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.TrustDomain = td
 
 	if c.Server.RateLimit.Attestation == nil {
-		c.Server.RateLimit.Attestation = &defaultRateLimitAttestation
+		c.Server.RateLimit.Attestation = &defaultRateLimit
 	}
 	sc.RateLimit.Attestation = *c.Server.RateLimit.Attestation
+
+	if c.Server.RateLimit.Signing == nil {
+		c.Server.RateLimit.Signing = &defaultRateLimit
+	}
+	sc.RateLimit.Signing = *c.Server.RateLimit.Signing
 
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil {

@@ -51,7 +51,10 @@ var (
 	agentID      = testTD.NewID("/spire/agent/foo")
 	adminID      = testTD.NewID("/admin")
 	downstreamID = testTD.NewID("/downstream")
-	rateLimit    = RateLimitConfig{Attestation: true}
+	rateLimit    = RateLimitConfig{
+		Attestation: true,
+		Signing:     true,
+	}
 )
 
 func TestNew(t *testing.T) {

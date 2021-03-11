@@ -168,8 +168,17 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 	if config.Attestation {
 		attestLimit = middleware.PerIPLimit(limits.AttestLimitPerIP)
 	}
-	csrLimit := middleware.PerIPLimit(limits.CSRLimitPerIP)
-	jsrLimit := middleware.PerIPLimit(limits.JSRLimitPerIP)
+
+	csrLimit := middleware.DisabledLimit()
+	if config.Signing {
+		csrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
+	}
+
+	jsrLimit := middleware.DisabledLimit()
+	if config.Signing {
+		jsrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
+	}
+
 	pushJWTKeyLimit := middleware.PerIPLimit(limits.PushJWTKeyLimitPerIP)
 
 	return map[string]api.RateLimiter{
