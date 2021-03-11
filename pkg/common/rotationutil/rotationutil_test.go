@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/util"
@@ -11,11 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var spiffeID = spiffeid.RequireFromString("spiffe://example.org/test")
+
 func TestShouldRotateX509(t *testing.T) {
 	// Cert that's valid for 1hr
 	mockClk := clock.NewMock(t)
-	temp, err := util.NewSVIDTemplate(mockClk, "spiffe://example.org/test")
-	require.NoError(t, err)
+	temp := util.NewSVIDTemplate(mockClk, spiffeID)
 	goodCert, _, err := util.SelfSign(temp)
 	require.NoError(t, err)
 
@@ -34,8 +36,7 @@ func TestShouldRotateX509(t *testing.T) {
 func TestX509Expired(t *testing.T) {
 	// Cert that's valid for 1hr
 	mockClk := clock.NewMock(t)
-	temp, err := util.NewSVIDTemplate(mockClk, "spiffe://example.org/test")
-	require.NoError(t, err)
+	temp := util.NewSVIDTemplate(mockClk, spiffeID)
 	goodCert, _, err := util.SelfSign(temp)
 	require.NoError(t, err)
 

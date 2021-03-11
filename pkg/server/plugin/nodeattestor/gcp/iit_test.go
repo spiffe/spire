@@ -386,7 +386,7 @@ projectid_whitelist = ["bar"]
 projectid_whitelist = ["bar"]
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireErrorContains(err, "gcp-iit: trust_domain is required")
+	s.RequireErrorContains(err, "gcp-iit: unable to parse trust domain: spiffeid: trust domain is empty")
 	require.Nil(resp)
 
 	// missing projectID whitelist

@@ -735,7 +735,7 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       federatedSVID.Marshal(),
 			updates:    updatesWithBundleOnly,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `no keys found for trust domain "spiffe://domain2.test"`,
+			expectMsg:  `no keys found for trust domain "domain2.test"`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -744,7 +744,7 @@ func TestValidateJWTSVID(t *testing.T) {
 						"audience":      "AUDIENCE",
 						"service":       "WorkloadAPI",
 						"method":        "ValidateJWTSVID",
-						logrus.ErrorKey: `no keys found for trust domain "spiffe://domain2.test"`,
+						logrus.ErrorKey: `no keys found for trust domain "domain2.test"`,
 					},
 				},
 			},

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -74,12 +75,16 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		AgentId: agentID,
+		AgentId: agentID.String(),
 	})
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	sshserver, err := sshpop.NewServer(req.GlobalConfig.GetTrustDomain(), req.Configuration)
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.GetTrustDomain())
+	if err != nil {
+		return nil, err
+	}
+	sshserver, err := sshpop.NewServer(trustDomain, req.Configuration)
 	if err != nil {
 		return nil, err
 	}

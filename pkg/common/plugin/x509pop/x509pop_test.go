@@ -11,6 +11,7 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -132,18 +133,18 @@ func TestMakeSPIFFEID(t *testing.T) {
 	tests := []struct {
 		desc         string
 		template     *template.Template
-		expectSPIFFE string
+		expectSPIFFE spiffeid.ID
 		expectErr    string
 	}{
 		{
 			desc:         "default template with sha1",
 			template:     DefaultAgentPathTemplate,
-			expectSPIFFE: "spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			expectSPIFFE: spiffeid.RequireFromString("spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709"),
 		},
 		{
 			desc:         "custom template with subject identifiers",
 			template:     template.Must(template.New("test").Parse("foo/{{ .Subject.CommonName }}")),
-			expectSPIFFE: "spiffe://example.org/spire/agent/foo/test-cert",
+			expectSPIFFE: spiffeid.RequireFromString("spiffe://example.org/spire/agent/foo/test-cert"),
 		},
 		{
 			desc:      "custom template with nonexistant fields",
@@ -160,7 +161,7 @@ func TestMakeSPIFFEID(t *testing.T) {
 					CommonName: "test-cert",
 				},
 			}
-			spiffeid, err := MakeSpiffeID("example.org", tt.template, cert)
+			spiffeid, err := MakeSpiffeID(spiffeid.RequireTrustDomainFromString("example.org"), tt.template, cert)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)

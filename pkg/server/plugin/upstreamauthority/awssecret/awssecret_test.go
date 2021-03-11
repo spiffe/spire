@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -74,7 +75,7 @@ func (as *Suite) TestGetSecretFail() {
 }
 
 func (as *Suite) Test_MintX509CAValidCSR() {
-	validSpiffeID := "spiffe://localhost"
+	validSpiffeID := spiffeid.RequireFromString("spiffe://localhost")
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
@@ -92,18 +93,16 @@ func (as *Suite) Test_MintX509CAValidCSR() {
 }
 
 func (as *Suite) TestMintX509CAInvalidCSR() {
-	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
-	for _, invalidSpiffeID := range invalidSpiffeIDs {
-		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
-		as.Require().NoError(err)
+	invalidSpiffeID := spiffeid.RequireFromString("spiffe://not-trusted")
+	csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
+	as.Require().NoError(err)
 
-		resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: csr})
-		as.Require().Error(err)
-		as.Require().Nil(resp)
-	}
+	resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: csr})
+	as.Require().Error(err)
+	as.Require().Nil(resp)
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err = as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	as.Require().Error(err)
 	as.Require().Nil(resp)
 }
@@ -119,7 +118,7 @@ func (as *Suite) TestMintX509CAUsesPreferredTTLIfSet() {
 }
 
 func (as *Suite) testCSRTTL(plugin upstreamauthority.Plugin, preferredTTL int32, expectedTTL time.Duration) {
-	validSpiffeID := "spiffe://localhost"
+	validSpiffeID := spiffeid.RequireFromString("spiffe://localhost")
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 

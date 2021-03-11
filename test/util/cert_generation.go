@@ -17,18 +17,14 @@ import (
 )
 
 // NewCSRTemplate returns a default CSR template with the specified SPIFFE ID.
-func NewCSRTemplate(spiffeID string) ([]byte, crypto.PublicKey, error) {
-	uriSAN, err := url.Parse(spiffeID)
-	if err != nil {
-		return nil, nil, err
-	}
+func NewCSRTemplate(spiffeID spiffeid.ID) ([]byte, crypto.PublicKey, error) {
 	template := &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		URIs:               []*url.URL{uriSAN},
+		URIs:               []*url.URL{spiffeID.URL()},
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -45,11 +41,10 @@ func NewCSRTemplate(spiffeID string) ([]byte, crypto.PublicKey, error) {
 
 // NewSVIDTemplate returns a default SVID template with the specified SPIFFE ID. Must
 // be signed before it's valid.
-func NewSVIDTemplate(clk clock.Clock, spiffeID string) (*x509.Certificate, error) {
+func NewSVIDTemplate(clk clock.Clock, spiffeID spiffeid.ID) *x509.Certificate {
 	cert := defaultSVIDTemplate(clk)
-	err := addSpiffeExtension(spiffeID, cert)
-
-	return cert, err
+	addSpiffeExtension(spiffeID, cert)
+	return cert
 }
 
 func NewSVIDTemplateFromCSR(clk clock.Clock, csr []byte, ca *x509.Certificate, ttl int) (*x509.Certificate, error) {
@@ -80,11 +75,10 @@ func NewSVIDTemplateFromCSR(clk clock.Clock, csr []byte, ca *x509.Certificate, t
 
 // NewCATemplate returns a default CA template with the specified trust domain. Must
 // be signed before it's valid.
-func NewCATemplate(clk clock.Clock, trustDomain spiffeid.TrustDomain) (*x509.Certificate, error) {
+func NewCATemplate(clk clock.Clock, trustDomain spiffeid.TrustDomain) *x509.Certificate {
 	cert := defaultCATemplate(clk)
-	err := addSpiffeExtension(trustDomain.IDString(), cert)
-
-	return cert, err
+	addSpiffeExtension(trustDomain.ID(), cert)
+	return cert
 }
 
 // SelfSign creates a new self-signed certificate with the provided template.
@@ -167,13 +161,8 @@ func defaultCATemplate(clk clock.Clock) *x509.Certificate {
 
 // Create an x509 extension with the URI SAN of the given SPIFFE ID, and set it onto
 // the referenced certificate
-func addSpiffeExtension(spiffeID string, cert *x509.Certificate) error {
-	u, err := url.Parse(spiffeID)
-	if err != nil {
-		return err
-	}
-	cert.URIs = append(cert.URIs, u)
-	return nil
+func addSpiffeExtension(spiffeID spiffeid.ID, cert *x509.Certificate) {
+	cert.URIs = append(cert.URIs, spiffeID.URL())
 }
 
 // Creates a random certificate serial number

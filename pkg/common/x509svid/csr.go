@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
@@ -30,7 +31,11 @@ func ValidateCSR(csr *x509.CertificateRequest, validationMode idutil.ValidationM
 		return errors.New("CSR must have exactly one URI SAN")
 	}
 
-	if err := idutil.ValidateSpiffeIDURL(csr.URIs[0], validationMode); err != nil {
+	spiffeID, err := spiffeid.FromURI(csr.URIs[0])
+	if err != nil {
+		return err
+	}
+	if err := idutil.ValidateSpiffeID(spiffeID, validationMode); err != nil {
 		return err
 	}
 

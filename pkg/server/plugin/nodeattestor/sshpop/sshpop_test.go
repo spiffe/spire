@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -14,6 +15,8 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 )
+
+var trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 
 func TestSSHPoP(t *testing.T) {
 	spiretest.Run(t, new(Suite))
@@ -51,19 +54,19 @@ func (s *Suite) configure() {
 
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: serverConfig,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain.String()},
 	})
 	require.NoError(err)
 	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 
-	sshserver, err := sshpop.NewServer("example.org", serverConfig)
+	sshserver, err := sshpop.NewServer(trustDomain, serverConfig)
 	require.NoError(err)
 	s.sshserver = sshserver
 
 	clientConfig := fmt.Sprintf(`
 		host_key_path = %q
 		host_cert_path = %q`, privateKeyPath, certificatePath)
-	sshclient, err := sshpop.NewClient("example.org", clientConfig)
+	sshclient, err := sshpop.NewClient(trustDomain, clientConfig)
 	require.NoError(err)
 	s.sshclient = sshclient
 }

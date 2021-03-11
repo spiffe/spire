@@ -15,6 +15,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
@@ -75,7 +76,7 @@ type clusterConfig struct {
 }
 
 type attestorConfig struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 	clusters    map[string]*clusterConfig
 }
 
@@ -214,7 +215,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		AgentId: agentID,
+		AgentId: agentID.String(),
 		Selectors: []*common.Selector{
 			k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
 			k8s.MakeSelector(pluginName, "agent_ns", namespace),
@@ -239,11 +240,15 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		return nil, satError.New("configuration must have at least one cluster")
 	}
 
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, satError.New("unable to parse config trust domain: %v", err)
+	}
 	config := &attestorConfig{
-		trustDomain: req.GlobalConfig.TrustDomain,
+		trustDomain: trustDomain,
 		clusters:    make(map[string]*clusterConfig),
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = trustDomain
 	for name, cluster := range hclConfig.Clusters {
 		var serviceAccountKeys []crypto.PublicKey
 		var apiserverClient apiserver.Client

@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/zeebo/errs"
 	"golang.org/x/crypto/ssh"
 )
@@ -42,14 +43,14 @@ type agentPathTemplateData struct {
 type Client struct {
 	cert        *ssh.Certificate
 	signer      ssh.Signer
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 }
 
 // Server is a factory for generating server handshake objects.
 type Server struct {
 	certChecker       *ssh.CertChecker
 	agentPathTemplate *template.Template
-	trustDomain       string
+	trustDomain       spiffeid.TrustDomain
 	canonicalDomain   string
 }
 
@@ -69,8 +70,8 @@ type ServerConfig struct {
 	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
-func NewClient(trustDomain, configString string) (*Client, error) {
-	if trustDomain == "" {
+func NewClient(trustDomain spiffeid.TrustDomain, configString string) (*Client, error) {
+	if trustDomain.IsZero() {
 		return nil, Errorf("trust_domain global configuration is required")
 	}
 	config := new(ClientConfig)
@@ -121,8 +122,8 @@ func getCertAndSignerFromBytes(certBytes, keyBytes []byte) (*ssh.Certificate, ss
 	return cert, signer, nil
 }
 
-func NewServer(trustDomain, configString string) (*Server, error) {
-	if trustDomain == "" {
+func NewServer(trustDomain spiffeid.TrustDomain, configString string) (*Server, error) {
+	if trustDomain.IsZero() {
 		return nil, Errorf("trust_domain global configuration is required")
 	}
 	config := new(ServerConfig)

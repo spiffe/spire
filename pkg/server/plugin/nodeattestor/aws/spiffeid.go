@@ -2,10 +2,10 @@ package aws
 
 import (
 	"bytes"
-	"net/url"
 	"text/template"
 
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 )
@@ -17,14 +17,14 @@ type agentPathTemplateData struct {
 	AccountID   string
 	Region      string
 	PluginName  string
-	TrustDomain string
+	TrustDomain spiffeid.TrustDomain
 	Tags        instanceTags
 }
 
 type instanceTags map[string]string
 
 // makeSpiffeID creates a spiffe ID from IID data
-func makeSpiffeID(trustDomain string, agentPathTemplate *template.Template, doc ec2metadata.EC2InstanceIdentityDocument, tags instanceTags) (*url.URL, error) {
+func makeSpiffeID(trustDomain spiffeid.TrustDomain, agentPathTemplate *template.Template, doc ec2metadata.EC2InstanceIdentityDocument, tags instanceTags) (spiffeid.ID, error) {
 	var agentPath bytes.Buffer
 	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
 		InstanceID: doc.InstanceID,
@@ -33,8 +33,8 @@ func makeSpiffeID(trustDomain string, agentPathTemplate *template.Template, doc 
 		PluginName: aws.PluginName,
 		Tags:       tags,
 	}); err != nil {
-		return nil, err
+		return spiffeid.ID{}, err
 	}
 
-	return idutil.AgentURI(trustDomain, agentPath.String()), nil
+	return idutil.AgentID(trustDomain, agentPath.String()), nil
 }

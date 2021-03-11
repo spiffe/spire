@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -55,7 +56,11 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return errors.New("id is required")
 	}
 
-	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
+	id, err := spiffeid.FromString(c.id)
+	if err != nil {
+		return fmt.Errorf("%q is not a valid SPIFFE ID: %s", c.id, err)
+	}
+	err = idutil.ValidateSpiffeID(id, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return err
 	}
@@ -69,7 +74,7 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 	resp, err := bundleClient.BatchDeleteFederatedBundle(ctx, &bundle.BatchDeleteFederatedBundleRequest{
 		Mode: mode,
 		TrustDomains: []string{
-			id,
+			id.String(),
 		},
 	})
 	if err != nil {

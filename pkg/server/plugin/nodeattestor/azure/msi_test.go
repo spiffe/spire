@@ -245,7 +245,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 	// missing trust domain
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.requireErrorContains(err, "azure-msi: global configuration missing trust domain")
+	s.requireErrorContains(err, "azure-msi: unable to parse trust domain: spiffeid: trust domain is empty")
 	s.Require().Nil(resp)
 
 	// missing tenants

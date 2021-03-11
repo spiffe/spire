@@ -10,8 +10,8 @@ import (
 	"github.com/blang/semver"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
 	"google.golang.org/protobuf/proto"
@@ -314,10 +314,11 @@ func migrateToV3(tx *gorm.DB) (err error) {
 		return sqlError.Wrap(err)
 	}
 	for _, bundle := range bundles {
-		bundle.TrustDomain, err = idutil.NormalizeSpiffeID(bundle.TrustDomain, idutil.AllowAny())
+		trustDomain, err := spiffeid.TrustDomainFromString(bundle.TrustDomain)
 		if err != nil {
 			return sqlError.Wrap(err)
 		}
+		bundle.TrustDomain = trustDomain.IDString()
 		if err := tx.Save(bundle).Error; err != nil {
 			return sqlError.Wrap(err)
 		}
@@ -328,10 +329,11 @@ func migrateToV3(tx *gorm.DB) (err error) {
 		return sqlError.Wrap(err)
 	}
 	for _, attestedNode := range attestedNodes {
-		attestedNode.SpiffeID, err = idutil.NormalizeSpiffeID(attestedNode.SpiffeID, idutil.AllowAny())
+		spiffeID, err := spiffeid.FromString(attestedNode.SpiffeID)
 		if err != nil {
 			return sqlError.Wrap(err)
 		}
+		attestedNode.SpiffeID = spiffeID.String()
 		if err := tx.Save(attestedNode).Error; err != nil {
 			return sqlError.Wrap(err)
 		}
@@ -342,10 +344,11 @@ func migrateToV3(tx *gorm.DB) (err error) {
 		return sqlError.Wrap(err)
 	}
 	for _, nodeSelector := range nodeSelectors {
-		nodeSelector.SpiffeID, err = idutil.NormalizeSpiffeID(nodeSelector.SpiffeID, idutil.AllowAny())
+		spiffeID, err := spiffeid.FromString(nodeSelector.SpiffeID)
 		if err != nil {
 			return sqlError.Wrap(err)
 		}
+		nodeSelector.SpiffeID = spiffeID.String()
 		if err := tx.Save(nodeSelector).Error; err != nil {
 			return sqlError.Wrap(err)
 		}
@@ -356,14 +359,18 @@ func migrateToV3(tx *gorm.DB) (err error) {
 		return sqlError.Wrap(err)
 	}
 	for _, registeredEntry := range registeredEntries {
-		registeredEntry.ParentID, err = idutil.NormalizeSpiffeID(registeredEntry.ParentID, idutil.AllowAny())
+		parentID, err := spiffeid.FromString(registeredEntry.ParentID)
 		if err != nil {
 			return sqlError.Wrap(err)
 		}
-		registeredEntry.SpiffeID, err = idutil.NormalizeSpiffeID(registeredEntry.SpiffeID, idutil.AllowAny())
+		registeredEntry.ParentID = parentID.String()
+
+		spiffeID, err := spiffeid.FromString(registeredEntry.SpiffeID)
 		if err != nil {
 			return sqlError.Wrap(err)
 		}
+		registeredEntry.SpiffeID = spiffeID.String()
+
 		if err := tx.Save(registeredEntry).Error; err != nil {
 			return sqlError.Wrap(err)
 		}

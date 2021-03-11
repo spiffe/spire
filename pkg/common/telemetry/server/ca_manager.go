@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -31,12 +32,12 @@ func StartServerCAManagerPrepareX509CACall(m telemetry.Metrics) *telemetry.CallC
 
 // SetX509CARotateGauge set gauge for X509 CA rotation,
 // TTL of CA for a specific TrustDomain
-func SetX509CARotateGauge(m telemetry.Metrics, trustDomain string, val float32) {
+func SetX509CARotateGauge(m telemetry.Metrics, trustDomain spiffeid.TrustDomain, val float32) {
 	m.SetGaugeWithLabels(
 		[]string{telemetry.Manager, telemetry.X509CA, telemetry.Rotate, telemetry.TTL},
 		val,
 		[]telemetry.Label{
-			{Name: telemetry.TrustDomainID, Value: trustDomain},
+			{Name: telemetry.TrustDomainID, Value: trustDomain.IDString()},
 		})
 }
 

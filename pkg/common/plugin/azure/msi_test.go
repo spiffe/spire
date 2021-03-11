@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -19,7 +20,7 @@ func TestMSITokenClaims(t *testing.T) {
 		},
 		TenantID: "TENANTID",
 	}
-	require.Equal(t, "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID", claims.AgentID("example.org"))
+	require.Equal(t, spiffeid.RequireFromString("spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID"), claims.AgentID(spiffeid.RequireTrustDomainFromString("example.org")))
 }
 
 func TestFetchMSIToken(t *testing.T) {

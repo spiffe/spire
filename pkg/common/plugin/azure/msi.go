@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -38,13 +39,8 @@ type MSITokenClaims struct {
 	TenantID string `json:"tid,omitempty"`
 }
 
-func (c *MSITokenClaims) AgentID(trustDomain string) string {
-	u := url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   path.Join("spire", "agent", "azure_msi", c.TenantID, c.Subject),
-	}
-	return u.String()
+func (c *MSITokenClaims) AgentID(trustDomain spiffeid.TrustDomain) spiffeid.ID {
+	return idutil.AgentID(trustDomain, path.Join("azure_msi", c.TenantID, c.Subject))
 }
 
 type HTTPClient interface {

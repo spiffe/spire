@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
@@ -63,7 +64,7 @@ type ClusterConfig struct {
 }
 
 type attestorConfig struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 	clusters    map[string]*clusterConfig
 }
 
@@ -75,7 +76,7 @@ type clusterConfig struct {
 	allowedPodLabelKeys  map[string]bool
 }
 
-//AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
+// AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
 type AttestorPlugin struct {
 	nodeattestor.UnsafeNodeAttestorServer
 
@@ -199,7 +200,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		AgentId:   k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
+		AgentId:   k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID).String(),
 		Selectors: selectors,
 	})
 }
@@ -220,8 +221,13 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		return nil, psatError.New("configuration must have at least one cluster")
 	}
 
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, psatError.New("failed to parse config trust domain: %v", err)
+	}
+
 	config := &attestorConfig{
-		trustDomain: req.GlobalConfig.TrustDomain,
+		trustDomain: trustDomain,
 		clusters:    make(map[string]*clusterConfig),
 	}
 

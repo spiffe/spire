@@ -188,7 +188,7 @@ func (p *MSIResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string
 		return nil, msiError.Wrap(err)
 	}
 
-	tenantID, principalID, err := parseAgentIDPath(u.Path)
+	tenantID, principalID, err := parseAgentIDPath(u.Path())
 	if err != nil {
 		p.log.Warn("Unrecognized agent ID", telemetry.SPIFFEID, spiffeID)
 		return nil, nil

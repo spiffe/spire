@@ -470,7 +470,7 @@ func createCACertificate(t *testing.T) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		URIs:                  []*url.URL{idutil.TrustDomainURI(trustDomain.String())},
+		URIs:                  []*url.URL{trustDomain.ID().URL()},
 	}
 	return createCertificate(t, tmpl, tmpl)
 }
@@ -485,7 +485,7 @@ func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certi
 
 func createAgentCertificate(t *testing.T, caCert *x509.Certificate, path string) *x509.Certificate {
 	tmpl := &x509.Certificate{
-		URIs: []*url.URL{idutil.AgentURI(trustDomain.String(), path)},
+		URIs: []*url.URL{idutil.AgentID(trustDomain, path).URL()},
 	}
 	return createCertificate(t, tmpl, caCert)
 }
@@ -493,7 +493,7 @@ func createAgentCertificate(t *testing.T, caCert *x509.Certificate, path string)
 func createExpiredCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		NotAfter: time.Now().Add(-1 * time.Hour),
-		URIs:     []*url.URL{idutil.AgentURI(trustDomain.String(), "/test/expired")},
+		URIs:     []*url.URL{idutil.AgentID(trustDomain, "/test/expired").URL()},
 	}
 	return createCertificate(t, tmpl, caCert)
 }

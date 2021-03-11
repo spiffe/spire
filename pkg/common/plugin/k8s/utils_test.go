@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	authv1 "k8s.io/api/authentication/v1"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -42,7 +43,8 @@ func TestPSATClaims(t *testing.T) {
 	require.Equal(t, "spire-agent-jcdgp", claims.K8s.Pod.Name)
 }
 func TestAgentID(t *testing.T) {
-	require.Equal(t, "spiffe://example.org/spire/agent/k8s_sat/production/1234", AgentID("k8s_sat", "example.org", "production", "1234"))
+	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
+	require.Equal(t, spiffeid.RequireFromString("spiffe://example.org/spire/agent/k8s_sat/production/1234"), AgentID("k8s_sat", trustDomain, "production", "1234"))
 }
 
 func TestMakeSelector(t *testing.T) {

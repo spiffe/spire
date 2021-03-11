@@ -104,7 +104,7 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 
 		switch {
 		case endpointBundle != nil:
-			telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain.String())
+			telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain)
 			log.Info("Bundle refreshed")
 			nextRefresh = calculateNextUpdate(endpointBundle)
 		case localBundle != nil:

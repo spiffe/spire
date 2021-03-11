@@ -3,19 +3,20 @@ package fakenoderesolver
 import (
 	"context"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
-const (
-	defaultTrustDomain = "example.org"
+var (
+	defaultTrustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
 
 type Config struct {
 	// TrustDomain is the trust domain for SPIFFE IDs created by the attestor.
 	// Defaults to "example.org" if empty.
-	TrustDomain string
+	TrustDomain spiffeid.TrustDomain
 
 	// Selectors is a map from ID to a list of selector values to return with that id.
 	Selectors map[string][]string
@@ -31,7 +32,7 @@ type NodeResolver struct {
 var _ noderesolver.Plugin = (*NodeResolver)(nil)
 
 func New(name string, config Config) *NodeResolver {
-	if config.TrustDomain == "" {
+	if config.TrustDomain.IsZero() {
 		config.TrustDomain = defaultTrustDomain
 	}
 	return &NodeResolver{

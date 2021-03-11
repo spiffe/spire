@@ -325,7 +325,7 @@ func (s *HandlerSuite) TestCreateEntryAndCreateEntryIfNotExists() {
 				SpiffeId:  "spiffe://example.org/child",
 				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
 			},
-			Err: `"FOO" is not a valid trust domain member SPIFFE ID`,
+			Err: `"FOO" is not a valid SPIFFE ID`,
 		},
 		{
 			Name: "SPIFFE ID is malformed",
@@ -334,7 +334,7 @@ func (s *HandlerSuite) TestCreateEntryAndCreateEntryIfNotExists() {
 				SpiffeId:  "FOO",
 				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
 			},
-			Err: `"FOO" is not a valid workload SPIFFE ID`,
+			Err: `"FOO" is not a valid SPIFFE ID`,
 		},
 		{
 			Name: "Bad DNS",
@@ -501,14 +501,14 @@ func (s *HandlerSuite) TestUpdateEntry() {
 			PrepareEntry: func(e *common.RegistrationEntry) {
 				e.ParentId = "FOO"
 			},
-			Err: `"FOO" is not a valid trust domain member SPIFFE ID`,
+			Err: `"FOO" is not a valid SPIFFE ID`,
 		},
 		{
 			Name: "SPIFFE ID is malformed",
 			PrepareEntry: func(e *common.RegistrationEntry) {
 				e.SpiffeId = "FOO"
 			},
-			Err: `"FOO" is not a valid workload SPIFFE ID`,
+			Err: `"FOO" is not a valid SPIFFE ID`,
 		},
 		{
 			Name: "Registration entry does not exist",

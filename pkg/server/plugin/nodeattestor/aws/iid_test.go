@@ -516,7 +516,7 @@ func (s *IIDAttestorSuite) TestConfigure() {
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireErrorContains(err, "trust_domain is required")
+	s.RequireErrorContains(err, "aws-iid: failed to parse trust domain: spiffeid: trust domain is empty")
 	require.Nil(resp)
 
 	// fails with access id but no secret

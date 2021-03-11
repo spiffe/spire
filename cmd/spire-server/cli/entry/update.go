@@ -3,11 +3,12 @@ package entry
 import (
 	"errors"
 	"flag"
+	"fmt"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
@@ -153,19 +154,24 @@ func (c *updateCommand) validate() (err error) {
 	}
 
 	// make sure all SPIFFE ID's are well formed
-	c.spiffeID, err = idutil.NormalizeSpiffeID(c.spiffeID, idutil.AllowAny())
+	spiffeID, err := spiffeid.FromString(c.spiffeID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%q is not a valid SPIFFE ID: %s", c.spiffeID, err)
 	}
-	c.parentID, err = idutil.NormalizeSpiffeID(c.parentID, idutil.AllowAny())
+	c.spiffeID = spiffeID.String()
+
+	parentID, err := spiffeid.FromString(c.parentID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%q is not a valid SPIFFE ID: %s", c.parentID, err)
 	}
+	c.parentID = parentID.String()
+
 	for i := range c.federatesWith {
-		c.federatesWith[i], err = idutil.NormalizeSpiffeID(c.federatesWith[i], idutil.AllowAny())
+		id, err := spiffeid.FromString(c.federatesWith[i])
 		if err != nil {
-			return err
+			return fmt.Errorf("%q is not a valid SPIFFE ID: %s", c.federatesWith[i], err)
 		}
+		c.federatesWith[i] = id.String()
 	}
 
 	return nil

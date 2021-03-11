@@ -61,7 +61,11 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 		return err
 	}
 
-	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
+	trustDomain, err := spiffeid.TrustDomainFromString(c.id)
+	if err != nil {
+		return err
+	}
+	err = idutil.ValidateSpiffeID(trustDomain.ID(), idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return err
 	}
@@ -80,14 +84,9 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 			return fmt.Errorf("unable to parse bundle data: %v", err)
 		}
 
-		federatedBundles = append(federatedBundles, bundleProtoFromX509Authorities(id, rootCAs))
+		federatedBundles = append(federatedBundles, bundleProtoFromX509Authorities(trustDomain, rootCAs))
 	default:
-		td, err := spiffeid.TrustDomainFromString(c.id)
-		if err != nil {
-			return err
-		}
-
-		spiffeBundle, err := spiffebundle.Parse(td, bundleBytes)
+		spiffeBundle, err := spiffebundle.Parse(trustDomain, bundleBytes)
 		if err != nil {
 			return fmt.Errorf("unable to parse to spiffe bundle: %v", err)
 		}

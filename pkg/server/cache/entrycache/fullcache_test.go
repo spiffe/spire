@@ -127,7 +127,8 @@ func TestCache(t *testing.T) {
 	cache, err := BuildFromDataStore(context.Background(), ds)
 	assert.NoError(t, err)
 
-	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
+	actual, err := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
+	require.NoError(t, err)
 
 	assert.Equal(t, expected, actual)
 }
@@ -212,7 +213,9 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	assertAuthorizedEntries := func(agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
 		expected, err := api.RegistrationEntriesToProto(entries)
 		require.NoError(t, err)
-		assert.ElementsMatch(t, expected, cache.GetAuthorizedEntries(agentID))
+		authorizedEntries, err := cache.GetAuthorizedEntries(agentID)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, expected, authorizedEntries)
 	}
 
 	assertAuthorizedEntries(agentIDs[0], append(nodeAliasEntries, workloadEntries[:2]...)...)
@@ -412,7 +415,8 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
-	entries := c.GetAuthorizedEntries(expiredAgentID)
+	entries, err := c.GetAuthorizedEntries(expiredAgentID)
+	require.NoError(t, err)
 	require.Len(t, entries, 1)
 
 	expectedEntry, err := api.RegistrationEntryToProto(workloadEntries[numWorkloadEntries-1])
@@ -467,7 +471,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	require.NoError(b, err)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cache.GetAuthorizedEntries(agents[i%len(agents)].ID)
+		_, _ = cache.GetAuthorizedEntries(agents[i%len(agents)].ID)
 	}
 }
 

@@ -1257,11 +1257,7 @@ func (h *mockAPI) getCertFromCtx(ctx context.Context) (certificate *x509.Certifi
 }
 
 func createCA(t *testing.T, clk clock.Clock) (*x509.Certificate, *ecdsa.PrivateKey) {
-	tmpl, err := util.NewCATemplate(clk, trustDomain)
-	if err != nil {
-		t.Fatalf("cannot create ca template: %v", err)
-	}
-
+	tmpl := util.NewCATemplate(clk, trustDomain)
 	ca, cakey, err := util.SelfSign(tmpl)
 	if err != nil {
 		t.Fatalf("cannot self sign ca template: %v", err)
@@ -1270,10 +1266,7 @@ func createCA(t *testing.T, clk clock.Clock) (*x509.Certificate, *ecdsa.PrivateK
 }
 
 func createSVID(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
-	tmpl, err := util.NewSVIDTemplate(clk, spiffeID.String())
-	if err != nil {
-		t.Fatalf("cannot create svid template for %s: %v", spiffeID, err)
-	}
+	tmpl := util.NewSVIDTemplate(clk, spiffeID)
 
 	tmpl.NotAfter = tmpl.NotBefore.Add(ttl)
 
@@ -1288,7 +1281,7 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cake
 	req, err := x509.ParseCertificateRequest(csr)
 	require.NoError(t, err)
 
-	tmpl, err := util.NewSVIDTemplate(clk, spiffeID.String())
+	tmpl := util.NewSVIDTemplate(clk, spiffeID)
 	require.NoError(t, err)
 	tmpl.PublicKey = req.PublicKey
 	tmpl.NotAfter = tmpl.NotBefore.Add(time.Duration(ttl) * time.Second)

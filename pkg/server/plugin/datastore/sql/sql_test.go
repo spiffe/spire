@@ -89,8 +89,7 @@ func (s *PluginSuite) SetupSuite() {
 	validNotAfterTime, err := time.Parse(time.RFC3339, _validNotAfterString)
 	s.Require().NoError(err)
 
-	caTemplate, err := testutil.NewCATemplate(clk, spiffeid.RequireTrustDomainFromString("foo"))
-	s.Require().NoError(err)
+	caTemplate := testutil.NewCATemplate(clk, spiffeid.RequireTrustDomainFromString("foo"))
 
 	caTemplate.NotAfter = expiredNotAfterTime
 	caTemplate.NotBefore = expiredNotAfterTime.Add(-_ttl)
@@ -98,7 +97,7 @@ func (s *PluginSuite) SetupSuite() {
 	cacert, cakey, err := testutil.SelfSign(caTemplate)
 	s.Require().NoError(err)
 
-	svidTemplate, err := testutil.NewSVIDTemplate(clk, "spiffe://foo/id1")
+	svidTemplate := testutil.NewSVIDTemplate(clk, spiffeid.RequireFromString("spiffe://foo/id1"))
 	s.Require().NoError(err)
 
 	svidTemplate.NotAfter = validNotAfterTime

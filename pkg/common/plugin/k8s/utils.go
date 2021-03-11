@@ -3,10 +3,11 @@ package k8s
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"path"
 	"strings"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	"gopkg.in/square/go-jose.v2/jwt"
 	authv1 "k8s.io/api/authentication/v1"
@@ -81,13 +82,8 @@ type PSATAttestationData struct {
 	Token   string `json:"token"`
 }
 
-func AgentID(pluginName, trustDomain, cluster, uuid string) string {
-	u := url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-		Path:   path.Join("spire", "agent", pluginName, cluster, uuid),
-	}
-	return u.String()
+func AgentID(pluginName string, trustDomain spiffeid.TrustDomain, cluster, uuid string) spiffeid.ID {
+	return idutil.AgentID(trustDomain, path.Join(pluginName, cluster, uuid))
 }
 
 func MakeSelector(pluginName, kind string, values ...string) *common.Selector {
