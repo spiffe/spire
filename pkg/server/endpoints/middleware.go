@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"crypto/x509"
-	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -13,9 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
@@ -23,11 +20,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-)
-
-const (
-	// Number of entries that can be cached
-	entriesCacheSize = 500_000
 )
 
 func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
@@ -101,30 +93,6 @@ func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 		}
 		return api.RegistrationEntriesToProto(resp.Entries)
 	})
-}
-
-func AuthorizedEntryFetcher(ds datastore.DataStore) api.AuthorizedEntryFetcher {
-	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-		entries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID)
-		if err != nil {
-			return nil, err
-		}
-		return api.RegistrationEntriesToProto(entries)
-	})
-}
-
-func AuthorizedEntryFetcherWithCache(ds datastore.DataStore) (api.AuthorizedEntryFetcher, error) {
-	cache, err := entrycache.NewFetchX509SVIDCache(entriesCacheSize)
-	if err != nil {
-		return nil, fmt.Errorf("could not create cache: %v", err)
-	}
-	return api.AuthorizedEntryFetcherFunc(func(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-		entries, err := regentryutil.FetchRegistrationEntriesWithCache(ctx, ds, cache, agentID)
-		if err != nil {
-			return nil, err
-		}
-		return api.RegistrationEntriesToProto(entries)
-	}), nil
 }
 
 func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {

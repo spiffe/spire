@@ -32,34 +32,6 @@ type testEntries struct {
 	workloadEntries  []*types.Entry
 }
 
-func TestAuthorizedEntryFetcher(t *testing.T) {
-	ds := fakedatastore.New(t)
-	e := createAuthorizedEntryTestData(t, ds)
-	expectedNodeAliasEntries := e.nodeAliasEntries
-	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
-	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
-	fetcher := AuthorizedEntryFetcher(ds)
-	fetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
-	require.NoError(t, err)
-
-	for _, f := range []api.AuthorizedEntryFetcher{fetcher, fetcherWithCache} {
-		f := f
-		t.Run("success", func(t *testing.T) {
-			ds.SetNextError(nil)
-			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-			assert.NoError(t, err)
-			assert.ElementsMatch(t, expectedEntries, entries)
-		})
-
-		t.Run("failure", func(t *testing.T) {
-			ds.SetNextError(errors.New("ohno"))
-			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-			assert.EqualError(t, err, "ohno")
-			assert.Nil(t, entries)
-		})
-	}
-}
-
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
