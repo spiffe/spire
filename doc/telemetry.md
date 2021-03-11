@@ -43,6 +43,7 @@ The following metrics are emitted:
 | Call Counter | `datastore`, `registration_entry`, `list` | | The Datastore is listing registration entries.
 | Call Counter | `datastore`, `registration_entry`, `prune` | | The Datastore is pruning registration entries.
 | Call Counter | `datastore`, `registration_entry`, `update` | | The Datastore is updating a registration entry. 
+| Call Counter | `entry`, `cache`, `reload` | | The Server is reloading its in-memory entry cache from the datastore.
 | Counter | `manager`, `jwt_key`, `activate` | | The CA manager has successfully activated a JWT Key.
 | Gauge | `manager`, `x509_ca`, `rotate`, `ttl` | `trust_domain_id` | The CA manager is rotating the X.509 CA with a given TTL for a specific Trust Domain.
 | Call Counter | `registration_api`, `authorize_call` | `method` | The Registration API is authorizing a call for a given method.

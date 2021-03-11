@@ -113,6 +113,65 @@ func TestEvict(t *testing.T) {
 	}
 }
 
+func TestCountHelp(t *testing.T) {
+	test := setupTest(t, agent.NewCountCommandWithEnv)
+
+	test.client.Help()
+	require.Equal(t, `Usage of agent count:
+  -registrationUDSPath string
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
+`, test.stderr.String())
+}
+
+func TestCount(t *testing.T) {
+	for _, tt := range []struct {
+		name               string
+		args               []string
+		expectedReturnCode int
+		expectedStdout     string
+		expectedStderr     string
+		existentAgents     []*types.Agent
+		serverErr          error
+	}{
+		{
+			name:               "0 agents",
+			expectedReturnCode: 0,
+			expectedStdout:     "0 attested agents",
+		},
+		{
+			name:               "count 1 agent",
+			expectedReturnCode: 0,
+			expectedStdout:     "1 attested agent",
+			existentAgents:     testAgents,
+		},
+		{
+			name:               "server error",
+			expectedReturnCode: 1,
+			serverErr:          status.Error(codes.Internal, "internal server error"),
+			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
+		},
+		{
+			name:               "wrong UDS path",
+			args:               []string{"-socketPath", "does-not-exist.sock"},
+			expectedReturnCode: 1,
+			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t, agent.NewCountCommandWithEnv)
+			test.server.agents = tt.existentAgents
+			test.server.err = tt.serverErr
+			returnCode := test.client.Run(append(test.args, tt.args...))
+			require.Contains(t, test.stdout.String(), tt.expectedStdout)
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
+			require.Equal(t, tt.expectedReturnCode, returnCode)
+		})
+	}
+}
+
 func TestListHelp(t *testing.T) {
 	test := setupTest(t, agent.NewListCommandWithEnv)
 
@@ -285,6 +344,12 @@ type fakeAgentServer struct {
 
 func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentpb.DeleteAgentRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, s.err
+}
+
+func (s *fakeAgentServer) CountAgents(ctx context.Context, req *agentpb.CountAgentsRequest) (*agentpb.CountAgentsResponse, error) {
+	return &agentpb.CountAgentsResponse{
+		Count: int32(len(s.agents)),
+	}, s.err
 }
 
 func (s *fakeAgentServer) ListAgents(ctx context.Context, req *agentpb.ListAgentsRequest) (*agentpb.ListAgentsResponse, error) {

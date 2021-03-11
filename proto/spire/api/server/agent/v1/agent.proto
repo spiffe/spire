@@ -12,6 +12,11 @@ import "spire/types/spiffeid.proto";
 import "spire/types/x509svid.proto";
 
 service Agent {
+    // Count agents.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc CountAgents(CountAgentsRequest) returns (CountAgentsResponse);
+
     // Lists agents.
     //
     // The caller must be local or present an admin X509-SVID.
@@ -53,6 +58,13 @@ service Agent {
     //
     // The caller must be local or present an admin X509-SVID.
     rpc CreateJoinToken(CreateJoinTokenRequest) returns (spire.types.JoinToken);
+}
+
+message CountAgentsRequest {
+}
+
+message CountAgentsResponse {
+    int32 count = 1;
 }
 
 message ListAgentsRequest {

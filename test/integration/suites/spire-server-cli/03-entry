@@ -35,6 +35,9 @@ docker-compose exec -T spire-server \
         -dns dnsname1 \
         -ttl 123 || fail-now "failed to create entry 3"
 
+# Verify entry count correctly indicates three entries
+docker-compose exec -T spire-server /opt/spire/bin/spire-server entry count | grep 3 || fail-now "failed to count 3 entries"
+
 # Verify entry show and set variables entryID1, entryID2 and entryID3
 # Entry 1
 showResult="$(docker-compose exec -T spire-server \
@@ -293,3 +296,6 @@ showResult="$(docker-compose exec -T spire-server \
 echo "$showResult" | grep "Found 2 entries" || fail-now "failed to show entries after delete"
 echo "$showResult" | grep "Entry ID" | grep ${entryID2} || fail-now "failed to show entries after delete, expected Entry ID 2 not found"
 echo "$showResult" | grep "Entry ID" | grep ${entryID3} || fail-now "failed to show entries after delete, expected Entry ID 3 not found"
+
+# Verify entry count correctly indicates two entries
+docker-compose exec -T spire-server /opt/spire/bin/spire-server entry count | grep 2 || fail-now "failed to count 2 entries"
