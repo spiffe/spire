@@ -26,6 +26,12 @@ A sample configuration:
         }
     }
 ```
+
+## Disabling Instance Profile Selectors
+In cases where spire-server is running in a location with no public internet access available, setting `disable_instance_profile_selectors = true` will prevent the server from making requests to `iam.amazonaws.com`. This is needed as spire-server will fail to start.
+
+When this is enabled, `IAM Role` selector information will no longer be available for use.
+
 ## AWS IAM Permissions
 The user or role identified by the configured credentials must have permissions for `ec2:DescribeInstances`.
 
@@ -59,7 +65,7 @@ This plugin generates the following selectors related to the instance where the 
 
 All of the selectors have the type `aws_iid`.
 
-The `IAM role` selector is included in the generated set of selectors only if the instance has an IAM Instance Profile associated.
+The `IAM role` selector is included in the generated set of selectors only if the instance has an IAM Instance Profile associated and `disable_instance_profile_selectors = false`
 
 ## Security Considerations
 The AWS Instance Identity Document, which this attestor leverages to prove node identity, is available to any process running on the node by default. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
