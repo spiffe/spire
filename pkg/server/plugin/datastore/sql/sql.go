@@ -282,7 +282,7 @@ func (ds *Plugin) ListAttestedNodes(ctx context.Context,
 // UpdateAttestedNode updates the given node's cert serial and expiration.
 func (ds *Plugin) UpdateAttestedNode(ctx context.Context,
 	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateAttestedNode(tx, req)
 		return err
 	}); err != nil {
@@ -571,7 +571,7 @@ func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB
 	if ds.db.databaseType == MySQL {
 		// MySQL REPEATABLE READ is weaker than that of PostgreSQL. Namely,
 		// PostgreSQL, beyond providing the minimum consistency guarantees
-		// mandataded for REPEATABLE READ in the standard, automatically fails
+		// mandated for REPEATABLE READ in the standard, automatically fails
 		// concurrent transactions that try to update the same target row.
 		//
 		// MySQL SERIALIZABLE is the same as REPEATABLE READ except that it
@@ -1538,6 +1538,7 @@ FROM attested_node_entries N
 
 	return builder.String(), args, nil
 }
+
 func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
 	var model AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
