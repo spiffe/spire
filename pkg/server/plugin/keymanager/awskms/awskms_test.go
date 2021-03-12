@@ -24,8 +24,9 @@ const (
 	validSecretAccessKey = "secret"
 	validRegion          = "us-west-2"
 	validKeyPrefix       = "SPIRE_SERVER_KEY/"
-	kmsKeyID             = "abcd-fghi"
-	kmsAlias             = "alias/SPIRE_SERVER_KEY/spireKeyID"
+	keyID                = "abcd-fghi"
+	KeyArn               = "arn:aws:kms:region:1234:key/abcd-fghi"
+	aliasName            = "alias/SPIRE_SERVER_KEY/spireKeyID"
 	spireKeyID           = "spireKeyID"
 )
 
@@ -75,36 +76,43 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String("alias/SPIRE_SERVER_KEY_B/spireKeyID"),
-					KeyID:     aws.String("foo"),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
 				},
 				{
-					AliasName: aws.String(kmsAlias + "01"),
-					KeyID:     aws.String(kmsKeyID + "01"),
+					AliasName: aws.String(aliasName + "01"),
+					KeyID:     aws.String(keyID + "01"),
 					KeySpec:   types.CustomerMasterKeySpecRsa2048,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
 				},
 				{
-					AliasName: aws.String(kmsAlias + "02"),
-					KeyID:     aws.String(kmsKeyID + "02"),
+					AliasName: aws.String(aliasName + "02"),
+					KeyID:     aws.String(keyID + "02"),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
 				},
 				{
-					AliasName: aws.String(kmsAlias + "03"),
-					KeyID:     aws.String(kmsKeyID + "03"),
+					AliasName: aws.String(aliasName + "03"),
+					KeyID:     aws.String(keyID + "03"),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
 				},
 				{
-					AliasName: aws.String(kmsAlias + "04"),
-					KeyID:     aws.String(kmsKeyID + "04"),
+					AliasName: aws.String(aliasName + "04"),
+					KeyID:     aws.String(keyID + "04"),
+					KeySpec:   types.CustomerMasterKeySpecEccNistP384,
+					Enabled:   true,
+					PublicKey: []byte("foo"),
+				},
+				{
+					AliasName: aws.String("alias/wrong_prefix"),
+					KeyID:     aws.String("foo_id"),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP384,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -159,7 +167,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "list aliases error",
-			err:              "failed to fetch keys: fake list aliases error",
+			err:              "aws_kms: failed to fetch aliases: fake list aliases error",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			listAliasesErr:   "fake list aliases error",
@@ -171,8 +179,8 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa2048,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -187,8 +195,8 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   "unsupported key spec",
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -202,8 +210,8 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -213,13 +221,13 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "alias without a key",
-			err:              "aws_kms: failed to fetch aliases: found SPIRE alias without key: \"alias/SPIRE_SERVER_KEY/no_key\"",
+			err:              "aws_kms: failed to fetch aliases: found SPIRE alias without key: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER_KEY/no_key\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -235,13 +243,13 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "disabled key",
-			err:              "aws_kms: failed to fetch aliases: aws_kms: found disabled SPIRE key: \"abcd-fghi\", alias: \"alias/SPIRE_SERVER_KEY/spireKeyID\"",
+			err:              "aws_kms: failed to fetch aliases: aws_kms: found disabled SPIRE key: \"arn:aws:kms:region:1234:key/abcd-fghi\", alias: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER_KEY/spireKeyID\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   false,
 					PublicKey: []byte("foo"),
@@ -301,8 +309,8 @@ func TestGenerateKey(t *testing.T) {
 			},
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -314,7 +322,7 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.DebugLevel,
 					Message: "Key deleted",
 					Data: logrus.Fields{
-						"key_id":         "abcd-fghi",
+						keyArnTag:        KeyArn,
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
@@ -399,8 +407,8 @@ func TestGenerateKey(t *testing.T) {
 			},
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -426,8 +434,8 @@ func TestGenerateKey(t *testing.T) {
 			scheduleKeyDeletionErr: &types.NotFoundException{Message: aws.String("not found")},
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -439,7 +447,7 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "No such key, dropping from delete schedule",
 					Data: logrus.Fields{
-						"key_id":         "abcd-fghi",
+						keyArnTag:        KeyArn,
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
@@ -454,8 +462,8 @@ func TestGenerateKey(t *testing.T) {
 			scheduleKeyDeletionErr: &types.InvalidArnException{Message: aws.String("invalid arn")},
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -467,7 +475,7 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid ARN, dropping from delete schedule",
 					Data: logrus.Fields{
-						"key_id":         "abcd-fghi",
+						keyArnTag:        KeyArn,
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
@@ -482,8 +490,8 @@ func TestGenerateKey(t *testing.T) {
 			},
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP256,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -495,7 +503,7 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "It was not possible to schedule key for deletion",
 					Data: logrus.Fields{
-						"key_id":         "abcd-fghi",
+						keyArnTag:        KeyArn,
 						"reason":         "schedule key deletion error",
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
@@ -504,7 +512,7 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.DebugLevel,
 					Message: "Key re-enqueued for deletion",
 					Data: logrus.Fields{
-						"key_id":         "abcd-fghi",
+						keyArnTag:        KeyArn,
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
 				},
@@ -845,8 +853,8 @@ func TestGetPublicKey(t *testing.T) {
 			fakeEntries: []fakeKeyEntry{
 
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -899,8 +907,8 @@ func TestGetPublicKeys(t *testing.T) {
 			fakeEntries: []fakeKeyEntry{
 
 				{
-					AliasName: aws.String(kmsAlias),
-					KeyID:     aws.String(kmsKeyID),
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   true,
 					PublicKey: []byte("foo"),
@@ -946,8 +954,8 @@ func TestGetPluginInfo(t *testing.T) {
 			name: "pass",
 			aliases: []types.AliasListEntry{
 				{
-					AliasName:   aws.String(kmsAlias),
-					TargetKeyId: aws.String(kmsKeyID),
+					AliasName:   aws.String(aliasName),
+					TargetKeyId: aws.String(keyID),
 				},
 			},
 		},

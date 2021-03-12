@@ -96,10 +96,13 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	k.keyEntries[keyID] = keyEntry
+	k.keyEntries[getKeyArn(keyID)] = keyEntry
 
 	return &kms.CreateKeyOutput{
-		KeyMetadata: &types.KeyMetadata{KeyId: aws.String(keyID)},
+		KeyMetadata: &types.KeyMetadata{
+			KeyId: aws.String(keyID),
+			Arn:   aws.String(getKeyArn(keyID)),
+		},
 	}, nil
 }
 
@@ -118,6 +121,7 @@ func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyI
 	return &kms.DescribeKeyOutput{
 		KeyMetadata: &types.KeyMetadata{
 			KeyId:                 keyEntry.KeyID,
+			Arn:                   aws.String(getKeyArn(*keyEntry.KeyID)),
 			CustomerMasterKeySpec: keyEntry.KeySpec,
 			Enabled:               keyEntry.Enabled,
 		},
@@ -153,12 +157,14 @@ func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesI
 	for _, keyEntry := range k.keyEntries {
 		aliasesResp = append(aliasesResp, types.AliasListEntry{
 			AliasName:   keyEntry.AliasName,
+			AliasArn:    aws.String(getAliasArn(*keyEntry.AliasName)),
 			TargetKeyId: keyEntry.KeyID,
 		})
 	}
 	for _, keyEntry := range k.aliases {
 		aliasesResp = append(aliasesResp, types.AliasListEntry{
 			AliasName:   keyEntry.AliasName,
+			AliasArn:    aws.String(getAliasArn(*keyEntry.AliasName)),
 			TargetKeyId: keyEntry.KeyID,
 		})
 	}
@@ -231,26 +237,26 @@ func (k *kmsClientFake) setEntries(entries []fakeKeyEntry) {
 	}
 	for _, e := range entries {
 		if e.KeyID != nil {
-			k.keyEntries[*e.KeyID] = e
+			k.keyEntries[getKeyArn(*e.KeyID)] = e
 		}
 		if e.AliasName != nil {
-			k.aliases[*e.AliasName] = e
+			k.aliases[getAliasArn(*e.AliasName)] = e
 		}
 	}
 }
 
-func (k *kmsClientFake) getKeyEntry(idOrAlias string) (fakeKeyEntry, error) {
-	keyEntry, ok := k.aliases[idOrAlias]
+func (k *kmsClientFake) getKeyEntry(arn string) (fakeKeyEntry, error) {
+	keyEntry, ok := k.aliases[arn]
 	if ok {
 		return keyEntry, nil
 	}
 
-	keyEntry, ok = k.keyEntries[idOrAlias]
+	keyEntry, ok = k.keyEntries[arn]
 	if ok {
 		return keyEntry, nil
 	}
 
-	return fakeKeyEntry{}, errors.New("no such key")
+	return fakeKeyEntry{}, fmt.Errorf("no such key %q", arn)
 }
 
 func (k *kmsClientFake) setCreateKeyErr(fakeError string) {
@@ -298,4 +304,12 @@ func (k *kmsClientFake) setSignDataErr(fakeError string) {
 	if fakeError != "" {
 		k.signErr = errors.New(fakeError)
 	}
+}
+
+func getAliasArn(aliasName string) string {
+	return "arn:aws:kms:region:1234:" + aliasName
+}
+
+func getKeyArn(keyID string) string {
+	return "arn:aws:kms:region:1234:key/" + keyID
 }

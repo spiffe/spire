@@ -13,7 +13,7 @@ The plugin accepts the following configuration options:
 | region            | string | yes                                   | The region where the keys will be stored             |                                                      |
 | key_prefix        | string | yes, see below [1]                    | A unique prefix per server                           |                                                      |   
 
-[1] When running more than one server on the same region, `key_prefix` **must be different** on each one. This is a common scenario when running in HA mode. A valid key prefix can be any arbitrary string that uniquely identifies a server instance, like `SERVER_A/` or `prod-server-1/`. It defaults to `SPIRE_SERVER_KEY/` if not specified.
+[1] It uniquely identifies a server instance, like `SERVER_A/` or `prod-server-1/`. When running more than one server on the same region, `key_prefix` **must be different** on each one. This is a common scenario when running in HA mode. A valid key prefix can only contain alphanumeric characters, forward slashes (/), underscores (_), and dashes (-). It cannot begin with `aws/`.
 
 ### AWS KMS Access
 
