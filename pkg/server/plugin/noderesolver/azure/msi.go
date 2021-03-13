@@ -21,9 +21,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
 )
 
 const (
@@ -46,7 +46,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *MSIResolverPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		noderesolver.PluginServer(p),
+		noderesolverv0.PluginServer(p),
 	)
 }
 
@@ -62,7 +62,7 @@ type MSIResolverConfig struct {
 }
 
 type MSIResolverPlugin struct {
-	noderesolver.UnsafeNodeResolverServer
+	noderesolverv0.UnsafeNodeResolverServer
 
 	log           hclog.Logger
 	mu            sync.RWMutex
@@ -86,8 +86,8 @@ func (p *MSIResolverPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *MSIResolverPlugin) Resolve(ctx context.Context, req *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
-	resp := &noderesolver.ResolveResponse{
+func (p *MSIResolverPlugin) Resolve(ctx context.Context, req *noderesolverv0.ResolveRequest) (*noderesolverv0.ResolveResponse, error) {
+	resp := &noderesolverv0.ResolveResponse{
 		Map: make(map[string]*common.Selectors),
 	}
 	for _, spiffeID := range req.BaseSpiffeIdList {

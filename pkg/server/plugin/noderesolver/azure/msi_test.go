@@ -10,9 +10,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 )
@@ -50,7 +50,7 @@ type MSIResolverSuite struct {
 
 	api *fakeAPIClient
 
-	resolver noderesolver.Plugin
+	resolver noderesolverv0.Plugin
 }
 
 func (s *MSIResolverSuite) SetupTest() {
@@ -73,7 +73,7 @@ func (s *MSIResolverSuite) SetupTest() {
 }
 
 func (s *MSIResolverSuite) TestResolveWithEmptyRequest() {
-	resp, err := s.resolver.Resolve(context.Background(), &noderesolver.ResolveRequest{})
+	resp, err := s.resolver.Resolve(context.Background(), &noderesolverv0.ResolveRequest{})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().Empty(resp.Map)
@@ -86,7 +86,7 @@ func (s *MSIResolverSuite) TestResolveWithNonAgentID() {
 
 func (s *MSIResolverSuite) TestResolveWithNonAzureAgentID() {
 	// agent ID's that aren't recognized by the resolver are simply ignored
-	resp, err := s.resolver.Resolve(context.Background(), &noderesolver.ResolveRequest{
+	resp, err := s.resolver.Resolve(context.Background(), &noderesolverv0.ResolveRequest{
 		BaseSpiffeIdList: []string{"spiffe://example.org/spire/agent/whatever"},
 	})
 	s.Require().NoError(err)
@@ -289,7 +289,7 @@ func (s *MSIResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
 		})
 	}
 
-	expected := &noderesolver.ResolveResponse{
+	expected := &noderesolverv0.ResolveResponse{
 		Map: map[string]*common.Selectors{
 			azureAgentID: selectors,
 		},
@@ -306,8 +306,8 @@ func (s *MSIResolverSuite) assertResolveFailure(spiffeID, containsErr string) {
 	s.Require().Nil(resp)
 }
 
-func (s *MSIResolverSuite) doResolve(spiffeID string) (*noderesolver.ResolveResponse, error) {
-	return s.resolver.Resolve(context.Background(), &noderesolver.ResolveRequest{
+func (s *MSIResolverSuite) doResolve(spiffeID string) (*noderesolverv0.ResolveResponse, error) {
+	return s.resolver.Resolve(context.Background(), &noderesolverv0.ResolveRequest{
 		BaseSpiffeIdList: []string{spiffeID},
 	})
 }

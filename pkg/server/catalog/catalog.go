@@ -45,6 +45,7 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
 )
 
 var (
@@ -95,7 +96,7 @@ type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
 		nodeattestorv0.PluginClient,
-		noderesolver.PluginClient,
+		noderesolverv0.PluginClient,
 		upstreamauthority.PluginClient,
 		keymanagerv0.PluginClient,
 		notifier.PluginClient,
@@ -218,11 +219,16 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		nodeAttestors[na.Name()] = na
 	}
 
+	nodeResolvers := make(map[string]noderesolver.NodeResolver)
+	for _, nr := range p.NodeResolvers {
+		nodeResolvers[nr.Name()] = nr
+	}
+
 	return &Repository{
 		Catalog: &Plugins{
 			DataStore:         ds,
 			NodeAttestors:     nodeAttestors,
-			NodeResolvers:     p.NodeResolvers,
+			NodeResolvers:     nodeResolvers,
 			UpstreamAuthority: p.UpstreamAuthority,
 			KeyManager:        p.KeyManager,
 			Notifiers:         p.Notifiers,
@@ -238,7 +244,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 // native versioning support (see issue #2153).
 type versionedPlugins struct {
 	NodeAttestors     map[string]nodeattestor.V0
-	NodeResolvers     map[string]noderesolver.NodeResolver
+	NodeResolvers     map[string]noderesolver.V0
 	UpstreamAuthority *UpstreamAuthority
 	KeyManager        keymanager.V0
 	Notifiers         []Notifier

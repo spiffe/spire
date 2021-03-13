@@ -31,8 +31,8 @@ func (c *Catalog) AddNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
 	c.NodeAttestors[nodeAttestor.Name()] = nodeAttestor
 }
 
-func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.NodeResolver) {
-	c.NodeResolvers[name] = nodeResolver
+func (c *Catalog) AddNodeResolverNamed(nodeResolver noderesolver.NodeResolver) {
+	c.NodeResolvers[nodeResolver.Name()] = nodeResolver
 }
 
 func (c *Catalog) SetUpstreamAuthority(upstreamAuthority *catalog.UpstreamAuthority) {
