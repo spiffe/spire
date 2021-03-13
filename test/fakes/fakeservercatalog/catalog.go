@@ -27,8 +27,8 @@ func (c *Catalog) SetDataStore(dataStore datastore.DataStore) {
 	c.DataStore = dataStore
 }
 
-func (c *Catalog) AddNodeAttestorNamed(name string, nodeAttestor nodeattestor.NodeAttestor) {
-	c.NodeAttestors[name] = nodeAttestor
+func (c *Catalog) AddNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
+	c.NodeAttestors[nodeAttestor.Name()] = nodeAttestor
 }
 
 func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.NodeResolver) {

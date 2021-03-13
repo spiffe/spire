@@ -6,12 +6,12 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 )
 
 type Plugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	mu        sync.RWMutex
 	sshserver *sshpop.Server
@@ -22,14 +22,14 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(sshpop.PluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(sshpop.PluginName, nodeattestorv0.PluginServer(p))
 }
 
 func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
+func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -53,7 +53,7 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	if err := stream.Send(&nodeattestor.AttestResponse{
+	if err := stream.Send(&nodeattestorv0.AttestResponse{
 		Challenge: challenge,
 	}); err != nil {
 		return err
@@ -73,7 +73,7 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	return stream.Send(&nodeattestor.AttestResponse{
+	return stream.Send(&nodeattestorv0.AttestResponse{
 		AgentId: agentID,
 	})
 }
