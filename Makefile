@@ -174,7 +174,7 @@ plugingen_plugins = \
 	proto/spire/server/datastore/datastore.proto,pkg/server/plugin/datastore,DataStore \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto,pkg/server/plugin/upstreamauthority,UpstreamAuthority \
 	proto/spire/server/noderesolver/noderesolver.proto,pkg/server/plugin/noderesolver,NodeResolver \
-	proto/spire/server/keymanager/keymanager.proto,pkg/server/plugin/keymanager,KeyManager \
+	proto/spire/server/keymanager/keymanager.proto,proto/spire/server/keymanager/v0,KeyManager \
 	proto/spire/agent/nodeattestor/nodeattestor.proto,proto/spire/agent/nodeattestor/v0,NodeAttestor \
 	proto/spire/agent/workloadattestor/workloadattestor.proto,proto/spire/agent/workloadattestor/v0,WorkloadAttestor \
 	proto/spire/agent/keymanager/keymanager.proto,proto/spire/agent/keymanager/v0,KeyManager \

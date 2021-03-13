@@ -64,18 +64,18 @@ type Keys struct {
 }
 
 func (ks *Keys) NewRSA1024(tb testing.TB) *rsa.PrivateKey {
-	key, err := ks.newRSA1024()
+	key, err := ks.NextRSA1024()
 	require.NoError(tb, err)
 	return key
 }
 
 func (ks *Keys) MustRSA1024() *rsa.PrivateKey {
-	key, err := ks.newRSA1024()
+	key, err := ks.NextRSA1024()
 	check(err)
 	return key
 }
 
-func (ks *Keys) newRSA1024() (*rsa.PrivateKey, error) {
+func (ks *Keys) NextRSA1024() (*rsa.PrivateKey, error) {
 	ks.mtx.Lock()
 	defer ks.mtx.Unlock()
 	if ks.rsa1024Idx >= len(RSA1024Keys) {
@@ -90,18 +90,18 @@ func (ks *Keys) newRSA1024() (*rsa.PrivateKey, error) {
 }
 
 func (ks *Keys) NewRSA2048(tb testing.TB) *rsa.PrivateKey {
-	key, err := ks.newRSA2048()
+	key, err := ks.NextRSA2048()
 	require.NoError(tb, err)
 	return key
 }
 
 func (ks *Keys) MustRSA2048() *rsa.PrivateKey {
-	key, err := ks.newRSA2048()
+	key, err := ks.NextRSA2048()
 	check(err)
 	return key
 }
 
-func (ks *Keys) newRSA2048() (*rsa.PrivateKey, error) {
+func (ks *Keys) NextRSA2048() (*rsa.PrivateKey, error) {
 	ks.mtx.Lock()
 	defer ks.mtx.Unlock()
 	if ks.rsa2048Idx >= len(RSA2048Keys) {
@@ -116,18 +116,18 @@ func (ks *Keys) newRSA2048() (*rsa.PrivateKey, error) {
 }
 
 func (ks *Keys) NewRSA4096(tb testing.TB) *rsa.PrivateKey {
-	key, err := ks.newRSA4096()
+	key, err := ks.NextRSA4096()
 	require.NoError(tb, err)
 	return key
 }
 
 func (ks *Keys) MustRSA4096() *rsa.PrivateKey {
-	key, err := ks.newRSA4096()
+	key, err := ks.NextRSA4096()
 	check(err)
 	return key
 }
 
-func (ks *Keys) newRSA4096() (*rsa.PrivateKey, error) {
+func (ks *Keys) NextRSA4096() (*rsa.PrivateKey, error) {
 	ks.mtx.Lock()
 	defer ks.mtx.Unlock()
 	if ks.rsa4096Idx >= len(RSA4096Keys) {
@@ -142,18 +142,18 @@ func (ks *Keys) newRSA4096() (*rsa.PrivateKey, error) {
 }
 
 func (ks *Keys) NewEC256(tb testing.TB) *ecdsa.PrivateKey {
-	key, err := ks.newEC256()
+	key, err := ks.NextEC256()
 	require.NoError(tb, err)
 	return key
 }
 
 func (ks *Keys) MustEC256() *ecdsa.PrivateKey {
-	key, err := ks.newEC256()
+	key, err := ks.NextEC256()
 	check(err)
 	return key
 }
 
-func (ks *Keys) newEC256() (*ecdsa.PrivateKey, error) {
+func (ks *Keys) NextEC256() (*ecdsa.PrivateKey, error) {
 	ks.mtx.Lock()
 	defer ks.mtx.Unlock()
 	if ks.ec256Idx >= len(EC256Keys) {
@@ -168,18 +168,18 @@ func (ks *Keys) newEC256() (*ecdsa.PrivateKey, error) {
 }
 
 func (ks *Keys) NewEC384(tb testing.TB) *ecdsa.PrivateKey {
-	key, err := ks.newEC384()
+	key, err := ks.NextEC384()
 	require.NoError(tb, err)
 	return key
 }
 
 func (ks *Keys) MustEC384() *ecdsa.PrivateKey {
-	key, err := ks.newEC384()
+	key, err := ks.NextEC384()
 	check(err)
 	return key
 }
 
-func (ks *Keys) newEC384() (*ecdsa.PrivateKey, error) {
+func (ks *Keys) NextEC384() (*ecdsa.PrivateKey, error) {
 	ks.mtx.Lock()
 	defer ks.mtx.Unlock()
 	if ks.ec384Idx >= len(EC384Keys) {

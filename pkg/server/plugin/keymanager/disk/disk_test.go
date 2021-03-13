@@ -1,170 +1,115 @@
-package disk
+package disk_test
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
+	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc/codes"
 )
 
-var (
-	ctx = context.Background()
-)
-
-func TestKeyManager(t *testing.T) {
-	suite.Run(t, new(Suite))
-}
-
-type Suite struct {
-	suite.Suite
-
-	tmpDir string
-	m      *KeyManager
-}
-
-func (s *Suite) SetupTest() {
-	// initialize a temp directory and a subdirectory within (to aid with
-	// persistence failure testing)
-	s.tmpDir = spiretest.TempDir(s.T())
-	s.Require().NoError(os.MkdirAll(s.keysDir(), 0755))
-	s.createManager()
-}
-
-func (s *Suite) createManager() {
-	s.m = New()
-	resp, err := s.m.Configure(ctx, &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf("keys_path = %q", s.keysPath()),
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(&plugin.ConfigureResponse{}, resp)
-}
-
-func (s *Suite) keysDir() string {
-	return filepath.Join(s.tmpDir, "keys")
-}
-
-func (s *Suite) keysPath() string {
-	return filepath.Join(s.keysDir(), "keys.json")
-}
-
-func (s *Suite) TestGeneralFunctionality() {
-	test.Run(s.T(), func(t *testing.T) catalog.Plugin {
-		caseDir, err := ioutil.TempDir(s.tmpDir, "testcase-")
+func TestKeyManagerContract(t *testing.T) {
+	keymanagertest.Test(t, func(t *testing.T) keymanager.KeyManager {
+		dir := spiretest.TempDir(t)
+		km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
 		require.NoError(t, err)
-
-		m := New()
-		resp, err := m.Configure(context.Background(), &plugin.ConfigureRequest{
-			Configuration: fmt.Sprintf("keys_path = %q", filepath.Join(caseDir, "keys.json")),
-		})
-		require.NoError(t, err)
-		require.Equal(t, &plugin.ConfigureResponse{}, resp)
-		return builtin(m)
+		return km
 	})
 }
 
-func (s *Suite) TestConfigureMissingPath() {
-	m := New()
-	resp, err := m.Configure(ctx, &plugin.ConfigureRequest{})
-	s.Require().EqualError(err, "keymanager(disk): keys_path is required")
-	s.Require().Nil(resp)
+func TestConfigure(t *testing.T) {
+	t.Run("missing keys path", func(t *testing.T) {
+		_, err := loadPlugin(t, "")
+		spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "keys_path is required")
+	})
 }
 
-func (s *Suite) TestGenerateKeyBeforeConfigure() {
-	m := New()
-	resp, err := m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   "KEY",
-		KeyType: keymanager.KeyType_EC_P256,
-	})
-	s.Require().EqualError(err, "keymanager(disk): not configured")
-	s.Require().Nil(resp)
+func TestGenerateKeyBeforeConfigure(t *testing.T) {
+	var km keymanager.V0
+	spiretest.LoadPlugin(t, disk.BuiltIn(), &km)
+
+	_, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
+	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): not configured")
 }
 
-func (s *Suite) TestGenerateKeyPersistenceFailure() {
-	s.Require().NoError(os.Remove(s.keysDir()))
-	resp, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   "KEY",
-		KeyType: keymanager.KeyType_EC_P256,
-	})
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), "keymanager(disk): unable to write entries")
-	s.Require().Nil(resp)
+func TestGenerateKeyPersistence(t *testing.T) {
+	dir := filepath.Join(spiretest.TempDir(t), "no-such-dir")
 
-	// make sure key doesn't exist when it couldn't be saved to disk
-	getResp, err := s.m.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
-		KeyId: "KEY",
-	})
-	s.Require().NoError(err)
-	s.Require().Nil(getResp.PublicKey)
+	km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
+	require.NoError(t, err)
 
-	// now create the directory so the key can be persisted
-	s.Require().NoError(os.Mkdir(s.keysDir(), 0755))
+	// assert failure to generate key when directory is gone
+	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
 
-	// generate and persist the key
-	resp, err = s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   "KEY",
-		KeyType: keymanager.KeyType_EC_P256,
-	})
-	s.Require().NoError(err)
+	// create the directory and generate the key
+	mkdir(t, dir)
+	keyIn, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
+	require.NoError(t, err)
 
-	// now remove the directory and try to override the key. the original key
-	// should remain intact after the generate call fails.
-	s.Require().NoError(os.RemoveAll(s.keysDir()))
-	_, err = s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   "KEY",
-		KeyType: keymanager.KeyType_EC_P256,
-	})
-	s.Require().Error(err)
+	// reload the plugin. original key should have persisted.
+	km, err = loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
+	require.NoError(t, err)
+	keyOut, err := km.GetKey(context.Background(), "id")
+	require.NoError(t, err)
+	require.Equal(t,
+		publicKeyBytes(t, keyIn),
+		publicKeyBytes(t, keyOut),
+	)
 
-	getResp, err = s.m.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
-		KeyId: "KEY",
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(resp.PublicKey, getResp.PublicKey)
+	// remove the directory and try to overwrite. original key should remain.
+	rmdir(t, dir)
+	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
+
+	keyOut, err = km.GetKey(context.Background(), "id")
+	require.NoError(t, err)
+	require.Equal(t,
+		publicKeyBytes(t, keyIn),
+		publicKeyBytes(t, keyOut),
+	)
 }
 
-func (s *Suite) TestGenerateKeyPersistence() {
-	resp1, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   "KEY1",
-		KeyType: keymanager.KeyType_EC_P256,
+func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.KeyManager, error) {
+	// This little workaround to get at the configuration interface
+	// won't be required after the catalog system refactor
+	km := struct {
+		plugin.Facade
+		keymanagerv0.Plugin
+	}{}
+
+	spiretest.LoadPlugin(t, disk.BuiltIn(), &km)
+
+	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(configFmt, configArgs...),
 	})
-	s.Require().NoError(err)
-
-	resp2, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   "KEY2",
-		KeyType: keymanager.KeyType_EC_P384,
-	})
-	s.Require().NoError(err)
-
-	// make sure keys have been saved
-	entries, err := loadEntries(s.keysPath())
-	s.Require().NoError(err)
-	base.SortKeyEntries(entries)
-	s.Require().Len(entries, 2)
-	s.Require().Equal(resp1.PublicKey, entries[0].PublicKey)
-	s.Require().Equal(resp2.PublicKey, entries[1].PublicKey)
-
-	// recreate key manager and make sure keys were loaded
-	s.createManager()
-	resp, err := s.m.GetPublicKeys(ctx, &keymanager.GetPublicKeysRequest{})
-	s.Require().NoError(err)
-	s.Require().Len(resp.PublicKeys, 2)
-	s.Require().Equal(resp1.PublicKey, resp.PublicKeys[0])
-	s.Require().Equal(resp2.PublicKey, resp.PublicKeys[1])
+	return keymanager.V0{
+		Facade: km.Facade,
+		Plugin: km.Plugin,
+	}, err
 }
 
-func (s *Suite) TestGetPluginInfo() {
-	resp, err := s.m.GetPluginInfo(ctx, &plugin.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(&plugin.GetPluginInfoResponse{}, resp)
+func mkdir(t *testing.T, dir string) {
+	require.NoError(t, os.Mkdir(dir, 0755))
+}
+
+func rmdir(t *testing.T, dir string) {
+	require.NoError(t, os.RemoveAll(dir))
+}
+
+func publicKeyBytes(t *testing.T, key keymanager.Key) []byte {
+	b, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+	return b
 }
