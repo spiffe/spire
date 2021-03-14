@@ -43,15 +43,8 @@ func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
 	c.KeyManager = keyManager
 }
 
-func (c *Catalog) AddNotifier(notifier catalog.Notifier) {
+func (c *Catalog) AddNotifier(notifier notifier.Notifier) {
 	c.Notifiers = append(c.Notifiers, notifier)
-}
-
-func Notifier(name string, n notifier.Notifier) catalog.Notifier {
-	return catalog.Notifier{
-		PluginInfo: pluginInfo{name: name, typ: notifier.Type},
-		Notifier:   n,
-	}
 }
 
 func UpstreamAuthority(name string, ua upstreamauthority.UpstreamAuthority) *catalog.UpstreamAuthority {
