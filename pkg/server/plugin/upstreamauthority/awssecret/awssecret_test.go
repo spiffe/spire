@@ -13,8 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -34,7 +34,7 @@ type Suite struct {
 
 	clock  *clock.Mock
 	client secretsManagerClient
-	plugin upstreamauthority.Plugin
+	plugin upstreamauthorityv0.Plugin
 }
 
 func (as *Suite) SetupTest() {
@@ -78,7 +78,7 @@ func (as *Suite) Test_MintX509CAValidCSR() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: csr})
+	resp, err := as.mintX509CA(as.plugin, &upstreamauthorityv0.MintX509CARequest{Csr: csr})
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
 
@@ -97,13 +97,13 @@ func (as *Suite) TestMintX509CAInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		as.Require().NoError(err)
 
-		resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := as.mintX509CA(as.plugin, &upstreamauthorityv0.MintX509CARequest{Csr: csr})
 		as.Require().Error(err)
 		as.Require().Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := as.mintX509CA(as.plugin, &upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := as.mintX509CA(as.plugin, &upstreamauthorityv0.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	as.Require().Error(err)
 	as.Require().Nil(resp)
 }
@@ -118,12 +118,12 @@ func (as *Suite) TestMintX509CAUsesPreferredTTLIfSet() {
 	as.testCSRTTL(awsUpstreamAuthority, 0, x509svid.DefaultUpstreamCATTL)
 }
 
-func (as *Suite) testCSRTTL(plugin upstreamauthority.Plugin, preferredTTL int32, expectedTTL time.Duration) {
+func (as *Suite) testCSRTTL(plugin upstreamauthorityv0.Plugin, preferredTTL int32, expectedTTL time.Duration) {
 	validSpiffeID := "spiffe://localhost"
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
 
-	resp, err := as.mintX509CA(plugin, &upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	resp, err := as.mintX509CA(plugin, &upstreamauthorityv0.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
 	as.Require().NoError(err)
 	as.Require().NotNil(resp)
 
@@ -151,7 +151,7 @@ func (as *Suite) TestFailConfiguration() {
 
 	m := newPlugin(newFakeSecretsManagerClient)
 
-	var plugin upstreamauthority.Plugin
+	var plugin upstreamauthorityv0.Plugin
 	as.LoadPlugin(builtin(m), &plugin)
 	_, err := plugin.Configure(ctx, pluginConfig)
 	as.Require().Error(err)
@@ -163,7 +163,7 @@ func (as *Suite) TestAWSSecret_GetPluginInfo() {
 	as.Require().NotNil(res)
 }
 
-func (as *Suite) newAWSUpstreamAuthority() upstreamauthority.Plugin {
+func (as *Suite) newAWSUpstreamAuthority() upstreamauthorityv0.Plugin {
 	config := Config{
 		KeyFileARN:      "key",
 		CertFileARN:     "cert",
@@ -184,7 +184,7 @@ func (as *Suite) newAWSUpstreamAuthority() upstreamauthority.Plugin {
 	m := newPlugin(newFakeSecretsManagerClient)
 	m.hooks.clock = as.clock
 
-	var plugin upstreamauthority.Plugin
+	var plugin upstreamauthorityv0.Plugin
 	as.LoadPlugin(builtin(m), &plugin)
 	_, err = plugin.Configure(ctx, pluginConfig)
 	as.Require().NoError(err)
@@ -193,7 +193,7 @@ func (as *Suite) newAWSUpstreamAuthority() upstreamauthority.Plugin {
 }
 
 func (as *Suite) TestPublishJWTKey() {
-	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
+	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{})
 	as.Require().Nil(err)
 	as.Require().NotNil(stream)
 
@@ -202,7 +202,7 @@ func (as *Suite) TestPublishJWTKey() {
 	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-secret: publishing upstream is unsupported")
 }
 
-func (as *Suite) mintX509CA(plugin upstreamauthority.Plugin, req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (as *Suite) mintX509CA(plugin upstreamauthorityv0.Plugin, req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 

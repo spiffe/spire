@@ -47,6 +47,7 @@ import (
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
 	notifierv0 "github.com/spiffe/spire/proto/spire/server/notifier/v0"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 )
 
 var (
@@ -87,7 +88,7 @@ type Catalog interface {
 	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
 	GetKeyManager() keymanager.KeyManager
 	GetNotifiers() []notifier.Notifier
-	GetUpstreamAuthority() (*UpstreamAuthority, bool)
+	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
 }
 
 type GlobalConfig = catalog.GlobalConfig
@@ -98,7 +99,7 @@ func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
 		nodeattestorv0.PluginClient,
 		noderesolverv0.PluginClient,
-		upstreamauthority.PluginClient,
+		upstreamauthorityv0.PluginClient,
 		keymanagerv0.PluginClient,
 		notifierv0.PluginClient,
 	}
@@ -112,18 +113,13 @@ func BuiltIns() []catalog.Plugin {
 	return append([]catalog.Plugin(nil), builtIns...)
 }
 
-type UpstreamAuthority struct {
-	catalog.PluginInfo
-	upstreamauthority.UpstreamAuthority
-}
-
 type Plugins struct {
 	// DataStore isn't actually a plugin.
 	DataStore datastore.DataStore
 
 	NodeAttestors     map[string]nodeattestor.NodeAttestor
 	NodeResolvers     map[string]noderesolver.NodeResolver
-	UpstreamAuthority *UpstreamAuthority
+	UpstreamAuthority upstreamauthority.UpstreamAuthority
 	KeyManager        keymanager.KeyManager
 	Notifiers         []notifier.Notifier
 }
@@ -152,7 +148,7 @@ func (p *Plugins) GetNotifiers() []notifier.Notifier {
 	return p.Notifiers
 }
 
-func (p *Plugins) GetUpstreamAuthority() (*UpstreamAuthority, bool) {
+func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
 	return p.UpstreamAuthority, p.UpstreamAuthority != nil
 }
 
@@ -246,7 +242,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 type versionedPlugins struct {
 	NodeAttestors     map[string]nodeattestor.V0
 	NodeResolvers     map[string]noderesolver.V0
-	UpstreamAuthority *UpstreamAuthority
+	UpstreamAuthority upstreamauthority.V0
 	KeyManager        keymanager.V0
 	Notifiers         []notifier.V0
 }

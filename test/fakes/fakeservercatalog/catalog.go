@@ -35,7 +35,7 @@ func (c *Catalog) AddNodeResolverNamed(nodeResolver noderesolver.NodeResolver) {
 	c.NodeResolvers[nodeResolver.Name()] = nodeResolver
 }
 
-func (c *Catalog) SetUpstreamAuthority(upstreamAuthority *catalog.UpstreamAuthority) {
+func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.UpstreamAuthority) {
 	c.UpstreamAuthority = upstreamAuthority
 }
 
@@ -45,28 +45,4 @@ func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
 
 func (c *Catalog) AddNotifier(notifier notifier.Notifier) {
 	c.Notifiers = append(c.Notifiers, notifier)
-}
-
-func UpstreamAuthority(name string, ua upstreamauthority.UpstreamAuthority) *catalog.UpstreamAuthority {
-	return &catalog.UpstreamAuthority{
-		PluginInfo:        pluginInfo{name: name},
-		UpstreamAuthority: ua,
-	}
-}
-
-type pluginInfo struct {
-	name string
-	typ  string
-}
-
-func (pi pluginInfo) Name() string {
-	return pi.name
-}
-
-func (pi pluginInfo) Type() string {
-	return pi.typ
-}
-
-func (pi pluginInfo) BuiltIn() bool {
-	return true
 }

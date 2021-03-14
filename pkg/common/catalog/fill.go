@@ -6,11 +6,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/zeebo/errs"
 )
 
 var (
-	pluginInfoType = reflect.TypeOf((*PluginInfo)(nil)).Elem()
+	pluginInfoType  = reflect.TypeOf((*PluginInfo)(nil)).Elem()
+	fieldLoggerType = reflect.TypeOf((*logrus.FieldLogger)(nil)).Elem()
 )
 
 type PluginInfo interface {
@@ -329,10 +331,15 @@ func (pf *pluginFiller) getValue(t reflect.Type) (reflect.Value, bool) {
 }
 
 func (pf *pluginFiller) fillInterface(t reflect.Type) (reflect.Value, bool) {
-	// the PluginInfo interface is satisfied by the plugin itself
-	if t == pluginInfoType {
+	// the PluginInfo and logrus.FieldLogger interface is satisfied by the
+	// plugin itself
+	switch t {
+	case pluginInfoType:
 		var pluginInfo PluginInfo = pf.p
 		return reflect.ValueOf(pluginInfo), true
+	case fieldLoggerType:
+		var fieldLogger logrus.FieldLogger = pf.p.log
+		return reflect.ValueOf(fieldLogger), true
 	}
 
 	// loop through all of the implementations. only one needs to satisfy the

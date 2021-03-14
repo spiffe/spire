@@ -15,8 +15,8 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/consts"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -38,7 +38,7 @@ type VaultPluginSuite struct {
 	spiretest.Suite
 
 	fakeVaultServer *FakeVaultServerConfig
-	plugin          upstreamauthority.Plugin
+	plugin          upstreamauthorityv0.Plugin
 }
 
 func (vps *VaultPluginSuite) SetupTest() {
@@ -461,7 +461,7 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidCSR() {
 	vps.Require().Contains(err.Error(), "failed to parse CSR data")
 }
 
-func (vps *VaultPluginSuite) mintX509CA(req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (vps *VaultPluginSuite) mintX509CA(req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -499,11 +499,11 @@ func (vps *VaultPluginSuite) getTestConfigureRequest(addr string, tpl string) *p
 	}
 }
 
-func (vps *VaultPluginSuite) loadMintX509CARequestFromTestFile() *upstreamauthority.MintX509CARequest {
+func (vps *VaultPluginSuite) loadMintX509CARequestFromTestFile() *upstreamauthorityv0.MintX509CARequest {
 	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
 	vps.Require().NoError(err)
 
-	return &upstreamauthority.MintX509CARequest{
+	return &upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr.Raw,
 		PreferredTtl: 3600,
 	}

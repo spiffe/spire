@@ -1,7 +1,9 @@
 package spiretest
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -44,15 +46,10 @@ func RequireGRPCStatus(tb testing.TB, err error, code codes.Code, message string
 func AssertGRPCStatus(tb testing.TB, err error, code codes.Code, message string) bool {
 	tb.Helper()
 	st := status.Convert(err)
-
-	ok := true
-	if !assert.Equal(tb, code.String(), st.Code().String(), "GRPC status code does not match") {
-		ok = false
+	if code != st.Code() || message != st.Message() {
+		return assert.Fail(tb, fmt.Sprintf("Status code=%q msg=%q does not match code=%q msg=%q", st.Code(), st.Message(), code, message))
 	}
-	if !assert.Equal(tb, message, st.Message(), "GRPC status message does not match") {
-		ok = false
-	}
-	return ok
+	return true
 }
 
 func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string) {
@@ -65,11 +62,24 @@ func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contai
 func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string) bool {
 	tb.Helper()
 	st := status.Convert(err)
-	if !assert.Equal(tb, code, st.Code(), "GRPC status code does not match") {
-		return false
+	if code != st.Code() || !strings.Contains(st.Message(), contains) {
+		return assert.Fail(tb, fmt.Sprintf("Status code=%q msg=%q does not match code=%q with message containing %q", st.Code(), st.Message(), code, contains))
 	}
-	if !assert.Contains(tb, st.Message(), contains, "GRPC status message does not contain substring") {
-		return false
+	return true
+}
+
+func RequireGRPCStatusHasPrefix(tb testing.TB, err error, code codes.Code, prefix string) {
+	tb.Helper()
+	if !AssertGRPCStatusHasPrefix(tb, err, code, prefix) {
+		tb.FailNow()
+	}
+}
+
+func AssertGRPCStatusHasPrefix(tb testing.TB, err error, code codes.Code, prefix string) bool {
+	tb.Helper()
+	st := status.Convert(err)
+	if code != st.Code() || !strings.HasPrefix(st.Message(), prefix) {
+		return assert.Fail(tb, fmt.Sprintf("Status code=%q msg=%q does not match code=%q with message prefix %q", st.Code(), st.Message(), code, prefix))
 	}
 	return true
 }

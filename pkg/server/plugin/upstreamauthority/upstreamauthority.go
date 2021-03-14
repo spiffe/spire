@@ -1,105 +1,59 @@
-// Provides interfaces and adapters for the UpstreamAuthority service
-//
-// Generated code. Do not modify by hand.
 package upstreamauthority
 
 import (
 	"context"
+	"crypto/x509"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/upstreamauthority"
-	"google.golang.org/grpc"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
-type MintX509CARequest = upstreamauthority.MintX509CARequest                                         //nolint: golint
-type MintX509CAResponse = upstreamauthority.MintX509CAResponse                                       //nolint: golint
-type PublishJWTKeyRequest = upstreamauthority.PublishJWTKeyRequest                                   //nolint: golint
-type PublishJWTKeyResponse = upstreamauthority.PublishJWTKeyResponse                                 //nolint: golint
-type UnimplementedUpstreamAuthorityServer = upstreamauthority.UnimplementedUpstreamAuthorityServer   //nolint: golint
-type UnsafeUpstreamAuthorityServer = upstreamauthority.UnsafeUpstreamAuthorityServer                 //nolint: golint
-type UpstreamAuthorityClient = upstreamauthority.UpstreamAuthorityClient                             //nolint: golint
-type UpstreamAuthorityServer = upstreamauthority.UpstreamAuthorityServer                             //nolint: golint
-type UpstreamAuthority_MintX509CAClient = upstreamauthority.UpstreamAuthority_MintX509CAClient       //nolint: golint
-type UpstreamAuthority_MintX509CAServer = upstreamauthority.UpstreamAuthority_MintX509CAServer       //nolint: golint
-type UpstreamAuthority_PublishJWTKeyClient = upstreamauthority.UpstreamAuthority_PublishJWTKeyClient //nolint: golint
-type UpstreamAuthority_PublishJWTKeyServer = upstreamauthority.UpstreamAuthority_PublishJWTKeyServer //nolint: golint
-
-const (
-	Type = "UpstreamAuthority"
-)
-
-// UpstreamAuthority is the client interface for the service type UpstreamAuthority interface.
 type UpstreamAuthority interface {
-	MintX509CA(context.Context, *MintX509CARequest) (UpstreamAuthority_MintX509CAClient, error)
-	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (UpstreamAuthority_PublishJWTKeyClient, error)
+	catalog.PluginInfo
+
+	// MintX509CA sends a CSR to the upstream authority for minting, using
+	// the preferred TTL. The TTL may not be honored by the Upstream Authority.
+	// The function returns the newly minted CA, the most  recent set of
+	// upstream X.509 authorities, and a stream for streaming upstream X.509
+	// authority updates. The returned stream MUST be closed when the caller
+	// is no longer interested in updates. If the upstream authority does not
+	// support streaming updates, the stream will return io.EOF when called.
+	MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Duration) (x509CA, upstreamX509Authorities []*x509.Certificate, stream UpstreamX509AuthorityStream, err error)
+
+	// PublishJWTKey publishes the given JWT key with the upstream authority.
+	// Support for this method is optional. Implementations that do not support
+	// publishing JWT keys upstream return NotImplemented.
+	// The function returns the latest set of upstream JWT authorities and a
+	// stream for streaming upstream JWT authority updates. The returned stream
+	// MUST be closed when the caller is no longer interested in updates. If
+	// the upstream authority does not support streaming updates, the stream
+	// will return io.EOF when called.
+	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (jwtAuthorities []*common.PublicKey, stream UpstreamJWTAuthorityStream, err error)
 }
 
-// Plugin is the client interface for the service with the plugin related methods used by the catalog to initialize the plugin.
-type Plugin interface {
-	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
-	MintX509CA(context.Context, *MintX509CARequest) (UpstreamAuthority_MintX509CAClient, error)
-	PublishJWTKey(context.Context, *PublishJWTKeyRequest) (UpstreamAuthority_PublishJWTKeyClient, error)
+type UpstreamX509AuthorityStream interface {
+	// RecvUpstreamX509Authorities returns the latest set of upstream X.509
+	// authorities. The call blocks until the update is received, the Close()
+	// method is called, or the context originally passed into MintX509CA is
+	// canceled. If the function returns an error, no more updates will be
+	// available over the stream.
+	RecvUpstreamX509Authorities() ([]*x509.Certificate, error)
+
+	// Close() closes the stream. It MUST be called by callers of MintX509CA
+	// when they are done with the stream.
+	Close()
 }
 
-// PluginServer returns a catalog PluginServer implementation for the UpstreamAuthority plugin.
-func PluginServer(server UpstreamAuthorityServer) catalog.PluginServer {
-	return &pluginServer{
-		server: server,
-	}
-}
+type UpstreamJWTAuthorityStream interface {
+	// RecvUpstreamJWTAuthorities returns the latest set of upstream X.509
+	// authorities. The call blocks until the update is received, the Close()
+	// method is called, or the context originally passed into MintX509CA is
+	// canceled. If the function returns an error, no more updates will be
+	// available over the stream.
+	RecvUpstreamJWTAuthorities() ([]*common.PublicKey, error)
 
-type pluginServer struct {
-	server UpstreamAuthorityServer
-}
-
-func (s pluginServer) PluginType() string {
-	return Type
-}
-
-func (s pluginServer) PluginClient() catalog.PluginClient {
-	return PluginClient
-}
-
-func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	upstreamauthority.RegisterUpstreamAuthorityServer(server, s.server)
-	return s.server
-}
-
-// PluginClient is a catalog PluginClient implementation for the UpstreamAuthority plugin.
-var PluginClient catalog.PluginClient = pluginClient{}
-
-type pluginClient struct{}
-
-func (pluginClient) PluginType() string {
-	return Type
-}
-
-func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
-	return AdaptPluginClient(upstreamauthority.NewUpstreamAuthorityClient(conn))
-}
-
-func AdaptPluginClient(client UpstreamAuthorityClient) UpstreamAuthority {
-	return pluginClientAdapter{client: client}
-}
-
-type pluginClientAdapter struct {
-	client UpstreamAuthorityClient
-}
-
-func (a pluginClientAdapter) Configure(ctx context.Context, in *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return a.client.Configure(ctx, in)
-}
-
-func (a pluginClientAdapter) GetPluginInfo(ctx context.Context, in *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return a.client.GetPluginInfo(ctx, in)
-}
-
-func (a pluginClientAdapter) MintX509CA(ctx context.Context, in *MintX509CARequest) (UpstreamAuthority_MintX509CAClient, error) {
-	return a.client.MintX509CA(ctx, in)
-}
-
-func (a pluginClientAdapter) PublishJWTKey(ctx context.Context, in *PublishJWTKeyRequest) (UpstreamAuthority_PublishJWTKeyClient, error) {
-	return a.client.PublishJWTKey(ctx, in)
+	// Close() closes the stream. It MUST be called by callers of PublishJWTKey
+	// when they are done with the stream.
+	Close()
 }
