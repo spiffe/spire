@@ -105,7 +105,7 @@ func (c *Context) SolveCredActivationChallenge(credentialBlob, secret []byte) ([
 
 // LoadKey loads a key pair into the TPM.
 func (c *Context) LoadKey(pub, priv []byte) (*SigningKey, error) {
-	sk, err := LoadSigningKey(c.rwc, pub, priv)
+	sk, err := LoadSigningKey(c.rwc, pub, priv, c.log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load key on TPM: %w", err)
 	}

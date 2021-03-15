@@ -3,12 +3,12 @@ package tpm
 import (
 	"fmt"
 	"io"
-	"log"
 	"time"
 
 	"github.com/google/go-tpm-tools/tpm2tools"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpmutil"
+	"github.com/hashicorp/go-hclog"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 )
@@ -22,10 +22,11 @@ type SigningKey struct {
 	Handle     tpmutil.Handle
 	sigHashAlg tpm2.Algorithm
 	rw         io.ReadWriter
+	log        hclog.Logger
 }
 
 // LoadSigningKey loads the given keypair into the provided TPM
-func LoadSigningKey(rw io.ReadWriter, pubKey, privKey []byte) (*SigningKey, error) {
+func LoadSigningKey(rw io.ReadWriter, pubKey, privKey []byte, log hclog.Logger) (*SigningKey, error) {
 	pub, err := tpm2.DecodePublic(pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("tpm2.Public decoding failed: %w", err)
@@ -77,24 +78,25 @@ func LoadSigningKey(rw io.ReadWriter, pubKey, privKey []byte) (*SigningKey, erro
 		Handle:     keyHandle,
 		sigHashAlg: sigHashAlg,
 		rw:         rw,
+		log:        log,
 	}, nil
 }
 
 // Close removes the key from the TPM
-func (ac *SigningKey) Close() error {
-	return tpm2.FlushContext(ac.rw, ac.Handle)
+func (k *SigningKey) Close() error {
+	return tpm2.FlushContext(k.rw, k.Handle)
 }
 
 // Sign request the TPM to sign the given data using this key
-func (ac *SigningKey) Sign(data []byte) ([]byte, error) {
-	digest, token, err := tpm2.Hash(ac.rw, ac.sigHashAlg, data, tpm2.HandlePlatform)
+func (k *SigningKey) Sign(data []byte) ([]byte, error) {
+	digest, token, err := tpm2.Hash(k.rw, k.sigHashAlg, data, tpm2.HandlePlatform)
 	if err != nil {
 		return nil, fmt.Errorf("tpm2.Hash failed: %w", err)
 	}
 
 	var sig *tpm2.Signature
 	for i := 0; i <= maxAttempts; i++ {
-		sig, err = tpm2.Sign(ac.rw, ac.Handle, "", digest, token, nil)
+		sig, err = tpm2.Sign(k.rw, k.Handle, "", digest, token, nil)
 		switch {
 		case err == nil:
 			break
@@ -104,7 +106,7 @@ func (ac *SigningKey) Sign(data []byte) ([]byte, error) {
 				return nil, fmt.Errorf("max attempts reached: %w", err)
 			}
 
-			log.Printf("TPM was not able to start the command 'Sign'. Retrying: attempt (%d/%d)", i, maxAttempts)
+			k.log.Debug(fmt.Sprintf("TPM was not able to start the command 'Sign'. Retrying: attempt (%d/%d)", i, maxAttempts))
 			time.Sleep(time.Millisecond * 500)
 			continue
 
@@ -132,7 +134,7 @@ func (ac *SigningKey) Sign(data []byte) ([]byte, error) {
 
 // Certify calls tpm2.Certify using the current key as signer and the provided
 // object as object handle.
-func (ac *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
+func (k *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
 	// For some reason 'tpm2.Certify()' sometimes fails the first attempt and asks for retry.
 	// So, we retry some times in case of getting the RCRetry error.
 	// It seems that this issue has been reported: https://github.com/google/go-tpm/issues/59
@@ -140,7 +142,7 @@ func (ac *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
 	var certificationSignature []byte
 	var err error
 	for i := 0; i <= maxAttempts; i++ {
-		certifiedDevID, certificationSignature, err = tpm2.Certify(ac.rw, "", "", object, ac.Handle, nil)
+		certifiedDevID, certificationSignature, err = tpm2.Certify(k.rw, "", "", object, k.Handle, nil)
 		switch {
 		case err == nil:
 			return certifiedDevID, certificationSignature, nil
@@ -150,7 +152,7 @@ func (ac *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
 				return nil, nil, fmt.Errorf("max attempts reached: %w", err)
 			}
 
-			log.Printf("TPM was not able to start the command 'Certify'. Retrying: attempt (%d/%d)", i, maxAttempts)
+			k.log.Debug(fmt.Sprintf("TPM was not able to start the command 'Certify'. Retrying: attempt (%d/%d)", i, maxAttempts))
 			time.Sleep(time.Millisecond * 500)
 
 		default:
