@@ -13,6 +13,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -33,11 +34,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// RegisterService registers the agent service on the gRPC server/
-func RegisterService(s *grpc.Server, service *Service) {
-	agent.RegisterAgentServer(s, service)
-}
-
 // Config is the service configuration
 type Config struct {
 	Catalog     catalog.Catalog
@@ -45,17 +41,6 @@ type Config struct {
 	DataStore   datastore.DataStore
 	ServerCA    ca.ServerCA
 	TrustDomain spiffeid.TrustDomain
-}
-
-// New creates a new agent service
-func New(config Config) *Service {
-	return &Service{
-		cat: config.Catalog,
-		clk: config.Clock,
-		ds:  config.DataStore,
-		ca:  config.ServerCA,
-		td:  config.TrustDomain,
-	}
 }
 
 // Service implements the v1 agent service
@@ -69,6 +54,34 @@ type Service struct {
 	td  spiffeid.TrustDomain
 }
 
+// New creates a new agent service
+func New(config Config) *Service {
+	return &Service{
+		cat: config.Catalog,
+		clk: config.Clock,
+		ds:  config.DataStore,
+		ca:  config.ServerCA,
+		td:  config.TrustDomain,
+	}
+}
+
+// RegisterService registers the agent service on the gRPC server/
+func RegisterService(s *grpc.Server, service *Service) {
+	agent.RegisterAgentServer(s, service)
+}
+
+// CountAgents returns the total number of agents.
+func (s *Service) CountAgents(ctx context.Context, req *agent.CountAgentsRequest) (*agent.CountAgentsResponse, error) {
+	dsResp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	if err != nil {
+		log := rpccontext.Logger(ctx)
+		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
+	}
+
+	return &agent.CountAgentsResponse{Count: dsResp.Nodes}, nil
+}
+
+// ListAgents returns an optionally filtered and/or paginated list of agents.
 func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) (*agent.ListAgentsResponse, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -129,6 +142,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 	return resp, nil
 }
 
+// GetAgent returns the agent associated with the given SpiffeID.
 func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*types.Agent, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -163,6 +177,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 	return agent, nil
 }
 
+// DeleteAgent removes the agent with the given SpiffeID.
 func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -187,6 +202,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 	}
 }
 
+// BanAgent sets the agent with the given SpiffeID to the banned state.
 func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -218,6 +234,7 @@ func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*em
 	}
 }
 
+// AttestAgent attests the authenticity of the given agent.
 func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
@@ -254,11 +271,16 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	}
 
 	agentID := attestResp.AgentId
+	log = log.WithField(telemetry.AgentID, agentID)
+
+	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
+		return api.MakeErr(log, codes.Internal, "agent ID is malformed", err)
+	}
+
 	agentSpiffeID, err := spiffeid.FromString(agentID)
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "invalid agent id", err)
 	}
-	log = log.WithField(telemetry.AgentID, agentID)
 
 	// fetch the agent/node to check if it was already attested or banned
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
@@ -332,6 +354,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	return nil
 }
 
+// RenewAgent renews the SVID of the agent with the given SpiffeID.
 func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) (*agent.RenewAgentResponse, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -380,6 +403,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 	}, nil
 }
 
+// CreateJoinToken returns a new JoinToken for an agent.
 func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinTokenRequest) (*types.JoinToken, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -394,6 +418,9 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinToke
 		agentID, err = api.TrustDomainWorkloadIDFromProto(s.td, req.AgentId)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
+		}
+		if err := idutil.CheckIDProtoNormalization(req.AgentId); err != nil {
+			return nil, api.MakeErr(log, codes.InvalidArgument, "agent ID is malformed", err)
 		}
 		log.WithField(telemetry.SPIFFEID, agentID.String())
 	}

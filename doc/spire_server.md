@@ -48,23 +48,24 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
 
-| Configuration               | Description                                                                                      | Default                       |
-|:----------------------------|:-------------------------------------------------------------------------------------------------|:------------------------------|
-| `bind_address`              | IP address or DNS name of the SPIRE server                                                       | 0.0.0.0                       |
-| `bind_port`                 | HTTP Port number of the SPIRE server                                                             | 8081                          |
-| `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                    | ec-p256 (Both X509 and JWT)   |
-| `ca_subject`                | The Subject that CA certificates should use (see below)                                          |                               |
-| `ca_ttl`                    | The default CA/signing key TTL                                                                   | 24h                           |
-| `data_dir`                  | A directory the server can use for its runtime                                                   |                               |
-| `default_svid_ttl`          | The default SVID TTL                                                                             | 1h                            |
-| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)          |                               |
-| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                     |                               |
-| `log_file`                  | File to write logs to                                                                            |                               |
-| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                              | INFO                          |
-| `log_format`                | Format of logs, \<text\|json\>                                                                   | text                          |
-| `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below) |                               |
-| `socketPath`                | Path to bind the SPIRE Server API socket to                                                            | /tmp/spire-server/private/api.sock  |
-| `trust_domain`              | The trust domain that this server belongs to                                                     |                               |
+| Configuration               | Description                                                                                       | Default                                                        |
+|:----------------------------|:--------------------------------------------------------------------------------------------------|:---------------------------------------------------------------|
+| `bind_address`              | IP address or DNS name of the SPIRE server                                                        | 0.0.0.0                                                        |
+| `bind_port`                 | HTTP Port number of the SPIRE server                                                              | 8081                                                           |
+| `ca_key_type`               | The key type used for the server CA (both X509 and JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\> | ec-p256 (the JWT key type can be overridden by `jwt_key_type`) |
+| `ca_subject`                | The Subject that CA certificates should use (see below)                                           |                                                                |
+| `ca_ttl`                    | The default CA/signing key TTL                                                                    | 24h                                                            |
+| `data_dir`                  | A directory the server can use for its runtime                                                    |                                                                |
+| `default_svid_ttl`          | The default SVID TTL                                                                              | 1h                                                             |
+| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)           |                                                                |
+| `jwt_key_type`              | The key type used for the server CA (JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>               | The value of `ca_key_type` or ec-p256 if not defined           |
+| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                      |                                                                |
+| `log_file`                  | File to write logs to                                                                             |                                                                |
+| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                               | INFO                                                           |
+| `log_format`                | Format of logs, \<text\|json\>                                                                    | text                                                           |
+| `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)  |                                                                |
+| `socketPath`                | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
+| `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)              |                                                                |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -75,6 +76,7 @@ This may be useful for templating configuration files, for example across differ
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `attestation`               | Whether or not to rate limit node attestation. If true, node attestation is rate limited to one attempt per second per IP address. | true |
+| `signing`                   | Whether or not to rate limit JWT and X509 signing. If true, JWT and X509 signing are rate limited to 500 requests per second per IP address (separately). | true |
 
 ## Plugin configuration
 
@@ -208,7 +210,7 @@ Most of the configuration file above options have identical command-line counter
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
 | `-serverPort` | Port number of the SPIRE server | |
 | `-socketPath` | Path to bind the SPIRE Server API socket to | |
-| `-trustDomain` | The trust domain that this server belongs to | |
+| `-trustDomain` | The trust domain that this server belongs to (should be no more than 255 characters) | |
 
 ### `spire-server token generate`
 
@@ -260,6 +262,14 @@ Updates registration entries.
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
 
+### `spire-server entry count`
+
+Displays the total number of registration entries.
+
+| Command       | Action                                             | Default        |
+|:--------------|:---------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
 ### `spire-server entry delete`
 
 Deletes a specified registration entry.
@@ -282,6 +292,14 @@ Displays configured registration entries.
 | `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
+
+### `spire-server bundle count`
+
+Displays the total number of bundles.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server bundle show`
 
@@ -321,6 +339,14 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
+### `spire-server agent count`
+
+Displays the total number of attested nodes.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
 ### `spire-server agent evict`

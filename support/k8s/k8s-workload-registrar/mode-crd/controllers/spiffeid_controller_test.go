@@ -17,7 +17,6 @@ package controllers
 
 import (
 	"fmt"
-	"path"
 	"testing"
 
 	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
@@ -118,6 +117,28 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	s.Require().Equal(createdSpiffeID.Spec.Selector.PodName, "test")
 }
 
+func (s *SpiffeIDControllerTestSuite) TestSpiffeIDEqual() {
+	var existing, current *spireTypes.SPIFFEID
+	// Both nil
+	s.Require().True(spiffeIDEqual(existing, current))
+
+	// One nil
+	var err error
+	current, err = spiffeIDFromString(makeID(s.trustDomain, "%s", SpiffeIDName))
+	s.Require().Nil(err)
+	s.Require().False(spiffeIDEqual(existing, current))
+
+	// Equal
+	existing, err = spiffeIDFromString(makeID(s.trustDomain, "%s", SpiffeIDName))
+	s.Require().Nil(err)
+	s.Require().True(spiffeIDEqual(existing, current))
+
+	// Not equal
+	current, err = spiffeIDFromString(makeID(s.trustDomain, "%s", "spiffeid-not-equal"))
+	s.Require().Nil(err)
+	s.Require().False(spiffeIDEqual(existing, current))
+}
+
 func stringFromID(id *spireTypes.SPIFFEID) string {
-	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, path.Clean("/"+id.Path))
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }

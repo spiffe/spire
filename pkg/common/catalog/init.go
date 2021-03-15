@@ -68,7 +68,6 @@ func newCatalogPlugin(ctx context.Context, c *grpc.ClientConn, config catalogPlu
 
 	return &LoadedPlugin{
 		name:         config.Name,
-		builtIn:      config.BuiltIn,
 		plugin:       pluginImpl,
 		all:          append([]interface{}{pluginImpl}, serviceImpls...),
 		serviceNames: serviceNames,

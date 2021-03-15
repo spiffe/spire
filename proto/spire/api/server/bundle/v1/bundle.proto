@@ -6,6 +6,11 @@ import "spire/types/bundle.proto";
 import "spire/types/status.proto";
 
 service Bundle {
+    // Count bundles.
+    //
+    // The caller must be local or present an admin X509-SVID.
+    rpc CountBundles(CountBundlesRequest) returns (CountBundlesResponse);
+
     // Gets the bundle for the trust domain of the server.
     //
     // The RPC does not require authentication.
@@ -58,6 +63,14 @@ service Bundle {
     //
     // The caller must be local or present an admin X509-SVID.
     rpc BatchDeleteFederatedBundle(BatchDeleteFederatedBundleRequest) returns (BatchDeleteFederatedBundleResponse);
+}
+
+message CountBundlesRequest {
+}
+
+message CountBundlesResponse {
+    // The total number of bundles, including the server bundle.
+    int32 count = 1;
 }
 
 message GetBundleRequest {

@@ -117,6 +117,98 @@ var (
 	}
 )
 
+func TestCountAgents(t *testing.T) {
+	ids := []spiffeid.ID{
+		spiffeid.Must("example.org", "node1"),
+		spiffeid.Must("example.org", "node2"),
+		spiffeid.Must("example.org", "node3"),
+	}
+
+	for _, tt := range []struct {
+		name       string
+		count      int32
+		resp       *agentpb.CountAgentsResponse
+		code       codes.Code
+		dsError    error
+		err        string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:  "0 nodes",
+			count: 0,
+			resp:  &agentpb.CountAgentsResponse{Count: 0},
+		},
+		{
+			name:  "1 node",
+			count: 1,
+			resp:  &agentpb.CountAgentsResponse{Count: 1},
+		},
+		{
+			name:  "2 nodes",
+			count: 2,
+			resp:  &agentpb.CountAgentsResponse{Count: 2},
+		},
+		{
+			name:  "3 nodes",
+			count: 3,
+			resp:  &agentpb.CountAgentsResponse{Count: 3},
+		},
+		{
+			name:    "ds error",
+			code:    codes.Internal,
+			dsError: status.Error(codes.Internal, "some error"),
+			err:     "failed to count agents: some error",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to count agents",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = some error",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			for i := 0; i < int(tt.count); i++ {
+				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+					Node: &common.AttestedNode{
+						SpiffeId:            ids[i].String(),
+						AttestationDataType: "t1",
+						CertSerialNumber:    "badcafe",
+						CertNotAfter:        time.Now().Add(-time.Minute).Unix(),
+						NewCertNotAfter:     time.Now().Add(time.Minute).Unix(),
+						NewCertSerialNumber: "new badcafe",
+						Selectors: []*common.Selector{
+							{Type: "a", Value: "1"},
+							{Type: "b", Value: "2"},
+						},
+					},
+				})
+				require.NoError(t, err)
+			}
+
+			test.ds.SetNextError(tt.dsError)
+			resp, err := test.client.CountAgents(ctx, &agentpb.CountAgentsRequest{})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			spiretest.AssertProtoEqual(t, tt.resp, resp)
+		})
+	}
+}
+
 func TestListAgents(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
@@ -445,13 +537,13 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: "ex ample.org",
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
+			expectMsg:  `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
+						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
 					},
 				},
 			},
@@ -641,12 +733,12 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "spiffeid: trust domain is empty",
+						logrus.ErrorKey: "trust domain is empty",
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid agent ID: spiffeid: trust domain is empty",
+			err:  "invalid agent ID: trust domain is empty",
 			req: &agentpb.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "",

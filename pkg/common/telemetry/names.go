@@ -406,6 +406,9 @@ const (
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
 
+	// Ignored tags something as ignored
+	Ignored = "ignored"
+
 	// JoinToken functionality related to a join token; should be used
 	// with other tags to add clarity
 	JoinToken = "join_token"
@@ -549,11 +552,20 @@ const (
 	// GetNodeSelectors functionality related to getting node selectors
 	GetNodeSelectors = "get_node_selectors"
 
+	// CountAgents functionality related to counting agents
+	CountAgents = "count_agents"
+
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
 
+	// CountEntries functionality related to counting all registration entries
+	CountEntries = "count_entries"
+
 	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
 	ListAllEntriesWithPages = "list_all_entries_with_pages"
+
+	// CountBundles functionality related to counting bundles
+	CountBundles = "count_federated_bundles"
 
 	// ListFederatedBundles functionality related to listing federated bundles
 	ListFederatedBundles = "list_federated_bundles"

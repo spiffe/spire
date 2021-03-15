@@ -84,17 +84,20 @@ func main() {
 	testRPC("BatchCreateFederatedBundle", batchCreateFederatedBundle)
 	testRPC("BatchUpdateFederatedBundle", batchUpdateFederatedBundle)
 	testRPC("BatchSetFederatedBundle", batchSetFederatedBundle)
+	testRPC("CountBundles", countBundles)
 	testRPC("ListFederatedBundles", listFederatedBundles)
 	testRPC("GetFederatedBundle", getFederatedBundle)
 	testRPC("BatchDeleteFederatedBundle", batchDeleteFederatedBundle)
 	// Entry client tests
 	testRPC("BatchCreateEntry", batchCreateEntry)
+	testRPC("CountEntries", countEntries)
 	testRPC("ListEntries", listEntries)
 	testRPC("GetEntry", getEntry)
 	testRPC("BatchUpdateEntry", batchUpdateEntry)
 	testRPC("BatchDeleteEntry", batchDeleteEntry)
 	// Agent client tests
 	testRPC("CreateJoinToken", createJoinToken)
+	testRPC("CountAgents", countAgents)
 	testRPC("ListAgents", listAgents)
 	testRPC("GetAgent", getAgent)
 	testRPC("BanAgent", banAgent)
@@ -368,6 +371,19 @@ func batchSetFederatedBundle(ctx context.Context, c *itclient.Client) error {
 	return nil
 }
 
+func countBundles(ctx context.Context, c *itclient.Client) error {
+	resp, err := c.BundleClient().CountBundles(ctx, &bundle.CountBundlesRequest{})
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case resp.Count != 3:
+		return fmt.Errorf("unexpected bundle count: %d", resp.Count)
+	}
+	return nil
+}
+
 func listFederatedBundles(ctx context.Context, c *itclient.Client) error {
 	resp, err := c.BundleClient().ListFederatedBundles(ctx, &bundle.ListFederatedBundlesRequest{})
 	switch {
@@ -480,6 +496,19 @@ func batchCreateEntry(ctx context.Context, c *itclient.Client) error {
 
 	// Setup entry ID it will be used for another tests
 	entryID = r.Entry.Id
+	return nil
+}
+
+func countEntries(ctx context.Context, c *itclient.Client) error {
+	resp, err := c.EntryClient().CountEntries(ctx, &entry.CountEntriesRequest{})
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case resp.Count != 3:
+		return fmt.Errorf("unexpected entry count: %d", resp.Count)
+	}
 	return nil
 }
 
@@ -679,6 +708,20 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 		return err
 	}
 
+	return nil
+}
+
+func countAgents(ctx context.Context, c *itclient.Client) error {
+	resp, err := c.AgentClient().CountAgents(ctx, &agent.CountAgentsRequest{})
+
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case resp.Count != 2:
+		return fmt.Errorf("unexpected agent count: %d", resp.Count)
+	}
 	return nil
 }
 

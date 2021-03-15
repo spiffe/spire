@@ -19,38 +19,27 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// RegisterService registers the bundle service on the gRPC server.
-func RegisterService(s *grpc.Server, service *Service) {
-	bundle.RegisterBundleServer(s, service)
-}
-
+// UpstreamPublisher defines the publisher interface.
 type UpstreamPublisher interface {
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 }
 
+// UpstreamPublisherFunc defines the function.
 type UpstreamPublisherFunc func(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 
+// PublishJWTKey publishes the JWT key with the given function.
 func (fn UpstreamPublisherFunc) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error) {
 	return fn(ctx, jwtKey)
 }
 
-// Config is the service configuration
+// Config defines the bundle service configuration.
 type Config struct {
 	DataStore         datastore.DataStore
 	TrustDomain       spiffeid.TrustDomain
 	UpstreamPublisher UpstreamPublisher
 }
 
-// New creates a new bundle service
-func New(config Config) *Service {
-	return &Service{
-		ds: config.DataStore,
-		td: config.TrustDomain,
-		up: config.UpstreamPublisher,
-	}
-}
-
-// Service implements the v1 bundle service
+// Service defines the v1 bundle service properties.
 type Service struct {
 	bundle.UnsafeBundleServer
 
@@ -59,6 +48,32 @@ type Service struct {
 	up UpstreamPublisher
 }
 
+// New creates a new bundle service.
+func New(config Config) *Service {
+	return &Service{
+		ds: config.DataStore,
+		td: config.TrustDomain,
+		up: config.UpstreamPublisher,
+	}
+}
+
+// RegisterService registers the bundle service on the gRPC server.
+func RegisterService(s *grpc.Server, service *Service) {
+	bundle.RegisterBundleServer(s, service)
+}
+
+// CountBundles returns the total number of bundles.
+func (s *Service) CountBundles(ctx context.Context, req *bundle.CountBundlesRequest) (*bundle.CountBundlesResponse, error) {
+	dsResp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	if err != nil {
+		log := rpccontext.Logger(ctx)
+		return nil, api.MakeErr(log, codes.Internal, "failed to count bundles", err)
+	}
+
+	return &bundle.CountBundlesResponse{Count: dsResp.Bundles}, nil
+}
+
+// GetBundle returns the bundle associated with the given trust domain.
 func (s *Service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -82,6 +97,7 @@ func (s *Service) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (
 	return bundle, nil
 }
 
+// AppendBundle appends the given authorities to the given bundle.
 func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -121,6 +137,7 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundle.AppendBundleRequ
 	return bundle, nil
 }
 
+// PublishJWTAuthority published the JWT key on the server.
 func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -147,6 +164,7 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJW
 	}, nil
 }
 
+// ListFederatedBundles returns an optionally paginated list of federated bundles.
 func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFederatedBundlesRequest) (*bundle.ListFederatedBundlesResponse, error) {
 	log := rpccontext.Logger(ctx)
 
@@ -194,6 +212,7 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundle.ListFede
 	return resp, nil
 }
 
+// GetFederatedBundle returns the bundle associated with the given trust domain.
 func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederatedBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, req.TrustDomain)
 
@@ -227,6 +246,7 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundle.GetFederat
 	return b, nil
 }
 
+// BatchCreateFederatedBundle adds one or more bundles to the server.
 func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundle.BatchCreateFederatedBundleRequest) (*bundle.BatchCreateFederatedBundleResponse, error) {
 	var results []*bundle.BatchCreateFederatedBundleResponse_Result
 	for _, b := range req.Bundle {
@@ -339,6 +359,7 @@ func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outpu
 	}
 }
 
+// BatchUpdateFederatedBundle updates one or more bundles in the server.
 func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundle.BatchUpdateFederatedBundleRequest) (*bundle.BatchUpdateFederatedBundleResponse, error) {
 	var results []*bundle.BatchUpdateFederatedBundleResponse_Result
 	for _, b := range req.Bundle {
@@ -405,6 +426,7 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 	}
 }
 
+// BatchSetFederatedBundle upserts one or more bundles in the server.
 func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.BatchSetFederatedBundleRequest) (*bundle.BatchSetFederatedBundleResponse, error) {
 	var results []*bundle.BatchSetFederatedBundleResponse_Result
 	for _, b := range req.Bundle {
@@ -416,6 +438,7 @@ func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundle.Batch
 	}, nil
 }
 
+// BatchDeleteFederatedBundle removes one or more bundles from the server.
 func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundle.BatchDeleteFederatedBundleRequest) (*bundle.BatchDeleteFederatedBundleResponse, error) {
 	log := rpccontext.Logger(ctx)
 	mode, err := parseDeleteMode(req.Mode)

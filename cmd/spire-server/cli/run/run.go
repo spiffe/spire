@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -48,7 +49,7 @@ var (
 		Organization: []string{"SPIFFE"},
 	}
 
-	defaultRateLimitAttestation = true
+	defaultRateLimit = true
 )
 
 // Config contains all available configurables, arranged by section
@@ -71,6 +72,7 @@ type serverConfig struct {
 	Experimental   experimentalConfig `hcl:"experimental"`
 	Federation     *federationConfig  `hcl:"federation"`
 	JWTIssuer      string             `hcl:"jwt_issuer"`
+	JWTKeyType     string             `hcl:"jwt_key_type"`
 	LogFile        string             `hcl:"log_file"`
 	LogLevel       string             `hcl:"log_level"`
 	LogFormat      string             `hcl:"log_format"`
@@ -89,6 +91,8 @@ type serverConfig struct {
 
 	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
 	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
+
+	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -140,6 +144,7 @@ type federatesWithBundleEndpointConfig struct {
 
 type rateLimitConfig struct {
 	Attestation *bool    `hcl:"attestation"`
+	Signing     *bool    `hcl:"signing"`
 	UnusedKeys  []string `hcl:",unusedKeys"`
 }
 
@@ -362,16 +367,21 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 
-	trustDomain, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
+	td, err := common_cli.ParseTrustDomain(c.Server.TrustDomain, logger)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Server.TrustDomain, err)
+		return nil, err
 	}
-	sc.TrustDomain = trustDomain
+	sc.TrustDomain = td
 
 	if c.Server.RateLimit.Attestation == nil {
-		c.Server.RateLimit.Attestation = &defaultRateLimitAttestation
+		c.Server.RateLimit.Attestation = &defaultRateLimit
 	}
 	sc.RateLimit.Attestation = *c.Server.RateLimit.Attestation
+
+	if c.Server.RateLimit.Signing == nil {
+		c.Server.RateLimit.Signing = &defaultRateLimit
+	}
+	sc.RateLimit.Signing = *c.Server.RateLimit.Signing
 
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil {
@@ -451,9 +461,18 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.CAKeyType != "" {
-		sc.CAKeyType, err = caKeyTypeFromString(c.Server.CAKeyType)
+		keyType, err := keyTypeFromString(c.Server.CAKeyType)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing ca_key_type: %v", err)
+		}
+		sc.CAKeyType = keyType
+		sc.JWTKeyType = keyType
+	}
+
+	if c.Server.JWTKeyType != "" {
+		sc.JWTKeyType, err = keyTypeFromString(c.Server.JWTKeyType)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing jwt_key_type: %v", err)
 		}
 	}
 
@@ -482,6 +501,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
 		}
+	}
+
+	// This is a terrible hack but is just a short-term band-aid.
+	if c.Server.AllowUnsafeIDs != nil {
+		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
+		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
 	}
 
 	return sc, nil
@@ -647,7 +672,7 @@ func defaultConfig() *Config {
 	}
 }
 
-func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
+func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	switch strings.ToLower(s) {
 	case "rsa-2048":
 		return keymanager.KeyType_RSA_2048, nil
@@ -658,7 +683,7 @@ func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
 	case "ec-p384":
 		return keymanager.KeyType_EC_P384, nil
 	default:
-		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("CA key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
 

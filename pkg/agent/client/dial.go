@@ -28,8 +28,7 @@ type DialServerConfig struct {
 	// Address is the SPIRE server address
 	Address string
 
-	// TrustDomain is the trust domain ID for the agent/server
-	TrustDomain string
+	TrustDomain spiffeid.TrustDomain
 
 	// GetBundle is a required callback that returns the current trust bundle
 	// for used to authenticate the server certificate.
@@ -44,12 +43,8 @@ type DialServerConfig struct {
 }
 
 func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn, error) {
-	td, err := spiffeid.TrustDomainFromString(config.TrustDomain)
-	if err != nil {
-		return nil, err
-	}
-	bundleSource := newBundleSource(td, config.GetBundle)
-	serverID := td.NewID(idutil.ServerIDPath)
+	bundleSource := newBundleSource(config.TrustDomain, config.GetBundle)
+	serverID := idutil.ServerID(config.TrustDomain)
 	authorizer := tlsconfig.AuthorizeID(serverID)
 
 	var tlsConfig *tls.Config

@@ -21,9 +21,9 @@ import (
 func TestManager(t *testing.T) {
 	// create a pair of bundles with distinct refresh hints so we can assert
 	// that the manager selected the correct refresh hint.
-	localBundle := bundleutil.BundleFromRootCA("spiffe://domain.test", createCACertificate(t, "local"))
+	localBundle := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "local"))
 	localBundle.SetRefreshHint(time.Hour)
-	endpointBundle := bundleutil.BundleFromRootCA("spiffe://domain.test", createCACertificate(t, "endpoint"))
+	endpointBundle := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "endpoint"))
 	endpointBundle.SetRefreshHint(time.Hour * 2)
 
 	testCases := []struct {

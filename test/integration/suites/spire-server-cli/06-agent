@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Verify agent count correctly indicates three agents
+docker-compose exec -T spire-server /opt/spire/bin/spire-server agent count | grep 3 || fail-now "failed to count 3 agents"
+
 # Verify 3 agents were created
 listResult="$(docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server agent list)"
