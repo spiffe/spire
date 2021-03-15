@@ -93,17 +93,24 @@ func (ac *SigningKey) Sign(data []byte) ([]byte, error) {
 	}
 
 	var sig *tpm2.Signature
-	for {
+	for i := 0; i <= maxAttempts; i++ {
 		sig, err = tpm2.Sign(ac.rw, ac.Handle, "", digest, token, nil)
-		if err != nil {
-			if isRetry(err) {
-				continue
+		switch {
+		case err == nil:
+			break
+
+		case isRetry(err):
+			if i == maxAttempts {
+				return nil, fmt.Errorf("max attempts reached: %w", err)
 			}
 
+			log.Printf("TPM was not able to start the command 'Sign'. Retrying: attempt (%d/%d)", i, maxAttempts)
+			time.Sleep(time.Millisecond * 500)
+			continue
+
+		default:
 			return nil, fmt.Errorf("tpm2.Sign failed: %w", err)
 		}
-
-		break
 	}
 
 	if sig.RSA != nil {
@@ -143,7 +150,7 @@ func (ac *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
 				return nil, nil, fmt.Errorf("max attempts reached: %w", err)
 			}
 
-			log.Printf("TPM was not able to start the command. Retrying: attempt (%d/%d)", i, maxAttempts)
+			log.Printf("TPM was not able to start the command 'Certify'. Retrying: attempt (%d/%d)", i, maxAttempts)
 			time.Sleep(time.Millisecond * 500)
 
 		default:
