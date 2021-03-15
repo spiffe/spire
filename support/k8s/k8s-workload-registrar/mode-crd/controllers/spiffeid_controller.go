@@ -306,8 +306,15 @@ func spiffeIDFromString(rawID string) (*types.SPIFFEID, error) {
 func entryEqual(existing, current *types.Entry) bool {
 	return equalStringSlice(existing.DnsNames, current.DnsNames) &&
 		selectorSetsEqual(existing.Selectors, current.Selectors) &&
-		existing.SpiffeId == current.SpiffeId &&
-		existing.ParentId == current.ParentId
+		spiffeIDEqual(existing.SpiffeId, current.SpiffeId) &&
+		spiffeIDEqual(existing.ParentId, current.ParentId)
+}
+
+func spiffeIDEqual(existing, current *types.SPIFFEID) bool {
+	if existing == nil || current == nil {
+		return existing == current
+	}
+	return existing.String() == current.String()
 }
 
 func selectorSetsEqual(as, bs []*types.Selector) bool {
