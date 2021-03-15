@@ -243,7 +243,6 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 
 type mintX509CAResult struct {
 	x509CA []*x509.Certificate
-	done   bool
 	err    error
 }
 
@@ -283,7 +282,6 @@ func parseX509Roots(rawX509Roots [][]byte) ([]*x509.Certificate, error) {
 type publishJWTKeyResult struct {
 	jwtKeys []*common.PublicKey
 	err     error
-	done    bool
 }
 
 // streamState manages the state for open streams to the plugin that are
