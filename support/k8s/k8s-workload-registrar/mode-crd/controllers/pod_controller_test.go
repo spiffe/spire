@@ -45,6 +45,16 @@ type PodControllerTestSuite struct {
 
 func (s *PodControllerTestSuite) SetupSuite() {
 	s.CommonControllerTestSuite = NewCommonControllerTestSuite(s.T())
+
+	node := corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			UID:  "12345",
+		},
+		Spec: corev1.NodeSpec{},
+	}
+	err := s.k8sClient.Create(s.ctx, &node)
+	s.Require().NoError(err)
 }
 
 // TestPodLabel adds a label to a pod and check if the SPIFFE ID is generated correctly.

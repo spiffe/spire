@@ -21,12 +21,10 @@ import (
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/stretchr/testify/suite"
 
-	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -47,53 +45,56 @@ func (s *NodeControllerTestSuite) SetupSuite() {
 	s.CommonControllerTestSuite = NewCommonControllerTestSuite(s.T())
 }
 
-// TestAddRemoveNode adds a node and checks if an entry is created on the SPIRE Server.
-// It then removes the node and checks if the entry is delete on the SPIRE Server.
-func (s *NodeControllerTestSuite) TestAddNode() {
+// TestNodeSpiffeIDCleanup verifies the Node Reconciler can delete a SPIFFE ID custom resource
+func (s *NodeControllerTestSuite) TestNodeSpiffeIDCleanup() {
 	n := NewNodeReconciler(NodeReconcilerConfig{
-		Client:      s.k8sClient,
-		Cluster:     s.cluster,
-		Ctx:         s.ctx,
-		Log:         s.log,
-		Namespace:   NodeNamespace,
-		Scheme:      s.scheme,
-		TrustDomain: s.trustDomain,
+		Client:    s.k8sClient,
+		Ctx:       s.ctx,
+		Log:       s.log,
+		Namespace: NodeNamespace,
 	})
 
-	node := corev1.Node{
+	// Create the SPIFFE ID
+	spiffeID := &spiffeidv1beta1.SpiffeID{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "spiffeid.spiffe.io/v1beta1",
+			Kind:       "SpiffeID",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      NodeName,
 			Namespace: NodeNamespace,
 		},
-		Spec: corev1.NodeSpec{},
-	}
-	err := s.k8sClient.Create(s.ctx, &node)
-	s.Require().NoError(err)
-	s.reconcile(n)
-	labelSelector := labels.Set(map[string]string{
-		"nodeUid": string(node.ObjectMeta.UID),
-	})
-
-	// Verify that exactly 1 SPIFFE ID resource was created for this node
-	spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
-	err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
-		LabelSelector: labelSelector.AsSelector(),
-	})
-	s.Require().NoError(err)
-	s.Require().Len(spiffeIDList.Items, 1)
-}
-
-func (s *NodeControllerTestSuite) reconcile(n *NodeReconciler) {
-	req := ctrl.Request{
-		NamespacedName: types.NamespacedName{
-			Name:      NodeName,
-			Namespace: NodeNamespace,
+		Spec: spiffeidv1beta1.SpiffeIDSpec{
+			SpiffeId: makeID(s.trustDomain, "%s", NodeName),
+			ParentId: makeID(s.trustDomain, "%s/%s", "spire", "server"),
+			Selector: spiffeidv1beta1.Selector{
+				Cluster: Cluster,
+			},
 		},
 	}
-
-	_, err := n.Reconcile(req)
+	err := s.k8sClient.Create(s.ctx, spiffeID)
 	s.Require().NoError(err)
 
-	_, err = s.r.Reconcile(req)
+	// Reconcile the SPIFFE ID
+	spiffeIDNamespacedName := types.NamespacedName{
+		Name:      NodeName,
+		Namespace: NodeNamespace,
+	}
+	_, err = s.r.Reconcile(ctrl.Request{NamespacedName: spiffeIDNamespacedName})
 	s.Require().NoError(err)
+
+	// Verify the SPIFFE ID was created
+	createdSpiffeID := &spiffeidv1beta1.SpiffeID{}
+	err = s.k8sClient.Get(s.ctx, spiffeIDNamespacedName, createdSpiffeID)
+	s.Require().NoError(err)
+	s.Require().NotNil(createdSpiffeID.Status.EntryId)
+
+	// Run Node reconciler to delete the SPIFFE ID
+	_, err = n.Reconcile(ctrl.Request{NamespacedName: spiffeIDNamespacedName})
+	s.Require().NoError(err)
+
+	// Verify the SPIFFE ID was deleted
+	err = s.k8sClient.Get(s.ctx, spiffeIDNamespacedName, createdSpiffeID)
+	s.Require().Error(err)
+	s.Require().True(errors.IsNotFound(err))
 }

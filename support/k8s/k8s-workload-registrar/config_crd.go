@@ -105,13 +105,10 @@ func (c *CRDMode) Run(ctx context.Context) error {
 
 	if c.PodController {
 		err = controllers.NewNodeReconciler(controllers.NodeReconcilerConfig{
-			Client:      mgr.GetClient(),
-			Cluster:     c.Cluster,
-			Ctx:         ctx,
-			Log:         log,
-			Namespace:   myNamespace,
-			Scheme:      mgr.GetScheme(),
-			TrustDomain: c.TrustDomain,
+			Client:    mgr.GetClient(),
+			Ctx:       ctx,
+			Log:       log,
+			Namespace: myNamespace,
 		}).SetupWithManager(mgr)
 		if err != nil {
 			return err

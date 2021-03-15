@@ -98,6 +98,11 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		return ctrl.Result{}, nil
 	}
 
+	parentIDURI, err := r.podParentID(ctx, pod.Spec.NodeName)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Set up new SPIFFE ID
 	spiffeID := &spiffeidv1beta1.SpiffeID{
 		ObjectMeta: metav1.ObjectMeta{
@@ -109,7 +114,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		},
 		Spec: spiffeidv1beta1.SpiffeIDSpec{
 			SpiffeId: spiffeIDURI,
-			ParentId: r.podParentID(pod.Spec.NodeName),
+			ParentId: parentIDURI,
 			DnsNames: []string{pod.Name}, // Set pod name as first DNS name
 			Selector: spiffeidv1beta1.Selector{
 				PodUid:    pod.GetUID(),
@@ -118,7 +123,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 			},
 		},
 	}
-	err := setOwnerRef(pod, spiffeID, r.c.Scheme)
+	err = setOwnerRef(pod, spiffeID, r.c.Scheme)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -143,9 +148,10 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// Check if label or annotation has changed
-	if spiffeID.Spec.SpiffeId != existing.Spec.SpiffeId {
+	// Check if label/annotation or parentId has changed
+	if spiffeID.Spec.SpiffeId != existing.Spec.SpiffeId || spiffeID.Spec.ParentId != existing.Spec.ParentId {
 		existing.Spec.SpiffeId = spiffeID.Spec.SpiffeId
+		existing.Spec.ParentId = spiffeID.Spec.ParentId
 		err := r.Update(r.c.Ctx, &existing)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -183,6 +189,21 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }
 
-func (r *PodReconciler) podParentID(nodeName string) string {
-	return makeID(r.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", r.c.Cluster, nodeName)
+// podParentID creates the PSAT parent spiffe ID for the pod
+func (r *PodReconciler) podParentID(ctx context.Context, nodeName string) (string, error) {
+	nodeUID, err := r.nodeNameToUID(ctx, nodeName)
+	if err != nil {
+		return "", err
+	}
+	return makeID(r.c.TrustDomain, "spire/agent/k8s_psat/%s/%s", r.c.Cluster, nodeUID), nil
+}
+
+// nodeNameToUID converts the Node Name, which is available in the PodSpec, to its UID
+// by fetching the Node object from the Kubernetes API
+func (r *PodReconciler) nodeNameToUID(ctx context.Context, nodeName string) (types.UID, error) {
+	node := corev1.Node{}
+	if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+		return "", err
+	}
+	return node.UID, nil
 }

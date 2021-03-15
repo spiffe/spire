@@ -40,6 +40,16 @@ type EndpointControllerTestSuite struct {
 
 func (s *EndpointControllerTestSuite) SetupSuite() {
 	s.CommonControllerTestSuite = NewCommonControllerTestSuite(s.T())
+
+	node := corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			UID:  "12345",
+		},
+		Spec: corev1.NodeSpec{},
+	}
+	err := s.k8sClient.Create(s.ctx, &node)
+	s.Require().NoError(err)
 }
 
 // TestAddDNSName deploys and endpoint and checks if the SPIFFE ID is updated
