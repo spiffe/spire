@@ -27,14 +27,22 @@ func StartManagerFetchSVIDsUpdatesCall(m telemetry.Metrics) *telemetry.CallCount
 
 // AddCacheManagerExpiredSVIDsSample count of expiring SVIDs according to
 // agent cache manager
-func AddCacheManagerExpiredSVIDsSample(m telemetry.Metrics, count float32) {
-	m.AddSample([]string{telemetry.CacheManager, telemetry.ExpiringSVIDs}, count)
+func AddCacheManagerExpiredSVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
+	key := []string{telemetry.CacheManager, cacheType, telemetry.ExpiringSVIDs}
+	if cacheType != "" {
+		key = append(key, cacheType)
+	}
+	m.AddSample(key, count)
 }
 
 // AddCacheManagerOutdatedSVIDsSample count of SVIDs with outdated attributes
 // according to agent cache manager
-func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, count float32) {
-	m.AddSample([]string{telemetry.CacheManager, telemetry.OutdatedSVIDs}, count)
+func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
+	key := []string{telemetry.CacheManager, telemetry.OutdatedSVIDs}
+	if cacheType != "" {
+		key = append(key, cacheType)
+	}
+	m.AddSample(key, count)
 }
 
 // End Add Samples

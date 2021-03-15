@@ -27,6 +27,7 @@ type Catalog interface {
 	GetKeyManager() keymanager.KeyManager
 	GetNodeAttestor() nodeattestor.NodeAttestor
 	GetWorkloadAttestors() []workloadattestor.WorkloadAttestor
+	GetSVIDStores() []svidstore.SVIDStore
 }
 
 type HCLPluginConfigMap = catalog.HCLPluginConfigMap

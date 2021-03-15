@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -30,6 +31,7 @@ type Config struct {
 	BundleCachePath  string
 	SyncInterval     time.Duration
 	RotationInterval time.Duration
+	SVIDStoreCache   *storecache.Cache
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -78,6 +80,7 @@ func newManager(c *Config) *manager {
 		bundleCachePath: c.BundleCachePath,
 		client:          client,
 		clk:             c.Clk,
+		svidStoreCache:  c.SVIDStoreCache,
 	}
 
 	return m

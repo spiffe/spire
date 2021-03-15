@@ -24,6 +24,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -79,6 +80,7 @@ func TestInitializationFailure(t *testing.T) {
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 	m := newManager(c)
 	require.Error(t, m.Initialize(context.Background()))
@@ -210,6 +212,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -304,6 +307,7 @@ func TestSVIDRotation(t *testing.T) {
 		RotationInterval: baseTTLSeconds / 2,
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -411,6 +415,7 @@ func TestSynchronization(t *testing.T) {
 		SyncInterval:     time.Hour,
 		Clk:              clk,
 		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -561,6 +566,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -633,6 +639,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -695,6 +702,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
 		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -759,6 +767,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SyncInterval:     syncInterval,
 		Clk:              clk,
 		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -818,6 +827,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Catalog:         cat,
 		Clk:             clk,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)

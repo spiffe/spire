@@ -309,6 +309,9 @@ const (
 	// RetryInterval tags some interval for retry logic
 	RetryInterval = "retry_interval"
 
+	// Revision tags entity revision number
+	Revision = "revision"
+
 	// Schema tags database schema version
 	Schema = "schema"
 
@@ -440,6 +443,9 @@ const (
 	// Cache functionality related to a cache
 	Cache = "cache"
 
+	// Cache type tag
+	CacheType = "cache_type"
+
 	// CacheManager functionality related to a cache manager
 	CacheManager = "cache_manager"
 
@@ -521,6 +527,9 @@ const (
 
 	// SVIDRotator functionality related to a SVID rotator
 	SVIDRotator = "svid_rotator"
+
+	// SVIDStore tags an SVID store plugin/type (eg. gcp, aws...)
+	SVIDStore = "svid_store"
 
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"

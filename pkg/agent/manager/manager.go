@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
@@ -101,6 +102,9 @@ type manager struct {
 
 	// Saves last success sync
 	lastSync time.Time
+
+	// Cache for 'storable' SVIDs
+	svidStoreCache *storecache.Cache
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
