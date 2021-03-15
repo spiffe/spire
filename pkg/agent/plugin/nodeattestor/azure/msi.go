@@ -8,9 +8,9 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
@@ -29,7 +29,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *MSIAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, nodeattestorv0.PluginServer(p))
 }
 
 type MSIAttestorConfig struct {
@@ -45,7 +45,7 @@ type MSIAttestorConfig struct {
 }
 
 type MSIAttestorPlugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	mu     sync.RWMutex
 	config *MSIAttestorConfig
@@ -61,7 +61,7 @@ func New() *MSIAttestorPlugin {
 	return p
 }
 
-func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
+func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -80,7 +80,7 @@ func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return msiError.Wrap(err)
 	}
 
-	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: pluginName,
 			Data: data,

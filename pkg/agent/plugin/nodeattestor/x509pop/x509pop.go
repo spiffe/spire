@@ -12,10 +12,10 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -29,7 +29,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, nodeattestorv0.PluginServer(p))
 }
 
 type configData struct {
@@ -45,7 +45,7 @@ type Config struct {
 }
 
 type Plugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	m sync.Mutex
 	c *Config
@@ -55,14 +55,14 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
+func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) (err error) {
 	data, err := p.loadConfigData()
 	if err != nil {
 		return err
 	}
 
 	// send the attestation data back to the agent
-	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: data.attestationData,
 	}); err != nil {
 		return err
@@ -90,7 +90,7 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 		return fmt.Errorf("x509pop: unable to marshal challenge response: %v", err)
 	}
 
-	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		Response: responseBytes,
 	}); err != nil {
 		return err

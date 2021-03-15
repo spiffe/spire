@@ -19,7 +19,7 @@ func (c *Catalog) SetKeyManager(keyManager catalog.KeyManager) {
 	c.KeyManager = keyManager
 }
 
-func (c *Catalog) SetNodeAttestor(nodeAttestor catalog.NodeAttestor) {
+func (c *Catalog) SetNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
 	c.NodeAttestor = nodeAttestor
 }
 
@@ -30,13 +30,6 @@ func (c *Catalog) SetWorkloadAttestors(workloadAttestors ...catalog.WorkloadAtte
 func KeyManager(keyManager keymanager.KeyManager) catalog.KeyManager {
 	return catalog.KeyManager{
 		KeyManager: keyManager,
-	}
-}
-
-func NodeAttestor(name string, nodeAttestor nodeattestor.NodeAttestor) catalog.NodeAttestor {
-	return catalog.NodeAttestor{
-		PluginInfo:   pluginInfo{name: name, typ: nodeattestor.Type},
-		NodeAttestor: nodeAttestor,
 	}
 }
 

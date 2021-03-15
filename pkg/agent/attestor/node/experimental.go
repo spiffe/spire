@@ -5,94 +5,29 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 
+	"github.com/sirupsen/logrus"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 )
 
-func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byte, fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient) ([]*x509.Certificate, error) {
-	data, err := a.fetchAttestationData(fetchStream, nil)
-	if err != nil {
+func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byte, attestor nodeattestor.NodeAttestor) ([]*x509.Certificate, error) {
+	// make sure all of the streams are cancelled if something goes awry
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stream := &serverStream{client: agentv1.NewAgentClient(conn), csr: csr}
+
+	if err := attestor.Attest(ctx, stream); err != nil {
 		return nil, err
 	}
 
-	attestReq := &agentv1.AttestAgentRequest{
-		Step: &agentv1.AttestAgentRequest_Params_{
-			Params: &agentv1.AttestAgentRequest_Params{
-				Data: protoFromAttestationData(data.AttestationData),
-				Params: &agentv1.AgentX509SVIDParams{
-					Csr: csr,
-				},
-			},
-		},
-	}
-
-	attestStream, err := agentv1.NewAgentClient(conn).AttestAgent(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not create new agent client for attestation: %v", err)
-	}
-
-	if err := attestStream.Send(attestReq); err != nil {
-		return nil, fmt.Errorf("error sending attestation request to SPIRE server: %v", err)
-	}
-
-	var attestResp *agentv1.AttestAgentResponse
-	for {
-		// if the response has no additional data then break out and parse
-		// the response.
-		attestResp, err = attestStream.Recv()
-		if err != nil {
-			return nil, fmt.Errorf("error getting attestation response from SPIRE server: %v", err)
-		}
-		if attestResp.GetChallenge() == nil {
-			break
-		}
-
-		data, err := a.fetchAttestationData(fetchStream, attestResp.GetChallenge())
-		if err != nil {
-			return nil, err
-		}
-
-		attestReq = &agentv1.AttestAgentRequest{
-			Step: &agentv1.AttestAgentRequest_ChallengeResponse{
-				ChallengeResponse: data.Response,
-			},
-		}
-
-		if err := attestStream.Send(attestReq); err != nil {
-			return nil, fmt.Errorf("sending attestation request to SPIRE server: %v", err)
-		}
-	}
-
-	if fetchStream != nil {
-		if err := fetchStream.CloseSend(); err != nil {
-			return nil, fmt.Errorf("failed to close send on fetch stream: %v", err)
-		}
-		if _, err := fetchStream.Recv(); err != io.EOF {
-			a.c.Log.WithError(err).Warn("Received unexpected result on trailing recv")
-		}
-	}
-	if err := attestStream.CloseSend(); err != nil {
-		return nil, fmt.Errorf("failed to close send on attest stream: %v", err)
-	}
-
-	if _, err := attestStream.Recv(); err != io.EOF {
-		a.c.Log.WithError(err).Warn("Received unexpected result on trailing recv")
-	}
-
-	svid, err := getSVIDFromAttestAgentResponse(attestResp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse attestation response: %v", err)
-	}
-
-	return svid, nil
+	return stream.svid, nil
 }
 
 func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*bundleutil.Bundle, error) {
@@ -131,13 +66,69 @@ func getSVIDFromAttestAgentResponse(r *agentv1.AttestAgentResponse) ([]*x509.Cer
 	return svid, nil
 }
 
-func protoFromAttestationData(attData *common.AttestationData) *types.AttestationData {
-	if attData == nil {
-		return nil
+type serverStream struct {
+	log    logrus.FieldLogger
+	client agentv1.AgentClient
+	csr    []byte
+	stream agentv1.Agent_AttestAgentClient
+	svid   []*x509.Certificate
+}
+
+func (b *serverStream) SendAttestationData(ctx context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
+	return b.sendRequest(ctx, &agentv1.AttestAgentRequest{
+		Step: &agentv1.AttestAgentRequest_Params_{
+			Params: &agentv1.AttestAgentRequest_Params{
+				Data: &types.AttestationData{
+					Type:    attestationData.Type,
+					Payload: attestationData.Payload,
+				},
+				Params: &agentv1.AgentX509SVIDParams{
+					Csr: b.csr,
+				},
+			},
+		},
+	})
+}
+
+func (b *serverStream) SendChallengeResponse(ctx context.Context, response []byte) ([]byte, error) {
+	return b.sendRequest(ctx, &agentv1.AttestAgentRequest{
+		Step: &agentv1.AttestAgentRequest_ChallengeResponse{
+			ChallengeResponse: response,
+		},
+	})
+}
+
+func (b *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgentRequest) ([]byte, error) {
+	if b.stream == nil {
+		stream, err := b.client.AttestAgent(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("could not open attestation stream to SPIRE server: %v", err)
+		}
+		b.stream = stream
 	}
 
-	return &types.AttestationData{
-		Type:    attData.Type,
-		Payload: attData.Data,
+	if err := b.stream.Send(req); err != nil {
+		return nil, fmt.Errorf("failed to send attestion request to SPIRE server: %v", err)
 	}
+
+	resp, err := b.stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("failed to receive attestion response: %v", err)
+	}
+
+	if challenge := resp.GetChallenge(); challenge != nil {
+		return challenge, nil
+	}
+
+	svid, err := getSVIDFromAttestAgentResponse(resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse attestation response: %v", err)
+	}
+
+	if err := b.stream.CloseSend(); err != nil {
+		b.log.WithError(err).Warn("failed to close stream send side")
+	}
+
+	b.svid = svid
+	return nil, nil
 }

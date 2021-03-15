@@ -22,15 +22,10 @@ import (
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
-)
-
-const (
-	joinTokenType = "join_token"
 )
 
 type AttestationResult struct {
@@ -179,37 +174,6 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 	return bundleutil.BundleFromRootCAs(a.c.TrustDomain, bundle), nil
 }
 
-func (a *attestor) fetchAttestationData(fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient, challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
-	// the stream should only be nil if this node attestation is via a join
-	// token.
-	if fetchStream == nil {
-		data := &common.AttestationData{
-			Type: "join_token",
-			Data: []byte(a.c.JoinToken),
-		}
-
-		return &nodeattestor.FetchAttestationDataResponse{
-			AttestationData: data,
-		}, nil
-	}
-
-	if challenge != nil {
-		fetchReq := &nodeattestor.FetchAttestationDataRequest{
-			Challenge: challenge,
-		}
-		if err := fetchStream.Send(fetchReq); err != nil {
-			return nil, fmt.Errorf("requesting attestation data: %v", err)
-		}
-	}
-
-	fetchResp, err := fetchStream.Recv()
-	if err != nil {
-		return nil, fmt.Errorf("receiving attestation data: %v", err)
-	}
-
-	return fetchResp, nil
-}
-
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
@@ -229,27 +193,13 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
-	attestorName := ""
-	defer func() {
-		telemetry_common.AddAttestorType(counter, attestorName)
-		counter.Done(&err)
-	}()
+	defer counter.Done(&err)
 
-	// make sure all of the streams are cancelled if something goes awry
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	attestorName = joinTokenType
-	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
+	attestor := nodeattestor.JoinToken(a.c.JoinToken)
 	if a.c.JoinToken == "" {
-		attestor := a.c.Catalog.GetNodeAttestor()
-		attestorName = attestor.Name()
-		var err error
-		fetchStream, err = attestor.FetchAttestationData(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("opening stream for fetching attestation: %v", err)
-		}
+		attestor = a.c.Catalog.GetNodeAttestor()
 	}
+	telemetry_common.AddAttestorType(counter, attestor.Name())
 
 	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {
@@ -262,9 +212,9 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		return nil, nil, fmt.Errorf("failed to generate CSR for attestation: %v", err)
 	}
 
-	newSVID, err := a.getSVID(ctx, conn, csr, fetchStream)
+	newSVID, err := a.getSVID(ctx, conn, csr, attestor)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get SVID: %v", err)
+		return nil, nil, err
 	}
 	newBundle, err := a.getBundle(ctx, conn)
 	if err != nil {

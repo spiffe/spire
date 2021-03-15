@@ -6,8 +6,8 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
@@ -32,7 +32,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, nodeattestorv0.PluginServer(p))
 }
 
 type Config struct {
@@ -46,7 +46,7 @@ type Config struct {
 type Plugin struct {
 	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
 	// a way of opting in or out of forward build compatibility.
-	nodeattestor.UnimplementedNodeAttestorServer
+	nodeattestorv0.UnimplementedNodeAttestorServer
 
 	// mu is a mutex that protects the configuration. Plugins may at some point
 	// need to support hot-reloading of configuration (by receiving another
@@ -94,7 +94,7 @@ func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 //   3) Receive a challenge from the server
 //   4) Send a challenge response back to the server
 //   5) Repeat 3 and 4 as much as necessary to complete the challenge/response.
-func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
+func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) (err error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -107,7 +107,7 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 
 	// Send the attestation data back to the agent. The "type" of the
 	// attestation data should be set to the plugin name.
-	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: pluginName,
 			Data: data,

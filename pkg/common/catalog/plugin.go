@@ -10,6 +10,7 @@ import (
 
 type LoadedPlugin struct {
 	name         string
+	pluginType   string
 	plugin       interface{}
 	all          []interface{}
 	serviceNames []string
@@ -20,6 +21,10 @@ type LoadedPlugin struct {
 
 func (p *LoadedPlugin) Name() string {
 	return p.name
+}
+
+func (p *LoadedPlugin) Type() string {
+	return p.pluginType
 }
 
 func (p *LoadedPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) error {
