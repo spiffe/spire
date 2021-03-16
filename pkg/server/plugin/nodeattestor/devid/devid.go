@@ -156,7 +156,7 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	}
 
 	// Create SPIFFE ID and selectors
-	certSelectors := FromCertificate(common_devid.PluginName, "certificate", devIDCert)
+	certSelectors := selectorsFromCertificate(common_devid.PluginName, "certificate", devIDCert)
 	fingerprint := x509pop.Fingerprint(devIDCert)
 	certSelectors = append(certSelectors, &spc.Selector{
 		Type:  common_devid.PluginName,
@@ -238,13 +238,11 @@ func decodePluginConfig(hclConf string) (*Config, error) {
 }
 
 func validatePluginConfig(extConf *Config) error {
-	// DevID bundle path is always required
-	if extConf.DevIDBundlePath == "" {
+	switch {
+	case extConf.DevIDBundlePath == "":
 		return errors.New("devid_bundle_path is required")
-	}
 
-	// Endorsement bundle path is required if check_devid_residency is set
-	if extConf.CheckDevIDResidency && extConf.EndorsementBundlePath == "" {
+	case extConf.CheckDevIDResidency && extConf.EndorsementBundlePath == "":
 		return errors.New("endorsement_bundle_path is required if check_devid_residency is enabled")
 	}
 

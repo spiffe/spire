@@ -122,51 +122,24 @@ func (c *Context) GetEKCert() ([]byte, error) {
 	return EKCert, nil
 }
 
-// CreateEK creates an Endorsement Key using the default RSA template
+// CreateEK regenerates the Endorsement Key using the default RSA template
 func (c *Context) CreateEK() ([]byte, tpmutil.Handle, error) {
-	return c.newCachedKey(
-		c.rwc,
-		tpm2tools.DefaultEKTemplateRSA(),
-		tpm2.HandleOwner,
-		tpm2.HandleEndorsement,
-		tpm2tools.EKReservedHandle,
-	)
-}
-
-func (c *Context) newCachedKey(rw io.ReadWriter, template tpm2.Public, owner, parent, cachedHandle tpmutil.Handle) ([]byte, tpmutil.Handle, error) {
-	cachedPub, _, _, err := tpm2.ReadPublic(rw, cachedHandle)
-	if err == nil {
-		if cachedPub.MatchesTemplate(template) {
-			cachedPubData, err := cachedPub.Encode()
-			if err != nil {
-				return nil, 0, err
-			}
-
-			return cachedPubData, cachedHandle, nil
-		}
-
-		// Kick out old cached key if it does not match
-		err = tpm2.EvictControl(rw, "", owner, cachedHandle, cachedHandle)
-		if err != nil {
-			return nil, 0, err
-		}
-	}
-
-	pubData, handle, err := createPrimaryKey(rw, parent, template)
+	ek, err := tpm2tools.EndorsementKeyRSA(c.rwc)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Flush the current handler (handle) since the object will be
-	// persisted at cachedHandler.
-	defer c.flushContext(rw, handle)
-
-	err = tpm2.EvictControl(rw, "", owner, handle, cachedHandle)
+	publicEK, _, _, err := tpm2.ReadPublic(c.rwc, ek.Handle())
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("cannot read ek from handle: %w", err)
 	}
 
-	return pubData, cachedHandle, nil
+	encodedPublicEK, err := publicEK.Encode()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to encode ek: %w", err)
+	}
+
+	return encodedPublicEK, ek.Handle(), nil
 }
 
 func (c *Context) createPolicySession(rw io.ReadWriter) (tpmutil.Handle, error) {
@@ -208,21 +181,4 @@ func (c *Context) flushContext(rw io.ReadWriter, handle tpmutil.Handle) {
 	if err != nil {
 		c.log.Warn(fmt.Sprintf("Failed to flush handle %v: %v", handle, err))
 	}
-}
-
-func createPrimaryKey(rw io.ReadWriter, owner tpmutil.Handle, template tpm2.Public) ([]byte, tpmutil.Handle, error) {
-	handle, pubBlob, _, _, _, _, err := tpm2.CreatePrimaryEx(
-		rw,
-		owner,
-		tpm2.PCRSelection{},
-		"",
-		"",
-		template,
-	)
-	if err != nil {
-		err = fmt.Errorf("failed to create primary key: %w", err)
-		return nil, 0, err
-	}
-
-	return pubBlob, handle, nil
 }

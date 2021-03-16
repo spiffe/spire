@@ -41,7 +41,7 @@ func LoadSigningKey(rw io.ReadWriter, pubKey, privKey []byte, log hclog.Logger) 
 	var srkTemplate tpm2.Public
 	switch pub.Type {
 	case tpm2.AlgRSA:
-		srkTemplate = SRKTemplateRSA()
+		srkTemplate = SRKTemplateHighRSA()
 		rsaParams := pub.RSAParameters
 		if rsaParams != nil {
 			sigHashAlg = rsaParams.Sign.Hash
@@ -163,8 +163,11 @@ func (k *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
 	return nil, nil, fmt.Errorf("certify failed: %w", err)
 }
 
-// SRKTemplateRSA returns SRK template used during provisioning.
-func SRKTemplateRSA() tpm2.Public {
+// SRKTemplateHighRSA returns the default high range SRK template (called H-1 in the specification).
+// https://trustedcomputinggroup.org/resource/tcg-ek-credential-profile-for-tpm-family-2-0/
+func SRKTemplateHighRSA() tpm2.Public {
+	// The tpm2tools library does not have a function to build the high range template
+	// so we build it based on the previous template.
 	template := tpm2tools.SRKTemplateRSA()
 	template.RSAParameters.ModulusRaw = []byte{}
 	return template

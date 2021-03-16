@@ -20,7 +20,7 @@ var attributeTypeNames = map[string]string{
 	"2.5.4.17": "POSTALCODE",
 }
 
-func FromCertificate(selectorType, prefix string, cert *x509.Certificate) []*spc.Selector {
+func selectorsFromCertificate(selectorType, prefix string, cert *x509.Certificate) []*spc.Selector {
 	snValue := fmt.Sprintf("%s:serialnumber:%x", prefix, cert.SerialNumber.Bytes())
 
 	selectors := []*spc.Selector{
@@ -30,13 +30,13 @@ func FromCertificate(selectorType, prefix string, cert *x509.Certificate) []*spc
 		},
 	}
 
-	subjectSelectors := FromAttributes(
+	subjectSelectors := selectorsFromAttributes(
 		selectorType,
 		fmt.Sprintf("%s:subject", prefix),
 		cert.Subject.Names,
 	)
 
-	issuerSelectors := FromAttributes(
+	issuerSelectors := selectorsFromAttributes(
 		selectorType,
 		fmt.Sprintf("%s:issuer", prefix),
 		cert.Issuer.Names,
@@ -48,7 +48,7 @@ func FromCertificate(selectorType, prefix string, cert *x509.Certificate) []*spc
 	return selectors
 }
 
-func FromAttributes(selectorType, prefix string, attributes []pkix.AttributeTypeAndValue) []*spc.Selector {
+func selectorsFromAttributes(selectorType, prefix string, attributes []pkix.AttributeTypeAndValue) []*spc.Selector {
 	selectors := make([]*spc.Selector, 0, len(attributes))
 	for _, tv := range attributes {
 		valueString := fmt.Sprint(tv.Value)
