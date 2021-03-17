@@ -8,10 +8,10 @@ import (
 	"github.com/mitchellh/cli"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 
 	"golang.org/x/net/context"
 )
@@ -40,7 +40,7 @@ func (listCommand) Synopsis() string {
 //Run lists attested agents
 func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	agentClient := serverClient.NewAgentClient()
-	listResponse, err := agentClient.ListAgents(ctx, &agent.ListAgentsRequest{})
+	listResponse, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{})
 	if err != nil {
 		return err
 	}

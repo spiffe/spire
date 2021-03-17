@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
@@ -30,7 +31,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"google.golang.org/grpc"
 )
 
@@ -407,7 +407,7 @@ func (s *Server) Status() (interface{}, error) {
 	// **could** be problematic if the Upstream CA signing process is lengthy.
 	// As currently coded however, the API isn't served until after
 	// the server CA has been signed by upstream.
-	if _, err := bundleClient.GetBundle(context.Background(), &bundle.GetBundleRequest{}); err != nil {
+	if _, err := bundleClient.GetBundle(context.Background(), &bundlev1.GetBundleRequest{}); err != nil {
 		return nil, errors.New("unable to fetch bundle")
 	}
 

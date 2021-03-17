@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"io"
 
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 )
 
@@ -24,18 +23,18 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 		return nil, err
 	}
 
-	attestReq := &agent.AttestAgentRequest{
-		Step: &agent.AttestAgentRequest_Params_{
-			Params: &agent.AttestAgentRequest_Params{
+	attestReq := &agentv1.AttestAgentRequest{
+		Step: &agentv1.AttestAgentRequest_Params_{
+			Params: &agentv1.AttestAgentRequest_Params{
 				Data: protoFromAttestationData(data.AttestationData),
-				Params: &agent.AgentX509SVIDParams{
+				Params: &agentv1.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
 		},
 	}
 
-	attestStream, err := agent.NewAgentClient(conn).AttestAgent(ctx)
+	attestStream, err := agentv1.NewAgentClient(conn).AttestAgent(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not create new agent client for attestation: %v", err)
 	}
@@ -44,7 +43,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 		return nil, fmt.Errorf("error sending attestation request to SPIRE server: %v", err)
 	}
 
-	var attestResp *agent.AttestAgentResponse
+	var attestResp *agentv1.AttestAgentResponse
 	for {
 		// if the response has no additional data then break out and parse
 		// the response.
@@ -61,8 +60,8 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 			return nil, err
 		}
 
-		attestReq = &agent.AttestAgentRequest{
-			Step: &agent.AttestAgentRequest_ChallengeResponse{
+		attestReq = &agentv1.AttestAgentRequest{
+			Step: &agentv1.AttestAgentRequest_ChallengeResponse{
 				ChallengeResponse: data.Response,
 			},
 		}
@@ -97,7 +96,7 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 }
 
 func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*bundleutil.Bundle, error) {
-	updatedBundle, err := bundle.NewBundleClient(conn).GetBundle(ctx, &bundlepb.GetBundleRequest{})
+	updatedBundle, err := bundlev1.NewBundleClient(conn).GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated bundle %v", err)
 	}
@@ -115,7 +114,7 @@ func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*bundl
 	return bundle, err
 }
 
-func getSVIDFromAttestAgentResponse(r *agent.AttestAgentResponse) ([]*x509.Certificate, error) {
+func getSVIDFromAttestAgentResponse(r *agentv1.AttestAgentResponse) ([]*x509.Certificate, error) {
 	if r.GetResult().Svid == nil {
 		return nil, errors.New("attest response is missing SVID")
 	}

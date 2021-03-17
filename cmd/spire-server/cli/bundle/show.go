@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 )
 
 // NewShowCommand creates a new "show" subcommand for "bundle" command.
@@ -38,7 +38,7 @@ func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
 
 func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	bundleClient := serverClient.NewBundleClient()
-	resp, err := bundleClient.GetBundle(ctx, &bundle.GetBundleRequest{})
+	resp, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		return err
 	}

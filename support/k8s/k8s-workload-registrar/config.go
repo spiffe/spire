@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/spiffe/go-spiffe/v2/logger"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
@@ -97,7 +97,7 @@ func (c *CommonMode) SetupLogger() (*log.Logger, error) {
 	return log.NewLogger(log.WithLevel(c.LogLevel), log.WithFormat(c.LogFormat), log.WithOutputFile(c.LogPath))
 }
 
-func (c *CommonMode) EntryClient(ctx context.Context, dialLogger logger.Logger) (entry.EntryClient, error) {
+func (c *CommonMode) EntryClient(ctx context.Context, dialLogger logger.Logger) (entryv1.EntryClient, error) {
 	return c.serverAPI.EntryClient(ctx, dialLogger, c.ServerAddress, c.AgentSocketPath)
 }
 
@@ -170,13 +170,13 @@ func (r *ServerAPIClients) dial(ctx context.Context, dialLog logger.Logger, serv
 	return nil
 }
 
-func (r *ServerAPIClients) EntryClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (entry.EntryClient, error) {
+func (r *ServerAPIClients) EntryClient(ctx context.Context, dialLog logger.Logger, serverAddress string, agentSocketPath string) (entryv1.EntryClient, error) {
 	if r.serverConn == nil {
 		if err := r.dial(ctx, dialLog, serverAddress, agentSocketPath); err != nil {
 			return nil, err
 		}
 	}
-	return entry.NewEntryClient(r.serverConn), nil
+	return entryv1.NewEntryClient(r.serverConn), nil
 }
 
 func (r *ServerAPIClients) Close() error {

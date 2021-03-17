@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/types"
 )
 
 func TrustDomainMemberIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {

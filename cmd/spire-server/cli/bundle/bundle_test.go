@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -127,7 +127,7 @@ func TestSet(t *testing.T) {
 		fileData       string
 		serverErr      error
 		toSet          *types.Bundle
-		setResponse    *bundle.BatchSetFederatedBundleResponse
+		setResponse    *bundlev1.BatchSetFederatedBundleResponse
 	}{
 		{
 			name:           "no id",
@@ -187,8 +187,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.Internal), Message: "failed to set"},
 					},
@@ -207,8 +207,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -230,8 +230,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -259,8 +259,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -287,8 +287,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -310,8 +310,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -339,8 +339,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -622,8 +622,8 @@ func TestDelete(t *testing.T) {
 		args           []string
 		expectedStderr string
 		expectedStdout string
-		deleteResults  []*bundle.BatchDeleteFederatedBundleResponse_Result
-		mode           bundle.BatchDeleteFederatedBundleRequest_Mode
+		deleteResults  []*bundlev1.BatchDeleteFederatedBundleResponse_Result
+		mode           bundlev1.BatchDeleteFederatedBundleRequest_Mode
 		toDelete       []string
 		serverErr      error
 	}{
@@ -632,7 +632,7 @@ func TestDelete(t *testing.T) {
 			args:           []string{"-id", "spiffe://domain1.test"},
 			expectedStdout: "bundle deleted.\n",
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -651,9 +651,9 @@ func TestDelete(t *testing.T) {
 			name:           "success RESTRICT mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "restrict"},
 			expectedStdout: "bundle deleted.\n",
-			mode:           bundle.BatchDeleteFederatedBundleRequest_RESTRICT,
+			mode:           bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT,
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -668,9 +668,9 @@ func TestDelete(t *testing.T) {
 			name:           "success DISSOCIATE mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "dissociate"},
 			expectedStdout: "bundle deleted.\n",
-			mode:           bundle.BatchDeleteFederatedBundleRequest_DISSOCIATE,
+			mode:           bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE,
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -685,9 +685,9 @@ func TestDelete(t *testing.T) {
 			name:           "success DELETE mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "delete"},
 			expectedStdout: "bundle deleted.\n",
-			mode:           bundle.BatchDeleteFederatedBundleRequest_DELETE,
+			mode:           bundlev1.BatchDeleteFederatedBundleRequest_DELETE,
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -718,7 +718,7 @@ func TestDelete(t *testing.T) {
 			name:     "fails to delete",
 			args:     []string{"-id", "spiffe://domain1.test"},
 			toDelete: []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 

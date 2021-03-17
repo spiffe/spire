@@ -6,11 +6,11 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 
 	"golang.org/x/net/context"
 )
@@ -92,7 +92,7 @@ func (c *showCommand) validate() error {
 	return nil
 }
 
-func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient) ([]*types.Entry, error) {
+func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClient) ([]*types.Entry, error) {
 	// If an Entry ID was specified, look it up directly
 	if c.entryID != "" {
 		entry, err := c.fetchByEntryID(ctx, c.entryID, client)
@@ -102,7 +102,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 		return []*types.Entry{entry}, nil
 	}
 
-	filter := &entry.ListEntriesRequest_Filter{}
+	filter := &entryv1.ListEntriesRequest_Filter{}
 	if c.parentID != "" {
 		id, err := idStringToProto(c.parentID)
 		if err != nil {
@@ -134,7 +134,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 		}
 	}
 
-	resp, err := client.ListEntries(ctx, &entry.ListEntriesRequest{
+	resp, err := client.ListEntries(ctx, &entryv1.ListEntriesRequest{
 		Filter: filter,
 	})
 	if err != nil {
@@ -145,8 +145,8 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entry.EntryClient
 }
 
 // fetchByEntryID uses the configured EntryID to fetch the appropriate registration entry
-func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entry.EntryClient) (*types.Entry, error) {
-	entry, err := client.GetEntry(ctx, &entry.GetEntryRequest{Id: id})
+func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entryv1.EntryClient) (*types.Entry, error) {
+	entry, err := client.GetEntry(ctx, &entryv1.GetEntryRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}

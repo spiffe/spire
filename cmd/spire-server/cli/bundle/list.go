@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 )
 
 // NewListCommand creates a new "list" subcommand for "bundle" command.
@@ -46,7 +46,7 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		if err != nil {
 			return err
 		}
-		resp, err := bundleClient.GetFederatedBundle(ctx, &bundle.GetFederatedBundleRequest{
+		resp, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
 			TrustDomain: id,
 		})
 		if err != nil {
@@ -55,7 +55,7 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		return printBundleWithFormat(env.Stdout, resp, c.format, false)
 	}
 
-	resp, err := bundleClient.ListFederatedBundles(ctx, &bundle.ListFederatedBundlesRequest{})
+	resp, err := bundleClient.ListFederatedBundles(ctx, &bundlev1.ListFederatedBundlesRequest{})
 	if err != nil {
 		return err
 	}

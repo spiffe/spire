@@ -9,10 +9,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/mitchellh/cli"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -306,7 +306,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agent
 	server := &fakeAgentServer{}
 
 	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
-		agentpb.RegisterAgentServer(s, server)
+		agentv1.RegisterAgentServer(s, server)
 	})
 
 	stdin := new(bytes.Buffer)
@@ -336,29 +336,29 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agent
 }
 
 type fakeAgentServer struct {
-	agentpb.UnimplementedAgentServer
+	agentv1.UnimplementedAgentServer
 
 	agents []*types.Agent
 	err    error
 }
 
-func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentpb.DeleteAgentRequest) (*emptypb.Empty, error) {
+func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, s.err
 }
 
-func (s *fakeAgentServer) CountAgents(ctx context.Context, req *agentpb.CountAgentsRequest) (*agentpb.CountAgentsResponse, error) {
-	return &agentpb.CountAgentsResponse{
+func (s *fakeAgentServer) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
+	return &agentv1.CountAgentsResponse{
 		Count: int32(len(s.agents)),
 	}, s.err
 }
 
-func (s *fakeAgentServer) ListAgents(ctx context.Context, req *agentpb.ListAgentsRequest) (*agentpb.ListAgentsResponse, error) {
-	return &agentpb.ListAgentsResponse{
+func (s *fakeAgentServer) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest) (*agentv1.ListAgentsResponse, error) {
+	return &agentv1.ListAgentsResponse{
 		Agents: s.agents,
 	}, s.err
 }
 
-func (s *fakeAgentServer) GetAgent(ctx context.Context, req *agentpb.GetAgentRequest) (*types.Agent, error) {
+func (s *fakeAgentServer) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*types.Agent, error) {
 	if len(s.agents) > 0 {
 		return s.agents[0], s.err
 	}

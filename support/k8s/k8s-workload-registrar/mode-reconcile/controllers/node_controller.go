@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"strings"
 
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	spiretypes "github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/go-logr/logr"
@@ -37,7 +37,7 @@ import (
 // NodeReconciler reconciles a Node object
 type NodeReconciler struct {
 	RootID      *spiretypes.SPIFFEID
-	SpireClient entry.EntryClient
+	SpireClient entryv1.EntryClient
 	Cluster     string
 	ServerID    *spiretypes.SPIFFEID
 }
@@ -75,7 +75,7 @@ func (r *NodeReconciler) getSelectors(namespacedName types.NamespacedName) []*sp
 
 func (r *NodeReconciler) getAllEntries(ctx context.Context) ([]*spiretypes.Entry, error) {
 	// TODO: Move to some kind of poll and cache and notify system, so multiple controllers don't have to poll.
-	serverChildEntries, err := listEntries(ctx, r.SpireClient, &entry.ListEntriesRequest_Filter{
+	serverChildEntries, err := listEntries(ctx, r.SpireClient, &entryv1.ListEntriesRequest_Filter{
 		ByParentId: r.ServerID,
 	})
 	if err != nil {
@@ -132,7 +132,7 @@ func (r *NodeReconciler) SetupWithManager(_ ctrl.Manager, _ *ctrlBuilder.Builder
 	return nil
 }
 
-func NewNodeReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, serverID *spiretypes.SPIFFEID, cluster string, rootID *spiretypes.SPIFFEID, spireClient entry.EntryClient) *BaseReconciler {
+func NewNodeReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, serverID *spiretypes.SPIFFEID, cluster string, rootID *spiretypes.SPIFFEID, spireClient entryv1.EntryClient) *BaseReconciler {
 	return &BaseReconciler{
 		Client:      client,
 		Scheme:      scheme,

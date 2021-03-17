@@ -18,7 +18,7 @@ package v1beta1
 import (
 	"fmt"
 
-	"github.com/spiffe/spire/proto/spire/types"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
 // TypesSelector converts the selectors from the CRD to the types.Selector

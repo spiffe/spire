@@ -13,6 +13,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -24,9 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
@@ -45,7 +45,7 @@ type Config struct {
 
 // Service implements the v1 agent service
 type Service struct {
-	agent.UnsafeAgentServer
+	agentv1.UnsafeAgentServer
 
 	cat catalog.Catalog
 	clk clock.Clock
@@ -67,22 +67,22 @@ func New(config Config) *Service {
 
 // RegisterService registers the agent service on the gRPC server/
 func RegisterService(s *grpc.Server, service *Service) {
-	agent.RegisterAgentServer(s, service)
+	agentv1.RegisterAgentServer(s, service)
 }
 
 // CountAgents returns the total number of agents.
-func (s *Service) CountAgents(ctx context.Context, req *agent.CountAgentsRequest) (*agent.CountAgentsResponse, error) {
+func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
 	dsResp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 	}
 
-	return &agent.CountAgentsResponse{Count: dsResp.Nodes}, nil
+	return &agentv1.CountAgentsResponse{Count: dsResp.Nodes}, nil
 }
 
 // ListAgents returns an optionally filtered and/or paginated list of agents.
-func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) (*agent.ListAgentsResponse, error) {
+func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest) (*agentv1.ListAgentsResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	listReq := &datastore.ListAttestedNodesRequest{}
@@ -121,7 +121,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 		return nil, api.MakeErr(log, codes.Internal, "failed to list agents", err)
 	}
 
-	resp := &agent.ListAgentsResponse{}
+	resp := &agentv1.ListAgentsResponse{}
 
 	if dsResp.Pagination != nil {
 		resp.NextPageToken = dsResp.Pagination.Token
@@ -143,7 +143,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 }
 
 // GetAgent returns the agent associated with the given SpiffeID.
-func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*types.Agent, error) {
+func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*types.Agent, error) {
 	log := rpccontext.Logger(ctx)
 
 	agentID, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -178,7 +178,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 }
 
 // DeleteAgent removes the agent with the given SpiffeID.
-func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*emptypb.Empty, error) {
+func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -203,7 +203,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 }
 
 // BanAgent sets the agent with the given SpiffeID to the banned state.
-func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*emptypb.Empty, error) {
+func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -235,7 +235,7 @@ func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*em
 }
 
 // AttestAgent attests the authenticity of the given agent.
-func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
+func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 
@@ -355,7 +355,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 }
 
 // RenewAgent renews the SVID of the agent with the given SpiffeID.
-func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) (*agent.RenewAgentResponse, error) {
+func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest) (*agentv1.RenewAgentResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
@@ -394,7 +394,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 	}
 
 	// Send response with new X509 SVID
-	return &agent.RenewAgentResponse{
+	return &agentv1.RenewAgentResponse{
 		Svid: &types.X509SVID{
 			Id:        api.ProtoFromID(callerID),
 			ExpiresAt: agentSVID[0].NotAfter.Unix(),
@@ -404,7 +404,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 }
 
 // CreateJoinToken returns a new JoinToken for an agent.
-func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinTokenRequest) (*types.JoinToken, error) {
+func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTokenRequest) (*types.JoinToken, error) {
 	log := rpccontext.Logger(ctx)
 
 	if req.Ttl < 1 {
@@ -544,7 +544,7 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 	}, nil
 }
 
-func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent.Agent_AttestAgentServer, params *agent.AttestAgentRequest_Params) (*nodeattestor.AttestResponse, error) {
+func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agentv1.Agent_AttestAgentServer, params *agentv1.AttestAgentRequest_Params) (*nodeattestor.AttestResponse, error) {
 	attestorType := params.Data.Type
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, attestorType)
 
@@ -576,8 +576,8 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 			break
 		}
 
-		resp := &agent.AttestAgentResponse{
-			Step: &agent.AttestAgentResponse_Challenge{
+		resp := &agentv1.AttestAgentResponse{
+			Step: &agentv1.AttestAgentResponse_Challenge{
 				Challenge: attestResp.Challenge,
 			},
 		}
@@ -660,7 +660,7 @@ func applyMask(a *types.Agent, mask *types.AgentMask) {
 	}
 }
 
-func validateAttestAgentParams(params *agent.AttestAgentRequest_Params) error {
+func validateAttestAgentParams(params *agentv1.AttestAgentRequest_Params) error {
 	switch {
 	case params == nil:
 		return errors.New("missing params")
@@ -686,16 +686,16 @@ func attest(attestorStream nodeattestor.NodeAttestor_AttestClient, attestRequest
 	return attestorStream.Recv()
 }
 
-func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certificate) *agent.AttestAgentResponse {
+func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certificate) *agentv1.AttestAgentResponse {
 	svid := &types.X509SVID{
 		Id:        api.ProtoFromID(spiffeID),
 		CertChain: x509util.RawCertsFromCertificates(certificates),
 		ExpiresAt: certificates[0].NotAfter.Unix(),
 	}
 
-	return &agent.AttestAgentResponse{
-		Step: &agent.AttestAgentResponse_Result_{
-			Result: &agent.AttestAgentResponse_Result{
+	return &agentv1.AttestAgentResponse{
+		Step: &agentv1.AttestAgentResponse_Result_{
+			Result: &agentv1.AttestAgentResponse_Result{
 				Svid: svid,
 			},
 		},

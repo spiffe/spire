@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,7 +78,7 @@ func TestMintRun(t *testing.T) {
 	socketPath := filepath.Join(dir, "socket")
 
 	spiretest.StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
-		svidpb.RegisterSVIDServer(s, server)
+		svidv1.RegisterSVIDServer(s, server)
 	})
 
 	signer, err := jose.NewSigner(jose.SigningKey{
@@ -119,7 +119,7 @@ func TestMintRun(t *testing.T) {
 		stderr string
 
 		noRequestExpected bool
-		resp              *svidpb.MintJWTSVIDResponse
+		resp              *svidv1.MintJWTSVIDResponse
 	}{
 		{
 			name:              "missing spiffeID flag",
@@ -155,7 +155,7 @@ func TestMintRun(t *testing.T) {
 			audience: []string{"AUDIENCE"},
 			code:     1,
 			stderr:   "Error: server response missing token\n",
-			resp:     &svidpb.MintJWTSVIDResponse{Svid: &types.JWTSVID{}},
+			resp:     &svidv1.MintJWTSVIDResponse{Svid: &types.JWTSVID{}},
 		},
 		{
 			name:     "missing audience",
@@ -190,7 +190,7 @@ func TestMintRun(t *testing.T) {
 			},
 			audience: []string{"AUDIENCE"},
 			code:     0,
-			resp: &svidpb.MintJWTSVIDResponse{
+			resp: &svidv1.MintJWTSVIDResponse{
 				Svid: &types.JWTSVID{
 					Token: token,
 				},
@@ -205,7 +205,7 @@ func TestMintRun(t *testing.T) {
 			},
 			audience: []string{"AUDIENCE"},
 			code:     1,
-			resp: &svidpb.MintJWTSVIDResponse{
+			resp: &svidv1.MintJWTSVIDResponse{
 				Svid: &types.JWTSVID{
 					Token: token,
 				},
@@ -222,7 +222,7 @@ func TestMintRun(t *testing.T) {
 			},
 			audience: []string{"AUDIENCE"},
 			code:     0,
-			resp: &svidpb.MintJWTSVIDResponse{
+			resp: &svidv1.MintJWTSVIDResponse{
 				Svid: &types.JWTSVID{
 					Token: "malformed token",
 				},
@@ -238,7 +238,7 @@ func TestMintRun(t *testing.T) {
 			},
 			audience: []string{"AUDIENCE"},
 			code:     0,
-			resp: &svidpb.MintJWTSVIDResponse{
+			resp: &svidv1.MintJWTSVIDResponse{
 				Svid: &types.JWTSVID{
 					Token: expiredToken,
 				},
@@ -256,7 +256,7 @@ func TestMintRun(t *testing.T) {
 			audience: []string{"AUDIENCE1", "AUDIENCE2"},
 			code:     0,
 			write:    "token",
-			resp: &svidpb.MintJWTSVIDResponse{
+			resp: &svidv1.MintJWTSVIDResponse{
 				Svid: &types.JWTSVID{
 					Token: token,
 				},
@@ -327,11 +327,11 @@ func TestMintRun(t *testing.T) {
 }
 
 type fakeSVIDServer struct {
-	svidpb.SVIDServer
+	svidv1.SVIDServer
 
 	mu   sync.Mutex
-	req  *svidpb.MintJWTSVIDRequest
-	resp *svidpb.MintJWTSVIDResponse
+	req  *svidv1.MintJWTSVIDRequest
+	resp *svidv1.MintJWTSVIDResponse
 }
 
 func (f *fakeSVIDServer) resetMintJWTSVIDRequest() {
@@ -340,19 +340,19 @@ func (f *fakeSVIDServer) resetMintJWTSVIDRequest() {
 	f.req = nil
 }
 
-func (f *fakeSVIDServer) lastMintJWTSVIDRequest() *svidpb.MintJWTSVIDRequest {
+func (f *fakeSVIDServer) lastMintJWTSVIDRequest() *svidv1.MintJWTSVIDRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.req
 }
 
-func (f *fakeSVIDServer) setMintJWTSVIDResponse(resp *svidpb.MintJWTSVIDResponse) {
+func (f *fakeSVIDServer) setMintJWTSVIDResponse(resp *svidv1.MintJWTSVIDResponse) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resp = resp
 }
 
-func (f *fakeSVIDServer) MintJWTSVID(ctx context.Context, req *svidpb.MintJWTSVIDRequest) (*svidpb.MintJWTSVIDResponse, error) {
+func (f *fakeSVIDServer) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

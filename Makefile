@@ -141,17 +141,6 @@ git_dirty := $(shell git status -s)
 protos := \
 	proto/private/server/journal/journal.proto \
 	proto/spire/common/common.proto \
-	proto/spire/types/agent.proto \
-	proto/spire/types/attestation.proto \
-	proto/spire/types/bundle.proto \
-	proto/spire/types/entry.proto \
-	proto/spire/types/federateswith.proto \
-	proto/spire/types/jointoken.proto \
-	proto/spire/types/jwtsvid.proto \
-	proto/spire/types/selector.proto \
-	proto/spire/types/spiffeid.proto \
-	proto/spire/types/status.proto \
-	proto/spire/types/x509svid.proto \
 
 serviceprotos := \
 	proto/private/test/catalogtest/test.proto \
@@ -170,13 +159,6 @@ serviceprotos := \
 	proto/spire/server/noderesolver/noderesolver.proto \
 	proto/spire/server/notifier/notifier.proto \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto \
-	proto/spire/api/agent/debug/v1/debug.proto \
-	proto/spire/api/server/agent/v1/agent.proto \
-	proto/spire/api/server/bundle/v1/bundle.proto \
-	proto/spire/api/server/debug/v1/debug.proto \
-	proto/spire/api/server/entry/v1/entry.proto \
-	proto/spire/api/server/svid/v1/svid.proto \
-
 
 
 # The following three variables define the plugin, service, and hostservice
