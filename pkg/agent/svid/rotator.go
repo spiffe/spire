@@ -64,7 +64,7 @@ func (r *rotator) Run(ctx context.Context) error {
 
 func (r *rotator) runRotation(ctx context.Context) error {
 	for {
-		err := r.rotateSVID(ctx)
+		err := r.rotateSVIDIfNeeded(ctx)
 
 		switch {
 		case err != nil && rotationutil.X509Expired(r.clk.Now(), r.state.Value().(State).SVID[0]):
@@ -118,12 +118,18 @@ func (r *rotator) SetRotationFinishedHook(f func()) {
 	r.rotationFinishedHook = f
 }
 
+func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
+	if rotationutil.ShouldRotateX509(r.clk.Now(), r.state.Value().(State).SVID[0]) {
+		err = r.rotateSVID(ctx)
+	}
+	if r.rotationFinishedHook != nil {
+		r.rotationFinishedHook()
+	}
+	return err
+}
+
 // rotateSVID asks SPIRE's server for a new agent's SVID.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	if !rotationutil.ShouldRotateX509(r.clk.Now(), r.state.Value().(State).SVID[0]) {
-		return nil
-	}
-
 	counter := telemetry_agent.StartRotateAgentSVIDCall(r.c.Metrics)
 	defer counter.Done(&err)
 
@@ -164,10 +170,6 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	// expired SVID, so next time the client is used, it will get a new connection with
 	// the most up-to-date SVID.
 	r.client.Release()
-
-	if r.rotationFinishedHook != nil {
-		r.rotationFinishedHook()
-	}
 
 	return nil
 }
