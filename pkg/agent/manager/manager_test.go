@@ -24,19 +24,15 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
+	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +62,7 @@ func TestInitializationFailure(t *testing.T) {
 	ca, cakey := createCA(t, clk)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -90,14 +86,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	ca, cakey := createCA(t, clk)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -143,14 +132,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	ca, cakey := createCA(t, clk)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -164,7 +146,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	_, err = ReadSVID(c.SVIDCachePath)
+	_, err := ReadSVID(c.SVIDCachePath)
 	if err != ErrNotCached {
 		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
@@ -194,11 +176,10 @@ func TestStoreKeyOnStartup(t *testing.T) {
 	ca, cakey := createCA(t, clk)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
 
+	km := fakeagentkeymanager.New(t, dir)
+
 	cat := fakeagentcatalog.New()
-	diskPlugin := disk.New()
-	_, err := diskPlugin.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: fmt.Sprintf("directory = \"%s\"", dir)})
-	require.NoError(t, err)
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(diskPlugin))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -212,31 +193,16 @@ func TestStoreKeyOnStartup(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	km := cat.GetKeyManager()
-	kresp, err := km.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
-	if err != nil {
-		t.Fatalf("No error expected but got: %v", err)
-	}
-	if len(kresp.PrivateKey) != 0 {
-		t.Fatalf("No key expected but got: %v", kresp.PrivateKey)
-	}
+	_, err := km.GetKey(context.Background())
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "keymanager(disk): key not found")
 
 	m := newManager(c)
 	require.Error(t, m.Initialize(context.Background()))
 
-	// Although init failed, the SVID key should have been saved, because it should be
-	// one of the first thing the manager does at initialization.
-	kresp, err = km.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
-	if err != nil {
-		t.Fatalf("No error expected but got: %v", err)
-	}
+	key, err := km.GetKey(context.Background())
+	require.NoError(t, err)
 
-	storedKey, err := x509.ParseECPrivateKey(kresp.PrivateKey)
-	if err != nil {
-		t.Fatalf("No error expected but got: %v", err)
-	}
-
-	if !reflect.DeepEqual(storedKey, baseSVIDKey) {
+	if !reflect.DeepEqual(key, baseSVIDKey) {
 		t.Fatal("stored key is different than provided")
 	}
 }
@@ -258,14 +224,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	require.NoError(t, err)
-
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		ServerAddr:      api.addr,
@@ -355,7 +314,7 @@ func TestSVIDRotation(t *testing.T) {
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, baseTTLSeconds)
 
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		Catalog:          cat,
@@ -460,12 +419,7 @@ func TestSynchronization(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	require.NoError(t, err)
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		ServerAddr:       api.addr,
@@ -615,14 +569,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		ServerAddr:      api.addr,
@@ -692,14 +639,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		ServerAddr:      api.addr,
@@ -757,12 +697,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	require.NoError(t, err)
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
 		ServerAddr:       api.addr,
@@ -822,12 +757,7 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	km := disk.New()
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`directory = %q`, dir),
-	})
-	require.NoError(t, err)
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(km))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	ttlSeconds := time.Duration(ttl) * time.Second
 	syncInterval := ttlSeconds / 2
@@ -886,10 +816,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	})
 
 	cat := fakeagentcatalog.New()
-	diskPlugin := disk.New()
-	_, err := diskPlugin.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: fmt.Sprintf("directory = \"%s\"", dir)})
-	require.NoError(t, err)
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(diskPlugin))
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 

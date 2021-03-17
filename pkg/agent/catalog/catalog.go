@@ -23,11 +23,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 )
 
 type Catalog interface {
-	GetKeyManager() KeyManager
+	GetKeyManager() keymanager.KeyManager
 	GetNodeAttestor() nodeattestor.NodeAttestor
 	GetWorkloadAttestors() []WorkloadAttestor
 }
@@ -38,7 +39,7 @@ type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 
 func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
-		keymanager.PluginClient,
+		keymanagerv0.PluginClient,
 		nodeattestorv0.PluginClient,
 		workloadattestor.PluginClient,
 	}
@@ -66,24 +67,20 @@ func BuiltIns() []catalog.Plugin {
 	}
 }
 
-type KeyManager struct {
-	keymanager.KeyManager
-}
-
 type WorkloadAttestor struct {
 	catalog.PluginInfo
 	workloadattestor.WorkloadAttestor
 }
 
 type Plugins struct {
-	KeyManager        KeyManager
+	KeyManager        keymanager.KeyManager
 	NodeAttestor      nodeattestor.NodeAttestor
 	WorkloadAttestors []WorkloadAttestor
 }
 
 var _ Catalog = (*Plugins)(nil)
 
-func (p *Plugins) GetKeyManager() KeyManager {
+func (p *Plugins) GetKeyManager() keymanager.KeyManager {
 	return p.KeyManager
 }
 
@@ -128,7 +125,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p.KeyManager.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager.KeyManager, config.Metrics)
+	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
 
 	return &Repository{
 		Catalog: &Plugins{
@@ -146,7 +143,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 // when the catalog is refactored to leverage the new common catalog with
 // native versioning support (see issue #2153).
 type versionedPlugins struct {
-	KeyManager        KeyManager
+	KeyManager        keymanager.V0
 	NodeAttestor      nodeattestor.V0
 	WorkloadAttestors []WorkloadAttestor `catalog:"min=1"`
 }

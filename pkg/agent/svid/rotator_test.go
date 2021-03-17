@@ -13,10 +13,11 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
+	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	mock_client "github.com/spiffe/spire/test/mock/agent/client"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
@@ -36,6 +37,8 @@ type RotatorTestSuite struct {
 
 	bundle observer.Property
 
+	km keymanager.KeyManager
+
 	r *rotator
 
 	mockClock *clock.Mock
@@ -50,8 +53,10 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.bundle = observer.NewProperty(b)
 
+	s.km = fakeagentkeymanager.New(s.T(), "")
+
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
+	cat.SetKeyManager(s.km)
 
 	s.mockClock = clock.NewMock(s.T())
 	s.mockClock.Set(time.Now())
@@ -73,10 +78,13 @@ func (s *RotatorTestSuite) TearDownTest() {
 }
 
 func (s *RotatorTestSuite) TestRunWithGoodExistingSVID() {
+	key, err := s.km.GenerateKey(context.Background())
+	s.Require().NoError(err)
+
 	// Cert that's valid for 1hr
 	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
 	s.Require().NoError(err)
-	goodCert, key, err := util.SelfSign(temp)
+	goodCert, _, err := util.Sign(temp, temp, key)
 	s.Require().NoError(err)
 
 	state := State{

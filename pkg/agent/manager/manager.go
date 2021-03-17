@@ -2,7 +2,7 @@ package manager
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -15,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
@@ -316,18 +315,9 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	}
 }
 
-func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) error {
+func (m *manager) storePrivateKey(ctx context.Context, key crypto.Signer) error {
 	km := m.c.Catalog.GetKeyManager()
-	keyBytes, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return err
-	}
-
-	if _, err = km.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
-		return err
-	}
-
-	return nil
+	return km.SetKey(ctx, key)
 }
 
 func (m *manager) deleteSVID() {

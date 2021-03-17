@@ -2,7 +2,7 @@ package svid
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"fmt"
 	"sync"
@@ -11,7 +11,6 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
@@ -50,7 +49,7 @@ type rotator struct {
 
 type State struct {
 	SVID []*x509.Certificate
-	Key  *ecdsa.PrivateKey
+	Key  crypto.Signer
 }
 
 // Run runs the rotator. It monitors the server SVID for expiration and rotates
@@ -139,7 +138,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	defer r.rotMtx.Unlock()
 	r.c.Log.Debug("Rotating agent SVID")
 
-	key, err := r.newKey(ctx)
+	key, err := r.c.Catalog.GetKeyManager().GenerateKey(ctx)
 	if err != nil {
 		return err
 	}
@@ -172,14 +171,4 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	r.client.Release()
 
 	return nil
-}
-
-func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
-	km := r.c.Catalog.GetKeyManager()
-	resp, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
-	if err != nil {
-		return nil, fmt.Errorf("generate key pair: %v", err)
-	}
-
-	return x509.ParseECPrivateKey(resp.PrivateKey)
 }

@@ -2,7 +2,7 @@ package attestor
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -25,12 +24,14 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 )
 
 type AttestationResult struct {
 	SVID   []*x509.Certificate
-	Key    *ecdsa.PrivateKey
+	Key    crypto.Signer
 	Bundle *bundleutil.Bundle
 }
 
@@ -99,24 +100,24 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 }
 
 // Load the current SVID and key. The returned SVID is nil to indicate a new SVID should be created.
-func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.PrivateKey, error) {
+func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, crypto.Signer, error) {
 	km := a.c.Catalog.GetKeyManager()
-	fetchRes, err := km.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("load private key: %v", err)
+	key, err := km.GetKey(ctx)
+	switch status.Code(err) {
+	case codes.OK:
+	case codes.NotFound:
+	default:
+		return nil, nil, fmt.Errorf("unable to load private key: %v", err)
 	}
+
 	svid := a.readSVIDFromDisk()
 
-	privateKeyExists := len(fetchRes.PrivateKey) > 0
+	privateKeyExists := key != nil
 	svidExists := svid != nil
 	svidIsExpired := IsSVIDExpired(svid, time.Now)
 
 	switch {
 	case privateKeyExists && svidExists && !svidIsExpired:
-		key, err := x509.ParseECPrivateKey(fetchRes.PrivateKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parse key from keymanager: %v", key)
-		}
 		return svid, key, nil
 	case privateKeyExists && svidExists && svidIsExpired:
 		a.c.Log.WithField("expiry", svid[0].NotAfter).Warn("Private key recovered, but SVID is expired. Generating new keypair")
@@ -128,13 +129,9 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 		// Neither private key nor SVID were found.
 	}
 
-	generateRes, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	key, err = km.GenerateKey(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate key pair: %s", err)
-	}
-	key, err := x509.ParseECPrivateKey(generateRes.PrivateKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse key from keymanager: %v", key)
+		return nil, nil, fmt.Errorf("unable to generate private key: %v", err)
 	}
 	return nil, key, nil
 }
@@ -191,7 +188,7 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
+func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
 

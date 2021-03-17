@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"sync"
@@ -742,7 +742,7 @@ func createClient() (*client, *testClient) {
 	return client, tc
 }
 
-func keysAndBundle() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
+func keysAndBundle() ([]*x509.Certificate, crypto.Signer, []*x509.Certificate) {
 	return nil, nil, nil
 }
 

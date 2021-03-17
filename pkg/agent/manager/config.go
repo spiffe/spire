@@ -1,7 +1,7 @@
 package manager
 
 import (
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"sync"
 	"time"
@@ -19,7 +19,7 @@ import (
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
 	SVID             []*x509.Certificate
-	SVIDKey          *ecdsa.PrivateKey
+	SVIDKey          crypto.Signer
 	Bundle           *cache.Bundle
 	Catalog          catalog.Catalog
 	TrustDomain      spiffeid.TrustDomain

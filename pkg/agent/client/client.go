@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -59,7 +59,7 @@ type Config struct {
 	TrustDomain spiffeid.TrustDomain
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
 	// to connect via mTLS to Addr.
-	KeysAndBundle func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
+	KeysAndBundle func() ([]*x509.Certificate, crypto.Signer, []*x509.Certificate)
 
 	// RotMtx is used to prevent the creation of new connections during SVID rotations
 	RotMtx *sync.RWMutex
