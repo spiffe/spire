@@ -13,15 +13,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/debug/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	debugpb "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -57,7 +57,7 @@ func TestGetInfo(t *testing.T) {
 		SVID: x509SVID.Certificates,
 		Key:  x509SVID.PrivateKey.(*ecdsa.PrivateKey),
 	}
-	x509SVIDChain := []*debugpb.GetInfoResponse_Cert{
+	x509SVIDChain := []*debugv1.GetInfoResponse_Cert{
 		{
 			Id: &types.SPIFFEID{
 				TrustDomain: "example.org",
@@ -86,7 +86,7 @@ func TestGetInfo(t *testing.T) {
 		Key:  svidWithIntermediate.PrivateKey.(*ecdsa.PrivateKey),
 	}
 	// Manually create SVID chain with intemediate
-	svidWithIntermediateChain := []*debugpb.GetInfoResponse_Cert{
+	svidWithIntermediateChain := []*debugv1.GetInfoResponse_Cert{
 		{
 			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/server"},
 			ExpiresAt: svidWithIntermediate.Certificates[0].NotAfter.Unix(),
@@ -178,7 +178,7 @@ func TestGetInfo(t *testing.T) {
 		code         codes.Code
 		err          string
 		dsErrors     []error
-		expectResp   *debugpb.GetInfoResponse
+		expectResp   *debugv1.GetInfoResponse
 		expectedLogs []spiretest.LogEntry
 		// Time to add to clock.Mock
 		addToClk  time.Duration
@@ -192,7 +192,7 @@ func TestGetInfo(t *testing.T) {
 	}{
 		{
 			name: "regular SVID",
-			expectResp: &debugpb.GetInfoResponse{
+			expectResp: &debugv1.GetInfoResponse{
 				FederatedBundlesCount: 1,
 				SvidChain:             x509SVIDChain,
 			},
@@ -201,7 +201,7 @@ func TestGetInfo(t *testing.T) {
 		},
 		{
 			name: "SVID with intermediate",
-			expectResp: &debugpb.GetInfoResponse{
+			expectResp: &debugv1.GetInfoResponse{
 				FederatedBundlesCount: 1,
 				SvidChain:             svidWithIntermediateChain,
 			},
@@ -210,7 +210,7 @@ func TestGetInfo(t *testing.T) {
 		},
 		{
 			name: "complete data",
-			expectResp: &debugpb.GetInfoResponse{
+			expectResp: &debugv1.GetInfoResponse{
 				SvidChain:             x509SVIDChain,
 				AgentsCount:           2,
 				EntriesCount:          2,
@@ -227,7 +227,7 @@ func TestGetInfo(t *testing.T) {
 		{
 			name: "response from cache",
 			// No registration entries and attested nodes expected, those are created after cache is initiated
-			expectResp: &debugpb.GetInfoResponse{
+			expectResp: &debugv1.GetInfoResponse{
 				SvidChain:             x509SVIDChain,
 				FederatedBundlesCount: 2,
 			},
@@ -243,7 +243,7 @@ func TestGetInfo(t *testing.T) {
 		{
 			name: "expired cache",
 			// Actual state expected after expiration
-			expectResp: &debugpb.GetInfoResponse{
+			expectResp: &debugv1.GetInfoResponse{
 				SvidChain:             x509SVIDChain,
 				AgentsCount:           2,
 				EntriesCount:          2,
@@ -393,7 +393,7 @@ func TestGetInfo(t *testing.T) {
 
 			if tt.initCache {
 				test.so.state = tt.state
-				_, err := test.client.GetInfo(ctx, &debugpb.GetInfoRequest{})
+				_, err := test.client.GetInfo(ctx, &debugv1.GetInfoRequest{})
 				require.NoError(t, err)
 			}
 			test.clk.Add(tt.addToClk)
@@ -413,7 +413,7 @@ func TestGetInfo(t *testing.T) {
 			}
 
 			// Call client
-			resp, err := test.client.GetInfo(ctx, &debugpb.GetInfoRequest{})
+			resp, err := test.client.GetInfo(ctx, &debugv1.GetInfoRequest{})
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogs)
 			if tt.err != "" {
 				spiretest.AssertGRPCStatusContains(t, err, tt.code, tt.err)
@@ -428,7 +428,7 @@ func TestGetInfo(t *testing.T) {
 }
 
 type serviceTest struct {
-	client debugpb.DebugClient
+	client debugv1.DebugClient
 	done   func()
 
 	clk     *clock.Mock
@@ -479,7 +479,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 	test.done = done
-	test.client = debugpb.NewDebugClient(conn)
+	test.client = debugv1.NewDebugClient(conn)
 
 	return test
 }

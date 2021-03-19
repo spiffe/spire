@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/mitchellh/cli"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -131,33 +131,33 @@ func (e *entryTest) afterTest(t *testing.T) {
 }
 
 type fakeEntryServer struct {
-	*entry.UnimplementedEntryServer
+	*entryv1.UnimplementedEntryServer
 
 	t   *testing.T
 	err error
 
-	expGetEntryReq         *entry.GetEntryRequest
-	expListEntriesReq      *entry.ListEntriesRequest
-	expBatchDeleteEntryReq *entry.BatchDeleteEntryRequest
-	expBatchCreateEntryReq *entry.BatchCreateEntryRequest
-	expBatchUpdateEntryReq *entry.BatchUpdateEntryRequest
+	expGetEntryReq         *entryv1.GetEntryRequest
+	expListEntriesReq      *entryv1.ListEntriesRequest
+	expBatchDeleteEntryReq *entryv1.BatchDeleteEntryRequest
+	expBatchCreateEntryReq *entryv1.BatchCreateEntryRequest
+	expBatchUpdateEntryReq *entryv1.BatchUpdateEntryRequest
 
 	getEntryResp         *types.Entry
-	countEntriesResp     *entry.CountEntriesResponse
-	listEntriesResp      *entry.ListEntriesResponse
-	batchDeleteEntryResp *entry.BatchDeleteEntryResponse
-	batchCreateEntryResp *entry.BatchCreateEntryResponse
-	batchUpdateEntryResp *entry.BatchUpdateEntryResponse
+	countEntriesResp     *entryv1.CountEntriesResponse
+	listEntriesResp      *entryv1.ListEntriesResponse
+	batchDeleteEntryResp *entryv1.BatchDeleteEntryResponse
+	batchCreateEntryResp *entryv1.BatchCreateEntryResponse
+	batchUpdateEntryResp *entryv1.BatchUpdateEntryResponse
 }
 
-func (f fakeEntryServer) CountEntries(ctx context.Context, req *entry.CountEntriesRequest) (*entry.CountEntriesResponse, error) {
+func (f fakeEntryServer) CountEntries(ctx context.Context, req *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.countEntriesResp, nil
 }
 
-func (f fakeEntryServer) ListEntries(ctx context.Context, req *entry.ListEntriesRequest) (*entry.ListEntriesResponse, error) {
+func (f fakeEntryServer) ListEntries(ctx context.Context, req *entryv1.ListEntriesRequest) (*entryv1.ListEntriesResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -165,7 +165,7 @@ func (f fakeEntryServer) ListEntries(ctx context.Context, req *entry.ListEntries
 	return f.listEntriesResp, nil
 }
 
-func (f fakeEntryServer) GetEntry(ctx context.Context, req *entry.GetEntryRequest) (*types.Entry, error) {
+func (f fakeEntryServer) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*types.Entry, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -173,7 +173,7 @@ func (f fakeEntryServer) GetEntry(ctx context.Context, req *entry.GetEntryReques
 	return f.getEntryResp, nil
 }
 
-func (f fakeEntryServer) BatchDeleteEntry(ctx context.Context, req *entry.BatchDeleteEntryRequest) (*entry.BatchDeleteEntryResponse, error) {
+func (f fakeEntryServer) BatchDeleteEntry(ctx context.Context, req *entryv1.BatchDeleteEntryRequest) (*entryv1.BatchDeleteEntryResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -181,7 +181,7 @@ func (f fakeEntryServer) BatchDeleteEntry(ctx context.Context, req *entry.BatchD
 	return f.batchDeleteEntryResp, nil
 }
 
-func (f fakeEntryServer) BatchCreateEntry(ctx context.Context, req *entry.BatchCreateEntryRequest) (*entry.BatchCreateEntryResponse, error) {
+func (f fakeEntryServer) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreateEntryRequest) (*entryv1.BatchCreateEntryResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -189,7 +189,7 @@ func (f fakeEntryServer) BatchCreateEntry(ctx context.Context, req *entry.BatchC
 	return f.batchCreateEntryResp, nil
 }
 
-func (f fakeEntryServer) BatchUpdateEntry(ctx context.Context, req *entry.BatchUpdateEntryRequest) (*entry.BatchUpdateEntryResponse, error) {
+func (f fakeEntryServer) BatchUpdateEntry(ctx context.Context, req *entryv1.BatchUpdateEntryRequest) (*entryv1.BatchUpdateEntryResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -210,7 +210,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entry
 
 	server := &fakeEntryServer{t: t}
 	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
-		entry.RegisterEntryServer(s, server)
+		entryv1.RegisterEntryServer(s, server)
 	})
 
 	test := &entryTest{

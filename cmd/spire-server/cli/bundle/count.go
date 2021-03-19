@@ -6,9 +6,9 @@ import (
 
 	"github.com/mitchellh/cli"
 
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 
 	"golang.org/x/net/context"
 )
@@ -37,7 +37,7 @@ func (countCommand) Synopsis() string {
 //Run counts attested bundles
 func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	bundleClient := serverClient.NewBundleClient()
-	countResponse, err := bundleClient.CountBundles(ctx, &bundle.CountBundlesRequest{})
+	countResponse, err := bundleClient.CountBundles(ctx, &bundlev1.CountBundlesRequest{})
 	if err != nil {
 		return err
 	}

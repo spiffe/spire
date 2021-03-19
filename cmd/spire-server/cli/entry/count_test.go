@@ -3,7 +3,7 @@ package entry
 import (
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -27,15 +27,15 @@ func TestCountSynopsis(t *testing.T) {
 }
 
 func TestCount(t *testing.T) {
-	fakeResp4 := &entry.CountEntriesResponse{Count: 4}
-	fakeResp2 := &entry.CountEntriesResponse{Count: 2}
-	fakeResp1 := &entry.CountEntriesResponse{Count: 1}
-	fakeResp0 := &entry.CountEntriesResponse{Count: 0}
+	fakeResp4 := &entryv1.CountEntriesResponse{Count: 4}
+	fakeResp2 := &entryv1.CountEntriesResponse{Count: 2}
+	fakeResp1 := &entryv1.CountEntriesResponse{Count: 1}
+	fakeResp0 := &entryv1.CountEntriesResponse{Count: 0}
 
 	for _, tt := range []struct {
 		name          string
 		args          []string
-		fakeCountResp *entry.CountEntriesResponse
+		fakeCountResp *entryv1.CountEntriesResponse
 		serverErr     error
 		expOut        string
 		expErr        string

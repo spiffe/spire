@@ -10,14 +10,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +41,7 @@ func TestCountEntries(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		count      int32
-		resp       *entrypb.CountEntriesResponse
+		resp       *entryv1.CountEntriesResponse
 		code       codes.Code
 		dsError    error
 		err        string
@@ -50,22 +50,22 @@ func TestCountEntries(t *testing.T) {
 		{
 			name:  "0 entries",
 			count: 0,
-			resp:  &entrypb.CountEntriesResponse{Count: 0},
+			resp:  &entryv1.CountEntriesResponse{Count: 0},
 		},
 		{
 			name:  "1 entries",
 			count: 1,
-			resp:  &entrypb.CountEntriesResponse{Count: 1},
+			resp:  &entryv1.CountEntriesResponse{Count: 1},
 		},
 		{
 			name:  "2 entries",
 			count: 2,
-			resp:  &entrypb.CountEntriesResponse{Count: 2},
+			resp:  &entryv1.CountEntriesResponse{Count: 2},
 		},
 		{
 			name:  "3 entries",
 			count: 3,
-			resp:  &entrypb.CountEntriesResponse{Count: 3},
+			resp:  &entryv1.CountEntriesResponse{Count: 3},
 		},
 		{
 			name:    "ds error",
@@ -104,7 +104,7 @@ func TestCountEntries(t *testing.T) {
 			}
 
 			ds.SetNextError(tt.dsError)
-			resp, err := test.client.CountEntries(context.Background(), &entrypb.CountEntriesRequest{})
+			resp, err := test.client.CountEntries(context.Background(), &entryv1.CountEntriesRequest{})
 
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 			if tt.err != "" {
@@ -225,7 +225,7 @@ func TestListEntries(t *testing.T) {
 		dsError               error
 		expectedNextPageToken string
 		expectedEntries       []*types.Entry
-		request               *entrypb.ListEntriesRequest
+		request               *entryv1.ListEntriesRequest
 	}{
 		{
 			name: "happy path",
@@ -235,11 +235,11 @@ func TestListEntries(t *testing.T) {
 					SpiffeId: protoChildID,
 				},
 			},
-			request: &entrypb.ListEntriesRequest{
+			request: &entryv1.ListEntriesRequest{
 				OutputMask: &types.EntryMask{
 					SpiffeId: true,
 				},
-				Filter: &entrypb.ListEntriesRequest_Filter{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: protoChildID,
 					ByParentId: protoParentID,
 					BySelectors: &types.SelectorMatch{
@@ -262,13 +262,13 @@ func TestListEntries(t *testing.T) {
 			name:            "empty request",
 			logMsg:          "Failed to convert entry: ",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
-			request:         &entrypb.ListEntriesRequest{},
+			request:         &entryv1.ListEntriesRequest{},
 		},
 		{
 			name:            "filter by parent ID",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByParentId: protoParentID,
 				},
 			},
@@ -276,8 +276,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by SPIFFE ID",
 			expectedEntries: []*types.Entry{expectedChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: protoChildID,
 				},
 			},
@@ -285,8 +285,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by selectors exact match",
 			expectedEntries: []*types.Entry{expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:1000"},
@@ -299,8 +299,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by selectors subset match",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:1000"},
@@ -315,8 +315,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with exact match (no subset)",
 			expectedEntries: []*types.Entry{expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							// Both formats should work
@@ -331,8 +331,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with exact match (no superset)",
 			expectedEntries: []*types.Entry{expectedChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							federatedTd.IDString(),
@@ -345,8 +345,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with exact match (with repeated tds)",
 			expectedEntries: []*types.Entry{expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							// Both formats should work
@@ -362,8 +362,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with exact match (not federated)",
 			expectedEntries: []*types.Entry{},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							notFederatedTd.String(),
@@ -376,8 +376,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with subset match",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							// Both formats should work
@@ -393,8 +393,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with subset match (no superset)",
 			expectedEntries: []*types.Entry{expectedChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							federatedTd.IDString(),
@@ -407,8 +407,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with subset match (with repeated tds)",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							// Both formats should work
@@ -424,8 +424,8 @@ func TestListEntries(t *testing.T) {
 		{
 			name:            "filter by federates with subset match (not federated)",
 			expectedEntries: []*types.Entry{},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							notFederatedTd.String(),
@@ -439,7 +439,7 @@ func TestListEntries(t *testing.T) {
 			name:                  "page",
 			expectedEntries:       []*types.Entry{expectedChild},
 			expectedNextPageToken: "1",
-			request: &entrypb.ListEntriesRequest{
+			request: &entryv1.ListEntriesRequest{
 				PageSize: 1,
 			},
 		},
@@ -449,15 +449,15 @@ func TestListEntries(t *testing.T) {
 			code:    codes.Internal,
 			logMsg:  "Failed to list entries",
 			dsError: errors.New("ds error"),
-			request: &entrypb.ListEntriesRequest{},
+			request: &entryv1.ListEntriesRequest{},
 		},
 		{
 			name:   "bad parent ID filter",
 			err:    "malformed parent ID filter: trust domain is empty",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed parent ID filter",
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByParentId: badID,
 				},
 			},
@@ -467,8 +467,8 @@ func TestListEntries(t *testing.T) {
 			err:    "malformed SPIFFE ID filter: trust domain is empty",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed SPIFFE ID filter",
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: badID,
 				},
 			},
@@ -479,8 +479,8 @@ func TestListEntries(t *testing.T) {
 			code:            codes.InvalidArgument,
 			logMsg:          "Invalid argument: malformed selectors filter",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{},
 				},
 			},
@@ -490,8 +490,8 @@ func TestListEntries(t *testing.T) {
 			err:    "malformed selectors filter: missing selector type",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed selectors filter",
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
 							{Type: "", Value: "uid:1000"},
@@ -505,8 +505,8 @@ func TestListEntries(t *testing.T) {
 			err:    "malformed federates with filter: empty trust domain set",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed federates with filter",
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{},
 				},
 			},
@@ -516,8 +516,8 @@ func TestListEntries(t *testing.T) {
 			err:    "malformed federates with filter: spiffeid: trust domain is empty",
 			code:   codes.InvalidArgument,
 			logMsg: "Invalid argument: malformed federates with filter",
-			request: &entrypb.ListEntriesRequest{
-				Filter: &entrypb.ListEntriesRequest_Filter{
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
 							badID.TrustDomain,
@@ -710,7 +710,7 @@ func TestGetEntry(t *testing.T) {
 			test.logHook.Reset()
 			ds.SetNextError(tt.dsError)
 
-			resp, err := test.client.GetEntry(ctx, &entrypb.GetEntryRequest{
+			resp, err := test.client.GetEntry(ctx, &entryv1.GetEntryRequest{
 				Id:         tt.entryID,
 				OutputMask: tt.outputMask,
 			})
@@ -787,7 +787,7 @@ func TestBatchCreateEntry(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
 		expectLogs    []spiretest.LogEntry
-		expectResults []*entrypb.BatchCreateEntryResponse_Result
+		expectResults []*entryv1.BatchCreateEntryResponse_Result
 		expectStatus  *types.Status
 		outputMask    *types.EntryMask
 		reqEntries    []*types.Entry
@@ -808,7 +808,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -869,7 +869,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		},
 		{
 			name: "no output mask",
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -894,7 +894,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		},
 		{
 			name: "output mask all false",
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -908,12 +908,12 @@ func TestBatchCreateEntry(t *testing.T) {
 		},
 		{
 			name:          "no entries to add",
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{},
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{},
 			reqEntries:    []*types.Entry{},
 		},
 		{
 			name: "create with same parent ID and spiffe ID but different selectors",
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -952,7 +952,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		},
 		{
 			name: "returns existing similar entry",
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.AlreadyExists),
@@ -984,7 +984,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		},
 		{
 			name: "invalid entry",
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
@@ -1019,7 +1019,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
@@ -1045,7 +1045,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*entrypb.BatchCreateEntryResponse_Result{
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
@@ -1081,7 +1081,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			ds.err = tt.dsError
 
 			// Batch create entry
-			resp, err := test.client.BatchCreateEntry(ctx, &entrypb.BatchCreateEntryRequest{
+			resp, err := test.client.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{
 				Entries:    tt.reqEntries,
 				OutputMask: tt.outputMask,
 			})
@@ -1096,7 +1096,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				}
 			}
 
-			spiretest.AssertProtoEqual(t, &entrypb.BatchCreateEntryResponse{
+			spiretest.AssertProtoEqual(t, &entryv1.BatchCreateEntryResponse{
 				Results: tt.expectResults,
 			}, resp)
 		})
@@ -1135,26 +1135,26 @@ func TestBatchDeleteEntry(t *testing.T) {
 		name         string
 		dsError      error
 		expectDs     []string
-		expectResult func(map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry)
+		expectResult func(map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry)
 		ids          func(map[string]*common.RegistrationEntry) []string
 	}{
 		{
 			name:     "delete multiple entries",
 			expectDs: []string{bazSpiffeID},
-			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
-				var results []*entrypb.BatchDeleteEntryResponse_Result
-				results = append(results, &entrypb.BatchDeleteEntryResponse_Result{
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				var results []*entryv1.BatchDeleteEntryResponse_Result
+				results = append(results, &entryv1.BatchDeleteEntryResponse_Result{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Id:     m[fooSpiffeID].EntryId,
 				})
-				results = append(results, &entrypb.BatchDeleteEntryResponse_Result{
+				results = append(results, &entryv1.BatchDeleteEntryResponse_Result{
 					Status: &types.Status{
 						Code:    int32(codes.NotFound),
 						Message: "entry not found",
 					},
 					Id: "not found",
 				})
-				results = append(results, &entrypb.BatchDeleteEntryResponse_Result{
+				results = append(results, &entryv1.BatchDeleteEntryResponse_Result{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Id:     m[barSpiffeID].EntryId,
 				})
@@ -1177,8 +1177,8 @@ func TestBatchDeleteEntry(t *testing.T) {
 		{
 			name:     "no entries to delete",
 			expectDs: dsEntries,
-			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
-				return []*entrypb.BatchDeleteEntryResponse_Result{}, nil
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entryv1.BatchDeleteEntryResponse_Result{}, nil
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{}
@@ -1187,8 +1187,8 @@ func TestBatchDeleteEntry(t *testing.T) {
 		{
 			name:     "missing entry ID",
 			expectDs: dsEntries,
-			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
-				return []*entrypb.BatchDeleteEntryResponse_Result{
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entryv1.BatchDeleteEntryResponse_Result{
 						{
 							Status: &types.Status{
 								Code:    int32(codes.InvalidArgument),
@@ -1210,8 +1210,8 @@ func TestBatchDeleteEntry(t *testing.T) {
 			name:     "fail to delete entry",
 			dsError:  errors.New("some error"),
 			expectDs: dsEntries,
-			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
-				return []*entrypb.BatchDeleteEntryResponse_Result{
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entryv1.BatchDeleteEntryResponse_Result{
 						{
 							Status: &types.Status{
 								Code:    int32(codes.Internal),
@@ -1237,8 +1237,8 @@ func TestBatchDeleteEntry(t *testing.T) {
 		{
 			name:     "entry not found",
 			expectDs: dsEntries,
-			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entrypb.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
-				return []*entrypb.BatchDeleteEntryResponse_Result{
+			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
+				return []*entryv1.BatchDeleteEntryResponse_Result{
 						{
 							Status: &types.Status{
 								Code:    int32(codes.NotFound),
@@ -1271,14 +1271,14 @@ func TestBatchDeleteEntry(t *testing.T) {
 			entriesMap := createTestEntries(t, ds, fooEntry, barEntry, baz)
 
 			ds.SetNextError(tt.dsError)
-			resp, err := test.client.BatchDeleteEntry(ctx, &entrypb.BatchDeleteEntryRequest{
+			resp, err := test.client.BatchDeleteEntry(ctx, &entryv1.BatchDeleteEntryRequest{
 				Ids: tt.ids(entriesMap),
 			})
 			require.NoError(t, err)
 
 			expectResults, expectLogs := tt.expectResult(entriesMap)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), expectLogs)
-			spiretest.AssertProtoEqual(t, &entrypb.BatchDeleteEntryResponse{
+			spiretest.AssertProtoEqual(t, &entryv1.BatchDeleteEntryResponse{
 				Results: expectResults,
 			}, resp)
 
@@ -1424,7 +1424,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			test.withCallerID = !tt.failCallerID
 			test.ef.entries = tt.fetcherEntries
 			test.ef.err = tt.fetcherErr
-			resp, err := test.client.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{
+			resp, err := test.client.GetAuthorizedEntries(ctx, &entryv1.GetAuthorizedEntriesRequest{
 				OutputMask: tt.outputMask,
 			})
 
@@ -1437,7 +1437,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			expectResponse := &entrypb.GetAuthorizedEntriesResponse{
+			expectResponse := &entryv1.GetAuthorizedEntriesResponse{
 				Entries: tt.expectEntries,
 			}
 			spiretest.AssertProtoEqual(t, expectResponse, resp)
@@ -1486,7 +1486,7 @@ func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.Re
 }
 
 type serviceTest struct {
-	client       entrypb.EntryClient
+	client       entryv1.EntryClient
 	ef           *entryFetcher
 	done         func()
 	ds           datastore.DataStore
@@ -1527,7 +1527,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 	test.done = done
-	test.client = entrypb.NewEntryClient(conn)
+	test.client = entryv1.NewEntryClient(conn)
 
 	return test
 }
@@ -1577,7 +1577,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		outputMask      *types.EntryMask
 		initialEntries  []*types.Entry
 		updateEntries   []*types.Entry
-		expectResults   []*entrypb.BatchUpdateEntryResponse_Result
+		expectResults   []*entryv1.BatchUpdateEntryResponse_Result
 	}{
 		{
 			name:           "Success Update Parent Id",
@@ -1600,7 +1600,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1629,7 +1629,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1667,7 +1667,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1695,7 +1695,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1728,7 +1728,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1758,7 +1758,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1788,7 +1788,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1818,7 +1818,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1848,7 +1848,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1878,7 +1878,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1907,7 +1907,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -1927,7 +1927,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					SpiffeId: &types.SPIFFEID{TrustDomain: "", Path: "/invalid"},
 				},
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid spiffe ID: trust domain is empty"},
@@ -1957,7 +1957,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					ParentId: &types.SPIFFEID{TrustDomain: "", Path: "/invalid"},
 				},
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid parent ID: trust domain is empty"},
@@ -1987,7 +1987,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					ParentId: &types.SPIFFEID{TrustDomain: "", Path: ""},
 				},
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid parent ID: trust domain is empty"},
@@ -2017,7 +2017,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					SpiffeId: &types.SPIFFEID{TrustDomain: "", Path: ""},
 				},
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: invalid spiffe ID: trust domain is empty"},
@@ -2047,7 +2047,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					Selectors: []*types.Selector{},
 				},
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
 						Message: "failed to convert entry: selector list is empty"},
@@ -2078,7 +2078,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			dsError: errors.New("datastore error"),
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.Internal), Message: "failed to update entry: datastore error"},
 				},
@@ -2109,7 +2109,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -2141,7 +2141,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					Ttl: 500000,
 				},
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -2181,7 +2181,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
@@ -2210,7 +2210,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
-			expectResults: []*entrypb.BatchUpdateEntryResponse_Result{
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry:  &types.Entry{},
@@ -2227,7 +2227,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			createFederatedBundles(t, test.ds)
 
 			// First create the initial entries
-			createResp, err := test.client.BatchCreateEntry(ctx, &entrypb.BatchCreateEntryRequest{
+			createResp, err := test.client.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{
 				Entries: tt.initialEntries,
 			})
 			require.NoError(t, err)
@@ -2244,7 +2244,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			ds.SetNextError(tt.dsError)
 
 			// Actually do the update, with the proper IDs
-			resp, err := test.client.BatchUpdateEntry(ctx, &entrypb.BatchUpdateEntryRequest{
+			resp, err := test.client.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
 				Entries:    updateEntries,
 				InputMask:  tt.inputMask,
 				OutputMask: tt.outputMask,
@@ -2269,7 +2269,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				}
 			}
 
-			spiretest.AssertProtoEqual(t, &entrypb.BatchUpdateEntryResponse{
+			spiretest.AssertProtoEqual(t, &entryv1.BatchUpdateEntryResponse{
 				Results: tt.expectResults,
 			}, resp)
 

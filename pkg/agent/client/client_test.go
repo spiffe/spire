@@ -11,12 +11,12 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -722,16 +722,16 @@ func createClient() (*client, *testClient) {
 		RotMtx:        new(sync.RWMutex),
 		TrustDomain:   trustDomain,
 	})
-	client.createNewAgentClient = func(conn grpc.ClientConnInterface) agentpb.AgentClient {
+	client.createNewAgentClient = func(conn grpc.ClientConnInterface) agentv1.AgentClient {
 		return tc.agentClient
 	}
-	client.createNewBundleClient = func(conn grpc.ClientConnInterface) bundlepb.BundleClient {
+	client.createNewBundleClient = func(conn grpc.ClientConnInterface) bundlev1.BundleClient {
 		return tc.bundleClient
 	}
-	client.createNewEntryClient = func(conn grpc.ClientConnInterface) entrypb.EntryClient {
+	client.createNewEntryClient = func(conn grpc.ClientConnInterface) entryv1.EntryClient {
 		return tc.entryClient
 	}
-	client.createNewSVIDClient = func(conn grpc.ClientConnInterface) svidpb.SVIDClient {
+	client.createNewSVIDClient = func(conn grpc.ClientConnInterface) svidv1.SVIDClient {
 		return tc.svidClient
 	}
 
@@ -759,22 +759,22 @@ func assertConnectionIsNotNil(t *testing.T, client *client) {
 }
 
 type fakeEntryClient struct {
-	entrypb.EntryClient
+	entryv1.EntryClient
 	entries []*types.Entry
 	err     error
 }
 
-func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entrypb.GetAuthorizedEntriesRequest, opts ...grpc.CallOption) (*entrypb.GetAuthorizedEntriesResponse, error) {
+func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.GetAuthorizedEntriesRequest, opts ...grpc.CallOption) (*entryv1.GetAuthorizedEntriesResponse, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
-	return &entrypb.GetAuthorizedEntriesResponse{
+	return &entryv1.GetAuthorizedEntriesResponse{
 		Entries: c.entries,
 	}, nil
 }
 
 type fakeBundleClient struct {
-	bundlepb.BundleClient
+	bundlev1.BundleClient
 
 	agentBundle        *types.Bundle
 	federatedBundles   map[string]*types.Bundle
@@ -784,7 +784,7 @@ type fakeBundleClient struct {
 	simulateRelease func()
 }
 
-func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlepb.GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
+func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlev1.GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
 	if c.bundleErr != nil {
 		return nil, c.bundleErr
 	}
@@ -796,7 +796,7 @@ func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlepb.GetBundle
 	return c.agentBundle, nil
 }
 
-func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlepb.GetFederatedBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
+func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlev1.GetFederatedBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
 	if c.federatedBundleErr != nil {
 		return nil, c.federatedBundleErr
 	}
@@ -809,7 +809,7 @@ func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlepb.
 }
 
 type fakeSVIDClient struct {
-	svidpb.SVIDClient
+	svidv1.SVIDClient
 	batchSVIDErr    error
 	newJWTSVID      error
 	x509SVIDs       map[string]*types.X509SVID
@@ -817,7 +817,7 @@ type fakeSVIDClient struct {
 	simulateRelease func()
 }
 
-func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchNewX509SVIDRequest, opts ...grpc.CallOption) (*svidpb.BatchNewX509SVIDResponse, error) {
+func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidv1.BatchNewX509SVIDRequest, opts ...grpc.CallOption) (*svidv1.BatchNewX509SVIDResponse, error) {
 	if c.batchSVIDErr != nil {
 		return nil, c.batchSVIDErr
 	}
@@ -827,19 +827,19 @@ func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchN
 		go c.simulateRelease()
 	}
 
-	var results []*svidpb.BatchNewX509SVIDResponse_Result
+	var results []*svidv1.BatchNewX509SVIDResponse_Result
 	for _, param := range in.Params {
 		svid, ok := c.x509SVIDs[param.EntryId]
 		switch {
 		case ok:
-			results = append(results, &svidpb.BatchNewX509SVIDResponse_Result{
+			results = append(results, &svidv1.BatchNewX509SVIDResponse_Result{
 				Status: &types.Status{
 					Code: int32(codes.OK),
 				},
 				Svid: svid,
 			})
 		default:
-			results = append(results, &svidpb.BatchNewX509SVIDResponse_Result{
+			results = append(results, &svidv1.BatchNewX509SVIDResponse_Result{
 				Status: &types.Status{
 					Code:    int32(codes.NotFound),
 					Message: "svid not found",
@@ -848,27 +848,27 @@ func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchN
 		}
 	}
 
-	return &svidpb.BatchNewX509SVIDResponse{
+	return &svidv1.BatchNewX509SVIDResponse{
 		Results: results,
 	}, nil
 }
 
-func (c *fakeSVIDClient) NewJWTSVID(ctx context.Context, in *svidpb.NewJWTSVIDRequest, opts ...grpc.CallOption) (*svidpb.NewJWTSVIDResponse, error) {
+func (c *fakeSVIDClient) NewJWTSVID(ctx context.Context, in *svidv1.NewJWTSVIDRequest, opts ...grpc.CallOption) (*svidv1.NewJWTSVIDResponse, error) {
 	if c.newJWTSVID != nil {
 		return nil, c.newJWTSVID
 	}
-	return &svidpb.NewJWTSVIDResponse{
+	return &svidv1.NewJWTSVIDResponse{
 		Svid: c.jwtSVID,
 	}, nil
 }
 
 type fakeAgentClient struct {
-	agentpb.AgentClient
+	agentv1.AgentClient
 	err  error
 	svid *types.X509SVID
 }
 
-func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentpb.RenewAgentRequest, opts ...grpc.CallOption) (*agentpb.RenewAgentResponse, error) {
+func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentv1.RenewAgentRequest, opts ...grpc.CallOption) (*agentv1.RenewAgentResponse, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -877,7 +877,7 @@ func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentpb.RenewAgent
 		return nil, errors.New("malformed param")
 	}
 
-	return &agentpb.RenewAgentResponse{
+	return &agentv1.RenewAgentResponse{
 		Svid: c.svid,
 	}, nil
 }

@@ -18,11 +18,11 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,8 +111,8 @@ func TestMintRun(t *testing.T) {
 
 	server := new(fakeSVIDServer)
 	spiretest.StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
-		svidpb.RegisterSVIDServer(s, server)
-		bundlepb.RegisterBundleServer(s, server)
+		svidv1.RegisterSVIDServer(s, server)
+		bundlev1.RegisterBundleServer(s, server)
 	})
 
 	x509Authority, err := pemutil.ParseCertificate([]byte(testX509Authority))
@@ -142,7 +142,7 @@ func TestMintRun(t *testing.T) {
 		stderr string
 
 		noRequestExpected bool
-		resp              *svidpb.MintX509SVIDResponse
+		resp              *svidv1.MintX509SVIDResponse
 
 		bundle    *types.Bundle
 		bundleErr error
@@ -189,7 +189,7 @@ func TestMintRun(t *testing.T) {
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
 			stderr:   "Error: server response missing SVID chain\n",
-			resp: &svidpb.MintX509SVIDResponse{
+			resp: &svidv1.MintX509SVIDResponse{
 				Svid: &types.X509SVID{},
 			},
 		},
@@ -198,7 +198,7 @@ func TestMintRun(t *testing.T) {
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
 			stderr:   "Error: unable to get bundle: rpc error: code = Unknown desc = some error\n",
-			resp: &svidpb.MintX509SVIDResponse{
+			resp: &svidv1.MintX509SVIDResponse{
 				Svid: &types.X509SVID{
 					CertChain: [][]byte{certDER},
 				},
@@ -210,7 +210,7 @@ func TestMintRun(t *testing.T) {
 			spiffeID: "spiffe://domain.test/workload",
 			code:     1,
 			stderr:   "Error: server response missing X509 Authorities\n",
-			resp: &svidpb.MintX509SVIDResponse{
+			resp: &svidv1.MintX509SVIDResponse{
 				Svid: &types.X509SVID{
 					CertChain: [][]byte{certDER},
 				},
@@ -221,7 +221,7 @@ func TestMintRun(t *testing.T) {
 			name:     "success with defaults",
 			spiffeID: "spiffe://domain.test/workload",
 			code:     0,
-			resp: &svidpb.MintX509SVIDResponse{
+			resp: &svidv1.MintX509SVIDResponse{
 				Svid: &types.X509SVID{
 					CertChain: [][]byte{certDER},
 					ExpiresAt: time.Now().Add(time.Minute).Unix(),
@@ -235,7 +235,7 @@ func TestMintRun(t *testing.T) {
 			ttl:      time.Minute,
 			code:     0,
 			write:    ".",
-			resp: &svidpb.MintX509SVIDResponse{
+			resp: &svidv1.MintX509SVIDResponse{
 				Svid: &types.X509SVID{
 					CertChain: [][]byte{certDER},
 					ExpiresAt: notAfter.Unix(),
@@ -333,12 +333,12 @@ Root CAs:
 }
 
 type fakeSVIDServer struct {
-	svidpb.SVIDServer
-	bundlepb.BundleServer
+	svidv1.SVIDServer
+	bundlev1.BundleServer
 
 	mu   sync.Mutex
-	req  *svidpb.MintX509SVIDRequest
-	resp *svidpb.MintX509SVIDResponse
+	req  *svidv1.MintX509SVIDRequest
+	resp *svidv1.MintX509SVIDResponse
 
 	bundle    *types.Bundle
 	bundleErr error
@@ -350,19 +350,19 @@ func (f *fakeSVIDServer) resetMintX509SVIDRequest() {
 	f.req = nil
 }
 
-func (f *fakeSVIDServer) lastMintX509SVIDRequest() *svidpb.MintX509SVIDRequest {
+func (f *fakeSVIDServer) lastMintX509SVIDRequest() *svidv1.MintX509SVIDRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.req
 }
 
-func (f *fakeSVIDServer) setMintX509SVIDResponse(resp *svidpb.MintX509SVIDResponse) {
+func (f *fakeSVIDServer) setMintX509SVIDResponse(resp *svidv1.MintX509SVIDResponse) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resp = resp
 }
 
-func (f *fakeSVIDServer) MintX509SVID(ctx context.Context, req *svidpb.MintX509SVIDRequest) (*svidpb.MintX509SVIDResponse, error) {
+func (f *fakeSVIDServer) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -373,7 +373,7 @@ func (f *fakeSVIDServer) MintX509SVID(ctx context.Context, req *svidpb.MintX509S
 	return f.resp, nil
 }
 
-func (f *fakeSVIDServer) GetBundle(ctx context.Context, req *bundlepb.GetBundleRequest) (*types.Bundle, error) {
+func (f *fakeSVIDServer) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	if f.bundleErr != nil {
 		return nil, f.bundleErr
 	}

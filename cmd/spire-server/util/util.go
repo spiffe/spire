@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net"
 
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/spire/api/registration"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -46,10 +46,10 @@ func dialer(ctx context.Context, addr string) (net.Conn, error) {
 
 type ServerClient interface {
 	Release()
-	NewAgentClient() agent.AgentClient
-	NewBundleClient() bundle.BundleClient
-	NewEntryClient() entry.EntryClient
-	NewSVIDClient() svid.SVIDClient
+	NewAgentClient() agentv1.AgentClient
+	NewBundleClient() bundlev1.BundleClient
+	NewEntryClient() entryv1.EntryClient
+	NewSVIDClient() svidv1.SVIDClient
 	NewHealthClient() grpc_health_v1.HealthClient
 }
 
@@ -69,20 +69,20 @@ func (c *serverClient) Release() {
 	c.conn.Close()
 }
 
-func (c *serverClient) NewAgentClient() agent.AgentClient {
-	return agent.NewAgentClient(c.conn)
+func (c *serverClient) NewAgentClient() agentv1.AgentClient {
+	return agentv1.NewAgentClient(c.conn)
 }
 
-func (c *serverClient) NewBundleClient() bundle.BundleClient {
-	return bundle.NewBundleClient(c.conn)
+func (c *serverClient) NewBundleClient() bundlev1.BundleClient {
+	return bundlev1.NewBundleClient(c.conn)
 }
 
-func (c *serverClient) NewEntryClient() entry.EntryClient {
-	return entry.NewEntryClient(c.conn)
+func (c *serverClient) NewEntryClient() entryv1.EntryClient {
+	return entryv1.NewEntryClient(c.conn)
 }
 
-func (c *serverClient) NewSVIDClient() svid.SVIDClient {
-	return svid.NewSVIDClient(c.conn)
+func (c *serverClient) NewSVIDClient() svidv1.SVIDClient {
+	return svidv1.NewSVIDClient(c.conn)
 }
 
 func (c *serverClient) NewHealthClient() grpc_health_v1.HealthClient {

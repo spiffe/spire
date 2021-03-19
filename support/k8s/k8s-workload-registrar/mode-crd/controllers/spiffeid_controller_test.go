@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"testing"
 
-	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	spireTypes "github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	spireTypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/stretchr/testify/suite"
 

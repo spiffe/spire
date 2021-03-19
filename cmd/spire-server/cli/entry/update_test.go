@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -68,8 +68,8 @@ func TestUpdate(t *testing.T) {
 		Downstream:    true,
 	}
 
-	fakeRespOKFromCmd := &entry.BatchUpdateEntryResponse{
-		Results: []*entry.BatchUpdateEntryResponse_Result{
+	fakeRespOKFromCmd := &entryv1.BatchUpdateEntryResponse{
+		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
 				Entry: entry1,
 				Status: &types.Status{
@@ -97,8 +97,8 @@ func TestUpdate(t *testing.T) {
 		Ttl:       200,
 	}
 
-	fakeRespOKFromFile := &entry.BatchUpdateEntryResponse{
-		Results: []*entry.BatchUpdateEntryResponse_Result{
+	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
+		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
 				Entry:  entry2,
 				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
@@ -110,8 +110,8 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	fakeRespErr := &entry.BatchUpdateEntryResponse{
-		Results: []*entry.BatchUpdateEntryResponse_Result{
+	fakeRespErr := &entryv1.BatchUpdateEntryResponse{
+		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
 				Status: &types.Status{
 					Code:    int32(codes.NotFound),
@@ -125,8 +125,8 @@ func TestUpdate(t *testing.T) {
 		name string
 		args []string
 
-		expReq    *entry.BatchUpdateEntryRequest
-		fakeResp  *entry.BatchUpdateEntryResponse
+		expReq    *entryv1.BatchUpdateEntryRequest
+		fakeResp  *entryv1.BatchUpdateEntryResponse
 		serverErr error
 
 		expOut string
@@ -179,7 +179,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "Server error",
 			args: []string{"-entryID", "entry-id", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-selector", "unix:uid:1"},
-			expReq: &entry.BatchUpdateEntryRequest{Entries: []*types.Entry{
+			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
 				{
 					Id:        "entry-id",
 					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
@@ -207,7 +207,7 @@ func TestUpdate(t *testing.T) {
 				"-dns", "ung1000",
 				"-downstream",
 			},
-			expReq: &entry.BatchUpdateEntryRequest{
+			expReq: &entryv1.BatchUpdateEntryRequest{
 				Entries: []*types.Entry{entry1},
 			},
 			fakeResp: fakeRespOKFromCmd,
@@ -233,7 +233,7 @@ Admin            : true
 			args: []string{
 				"-data", "../../../../test/fixture/registration/good-for-update.json",
 			},
-			expReq: &entry.BatchUpdateEntryRequest{
+			expReq: &entryv1.BatchUpdateEntryRequest{
 				Entries: []*types.Entry{entry2, entry3},
 			},
 			fakeResp: fakeRespOKFromFile,
@@ -257,7 +257,7 @@ Selector         : unix:uid:1111
 		{
 			name: "Entry not found",
 			args: []string{"-entryID", "non-existent-id", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-selector", "unix:uid:1"},
-			expReq: &entry.BatchUpdateEntryRequest{Entries: []*types.Entry{
+			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
 				{
 					Id:        "non-existent-id",
 					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},

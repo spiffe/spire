@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/proto/spire/types"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
 type callerAddrKey struct{}

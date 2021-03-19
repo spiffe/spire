@@ -20,6 +20,9 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
@@ -28,9 +31,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
@@ -315,8 +315,8 @@ func TestAttestor(t *testing.T) {
 			catalog.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-			agentpb.RegisterAgentServer(server, testCase.agentService)
-			bundlepb.RegisterBundleServer(server, testCase.bundleService)
+			agentv1.RegisterAgentServer(server, testCase.agentService)
+			bundlev1.RegisterBundleServer(server, testCase.bundleService)
 
 			listener, err := net.Listen("tcp", "localhost:0")
 			require.NoError(err)
@@ -370,10 +370,10 @@ type fakeAgentService struct {
 	joinToken          string
 	svid               *types.X509SVID
 
-	agentpb.AgentServer
+	agentv1.AgentServer
 }
 
-func (s *fakeAgentService) AttestAgent(stream agentpb.Agent_AttestAgentServer) error {
+func (s *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	if s.failAttestAgent {
 		return errors.New("attestation has been purposefully failed")
 	}
@@ -392,8 +392,8 @@ func (s *fakeAgentService) AttestAgent(stream agentpb.Agent_AttestAgentServer) e
 	for len(s.challengeResponses) > 0 {
 		challengeResponse := s.challengeResponses[0]
 		s.challengeResponses = s.challengeResponses[1:]
-		if err := stream.Send(&agentpb.AttestAgentResponse{
-			Step: &agentpb.AttestAgentResponse_Challenge{
+		if err := stream.Send(&agentv1.AttestAgentResponse{
+			Step: &agentv1.AttestAgentResponse_Challenge{
 				Challenge: []byte(challengeResponse),
 			},
 		}); err != nil {
@@ -406,9 +406,9 @@ func (s *fakeAgentService) AttestAgent(stream agentpb.Agent_AttestAgentServer) e
 		}
 	}
 
-	return stream.Send(&agentpb.AttestAgentResponse{
-		Step: &agentpb.AttestAgentResponse_Result_{
-			Result: &agentpb.AttestAgentResponse_Result{
+	return stream.Send(&agentv1.AttestAgentResponse{
+		Step: &agentv1.AttestAgentResponse_Result_{
+			Result: &agentv1.AttestAgentResponse_Result{
 				Svid: s.svid,
 			},
 		},
@@ -419,10 +419,10 @@ type fakeBundleService struct {
 	bundle       *types.Bundle
 	getBundleErr error
 
-	bundlepb.BundleServer
+	bundlev1.BundleServer
 }
 
-func (c *fakeBundleService) GetBundle(ctx context.Context, in *bundlepb.GetBundleRequest) (*types.Bundle, error) {
+func (c *fakeBundleService) GetBundle(ctx context.Context, in *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	if c.getBundleErr != nil {
 		return nil, c.getBundleErr
 	}

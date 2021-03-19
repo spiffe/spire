@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -30,8 +30,8 @@ func TestDeleteSynopsis(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	fakeRespOK := &entry.BatchDeleteEntryResponse{
-		Results: []*entry.BatchDeleteEntryResponse_Result{
+	fakeRespOK := &entryv1.BatchDeleteEntryResponse{
+		Results: []*entryv1.BatchDeleteEntryResponse_Result{
 			{
 				Id: "entry-id",
 				Status: &types.Status{
@@ -42,8 +42,8 @@ func TestDelete(t *testing.T) {
 		},
 	}
 
-	fakeRespErr := &entry.BatchDeleteEntryResponse{
-		Results: []*entry.BatchDeleteEntryResponse_Result{
+	fakeRespErr := &entryv1.BatchDeleteEntryResponse{
+		Results: []*entryv1.BatchDeleteEntryResponse_Result{
 			{
 				Id: "entry-id",
 				Status: &types.Status{
@@ -58,8 +58,8 @@ func TestDelete(t *testing.T) {
 		name string
 		args []string
 
-		expReq    *entry.BatchDeleteEntryRequest
-		fakeResp  *entry.BatchDeleteEntryResponse
+		expReq    *entryv1.BatchDeleteEntryRequest
+		fakeResp  *entryv1.BatchDeleteEntryResponse
 		serverErr error
 
 		expOut string
@@ -72,21 +72,21 @@ func TestDelete(t *testing.T) {
 		{
 			name:     "Entry not found",
 			args:     []string{"-entryID", "entry-id"},
-			expReq:   &entry.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
+			expReq:   &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
 			fakeResp: fakeRespErr,
 			expErr:   "Error: failed to delete entry: entry not found\n",
 		},
 		{
 			name:      "Server error",
 			args:      []string{"-entryID", "entry-id"},
-			expReq:    &entry.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
+			expReq:    &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
 			serverErr: errors.New("server-error"),
 			expErr:    "Error: rpc error: code = Unknown desc = server-error\n",
 		},
 		{
 			name:     "Delete succeeds",
 			args:     []string{"-entryID", "entry-id"},
-			expReq:   &entry.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
+			expReq:   &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
 			fakeResp: fakeRespOK,
 			expOut:   "Deleted entry with ID: entry-id\n",
 		},

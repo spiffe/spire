@@ -13,11 +13,11 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
@@ -128,7 +128,7 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 	}
 
 	// Call mint
-	resp, err := c.SVIDClient().MintX509SVID(ctx, &svid.MintX509SVIDRequest{
+	resp, err := c.SVIDClient().MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 		Csr: csr,
 	})
 	// Validate error
@@ -169,7 +169,7 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 
 func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
 	id := &types.SPIFFEID{TrustDomain: c.Td.String(), Path: "/new_workload"}
-	resp, err := c.SVIDClient().MintJWTSVID(ctx, &svid.MintJWTSVIDRequest{
+	resp, err := c.SVIDClient().MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{
 		Id:       id,
 		Audience: []string{"myAud"},
 	})
@@ -219,7 +219,7 @@ func appendBundle(ctx context.Context, c *itclient.Client) error {
 		KeyId:     "authority1",
 	}
 
-	resp, err := c.BundleClient().AppendBundle(ctx, &bundle.AppendBundleRequest{
+	resp, err := c.BundleClient().AppendBundle(ctx, &bundlev1.AppendBundleRequest{
 		X509Authorities: []*types.X509Certificate{{Asn1: blk.Bytes}},
 		JwtAuthorities:  []*types.JWTKey{jwtKey},
 	})
@@ -249,7 +249,7 @@ func batchCreateFederatedBundle(ctx context.Context, c *itclient.Client) error {
 		ExpiresAt: time.Now().Add(time.Minute).Unix(),
 		KeyId:     "authority1",
 	}
-	resp, err := c.BundleClient().BatchCreateFederatedBundle(ctx, &bundle.BatchCreateFederatedBundleRequest{
+	resp, err := c.BundleClient().BatchCreateFederatedBundle(ctx, &bundlev1.BatchCreateFederatedBundleRequest{
 		Bundle: []*types.Bundle{
 			{
 				TrustDomain:     "foo",
@@ -293,7 +293,7 @@ func batchUpdateFederatedBundle(ctx context.Context, c *itclient.Client) error {
 		ExpiresAt: time.Now().Add(time.Minute).Unix(),
 		KeyId:     "authority2",
 	}
-	resp, err := c.BundleClient().BatchUpdateFederatedBundle(ctx, &bundle.BatchUpdateFederatedBundleRequest{
+	resp, err := c.BundleClient().BatchUpdateFederatedBundle(ctx, &bundlev1.BatchUpdateFederatedBundleRequest{
 		Bundle: []*types.Bundle{
 			{
 				TrustDomain:    "foo",
@@ -333,7 +333,7 @@ func batchSetFederatedBundle(ctx context.Context, c *itclient.Client) error {
 		ExpiresAt: time.Now().Add(time.Minute).Unix(),
 		KeyId:     "authority1",
 	}
-	resp, err := c.BundleClient().BatchSetFederatedBundle(ctx, &bundle.BatchSetFederatedBundleRequest{
+	resp, err := c.BundleClient().BatchSetFederatedBundle(ctx, &bundlev1.BatchSetFederatedBundleRequest{
 		Bundle: []*types.Bundle{
 			{
 				TrustDomain:     "bar",
@@ -372,7 +372,7 @@ func batchSetFederatedBundle(ctx context.Context, c *itclient.Client) error {
 }
 
 func countBundles(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.BundleClient().CountBundles(ctx, &bundle.CountBundlesRequest{})
+	resp, err := c.BundleClient().CountBundles(ctx, &bundlev1.CountBundlesRequest{})
 	switch {
 	case c.ExpectErrors:
 		return validatePermissionError(err)
@@ -385,7 +385,7 @@ func countBundles(ctx context.Context, c *itclient.Client) error {
 }
 
 func listFederatedBundles(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.BundleClient().ListFederatedBundles(ctx, &bundle.ListFederatedBundlesRequest{})
+	resp, err := c.BundleClient().ListFederatedBundles(ctx, &bundlev1.ListFederatedBundlesRequest{})
 	switch {
 	case c.ExpectErrors:
 		return validatePermissionError(err)
@@ -413,7 +413,7 @@ func listFederatedBundles(ctx context.Context, c *itclient.Client) error {
 }
 
 func getFederatedBundle(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.BundleClient().GetFederatedBundle(ctx, &bundle.GetFederatedBundleRequest{
+	resp, err := c.BundleClient().GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
 		TrustDomain: "bar",
 	})
 	switch {
@@ -434,7 +434,7 @@ func getFederatedBundle(ctx context.Context, c *itclient.Client) error {
 
 func batchDeleteFederatedBundle(ctx context.Context, c *itclient.Client) error {
 	deleteList := []string{"foo", "bar"}
-	resp, err := c.BundleClient().BatchDeleteFederatedBundle(ctx, &bundle.BatchDeleteFederatedBundleRequest{
+	resp, err := c.BundleClient().BatchDeleteFederatedBundle(ctx, &bundlev1.BatchDeleteFederatedBundleRequest{
 		TrustDomains: deleteList,
 	})
 	switch {
@@ -472,7 +472,7 @@ func batchCreateEntry(ctx context.Context, c *itclient.Client) error {
 			},
 		},
 	}
-	resp, err := c.EntryClient().BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{
+	resp, err := c.EntryClient().BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{
 		Entries: []*types.Entry{testEntry},
 	})
 	switch {
@@ -500,7 +500,7 @@ func batchCreateEntry(ctx context.Context, c *itclient.Client) error {
 }
 
 func countEntries(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.EntryClient().CountEntries(ctx, &entry.CountEntriesRequest{})
+	resp, err := c.EntryClient().CountEntries(ctx, &entryv1.CountEntriesRequest{})
 	switch {
 	case c.ExpectErrors:
 		return validatePermissionError(err)
@@ -518,7 +518,7 @@ func listEntries(ctx context.Context, c *itclient.Client) error {
 		{TrustDomain: c.Td.String(), Path: "/workload"},
 		{TrustDomain: c.Td.String(), Path: "/bar"},
 	}
-	resp, err := c.EntryClient().ListEntries(ctx, &entry.ListEntriesRequest{})
+	resp, err := c.EntryClient().ListEntries(ctx, &entryv1.ListEntriesRequest{})
 	switch {
 	case c.ExpectErrors:
 		return validatePermissionError(err)
@@ -564,7 +564,7 @@ func getEntry(ctx context.Context, c *itclient.Client) error {
 			},
 		},
 	}
-	resp, err := c.EntryClient().GetEntry(ctx, &entry.GetEntryRequest{
+	resp, err := c.EntryClient().GetEntry(ctx, &entryv1.GetEntryRequest{
 		Id: entryID,
 	})
 	switch {
@@ -603,7 +603,7 @@ func batchUpdateEntry(ctx context.Context, c *itclient.Client) error {
 		DnsNames:       []string{"dns1"},
 		RevisionNumber: 1,
 	}
-	resp, err := c.EntryClient().BatchUpdateEntry(ctx, &entry.BatchUpdateEntryRequest{
+	resp, err := c.EntryClient().BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
 		Entries: []*types.Entry{testEntry},
 	})
 	switch {
@@ -627,7 +627,7 @@ func batchUpdateEntry(ctx context.Context, c *itclient.Client) error {
 }
 
 func batchDeleteEntry(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.EntryClient().BatchDeleteEntry(ctx, &entry.BatchDeleteEntryRequest{
+	resp, err := c.EntryClient().BatchDeleteEntry(ctx, &entryv1.BatchDeleteEntryRequest{
 		Ids: []string{entryID},
 	})
 	switch {
@@ -656,7 +656,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 		Path:        "/agent-alias",
 	}
 
-	resp, err := c.AgentClient().CreateJoinToken(ctx, &agent.CreateJoinTokenRequest{
+	resp, err := c.AgentClient().CreateJoinToken(ctx, &agentv1.CreateJoinTokenRequest{
 		AgentId: id,
 		Ttl:     60,
 	})
@@ -689,13 +689,13 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 		return err
 	}
 
-	err = stream.Send(&agent.AttestAgentRequest{
-		Step: &agent.AttestAgentRequest_Params_{Params: &agent.AttestAgentRequest_Params{
+	err = stream.Send(&agentv1.AttestAgentRequest{
+		Step: &agentv1.AttestAgentRequest_Params_{Params: &agentv1.AttestAgentRequest_Params{
 			Data: &types.AttestationData{
 				Type:    "join_token",
 				Payload: []byte(resp.Value),
 			},
-			Params: &agent.AgentX509SVIDParams{
+			Params: &agentv1.AgentX509SVIDParams{
 				Csr: csr,
 			},
 		}},
@@ -712,7 +712,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 }
 
 func countAgents(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.AgentClient().CountAgents(ctx, &agent.CountAgentsRequest{})
+	resp, err := c.AgentClient().CountAgents(ctx, &agentv1.CountAgentsRequest{})
 
 	switch {
 	case c.ExpectErrors:
@@ -726,8 +726,8 @@ func countAgents(ctx context.Context, c *itclient.Client) error {
 }
 
 func listAgents(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.AgentClient().ListAgents(ctx, &agent.ListAgentsRequest{
-		Filter: &agent.ListAgentsRequest_Filter{
+	resp, err := c.AgentClient().ListAgents(ctx, &agentv1.ListAgentsRequest{
+		Filter: &agentv1.ListAgentsRequest_Filter{
 			ByAttestationType: "join_token",
 		},
 	})
@@ -755,7 +755,7 @@ func listAgents(ctx context.Context, c *itclient.Client) error {
 }
 
 func getAgent(ctx context.Context, c *itclient.Client) error {
-	resp, err := c.AgentClient().GetAgent(ctx, &agent.GetAgentRequest{
+	resp, err := c.AgentClient().GetAgent(ctx, &agentv1.GetAgentRequest{
 		Id: agentID,
 	})
 
@@ -776,7 +776,7 @@ func getAgent(ctx context.Context, c *itclient.Client) error {
 
 func banAgent(ctx context.Context, c *itclient.Client) error {
 	// Ban agent returns empty as response
-	_, err := c.AgentClient().BanAgent(ctx, &agent.BanAgentRequest{
+	_, err := c.AgentClient().BanAgent(ctx, &agentv1.BanAgentRequest{
 		Id: agentID,
 	})
 
@@ -788,7 +788,7 @@ func banAgent(ctx context.Context, c *itclient.Client) error {
 	}
 
 	// Validates it is banned
-	r, err := c.AgentClient().GetAgent(ctx, &agent.GetAgentRequest{
+	r, err := c.AgentClient().GetAgent(ctx, &agentv1.GetAgentRequest{
 		Id: agentID,
 	})
 	if err != nil {
@@ -802,7 +802,7 @@ func banAgent(ctx context.Context, c *itclient.Client) error {
 
 func deleteAgent(ctx context.Context, c *itclient.Client) error {
 	// Delete agent returns empty as response
-	_, err := c.AgentClient().DeleteAgent(ctx, &agent.DeleteAgentRequest{
+	_, err := c.AgentClient().DeleteAgent(ctx, &agentv1.DeleteAgentRequest{
 		Id: agentID,
 	})
 
@@ -814,7 +814,7 @@ func deleteAgent(ctx context.Context, c *itclient.Client) error {
 	}
 
 	// Validates it is banned
-	_, err = c.AgentClient().GetAgent(ctx, &agent.GetAgentRequest{
+	_, err = c.AgentClient().GetAgent(ctx, &agentv1.GetAgentRequest{
 		Id: agentID,
 	})
 	if status.Code(err) != codes.NotFound {

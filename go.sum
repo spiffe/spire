@@ -579,6 +579,8 @@ github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An
 github.com/spf13/viper v1.3.2/go.mod h1:ZiWeW+zYFKm7srdB9IoDzzZXaJaI5eL9QjNiN/DMA2s=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5 h1:FKeGzmMtP079mo/7jH3UFOnBUO30j/tmsKSiPX6GcmM=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5/go.mod h1:TEfgrEcyFhuSuvqohJt6IxENUNeHfndWCCV1EX7UaVk=
+github.com/spiffe/spire-api-sdk v1.0.0-pre.0.20210318220945-7ff3eb0759ce h1:wrf+FoYq8Q5i9R1Z+9n2C15Lm0UT2U+I4zj7nfFgTH8=
+github.com/spiffe/spire-api-sdk v1.0.0-pre.0.20210318220945-7ff3eb0759ce/go.mod h1:2wSTZ6oEnKqI3uBST05Mmm751+yoHEvgxomYKYOQ6Ko=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1 h1:2vfRuCMp5sSVIDSqO8oNnWJq7mPa6KVP3iPIwFBuy8A=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

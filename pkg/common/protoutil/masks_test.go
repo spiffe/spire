@@ -3,9 +3,9 @@ package protoutil_test
 import (
 	"testing"
 
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -21,9 +21,9 @@ import (
 	"sort"
 	"strings"
 
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	spiretypes "github.com/spiffe/spire/proto/spire/types"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -52,7 +52,7 @@ type PodReconciler struct {
 	Mode               PodReconcilerMode
 	Value              string
 	RootID             *spiretypes.SPIFFEID
-	SpireClient        entry.EntryClient
+	SpireClient        entryv1.EntryClient
 	ClusterDNSZone     string
 	AddPodDNSNames     bool
 	DisabledNamespaces map[string]bool
@@ -352,7 +352,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, builder *ctrlBuilder.
 	return nil
 }
 
-func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entry.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
+func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entryv1.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
 	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
 	for _, ns := range disabledNamespaces {
 		disabledNamespacesMap[ns] = true

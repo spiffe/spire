@@ -11,11 +11,11 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -40,8 +40,8 @@ type serverClient struct {
 	mtx    sync.RWMutex
 	source *workloadapi.X509Source
 
-	bundleClient bundle.BundleClient
-	svidClient   svid.SVIDClient
+	bundleClient bundlev1.BundleClient
+	svidClient   svidv1.SVIDClient
 }
 
 // start initializes spire-server endpoints client, it uses X509 source to keep an active connection
@@ -68,8 +68,8 @@ func (c *serverClient) start(ctx context.Context) error {
 	// Update connection and source
 	c.conn = conn
 	c.source = source
-	c.bundleClient = bundle.NewBundleClient(c.conn)
-	c.svidClient = svid.NewSVIDClient(c.conn)
+	c.bundleClient = bundlev1.NewBundleClient(c.conn)
+	c.svidClient = svidv1.NewSVIDClient(c.conn)
 
 	return nil
 }
@@ -96,7 +96,7 @@ func (c *serverClient) newDownstreamX509CA(ctx context.Context, csr []byte) ([]*
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	resp, err := c.svidClient.NewDownstreamX509CA(ctx, &svid.NewDownstreamX509CARequest{
+	resp, err := c.svidClient.NewDownstreamX509CA(ctx, &svidv1.NewDownstreamX509CARequest{
 		Csr: csr,
 	})
 	if err != nil {
@@ -123,7 +123,7 @@ func (c *serverClient) publishJWTAuthority(ctx context.Context, key *common.Publ
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	resp, err := c.bundleClient.PublishJWTAuthority(ctx, &bundle.PublishJWTAuthorityRequest{
+	resp, err := c.bundleClient.PublishJWTAuthority(ctx, &bundlev1.PublishJWTAuthorityRequest{
 		JwtAuthority: &types.JWTKey{
 			PublicKey: key.PkixBytes,
 			ExpiresAt: key.NotAfter,
@@ -142,7 +142,7 @@ func (c *serverClient) getBundle(ctx context.Context) (*types.Bundle, error) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	bundle, err := c.bundleClient.GetBundle(ctx, &bundle.GetBundleRequest{})
+	bundle, err := c.bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bundle: %v", err)
 	}

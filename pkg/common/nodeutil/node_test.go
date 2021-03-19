@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	legacyProto "github.com/golang/protobuf/proto" // nolint: staticcheck // deprecated library needed until WithDetails can take v2
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

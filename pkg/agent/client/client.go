@@ -12,14 +12,14 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -71,10 +71,10 @@ type client struct {
 	m           sync.Mutex
 
 	// Constructor used for testing purposes.
-	createNewEntryClient  func(grpc.ClientConnInterface) entrypb.EntryClient
-	createNewBundleClient func(grpc.ClientConnInterface) bundlepb.BundleClient
-	createNewSVIDClient   func(grpc.ClientConnInterface) svidpb.SVIDClient
-	createNewAgentClient  func(grpc.ClientConnInterface) agentpb.AgentClient
+	createNewEntryClient  func(grpc.ClientConnInterface) entryv1.EntryClient
+	createNewBundleClient func(grpc.ClientConnInterface) bundlev1.BundleClient
+	createNewSVIDClient   func(grpc.ClientConnInterface) svidv1.SVIDClient
+	createNewAgentClient  func(grpc.ClientConnInterface) agentv1.AgentClient
 
 	// Constructor used for testing purposes.
 	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
@@ -88,10 +88,10 @@ func New(c *Config) Client {
 func newClient(c *Config) *client {
 	return &client{
 		c:                     c,
-		createNewEntryClient:  entrypb.NewEntryClient,
-		createNewBundleClient: bundlepb.NewBundleClient,
-		createNewSVIDClient:   svidpb.NewSVIDClient,
-		createNewAgentClient:  agentpb.NewAgentClient,
+		createNewEntryClient:  entryv1.NewEntryClient,
+		createNewBundleClient: bundlev1.NewBundleClient,
+		createNewSVIDClient:   svidv1.NewSVIDClient,
+		createNewAgentClient:  agentv1.NewAgentClient,
 	}
 }
 
@@ -164,8 +164,8 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	}
 	defer connection.Release()
 
-	resp, err := agentClient.RenewAgent(ctx, &agentpb.RenewAgentRequest{
-		Params: &agentpb.AgentX509SVIDParams{
+	resp, err := agentClient.RenewAgent(ctx, &agentv1.RenewAgentRequest{
+		Params: &agentv1.AgentX509SVIDParams{
 			Csr: csr,
 		},
 	})
@@ -193,9 +193,9 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	defer c.c.RotMtx.RUnlock()
 
 	svids := make(map[string]*X509SVID)
-	var params []*svidpb.NewX509SVIDParams
+	var params []*svidv1.NewX509SVIDParams
 	for entryID, csr := range csrs {
-		params = append(params, &svidpb.NewX509SVIDParams{
+		params = append(params, &svidv1.NewX509SVIDParams{
 			EntryId: entryID,
 			Csr:     csr,
 		})
@@ -239,7 +239,7 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	}
 	defer connection.Release()
 
-	resp, err := svidClient.NewJWTSVID(ctx, &svidpb.NewJWTSVIDRequest{
+	resp, err := svidClient.NewJWTSVID(ctx, &svidv1.NewJWTSVIDRequest{
 		Audience: audience,
 		EntryId:  entryID,
 	})
@@ -311,7 +311,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	}
 	defer connection.Release()
 
-	resp, err := entryClient.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{})
+	resp, err := entryClient.GetAuthorizedEntries(ctx, &entryv1.GetAuthorizedEntriesRequest{})
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
@@ -331,7 +331,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	var bundles []*types.Bundle
 
 	// Get bundle
-	bundle, err := bundleClient.GetBundle(ctx, &bundlepb.GetBundleRequest{})
+	bundle, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch bundle")
@@ -344,7 +344,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 		if err != nil {
 			return nil, err
 		}
-		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlepb.GetFederatedBundleRequest{
+		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
 			TrustDomain: federatedTD.String(),
 		})
 		switch status.Code(err) {
@@ -361,14 +361,14 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	return bundles, nil
 }
 
-func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDParams) ([]*types.X509SVID, error) {
+func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDParams) ([]*types.X509SVID, error) {
 	svidClient, connection, err := c.newSVIDClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer connection.Release()
 
-	resp, err := svidClient.BatchNewX509SVID(ctx, &svidpb.BatchNewX509SVIDRequest{
+	resp, err := svidClient.BatchNewX509SVID(ctx, &svidv1.BatchNewX509SVIDRequest{
 		Params: params,
 	})
 	if err != nil {
@@ -394,7 +394,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 	return svids, nil
 }
 
-func (c *client) newEntryClient(ctx context.Context) (entrypb.EntryClient, *nodeConn, error) {
+func (c *client) newEntryClient(ctx context.Context) (entryv1.EntryClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -410,7 +410,7 @@ func (c *client) newEntryClient(ctx context.Context) (entrypb.EntryClient, *node
 	return c.createNewEntryClient(c.connections.conn), c.connections, nil
 }
 
-func (c *client) newBundleClient(ctx context.Context) (bundlepb.BundleClient, *nodeConn, error) {
+func (c *client) newBundleClient(ctx context.Context) (bundlev1.BundleClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -425,7 +425,7 @@ func (c *client) newBundleClient(ctx context.Context) (bundlepb.BundleClient, *n
 	return c.createNewBundleClient(c.connections.conn), c.connections, nil
 }
 
-func (c *client) newSVIDClient(ctx context.Context) (svidpb.SVIDClient, *nodeConn, error) {
+func (c *client) newSVIDClient(ctx context.Context) (svidv1.SVIDClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -440,7 +440,7 @@ func (c *client) newSVIDClient(ctx context.Context) (svidpb.SVIDClient, *nodeCon
 	return c.createNewSVIDClient(c.connections.conn), c.connections, nil
 }
 
-func (c *client) newAgentClient(ctx context.Context) (agentpb.AgentClient, *nodeConn, error) {
+func (c *client) newAgentClient(ctx context.Context) (agentv1.AgentClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
