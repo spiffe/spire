@@ -16,16 +16,16 @@ import (
 
 	w_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -51,8 +51,8 @@ var (
 )
 
 type handler struct {
-	svid.SVIDServer
-	bundle.BundleServer
+	svidv1.SVIDServer
+	bundlev1.BundleServer
 
 	server *grpc.Server
 	addr   string
@@ -67,7 +67,7 @@ type handler struct {
 	err error
 
 	// Custom downstream response
-	downstreamResponse *svid.NewDownstreamX509CAResponse
+	downstreamResponse *svidv1.NewDownstreamX509CAResponse
 }
 
 type whandler struct {
@@ -130,8 +130,8 @@ func (h *handler) startServerAPITestServer(t *testing.T) {
 	opts := grpc.Creds(creds)
 	h.server = grpc.NewServer(opts)
 
-	svid.RegisterSVIDServer(h.server, h)
-	bundle.RegisterBundleServer(h.server, h)
+	svidv1.RegisterSVIDServer(h.server, h)
+	bundlev1.RegisterBundleServer(h.server, h)
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func (h *handler) startServerAPITestServer(t *testing.T) {
 func (h *handler) loadInitialBundle(t *testing.T) {
 	jwksBytes, err := ioutil.ReadFile("_test_data/keys/jwks.json")
 	require.NoError(t, err)
-	b, err := bundleutil.Unmarshal(trustDomain.IDString(), jwksBytes)
+	b, err := bundleutil.Unmarshal(trustDomain, jwksBytes)
 	require.NoError(t, err)
 
 	// Append X509 authorities
@@ -202,7 +202,7 @@ func (h *handler) setBundle(b *types.Bundle) {
 	h.bundle = b
 }
 
-func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
+func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
 	if h.err != nil {
 		return nil, h.err
 	}
@@ -213,7 +213,7 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 
 	ca := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(h.cert[0], h.key),
-		trustDomain.String(),
+		trustDomain,
 		x509svid.UpstreamCAOptions{})
 
 	cert, err := ca.SignCSR(ctx, req.Csr, 0)
@@ -226,26 +226,26 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 		bundles = append(bundles, b.Raw)
 	}
 
-	return &svid.NewDownstreamX509CAResponse{
+	return &svidv1.NewDownstreamX509CAResponse{
 		CaCertChain:     [][]byte{cert.Raw},
 		X509Authorities: bundles,
 	}, nil
 }
 
-func (h *handler) GetBundle(context.Context, *bundle.GetBundleRequest) (*types.Bundle, error) {
+func (h *handler) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	if h.err != nil {
 		return nil, h.err
 	}
 	return h.getBundle(), nil
 }
 
-func (h *handler) PublishJWTAuthority(ctx context.Context, req *bundle.PublishJWTAuthorityRequest) (*bundle.PublishJWTAuthorityResponse, error) {
+func (h *handler) PublishJWTAuthority(ctx context.Context, req *bundlev1.PublishJWTAuthorityRequest) (*bundlev1.PublishJWTAuthorityResponse, error) {
 	if h.err != nil {
 		return nil, h.err
 	}
 
 	b := h.appendKey(req.JwtAuthority)
-	return &bundle.PublishJWTAuthorityResponse{
+	return &bundlev1.PublishJWTAuthorityResponse{
 		JwtAuthorities: b.JwtAuthorities,
 	}, nil
 }
@@ -338,7 +338,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 		getCSR           func() ([]byte, crypto.PublicKey)
 		expectedErr      string
 		sAPIError        error
-		downstreamResp   *svid.NewDownstreamX509CAResponse
+		downstreamResp   *svidv1.NewDownstreamX509CAResponse
 		customSocketPath string
 		customServerAddr string
 	}{
@@ -402,7 +402,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			getCSR: func() ([]byte, crypto.PublicKey) {
 				return csr, pubKey
 			},
-			downstreamResp: &svid.NewDownstreamX509CAResponse{
+			downstreamResp: &svidv1.NewDownstreamX509CAResponse{
 				X509Authorities: [][]byte{[]byte("malformed")},
 			},
 			expectedErr: "rpc error: code = Unknown desc = unable to parse X509 authorities: asn1: structure error",
@@ -412,7 +412,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			getCSR: func() ([]byte, crypto.PublicKey) {
 				return csr, pubKey
 			},
-			downstreamResp: &svid.NewDownstreamX509CAResponse{
+			downstreamResp: &svidv1.NewDownstreamX509CAResponse{
 				CaCertChain: [][]byte{[]byte("malformed")},
 			},
 			expectedErr: "rpc error: code = Unknown desc = unable to parse CA cert chain: asn1: structure error",

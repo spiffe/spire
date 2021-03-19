@@ -8,10 +8,10 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -25,13 +25,13 @@ import (
 type Client struct {
 	server      *grpc.Server
 	nowFn       func() time.Time
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 	done        func()
 
-	entry.EntryClient
+	entryv1.EntryClient
 }
 
-func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() time.Time) *Client {
+func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore, nowFn func() time.Time) *Client {
 	if ds == nil {
 		ds = fakedatastore.New(t)
 	}
@@ -48,15 +48,15 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(ds)
 
-	server := entryv1.New(entryv1.Config{
-		TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+	server := entry.New(entry.Config{
+		TrustDomain: trustDomain,
 		DataStore:   ds,
 		//EntryFetcher: authorizedEntryFetcherWithCache,
 	})
 
 	log, _ := test.NewNullLogger()
 	registerFn := func(s *grpc.Server) {
-		entry.RegisterEntryServer(s, server)
+		entryv1.RegisterEntryServer(s, server)
 	}
 
 	contextFn := func(ctx context.Context) context.Context {
@@ -68,7 +68,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 
 	c.done = done
-	c.EntryClient = entry.NewEntryClient(conn)
+	c.EntryClient = entryv1.NewEntryClient(conn)
 
 	return c
 }

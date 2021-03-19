@@ -8,6 +8,16 @@ language: go
 go:
   - 1.15.5
 
+git:
+  # The upgrade integration test inspects the version tags. The default depth
+  # (50) is sometimes not enough if there have been many commits in between
+  # releases. This causes the integration test to fail to locate the previous
+  # version tag. Bumping this to 100 for now. If we encounter the failure again
+  # we may consider just cloning the whole repo. Alternatively, we can run `git
+  # fetch --tags` in the integration test job below but that is effectively the
+  # same thing.
+  depth: 100
+
 cache:
   directories:
     # cache build tools
@@ -91,7 +101,8 @@ jobs:
         - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
       script:
         - make images
-        - make integration
+        - make scratch-images
+        - CICD_TARGET_BRANCH="$TRAVIS_BRANCH" make integration
         - .travis/publish-images.sh
 
     - stage: nightly integration tests
@@ -100,7 +111,8 @@ jobs:
       dist: xenial
       script:
         - make images
-        - make integration
+        - make scratch-images
+        - CICD_TARGET_BRANCH="$TRAVIS_BRANCH" make integration
 
 notifications:
   email:

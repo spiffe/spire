@@ -33,12 +33,15 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 - Check [ADOPTERS.md](./ADOPTERS.md) for a list of production SPIRE adopters, a view of the ecosystem, and use cases.
 - See the [SPIRE Roadmap](https://github.com/spiffe/spire/wiki/Roadmap) for a list of planned features and enhancements.
 - [Join](https://slack.spiffe.io/) the SPIFFE community on Slack. If you have any questions about how SPIRE works, or how to get it up and running, the best places to ask questions are the [SPIFFE Slack channels](https://spiffe.slack.com).
+- Download the free book about SPIFFE and SPIRE, "[Solving the Bottom Turtle](https://spiffe.io/book/)."
 
 ## Integrate with SPIRE
 
 - See [Extend SPIRE](https://spiffe.io/spire/docs/extending/) to learn about the highly extensible SPIRE plugin framework.
 - Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/master/v2), [Java](https://github.com/spiffe/java-spiffe) and [C++](https://github.com/spiffe/c-spiffe) languages. See [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/) for code samples.
 - SPIRE provides an implementation of the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS) for use with [Envoy Proxy](https://envoyproxy.io).  SDS can be used to transparently install and rotate TLS certificates and trust bundles in Envoy. See [Using SPIRE with Envoy](https://spiffe.io/spire/docs/envoy/) for more information.
+
+For supported integration versions, see [Supported Integrations](/doc/supported_integrations.md).
 
 ## Contribute to SPIRE
 

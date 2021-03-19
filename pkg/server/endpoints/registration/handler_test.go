@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -37,6 +38,8 @@ import (
 )
 
 var (
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+
 	rootCA1DER = pemBytes([]byte(`-----BEGIN CERTIFICATE-----
 MIIBVzCB4gIJAJur7ujAmyDhMA0GCSqGSIb3DQEBCwUAMBMxETAPBgNVBAMMCFRF
 U1RST09UMB4XDTE4MTAxNTE4NDQxMVoXDTE5MTAxNTE4NDQxMVowEzERMA8GA1UE
@@ -79,7 +82,7 @@ func (s *HandlerSuite) SetupTest() {
 	log, _ := test.NewNullLogger()
 
 	s.ds = fakedatastore.New(s.T())
-	s.serverCA = fakeserverca.New(s.T(), "example.org", nil)
+	s.serverCA = fakeserverca.New(s.T(), trustDomain, nil)
 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(s.ds)
@@ -87,7 +90,7 @@ func (s *HandlerSuite) SetupTest() {
 	handler := &Handler{
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
-		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
+		TrustDomain: trustDomain,
 		Catalog:     catalog,
 		ServerCA:    s.serverCA,
 	}
@@ -1103,7 +1106,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 				SpiffeId: "spiffe://example.org",
 				Csr:      csr,
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a valid workload SPIFFE ID: path is empty`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`),
 		},
 		{
 			name: "SPIFFE ID is not for the trust domain",
@@ -1111,7 +1114,7 @@ func (s *HandlerSuite) TestMintX509SVID() {
 				SpiffeId: "spiffe://domain.test/workload",
 				Csr:      csr,
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" does not belong to trust domain "example.org"`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" is not a member of trust domain "example.org"`),
 		},
 		{
 			name: "CSR is missing",
@@ -1225,7 +1228,7 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 				SpiffeId: "spiffe://example.org",
 				Audience: []string{"AUDIENCE"},
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a valid workload SPIFFE ID: path is empty`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`),
 		},
 		{
 			name: "SPIFFE ID is not for the trust domain",
@@ -1233,7 +1236,7 @@ func (s *HandlerSuite) TestMintJWTSVID() {
 				SpiffeId: "spiffe://domain.test/workload",
 				Audience: []string{"AUDIENCE"},
 			},
-			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" does not belong to trust domain "example.org"`),
+			err: status.Error(codes.InvalidArgument, `"spiffe://domain.test/workload" is not a member of trust domain "example.org"`),
 		},
 		{
 			name: "audience is missing",
@@ -1398,7 +1401,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		},
 		{
 			Peer: makeTLSPeer("whatever://example.org"),
-			Err:  "not a valid SPIFFE ID",
+			Err:  "SPIFFE ID is malformed: scheme must be 'spiffe'",
 		},
 		{
 			Peer: makeTLSPeer("spiffe://example.org/not-admin"),

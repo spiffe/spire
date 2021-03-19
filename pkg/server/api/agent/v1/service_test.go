@@ -13,6 +13,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -22,9 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
@@ -117,6 +117,98 @@ var (
 	}
 )
 
+func TestCountAgents(t *testing.T) {
+	ids := []spiffeid.ID{
+		spiffeid.Must("example.org", "node1"),
+		spiffeid.Must("example.org", "node2"),
+		spiffeid.Must("example.org", "node3"),
+	}
+
+	for _, tt := range []struct {
+		name       string
+		count      int32
+		resp       *agentv1.CountAgentsResponse
+		code       codes.Code
+		dsError    error
+		err        string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:  "0 nodes",
+			count: 0,
+			resp:  &agentv1.CountAgentsResponse{Count: 0},
+		},
+		{
+			name:  "1 node",
+			count: 1,
+			resp:  &agentv1.CountAgentsResponse{Count: 1},
+		},
+		{
+			name:  "2 nodes",
+			count: 2,
+			resp:  &agentv1.CountAgentsResponse{Count: 2},
+		},
+		{
+			name:  "3 nodes",
+			count: 3,
+			resp:  &agentv1.CountAgentsResponse{Count: 3},
+		},
+		{
+			name:    "ds error",
+			code:    codes.Internal,
+			dsError: status.Error(codes.Internal, "some error"),
+			err:     "failed to count agents: some error",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to count agents",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = some error",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			for i := 0; i < int(tt.count); i++ {
+				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+					Node: &common.AttestedNode{
+						SpiffeId:            ids[i].String(),
+						AttestationDataType: "t1",
+						CertSerialNumber:    "badcafe",
+						CertNotAfter:        time.Now().Add(-time.Minute).Unix(),
+						NewCertNotAfter:     time.Now().Add(time.Minute).Unix(),
+						NewCertSerialNumber: "new badcafe",
+						Selectors: []*common.Selector{
+							{Type: "a", Value: "1"},
+							{Type: "b", Value: "2"},
+						},
+					},
+				})
+				require.NoError(t, err)
+			}
+
+			test.ds.SetNextError(tt.dsError)
+			resp, err := test.client.CountAgents(ctx, &agentv1.CountAgentsRequest{})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			spiretest.AssertProtoEqual(t, tt.resp, resp)
+		})
+	}
+}
+
 func TestListAgents(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
@@ -192,15 +284,15 @@ func TestListAgents(t *testing.T) {
 		dsError    error
 		err        string
 		expectLogs []spiretest.LogEntry
-		expectResp *agentpb.ListAgentsResponse
-		req        *agentpb.ListAgentsRequest
+		expectResp *agentv1.ListAgentsResponse
+		req        *agentv1.ListAgentsRequest
 	}{
 		{
 			name: "success",
-			req: &agentpb.ListAgentsRequest{
+			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{AttestationType: true},
 			},
-			expectResp: &agentpb.ListAgentsResponse{
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node1ID), AttestationType: "t1"},
 					{Id: api.ProtoFromID(node2ID), AttestationType: "t2"},
@@ -210,8 +302,8 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "no mask",
-			req:  &agentpb.ListAgentsRequest{},
-			expectResp: &agentpb.ListAgentsResponse{
+			req:  &agentv1.ListAgentsRequest{},
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{
 						Id:                   api.ProtoFromID(node1ID),
@@ -247,10 +339,10 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "mask all false",
-			req: &agentpb.ListAgentsRequest{
+			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
 			},
-			expectResp: &agentpb.ListAgentsResponse{
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node1ID)},
 					{Id: api.ProtoFromID(node2ID)},
@@ -260,13 +352,13 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "by attestation type",
-			req: &agentpb.ListAgentsRequest{
+			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
-				Filter: &agentpb.ListAgentsRequest_Filter{
+				Filter: &agentv1.ListAgentsRequest_Filter{
 					ByAttestationType: "t1",
 				},
 			},
-			expectResp: &agentpb.ListAgentsResponse{
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node1ID)},
 				},
@@ -274,13 +366,13 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "by banned true",
-			req: &agentpb.ListAgentsRequest{
+			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
-				Filter: &agentpb.ListAgentsRequest_Filter{
+				Filter: &agentv1.ListAgentsRequest_Filter{
 					ByBanned: &wrapperspb.BoolValue{Value: true},
 				},
 			},
-			expectResp: &agentpb.ListAgentsResponse{
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node3ID)},
 				},
@@ -288,13 +380,13 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "by banned false",
-			req: &agentpb.ListAgentsRequest{
+			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
-				Filter: &agentpb.ListAgentsRequest_Filter{
+				Filter: &agentv1.ListAgentsRequest_Filter{
 					ByBanned: &wrapperspb.BoolValue{Value: false},
 				},
 			},
-			expectResp: &agentpb.ListAgentsResponse{
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node1ID)},
 					{Id: api.ProtoFromID(node2ID)},
@@ -303,9 +395,9 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "by selectors",
-			req: &agentpb.ListAgentsRequest{
+			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
-				Filter: &agentpb.ListAgentsRequest_Filter{
+				Filter: &agentv1.ListAgentsRequest_Filter{
 					BySelectorMatch: &types.SelectorMatch{
 						Match: types.SelectorMatch_MATCH_EXACT,
 						Selectors: []*types.Selector{
@@ -315,7 +407,7 @@ func TestListAgents(t *testing.T) {
 					},
 				},
 			},
-			expectResp: &agentpb.ListAgentsResponse{
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node1ID)},
 				},
@@ -323,11 +415,11 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "with pagination",
-			req: &agentpb.ListAgentsRequest{
+			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
 				PageSize:   2,
 			},
-			expectResp: &agentpb.ListAgentsResponse{
+			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node1ID)},
 					{Id: api.ProtoFromID(node2ID)},
@@ -337,8 +429,8 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name: "malformed selectors",
-			req: &agentpb.ListAgentsRequest{
-				Filter: &agentpb.ListAgentsRequest_Filter{
+			req: &agentv1.ListAgentsRequest{
+				Filter: &agentv1.ListAgentsRequest_Filter{
 					BySelectorMatch: &types.SelectorMatch{
 						Selectors: []*types.Selector{{Value: "1"}},
 					},
@@ -358,7 +450,7 @@ func TestListAgents(t *testing.T) {
 		},
 		{
 			name:    "ds fails",
-			req:     &agentpb.ListAgentsRequest{},
+			req:     &agentv1.ListAgentsRequest{},
 			code:    codes.Internal,
 			dsError: errors.New("some error"),
 			err:     "failed to list agents: some error",
@@ -445,13 +537,13 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: "ex ample.org",
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
+			expectMsg:  `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org": invalid character " " in host name`,
+						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
 					},
 				},
 			},
@@ -569,7 +661,7 @@ func TestBanAgent(t *testing.T) {
 			require.NoError(t, err)
 			test.ds.SetNextError(tt.dsError)
 
-			banResp, err := test.client.BanAgent(ctx, &agentpb.BanAgentRequest{Id: tt.reqID})
+			banResp, err := test.client.BanAgent(ctx, &agentv1.BanAgentRequest{Id: tt.reqID})
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			test.ds.SetNextError(nil)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
@@ -614,7 +706,7 @@ func TestDeleteAgent(t *testing.T) {
 		dsError    error
 		err        string
 		expectLogs []spiretest.LogEntry
-		req        *agentpb.DeleteAgentRequest
+		req        *agentv1.DeleteAgentRequest
 	}{
 		{
 			name: "success",
@@ -627,7 +719,7 @@ func TestDeleteAgent(t *testing.T) {
 					},
 				},
 			},
-			req: &agentpb.DeleteAgentRequest{
+			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
 					Path:        "/spire/agent/node1",
@@ -641,13 +733,13 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "spiffeid: trust domain is empty",
+						logrus.ErrorKey: "trust domain is empty",
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid agent ID: spiffeid: trust domain is empty",
-			req: &agentpb.DeleteAgentRequest{
+			err:  "invalid agent ID: trust domain is empty",
+			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "",
 					Path:        "spiffe://examples.org/spire/agent/node1",
@@ -667,7 +759,7 @@ func TestDeleteAgent(t *testing.T) {
 			},
 			code: codes.NotFound,
 			err:  "agent not found",
-			req: &agentpb.DeleteAgentRequest{
+			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
 					Path:        "/spire/agent/notfound",
@@ -687,7 +779,7 @@ func TestDeleteAgent(t *testing.T) {
 			},
 			code: codes.InvalidArgument,
 			err:  `invalid agent ID: "spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
-			req: &agentpb.DeleteAgentRequest{
+			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
 					Path:        "host",
@@ -707,7 +799,7 @@ func TestDeleteAgent(t *testing.T) {
 			},
 			code: codes.InvalidArgument,
 			err:  `invalid agent ID: "spiffe://another.org/spire/agent/node1" is not a member of trust domain "example.org"`,
-			req: &agentpb.DeleteAgentRequest{
+			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "another.org",
 					Path:        "/spire/agent/node1",
@@ -729,7 +821,7 @@ func TestDeleteAgent(t *testing.T) {
 					},
 				},
 			},
-			req: &agentpb.DeleteAgentRequest{
+			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
 					Path:        "/spire/agent/node1",
@@ -782,7 +874,7 @@ func TestDeleteAgent(t *testing.T) {
 func TestGetAgent(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
-		req     *agentpb.GetAgentRequest
+		req     *agentv1.GetAgentRequest
 		agent   *types.Agent
 		code    codes.Code
 		err     string
@@ -791,17 +883,17 @@ func TestGetAgent(t *testing.T) {
 	}{
 		{
 			name:  "success agent-1",
-			req:   &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"}},
+			req:   &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"}},
 			agent: expectedAgents[agent1],
 		},
 		{
 			name:  "success agent-2",
-			req:   &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-2"}},
+			req:   &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-2"}},
 			agent: expectedAgents[agent2],
 		},
 		{
 			name: "success - with mask",
-			req: &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
+			req: &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
 				OutputMask: &types.AgentMask{
 					AttestationType:      true,
 					X509SvidExpiresAt:    true,
@@ -816,7 +908,7 @@ func TestGetAgent(t *testing.T) {
 		},
 		{
 			name: "success - with all false mask",
-			req: &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
+			req: &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
 				OutputMask: &types.AgentMask{}},
 			agent: &types.Agent{
 				Id: expectedAgents[agent1].Id,
@@ -824,7 +916,7 @@ func TestGetAgent(t *testing.T) {
 		},
 		{
 			name: "no SPIFFE ID",
-			req:  &agentpb.GetAgentRequest{},
+			req:  &agentv1.GetAgentRequest{},
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -839,7 +931,7 @@ func TestGetAgent(t *testing.T) {
 		},
 		{
 			name: "invalid SPIFFE ID",
-			req:  &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "invalid domain"}},
+			req:  &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "invalid domain"}},
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -854,7 +946,7 @@ func TestGetAgent(t *testing.T) {
 		},
 		{
 			name: "agent does not exist",
-			req:  &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/does-not-exist"}},
+			req:  &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/does-not-exist"}},
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -869,7 +961,7 @@ func TestGetAgent(t *testing.T) {
 		},
 		{
 			name: "datastore error",
-			req:  &agentpb.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"}},
+			req:  &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"}},
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -937,7 +1029,7 @@ func TestRenewAgent(t *testing.T) {
 		expectLogs     []spiretest.LogEntry
 		failCallerID   bool
 		failSigning    bool
-		req            *agentpb.RenewAgentRequest
+		req            *agentv1.RenewAgentRequest
 		expectCode     codes.Code
 		expectMsg      string
 		rateLimiterErr error
@@ -948,8 +1040,8 @@ func TestRenewAgent(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				renewingMessage,
 			},
-			req: &agentpb.RenewAgentRequest{
-				Params: &agentpb.AgentX509SVIDParams{
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
@@ -966,7 +1058,7 @@ func TestRenewAgent(t *testing.T) {
 					},
 				},
 			},
-			req:            &agentpb.RenewAgentRequest{},
+			req:            &agentv1.RenewAgentRequest{},
 			expectCode:     codes.Unknown,
 			expectMsg:      "rejecting request due to renew agent rate limiting: rate limit fails",
 			rateLimiterErr: errors.New("rate limit fails"),
@@ -980,7 +1072,7 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Caller ID missing from request context",
 				},
 			},
-			req:          &agentpb.RenewAgentRequest{},
+			req:          &agentv1.RenewAgentRequest{},
 			failCallerID: true,
 			expectCode:   codes.Internal,
 			expectMsg:    "caller ID missing from request context",
@@ -994,8 +1086,8 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Agent not found",
 				},
 			},
-			req: &agentpb.RenewAgentRequest{
-				Params: &agentpb.AgentX509SVIDParams{
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
@@ -1012,8 +1104,8 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Invalid argument: missing CSR",
 				},
 			},
-			req: &agentpb.RenewAgentRequest{
-				Params: &agentpb.AgentX509SVIDParams{},
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{},
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "missing CSR",
@@ -1030,8 +1122,8 @@ func TestRenewAgent(t *testing.T) {
 						logrus.ErrorKey: malformedError.Error()},
 				},
 			},
-			req: &agentpb.RenewAgentRequest{
-				Params: &agentpb.AgentX509SVIDParams{
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
 					Csr: []byte("malformed CSR"),
 				},
 			},
@@ -1048,7 +1140,7 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Invalid argument: params cannot be nil",
 				},
 			},
-			req:        &agentpb.RenewAgentRequest{},
+			req:        &agentv1.RenewAgentRequest{},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "params cannot be nil",
 		},
@@ -1066,8 +1158,8 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			failSigning: true,
-			req: &agentpb.RenewAgentRequest{
-				Params: &agentpb.AgentX509SVIDParams{
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
@@ -1090,8 +1182,8 @@ func TestRenewAgent(t *testing.T) {
 					},
 				},
 			},
-			req: &agentpb.RenewAgentRequest{
-				Params: &agentpb.AgentX509SVIDParams{
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
@@ -1169,7 +1261,7 @@ func TestRenewAgent(t *testing.T) {
 func TestCreateJoinToken(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
-		request       *agentpb.CreateJoinTokenRequest
+		request       *agentv1.CreateJoinTokenRequest
 		expectLogs    []spiretest.LogEntry
 		expectResults *types.JoinToken
 		err           string
@@ -1178,20 +1270,20 @@ func TestCreateJoinToken(t *testing.T) {
 	}{
 		{
 			name: "Success Basic Create Join Token",
-			request: &agentpb.CreateJoinTokenRequest{
+			request: &agentv1.CreateJoinTokenRequest{
 				Ttl: 1000,
 			},
 		},
 		{
 			name: "Success Custom Value Join Token",
-			request: &agentpb.CreateJoinTokenRequest{
+			request: &agentv1.CreateJoinTokenRequest{
 				Ttl:   1000,
 				Token: "token goes here",
 			},
 		},
 		{
 			name: "Fail Negative Ttl",
-			request: &agentpb.CreateJoinTokenRequest{
+			request: &agentv1.CreateJoinTokenRequest{
 				Ttl: -1000,
 			},
 			err:  "ttl is required, you must provide one",
@@ -1200,7 +1292,7 @@ func TestCreateJoinToken(t *testing.T) {
 		{
 			name: "Fail Datastore Error",
 			err:  "failed to create token: datatore broken",
-			request: &agentpb.CreateJoinTokenRequest{
+			request: &agentv1.CreateJoinTokenRequest{
 				Ttl: 1000,
 			},
 			dsError: errors.New("datatore broken"),
@@ -1228,14 +1320,14 @@ func TestCreateJoinToken(t *testing.T) {
 func TestCreateJoinTokenWithAgentId(t *testing.T) {
 	test := setupServiceTest(t)
 
-	_, err := test.client.CreateJoinToken(context.Background(), &agentpb.CreateJoinTokenRequest{
+	_, err := test.client.CreateJoinToken(context.Background(), &agentv1.CreateJoinTokenRequest{
 		Ttl:     1000,
 		AgentId: &types.SPIFFEID{TrustDomain: "badtd.org", Path: "invalid"},
 	})
 	require.Error(t, err)
 	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `invalid agent ID: "spiffe://badtd.org/invalid" is not a member of trust domain "example.org"`)
 
-	token, err := test.client.CreateJoinToken(context.Background(), &agentpb.CreateJoinTokenRequest{
+	token, err := test.client.CreateJoinToken(context.Background(), &agentv1.CreateJoinTokenRequest{
 		Ttl:     1000,
 		AgentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "valid"},
 	})
@@ -1259,7 +1351,7 @@ func TestAttestAgent(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		retry             bool
-		request           *agentpb.AttestAgentRequest
+		request           *agentv1.AttestAgentRequest
 		expectedID        spiffeid.ID
 		expectedSelectors []*common.Selector
 		expectCode        codes.Code
@@ -1271,7 +1363,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:       "empty request",
-			request:    &agentpb.AttestAgentRequest{},
+			request:    &agentv1.AttestAgentRequest{},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "malformed param: missing params",
 			expectLogs: []spiretest.LogEntry{
@@ -1287,9 +1379,9 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name: "empty attestation data",
-			request: &agentpb.AttestAgentRequest{
-				Step: &agentpb.AttestAgentRequest_Params_{
-					Params: &agentpb.AttestAgentRequest_Params{},
+			request: &agentv1.AttestAgentRequest{
+				Step: &agentv1.AttestAgentRequest_Params_{
+					Params: &agentv1.AttestAgentRequest_Params{},
 				},
 			},
 			expectCode: codes.InvalidArgument,
@@ -1307,9 +1399,9 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name: "missing parameters",
-			request: &agentpb.AttestAgentRequest{
-				Step: &agentpb.AttestAgentRequest_Params_{
-					Params: &agentpb.AttestAgentRequest_Params{
+			request: &agentv1.AttestAgentRequest{
+				Step: &agentv1.AttestAgentRequest_Params_{
+					Params: &agentv1.AttestAgentRequest_Params{
 						Data: &types.AttestationData{
 							Type: "foo type",
 						},
@@ -1331,11 +1423,11 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name: "missing attestation data type",
-			request: &agentpb.AttestAgentRequest{
-				Step: &agentpb.AttestAgentRequest_Params_{
-					Params: &agentpb.AttestAgentRequest_Params{
+			request: &agentv1.AttestAgentRequest{
+				Step: &agentv1.AttestAgentRequest_Params_{
+					Params: &agentv1.AttestAgentRequest_Params{
 						Data: &types.AttestationData{},
-						Params: &agentpb.AgentX509SVIDParams{
+						Params: &agentv1.AgentX509SVIDParams{
 							Csr: []byte("fake csr"),
 						},
 					},
@@ -1356,13 +1448,13 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name: "missing csr",
-			request: &agentpb.AttestAgentRequest{
-				Step: &agentpb.AttestAgentRequest_Params_{
-					Params: &agentpb.AttestAgentRequest_Params{
+			request: &agentv1.AttestAgentRequest{
+				Step: &agentv1.AttestAgentRequest_Params_{
+					Params: &agentv1.AttestAgentRequest_Params{
 						Data: &types.AttestationData{
 							Type: "foo type",
 						},
-						Params: &agentpb.AgentX509SVIDParams{},
+						Params: &agentv1.AgentX509SVIDParams{},
 					},
 				},
 			},
@@ -1381,7 +1473,7 @@ func TestAttestAgent(t *testing.T) {
 
 		{
 			name:           "rate limit fails",
-			request:        &agentpb.AttestAgentRequest{},
+			request:        &agentv1.AttestAgentRequest{},
 			expectCode:     codes.Unknown,
 			expectMsg:      "rate limit fails",
 			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
@@ -1529,12 +1621,13 @@ func TestAttestAgent(t *testing.T) {
 			name:       "attest with bad attestor",
 			request:    getAttestAgentRequest("bad_type", []byte("payload_with_result"), testCsr),
 			expectCode: codes.FailedPrecondition,
-			expectMsg:  "could not find node attestor type",
+			expectMsg:  "error getting node attestor: could not find node attestor type \"bad_type\"",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Could not find node attestor type",
+					Message: "Error getting node attestor",
 					Data: logrus.Fields{
+						logrus.ErrorKey:            "could not find node attestor type \"bad_type\"",
 						telemetry.NodeAttestorType: "bad_type",
 					},
 				},
@@ -1769,7 +1862,7 @@ func TestAttestAgent(t *testing.T) {
 }
 
 type serviceTest struct {
-	client       agentpb.AgentClient
+	client       agentv1.AgentClient
 	done         func()
 	ds           *fakedatastore.DataStore
 	ca           *fakeserverca.CA
@@ -1788,7 +1881,7 @@ func (s *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	ca := fakeserverca.New(t, td.String(), &fakeserverca.Options{})
+	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
 
@@ -1827,7 +1920,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 	test.done = done
-	test.client = agentpb.NewAgentClient(conn)
+	test.client = agentv1.NewAgentClient(conn)
 
 	return test
 }
@@ -1969,7 +2062,7 @@ func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
 	}
 }
 
-func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.ID, result *agentpb.AttestAgentResponse_Result) {
+func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.ID, result *agentv1.AttestAgentResponse_Result) {
 	now := s.ca.Clock().Now().UTC()
 	expiredAt := now.Add(s.ca.X509SVIDTTL())
 
@@ -2020,15 +2113,15 @@ func cloneAttestedNode(aNode *common.AttestedNode) *common.AttestedNode {
 	return proto.Clone(aNode).(*common.AttestedNode)
 }
 
-func getAttestAgentRequest(attType string, payload []byte, csr []byte) *agentpb.AttestAgentRequest {
-	return &agentpb.AttestAgentRequest{
-		Step: &agentpb.AttestAgentRequest_Params_{
-			Params: &agentpb.AttestAgentRequest_Params{
+func getAttestAgentRequest(attType string, payload []byte, csr []byte) *agentv1.AttestAgentRequest {
+	return &agentv1.AttestAgentRequest{
+		Step: &agentv1.AttestAgentRequest_Params_{
+			Params: &agentv1.AttestAgentRequest_Params{
 				Data: &types.AttestationData{
 					Type:    attType,
 					Payload: payload,
 				},
-				Params: &agentpb.AgentX509SVIDParams{
+				Params: &agentv1.AgentX509SVIDParams{
 					Csr: csr,
 				},
 			},
@@ -2036,8 +2129,8 @@ func getAttestAgentRequest(attType string, payload []byte, csr []byte) *agentpb.
 	}
 }
 
-func attest(t *testing.T, stream agentpb.Agent_AttestAgentClient, request *agentpb.AttestAgentRequest) (*agentpb.AttestAgentResponse_Result, error) {
-	var result *agentpb.AttestAgentResponse_Result
+func attest(t *testing.T, stream agentv1.Agent_AttestAgentClient, request *agentv1.AttestAgentRequest) (*agentv1.AttestAgentResponse_Result, error) {
+	var result *agentv1.AttestAgentResponse_Result
 
 	for {
 		// send
@@ -2051,8 +2144,8 @@ func attest(t *testing.T, stream agentpb.Agent_AttestAgentClient, request *agent
 
 		if challenge != nil {
 			// build new request to be sent
-			request = &agentpb.AttestAgentRequest{
-				Step: &agentpb.AttestAgentRequest_ChallengeResponse{
+			request = &agentv1.AttestAgentRequest{
+				Step: &agentv1.AttestAgentRequest_ChallengeResponse{
 					ChallengeResponse: challenge,
 				}}
 

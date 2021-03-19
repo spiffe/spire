@@ -2,15 +2,15 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/go-logr/logr"
-	spiretypes "github.com/spiffe/spire/proto/spire/types"
+	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 	corev1 "k8s.io/api/core/v1"
@@ -47,7 +47,7 @@ func (s *PodControllerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 
 	s.ds = fakedatastore.New(s.T())
-	s.entryClient = fakeentryclient.New(s.T(), fmt.Sprintf("spiffe://%s", podControllerTestTrustDomain), s.ds, nil)
+	s.entryClient = fakeentryclient.New(s.T(), spiffeid.RequireTrustDomainFromString(podControllerTestTrustDomain), s.ds, nil)
 
 	s.ctrl = mockCtrl
 
@@ -128,7 +128,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			})
 			s.Assert().NoError(err)
 
-			es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+			es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 				BySpiffeId: s.makePodID(tt.first),
 			})
 			s.Assert().NoError(err)
@@ -149,13 +149,13 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			})
 			s.Assert().NoError(err)
 
-			es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+			es, err = listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 				BySpiffeId: s.makePodID(tt.first),
 			})
 			s.Assert().NoError(err)
 			s.Assert().Len(es, 0)
 
-			es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+			es, err = listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 				BySpiffeId: s.makePodID(tt.second),
 			})
 			s.Assert().NoError(err)
@@ -172,7 +172,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			})
 			s.Assert().NoError(err)
 
-			es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+			es, err = listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 				BySpiffeId: s.makePodID(tt.second),
 			})
 			s.Assert().NoError(err)
@@ -224,7 +224,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	})
 	s.Assert().NoError(err)
 
-	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
@@ -268,7 +268,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	})
 	s.Assert().NoError(err)
 
-	es, err = listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+	es, err = listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
@@ -362,7 +362,7 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 	})
 	s.Assert().NoError(err)
 
-	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
@@ -452,7 +452,7 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 	})
 	s.Assert().NoError(err)
 
-	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
@@ -508,7 +508,7 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 	})
 	s.Assert().NoError(err)
 
-	es, err := listEntries(ctx, s.entryClient, &entry.ListEntriesRequest_Filter{
+	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
 		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)

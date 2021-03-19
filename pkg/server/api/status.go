@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/proto/spire/types"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

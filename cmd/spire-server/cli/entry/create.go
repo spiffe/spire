@@ -5,11 +5,11 @@ import (
 	"flag"
 
 	"github.com/mitchellh/cli"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
@@ -77,7 +77,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 	f.BoolVar(&c.node, "node", false, "If set, this entry will be applied to matching nodes rather than workloads")
-	f.BoolVar(&c.admin, "admin", false, "If set, the SPIFFE ID in this entry will be granted access to the Registration API")
+	f.BoolVar(&c.admin, "admin", false, "If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs")
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
@@ -212,8 +212,8 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) (succeeded, failed []*entry.BatchCreateEntryResponse_Result, err error) {
-	resp, err := c.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: entries})
+func createEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (succeeded, failed []*entryv1.BatchCreateEntryResponse_Result, err error) {
+	resp, err := c.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
 		return nil, nil, err
 	}

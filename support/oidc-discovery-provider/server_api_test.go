@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,7 @@ func TestServerAPISource(t *testing.T) {
 	api := &fakeServerAPIServer{}
 
 	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
-		bundle.RegisterBundleServer(s, api)
+		bundlev1.RegisterBundleServer(s, api)
 	})
 
 	log, _ := test.NewNullLogger()
@@ -98,7 +98,7 @@ func TestServerAPISource(t *testing.T) {
 }
 
 type fakeServerAPIServer struct {
-	bundle.BundleServer
+	bundlev1.BundleServer
 
 	mu             sync.Mutex
 	bundle         *types.Bundle
@@ -118,7 +118,7 @@ func (s *fakeServerAPIServer) GetBundleCount() int {
 	return count
 }
 
-func (s *fakeServerAPIServer) GetBundle(ctx context.Context, req *bundle.GetBundleRequest) (*types.Bundle, error) {
+func (s *fakeServerAPIServer) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.getBundleCount++

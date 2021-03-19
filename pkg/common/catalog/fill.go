@@ -15,7 +15,6 @@ var (
 
 type PluginInfo interface {
 	Name() string
-	BuiltIn() bool
 }
 
 type catalogFiller struct {

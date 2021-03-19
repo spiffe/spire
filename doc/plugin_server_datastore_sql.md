@@ -1,21 +1,21 @@
 # Server plugin: DataStore "sql"
 
-The `sql` plugin implements a sql based storage option for the SPIRE server using SQLite, PostgreSQL or MySQL databases.
+The `sql` plugin implements SQL based data storage for the SPIRE server using SQLite, PostgreSQL or MySQL databases.
 
-| Configuration        | Description                                                                |
-| ---------------------| -------------------------------------------------------------------------- |
-| database_type        | database type                                                              |
-| connection_string    | connection string                                                          |
-| ro_connection_string | [Read Only connection](#read-only-connection)
-| root_ca_path         | Path to Root CA bundle (MySQL only)                                        |
-| client_cert_path     | Path to client certificate (MySQL only)                                    |
-| client_key_path      | Path to private key for client certificate (MySQL only)                    |
-| max_open_conns       | The maximum number of open db connections (default: unlimited)             |
-| max_idle_conns       | The maximum number of idle connections in the pool (default: 2)            |
-| conn_max_lifetime    | The maximum amount of time a connection may be reused (default: unlimited) |
-| disable_migration    | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
+| Configuration         | Description                                                                |
+| --------------------- | -------------------------------------------------------------------------- |
+| database_type         | database type                                                              |
+| connection_string     | connection string                                                          |
+| ro_connection_string  | [Read Only connection](#read-only-connection)                              |
+| root_ca_path          | Path to Root CA bundle (MySQL only)                                        |
+| client_cert_path      | Path to client certificate (MySQL only)                                    |
+| client_key_path       | Path to private key for client certificate (MySQL only)                    |
+| max_open_conns        | The maximum number of open db connections (default: unlimited)             |
+| max_idle_conns        | The maximum number of idle connections in the pool (default: 2)            |
+| conn_max_lifetime     | The maximum amount of time a connection may be reused (default: unlimited) |
+| disable_migration     | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
 
-The plugin defaults to an in-memory database and any information in the data store is lost on restart.
+
 
 For more information on the `max_open_conns`, `max_idle_conns`, and `conn_max_lifetime`, refer to the
 documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#DB) package.
@@ -23,15 +23,18 @@ documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#D
 ## Database configurations
 
 ### `database_type = "sqlite3"`
-Save database in file
+
+Save database in file:
 ```
 connection_string="DATABASE_FILE.db"
 ```
 
-Save database in memory
+Save database in memory:
 ```
-connection_string=":memory:"
+connection_string="file:memdb?mode=memory&cache=shared"
 ```
+
+If you are compiling SPIRE from source, please see [SQLite and CGO](#sqlite-and-cgo) for additional information.
 
 #### Sample configuration
 
@@ -48,7 +51,8 @@ connection_string=":memory:"
 
 The `connection_string` for the PostreSQL database connection consists of the number of configuration options separated by spaces.
 
-#### example
+For example:
+
 ```
 connection_string="dbname=postgres user=postgres password=password host=localhost sslmode=disable"
 ```
@@ -98,7 +102,8 @@ The `connection_string` for the MySQL database connection consists of the number
 username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
 ````
 
-#### example
+For example:
+
 ```
 connection_string="username:password@tcp(localhost:3306)/dbname?parseTime=true"
 ```
@@ -126,4 +131,8 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
 ```
 
 #### Read Only connection
-Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3. 
+Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3.
+
+## SQLite and CGO
+
+SQLite support requires the use of CGO. This is not a concern for users downloading SPIRE or using the offical SPIRE container images. However, if you are building SPIRE from the source code, please note that compiling SPIRE without CGO (e.g. `CGO_ENABLED=0`) will disable SQLite support.

@@ -19,6 +19,8 @@ const (
 	EnvoySDSv2ServiceShortName  = "SDS.v2"
 	EnvoySDSv3ServiceName       = "envoy.service.secret.v3.SecretDiscoveryService"
 	EnvoySDSv3ServiceShortName  = "SDS.v3"
+	HealthServiceName           = "grpc.health.v1.Health"
+	HealthServiceShortName      = "Health"
 )
 
 var (
@@ -27,6 +29,7 @@ var (
 		WorkloadAPIServiceName, WorkloadAPIServiceShortName,
 		EnvoySDSv2ServiceName, EnvoySDSv2ServiceShortName,
 		EnvoySDSv3ServiceName, EnvoySDSv3ServiceShortName,
+		HealthServiceName, HealthServiceShortName,
 	)
 
 	// namesCache caches parsed names

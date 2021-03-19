@@ -7,10 +7,10 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 
 	"golang.org/x/net/context"
 )
@@ -51,7 +51,7 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	}
 
 	agentClient := serverClient.NewAgentClient()
-	agent, err := agentClient.GetAgent(ctx, &agent.GetAgentRequest{Id: api.ProtoFromID(id)})
+	agent, err := agentClient.GetAgent(ctx, &agentv1.GetAgentRequest{Id: api.ProtoFromID(id)})
 	if err != nil {
 		return err
 	}
@@ -62,6 +62,9 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		return err
 	}
 
+	for _, s := range agent.Selectors {
+		env.Printf("Selectors         : %s:%s\n", s.Type, s.Value)
+	}
 	return nil
 }
 

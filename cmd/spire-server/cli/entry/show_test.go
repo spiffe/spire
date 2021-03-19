@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,9 +26,11 @@ func TestShowHelp(t *testing.T) {
   -parentID string
     	The Parent ID of the records to show
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID of the records to show
 `, test.stderr.String())
@@ -40,16 +42,16 @@ func TestShowSynopsis(t *testing.T) {
 }
 
 func TestShow(t *testing.T) {
-	fakeRespAll := &entry.ListEntriesResponse{
+	fakeRespAll := &entryv1.ListEntriesResponse{
 		Entries: getEntries(4),
 	}
-	fakeRespFather := &entry.ListEntriesResponse{
+	fakeRespFather := &entryv1.ListEntriesResponse{
 		Entries: getEntries(2),
 	}
-	fakeRespDaughter := &entry.ListEntriesResponse{
+	fakeRespDaughter := &entryv1.ListEntriesResponse{
 		Entries: getEntries(3)[1:],
 	}
-	fakeRespFatherDaughter := &entry.ListEntriesResponse{
+	fakeRespFatherDaughter := &entryv1.ListEntriesResponse{
 		Entries: getEntries(2)[1:],
 	}
 
@@ -57,9 +59,9 @@ func TestShow(t *testing.T) {
 		name string
 		args []string
 
-		expListReq   *entry.ListEntriesRequest
-		fakeListResp *entry.ListEntriesResponse
-		expGetReq    *entry.GetEntryRequest
+		expListReq   *entryv1.ListEntriesRequest
+		fakeListResp *entryv1.ListEntriesResponse
+		expGetReq    *entryv1.GetEntryRequest
 		fakeGetResp  *types.Entry
 
 		serverErr error
@@ -69,8 +71,8 @@ func TestShow(t *testing.T) {
 	}{
 		{
 			name: "List all entries (empty filter)",
-			expListReq: &entry.ListEntriesRequest{
-				Filter: &entry.ListEntriesRequest_Filter{},
+			expListReq: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{},
 			},
 			fakeListResp: fakeRespAll,
 			expOut: fmt.Sprintf("Found 4 entries\n%s%s%s%s",
@@ -83,14 +85,14 @@ func TestShow(t *testing.T) {
 		{
 			name:        "List by entry ID",
 			args:        []string{"-entryID", getEntries(1)[0].Id},
-			expGetReq:   &entry.GetEntryRequest{Id: getEntries(1)[0].Id},
+			expGetReq:   &entryv1.GetEntryRequest{Id: getEntries(1)[0].Id},
 			fakeGetResp: getEntries(1)[0],
 			expOut:      fmt.Sprintf("Found 1 entry\n%s", getPrintedEntry(0)),
 		},
 		{
 			name:      "List by entry ID not found",
 			args:      []string{"-entryID", "non-existent-id"},
-			expGetReq: &entry.GetEntryRequest{Id: "non-existent-id"},
+			expGetReq: &entryv1.GetEntryRequest{Id: "non-existent-id"},
 			serverErr: status.Error(codes.NotFound, "no such registration entry"),
 			expErr:    "Error: error fetching entry ID non-existent-id: rpc error: code = NotFound desc = no such registration entry\n",
 		},
@@ -102,8 +104,8 @@ func TestShow(t *testing.T) {
 		{
 			name: "List by parentID",
 			args: []string{"-parentID", "spiffe://example.org/father"},
-			expListReq: &entry.ListEntriesRequest{
-				Filter: &entry.ListEntriesRequest_Filter{
+			expListReq: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
 				},
 			},
@@ -121,8 +123,8 @@ func TestShow(t *testing.T) {
 		{
 			name: "List by SPIFFE ID",
 			args: []string{"-spiffeID", "spiffe://example.org/daughter"},
-			expListReq: &entry.ListEntriesRequest{
-				Filter: &entry.ListEntriesRequest_Filter{
+			expListReq: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
 				},
 			},
@@ -140,8 +142,8 @@ func TestShow(t *testing.T) {
 		{
 			name: "List by selectors",
 			args: []string{"-selector", "foo:bar", "-selector", "bar:baz"},
-			expListReq: &entry.ListEntriesRequest{
-				Filter: &entry.ListEntriesRequest_Filter{
+			expListReq: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
 							{Type: "foo", Value: "bar"},
@@ -164,8 +166,8 @@ func TestShow(t *testing.T) {
 		{
 			name: "Server error",
 			args: []string{"-spiffeID", "spiffe://example.org/daughter"},
-			expListReq: &entry.ListEntriesRequest{
-				Filter: &entry.ListEntriesRequest_Filter{
+			expListReq: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
 				},
 			},
@@ -175,9 +177,9 @@ func TestShow(t *testing.T) {
 		{
 			name: "List by Federates With",
 			args: []string{"-federatesWith", "spiffe://domain.test"},
-			expListReq: &entry.ListEntriesRequest{
+			expListReq: &entryv1.ListEntriesRequest{
 				// Filter is empty because federatesWith filtering is done on the client side
-				Filter: &entry.ListEntriesRequest_Filter{},
+				Filter: &entryv1.ListEntriesRequest_Filter{},
 			},
 			fakeListResp: fakeRespAll,
 			expOut: fmt.Sprintf("Found 1 entry\n%s",

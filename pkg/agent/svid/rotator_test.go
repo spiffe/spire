@@ -3,17 +3,18 @@ package svid
 import (
 	"context"
 	"crypto/x509"
-	"net/url"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	mock_client "github.com/spiffe/spire/test/mock/agent/client"
@@ -55,15 +56,11 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.mockClock = clock.NewMock(s.T())
 	s.mockClock.Set(time.Now())
 	log, _ := test.NewNullLogger()
-	td := url.URL{
-		Scheme: "spiffe",
-		Host:   "example.org",
-	}
 	c := &RotatorConfig{
 		Catalog:      cat,
 		Log:          log,
 		Metrics:      telemetry.Blackhole{},
-		TrustDomain:  td,
+		TrustDomain:  spiffeid.RequireTrustDomainFromString("example.org"),
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 		Clk:          s.mockClock,
 	}
@@ -75,18 +72,30 @@ func (s *RotatorTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 
-func (s *RotatorTestSuite) TestRun() {
-	cert, key, err := util.LoadSVIDFixture()
+func (s *RotatorTestSuite) TestRunWithGoodExistingSVID() {
+	// Cert that's valid for 1hr
+	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
 	s.Require().NoError(err)
-	s.expectSVIDRotation(cert)
+	goodCert, key, err := util.SelfSign(temp)
+	s.Require().NoError(err)
 
 	state := State{
-		SVID: []*x509.Certificate{cert},
+		SVID: []*x509.Certificate{goodCert},
 		Key:  key,
 	}
 	s.r.state = observer.NewProperty(state)
 
+	s.client.EXPECT().Release()
+
 	stream := s.r.Subscribe()
+
+	rotationDone := make(chan struct{}, 1)
+	s.r.SetRotationFinishedHook(func() {
+		select {
+		case rotationDone <- struct{}{}:
+		default:
+		}
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t := new(tomb.Tomb)
@@ -94,17 +103,25 @@ func (s *RotatorTestSuite) TestRun() {
 		return s.r.Run(ctx)
 	})
 
+	// Wait for the first rotation check to finish
+	select {
+	case <-time.After(time.Minute):
+		s.FailNow("timed out waiting for rotation check to finish")
+	case <-rotationDone:
+	}
+
 	// We should have the latest state
 	s.Assert().False(stream.HasNext())
 
 	// Should be equal to the fixture
 	state = stream.Value().(State)
 	s.Require().Len(state.SVID, 1)
-	s.Assert().Equal(cert, state.SVID[0])
+	s.Assert().Equal(goodCert, state.SVID[0])
 	s.Assert().Equal(key, state.Key)
 
 	cancel()
-	s.Require().Equal(context.Canceled, t.Wait())
+	err = t.Wait()
+	s.Require().True(errors.Is(err, context.Canceled))
 }
 
 func (s *RotatorTestSuite) TestRunWithUpdates() {
@@ -129,6 +146,14 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 
 	stream := s.r.Subscribe()
 
+	rotationDone := make(chan struct{}, 1)
+	s.r.SetRotationFinishedHook(func() {
+		select {
+		case rotationDone <- struct{}{}:
+		default:
+		}
+	})
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t := new(tomb.Tomb)
 	t.Go(func() error {
@@ -136,8 +161,13 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	})
 
 	s.mockClock.Add(s.r.c.Interval)
-	err = s.r.rotateSVID(context.Background())
-	s.Require().NoError(err)
+
+	// Wait for the first rotation check to finish
+	select {
+	case <-time.After(time.Minute):
+		s.FailNow("timed out waiting for rotation check to finish")
+	case <-rotationDone:
+	}
 
 	select {
 	case <-time.After(time.Second):
@@ -149,7 +179,8 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	}
 
 	cancel()
-	s.Require().Equal(context.Canceled, t.Wait())
+	err = t.Wait()
+	s.Require().True(errors.Is(err, context.Canceled))
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {
@@ -186,7 +217,7 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 	s.client.EXPECT().
 		RenewSVID(gomock.Any(), gomock.Any()).
-		Return(&node.X509SVID{
+		Return(&client.X509SVID{
 			CertChain: cert.Raw,
 		}, nil)
 	s.client.EXPECT().Release().MaxTimes(2)

@@ -1,4 +1,4 @@
-# Envoy SDS Suite
+# Envoy SDS v2 Suite
 
 ## Description
 

@@ -7,21 +7,19 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/api/node"
-	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -33,6 +31,11 @@ var (
 
 const rpcTimeout = 30 * time.Second
 
+type X509SVID struct {
+	CertChain []byte
+	ExpiresAt int64
+}
+
 type JWTSVID struct {
 	Token     string
 	IssuedAt  time.Time
@@ -41,9 +44,9 @@ type JWTSVID struct {
 
 type Client interface {
 	FetchUpdates(ctx context.Context) (*Update, error)
-	RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, error)
-	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*node.X509SVID, error)
-	NewJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) (*JWTSVID, error)
+	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
+	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
+	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -53,7 +56,7 @@ type Client interface {
 type Config struct {
 	Addr        string
 	Log         logrus.FieldLogger
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
 	// to connect via mTLS to Addr.
 	KeysAndBundle func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
@@ -68,10 +71,10 @@ type client struct {
 	m           sync.Mutex
 
 	// Constructor used for testing purposes.
-	createNewEntryClient  func(grpc.ClientConnInterface) entrypb.EntryClient
-	createNewBundleClient func(grpc.ClientConnInterface) bundlepb.BundleClient
-	createNewSVIDClient   func(grpc.ClientConnInterface) svidpb.SVIDClient
-	createNewAgentClient  func(grpc.ClientConnInterface) agentpb.AgentClient
+	createNewEntryClient  func(grpc.ClientConnInterface) entryv1.EntryClient
+	createNewBundleClient func(grpc.ClientConnInterface) bundlev1.BundleClient
+	createNewSVIDClient   func(grpc.ClientConnInterface) svidv1.SVIDClient
+	createNewAgentClient  func(grpc.ClientConnInterface) agentv1.AgentClient
 
 	// Constructor used for testing purposes.
 	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
@@ -85,10 +88,10 @@ func New(c *Config) Client {
 func newClient(c *Config) *client {
 	return &client{
 		c:                     c,
-		createNewEntryClient:  entrypb.NewEntryClient,
-		createNewBundleClient: bundlepb.NewBundleClient,
-		createNewSVIDClient:   svidpb.NewSVIDClient,
-		createNewAgentClient:  agentpb.NewAgentClient,
+		createNewEntryClient:  entryv1.NewEntryClient,
+		createNewBundleClient: bundlev1.NewBundleClient,
+		createNewSVIDClient:   svidv1.NewSVIDClient,
+		createNewAgentClient:  agentv1.NewAgentClient,
 	}
 }
 
@@ -151,7 +154,7 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 	}, nil
 }
 
-func (c *client) RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, error) {
+func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
@@ -161,8 +164,8 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, err
 	}
 	defer connection.Release()
 
-	resp, err := agentClient.RenewAgent(ctx, &agentpb.RenewAgentRequest{
-		Params: &agentpb.AgentX509SVIDParams{
+	resp, err := agentClient.RenewAgent(ctx, &agentv1.RenewAgentRequest{
+		Params: &agentv1.AgentX509SVIDParams{
 			Csr: csr,
 		},
 	})
@@ -176,23 +179,23 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*node.X509SVID, err
 	for _, cert := range resp.Svid.CertChain {
 		certChain = append(certChain, cert...)
 	}
-	return &node.X509SVID{
+	return &X509SVID{
 		CertChain: certChain,
 		ExpiresAt: resp.Svid.ExpiresAt,
 	}, nil
 }
 
-func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*node.X509SVID, error) {
+func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	svids := make(map[string]*node.X509SVID)
-	var params []*svidpb.NewX509SVIDParams
+	svids := make(map[string]*X509SVID)
+	var params []*svidv1.NewX509SVIDParams
 	for entryID, csr := range csrs {
-		params = append(params, &svidpb.NewX509SVIDParams{
+		params = append(params, &svidv1.NewX509SVIDParams{
 			EntryId: entryID,
 			Csr:     csr,
 		})
@@ -214,7 +217,7 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 			certChain = append(certChain, cert...)
 		}
 
-		svids[entryID] = &node.X509SVID{
+		svids[entryID] = &X509SVID{
 			CertChain: certChain,
 			ExpiresAt: s.ExpiresAt,
 		}
@@ -223,7 +226,7 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	return svids, nil
 }
 
-func (c *client) NewJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) (*JWTSVID, error) {
+func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
@@ -236,8 +239,8 @@ func (c *client) NewJWTSVID(ctx context.Context, jsr *node.JSR, entryID string) 
 	}
 	defer connection.Release()
 
-	resp, err := svidClient.NewJWTSVID(ctx, &svidpb.NewJWTSVIDRequest{
-		Audience: jsr.Audience,
+	resp, err := svidClient.NewJWTSVID(ctx, &svidv1.NewJWTSVIDRequest{
+		Audience: audience,
 		EntryId:  entryID,
 	})
 	if err != nil {
@@ -282,7 +285,7 @@ func (c *client) release(conn *nodeConn) {
 func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 	return DialServer(ctx, DialServerConfig{
 		Address:     c.c.Addr,
-		TrustDomain: c.c.TrustDomain.Host,
+		TrustDomain: c.c.TrustDomain,
 		GetBundle: func() []*x509.Certificate {
 			_, _, bundle := c.c.KeysAndBundle()
 			return bundle
@@ -308,7 +311,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	}
 	defer connection.Release()
 
-	resp, err := entryClient.GetAuthorizedEntries(ctx, &entrypb.GetAuthorizedEntriesRequest{})
+	resp, err := entryClient.GetAuthorizedEntries(ctx, &entryv1.GetAuthorizedEntriesRequest{})
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
@@ -328,7 +331,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	var bundles []*types.Bundle
 
 	// Get bundle
-	bundle, err := bundleClient.GetBundle(ctx, &bundlepb.GetBundleRequest{})
+	bundle, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch bundle")
@@ -341,7 +344,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 		if err != nil {
 			return nil, err
 		}
-		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlepb.GetFederatedBundleRequest{
+		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
 			TrustDomain: federatedTD.String(),
 		})
 		switch status.Code(err) {
@@ -358,14 +361,14 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	return bundles, nil
 }
 
-func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDParams) ([]*types.X509SVID, error) {
+func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDParams) ([]*types.X509SVID, error) {
 	svidClient, connection, err := c.newSVIDClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer connection.Release()
 
-	resp, err := svidClient.BatchNewX509SVID(ctx, &svidpb.BatchNewX509SVIDRequest{
+	resp, err := svidClient.BatchNewX509SVID(ctx, &svidv1.BatchNewX509SVIDRequest{
 		Params: params,
 	})
 	if err != nil {
@@ -391,7 +394,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidpb.NewX509SVIDPar
 	return svids, nil
 }
 
-func (c *client) newEntryClient(ctx context.Context) (entrypb.EntryClient, *nodeConn, error) {
+func (c *client) newEntryClient(ctx context.Context) (entryv1.EntryClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -407,7 +410,7 @@ func (c *client) newEntryClient(ctx context.Context) (entrypb.EntryClient, *node
 	return c.createNewEntryClient(c.connections.conn), c.connections, nil
 }
 
-func (c *client) newBundleClient(ctx context.Context) (bundlepb.BundleClient, *nodeConn, error) {
+func (c *client) newBundleClient(ctx context.Context) (bundlev1.BundleClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -422,7 +425,7 @@ func (c *client) newBundleClient(ctx context.Context) (bundlepb.BundleClient, *n
 	return c.createNewBundleClient(c.connections.conn), c.connections, nil
 }
 
-func (c *client) newSVIDClient(ctx context.Context) (svidpb.SVIDClient, *nodeConn, error) {
+func (c *client) newSVIDClient(ctx context.Context) (svidv1.SVIDClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -437,7 +440,7 @@ func (c *client) newSVIDClient(ctx context.Context) (svidpb.SVIDClient, *nodeCon
 	return c.createNewSVIDClient(c.connections.conn), c.connections, nil
 }
 
-func (c *client) newAgentClient(ctx context.Context) (agentpb.AgentClient, *nodeConn, error) {
+func (c *client) newAgentClient(ctx context.Context) (agentv1.AgentClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 

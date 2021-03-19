@@ -15,15 +15,15 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
@@ -240,7 +240,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			}
 
 			// Mint CSR
-			resp, err := test.client.MintX509SVID(context.Background(), &svidpb.MintX509SVIDRequest{
+			resp, err := test.client.MintX509SVID(context.Background(), &svidv1.MintX509SVIDRequest{
 				Csr: csr,
 				Ttl: int32(tt.ttl / time.Second),
 			})
@@ -316,7 +316,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.ID{},
-			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is empty",
 			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
@@ -361,7 +361,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 				test.ca.SetJWTKey(nil)
 			}
 
-			resp, err := test.client.MintJWTSVID(context.Background(), &svidpb.MintJWTSVIDRequest{
+			resp, err := test.client.MintJWTSVID(context.Background(), &svidv1.MintJWTSVIDRequest{
 				Id:       api.ProtoFromID(tt.id),
 				Audience: tt.audience,
 				Ttl:      int32(tt.ttl / time.Second),
@@ -442,7 +442,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			entry:    invalidEntry,
-			err:      "invalid SPIFFE ID: spiffeid: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is empty",
 			logMsg:   "Invalid argument: invalid SPIFFE ID",
 		},
 		{
@@ -499,7 +499,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			test.rateLimiter.err = tt.rateLimiterErr
 			test.withCallerID = !tt.failCallerID
 
-			resp, err := test.client.NewJWTSVID(context.Background(), &svidpb.NewJWTSVIDRequest{
+			resp, err := test.client.NewJWTSVID(context.Background(), &svidv1.NewJWTSVIDRequest{
 				EntryId:  tt.entry.Id,
 				Audience: tt.audience,
 			})
@@ -844,21 +844,21 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			test.withCallerID = !tt.failCallerID
 			test.ef.err = tt.fetcherErr
 
-			var params []*svidpb.NewX509SVIDParams
+			var params []*svidv1.NewX509SVIDParams
 			for _, entryID := range tt.reqs {
 				// Create CSR
 				csr := createCSR(t, &x509.CertificateRequest{})
 				if tt.mutateCSR != nil {
 					csr = tt.mutateCSR(csr)
 				}
-				params = append(params, &svidpb.NewX509SVIDParams{
+				params = append(params, &svidv1.NewX509SVIDParams{
 					EntryId: entryID,
 					Csr:     csr,
 				})
 			}
 
 			// Batch svids
-			resp, err := test.client.BatchNewX509SVID(ctx, &svidpb.BatchNewX509SVIDRequest{
+			resp, err := test.client.BatchNewX509SVID(ctx, &svidv1.BatchNewX509SVIDRequest{
 				Params: params,
 			})
 			if tt.err != "" {
@@ -1054,7 +1054,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 				test.downstream.entries = nil
 			}
 
-			resp, err := test.client.NewDownstreamX509CA(ctx, &svidpb.NewDownstreamX509CARequest{
+			resp, err := test.client.NewDownstreamX509CA(ctx, &svidv1.NewDownstreamX509CARequest{
 				Csr: csr,
 			})
 
@@ -1079,7 +1079,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 }
 
 type serviceTest struct {
-	client       svidpb.SVIDClient
+	client       svidv1.SVIDClient
 	ef           *entryFetcher // Stores entries explicitly fetched using FetchAuthorizedEntries
 	downstream   *entryFetcher // Stores Downstream entries which end up in the context
 	ca           *fakeserverca.CA
@@ -1096,7 +1096,7 @@ func (c *serviceTest) Cleanup() {
 
 func setupServiceTest(t *testing.T) *serviceTest {
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
-	ca := fakeserverca.New(t, trustDomain.String(), &fakeserverca.Options{})
+	ca := fakeserverca.New(t, trustDomain, &fakeserverca.Options{})
 	ef := &entryFetcher{}
 	downstream := &entryFetcher{}
 	ds := fakedatastore.New(t)
@@ -1137,7 +1137,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	// Set create client and add to test
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
-	test.client = svidpb.NewSVIDClient(conn)
+	test.client = svidv1.NewSVIDClient(conn)
 	test.done = done
 
 	return test

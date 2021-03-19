@@ -4,19 +4,20 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	telemetry_registrationapi "github.com/spiffe/spire/pkg/common/telemetry/server/registrationapi"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -43,7 +44,7 @@ type Handler struct {
 	Log         logrus.FieldLogger
 	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
-	TrustDomain url.URL
+	TrustDomain spiffeid.TrustDomain
 	ServerCA    ca.ServerCA
 }
 
@@ -358,7 +359,7 @@ func (h *Handler) CreateFederatedBundle(ctx context.Context, request *registrati
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if bundle.TrustDomainId == h.TrustDomain.String() {
+	if bundle.TrustDomainId == h.TrustDomain.IDString() {
 		log.Error("Federated bundle id cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -386,7 +387,7 @@ func (h *Handler) FetchFederatedBundle(ctx context.Context, request *registratio
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if request.Id == h.TrustDomain.String() {
+	if request.Id == h.TrustDomain.IDString() {
 		log.Error("Federated bundle id cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -423,7 +424,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	}
 
 	for _, bundle := range resp.Bundles {
-		if bundle.TrustDomainId == h.TrustDomain.String() {
+		if bundle.TrustDomainId == h.TrustDomain.IDString() {
 			continue
 		}
 		if err := stream.Send(&registration.FederatedBundle{
@@ -454,7 +455,7 @@ func (h *Handler) UpdateFederatedBundle(ctx context.Context, request *registrati
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if bundle.TrustDomainId == h.TrustDomain.String() {
+	if bundle.TrustDomainId == h.TrustDomain.IDString() {
 		log.Error("Federated bundle ID cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -482,7 +483,7 @@ func (h *Handler) DeleteFederatedBundle(ctx context.Context, request *registrati
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if request.Id == h.TrustDomain.String() {
+	if request.Id == h.TrustDomain.IDString() {
 		log.Error("Federated bundle ID cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
@@ -552,7 +553,7 @@ func (h *Handler) FetchBundle(ctx context.Context, request *common.Empty) (_ *re
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.String(),
+		TrustDomainId: h.TrustDomain.IDString(),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to get bundle from datastore")
@@ -647,7 +648,7 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 	}
 
 	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.String(),
+		TrustDomainId: h.TrustDomain.IDString(),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch bundle from datastore")
@@ -744,17 +745,25 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 	return resp.Node, nil
 }
 
-func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (string, error) {
+func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (spiffeid.ID, error) {
 	if spiffeID == "" {
-		return "", status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
+		return spiffeid.ID{}, status.Error(codes.InvalidArgument, "request missing SPIFFE ID")
 	}
 
-	spiffeID, err := idutil.NormalizeSpiffeID(spiffeID, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	id, err := spiffeid.FromString(spiffeID)
 	if err != nil {
-		return "", status.Errorf(codes.InvalidArgument, err.Error())
+		return spiffeid.ID{}, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
-	return spiffeID, nil
+	if err = api.VerifyTrustDomainWorkloadID(h.TrustDomain, id); err != nil {
+		return spiffeid.ID{}, status.Errorf(codes.InvalidArgument, err.Error())
+	}
+
+	if err := idutil.CheckIDStringNormalization(spiffeID); err != nil {
+		return spiffeid.ID{}, status.Errorf(codes.InvalidArgument, "spiffe ID is malformed: %v", err)
+	}
+
+	return id, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
@@ -816,6 +825,7 @@ func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *c
 	return createResponse.Entry, false, nil
 }
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
+	original := entry
 	entry = cloneRegistrationEntry(entry)
 	if forUpdate && entry.EntryId == "" {
 		return nil, errors.New("missing registration entry id")
@@ -829,15 +839,23 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 		}
 	}
 
-	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
+	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain))
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate Spiffe ID
-	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain))
 	if err != nil {
 		return nil, err
+	}
+
+	if err := idutil.CheckIDStringNormalization(original.ParentId); err != nil {
+		return nil, fmt.Errorf("parent ID is malformed: %v", err)
+	}
+
+	if err := idutil.CheckIDStringNormalization(original.SpiffeId); err != nil {
+		return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
 	}
 
 	// Validate Selectors
@@ -886,6 +904,9 @@ func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	if len(cert.URIs) == 0 {
 		return "", errors.New("no SPIFFE ID in certificate")
+	}
+	if err := idutil.CheckIDURLNormalization(cert.URIs[0]); err != nil {
+		return "", fmt.Errorf("SPIFFE ID is malformed: %v", err)
 	}
 	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
 	if err != nil {

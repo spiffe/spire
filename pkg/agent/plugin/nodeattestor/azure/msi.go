@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
@@ -32,7 +33,7 @@ func builtin(p *MSIAttestorPlugin) catalog.Plugin {
 }
 
 type MSIAttestorConfig struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 
 	// ResourceID assigned to the MSI token. This value is the intended
 	// audience of the token, in other words, which service the token can be
@@ -99,7 +100,12 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, msiError.New("global configuration missing trust domain")
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+
+	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+	config.trustDomain = td
 
 	if config.ResourceID == "" {
 		config.ResourceID = azure.DefaultMSIResourceID

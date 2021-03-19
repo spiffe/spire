@@ -63,7 +63,7 @@ These multiple trust domain and interoperability use cases both require a well-d
 
 For additional detail on how this is achieved, refer to the following SPIFFE spec that describes the mechanism: https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Trust_Domain_and_Bundle.md#5-spiffe-bundle-endpoint
 
-For a tutorial on configuring Federated SPIRE, refer to: https://github.com/spiffe/spire-tutorials/tree/master/federation
+For a tutorial on configuring Federated SPIRE, refer to: https://github.com/spiffe/spire-tutorials/tree/master/docker-compose/federation
 
 # Interaction with External Systems
 

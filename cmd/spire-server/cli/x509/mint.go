@@ -18,10 +18,10 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 )
 
 type generateKeyFunc func() (crypto.Signer, error)
@@ -89,7 +89,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	}
 
 	client := serverClient.NewSVIDClient()
-	resp, err := client.MintX509SVID(ctx, &svid.MintX509SVIDRequest{
+	resp, err := client.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 		Csr: csr,
 		Ttl: ttlToSeconds(c.ttl),
 	})
@@ -102,7 +102,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	}
 
 	bundleClient := serverClient.NewBundleClient()
-	ca, err := bundleClient.GetBundle(ctx, &bundle.GetBundleRequest{})
+	ca, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		return fmt.Errorf("unable to get bundle: %v", err)
 	}

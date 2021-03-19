@@ -91,16 +91,7 @@ func (u *UpstreamClient) MintX509CA(ctx context.Context, csr []byte, ttl time.Du
 
 	select {
 	case result := <-firstResultCh:
-		switch {
-		case result.err != nil:
-			return nil, result.err
-		case result.done:
-			// There isn't going to be any more responses on the stream because
-			// we're not participating in the upstream PKI so upstream bundle
-			// updates are inconsequential.
-			u.mintX509CAStream.Stop()
-		}
-		return result.x509CA, nil
+		return result.x509CA, result.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -135,16 +126,7 @@ func (u *UpstreamClient) PublishJWTKey(ctx context.Context, jwtKey *common.Publi
 
 	select {
 	case result := <-firstResultCh:
-		switch {
-		case result.err != nil:
-			return nil, result.err
-		case result.done:
-			// There isn't going to be any more responses on the stream because
-			// we're not participating in the upstream PKI so upstream bundle
-			// updates are inconsequential.
-			u.publishJWTKeyStream.Stop()
-		}
-		return result.jwtKeys, nil
+		return result.jwtKeys, result.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -261,7 +243,6 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 
 type mintX509CAResult struct {
 	x509CA []*x509.Certificate
-	done   bool
 	err    error
 }
 
@@ -301,7 +282,6 @@ func parseX509Roots(rawX509Roots [][]byte) ([]*x509.Certificate, error) {
 type publishJWTKeyResult struct {
 	jwtKeys []*common.PublicKey
 	err     error
-	done    bool
 }
 
 // streamState manages the state for open streams to the plugin that are

@@ -2,8 +2,6 @@ module github.com/spiffe/spire
 
 go 1.15
 
-replace github.com/spiffe/spire/proto/spire => ./proto/spire
-
 require (
 	cloud.google.com/go/storage v1.6.0
 	github.com/Azure/azure-sdk-for-go v44.0.0+incompatible
@@ -45,7 +43,7 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.9
 	github.com/lib/pq v1.1.1
-	github.com/mattn/go-sqlite3 v1.10.0
+	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
@@ -54,8 +52,8 @@ require (
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.4
-	github.com/spiffe/spire/proto/spire v0.10.1
+	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5
+	github.com/spiffe/spire-api-sdk v1.0.0-pre.0.20210318220945-7ff3eb0759ce
 	github.com/stretchr/testify v1.5.1
 	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.2

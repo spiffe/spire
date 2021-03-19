@@ -13,6 +13,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -23,20 +26,13 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
-
-// RegisterService registers the agent service on the gRPC server/
-func RegisterService(s *grpc.Server, service *Service) {
-	agent.RegisterAgentServer(s, service)
-}
 
 // Config is the service configuration
 type Config struct {
@@ -45,6 +41,17 @@ type Config struct {
 	DataStore   datastore.DataStore
 	ServerCA    ca.ServerCA
 	TrustDomain spiffeid.TrustDomain
+}
+
+// Service implements the v1 agent service
+type Service struct {
+	agentv1.UnsafeAgentServer
+
+	cat catalog.Catalog
+	clk clock.Clock
+	ds  datastore.DataStore
+	ca  ca.ServerCA
+	td  spiffeid.TrustDomain
 }
 
 // New creates a new agent service
@@ -58,18 +65,24 @@ func New(config Config) *Service {
 	}
 }
 
-// Service implements the v1 agent service
-type Service struct {
-	agent.UnsafeAgentServer
-
-	cat catalog.Catalog
-	clk clock.Clock
-	ds  datastore.DataStore
-	ca  ca.ServerCA
-	td  spiffeid.TrustDomain
+// RegisterService registers the agent service on the gRPC server/
+func RegisterService(s *grpc.Server, service *Service) {
+	agentv1.RegisterAgentServer(s, service)
 }
 
-func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) (*agent.ListAgentsResponse, error) {
+// CountAgents returns the total number of agents.
+func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
+	dsResp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	if err != nil {
+		log := rpccontext.Logger(ctx)
+		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
+	}
+
+	return &agentv1.CountAgentsResponse{Count: dsResp.Nodes}, nil
+}
+
+// ListAgents returns an optionally filtered and/or paginated list of agents.
+func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest) (*agentv1.ListAgentsResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	listReq := &datastore.ListAttestedNodesRequest{}
@@ -108,7 +121,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 		return nil, api.MakeErr(log, codes.Internal, "failed to list agents", err)
 	}
 
-	resp := &agent.ListAgentsResponse{}
+	resp := &agentv1.ListAgentsResponse{}
 
 	if dsResp.Pagination != nil {
 		resp.NextPageToken = dsResp.Pagination.Token
@@ -129,7 +142,8 @@ func (s *Service) ListAgents(ctx context.Context, req *agent.ListAgentsRequest) 
 	return resp, nil
 }
 
-func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*types.Agent, error) {
+// GetAgent returns the agent associated with the given SpiffeID.
+func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*types.Agent, error) {
 	log := rpccontext.Logger(ctx)
 
 	agentID, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -163,7 +177,8 @@ func (s *Service) GetAgent(ctx context.Context, req *agent.GetAgentRequest) (*ty
 	return agent, nil
 }
 
-func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest) (*emptypb.Empty, error) {
+// DeleteAgent removes the agent with the given SpiffeID.
+func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -187,7 +202,8 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agent.DeleteAgentRequest
 	}
 }
 
-func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*emptypb.Empty, error) {
+// BanAgent sets the agent with the given SpiffeID to the banned state.
+func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
@@ -218,7 +234,8 @@ func (s *Service) BanAgent(ctx context.Context, req *agent.BanAgentRequest) (*em
 	}
 }
 
-func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
+// AttestAgent attests the authenticity of the given agent.
+func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 
@@ -254,11 +271,16 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	}
 
 	agentID := attestResp.AgentId
+	log = log.WithField(telemetry.AgentID, agentID)
+
+	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
+		return api.MakeErr(log, codes.Internal, "agent ID is malformed", err)
+	}
+
 	agentSpiffeID, err := spiffeid.FromString(agentID)
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "invalid agent id", err)
 	}
-	log = log.WithField(telemetry.AgentID, agentID)
 
 	// fetch the agent/node to check if it was already attested or banned
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
@@ -273,7 +295,7 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	}
 
 	// parse and sign CSR
-	svid, err := s.signSvid(ctx, &agentSpiffeID, params.Params.Csr, log)
+	svid, err := s.signSvid(ctx, agentSpiffeID, params.Params.Csr, log)
 	if err != nil {
 		return err
 	}
@@ -332,7 +354,8 @@ func (s *Service) AttestAgent(stream agent.Agent_AttestAgentServer) error {
 	return nil
 }
 
-func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) (*agent.RenewAgentResponse, error) {
+// RenewAgent renews the SVID of the agent with the given SpiffeID.
+func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest) (*agentv1.RenewAgentResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
@@ -353,7 +376,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
 
-	agentSVID, err := s.signSvid(ctx, &callerID, req.Params.Csr, log)
+	agentSVID, err := s.signSvid(ctx, callerID, req.Params.Csr, log)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +394,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 	}
 
 	// Send response with new X509 SVID
-	return &agent.RenewAgentResponse{
+	return &agentv1.RenewAgentResponse{
 		Svid: &types.X509SVID{
 			Id:        api.ProtoFromID(callerID),
 			ExpiresAt: agentSVID[0].NotAfter.Unix(),
@@ -380,7 +403,8 @@ func (s *Service) RenewAgent(ctx context.Context, req *agent.RenewAgentRequest) 
 	}, nil
 }
 
-func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinTokenRequest) (*types.JoinToken, error) {
+// CreateJoinToken returns a new JoinToken for an agent.
+func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTokenRequest) (*types.JoinToken, error) {
 	log := rpccontext.Logger(ctx)
 
 	if req.Ttl < 1 {
@@ -394,6 +418,9 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agent.CreateJoinToke
 		agentID, err = api.TrustDomainWorkloadIDFromProto(s.td, req.AgentId)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
+		}
+		if err := idutil.CheckIDProtoNormalization(req.AgentId); err != nil {
+			return nil, api.MakeErr(log, codes.InvalidArgument, "agent ID is malformed", err)
 		}
 		log.WithField(telemetry.SPIFFEID, agentID.String())
 	}
@@ -459,7 +486,7 @@ func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateA
 	}
 }
 
-func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
+func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
 	parsedCsr, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse CSR", err)
@@ -467,7 +494,7 @@ func (s *Service) signSvid(ctx context.Context, agentID *spiffeid.ID, csr []byte
 
 	// Sign a new X509 SVID
 	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  agentID.String(),
+		SpiffeID:  agentID,
 		PublicKey: parsedCsr.PublicKey,
 	})
 	if err != nil {
@@ -517,13 +544,13 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 	}, nil
 }
 
-func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent.Agent_AttestAgentServer, params *agent.AttestAgentRequest_Params) (*nodeattestor.AttestResponse, error) {
+func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agentv1.Agent_AttestAgentServer, params *agentv1.AttestAgentRequest_Params) (*nodeattestor.AttestResponse, error) {
 	attestorType := params.Data.Type
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, attestorType)
 
 	nodeAttestor, ok := s.cat.GetNodeAttestorNamed(attestorType)
 	if !ok {
-		return nil, api.MakeErr(log, codes.FailedPrecondition, "could not find node attestor type", nil)
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "error getting node attestor", fmt.Errorf("could not find node attestor type %q", attestorType))
 	}
 
 	attestorStream, err := nodeAttestor.Attest(ctx)
@@ -549,8 +576,8 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 			break
 		}
 
-		resp := &agent.AttestAgentResponse{
-			Step: &agent.AttestAgentResponse_Challenge{
+		resp := &agentv1.AttestAgentResponse{
+			Step: &agentv1.AttestAgentResponse_Challenge{
 				Challenge: attestResp.Challenge,
 			},
 		}
@@ -633,7 +660,7 @@ func applyMask(a *types.Agent, mask *types.AgentMask) {
 	}
 }
 
-func validateAttestAgentParams(params *agent.AttestAgentRequest_Params) error {
+func validateAttestAgentParams(params *agentv1.AttestAgentRequest_Params) error {
 	switch {
 	case params == nil:
 		return errors.New("missing params")
@@ -659,16 +686,16 @@ func attest(attestorStream nodeattestor.NodeAttestor_AttestClient, attestRequest
 	return attestorStream.Recv()
 }
 
-func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certificate) *agent.AttestAgentResponse {
+func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certificate) *agentv1.AttestAgentResponse {
 	svid := &types.X509SVID{
 		Id:        api.ProtoFromID(spiffeID),
 		CertChain: x509util.RawCertsFromCertificates(certificates),
 		ExpiresAt: certificates[0].NotAfter.Unix(),
 	}
 
-	return &agent.AttestAgentResponse{
-		Step: &agent.AttestAgentResponse_Result_{
-			Result: &agent.AttestAgentResponse_Result{
+	return &agentv1.AttestAgentResponse{
+		Step: &agentv1.AttestAgentResponse_Result_{
+			Result: &agentv1.AttestAgentResponse_Result{
 				Svid: svid,
 			},
 		},

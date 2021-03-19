@@ -10,9 +10,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
@@ -61,7 +61,7 @@ func validateNewDownstreamX509CA(ctx context.Context, c *itclient.Client) error 
 	}
 
 	// Create new svid client and new downstream CA
-	resp, err := c.SVIDClient().NewDownstreamX509CA(ctx, &svid.NewDownstreamX509CARequest{
+	resp, err := c.SVIDClient().NewDownstreamX509CA(ctx, &svidv1.NewDownstreamX509CARequest{
 		Csr: csr,
 	})
 	switch {
@@ -90,7 +90,7 @@ func validatePublishJWTAUthorirty(ctx context.Context, c *itclient.Client) error
 		ExpiresAt: time.Now().Add(time.Minute).Unix(),
 		KeyId:     "authority1",
 	}
-	resp, err := c.BundleClient().PublishJWTAuthority(ctx, &bundle.PublishJWTAuthorityRequest{
+	resp, err := c.BundleClient().PublishJWTAuthority(ctx, &bundlev1.PublishJWTAuthorityRequest{
 		JwtAuthority: jwtKey,
 	})
 	switch {

@@ -3,15 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"path"
 	"sort"
 	"sync"
 	"testing"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -581,5 +580,5 @@ func stringFromID(id *types.SPIFFEID) string {
 	if id == nil {
 		return ""
 	}
-	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, path.Clean("/"+id.Path))
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }

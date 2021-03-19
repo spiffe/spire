@@ -101,6 +101,9 @@ type acmeKeyStore struct {
 func (ks *acmeKeyStore) GetPrivateKey(ctx context.Context, id string) (crypto.Signer, error) {
 	keyID := acmeKeyPrefix + id
 
+	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
+	defer cancel()
+
 	resp, err := ks.km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
 		KeyId: keyID,
 	})
@@ -126,6 +129,9 @@ func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType au
 	default:
 		return nil, errs.New("unsupported key type: %d", keyType)
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
+	defer cancel()
 
 	resp, err := ks.km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
 		KeyId:   keyID,

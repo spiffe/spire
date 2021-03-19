@@ -18,12 +18,12 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	spiretypes "github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -52,7 +52,7 @@ type PodReconciler struct {
 	Mode               PodReconcilerMode
 	Value              string
 	RootID             *spiretypes.SPIFFEID
-	SpireClient        entry.EntryClient
+	SpireClient        entryv1.EntryClient
 	ClusterDNSZone     string
 	AddPodDNSNames     bool
 	DisabledNamespaces map[string]bool
@@ -229,23 +229,23 @@ func (r *PodReconciler) makeSpiffeIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID
 	var spiffeID *spiretypes.SPIFFEID
 	switch r.Mode {
 	case PodReconcilerModeServiceAccount:
-		spiffeID = r.makeID(path.Join("/ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName))
+		spiffeID = r.makeID("ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName)
 	case PodReconcilerModeLabel:
 		if val, ok := pod.GetLabels()[r.Value]; ok {
-			spiffeID = r.makeID(path.Join("/", val))
+			spiffeID = r.makeID(val)
 		}
 	case PodReconcilerModeAnnotation:
 		if val, ok := pod.GetAnnotations()[r.Value]; ok {
-			spiffeID = r.makeID(path.Join("/", val))
+			spiffeID = r.makeID(val)
 		}
 	}
 	return spiffeID
 }
 
-func (r *PodReconciler) makeID(path string) *spiretypes.SPIFFEID {
+func (r *PodReconciler) makeID(segments ...string) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.TrustDomain,
-		Path:        path,
+		Path:        idutil.JoinPathSegments(segments...),
 	}
 }
 
@@ -256,7 +256,7 @@ func (r *PodReconciler) makeParentIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID
 	}
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.RootID.TrustDomain,
-		Path:        path.Join(r.RootID.Path, nodeName),
+		Path:        r.RootID.Path + idutil.JoinPathSegments(nodeName),
 	}
 }
 
@@ -352,7 +352,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, builder *ctrlBuilder.
 	return nil
 }
 
-func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entry.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
+func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entryv1.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
 	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
 	for _, ns := range disabledNamespaces {
 		disabledNamespacesMap[ns] = true

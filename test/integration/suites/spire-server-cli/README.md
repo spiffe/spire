@@ -1,4 +1,4 @@
-# spire-server-cli suite
+# SPIRE Server CLI Suite
 
 ## Description
 

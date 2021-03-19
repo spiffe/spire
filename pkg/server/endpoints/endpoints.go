@@ -14,11 +14,17 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	debugv1_pb "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -27,13 +33,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	datastore_pb "github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
-	agentv1_pb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	bundlev1_pb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	debugv1_pb "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
-	entryv1_pb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	svidv1_pb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
 )
 
 // This is the maximum amount of time an agent connection may exist before
@@ -68,31 +68,35 @@ type Endpoints struct {
 
 type OldAPIServers struct {
 	RegistrationServer registration_pb.RegistrationServer
-	NodeServer         node_pb.NodeServer
 }
 
 type APIServers struct {
-	AgentServer  agentv1_pb.AgentServer
-	BundleServer bundlev1_pb.BundleServer
+	AgentServer  agentv1.AgentServer
+	BundleServer bundlev1.BundleServer
 	DebugServer  debugv1_pb.DebugServer
-	EntryServer  entryv1_pb.EntryServer
-	SVIDServer   svidv1_pb.SVIDServer
+	EntryServer  entryv1.EntryServer
+	HealthServer grpc_health_v1.HealthServer
+	SVIDServer   svidv1.SVIDServer
 }
 
 // RateLimitConfig holds rate limiting configurations.
 type RateLimitConfig struct {
 	// Attestation, if true, rate limits attestation
 	Attestation bool
+
+	// Signing, if true, rate limits JWT and X509 signing requests
+	Signing bool
 }
 
 // New creates new endpoints struct
 func New(ctx context.Context, c Config) (*Endpoints, error) {
-	oldAPIServers, err := c.makeOldAPIServers()
-	if err != nil {
-		return nil, err
+	if err := os.MkdirAll(c.UDSAddr.String(), 0750); err != nil {
+		return nil, fmt.Errorf("unable to create socket directory: %w", err)
 	}
 
-	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
+	oldAPIServers := c.makeOldAPIServers()
+
+	buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 		defer call.Done(&err)
 		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
@@ -132,20 +136,21 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	udsServer := e.createUDSServer(unaryInterceptor, streamInterceptor)
 
 	// Old APIs
-	node_pb.RegisterNodeServer(tcpServer, e.OldAPIServers.NodeServer)
 	registration_pb.RegisterRegistrationServer(tcpServer, e.OldAPIServers.RegistrationServer)
 	registration_pb.RegisterRegistrationServer(udsServer, e.OldAPIServers.RegistrationServer)
 
 	// New APIs
-	agentv1_pb.RegisterAgentServer(tcpServer, e.APIServers.AgentServer)
-	agentv1_pb.RegisterAgentServer(udsServer, e.APIServers.AgentServer)
-	bundlev1_pb.RegisterBundleServer(tcpServer, e.APIServers.BundleServer)
-	bundlev1_pb.RegisterBundleServer(udsServer, e.APIServers.BundleServer)
-	entryv1_pb.RegisterEntryServer(tcpServer, e.APIServers.EntryServer)
-	entryv1_pb.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
-	svidv1_pb.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
-	svidv1_pb.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
-	// Register Debug API only on UDS server
+	agentv1.RegisterAgentServer(tcpServer, e.APIServers.AgentServer)
+	agentv1.RegisterAgentServer(udsServer, e.APIServers.AgentServer)
+	bundlev1.RegisterBundleServer(tcpServer, e.APIServers.BundleServer)
+	bundlev1.RegisterBundleServer(udsServer, e.APIServers.BundleServer)
+	entryv1.RegisterEntryServer(tcpServer, e.APIServers.EntryServer)
+	entryv1.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
+	svidv1.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
+	svidv1.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
+
+	// Register Health and Debug only on UDS server
+	grpc_health_v1.RegisterHealthServer(udsServer, e.APIServers.HealthServer)
 	debugv1_pb.RegisterDebugServer(udsServer, e.APIServers.DebugServer)
 
 	tasks := []func(context.Context) error{
@@ -260,10 +265,8 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 		}
 
 		return &tls.Config{
-			// When bootstrapping, the agent does not yet have
-			// an SVID. In order to include the bootstrap endpoint
-			// in the same server as the rest of the Node API,
-			// request but don't require a client certificate
+			// Not all server APIs required a client certificate. Though if one
+			// is presented, verify it.
 			ClientAuth: tls.VerifyClientCertIfGiven,
 
 			Certificates: certs,

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+log-debug "bootstrapping agent..."
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+
+# Set conf files for each agent
+cp -R conf/agent/ conf/agent-1
+cp -R conf/agent/ conf/agent-2
+cp -R conf/agent/ conf/agent-3
+
+# Set a different join token for each agent
+# Agent 1
+log-info "generating join token for agent 1..."
+TOKEN=$(docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node1 | awk '{print $2}' | tr -d '\r')
+
+log-debug "using join token ${TOKEN} for agent 1..."
+sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent-1/agent.conf
+
+# Agent 2
+log-info "generating join token for agent 2..."
+TOKEN=$(docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node2 | awk '{print $2}' | tr -d '\r')
+
+log-debug "using join token ${TOKEN} for agent 2..."
+sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent-2/agent.conf
+
+# Agent 3
+log-info "generating join token for agent 3..."
+TOKEN=$(docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node3 | awk '{print $2}' | tr -d '\r')
+
+log-debug "using join token ${TOKEN} for agent 3..."
+sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent-3/agent.conf

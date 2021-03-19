@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/hcl/hcl/printer"
@@ -93,9 +94,10 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Agent.LogLevel, "INFO")
 	assert.Equal(t, c.Agent.ServerAddress, "127.0.0.1")
 	assert.Equal(t, c.Agent.ServerPort, 8081)
-	assert.Equal(t, c.Agent.SocketPath, "/tmp/agent.sock")
+	assert.Equal(t, c.Agent.SocketPath, "/tmp/spire-agent/public/api.sock")
 	assert.Equal(t, c.Agent.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.Agent.TrustDomain, "example.org")
+	assert.Equal(t, c.Agent.AllowUnauthenticatedVerifiers, true)
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -137,20 +139,22 @@ func TestParseFlagsGood(t *testing.T) {
 		"-logLevel=INFO",
 		"-serverAddress=127.0.0.1",
 		"-serverPort=8081",
-		"-socketPath=/tmp/agent.sock",
+		"-socketPath=/tmp/spire-agent/public/api.sock",
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
 		"-trustBundleUrl=https://test.url",
 		"-trustDomain=example.org",
+		"-allowUnauthenticatedVerifiers",
 	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.DataDir, ".")
 	assert.Equal(t, c.LogLevel, "INFO")
 	assert.Equal(t, c.ServerAddress, "127.0.0.1")
 	assert.Equal(t, c.ServerPort, 8081)
-	assert.Equal(t, c.SocketPath, "/tmp/agent.sock")
+	assert.Equal(t, c.SocketPath, "/tmp/spire-agent/public/api.sock")
 	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.TrustBundleURL, "https://test.url")
 	assert.Equal(t, c.TrustDomain, "example.org")
+	assert.Equal(t, c.AllowUnauthenticatedVerifiers, true)
 }
 
 func TestMergeInput(t *testing.T) {
@@ -190,30 +194,6 @@ func TestMergeInput(t *testing.T) {
 			},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Agent.DataDir)
-			},
-		},
-		{
-			msg: "deprecated enable_sds should be configurable by file",
-			fileInput: func(c *Config) {
-				enableSDS := true
-				c.Agent.DeprecatedEnableSDS = &enableSDS
-			},
-			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
-				require.True(t, *c.Agent.DeprecatedEnableSDS)
-			},
-		},
-		{
-			msg:       "deprecated enable_sds should be configurable by CLI flag",
-			fileInput: func(c *Config) {},
-			cliInput: func(c *agentConfig) {
-				enableSDS := true
-				c.DeprecatedEnableSDS = &enableSDS
-			},
-			test: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.Agent.DeprecatedEnableSDS)
-				require.True(t, *c.Agent.DeprecatedEnableSDS)
 			},
 		},
 		{
@@ -483,11 +463,11 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "socket_path should default to /tmp/agent.sock if not set",
+			msg:       "socket_path should default to /tmp/spire-agent/public/api.sock if not set",
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "/tmp/agent.sock", c.Agent.SocketPath)
+				require.Equal(t, "/tmp/spire-agent/public/api.sock", c.Agent.SocketPath)
 			},
 		},
 		{
@@ -640,6 +620,7 @@ func TestNewAgentConfig(t *testing.T) {
 		msg         string
 		expectError bool
 		input       func(*Config)
+		logOptions  func(t *testing.T) []log.Option
 		test        func(*testing.T, *agent.Config)
 	}{
 		{
@@ -658,7 +639,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.TrustDomain = "foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "spiffe://foo", c.TrustDomain.String())
+				require.Equal(t, "spiffe://foo", c.TrustDomain.IDString())
 			},
 		},
 		{
@@ -715,15 +696,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, "foo", c.DataDir)
-			},
-		},
-		{
-			msg: "enable_sds should not prevent agent configuration",
-			input: func(c *Config) {
-				enableSDS := true
-				c.Agent.DeprecatedEnableSDS = &enableSDS
-			},
-			test: func(t *testing.T, c *agent.Config) {
 			},
 		},
 		{
@@ -891,6 +863,34 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, c)
 			},
 		},
+		{
+			msg: "warn_on_long_trust_domain",
+			input: func(c *Config) {
+				c.Agent.TrustDomain = strings.Repeat("a", 256)
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(ioutil.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+									Level: logrus.WarnLevel,
+									Message: "Configured trust domain name should be less than 255 characters to be " +
+										"SPIFFE compliant; a longer trust domain name may impact interoperability",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				assert.NotNil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -901,7 +901,12 @@ func TestNewAgentConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			ac, err := NewAgentConfig(input, []log.Option{}, false)
+			var logOpts []log.Option
+			if testCase.logOptions != nil {
+				logOpts = testCase.logOptions(t)
+			}
+
+			ac, err := NewAgentConfig(input, logOpts, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {

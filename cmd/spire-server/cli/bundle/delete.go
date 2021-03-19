@@ -7,10 +7,10 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"google.golang.org/grpc/codes"
 )
 
@@ -66,7 +66,7 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 	}
 
 	bundleClient := serverClient.NewBundleClient()
-	resp, err := bundleClient.BatchDeleteFederatedBundle(ctx, &bundle.BatchDeleteFederatedBundleRequest{
+	resp, err := bundleClient.BatchDeleteFederatedBundle(ctx, &bundlev1.BatchDeleteFederatedBundleRequest{
 		Mode: mode,
 		TrustDomains: []string{
 			id,
@@ -85,15 +85,15 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 	}
 }
 
-func deleteModeFromFlag(mode string) (bundle.BatchDeleteFederatedBundleRequest_Mode, error) {
+func deleteModeFromFlag(mode string) (bundlev1.BatchDeleteFederatedBundleRequest_Mode, error) {
 	switch mode {
 	case "", deleteBundleRestrict:
-		return bundle.BatchDeleteFederatedBundleRequest_RESTRICT, nil
+		return bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT, nil
 	case deleteBundleDissociate:
-		return bundle.BatchDeleteFederatedBundleRequest_DISSOCIATE, nil
+		return bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE, nil
 	case deleteBundleDelete:
-		return bundle.BatchDeleteFederatedBundleRequest_DELETE, nil
+		return bundlev1.BatchDeleteFederatedBundleRequest_DELETE, nil
 	default:
-		return bundle.BatchDeleteFederatedBundleRequest_RESTRICT, fmt.Errorf("unsupported mode %q", mode)
+		return bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT, fmt.Errorf("unsupported mode %q", mode)
 	}
 }
