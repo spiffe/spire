@@ -58,6 +58,13 @@ func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principal
 	}
 
 	values := result.Values()
+	for len(values) == 0 {
+		nerr := result.NextWithContext(ctx)
+		if nerr != nil {
+			return "", errs.Wrap(nerr)
+		}
+		values = result.Values()
+	}
 	if len(values) == 0 {
 		return "", errs.New("principal %q not found", principalID)
 	}
