@@ -1,7 +1,6 @@
 package fakeservercatalog
 
 import (
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -51,10 +50,10 @@ func (c *Catalog) AddNotifier(notifier catalog.Notifier) {
 	c.Notifiers = append(c.Notifiers, notifier)
 }
 
-func Notifier(name string, notifier notifier.Notifier) catalog.Notifier {
+func Notifier(name string, n notifier.Notifier) catalog.Notifier {
 	return catalog.Notifier{
-		PluginInfo: pluginInfo{name: name, typ: workloadattestor.Type},
-		Notifier:   notifier,
+		PluginInfo: pluginInfo{name: name, typ: notifier.Type},
+		Notifier:   n,
 	}
 }
 

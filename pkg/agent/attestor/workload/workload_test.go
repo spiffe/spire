@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -14,11 +13,28 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
 
 var (
 	ctx = context.Background()
+
+	selectors1 = []*common.Selector{{Type: "foo", Value: "bar"}}
+	selectors2 = []*common.Selector{{Type: "bat", Value: "baz"}}
+
+	attestor1Pids = map[int32][]*common.Selector{
+		1: nil,
+		2: selectors1,
+		// 3: attestor1 cannot attest process 3
+		4: selectors1,
+	}
+	attestor2Pids = map[int32][]*common.Selector{
+		1: nil,
+		2: nil,
+		3: selectors2,
+		4: selectors2,
+	}
 )
 
 func TestWorkloadAttestor(t *testing.T) {
@@ -28,84 +44,57 @@ func TestWorkloadAttestor(t *testing.T) {
 type WorkloadAttestorTestSuite struct {
 	suite.Suite
 
-	attestor  *attestor
-	attestor1 *fakeworkloadattestor.WorkloadAttestor
-	attestor2 *fakeworkloadattestor.WorkloadAttestor
+	attestor *attestor
+	catalog  *fakeagentcatalog.Catalog
 }
 
 func (s *WorkloadAttestorTestSuite) SetupTest() {
-	s.attestor1 = fakeworkloadattestor.New()
-	s.attestor2 = fakeworkloadattestor.New()
-
 	log, _ := test.NewNullLogger()
 
-	catalog := fakeagentcatalog.New()
-	catalog.SetWorkloadAttestors(
-		fakeagentcatalog.WorkloadAttestor("fake1", s.attestor1),
-		fakeagentcatalog.WorkloadAttestor("fake2", s.attestor2),
-	)
-
+	s.catalog = fakeagentcatalog.New()
 	s.attestor = newAttestor(&Config{
-		Catalog: catalog,
+		Catalog: s.catalog,
 		Log:     log,
 		Metrics: telemetry.Blackhole{},
 	})
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
-	selectors1 := []*common.Selector{{Type: "foo", Value: "bar"}}
-	selectors2 := []*common.Selector{{Type: "bat", Value: "baz"}}
-	combined := append(selectors1, selectors2...)
-	util.SortSelectors(combined)
+	s.catalog.SetWorkloadAttestors(
+		fakeworkloadattestor.New(s.T(), "fake1", attestor1Pids),
+		fakeworkloadattestor.New(s.T(), "fake2", attestor2Pids),
+	)
 
 	// both attestors succeed but with no selectors
-	s.attestor1.SetSelectors(1, nil)
-	s.attestor2.SetSelectors(1, nil)
 	selectors := s.attestor.Attest(ctx, 1)
 	s.Empty(selectors)
 
 	// attestor1 has selectors, but not attestor2
-	s.attestor1.SetSelectors(2, selectors1)
-	s.attestor2.SetSelectors(2, nil)
 	selectors = s.attestor.Attest(ctx, 2)
-	s.Equal(selectors1, selectors)
+	spiretest.AssertProtoListEqual(s.T(), selectors1, selectors)
 
 	// attestor2 has selectors, attestor1 fails
-	s.attestor2.SetSelectors(3, selectors2)
 	selectors = s.attestor.Attest(ctx, 3)
-	s.Equal(selectors2, selectors)
+	spiretest.AssertProtoListEqual(s.T(), selectors2, selectors)
 
 	// both have selectors
-	s.attestor1.SetSelectors(4, selectors1)
-	s.attestor2.SetSelectors(4, selectors2)
 	selectors = s.attestor.Attest(ctx, 4)
 	util.SortSelectors(selectors)
-	s.Equal(combined, selectors)
+	combined := append(selectors1, selectors2...)
+	util.SortSelectors(combined)
+	spiretest.AssertProtoListEqual(s.T(), combined, selectors)
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	// Add only one attestor
-	catalog := fakeagentcatalog.New()
-	catalog.SetWorkloadAttestors(
-		fakeagentcatalog.WorkloadAttestor("fake1", s.attestor1),
+	s.catalog.SetWorkloadAttestors(
+		fakeworkloadattestor.New(s.T(), "fake1", attestor1Pids),
 	)
+
 	// Use fake metrics
 	metrics := fakemetrics.New()
-
 	s.attestor.c.Metrics = metrics
-	s.attestor.c.Catalog = catalog
 
-	// Create context with life limit
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-
-	// Without the security header
-	selectors1 := []*common.Selector{{Type: "foo", Value: "bar"}}
-
-	// attestor1 has selectors, but not attestor2
-	s.attestor1.SetSelectors(2, selectors1)
-
-	// Expect selectors from both attestors
 	selectors := s.attestor.Attest(ctx, 2)
 
 	// Create expected metrics
@@ -123,7 +112,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	s.attestor.c.Metrics = metrics
 
 	// No selectors expected
-	selectors = s.attestor.Attest(ctx, 1)
+	selectors = s.attestor.Attest(ctx, 3)
 	s.Empty(selectors)
 
 	// Create expected metrics with error key

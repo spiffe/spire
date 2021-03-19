@@ -23,10 +23,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
@@ -58,7 +58,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, workloadattestorv0.PluginServer(p))
 }
 
 // HCLConfig holds the configuration parsed from HCL
@@ -135,7 +135,7 @@ type k8sConfig struct {
 }
 
 type Plugin struct {
-	workloadattestor.UnsafeWorkloadAttestorServer
+	workloadattestorv0.UnsafeWorkloadAttestorServer
 
 	log    hclog.Logger
 	fs     cgroups.FileSystem
@@ -158,7 +158,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &workloadattestor.AttestResponse{}, nil
+		return &workloadattestorv0.AttestResponse{}, nil
 	}
 
 	log := p.log.With(telemetry.ContainerID, containerID)
@@ -191,7 +191,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
-				return &workloadattestor.AttestResponse{
+				return &workloadattestorv0.AttestResponse{
 					Selectors: getSelectorsFromPodInfo(&item, status),
 				}, nil
 			case containerNotInPod:
